@@ -2,6 +2,8 @@
 This is IPTV player written in JAVA and can be natively compiled to Linux binary. 
 This should also be able to natively compile to a binary on Windows/OSX but this has never been tried.
 
+![UUIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
+
 #### Features:
     1- External Player only: This IPTV player only works with external players only and has no built in player. Tested players are VLC, MPV, SMPLayer & Celluloid.
     
