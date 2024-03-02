@@ -37,45 +37,40 @@ Please install maven.
 There are two ways you can run this project.
 
 #### Method 1:
-
-&emsp;mvn clean install. Go to target folder, copy /web folder, /lib folder and UIPTV.jar file in to your favourite folder.
-
-&emsp;Assuming you can copies the above files and folder in ~/uiptv/ folder then run:
-
-&emsp;cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
-
+<p>
+&emsp;This should work on Windows, OSX and linux.
+<br />&emsp;mvn clean install. Go to target folder, copy /web folder, /lib folder and UIPTV.jar file in to your favourite folder.
+<br />&emsp;Assuming you can copies the above files and folder in ~/uiptv/ folder then run:
+<br />&emsp;cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
+</p>
 #### Method 2:
 
-&emsp;Native image. Its recommended because it runs a lot faster and smoother. Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/
-
-&emsp;This page will guide to install prerequisite dependencies that are needed. 
-
-&emsp;To compile for Ubuntu for instance, you need to install 
-
-&emsp;sudo apt-get install build-essential libz-dev zlib1g-dev
-
-&emsp;Then compile with mvn gluonfx:build. 
- 
-&emsp;Chances are that there will be further missing dependencies. mvn gluonfx:build may fail in this case, please carefully read the message as it will describe the missing dependecnies (or google error messages)  
-
-&emsp;Once everything is sucessfully compile please copy .../target/uiptv/target/gluonfx/x86_64-linux/UIPTV & web folder from .../target. make UIPTV executable and double click to run it.
-
+<br />&emsp;Native image. Its recommended because it runs a lot faster and smoother. 
+<br />&emsp;Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/
+<br />&emsp;This page will guide to install prerequisite dependencies that are needed. 
+<br />&emsp;To compile for Ubuntu for instance, you need to install 
+<br />&emsp;sudo apt-get install build-essential libz-dev zlib1g-dev
+<br />&emsp;Then compile with mvn gluonfx:build. 
+<br />&emsp;Chances are that there will be further missing dependencies. mvn gluonfx:build may fail in this case, please carefully read the message as 
+<br />&emsp;it w<p>ill describe the missing dependecnies (or google error messages)  
+<br />&emsp;Once everything is sucessfully compile please copy 
+<br />&emsp;.../target/uiptv/target/gluonfx/x86_64-linux/UIPTV & web folder from .../target. make UIPTV executable 
+<br />&emsp;and double click to run it.
 ### Misc
-
-When providing an external video player, you can also use the flatpak. just use the direct binary address.
+<p>When providing an external video player, you can also use the flatpak. just use the direct binary address.
 For example, a standard vlc flatpak address is "/var/lib/flatpak/app/org.videolan.VLC/current/active/export/bin/org.videolan.VLC" which can be provided to run IPTV streams directly.
-    
+</p><p>
 if you are using native mpv (/usr/bin/mpv) and the streams stops/freezes after a little while then
 create an execute sh file with contents below and point the executeable sh file  (e.g. ~/apps/mpv/mpv.sh) as an external player.
-
+</p><p>
 The contents of mpv.sh file:
     
     #!/bin/sh
     /usr/local/bin/mpv "$@"&
 
 ### Disclaimer/Final Thoughts
-This is currently only available in english. This may be turned into a multilingual project in future should a public demand deems it necessary.
+<p>This is currently only available in english. This may be turned into a multilingual project in future should a public demand deems it necessary.
 Please be mindful that this is a fun/personal project only and not much research has been done to make it professional.
 Please feel free to send merge request for additional functionality.
 No donations are needed for this project at this moment. Instead, please consider donating to any of your favorite Linux project that is in need.
-
+</p>
