@@ -51,9 +51,9 @@ There are two ways you can run this project.
 <br />&emsp;To compile for Ubuntu for instance, you need to install 
 <br />&emsp;sudo apt-get install build-essential libz-dev zlib1g-dev
 <br />&emsp;Then compile with mvn gluonfx:build. 
-<br />&emsp;Chances are that there will be further missing dependencies. mvn gluonfx:build may fail in this case, please carefully read the message as 
-<br />&emsp;it w<p>ill describe the missing dependecnies (or google error messages)  
-<br />&emsp;Once everything is sucessfully compile please copy 
+<br />&emsp;Chances are that there will be further missing dependencies. mvn gluonfx:build may fail in this case, 
+<br />&emsp;please carefully read the message as it will describe the missing dependecnies 
+<br />&emsp;(or google error messages) Once everything is sucessfully compile please copy 
 <br />&emsp;.../target/uiptv/target/gluonfx/x86_64-linux/UIPTV & web folder from .../target. make UIPTV executable 
 <br />&emsp;and double click to run it.
 ### Misc
