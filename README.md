@@ -61,7 +61,7 @@ There are two ways you can run this project.
 For example, a standard vlc flatpak address is "/var/lib/flatpak/app/org.videolan.VLC/current/active/export/bin/org.videolan.VLC" which can be provided to run IPTV streams directly.
 </p><p>
 if you are using native mpv (/usr/bin/mpv) and the streams stops/freezes after a little while then
-create an execute sh file with contents below and point the executeable sh file  (e.g. ~/apps/mpv/mpv.sh) as an external player.
+create an executable sh file with contents below and point the executable sh file  (e.g. ~/apps/mpv/mpv.sh) as an external player.
 </p><p>
 The contents of mpv.sh file:
     
