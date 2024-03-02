@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>UIPTV</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
+            integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+            crossorigin="anonymous"></script>
+
+    <script>
+        let gData = [];
+        function show() {
+            fetch(window.location.origin + "/accounts")
+                .then(response => response.json())
+                .then(data => {
+                    gData = data;
+                    render(data)
+                });
+        }
+        function filterByValue(string) {
+            let filteredContents = gData.filter(o =>
+                Object.keys(o).some(k => o[k].toLowerCase().includes(string.toLowerCase())));
+            render(filteredContents);
+        }
+        function render(data) {
+            // add a row for name and marks
+            liList = `<ul className="list-group">`;
+            var li = "";
+            for (let i = 0; i < data.length; i++) {
+                const htmlQS = `accountId=${data[i].dbId}`;
+                li += `<li class="list-group-item d-flex" style="min-height:50px"><div class="row w-100">`;
+                li += ``;
+                li += `<div class="col-7">${data[i].accountName}</div>`;
+                li += `<div class="col-1"><a href="categories.html?${htmlQS}"><i style="margin-right:15px;" class="bi bi-play-circle-fill"></i></a></div>`;
+                li += `<div class="col-4">`;
+                li += `<a href="categories.html?${htmlQS}">Show ${data[i].accountName} categories</a>`;
+                li += `</div>`;
+                li += `</div></li>`;
+            }
+            liList += li + `</ul>`;
+
+            document.getElementById("root").innerHTML = liList;
+        }
+
+        $(document).ready(function () {
+            show();
+        });
+    </script>
+
+</head>
+<body>
+<div class="container">
+    <div class="clearfix">
+        <div class="float-start" style="margin-left:30px"><h4>Account List [<a href="bookmarks.html">Bookmarks</a>]</h4></div>
+        <div class="float-end"><input type="text" onkeyup="javascript:filterByValue(this.value)"></div>
+    </div>
+
+    <div id="root"/>
+</div>
+</body>
+<script src="./javascript/uiptv.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="css/uiptv.css">
+</html>

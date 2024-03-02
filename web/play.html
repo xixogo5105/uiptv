@@ -1,0 +1,51 @@
+<html>
+<head>
+    <title>UIPTV</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<center>
+    <h4 id="headerTitle"></h4>
+    <video id="video" style="width:800px;height:600px" width="800" height="600" autoplay controls
+           preload="auto"></video>
+</center>
+<script src="//cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+    const video = document.getElementById('video');
+    const hls = new Hls();
+    const urlSearchParams = new URLSearchParams(window.location.search.replace("?", ""));
+    const params = Object.fromEntries(urlSearchParams.entries());
+    const accountId = params.accountId || '';
+    const categoryId = params.categoryId || '';
+    const channelId = params.channelId || '';
+    const bookmarkId = params.bookmarkId || '';
+
+    fetch(window.location.origin + "/player?bookmarkId=" + bookmarkId + "&channelId=" + channelId + "&categoryId=" + categoryId + "&accountId=" + accountId)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('headerTitle').innerHTML = data.channelName + '[<a href="accounts.html">Accounts</a>&nbsp;&nbsp;<a href="bookmarks.html">Bookmarks</a>&nbsp;&nbsp;<a href="javascript:history.back();">Back</a>]';
+            render(data.url);
+        });
+
+
+    function render(uri) {
+        if (Hls.isSupported()) {
+            hls.attachMedia(video);
+            hls.loadSource(uri);
+            hls.on(Hls.Events.MEDIA_ATTACHED, function () {
+                // video.muted = true;
+                video.play();
+            });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = uri;
+            video.addEventListener('canplay', function () {
+                video.play();
+            });
+        }
+    }
+</script>
+</body>
+<script src="javascript/uiptv.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="css/uiptv.css">
+</html>

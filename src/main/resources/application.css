@@ -1,0 +1,15 @@
+.root {
+    -fx-focus-color: -fx-accent;
+    -fx-control-inner-background: derive(-fx-base, 35%);
+    -fx-control-inner-background-alt: -fx-control-inner-background;
+}
+
+.dangerous {
+    -fx-base: darkred;
+    -fx-text-fill: white;
+}
+
+.prominent {
+    -fx-base: darkgreen;
+    -fx-text-fill: white;
+}
