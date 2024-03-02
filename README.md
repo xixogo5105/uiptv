@@ -45,7 +45,7 @@ This should also be able to natively compile to a binary on Windows/OSX but this
             cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
     Method 2:
 
-        Native image. Its recommended because it runs a lot faster and smoother. Please head on to graalvm.org/22.0/reference-manual/native-image/
+        Native image. Its recommended because it runs a lot faster and smoother. Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/
         This page will guide to install prerequisite dependencies that are needed. 
         To compile for Ubuntu for instance, you need to install 
         sudo apt-get install build-essential libz-dev zlib1g-dev
