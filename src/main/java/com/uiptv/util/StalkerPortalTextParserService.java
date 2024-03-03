@@ -16,7 +16,7 @@ public class StalkerPortalTextParserService {
             + "[0-9a-fA-F]{4}\\."
             + "[0-9a-fA-F]{4})$";
 
-    public static void saveBulkAccounts(String text, boolean pauseCachingCheckBox) {
+    public static void saveBulkAccounts(String text, boolean pauseCaching) {
         String spacer = " ";
         String currentUrl = null;
         for (String line : text.split("\\R")) {
@@ -26,7 +26,7 @@ public class StalkerPortalTextParserService {
                 } else if (currentUrl != null && isValidMACAddress(potentialUrlOrMac)) {
                     String name = getNameFromUrl(currentUrl);
                     AccountService.getInstance().save(new Account(name, null, null, currentUrl, potentialUrlOrMac, null, null, null, null,
-                            AccountType.STALKER_PORTAL, null, null, pauseCachingCheckBox));
+                            AccountType.STALKER_PORTAL, null, null, pauseCaching));
                 }
             }
         }
