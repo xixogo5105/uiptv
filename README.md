@@ -28,7 +28,7 @@ Example:
     export JAVA_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
     export GRAALVM_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
 
-It also recommended to add **JAVA_HOME** and **GRAALVM_HOME** variables to path variable:
+It is also recommended to add **JAVA_HOME** and **GRAALVM_HOME** variables to path variable:
 
     export PATH=$JAVA_HOME/bin:$GRAALVM_HOME/bin:$PATH
 
