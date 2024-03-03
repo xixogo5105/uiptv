@@ -12,8 +12,8 @@ This should also be able to natively compile to a binary on Windows/OSX but this
 - Parse multiple stalker portal accounts: You can bulk import stalker portal accounts but they must comply to the format. Each line should have either a URL or mac address. All other lines are ignored. Please ensure that the text to be imported is in proper format.
 - IPTV Protocols support: This player will support the following protocols/formats     
   - Stalker Portal: Support Live Channels/Video On Demand And Series     
-  - M3U8 Local Playlist: Run a local file. playlist entries only     
-  - M3U8 Remote Playlist: Run a remote URL file. playlist entries only     
+  - M3U8 Local Playlist: Run a local file. playlist entries only.  EPG is not yet supported.     
+  - M3U8 Remote Playlist: Run a remote URL file. playlist entries only.  EPG is not yet supported.   
   - XTREME: Support Live Channels/Video On Demand And Series
  - Favourite/Bookmarks (EXPERIMENTAL): User can bookmark favourite channels to quickly run them. Currently this support is available on live channels.
 - Cache: This player uses Sqlite to save data. Data is saved on file \~/.config/uiptv/uiptv.db (\~\uiptv\uiptv.db on windows). Caching has some glitches (known issu) and currently meant to reduce repeated calls to the servers. Please use "clear cache" ocassionally to reset the cache. You can also "Pause Caching" Globally or at a certain account level.
