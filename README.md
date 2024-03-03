@@ -16,7 +16,7 @@ This should also be able to natively compile to a binary on Windows/OSX but this
   - M3U8 Remote Playlist: Run a remote URL file. playlist entries only     
   - XTREME: Support Live Channels/Video On Demand And Series
  - Favourite/Bookmarks (EXPERIMENTAL): User can bookmark favourite channels to quickly run them. Currently this support is available on live channels.
-- Cache: This player uses Sqlite to save data. Data is saved on ~/.config/uiptv/uiptv.db (~\uiptv\uiptv.db on windows). Caching has some glitches (known issu) and currently meant to reduce repeated calls to the servers. Please use "clear cache" ocassionally to reset the cache. You can also "Pause Caching" Globally or at a certain account level.
+- Cache: This player uses Sqlite to save data. Data is saved on file \~/.config/uiptv/uiptv.db (\~\uiptv\uiptv.db on windows). Caching has some glitches (known issu) and currently meant to reduce repeated calls to the servers. Please use "clear cache" ocassionally to reset the cache. You can also "Pause Caching" Globally or at a certain account level.
 
 ### Compiling UIPTV
 This application is built on Java 17 and JavaFX. This application can also be natively compiled using GraalVM.
