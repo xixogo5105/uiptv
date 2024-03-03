@@ -49,9 +49,9 @@ Go to target folder, copy _/web_ folder, _/lib_ folder and _UIPTV.jar_ file in t
 
 you may also create a shell script for the above.
 
-#### Method 2:
+#### Method 2 (Native binary image):
 
-Native image. Its recommended because it runs a lot faster and smoother. Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/. This page will guide to install prerequisite dependencies that are needed. 
+Its recommended because it runs a lot faster and smoother. Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/. This page will guide to install prerequisite dependencies that are needed. 
 To compile for Ubuntu for instance, you need to install:
 
     sudo apt-get install build-essential libz-dev zlib1g-dev
