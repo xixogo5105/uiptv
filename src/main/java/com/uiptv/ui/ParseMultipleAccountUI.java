@@ -1,9 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
-import com.uiptv.model.Account;
-import com.uiptv.service.AccountService;
-import com.uiptv.util.AccountType;
+import com.uiptv.util.StalkerPortalTextParserService;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
@@ -12,12 +10,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
-import java.net.URI;
-import java.net.URL;
-import java.util.regex.Pattern;
-
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
@@ -28,7 +21,6 @@ public class ParseMultipleAccountUI extends VBox {
     private final CheckBox pauseCachingCheckBox = new CheckBox("Pause account caching");
     private final ProminentButton saveButton = new ProminentButton("Parse Text");
     private final Button clearButton = new Button("Clear Data");
-    AccountService service = AccountService.getInstance();
     private Callback onSaveCallback;
 
     public ParseMultipleAccountUI() {
@@ -69,7 +61,7 @@ public class ParseMultipleAccountUI extends VBox {
                     showErrorAlert("Data cannot be empty");
                     return;
                 }
-                parse(multipleSPAccounts.getText());
+                StalkerPortalTextParserService.saveBulkAccounts(multipleSPAccounts.getText(), pauseCachingCheckBox.isSelected());
                 clearAll();
                 onSaveCallback.call(null);
                 showMessageAlert("Account(s) details have been parsed and saved successfully!");
@@ -77,56 +69,5 @@ public class ParseMultipleAccountUI extends VBox {
                 showErrorAlert("An error has occured while parsing or saving accounts!");
             }
         });
-    }
-
-    private void parse(String data) {
-        String[] lines = data.split("\\R");
-        String lastAccountUrl = null;
-        for (String uncleanLine : lines) {
-            if (isBlank(uncleanLine) || isBlank(uncleanLine.trim())) continue;
-            String line = uncleanLine.trim();
-            if (isValidURL(line)) {
-                lastAccountUrl = line;
-            } else if (isNotBlank(lastAccountUrl) && isValidMACAddress(line)) {
-                service.save(new Account(getNameFromUrl(lastAccountUrl), null, null, lastAccountUrl, line, null, null, null, null,
-                        AccountType.STALKER_PORTAL, null, null, pauseCachingCheckBox.isSelected()));
-            }
-        }
-    }
-
-    public static boolean isValidURL(String urlString) {
-        try {
-            URL url = new URL(urlString);
-            url.toURI();
-            return true;
-        } catch (Exception ignored) {
-        }
-        return false;
-    }
-
-    public static boolean isValidMACAddress(String line) {
-        if (isBlank(line)) return false;
-        String regex = "^([0-9A-Fa-f]{2}[:-])"
-                + "{5}([0-9A-Fa-f]{2})|"
-                + "([0-9a-fA-F]{4}\\."
-                + "[0-9a-fA-F]{4}\\."
-                + "[0-9a-fA-F]{4})$";
-
-        return Pattern.compile(regex).matcher(line).matches();
-    }
-
-    public static String getNameFromUrl(String urlString) {
-        try {
-            URL url = new URL(urlString);
-            URI uri = url.toURI();
-            int i = 1;
-            String validName;
-            do {
-                validName = uri.getHost() + " (" + i++ + ")";
-            } while (AccountService.getInstance().getByName(validName) != null);
-            return validName;
-        } catch (Exception ignored) {
-        }
-        return urlString;
     }
 }
