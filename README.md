@@ -1,4 +1,4 @@
-## UIPTV (Alpha Reelase)
+## UIPTV (Alpha Release)
 This is IPTV player written in JAVA and can be natively compiled to Linux binary. 
 This should also be able to natively compile to a binary on Windows/OSX but this has never been tried.
 
