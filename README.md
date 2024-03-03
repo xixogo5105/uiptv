@@ -1,12 +1,13 @@
 # UIPTV (Alpha Release)
-This is IPTV player written in JAVA and can be natively compiled to Linux binary. 
-This should also be able to natively compile to a binary on Windows/OSX but this has never been tried.
+This is IPTV player written in JAVA and can be natively compiled to Linux binary. UIPTV is Linux at heart and build on linux philosophy. 
+UIPTV, unlike a traditional IPTV player, is purposely designed to be a text based IPTV player. It also provides a limited web support. 
+UIPTV should also be able to natively compile to a binary on Windows/OSX but this has never been tested so far.
 
 ![UUIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
 
 ## Features:
-- **External Player only**: This IPTV player works with external players only and has no built-in player. Tested players are VLC, MPV, SMPLayer & Celluloid.
-- **Filter Categories/Channels**: Exclude/Filter certain categoies or channels that are of no interest to a user. Important aspect of this feature is to censor specific contents (adult etc.). You can also pause or unpause the filtering. Please note that it will also impact web server contents.
+- **External Player only**: This IPTV player works with external players only and has no built-in player. Tested players are VLC, MPV, SMPLayer & Celluloid.  Using external player gives you a complete control as well as allow end user to run multiple streams at a time.
+- **Filter Categories/Channels**: Exclude/Filter certain categories or channels that are of no interest to a user. Important aspect of this feature is to censor specific contents (adult etc.). You can also pause or unpause the filtering. Please note that it will also impact web server contents.
 - Styling: There is limited set of built-in styling support. Users can change font, size & weight. They can also apply the stylesheet to components however that would need a recompile. There is also a dark mode which is applied to all components except the title bar.
 - **Web Server support (EXPERIMENTAL)**: You can also expose accounts & bookmarks via web server port and they will be immediately available (via web browser) to all devices on your network. A limited set of web html already available and can also be enhanced. Please note that only HLS compatible streams would be able to play in web player. Also HLS web player currently only support up to 1080p contents. There are some commercial web player that you can purchase to enable 4k support. You can also add custom style-sheet and custom JavaScript but they must be added to "web/css" & "web/javascript" folders respectively.
 - **Parse multiple stalker portal accounts**: You can bulk import stalker portal accounts but they must comply to the format. Each line should have either a URL or mac address. All other lines are ignored. Please ensure that the text to be imported is in proper format.
