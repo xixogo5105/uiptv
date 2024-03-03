@@ -24,26 +24,26 @@ Before compiling please make sure that you have added JAVA_HOME and GRAALVM_HOME
 
 Example:
 
-export JAVA_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
-
-export GRAALVM_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
+    export JAVA_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
+    export GRAALVM_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
 
 I also recommend to add to path:
 
-export PATH=$JAVA_HOME/bin:$GRAALVM_HOME/bin:$PATH
+    export PATH=$JAVA_HOME/bin:$GRAALVM_HOME/bin:$PATH
 
-Please install maven.
+Please install maven:
+
+    sudo apt install maven
 
 There are two ways you can run this project.
 
 #### Method 1:
-<p>
-This should work on Windows, OSX and linux.</p>
+This should work on Windows, OSX and linux.
 
     mvn clean install 
     
-<p>Go to target folder, copy /web folder, /lib folder and UIPTV.jar file in to your favourite folder.
-<br />Assuming you can copies the above files and folder in ~/uiptv/ folder then run:</p>
+Go to target folder, copy /web folder, /lib folder and UIPTV.jar file in to your favourite folder.
+<br />Assuming you can copies the above files and folder in ~/uiptv/ folder then run:
 
     cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
 
@@ -64,7 +64,9 @@ This should work on Windows, OSX and linux.</p>
 <br />&emsp;(or google error messages) Once everything is sucessfully compiled, copy 
 <br />&emsp;.../target/uiptv/target/gluonfx/x86_64-linux/UIPTV & web folder from .../target to a folder of your own choice. 
 <br />&emsp;Then go to that folder, make UIPTV binary as executable and simply double click to run it.
+
 ### Misc
+
 <p>When providing an external video player, you can also use the flatpak. just use the direct binary address.
 For example, a standard vlc flatpak address is "/var/lib/flatpak/app/org.videolan.VLC/current/active/export/bin/org.videolan.VLC" which can be provided to run IPTV streams directly.
 </p><p>
