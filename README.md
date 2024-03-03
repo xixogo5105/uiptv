@@ -38,19 +38,27 @@ There are two ways you can run this project.
 
 #### Method 1:
 <p>
-&emsp;This should work on Windows, OSX and linux.
-<br />&emsp;mvn clean install. Go to target folder, copy /web folder, /lib folder and UIPTV.jar file in to your favourite folder.
-<br />&emsp;Assuming you can copies the above files and folder in ~/uiptv/ folder then run:
-<br />&emsp;cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
-</p>
+This should work on Windows, OSX and linux.</p>
+
+    mvn clean install 
+    
+<p>Go to target folder, copy /web folder, /lib folder and UIPTV.jar file in to your favourite folder.
+<br />Assuming you can copies the above files and folder in ~/uiptv/ folder then run:</p>
+
+    cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
+
 #### Method 2:
 
 <br />&emsp;Native image. Its recommended because it runs a lot faster and smoother. 
 <br />&emsp;Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/
 <br />&emsp;This page will guide to install prerequisite dependencies that are needed. 
 <br />&emsp;To compile for Ubuntu for instance, you need to install:
-<br />&emsp;sudo apt-get install build-essential libz-dev zlib1g-dev
-<br />&emsp;Then compile with mvn gluonfx:build. 
+
+    sudo apt-get install build-essential libz-dev zlib1g-dev
+<br />&emsp;Then compile with:
+
+    mvn gluonfx:build
+    
 <br />&emsp;Chances are that there will be further missing dependencies. mvn gluonfx:build may fail in this case, 
 <br />&emsp;please carefully read the message as it will describe the missing dependecnies 
 <br />&emsp;(or google error messages) Once everything is sucessfully compiled, copy 
