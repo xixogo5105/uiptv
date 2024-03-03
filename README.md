@@ -51,7 +51,7 @@ you may also create a shell script for the above.
 
 #### Method 2 (Native binary image):
 
-Its recommended because it runs a lot faster and smoother. Please head on to https://www.graalvm.org/22.0/reference-manual/native-image/. This page will has step by step guidelines and help you to install prerequisite dependencies that are needed. In order to compile UIPTV on Ubuntu for instance, you need to install:
+Its recommended because it runs a lot faster and smoother. Please head on to [GraalVM Manual](https://www.graalvm.org/22.0/reference-manual/native-image/). This page will has step by step guidelines and help you to install prerequisite dependencies that are needed. In order to compile UIPTV on Ubuntu for instance, you need to install:
 
     sudo apt-get install build-essential libz-dev zlib1g-dev
 Then compile with:
@@ -82,3 +82,4 @@ Please be mindful that this is a fun/personal project only and not much enterpri
 Please feel free to send merge request for bug fixes or additional features or functionality. 
 Donations are not accepted at this moment. Instead, please consider donating to any of your favorite Linux project that is in need.  
 
+Donate to **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**
