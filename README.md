@@ -78,7 +78,7 @@ The contents of _mpv.sh_ file:
 
 ## Disclaimer/Final Thoughts
 This is currently only available in **English**. **EPG** is not yet supported. This may be turned into a multilingual project in future if there is demand of it.
-Please be mindful that this is a fun/personal project only and not much research has been done into it.
+Please be mindful that this is a fun/personal project only and not much enterprise level research has been spent on it.
 Please feel free to send merge request for bug fixes or additional features or functionality. 
 Donations are not accepted at this moment. Instead, please consider donating to any of your favorite Linux project that is in need.  
 
