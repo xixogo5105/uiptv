@@ -80,6 +80,6 @@ The contents of _mpv.sh_ file:
 This is currently only available in **English**. **EPG** is not yet supported. This may be turned into a multilingual project in future if there is demand of it.
 Please be mindful that this is a fun/personal project only and not much enterprise level research has been spent on it.
 Please feel free to send merge request for bug fixes or additional features or functionality. 
-Donations are not accepted at this moment. Instead, please consider donating to any of your favorite Linux project that is in need.  
+Donations are neither needed nor accepted at this moment for UIPTV as its just a fun/personal project. Instead, please consider donating to any of your favorite Linux project that is in need.  
 
 Donate to **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**
