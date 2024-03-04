@@ -7,9 +7,11 @@ import java.net.URI;
 import java.net.URL;
 import java.util.regex.Pattern;
 
+import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class StalkerPortalTextParserService {
+    public static final String SPACER = " ";
     private static final String MAC_ADDRESS_REGEX = "^([0-9A-Fa-f]{2}[:-])"
             + "{5}([0-9A-Fa-f]{2})|"
             + "([0-9a-fA-F]{4}\\."
@@ -17,10 +19,9 @@ public class StalkerPortalTextParserService {
             + "[0-9a-fA-F]{4})$";
 
     public static void saveBulkAccounts(String text, boolean pauseCaching) {
-        String spacer = " ";
         String currentUrl = null;
         for (String line : text.split("\\R")) {
-            for (String potentialUrlOrMac : line.split(spacer)) {
+            for (String potentialUrlOrMac : replaceAllNonPrintableChars(line).split(SPACER)) {
                 if (isValidURL(potentialUrlOrMac)) {
                     currentUrl = potentialUrlOrMac;
                 } else if (currentUrl != null && isValidMACAddress(potentialUrlOrMac)) {
@@ -30,6 +31,14 @@ public class StalkerPortalTextParserService {
                 }
             }
         }
+    }
+
+    public static String replaceAllNonPrintableChars(String line) {
+        try {
+            return isBlank(line) ? EMPTY : line.replaceAll("\\p{Cntrl}", SPACER).replaceAll("[^\\p{Print}]", SPACER).replaceAll("\\p{C}", SPACER);
+        } catch (Exception ignored) {
+        }
+        return line;
     }
 
     public static boolean isValidURL(String urlString) {
