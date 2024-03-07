@@ -4,11 +4,10 @@ import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.UIptvText;
-import com.uiptv.widget.DangerousButton;
-import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.*;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
@@ -16,31 +15,32 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
 import java.io.File;
-import java.util.Arrays;
+import java.util.*;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
-import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.util.StringUtils.isNotBlank;
+import static com.uiptv.util.StringUtils.*;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 import static com.uiptv.widget.DialogAlert.showDialog;
 
 public class ManageAccountUI extends VBox {
+    public static final String PRIMARY_MAC_ADDRESS_HINT = "Primary MAC Address";
     private String accountId;
     final FileChooser fileChooser = new FileChooser();
     private final ComboBox accountType = new ComboBox();
-    private final UIptvText name = new UIptvText("name", "Enter Name", 5);
-    private final UIptvText username = new UIptvText("username", "Enter User Name", 5);
-    private final UIptvText password = new UIptvText("password", "Enter Password", 5);
-    private final UIptvText url = new UIptvText("url", "Enter URL", 5);
+    private final UIptvText name = new UIptvText("name", "Account Name (must be unique)", 5);
+    private final UIptvText username = new UIptvText("username", "User Name", 5);
+    private final UIptvText password = new UIptvText("password", "Password", 5);
+    private final UIptvText url = new UIptvText("url", "URL", 5);
     private final UIptvText epg = new UIptvText("epg", "EPG", 5);
-    private final UIptvText macAddress = new UIptvText("macAddress", "Enter MAC ADDRESS", 5);
-    private final UIptvText serialNumber = new UIptvText("serialNumber", "Enter Serial Number (SN)", 5);
-    private final UIptvText deviceId1 = new UIptvText("deviceId1", "Enter Device ID 1", 5);
-    private final UIptvText deviceId2 = new UIptvText("deviceId2", "Enter Device ID 2", 5);
-    private final UIptvText signature = new UIptvText("signature", "Enter Signature", 5);
-    private final CheckBox pauseCachingCheckBox = new CheckBox("Pause account caching");
+    private final UIptvCombo macAddress = new UIptvCombo("macAddress", PRIMARY_MAC_ADDRESS_HINT, 350);
+    private final UIptvTextArea macAddressList = new UIptvTextArea("macAddress", "Your Comma separated MAC Addresses.", 5);
+    private final UIptvText serialNumber = new UIptvText("serialNumber", "Serial Number (SN)", 5);
+    private final UIptvText deviceId1 = new UIptvText("deviceId1", "Device ID 1", 5);
+    private final UIptvText deviceId2 = new UIptvText("deviceId2", "Device ID 2", 5);
+    private final UIptvText signature = new UIptvText("signature", "Signature", 5);
+    private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Account Caching");
 
 
     final Button browserButtonM3u8Path = new Button("Browse...");
@@ -77,10 +77,11 @@ public class ManageAccountUI extends VBox {
         deleteButton.setPrefWidth(140);
         deleteAllButton.setMinWidth(140);
         deleteAllButton.setPrefWidth(140);
-
-
+        macAddressList.textProperty().addListener((observable, oldVal, newVal) -> {
+            setupMacAddressByList(newVal);
+        });
         HBox buttonWrapper2 = new HBox(10, clearButton, deleteButton, deleteAllButton);
-        getChildren().addAll(accountType, name, url, macAddress, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, saveButton, buttonWrapper2);
+        getChildren().addAll(accountType, name, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, saveButton, buttonWrapper2);
         addSubmitButtonClickHandler();
         addDeleteAllButtonClickHandler();
         addDeleteButtonClickHandler();
@@ -94,7 +95,7 @@ public class ManageAccountUI extends VBox {
                     getChildren().clear();
                     switch (getAccountTypeByDisplay(newValue)) {
                         case STALKER_PORTAL:
-                            getChildren().addAll(accountType, name, url, macAddress, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, saveButton, buttonWrapper2);
                             break;
                         case M3U8_LOCAL:
                             getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pauseCachingCheckBox, saveButton, buttonWrapper2);
@@ -111,6 +112,21 @@ public class ManageAccountUI extends VBox {
         });
     }
 
+    private void setupMacAddressByList(String newVal) {
+        if (isBlank(newVal)) {
+            return;
+        }
+        macAddress.getItems().clear();
+        List<String> items = new ArrayList<>(Arrays.stream(newVal.replace(SPACE, "").split(",")).toList());
+        Collections.sort(items);
+        macAddress.getItems().addAll(items);
+        if (macAddress.getValue() == null || isBlank(macAddress.getValue().toString()) || !macAddress.getValue().toString().toLowerCase().contains(newVal.toLowerCase())) {
+            macAddress.setValue(newVal.split(",")[0].trim());
+        } else {
+            macAddress.setValue(macAddress.getValue().toString());
+        }
+    }
+
     private void addBrowserButton1ClickHandler() {
         browserButtonM3u8Path.setOnAction(actionEvent -> {
             File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
@@ -123,7 +139,11 @@ public class ManageAccountUI extends VBox {
     }
 
     private void clearAll() {
-        Arrays.stream(new UIptvText[]{name, username, password, url, macAddress, serialNumber, deviceId1, deviceId2, signature, m3u8Path, epg}).forEach(TextInputControl::clear);
+        Arrays.stream(new UIptvText[]{name, username, password, url, serialNumber, deviceId1, deviceId2, signature, m3u8Path, epg}).forEach(TextInputControl::clear);
+        macAddressList.clear();
+        macAddress.getItems().clear();
+        macAddress.setValue(null);
+        macAddress.setPromptText(PRIMARY_MAC_ADDRESS_HINT);
         accountType.setValue(STALKER_PORTAL.getDisplay());
     }
 
@@ -135,7 +155,7 @@ public class ManageAccountUI extends VBox {
                     return;
                 }
                 service.save(new Account(name.getText(), username.getText(), password.getText(), url.getText(),
-                        macAddress.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
+                        macAddress.getValue() != null ? macAddress.getValue().toString() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
                         getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue().toString()) ? accountType.getValue().toString() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pauseCachingCheckBox.isSelected()));
                 clearAll();
                 showMessageAlert("Your Account details have been successfully saved!");
@@ -189,14 +209,18 @@ public class ManageAccountUI extends VBox {
         username.setText(account.getUsername());
         password.setText(account.getPassword());
         url.setText(account.getUrl());
-        macAddress.setText(account.getMacAddress());
+        macAddressList.setText(account.getMacAddressList());
+        if (account.getType() == STALKER_PORTAL) {
+            setupMacAddressByList(account.getMacAddressList());
+        }
+        macAddress.setValue(account.getMacAddress());
         serialNumber.setText(account.getSerialNumber());
         deviceId1.setText(account.getDeviceId1());
         deviceId2.setText(account.getDeviceId2());
         signature.setText(account.getSignature());
-        accountType.setValue(account.getType().getDisplay());
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
         pauseCachingCheckBox.setSelected(account.isPauseCaching());
+        accountType.setValue(account.getType().getDisplay());
     }
 }

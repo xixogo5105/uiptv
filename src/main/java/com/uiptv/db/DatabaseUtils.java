@@ -50,6 +50,7 @@ public class DatabaseUtils {
                 new DataColumn("password", "TEXT"),
                 new DataColumn("url", "TEXT"),
                 new DataColumn("macAddress", "TEXT"),
+                new DataColumn("macAddressList", "TEXT"),
                 new DataColumn("serialNumber", "TEXT"),
                 new DataColumn("deviceId1", "TEXT"),
                 new DataColumn("deviceId2", "TEXT"),

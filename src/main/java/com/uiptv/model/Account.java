@@ -3,15 +3,15 @@ package com.uiptv.model;
 
 import com.uiptv.api.JsonCompliant;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.StringUtils;
 import org.json.JSONPropertyIgnore;
 
 import java.io.Serializable;
-import java.util.Objects;
+import java.util.*;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
-import static com.uiptv.util.StringUtils.isNotBlank;
-import static com.uiptv.util.StringUtils.safeJson;
+import static com.uiptv.util.StringUtils.*;
 
 public class Account implements Serializable, JsonCompliant {
 
@@ -25,12 +25,12 @@ public class Account implements Serializable, JsonCompliant {
     public static final String LINE_SEPARATOR = "\n\r";
     private String serverPortalUrl;
     private AccountAction action = itv;
-    private String accountName, username, password, url, macAddress, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path;
+    private String accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path;
     private String dbId, token;
     private boolean pauseCaching;
     private AccountType type = STALKER_PORTAL;
 
-    public Account(String accountName, String username, String password, String url, String macAddress, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pauseCaching) {
+    public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pauseCaching) {
         this.accountName = accountName;
         this.username = username;
         this.password = password;
@@ -44,6 +44,14 @@ public class Account implements Serializable, JsonCompliant {
         this.epg = epg;
         this.m3u8Path = m3u8Path;
         this.pauseCaching = pauseCaching;
+        Map<String, String> macMap = new HashMap<>();
+        if (isNotBlank(macAddress)) macMap.put(macAddress.toLowerCase(), macAddress.trim());
+        if (isNotBlank(macAddressList)) {
+            Arrays.stream(macAddressList.split(","))
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(m -> macMap.put(m.toLowerCase(), m.replace(SPACE, "")));
+        }
+        this.macAddressList = String.join(",", macMap.values());
     }
 
     public boolean isPauseCaching() {
@@ -119,6 +127,14 @@ public class Account implements Serializable, JsonCompliant {
 
     public void setMacAddress(String macAddress) {
         this.macAddress = macAddress;
+    }
+
+    public String getMacAddressList() {
+        return macAddressList;
+    }
+
+    public void setMacAddressList(String macAddressList) {
+        this.macAddressList = macAddressList;
     }
 
     public String getSerialNumber() {
@@ -198,12 +214,12 @@ public class Account implements Serializable, JsonCompliant {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Account account = (Account) o;
-        return pauseCaching == account.pauseCaching && Objects.equals(serverPortalUrl, account.serverPortalUrl) && action == account.action && Objects.equals(accountName, account.accountName) && Objects.equals(username, account.username) && Objects.equals(password, account.password) && Objects.equals(url, account.url) && Objects.equals(macAddress, account.macAddress) && Objects.equals(serialNumber, account.serialNumber) && Objects.equals(deviceId1, account.deviceId1) && Objects.equals(deviceId2, account.deviceId2) && Objects.equals(signature, account.signature) && Objects.equals(epg, account.epg) && Objects.equals(m3u8Path, account.m3u8Path) && Objects.equals(dbId, account.dbId) && Objects.equals(token, account.token) && type == account.type;
+        return pauseCaching == account.pauseCaching && Objects.equals(serverPortalUrl, account.serverPortalUrl) && action == account.action && Objects.equals(accountName, account.accountName) && Objects.equals(username, account.username) && Objects.equals(password, account.password) && Objects.equals(url, account.url) && Objects.equals(macAddress, account.macAddress) && Objects.equals(macAddressList, account.macAddressList) && Objects.equals(serialNumber, account.serialNumber) && Objects.equals(deviceId1, account.deviceId1) && Objects.equals(deviceId2, account.deviceId2) && Objects.equals(signature, account.signature) && Objects.equals(epg, account.epg) && Objects.equals(m3u8Path, account.m3u8Path) && Objects.equals(dbId, account.dbId) && Objects.equals(token, account.token) && type == account.type;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(serverPortalUrl, action, accountName, username, password, url, macAddress, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, dbId, token, pauseCaching, type);
+        return Objects.hash(serverPortalUrl, action, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, dbId, token, pauseCaching, type);
     }
 
     @Override
@@ -216,6 +232,7 @@ public class Account implements Serializable, JsonCompliant {
                 ", password='" + password + '\'' +
                 ", url='" + url + '\'' +
                 ", macAddress='" + macAddress + '\'' +
+                ", macAddressList='" + macAddressList + '\'' +
                 ", serialNumber='" + serialNumber + '\'' +
                 ", deviceId1='" + deviceId1 + '\'' +
                 ", deviceId2='" + deviceId2 + '\'' +
@@ -241,6 +258,7 @@ public class Account implements Serializable, JsonCompliant {
                 ",         \"password\":\"" + safeJson(password) + "\"" +
                 ",         \"url\":\"" + safeJson(url) + "\"" +
                 ",         \"macAddress\":\"" + safeJson(macAddress) + "\"" +
+                ",         \"macAddressList\":\"" + safeJson(macAddressList) + "\"" +
                 ",         \"serialNumber\":\"" + safeJson(serialNumber) + "\"" +
                 ",         \"deviceId1\":\"" + safeJson(deviceId1) + "\"" +
                 ",         \"deviceId2\":\"" + safeJson(deviceId2) + "\"" +

@@ -90,8 +90,8 @@ public class RootApplication extends Application {
         HBox sceneBox = new HBox(10,
                 new VBox(5,
                         new CollapsedTitledPane("Configuration", configurationUI),
-                        new CollapsedTitledPane("Parse Accounts", parseMultipleAccountUI),
-                        new CollapsedTitledPane("Manage Account", manageAccountUI),
+                        new CollapsedTitledPane("Account", manageAccountUI),
+                        new CollapsedTitledPane("Import Bulk Accounts", parseMultipleAccountUI),
                         bookmarkUI
                 ), accountListUI);
         sceneBox.setPadding(new Insets(10, 0, 0, 0));
