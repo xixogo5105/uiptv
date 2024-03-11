@@ -70,7 +70,7 @@ public class ParseMultipleAccountUI extends VBox {
                 onSaveCallback.call(null);
                 showMessageAlert("Account(s) details have been parsed and saved successfully!");
             } catch (Exception e) {
-                showErrorAlert("An error has occured while parsing or saving accounts!");
+                showErrorAlert("An error has occurred while parsing or saving accounts!");
             }
         });
     }
