@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 import static com.uiptv.util.StringUtils.EMPTY;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class M3U8Parser {
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
@@ -63,19 +64,23 @@ public class M3U8Parser {
     }
 
     private static Set<PlaylistEntry> parseCategory(BufferedReader in) {
+//        Set<PlaylistEntry> playlistEntries = new TreeSet<>((s1, s2) -> s2.getGroupTitle().compareTo(s1.getGroupTitle()));
         Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
-        playlistEntries.add(new PlaylistEntry("All","All", null,null,null));
+        playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));
         try (BufferedReader reader = new BufferedReader(in)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 try {
                     if (line.startsWith("#EXTINF")) {
-                        playlistEntries.add(new PlaylistEntry(
-                                parseItem(line, "tvg-id=\""),
-                                parseItem(line, "group-title=\""),
-                                null,
-                                null,
-                                null));
+                        String groupTitle = parseItem(line, "group-title=\"");
+                        if (isNotBlank(groupTitle) && !groupTitle.equalsIgnoreCase("All")) {
+                            playlistEntries.add(new PlaylistEntry(
+                                    parseItem(line, "tvg-id=\""),
+                                    groupTitle,
+                                    null,
+                                    null,
+                                    null));
+                        }
                         reader.readLine();
                     }
                 } catch (Exception ignored) {

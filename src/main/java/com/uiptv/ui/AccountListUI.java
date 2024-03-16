@@ -6,8 +6,8 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
-import com.uiptv.widget.AutoGrowVBox;
-import com.uiptv.widget.SearchableTableView;
+import com.uiptv.widget.AutoGrowPaneVBox;
+import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
@@ -32,7 +32,7 @@ import static com.uiptv.ui.RootApplication.primaryStage;
 public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>("Account List");
     private final BookmarkChannelListUI bookmarkChannelListUI;
-    SearchableTableView table = new SearchableTableView();
+    SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
     private Callback onEditCallback;
 
@@ -58,10 +58,10 @@ public class AccountListUI extends HBox {
 
         LinkedHashMap<String, Account> spClients = accountService.getAll();
         if (spClients != null) {
-            spClients.keySet().forEach(k -> catList.add(new AccountItem(new SimpleStringProperty(spClients.get(k).getAccountName()), new SimpleStringProperty(spClients.get(k).getDbId()))));
+            spClients.keySet().forEach(k -> catList.add(new AccountItem(new SimpleStringProperty(spClients.get(k).getAccountName()), new SimpleStringProperty(spClients.get(k).getDbId()), new SimpleStringProperty(spClients.get(k).getType().name()))));
         }
         table.setItems(FXCollections.observableArrayList(catList));
-        table.addTextFilter();
+        table.filterByAccountType();
     }
 
     private void initWidgets() {
@@ -72,7 +72,9 @@ public class AccountListUI extends HBox {
         accountName.setSortType(TableColumn.SortType.ASCENDING);
         accountName.setSortable(true);
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
-        getChildren().addAll(new AutoGrowVBox(5, table.getSearchTextField(), table));
+        HBox sceneBox = new HBox(5, table.getSearchTextField(), table.getAccountFilterBox());
+        sceneBox.setMaxHeight(25);
+        getChildren().addAll(new AutoGrowPaneVBox(5, sceneBox, table));
         addAccountClickHandler();
     }
 
@@ -149,16 +151,20 @@ public class AccountListUI extends HBox {
         CategoryListUI categoryListUI = refreshCategoryList(account);
         if (categoryListUI == null) return;
         AccountListUI.this.getChildren().clear();
-        AccountListUI.this.getChildren().addAll(new VBox(5, table.getSearchTextField(), table), categoryListUI);
+        HBox sceneBox = new HBox(5, table.getSearchTextField(), table.getAccountFilterBox());
+        sceneBox.setMaxHeight(25);
+        AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
     }
 
     public class AccountItem {
         private final SimpleStringProperty accountName;
         private final SimpleStringProperty accountId;
+        private final SimpleStringProperty accountType;
 
-        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId) {
+        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType) {
             this.accountName = accountName;
             this.accountId = accountId;
+            this.accountType = accountType;
         }
 
         public String getAccountId() {
@@ -179,6 +185,22 @@ public class AccountListUI extends HBox {
 
         public SimpleStringProperty accountNameProperty() {
             return accountName;
+        }
+
+        public void setAccountName(String accountName) {
+            this.accountName.set(accountName);
+        }
+
+        public String getAccountType() {
+            return accountType.get();
+        }
+
+        public SimpleStringProperty accountTypeProperty() {
+            return accountType;
+        }
+
+        public void setAccountType(String accountType) {
+            this.accountType.set(accountType);
         }
     }
 }

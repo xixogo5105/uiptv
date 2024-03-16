@@ -85,7 +85,7 @@ public class CategoryService {
     }
 
     private List<Category> m3u8Categories(Account account) throws MalformedURLException {
-        Set<Category> categories = new HashSet<>();
+        Set<Category> categories = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseUrlCategory(new URL(account.getM3u8Path())) : parsePathCategory(account.getM3u8Path());
         m3uEntries.forEach(entry -> {
             Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
@@ -126,7 +126,6 @@ public class CategoryService {
         List<String> censoredCategories = new ArrayList<>(List.of(ConfigurationService.getInstance().read().getFilterCategoriesList().split(",")));
         censoredCategories.replaceAll(String::trim);
         Predicate<Category> hasCensoredWord = category -> censoredCategories.stream().noneMatch(word -> category.getTitle().toLowerCase().contains(word.toLowerCase()) || category.getCensored() == 1);
-
         return categoryList.stream().filter(hasCensoredWord).collect(Collectors.toList());
     }
 

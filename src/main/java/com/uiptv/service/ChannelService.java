@@ -64,9 +64,9 @@ public class ChannelService {
         List<Channel> cachedChannels = ChannelDb.get().getChannels(dbId);
         if (cachedChannels.isEmpty() || account.isPauseCaching() || ConfigurationService.getInstance().read().isPauseCaching()) {
             hardReloadChannels(categoryId, account, dbId);
-            return ChannelDb.get().getChannels(dbId);
+            return censor(ChannelDb.get().getChannels(dbId));
         }
-        return cachedChannels;
+        return censor(cachedChannels);
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account, String dbId) {
