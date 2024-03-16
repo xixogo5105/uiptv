@@ -21,50 +21,48 @@ import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 
 public class SearchableFilterableTableView extends TableView {
     public static final String ALL = "All";
-    private final UIptvText searchTextField = new UIptvText("search" + new Date().getTime(), "Search", 10);
-    private final ComboBox accountFilterBox = new ComboBox();
+    private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "Search", 10);
+    private final ComboBox comboBox = new ComboBox();
 
     public SearchableFilterableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        searchTextField.setOnMousePressed(event -> searchTextField.clear());
-        accountFilterBox.setPrefWidth(175);
-        searchTextField.setPrefWidth(275);
+        textField.setOnMousePressed(event -> textField.clear());
+        comboBox.setPrefWidth(175);
+        textField.setPrefWidth(275);
         List<String> list = Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList();
-        accountFilterBox.getItems().add(ALL);
-        accountFilterBox.getItems().addAll(list);
-        accountFilterBox.setValue(ALL);
+        comboBox.getItems().add(ALL);
+        comboBox.getItems().addAll(list);
+        comboBox.setValue(ALL);
 
     }
 
-    public TextField getSearchTextField() {
-        return searchTextField;
+    public TextField getTextField() {
+        return textField;
     }
 
-    public ComboBox getAccountFilterBox() {
-        return accountFilterBox;
+    public ComboBox getComboBox() {
+        return comboBox;
     }
 
     public <T> void filterByAccountType() {
-        ComboBox acountFilterCheckboxCombo = getAccountFilterBox();
-
-        TextField nameFilterField = getSearchTextField();
-
-        ObjectProperty<Predicate<AccountListUI.AccountItem>> searchNameFilter = new SimpleObjectProperty<>();
-        ObjectProperty<Predicate<AccountListUI.AccountItem>> typeFilter = new SimpleObjectProperty<>();
-
-        searchNameFilter.bind(Bindings.createObjectBinding(() -> accountItem -> accountItem.getAccountName().toLowerCase().contains(nameFilterField.getText().toLowerCase()),
-                nameFilterField.textProperty()));
 
 
-        typeFilter.bind(Bindings.createObjectBinding(() -> accountItem -> acountFilterCheckboxCombo.getValue().toString().equalsIgnoreCase(ALL) || accountItem.getAccountType().equalsIgnoreCase(getAccountTypeByDisplay(acountFilterCheckboxCombo.getValue().toString()).name()),
-                acountFilterCheckboxCombo.valueProperty()));
+        ObjectProperty<Predicate<AccountListUI.AccountItem>> textFilter = new SimpleObjectProperty<>();
+        ObjectProperty<Predicate<AccountListUI.AccountItem>> comboFilter = new SimpleObjectProperty<>();
+
+        textFilter.bind(Bindings.createObjectBinding(() -> accountItem -> accountItem.getAccountName().toLowerCase().contains(textField.getText().toLowerCase()),
+                textField.textProperty()));
+
+
+        comboFilter.bind(Bindings.createObjectBinding(() -> accountItem -> comboBox.getValue().toString().equalsIgnoreCase(ALL) || accountItem.getAccountType().equalsIgnoreCase(getAccountTypeByDisplay(comboBox.getValue().toString()).name()),
+                comboBox.valueProperty()));
 
         FilteredList<AccountListUI.AccountItem> filteredItems = new FilteredList<>(FXCollections.observableList(getItems()));
         setItems(filteredItems);
 
         filteredItems.predicateProperty().bind(Bindings.createObjectBinding(
-                () -> searchNameFilter.get().and(typeFilter.get()),
-                searchNameFilter, typeFilter));
+                () -> textFilter.get().and(comboFilter.get()),
+                textFilter, comboFilter));
     }
 }

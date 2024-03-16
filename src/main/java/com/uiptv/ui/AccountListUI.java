@@ -72,7 +72,7 @@ public class AccountListUI extends HBox {
         accountName.setSortType(TableColumn.SortType.ASCENDING);
         accountName.setSortable(true);
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
-        HBox sceneBox = new HBox(5, table.getSearchTextField(), table.getAccountFilterBox());
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
         sceneBox.setMaxHeight(25);
         getChildren().addAll(new AutoGrowPaneVBox(5, sceneBox, table));
         addAccountClickHandler();
@@ -151,7 +151,7 @@ public class AccountListUI extends HBox {
         CategoryListUI categoryListUI = refreshCategoryList(account);
         if (categoryListUI == null) return;
         AccountListUI.this.getChildren().clear();
-        HBox sceneBox = new HBox(5, table.getSearchTextField(), table.getAccountFilterBox());
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
         sceneBox.setMaxHeight(25);
         AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
     }

@@ -19,10 +19,7 @@ public class SearchableTableView extends TableView {
 
     public SearchableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
-//        this.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
-//        this.setMaxWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-//        this.isResizable();
         searchTextField.setOnMousePressed(event -> searchTextField.clear());
     }
 
