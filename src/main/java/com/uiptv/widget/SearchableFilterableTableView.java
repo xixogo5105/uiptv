@@ -27,7 +27,7 @@ public class SearchableFilterableTableView extends TableView {
     public SearchableFilterableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        accountFilterBox.setOnMousePressed(event -> searchTextField.clear());
+        searchTextField.setOnMousePressed(event -> searchTextField.clear());
         accountFilterBox.setPrefWidth(175);
         searchTextField.setPrefWidth(275);
         List<String> list = Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList();
