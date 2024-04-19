@@ -105,7 +105,7 @@ public class M3U8Parser {
                                 parseItem(line, "tvg-id=\""),
                                 parseItem(line, "group-title=\""),
                                 parseTitle(line),
-                                reader.readLine(),
+                                parseUrl(reader),
                                 parseItem(line, "tvg-logo=\"")));
                     }
                 } catch (Exception ignored) {
@@ -117,6 +117,20 @@ public class M3U8Parser {
         }
 
         return playlistEntries;
+    }
+
+    private static String parseUrl(BufferedReader reader) throws IOException {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            try {
+                if (isNotBlank(line) && !line.startsWith("#")) {
+                    return line;
+                }
+            } catch (Exception ignored) {
+                UIptvAlert.showError(ignored.getMessage());
+            }
+        }
+        return "";
     }
 
     private static String parseItem(String line, String key) {

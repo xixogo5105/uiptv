@@ -1,7 +1,7 @@
 package com.uiptv.util;
 
-import com.uiptv.api.JsonCompliant;
 import com.sun.net.httpserver.HttpExchange;
+import com.uiptv.api.JsonCompliant;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -18,9 +18,11 @@ public class ServerUtils {
     public static final String CONTENT_TYPE_HTML = "text/html";
     public static final String CONTENT_TYPE_JAVASCRIPT = "text/javascript";
     public static final String CONTENT_TYPE_CSS = "text/css";
+    public static final String CONTENT_TYPE_TEXT = "text/plain";
+    public static final String CONTENT_TYPE_TS = "video/mp2t";
     public static final String CONTENT_TYPE_JSON = "application/json";
     public static final String CONTENT_TYPE_M3U8 = "application/vnd.apple.mpegurl";
-    public static final List<String> DOWNLOADABLE = Arrays.asList(CONTENT_TYPE_JAVASCRIPT, CONTENT_TYPE_CSS, CONTENT_TYPE_M3U8);
+    public static final List<String> DOWNLOADABLE = Arrays.asList(CONTENT_TYPE_TS, CONTENT_TYPE_JAVASCRIPT, CONTENT_TYPE_CSS, CONTENT_TYPE_M3U8);
 
     private static Map<String, String> queryToMap(String query) {
         if (query == null) {
@@ -71,6 +73,9 @@ public class ServerUtils {
 
     public static void generateM3u8Response(HttpExchange httpExchange, String response, String fileName) throws IOException {
         generateResponse(httpExchange, response, CONTENT_TYPE_M3U8, fileName);
+    }
+    public static void generateTs8Response(HttpExchange httpExchange, String response, String fileName) throws IOException {
+        generateResponse(httpExchange, response, CONTENT_TYPE_TS, fileName);
     }
 
     private static void generateResponse(HttpExchange httpExchange, String response, String contentType, String fileName) throws IOException {
