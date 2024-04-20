@@ -15,10 +15,8 @@ public class HttpM3u8BookmarkPlayListServer implements HttpHandler {
         StringBuilder response = new StringBuilder();
         BookmarkService.getInstance().read().forEach(b -> {
             String requestedURL = "http://" + ex.getRequestHeaders().getFirst("Host") + "/bookmarkEntry.ts?bookmarkId=" + b.getDbId();
-            response.append("#EXTM3U\n" +
-                    "#EXTINF:1," + b.getDbId() + "-" + b.getAccountName() + " - " + b.getChannelName() + "\n" +
-                    requestedURL + "\n");
+            response.append("#EXTM3U\n#EXTINF:-1 tvg-id=\"" + b.getDbId() + "\" tvg-name=\"" + b.getChannelName() + "\" group-title=\"" + b.getAccountName() + "\"," + b.getChannelName() + "\n" + requestedURL + "\n");
         });
-        generateM3u8Response(ex, response.toString(), "bookmarks.m3u8");
+        generateM3u8Response(ex, response.toString(), ex.getRequestHeaders().getFirst("Host") + "-bookmarks.m3u8");
     }
 }
