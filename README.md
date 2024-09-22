@@ -5,6 +5,8 @@ This is IPTV player written in JAVA and can be natively compiled to Linux binary
 UIPTV, unlike a traditional IPTV player, is purposely designed to be a text based IPTV player. It also provides a limited web support. 
 UIPTV should also be able to natively compile to a binary on Windows/OSX but this has never been tested so far.
 
+UIPTV user guide is also available at <a href="https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md">https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md</a>
+
 ![UUIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
 
 ## Features:
