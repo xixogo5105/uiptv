@@ -1,14 +1,14 @@
 # UIPTV User Guide
 
 ## Table of Contents
-1. [Introduction](#introduction)
-2. [Installation](#installation)
-3. [Configuration](#configuration)
-4. [Managing Accounts](#managing-accounts)
-5. [Favorites](#favorites)
-6. [Starting and Stopping the Server](#starting-and-stopping-the-server)
-7. [Advanced Features](#advanced-features)
-8. [Troubleshooting and FAQs](#troubleshooting-and-faqs)
+1. [Introduction](#1-introduction)
+2. [Installation](#2-installation)
+3. [Configuration](#3-configuration)
+4. [Managing Accounts](#4-managing-accounts)
+5. [Favorites](#5-favorites)
+6. [Starting and Stopping the Server](#6-starting-and-stopping-the-server)
+7. [Advanced Features](#7-advanced-features)
+8. [Troubleshooting and FAQs](#8-troubleshooting-and-faqs)
 
 ---
 
