@@ -7,8 +7,9 @@
 4. [Managing Accounts](#4-managing-accounts)
 5. [Favorites](#5-favorites)
 6. [Starting and Stopping the Server](#6-starting-and-stopping-the-server)
-7. [Advanced Features](#7-advanced-features)
-8. [Troubleshooting and FAQs](#8-troubleshooting-and-faqs)
+7. [Search Functionality](#7-search-functionality)
+8. [Advanced Features](#8-advanced-features)
+9. [Troubleshooting and FAQs](#9-troubleshooting-and-faqs)
 
 ---
 
@@ -100,7 +101,19 @@ Ensure the server is running for uninterrupted IPTV streaming.
 
 ---
 
-## 7. Advanced Features
+## 7. Search Functionality
+
+UIPTV offers a **Search** feature that allows you to filter and narrow down results for accounts, categories, and channels.
+
+- **Search Box**: At the top of the screen, there is a search input box that can be used to quickly filter the account list, categories, or channels.
+- **Auto-clear on Click**: When you click inside the search box, any existing text will automatically be cleared, allowing you to start a new search easily.
+- **Real-time Filtering**: As you start typing, the account list or channel list will be filtered in real-time, showing only the matching results. The search is dynamic and updates instantly as you type.
+
+This feature is useful when managing large lists of accounts or channels, providing a quick way to find exactly what you’re looking for.
+
+---
+
+## 8. Advanced Features
 
 ### Player Selection for Channels
 When you double-click a channel to play, the **selected player** (as configured in the **Player Paths** section) will be used for playback. You can switch between players by choosing one of the radio buttons next to each player’s path.
@@ -113,7 +126,7 @@ Adjust the UI appearance through font family, size, and theme settings.
 
 ---
 
-## 8. Troubleshooting and FAQs
+## 9. Troubleshooting and FAQs
 
 - **Issue: Channels not appearing**  
   **Solution**: Check your account configuration under **Manage Accounts** and ensure the correct account type is set up. Also, make sure you’re not filtering out channels unintentionally via the category or channel filters.
