@@ -92,13 +92,34 @@ The **Favorites** section allows you to manage and quickly access your preferred
 
 ## 6. Starting and Stopping the Server
 
-UIPTV has a built-in server feature that you can control with the following options:
+UIPTV includes an **experimental web server** feature that allows users to run the entire application through a web-based interface. This transforms UIPTV from a desktop-based app into a web solution that can be accessed via a web browser.
 
-- **Start Server**: Launch the server by clicking this button. Optionally, you can specify the server port (e.g., 8080) in the provided text box before starting.
-- **Stop Server**: Stop the server by clicking this button.
+### How it Works:
 
-Ensure the server is running for uninterrupted IPTV streaming.
+- **Starting the Server**: 
+  - You can start the server by clicking the **Start Server** button in the configuration panel.
+  - Optionally, specify a port (e.g., 8080) in the provided text field before starting. By default, it uses a standard port number.
+  
+- **Accessing the Web Interface**:
+  - Once the server is running, you can access UIPTV by opening a web browser and navigating to `http://localhost:<port>` (replace `<port>` with the number you specified or the default port).
+  - This opens a **fully interactive web-based version** of the app, where you can:
+    - **Select Accounts**: Manage and choose from the configured IPTV accounts.
+    - **Filter Categories**: Narrow down available channels based on categories.
+    - **Browse Channels**: Select and play channels directly from the web interface.
+    - **Player Controls**: You can play content directly through the web pages by selecting channels, categories, and accounts, just like in the desktop version.
 
+### Purpose of the Web Interface:
+This web server functionality was designed to provide users with **flexibility** in how they access and manage their IPTV content. By running a local web server, you can expose a **web service** version of UIPTV that can be accessed on other devices or remotely (with appropriate network setup). 
+
+### Important Disclaimer:
+- **Experimental Feature**: Please note that the web server feature is **experimental** and not intended to function as a commercial-grade or flawless web service. While it offers great flexibility, it may have limitations, and users might experience issues when running the web version.
+  
+- **Customizable Web Pages**: The hosted pages can be **modified by the end user**, meaning the appearance and functionality of the web interface can be customized if desired.
+
+The primary purpose of this feature is to **expose the web service** and offer users an alternative method to access their IPTV content, but it should not be viewed as a fully commercial web-based IPTV service.
+
+- **Stopping the Server**: 
+  - To stop the server, simply click the **Stop Server** button. This will terminate the local web service, and the app will revert to desktop-only use.
 ---
 
 ## 7. Search Functionality
