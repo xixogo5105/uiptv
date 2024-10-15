@@ -9,6 +9,7 @@ public class DatabasePatchesUtils {
 
     static {
         dbPatches.add("ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN macAddressList TEXT");
+        dbPatches.add("ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN pinToTop TEXT default '0'");
     }
 
     public static Set<String> getDbPatches() {

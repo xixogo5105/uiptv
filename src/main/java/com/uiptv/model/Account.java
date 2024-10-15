@@ -27,10 +27,10 @@ public class Account implements Serializable, JsonCompliant {
     private AccountAction action = itv;
     private String accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path;
     private String dbId, token;
-    private boolean pauseCaching;
+    private boolean pauseCaching, pinToTop;
     private AccountType type = STALKER_PORTAL;
 
-    public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pauseCaching) {
+    public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pauseCaching, boolean pinToTop) {
         this.accountName = accountName;
         this.username = username;
         this.password = password;
@@ -52,10 +52,19 @@ public class Account implements Serializable, JsonCompliant {
                     .forEach(m -> macMap.put(m.toLowerCase(), m.replace(SPACE, "")));
         }
         this.macAddressList = String.join(",", macMap.values());
+        this.pinToTop = pinToTop;
     }
 
     public boolean isPauseCaching() {
         return pauseCaching;
+    }
+
+    public boolean isPinToTop() {
+        return pinToTop;
+    }
+
+    public void setPinToTop(boolean pinToTop) {
+        this.pinToTop = pinToTop;
     }
 
     public void setPauseCaching(boolean pauseCaching) {
@@ -214,12 +223,12 @@ public class Account implements Serializable, JsonCompliant {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Account account = (Account) o;
-        return pauseCaching == account.pauseCaching && Objects.equals(serverPortalUrl, account.serverPortalUrl) && action == account.action && Objects.equals(accountName, account.accountName) && Objects.equals(username, account.username) && Objects.equals(password, account.password) && Objects.equals(url, account.url) && Objects.equals(macAddress, account.macAddress) && Objects.equals(macAddressList, account.macAddressList) && Objects.equals(serialNumber, account.serialNumber) && Objects.equals(deviceId1, account.deviceId1) && Objects.equals(deviceId2, account.deviceId2) && Objects.equals(signature, account.signature) && Objects.equals(epg, account.epg) && Objects.equals(m3u8Path, account.m3u8Path) && Objects.equals(dbId, account.dbId) && Objects.equals(token, account.token) && type == account.type;
+        return pauseCaching == account.pauseCaching && pinToTop == account.pinToTop && Objects.equals(serverPortalUrl, account.serverPortalUrl) && action == account.action && Objects.equals(accountName, account.accountName) && Objects.equals(username, account.username) && Objects.equals(password, account.password) && Objects.equals(url, account.url) && Objects.equals(macAddress, account.macAddress) && Objects.equals(macAddressList, account.macAddressList) && Objects.equals(serialNumber, account.serialNumber) && Objects.equals(deviceId1, account.deviceId1) && Objects.equals(deviceId2, account.deviceId2) && Objects.equals(signature, account.signature) && Objects.equals(epg, account.epg) && Objects.equals(m3u8Path, account.m3u8Path) && Objects.equals(dbId, account.dbId) && Objects.equals(token, account.token) && type == account.type;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(serverPortalUrl, action, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, dbId, token, pauseCaching, type);
+        return Objects.hash(serverPortalUrl, action, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, dbId, token, pauseCaching, pinToTop, type);
     }
 
     @Override
@@ -242,6 +251,7 @@ public class Account implements Serializable, JsonCompliant {
                 ", dbId='" + dbId + '\'' +
                 ", token='" + token + '\'' +
                 ", pauseCaching='" + (isPauseCaching() ? "1" : "0") + '\'' +
+                ", pinToTop='" + (isPinToTop() ? "1" : "0") + '\'' +
                 ", type='" + type.name() + '\'' +
                 '}';
     }
@@ -268,6 +278,7 @@ public class Account implements Serializable, JsonCompliant {
                 ",         \"epg\":\"" + safeJson(epg) + "\"" +
                 ",         \"m3u8Path\":\"" + safeJson(m3u8Path) + "\"" +
                 ",         \"pauseCaching\":\"" + (isPauseCaching() ? "1" : "0") + "\"" +
+                ",         \"pinToTop\":\"" + (isPinToTop() ? "1" : "0") + "\"" +
                 "}";
     }
 }

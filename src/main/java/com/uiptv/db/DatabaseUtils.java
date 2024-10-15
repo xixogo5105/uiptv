@@ -59,7 +59,8 @@ public class DatabaseUtils {
                 new DataColumn("m3u8Path", "TEXT"),
                 new DataColumn("type", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
-                new DataColumn("pauseCaching", "TEXT")
+                new DataColumn("pauseCaching", "TEXT"),
+                new DataColumn("pinToTop", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

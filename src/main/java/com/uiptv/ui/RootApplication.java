@@ -69,6 +69,7 @@ public class RootApplication extends Application {
         manageAccountUI.addCallbackHandler(param -> {
             try {
                 accountListUI.refresh();
+                bookmarkChannelListUI.refresh();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

@@ -17,7 +17,9 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 public class ParseMultipleAccountUI extends VBox {
     private final String newLine = "\r" + System.lineSeparator();
 
-    private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "Enter Data to parse multiple stalker portal accounts" + newLine + "e.g." + newLine + "http://website1.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website2.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website3.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "http://website4.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02", 5);
+    private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "Enter Data to parse multiple stalker portal accounts" + newLine + "e.g." + newLine + "http://website1.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website2.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website3.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "http://website4.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "For M3U play list use the following format:" + newLine + "http://somewebsiteurl.iptv:8080/get.php?username=username&password=password&type=m3u" + newLine + "http://somewebsiteurl2.iptv:8080/get.php.iptv:8080/get.php?username=username2&password=password2&type=m3u", 5);
+    private final CheckBox parsePlaylistCheckBox = new CheckBox("Find m3u playlist only");
+    private final CheckBox findXtremeAccountsPlaylistCheckBox = new CheckBox("Where possible convert to m3u playlist to Xtreme account");
     private final CheckBox pauseCachingCheckBox = new CheckBox("Pause account caching");
     private final CheckBox collateAccountsCheckBox = new CheckBox("Group account(s) by MAC Address");
     private final ProminentButton saveButton = new ProminentButton("Parse Text");
@@ -42,8 +44,9 @@ public class ParseMultipleAccountUI extends VBox {
         multipleSPAccounts.setPrefHeight(400);
         pauseCachingCheckBox.setSelected(true);
         collateAccountsCheckBox.setSelected(true);
+
         HBox buttonWrapper2 = new HBox(10, clearButton, saveButton);
-        getChildren().addAll(multipleSPAccounts, pauseCachingCheckBox, collateAccountsCheckBox,buttonWrapper2);
+        getChildren().addAll(multipleSPAccounts, parsePlaylistCheckBox, findXtremeAccountsPlaylistCheckBox, pauseCachingCheckBox, collateAccountsCheckBox, buttonWrapper2);
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
     }
@@ -54,6 +57,8 @@ public class ParseMultipleAccountUI extends VBox {
 
     private void clearAll() {
         multipleSPAccounts.clear();
+        findXtremeAccountsPlaylistCheckBox.setSelected(false);
+        parsePlaylistCheckBox.setSelected(false);
         pauseCachingCheckBox.setSelected(true);
         collateAccountsCheckBox.setSelected(true);
     }
@@ -65,7 +70,7 @@ public class ParseMultipleAccountUI extends VBox {
                     showErrorAlert("Data cannot be empty");
                     return;
                 }
-                StalkerPortalTextParserService.saveBulkAccounts(multipleSPAccounts.getText(), pauseCachingCheckBox.isSelected(), collateAccountsCheckBox.isSelected());
+                StalkerPortalTextParserService.saveBulkAccounts(multipleSPAccounts.getText(), pauseCachingCheckBox.isSelected(), collateAccountsCheckBox.isSelected(), parsePlaylistCheckBox.isSelected(), findXtremeAccountsPlaylistCheckBox.isSelected());
                 clearAll();
                 onSaveCallback.call(null);
                 showMessageAlert("Account(s) details have been parsed and saved successfully!");

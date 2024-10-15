@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.uiptv.db.DatabaseUtils.*;
 import static com.uiptv.db.SQLConnection.connect;
+import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public abstract class BaseDb {
@@ -26,7 +27,7 @@ public abstract class BaseDb {
 
     public <T extends JsonCompliant> List<T> getAll(String extendedSql, String[] parameters) {
         ArrayList<T> t = new ArrayList<>();
-        String sql = selectAllSql(table) + extendedSql;
+        String sql = selectAllSql(table) + SPACE + extendedSql;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             AtomicInteger i = new AtomicInteger(1);
             Arrays.stream(parameters).forEach(s -> {

@@ -1,9 +1,11 @@
 package com.uiptv.service;
 
 import com.uiptv.db.AccountDb;
+import com.uiptv.db.BookmarkDb;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
 import com.uiptv.util.ServerUtils;
 
 import java.util.ArrayList;
@@ -31,7 +33,11 @@ public class AccountService {
         AccountDb.get().save(account);
     }
 
-    public void delete(String accountId) {
+    public void delete(final String accountId) {
+        BookmarkDb.get().getBookmarks()
+                .stream()
+                .filter(b -> b.getAccountName().equalsIgnoreCase(AccountDb.get().getAccountById(accountId).getAccountName()))
+                .forEach(b -> BookmarkDb.get().delete(b.getDbId()));
         ChannelDb.get().deleteByAccount(accountId);
         CategoryDb.get().deleteByAccount(AccountDb.get().getAccountById(accountId));
         AccountDb.get().delete(accountId);
