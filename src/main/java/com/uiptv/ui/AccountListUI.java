@@ -17,6 +17,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -79,6 +80,11 @@ public class AccountListUI extends HBox {
     }
 
     private void addAccountClickHandler() {
+        table.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                retrieveThreadedAccountCategories((AccountItem) table.getFocusModel().getFocusedItem(), itv);
+            }
+        });
         table.setRowFactory(tv -> {
             TableRow<AccountItem> row = new TableRow<>();
 
@@ -91,7 +97,7 @@ public class AccountListUI extends HBox {
                         throw new RuntimeException(e);
                     }
                 } else if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    retrieveThreadedAccountCategories(row, itv);
+                    retrieveThreadedAccountCategories(row.getItem(), itv);
                 }
             });
             addRightClickContextMenu(row);
@@ -105,15 +111,15 @@ public class AccountListUI extends HBox {
         rowMenu.setAutoHide(true);
         MenuItem itv = new MenuItem("TV/Channels");
         itv.setOnAction(actionEvent -> {
-            retrieveThreadedAccountCategories(row, Account.AccountAction.itv);
+            retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv);
         });
         MenuItem vod = new MenuItem("Video On Demand (VOD)");
         vod.setOnAction(actionEvent -> {
-            retrieveThreadedAccountCategories(row, Account.AccountAction.vod);
+            retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod);
         });
         MenuItem series = new MenuItem("Series");
         series.setOnAction(actionEvent -> {
-            retrieveThreadedAccountCategories(row, Account.AccountAction.series);
+            retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series);
         });
 
         rowMenu.getItems().addAll(itv, vod, series);
@@ -125,14 +131,13 @@ public class AccountListUI extends HBox {
                         .otherwise(rowMenu));
     }
 
-    private void retrieveThreadedAccountCategories(TableRow<AccountItem> row, Account.AccountAction accountAction) {
-        AccountItem clickedRow = row.getItem();
+    private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
         primaryStage.getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
                 Platform.runLater(() -> {
                     try {
-                        retrieveAccountCategories(clickedRow, accountAction);
+                        retrieveAccountCategories(item, accountAction);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

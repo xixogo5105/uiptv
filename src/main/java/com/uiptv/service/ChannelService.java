@@ -69,7 +69,7 @@ public class ChannelService {
         return censor(cachedChannels);
     }
 
-    public List<Channel> getSeries(String categoryId, String movieId, Account account, String dbId) {
+    public List<Channel> getSeries(String categoryId, String movieId, Account account) {
         return getStalkerPortalChOrSeries(categoryId, account, movieId, "0");
     }
 

@@ -89,16 +89,16 @@ public class ChannelListUI extends HBox {
     }
 
     private void addChannelClickHandler() {
+        table.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                PlayOrShowSeries((ChannelItem) table.getFocusModel().getFocusedItem());
+            }
+        });
         table.setRowFactory(tv -> {
             TableRow<ChannelItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    PlayOrShowSeries(row);
-                }
-            });
-            row.setOnKeyPressed(event -> {
-                if (!row.isEmpty() && event.getCode() == KeyCode.ENTER) {
-                    PlayOrShowSeries(row);
+                    PlayOrShowSeries(row.getItem());
                 }
             });
             if (!(account.getAction() == series && account.getType() == XTREME_API)) {
@@ -109,24 +109,24 @@ public class ChannelListUI extends HBox {
         });
     }
 
-    private void PlayOrShowSeries(TableRow<ChannelItem> row) {
+    private void PlayOrShowSeries(ChannelItem item) {
         if (account.getAction() == series && account.getType() == XTREME_API) {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(row.getItem().getChannelId(), account), account, row.getItem().getChannelName(), bookmarkChannelListUI));
+            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI));
         } else if (account.getAction() == series && account.getType() == STALKER_PORTAL) {
-            if(isBlank(row.getItem().getCmd())){
+            if (isBlank(item.getCmd())) {
                 if (this.getChildren().size() > 1) {
                     this.getChildren().remove(1);
                 }
                 this.getChildren().clear();
-                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, row.getItem().getChannelId(), account, row.getId()), account, row.getItem().getChannelName(), bookmarkChannelListUI, categoryId));
+                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId));
             } else {
-                play(row);
+                play(item);
             }
         } else {
-            play(row);
+            play(item);
         }
     }
 
@@ -145,23 +145,23 @@ public class ChannelListUI extends HBox {
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
             rowMenu.hide();
-            play1(row);
+            play1(row.getItem());
         });
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
             rowMenu.hide();
-            play2(row);
+            play2(row.getItem());
         });
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
             rowMenu.hide();
-            play3(row);
+            play3(row.getItem());
         });
 
         MenuItem reconnectAndPlayItem = new MenuItem("Reconnect & Play");
         reconnectAndPlayItem.setOnAction(event -> {
             rowMenu.hide();
-            reconnectAndPlay(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            reconnectAndPlay(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
         });
         rowMenu.getItems().addAll(editItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
@@ -172,41 +172,41 @@ public class ChannelListUI extends HBox {
                         .otherwise(rowMenu));
     }
 
-    private void reconnectAndPlay(TableRow<ChannelItem> row, String playerPath) {
+    private void reconnectAndPlay(ChannelItem item, String playerPath) {
         try {
-            Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, row.getItem().getCmd()));
+            Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, item.getCmd()));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void play(TableRow<ChannelItem> row) {
+    private void play(ChannelItem item) {
         try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getDefaultPlayerPath(), PlayerService.getInstance().get(account, row.getItem().getCmd(), row.getItem().getChannelId()));
+            Platform.executeCommand(ConfigurationService.getInstance().read().getDefaultPlayerPath(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void play1(TableRow<ChannelItem> row) {
+    private void play1(ChannelItem item) {
         try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath1(), PlayerService.getInstance().get(account, row.getItem().getCmd(), row.getItem().getChannelId()));
+            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath1(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void play2(TableRow<ChannelItem> row) {
+    private void play2(ChannelItem item) {
         try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath2(), PlayerService.getInstance().get(account, row.getItem().getCmd(), row.getItem().getChannelId()));
+            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath2(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void play3(TableRow<ChannelItem> row) {
+    private void play3(ChannelItem item) {
         try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath3(), PlayerService.getInstance().get(account, row.getItem().getCmd(), row.getItem().getChannelId()));
+            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath3(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

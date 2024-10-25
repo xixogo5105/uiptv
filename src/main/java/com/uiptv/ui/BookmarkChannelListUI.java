@@ -54,16 +54,16 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void addChannelClickHandler() {
+        bookmarkTable.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                play((BookmarkItem) bookmarkTable.getFocusModel().getFocusedItem(), false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            }
+        });
         bookmarkTable.setRowFactory(tv -> {
             TableRow<BookmarkItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    play(row, false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-                }
-            });
-            row.setOnKeyPressed(event -> {
-                if (!row.isEmpty() && event.getCode() == KeyCode.ENTER) {
-                    play(row, false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                    play(row.getItem(), false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
                 }
             });
             addRightClickContextMenu(row);
@@ -87,22 +87,22 @@ public class BookmarkChannelListUI extends HBox {
         MenuItem playerItem = new MenuItem("Reconnect & Play");
         playerItem.setOnAction(event -> {
             rowMenu.hide();
-            play(row, true, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(row.getItem(), true, ConfigurationService.getInstance().read().getDefaultPlayerPath());
         });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row, false, ConfigurationService.getInstance().read().getPlayerPath1());
+            play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath1());
         });
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row, false, ConfigurationService.getInstance().read().getPlayerPath2());
+            play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath2());
         });
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row, false, ConfigurationService.getInstance().read().getPlayerPath3());
+            play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath3());
         });
         rowMenu.getItems().addAll(editItem, player1Item, player2Item, player3Item, playerItem);
         // only display context menu for non-empty rows:
@@ -112,14 +112,14 @@ public class BookmarkChannelListUI extends HBox {
                         .otherwise(rowMenu));
     }
 
-    private void play(TableRow<BookmarkItem> row, boolean hardReset, String playerPath) {
+    private void play(BookmarkItem item, boolean hardReset, String playerPath) {
         try {
-            Account account = AccountService.getInstance().getAll().get(row.getItem().getAccountName());
-            account.setServerPortalUrl(row.getItem().getServerPortalUrl());
+            Account account = AccountService.getInstance().getAll().get(item.getAccountName());
+            account.setServerPortalUrl(item.getServerPortalUrl());
             if (hardReset) {
-                Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, row.getItem().getCmd()));
+                Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, item.getCmd()));
             } else {
-                Platform.executeCommand(playerPath, PlayerService.getInstance().get(account, row.getItem().getCmd()));
+                Platform.executeCommand(playerPath, PlayerService.getInstance().get(account, item.getCmd()));
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

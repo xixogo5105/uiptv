@@ -78,16 +78,16 @@ public class EpisodesListUI extends HBox {
     }
 
     private void addChannelClickHandler() {
+        table.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                play((EpisodeItem) table.getFocusModel().getFocusedItem());
+            }
+        });
         table.setRowFactory(tv -> {
             TableRow<EpisodeItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    play(row);
-                }
-            });
-            row.setOnKeyPressed(event -> {
-                if (!row.isEmpty() && event.getCode() == KeyCode.ENTER) {
-                    play(row);
+                    play(row.getItem());
                 }
             });
             addRightClickContextMenu(row);
@@ -137,9 +137,9 @@ public class EpisodesListUI extends HBox {
         }
     }
 
-    private void play(TableRow<EpisodeItem> row) {
+    private void play(EpisodeItem item) {
         try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getDefaultPlayerPath(), PlayerService.getInstance().get(account, row.getItem().getCmd()));
+            Platform.executeCommand(ConfigurationService.getInstance().read().getDefaultPlayerPath(), PlayerService.getInstance().get(account, item.getCmd()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

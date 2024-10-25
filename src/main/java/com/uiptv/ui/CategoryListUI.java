@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.ChannelService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
@@ -11,6 +12,7 @@ import javafx.collections.FXCollections;
 import javafx.scene.Cursor;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -56,23 +58,17 @@ public class CategoryListUI extends HBox {
     }
 
     private void addChannelClickHandler() {
+        table.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                doRetrieveChannels((CategoryItem) table.getFocusModel().getFocusedItem());
+            }
+        });
         table.setRowFactory(tv -> {
             TableRow<CategoryItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY
                         && event.getClickCount() == 2) {
-                    primaryStage.getScene().setCursor(Cursor.WAIT);
-                    new Thread(() -> {
-                        try {
-                            Platform.runLater(() -> {
-                                retrieveChannels(row);
-                            });
-                        } catch (Throwable ignored) {
-                        } finally {
-                            Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
-                        }
-
-                    }).start();
+                    doRetrieveChannels(row.getItem());
 
                 }
             });
@@ -80,12 +76,26 @@ public class CategoryListUI extends HBox {
         });
     }
 
-    private synchronized void retrieveChannels(TableRow<CategoryItem> row) {
-        CategoryItem clickedRow = row.getItem();
+    private void doRetrieveChannels(CategoryItem item) {
+        primaryStage.getScene().setCursor(Cursor.WAIT);
+        new Thread(() -> {
+            try {
+                Platform.runLater(() -> {
+                    retrieveChannels(item);
+                });
+            } catch (Throwable ignored) {
+            } finally {
+                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
+            }
+
+        }).start();
+    }
+
+    private synchronized void retrieveChannels(CategoryItem item) {
         try {
             this.getChildren().clear();
 
-            getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? clickedRow.getCategoryId() : clickedRow.getCategoryTitle(), account, clickedRow.getId()), account, clickedRow.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? clickedRow.getCategoryId() : clickedRow.getCategoryTitle()));
+            getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(), account, item.getId()), account, item.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
