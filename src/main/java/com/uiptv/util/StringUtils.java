@@ -208,7 +208,7 @@ public class StringUtils {
     public static String safeJson(String val) {
         try {
             if (!isBlank(val)) {
-                return val.replace("\\", "\\\\").replace("\"", "\\\"");
+                return val.replaceAll("\\p{C}", "").replace("\\", "\\\\").replace("\"", "\\\"");
             }
         } catch (Exception ignored) {
 
