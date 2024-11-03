@@ -81,6 +81,7 @@ public class AccountListUI extends HBox {
 
     private void addAccountClickHandler() {
         table.setOnKeyReleased(event -> {
+            onEditCallback.call(AccountDb.get().getAccountById(((AccountItem) table.getFocusModel().getFocusedItem()).accountId.get()));
             if (event.getCode() == KeyCode.ENTER) {
                 retrieveThreadedAccountCategories((AccountItem) table.getFocusModel().getFocusedItem(), itv);
             }
