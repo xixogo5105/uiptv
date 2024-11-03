@@ -7,6 +7,7 @@ import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,7 +21,7 @@ public class M3U8Parser {
         try {
             if (m3u8Url.getProtocol().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream())));
+                return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
             } else if (m3u8Url.getProtocol().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
                 return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream())));
@@ -33,8 +34,10 @@ public class M3U8Parser {
 
     public static Set<PlaylistEntry> parsePathCategory(String filePath) {
         try {
-            return parseCategory(new BufferedReader(new FileReader(filePath)));
+            return parseCategory(new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8)));
         } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -43,11 +46,11 @@ public class M3U8Parser {
         try {
             if (m3u8Url.getProtocol().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream())));
+                return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
             }
             if (m3u8Url.getProtocol().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream())));
+                return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
             }
             return parseM3U8(new BufferedReader(new InputStreamReader(m3u8Url.openStream())));
         } catch (IOException e) {
@@ -57,8 +60,10 @@ public class M3U8Parser {
 
     public static List<PlaylistEntry> parseChannelPathM3U8(String filePath) {
         try {
-            return parseM3U8(new BufferedReader(new FileReader(filePath)));
+            return parseM3U8(new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8)));
         } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
