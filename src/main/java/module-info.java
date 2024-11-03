@@ -9,6 +9,7 @@ module com.uiptv {
     requires jdk.httpserver;
     requires net.bjoernpetersen.m3u;
     requires java.sql;
+    requires com.rometools.rome;
 
     opens com.uiptv.ui to javafx.fxml;
     exports com.uiptv.ui;
@@ -17,4 +18,5 @@ module com.uiptv {
     exports com.uiptv.widget;
     exports com.uiptv.service;
     exports com.uiptv.model;
+    opens com.uiptv.util to javafx.fxml;
 }

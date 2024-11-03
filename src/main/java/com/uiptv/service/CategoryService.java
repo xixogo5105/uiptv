@@ -5,6 +5,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlaylistEntry;
+import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
@@ -70,6 +71,8 @@ public class CategoryService {
                 categories.addAll(m3u8Categories(account));
             } else if (account.getType() == AccountType.XTREME_API) {
                 categories.addAll(xtremeAPICategories(account));
+            } else if (account.getType() == AccountType.RSS_FEED) {
+                categories.addAll(rssCategories());
             } else {
                 List<Category> s = stalkerPortalCategories(account);
                 if (s != null && !s.isEmpty()) categories.addAll(s);
@@ -87,6 +90,16 @@ public class CategoryService {
     private List<Category> m3u8Categories(Account account) throws MalformedURLException {
         Set<Category> categories = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseUrlCategory(new URL(account.getM3u8Path())) : parsePathCategory(account.getM3u8Path());
+        m3uEntries.forEach(entry -> {
+            Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
+            categories.add(c);
+        });
+        return censor(categories.stream().toList());
+    }
+
+    private List<Category> rssCategories() {
+        Set<Category> categories = new LinkedHashSet<>();
+        Set<PlaylistEntry> m3uEntries = RssParser.getCategories();
         m3uEntries.forEach(entry -> {
             Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
             categories.add(c);

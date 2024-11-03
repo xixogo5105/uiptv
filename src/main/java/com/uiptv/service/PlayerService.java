@@ -17,7 +17,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class PlayerService {
     private static PlayerService instance;
-    public static final EnumSet<AccountType> preDefinedUrls = EnumSet.of(M3U8_URL, M3U8_LOCAL, XTREME_API);
+    public static final EnumSet<AccountType> preDefinedUrls = EnumSet.of(RSS_FEED, M3U8_URL, M3U8_LOCAL, XTREME_API);
 
     private PlayerService() {
     }

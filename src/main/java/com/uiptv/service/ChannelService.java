@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.*;
+import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
@@ -81,6 +82,8 @@ public class ChannelService {
                 channels.addAll(m3u8Channels(categoryId, account));
             } else if (account.getType() == AccountType.XTREME_API) {
                 channels.addAll(xtremeAPICategories(categoryId, account));
+            } else if (account.getType() == AccountType.RSS_FEED) {
+                channels.addAll(rssChannels(categoryId, account));
             } else {
                 channels.addAll(getStalkerPortalChOrSeries(categoryId, account, null, "0"));
             }
@@ -99,6 +102,15 @@ public class ChannelService {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseChannelUrlM3U8(new URL(account.getM3u8Path())) : parseChannelPathM3U8(account.getM3u8Path());
         m3uEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
+            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
+            channels.add(c);
+        });
+        return channels.stream().toList();
+    }
+    private List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
+        Set<Channel> channels = new LinkedHashSet<>();
+        List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
+        rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
             Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
             channels.add(c);
         });

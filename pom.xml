@@ -57,16 +57,15 @@
             <artifactId>m3u-parser</artifactId>
             <version>1.4.0</version>
         </dependency>
-
-        <!--                <dependency>-->
-        <!--                    <groupId>org.xerial</groupId>-->
-        <!--                    <artifactId>sqlite-jdbc</artifactId>-->
-        <!--                    <version>3.44.1.0</version>-->
-        <!--                </dependency>-->
         <dependency>
             <groupId>io.github.willena</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.35.5.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.rometools</groupId>
+            <artifactId>rome</artifactId>
+            <version>2.1.0</version>
         </dependency>
     </dependencies>
     <build>

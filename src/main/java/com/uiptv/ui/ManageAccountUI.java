@@ -102,6 +102,7 @@ public class ManageAccountUI extends VBox {
                             getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
                             break;
                         case M3U8_URL:
+                        case RSS_FEED:
                             getChildren().addAll(accountType, name, m3u8Path, epg, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
                             break;
                         case XTREME_API:
