@@ -36,6 +36,7 @@ public class AccountListUI extends HBox {
     SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
     private Callback onEditCallback;
+    private Callback onDeleteCallback;
 
     public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI) {
         this.bookmarkChannelListUI = bookmarkChannelListUI;
@@ -50,8 +51,12 @@ public class AccountListUI extends HBox {
         return spCat;
     }
 
-    public void addCallbackHandler(Callback onEditCallback) {
+    public void addUpdateCallbackHandler(Callback onEditCallback) {
         this.onEditCallback = onEditCallback;
+    }
+
+    public void addDeleteCallbackHandler(Callback onDeleteCallback) {
+        this.onDeleteCallback = onDeleteCallback;
     }
 
     public void refresh() {
@@ -82,6 +87,9 @@ public class AccountListUI extends HBox {
     private void addAccountClickHandler() {
         table.setOnKeyReleased(event -> {
             onEditCallback.call(AccountDb.get().getAccountById(((AccountItem) table.getFocusModel().getFocusedItem()).accountId.get()));
+            if (event.getCode() == KeyCode.DELETE) {
+                onDeleteCallback.call(AccountDb.get().getAccountById(((AccountItem) table.getFocusModel().getFocusedItem()).accountId.get()));
+            }
             if (event.getCode() == KeyCode.ENTER) {
                 retrieveThreadedAccountCategories((AccountItem) table.getFocusModel().getFocusedItem(), itv);
             }

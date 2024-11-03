@@ -190,21 +190,29 @@ public class ManageAccountUI extends VBox {
 
     private void addDeleteButtonClickHandler() {
         deleteButton.setOnAction(actionEvent -> {
-            if (isBlank(name.getText())) {
-                showErrorAlert("Name cannot be empty");
-                return;
-            }
-            Alert confirmDialogue = showDialog("Delete This account?");
-            if (confirmDialogue.getResult() == ButtonType.YES) {
-                try {
-                    service.delete(accountId);
-                    onSaveCallback.call(null);
-                    clearAll();
-                } catch (Exception e) {
-                    showErrorAlert("Failed!");
-                }
-            }
+            deleteAccount(name.getText(), accountId);
         });
+    }
+
+    private void deleteAccount(String name, String accountId) {
+        if (isBlank(name) || isBlank(accountId)) {
+            return;
+        }
+        Alert confirmDialogue = showDialog("Delete This account " + name + "?");
+        if (confirmDialogue.getResult() == ButtonType.YES) {
+            try {
+                service.delete(accountId);
+                onSaveCallback.call(null);
+                clearAll();
+            } catch (Exception e) {
+                showErrorAlert("Failed!");
+            }
+        }
+    }
+
+    public void deleteAccount(Account account) {
+        if (account == null) return;
+        deleteAccount(account.getAccountName(), account.getDbId());
     }
 
     public void editAccount(Account account) {

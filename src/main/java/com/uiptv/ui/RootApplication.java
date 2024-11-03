@@ -57,7 +57,8 @@ public class RootApplication extends Application {
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
         AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI);
-        accountListUI.addCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
+        accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
+        accountListUI.addDeleteCallbackHandler(param -> manageAccountUI.deleteAccount((Account) param));
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {
             try {
                 configureFontStyles(RootApplication.primaryStage.getScene());
