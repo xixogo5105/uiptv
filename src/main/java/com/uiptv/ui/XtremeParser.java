@@ -28,9 +28,11 @@ public class XtremeParser {
             URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=" + getCategoryAction(account.getAction()));
             if (account.getM3u8Path().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return doParseCategories(readFullyAsString(connection.getInputStream(), "UTF-8"));
             } else if (account.getM3u8Path().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return doParseCategories(readFullyAsString(connection.getInputStream(), "UTF-8"));
             }
             return doParseCategories(readFullyAsString(m3u8Url.openStream(), "UTF-8"));
@@ -47,9 +49,11 @@ public class XtremeParser {
             URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=" + getChannelListAction(account.getAction()) + "&category_id=" + categoryId);
             if (account.getM3u8Path().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
             } else if (account.getM3u8Path().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
             }
             return doParseChannels(readFullyAsString(m3u8Url.openStream(), "UTF-8"), account);
@@ -66,9 +70,11 @@ public class XtremeParser {
             URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=get_series_info&series_id=" + seriesId);
             if (account.getM3u8Path().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return doParseEpisodes(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
             } else if (account.getM3u8Path().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return doParseEpisodes(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
             }
             return doParseEpisodes(readFullyAsString(m3u8Url.openStream(), "UTF-8"), account);

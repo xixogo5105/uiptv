@@ -58,9 +58,11 @@ public class RssFeedReader {
         InputStreamReader reader;
         if (url.startsWith("https")) {
             HttpsURLConnection connection = (HttpsURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(10000);
             reader = (new InputStreamReader(connection.getInputStream()));
         } else {
             HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(10000);
             reader = (new InputStreamReader(connection.getInputStream()));
         }
         SyndFeed feed = input.build(reader);

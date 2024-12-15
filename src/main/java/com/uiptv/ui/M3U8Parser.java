@@ -21,9 +21,11 @@ public class M3U8Parser {
         try {
             if (m3u8Url.getProtocol().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
             } else if (m3u8Url.getProtocol().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream())));
             }
             return parseCategory(new BufferedReader(new InputStreamReader(m3u8Url.openStream())));
@@ -46,10 +48,12 @@ public class M3U8Parser {
         try {
             if (m3u8Url.getProtocol().startsWith("https")) {
                 HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
             }
             if (m3u8Url.getProtocol().startsWith("http")) {
                 HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
                 return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
             }
             return parseM3U8(new BufferedReader(new InputStreamReader(m3u8Url.openStream())));
