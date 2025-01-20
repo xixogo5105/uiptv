@@ -76,7 +76,7 @@ public class RssFeedReader {
             if (!link.toLowerCase().startsWith("http")) {
                 link = feed.getLink() + link;
             }
-            items.add(new RssItem(entry.getTitle(), link, entry.getDescription().getValue()));
+            items.add(new RssItem(entry.getTitle(), link, entry.getDescription() != null ? entry.getDescription().getValue() : ""));
         }
 
         return items;
