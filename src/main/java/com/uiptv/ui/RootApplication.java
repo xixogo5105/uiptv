@@ -1,6 +1,8 @@
 package com.uiptv.ui;
 
 
+import com.uiptv.db.ConfigurationDb;
+import com.uiptv.db.DatabaseUtils;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.server.UIptvServer;
@@ -19,8 +21,10 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Arrays;
 
+import static com.uiptv.util.SQLiteTableSync.syncTables;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class RootApplication extends Application {
@@ -30,13 +34,33 @@ public class RootApplication extends Application {
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
 
     public static void main(String[] args) {
-        if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
+        if (args != null && args.length>0 && "sync".equalsIgnoreCase(args[0])) {
+            if (args.length != 3) {
+                System.err.println("Usage: sync <first_db_path> <second_db_path>");
+                System.exit(1);
+            }
+            String firstDB = args[1];
+            String secondDB = args[2];
+            try {
+                for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
+                    if (DatabaseUtils.Syncable.contains(tableName)) {
+                        syncTables(firstDB, secondDB, tableName.getTableName());
+                    }
+                }
+                ConfigurationDb.get().clearCache();
+                System.out.println("Sync complete!");
+            } catch (SQLException e) {
+                System.err.println("Error syncing tables: " + e.getMessage());
+            }
+        } else if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
             try {
                 UIptvServer.start();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         } else {
+            System.setProperty("file.encoding", "UTF-8");
+            java.nio.charset.Charset.defaultCharset();
             launch();
         }
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -50,7 +74,7 @@ public class RootApplication extends Application {
     }
 
     @Override
-    public final void start(Stage primaryStage) throws IOException {
+    public final void start(@SuppressWarnings("exports") Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();

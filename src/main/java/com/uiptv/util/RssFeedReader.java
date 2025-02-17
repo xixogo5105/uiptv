@@ -72,7 +72,9 @@ public class RssFeedReader {
             if (!entry.getEnclosures().isEmpty()) {
                 link = entry.getEnclosures().get(0).getUrl();
             }
-            if (isBlank(link)) continue;
+            if (isBlank(link)) {
+                continue;
+            }
             if (!link.toLowerCase().startsWith("http")) {
                 link = feed.getLink() + link;
             }
