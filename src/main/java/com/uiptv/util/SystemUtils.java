@@ -79,8 +79,8 @@ public class SystemUtils {
                     osName.contains("openbsd") ||
                     osName.contains("irix") ||
                     osName.contains("digital unix") ||
-                    osName.contains("unix") ||
-                    osName.contains("mac os x")) {
+                    osName.contains("unix")
+            ) {
                 os = UNIX;
                 IS_OS_LINUX = true;
             } else if (osName.contains("mac os x")) {
