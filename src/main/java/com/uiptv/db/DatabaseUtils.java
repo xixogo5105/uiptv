@@ -25,6 +25,7 @@ public class DatabaseUtils {
     }
 
     public static final EnumSet<DbTable> Cacheable = EnumSet.of(DbTable.CATEGORY_TABLE, DbTable.CHANNEL_TABLE);
+    public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE);
 
     static {
         dbStructure.put(DbTable.CONFIGURATION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(

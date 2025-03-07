@@ -17,6 +17,9 @@ import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class M3U8Parser {
+    private static final String EXTINF = "#EXTINF";
+    private static final String COMMENT_PREFIX = "#";
+
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
         try {
             if (m3u8Url.getProtocol().startsWith("https")) {
@@ -35,10 +38,8 @@ public class M3U8Parser {
     }
 
     public static Set<PlaylistEntry> parsePathCategory(String filePath) {
-        try {
-            return parseCategory(new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8)));
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8))) {
+            return parseCategory(reader);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -63,24 +64,21 @@ public class M3U8Parser {
     }
 
     public static List<PlaylistEntry> parseChannelPathM3U8(String filePath) {
-        try {
-            return parseM3U8(new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8)));
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8))) {
+            return parseM3U8(reader);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static Set<PlaylistEntry> parseCategory(BufferedReader in) {
-//        Set<PlaylistEntry> playlistEntries = new TreeSet<>((s1, s2) -> s2.getGroupTitle().compareTo(s1.getGroupTitle()));
+    private static Set<PlaylistEntry> parseCategory(BufferedReader reader) {
         Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
         playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));
-        try (BufferedReader reader = new BufferedReader(in)) {
+        try {
             String line;
             while ((line = reader.readLine()) != null) {
                 try {
-                    if (line.startsWith("#EXTINF")) {
+                    if (line.startsWith(EXTINF)) {
                         String groupTitle = parseItem(line, "group-title=\"");
                         if (isNotBlank(groupTitle) && !groupTitle.equalsIgnoreCase("All")) {
                             playlistEntries.add(new PlaylistEntry(
@@ -92,8 +90,8 @@ public class M3U8Parser {
                         }
                         reader.readLine();
                     }
-                } catch (Exception ignored) {
-                    UIptvAlert.showError(ignored.getMessage());
+                } catch (Exception e) {
+                    UIptvAlert.showError(e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -103,13 +101,13 @@ public class M3U8Parser {
         return playlistEntries;
     }
 
-    private static List<PlaylistEntry> parseM3U8(BufferedReader in) {
+    private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(in)) {
+        try {
             String line;
             while ((line = reader.readLine()) != null) {
                 try {
-                    if (line.startsWith("#EXTINF")) {
+                    if (line.startsWith(EXTINF)) {
                         playlistEntries.add(new PlaylistEntry(
                                 parseItem(line, "tvg-id=\""),
                                 parseItem(line, "group-title=\""),
@@ -117,8 +115,8 @@ public class M3U8Parser {
                                 parseUrl(reader),
                                 parseItem(line, "tvg-logo=\"")));
                     }
-                } catch (Exception ignored) {
-                    UIptvAlert.showError(ignored.getMessage());
+                } catch (Exception e) {
+                    UIptvAlert.showError(e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -131,15 +129,11 @@ public class M3U8Parser {
     private static String parseUrl(BufferedReader reader) throws IOException {
         String line;
         while ((line = reader.readLine()) != null) {
-            try {
-                if (isNotBlank(line) && !line.startsWith("#")) {
-                    return line;
-                }
-            } catch (Exception ignored) {
-                UIptvAlert.showError(ignored.getMessage());
+            if (isNotBlank(line) && !line.startsWith(COMMENT_PREFIX)) {
+                return line;
             }
         }
-        return "";
+        return EMPTY;
     }
 
     private static String parseItem(String line, String key) {
@@ -151,9 +145,9 @@ public class M3U8Parser {
     }
 
     private static String parseTitle(String line) {
-        String[] firstItem = line.split(",");
-        if (firstItem.length > 1) {
-            return firstItem[1];
+        int lastCommaIndex = line.lastIndexOf(",");
+        if (lastCommaIndex != -1 && lastCommaIndex < line.length() - 1) {
+            return line.substring(lastCommaIndex + 1).trim();
         }
         return EMPTY;
     }

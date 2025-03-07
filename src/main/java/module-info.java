@@ -10,6 +10,8 @@ module com.uiptv {
     requires net.bjoernpetersen.m3u;
     requires java.sql;
     requires com.rometools.rome;
+    requires org.slf4j;
+    requires io.github.willena.sqlitejdbc;
 
     opens com.uiptv.ui to javafx.fxml;
     exports com.uiptv.ui;
