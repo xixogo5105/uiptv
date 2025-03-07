@@ -1,6 +1,6 @@
 <img src="https://github.com/xixogo5105/uiptv/assets/161976171/5563a042-157e-4ae7-bb6e-a72b38c8aa62"  width="64" height="64"  alt=""/>
 
-# UIPTV - A Universal Windows Linux & Mac (OSX) IPTV Player
+# UIPTV - A Universal Windows, Linux & Mac (OSX) IPTV Player
 UIPTV is an IPTV player written in JAVA and can be natively compiled to Linux binary. UIPTV is Linux at heart and built on the Linux philosophy.
 UIPTV, unlike a traditional IPTV player, is purposely designed to be a text-based IPTV player. It also provides limited web support.
 UIPTV binaries are available for Linux (x86-64 only), Windows (64-bit only), and Mac OSX (for silicon or arch64 only).
