@@ -183,7 +183,6 @@
                     <resourcesList>
                         <list>org/sqlite/native/${platform}/${sqlite.arch}/.*</list>
                     </resourcesList>
-                    <graalvmHome>~/apps/programs/graalvm-jdk/Contents/Home</graalvmHome>
                     <jniList>
                         <list>org.sqlite.core.DB</list>
                         <list>org.sqlite.core.NativeDB</list>
