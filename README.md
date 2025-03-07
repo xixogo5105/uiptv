@@ -6,6 +6,7 @@ UIPTV, unlike a traditional IPTV player, is purposely designed to be a text-base
 UIPTV binaries are available for Linux (x86-64 only), Windows (64-bit only), and Mac OSX (for silicon or arch64 only).
 
 UIPTV user guide is also available at <a href="https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md">https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md</a>
+Download the latest release <a href="[https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md](https://github.com/xixogo5105/uiptv/releases/latest)">here</a>
 
 ![UUIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
 
