@@ -1,51 +1,54 @@
 <html>
-<head>
-    <title>UIPTV</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-<center>
-    <h4 id="headerTitle"></h4>
-    <video id="video" style="width:800px;height:600px" width="800" height="600" autoplay controls
-           preload="auto"></video>
-</center>
-<script src="//cdn.jsdelivr.net/npm/hls.js@latest"></script>
-<script>
-    const video = document.getElementById('video');
-    const hls = new Hls();
-    const urlSearchParams = new URLSearchParams(window.location.search.replace("?", ""));
-    const params = Object.fromEntries(urlSearchParams.entries());
-    const accountId = params.accountId || '';
-    const categoryId = params.categoryId || '';
-    const channelId = params.channelId || '';
-    const bookmarkId = params.bookmarkId || '';
+        <head>
+            <title>UIPTV</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <link href="https://vjs.zencdn.net/7.15.4/video-js.css" rel="stylesheet" />
+        </head>
+        <body>
+        <center>
+            <h4 id="headerTitle"></h4>
+            <video id="video" class="video-js vjs-default-skin" controls preload="auto" width="800" height="600"></video>
+            <iframe id="youtube" width="800" height="600" style="display:none;" frameborder="0" allowfullscreen allow></iframe>
+        </center>
+        <script src="https://vjs.zencdn.net/7.15.4/video.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/videojs-http-streaming@2.11.0/dist/videojs-http-streaming.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/videojs-contrib-dash@2.11.0/dist/videojs-dash.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/videojs-youtube@2.6.1/dist/Youtube.min.js"></script>
+        <script>
+            const video = videojs('video');
+            const youtube = document.getElementById('youtube');
+            const urlSearchParams = new URLSearchParams(window.location.search.replace("?", ""));
+            const params = Object.fromEntries(urlSearchParams.entries());
+            const accountId = params.accountId || '';
+            const categoryId = params.categoryId || '';
+            const channelId = params.channelId || '';
+            const bookmarkId = params.bookmarkId || '';
 
-    fetch(window.location.origin + "/player?bookmarkId=" + bookmarkId + "&channelId=" + channelId + "&categoryId=" + categoryId + "&accountId=" + accountId)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('headerTitle').innerHTML = data.channelName + '[<a href="accounts.html">Accounts</a>&nbsp;&nbsp;<a href="bookmarks.html">Bookmarks</a>&nbsp;&nbsp;<a href="javascript:history.back();">Back</a>]';
-            render(data.url);
-        });
+            const targetUrl = window.location.origin + "/player?bookmarkId=" + bookmarkId + "&channelId=" + channelId + "&categoryId=" + categoryId + "&accountId=" + accountId;
 
+            fetch(targetUrl)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('headerTitle').innerHTML = data.channelName + '[<a href="accounts.html">Accounts</a>&nbsp;&nbsp;<a href="bookmarks.html">Bookmarks</a>&nbsp;&nbsp;<a href="javascript:history.back();">Back</a>]';
+                    render(data.url);
+                });
 
-    function render(uri) {
-        if (Hls.isSupported()) {
-            hls.attachMedia(video);
-            hls.loadSource(uri);
-            hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-                // video.muted = true;
-                video.play();
-            });
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = uri;
-            video.addEventListener('canplay', function () {
-                video.play();
-            });
-        }
-    }
-</script>
-</body>
-<script src="javascript/uiptv.js" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="css/uiptv.css">
-</html>
+            function render(uri) {
+                const videoElement = document.getElementById('video');
+                if (uri.includes('youtube.com') || uri.includes('youtu.be')) {
+                    videoElement.style.display = 'none';
+                    youtube.style.display = 'block';
+                    const videoId = uri.split('v=')[1] || uri.split('/').pop();
+                    youtube.src = `https://www.youtube.com/embed/${videoId}`;
+                } else {
+                    youtube.style.display = 'none';
+                    videoElement.style.display = 'block';
+                    video.src({ src: uri, type: 'application/x-mpegURL' });
+                    video.play();
+                }
+            }
+        </script>
+        </body>
+        <link rel="stylesheet" href="css/uiptv.css">
+        </html>

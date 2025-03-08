@@ -47,7 +47,7 @@ public class AccountListUI extends HBox {
     public CategoryListUI refreshCategoryList(Account account) {
         List<Category> list = CategoryService.getInstance().get(account);
         if (account.isNotConnected()) return null;
-        CategoryListUI spCat = new CategoryListUI(list, account, bookmarkChannelListUI);
+        CategoryListUI spCat = CategoryListUI.getInstance(list, account, bookmarkChannelListUI);
         return spCat;
     }
 

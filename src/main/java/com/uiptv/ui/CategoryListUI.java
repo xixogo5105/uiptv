@@ -3,7 +3,6 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.ChannelService;
-import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
@@ -26,21 +25,31 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 
 public class CategoryListUI extends HBox {
-    private final Account account;
-    private final BookmarkChannelListUI bookmarkChannelListUI;
+    private Account account;
+    private BookmarkChannelListUI bookmarkChannelListUI;
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
+    private static CategoryListUI instance;
 
-    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) {
-        this.bookmarkChannelListUI = bookmarkChannelListUI;
-        initWidgets();
+    public static synchronized CategoryListUI getInstance(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) {
+        if (instance == null) {
+            instance = new CategoryListUI();
+        }
+
+        instance.bookmarkChannelListUI = bookmarkChannelListUI;
         List<CategoryItem> catList = new ArrayList<>();
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
-        table.setItems(FXCollections.observableArrayList(catList));
-        this.account = account;
-        categoryTitle.setText(account.getAccountName());
-        table.addTextFilter();
+
+        instance.table.setItems(FXCollections.observableArrayList(catList));
+        instance.account = account;
+        instance.categoryTitle.setText(account.getAccountName());
+        instance.table.addTextFilter();
+        return instance;
+    }
+
+    private CategoryListUI() {
+        initWidgets();
     }
 
     private void initWidgets() {
@@ -101,7 +110,7 @@ public class CategoryListUI extends HBox {
         }
     }
 
-    public class CategoryItem {
+    public static class CategoryItem {
 
         private final SimpleStringProperty categoryTitle;
         private final SimpleStringProperty categoryId;
