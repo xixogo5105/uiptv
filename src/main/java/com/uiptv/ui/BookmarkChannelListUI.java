@@ -43,7 +43,7 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(5, 5, 5, 5));
+        setPadding(new Insets(5));
         setSpacing(5);
         bookmarkTable.setEditable(true);
         bookmarkTable.getColumns().addAll(bookmarkColumn);

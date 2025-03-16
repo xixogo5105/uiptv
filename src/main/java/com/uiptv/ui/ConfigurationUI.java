@@ -58,7 +58,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(5, 5, 5, 5));
+        setPadding(new Insets(5));
         setSpacing(5);
         Configuration configuration = service.read();
         defaultPlayer1.setToggleGroup(group);

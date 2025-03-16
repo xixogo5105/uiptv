@@ -19,7 +19,7 @@ public class LogDisplayUI extends VBox {
     private static boolean isLoggingEnabled = false;
 
     public LogDisplayUI() {
-        setPadding(new Insets(5, 5, 5, 5));
+        setPadding(new Insets(5));
         setSpacing(5);
         logArea.setEditable(false);
         logArea.setWrapText(true);
