@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.db.BookmarkDb;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.util.ServerUtils;
 
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ public class BookmarkService {
     public boolean isChannelBookmarked(Bookmark bookmark) {
         return (BookmarkDb.get().getBookmarkById(bookmark) != null);
     }
+
     public Bookmark getBookmark(String dbId) {
         return (BookmarkDb.get().getById(dbId));
     }
@@ -36,6 +38,10 @@ public class BookmarkService {
         } else {
             BookmarkDb.get().save(bookmark);
         }
+    }
+
+    public void save(Bookmark bookmark) {
+        BookmarkDb.get().save(bookmark);
     }
 
     public List<Bookmark> read() {
@@ -52,5 +58,18 @@ public class BookmarkService {
 
     public String readToJson() {
         return ServerUtils.objectToJson(new ArrayList<>(read()));
+    }
+
+    // New methods for category operations
+    public List<BookmarkCategory> getAllCategories() {
+        return BookmarkDb.get().getAllCategories();
+    }
+
+    public void addCategory(BookmarkCategory category) {
+        BookmarkDb.get().saveCategory(category);
+    }
+
+    public void removeCategory(BookmarkCategory category) {
+        BookmarkDb.get().deleteCategory(category);
     }
 }

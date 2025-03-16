@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
@@ -13,20 +14,23 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableRow;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import javafx.util.Callback;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class BookmarkChannelListUI extends HBox {
-    SearchableTableView bookmarkTable = new SearchableTableView();
-    TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn("bookmarkColumn");
+    private SearchableTableView bookmarkTable = new SearchableTableView();
+    private TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
+    private ComboBox<BookmarkCategory> categoryComboBox = new ComboBox<>();
+    private Button manageCategoriesButton = new Button("Manage Categories");
 
     public BookmarkChannelListUI() {
         initWidgets();
@@ -51,8 +55,83 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setCellValueFactory(cellData -> cellData.getValue().channelAccountNameProperty());
         bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
         bookmarkColumn.setText("Bookmarked Channels");
-        getChildren().addAll(new AutoGrowVBox(5, bookmarkTable.getSearchTextField(), bookmarkTable));
+        populateCategoryComboBox();
+        categoryComboBox.setPromptText("Select Category");
+        categoryComboBox.setOnAction(event -> applyCategoryFilter());
+        manageCategoriesButton.setOnAction(event -> openCategoryManagementPopup());
+
+        HBox hBox = new HBox(5, categoryComboBox, manageCategoriesButton);
+        VBox vBox = new VBox(5, hBox, new AutoGrowVBox(5, bookmarkTable.getSearchTextField(), bookmarkTable));
+
+        getChildren().add(vBox);
         addChannelClickHandler();
+        categoryComboBox.setCellFactory(new Callback<>() {
+            @Override
+            public ListCell<BookmarkCategory> call(ListView<BookmarkCategory> listView) {
+                return new ListCell<>() {
+                    @Override
+                    protected void updateItem(BookmarkCategory category, boolean empty) {
+                        super.updateItem(category, empty);
+                        if (empty || category == null) {
+                            setText(null);
+                        } else {
+                            setText(category.getName());
+                        }
+                    }
+                };
+            }
+        });
+
+        categoryComboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(BookmarkCategory category, boolean empty) {
+                super.updateItem(category, empty);
+                if (empty || category == null) {
+                    setText(null);
+                } else {
+                    setText(category.getName());
+                }
+            }
+        });
+    }
+    public void populateCategoryComboBox() {
+        List<BookmarkCategory> categories = new ArrayList<>();
+        categories.add(new BookmarkCategory(null, "All"));
+        categories.addAll(BookmarkService.getInstance().getAllCategories());
+        categoryComboBox.setItems(FXCollections.observableArrayList(categories));
+        categoryComboBox.getSelectionModel().selectFirst();
+    }
+
+    private void applyCategoryFilter() {
+        BookmarkCategory selectedCategory = categoryComboBox.getSelectionModel().getSelectedItem();
+        if (selectedCategory != null && !"All".equals(selectedCategory.getName())) {
+            bookmarkTable.setItems(FXCollections.observableArrayList(
+                    BookmarkService.getInstance().read().stream()
+                            .filter(bookmark -> selectedCategory.getId().equals(bookmark.getCategoryId()))
+                            .map(bookmark -> new BookmarkItem(
+                                    new SimpleStringProperty(bookmark.getDbId()),
+                                    new SimpleStringProperty(bookmark.getChannelName()),
+                                    new SimpleStringProperty(bookmark.getChannelId()),
+                                    new SimpleStringProperty(bookmark.getCmd()),
+                                    new SimpleStringProperty(bookmark.getAccountName()),
+                                    new SimpleStringProperty(bookmark.getCategoryTitle()),
+                                    new SimpleStringProperty(bookmark.getServerPortalUrl()),
+                                    new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")")
+                            ))
+                            .toList()
+            ));
+        } else {
+            refresh();
+        }
+    }
+    private void openCategoryManagementPopup() {
+        Stage popupStage = new Stage();
+        CategoryManagementPopup popup = new CategoryManagementPopup(this);
+        Scene scene = new Scene(popup, 300, 400);
+        popupStage.setTitle("Manage Categories");
+        popupStage.setScene(scene);
+        popupStage.showAndWait();
+        refresh();
     }
 
     private void addChannelClickHandler() {
@@ -77,7 +156,6 @@ public class BookmarkChannelListUI extends HBox {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-
 
         MenuItem editItem = new MenuItem("Remove from favorite");
         editItem.setOnAction(actionEvent -> {
@@ -106,8 +184,21 @@ public class BookmarkChannelListUI extends HBox {
             rowMenu.hide();
             play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath3());
         });
-        rowMenu.getItems().addAll(editItem, player1Item, player2Item, player3Item, playerItem);
-        // only display context menu for non-empty rows:
+
+        Menu addToMenu = new Menu("Add to");
+        List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+        for (BookmarkCategory category : categories) {
+            MenuItem categoryItem = new MenuItem(category.getName());
+            categoryItem.setOnAction(event -> {
+                row.getItem().setCategoryTitle(category.getName());
+                Bookmark b = BookmarkService.getInstance().getBookmark(row.getItem().getBookmarkId());
+                b.setCategoryId(category.getId());
+                BookmarkService.getInstance().save(b);
+                refresh();
+            });
+            addToMenu.getItems().add(categoryItem);
+        }
+        rowMenu.getItems().addAll(editItem, player1Item, player2Item, player3Item, playerItem, addToMenu);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
@@ -129,7 +220,6 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     public static class BookmarkItem {
-
         private final SimpleStringProperty bookmarkId;
         private final SimpleStringProperty channelName;
         private final SimpleStringProperty channelId;
@@ -201,7 +291,6 @@ public class BookmarkChannelListUI extends HBox {
         public void setCategoryTitle(String categoryTitle) {
             this.categoryTitle.set(categoryTitle);
         }
-
 
         public String getChannelAccountName() {
             return channelAccountName.get();

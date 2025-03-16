@@ -9,7 +9,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
-import static com.uiptv.db.DatabasePatchesUtils.getDbPatches;
 import static com.uiptv.util.Platform.getUserHomeDirPath;
 
 public class SQLConnection {
@@ -26,12 +25,12 @@ public class SQLConnection {
                     LogDisplayUI.addLog(ex.getMessage());
                 }
             }
-            for (String sql : getDbPatches()) {
-                try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH); Statement statement = conn.createStatement()) {
-                    statement.execute(sql);
-                } catch (Exception ignored) {
-                }
+
+            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH)) {
+                DatabasePatchesUtils.applyPatches(conn);
+            } catch (Exception ignored) {
             }
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

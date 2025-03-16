@@ -10,7 +10,8 @@ public class DatabaseUtils {
         ACCOUNT_TABLE("Account"),
         BOOKMARK_TABLE("Bookmark"),
         CATEGORY_TABLE("Category"),
-        CHANNEL_TABLE("Channel");
+        CHANNEL_TABLE("Channel"),
+        BOOKMARK_CATEGORY_TABLE("BookmarkCategory");
 
         private final String tableName;
 
@@ -25,7 +26,7 @@ public class DatabaseUtils {
     }
 
     public static final EnumSet<DbTable> Cacheable = EnumSet.of(DbTable.CATEGORY_TABLE, DbTable.CHANNEL_TABLE);
-    public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE);
+    public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE, DbTable.BOOKMARK_CATEGORY_TABLE);
 
     static {
         dbStructure.put(DbTable.CONFIGURATION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
@@ -70,7 +71,8 @@ public class DatabaseUtils {
                 new DataColumn("channelId", "TEXT"),
                 new DataColumn("channelName", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
-                new DataColumn("serverPortalUrl", "TEXT")
+                new DataColumn("serverPortalUrl", "TEXT"),
+                new DataColumn("categoryId", "TEXT")
         )));
         dbStructure.put(DbTable.CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),
@@ -97,6 +99,10 @@ public class DatabaseUtils {
                 new DataColumn("censored", "INTEGER"),
                 new DataColumn("status", "INTEGER"),
                 new DataColumn("hd", "INTEGER")
+        )));
+        dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("name", "TEXT NOT NULL")
         )));
     }
 
