@@ -20,6 +20,8 @@ public class SearchableTableViewWithButton extends VBox {
     private final TableView tableView = new TableView();
 
     public SearchableTableViewWithButton() {
+        this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
+        this.tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         searchTextField.setPromptText("Search");
         searchTextField.setPrefWidth((double) (GUIDED_MAX_WIDTH_PIXELS / 3) * 0.85);
         searchTextField.setOnMousePressed(event -> searchTextField.clear());

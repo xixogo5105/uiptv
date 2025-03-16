@@ -25,31 +25,21 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 
 public class CategoryListUI extends HBox {
-    private Account account;
-    private BookmarkChannelListUI bookmarkChannelListUI;
+    private final Account account;
+    private final BookmarkChannelListUI bookmarkChannelListUI;
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
-    private static CategoryListUI instance;
 
-    public static synchronized CategoryListUI getInstance(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) {
-        if (instance == null) {
-            instance = new CategoryListUI();
-        }
-
-        instance.bookmarkChannelListUI = bookmarkChannelListUI;
+    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) {
+        this.bookmarkChannelListUI = bookmarkChannelListUI;
+        initWidgets();
         List<CategoryItem> catList = new ArrayList<>();
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
-
-        instance.table.setItems(FXCollections.observableArrayList(catList));
-        instance.account = account;
-        instance.categoryTitle.setText(account.getAccountName());
-        instance.table.addTextFilter();
-        return instance;
-    }
-
-    private CategoryListUI() {
-        initWidgets();
+        table.setItems(FXCollections.observableArrayList(catList));
+        this.account = account;
+        categoryTitle.setText(account.getAccountName());
+        table.addTextFilter();
     }
 
     private void initWidgets() {
@@ -110,7 +100,7 @@ public class CategoryListUI extends HBox {
         }
     }
 
-    public static class CategoryItem {
+    public class CategoryItem {
 
         private final SimpleStringProperty categoryTitle;
         private final SimpleStringProperty categoryId;
