@@ -63,8 +63,8 @@ public class ManageAccountUI extends VBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(10, 10, 10, 10));
-        setSpacing(10);
+        setPadding(new Insets(5, 5, 5, 5));
+        setSpacing(5);
         saveButton.setMinWidth(440);
         saveButton.setPrefWidth(440);
         saveButton.setMinHeight(50);

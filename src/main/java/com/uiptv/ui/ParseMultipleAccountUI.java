@@ -35,9 +35,8 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(10, 10, 10, 10));
-        setSpacing(10);
-//        saveButton.setMinWidth(400);
+        setPadding(new Insets(5, 5, 5, 5));
+        setSpacing(5);
         saveButton.setPrefWidth(330);
         saveButton.setPrefHeight(50);
         multipleSPAccounts.setMinHeight(400);

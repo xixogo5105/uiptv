@@ -12,6 +12,7 @@ import com.uiptv.widget.SearchableTableView;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.geometry.Insets;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableColumn;
@@ -42,7 +43,8 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void initWidgets() {
-        setSpacing(10);
+        setPadding(new Insets(5, 5, 5, 5));
+        setSpacing(5);
         bookmarkTable.setEditable(true);
         bookmarkTable.getColumns().addAll(bookmarkColumn);
         bookmarkColumn.setVisible(true);
