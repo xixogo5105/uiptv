@@ -24,11 +24,15 @@ import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class BookmarkChannelListUI extends HBox {
     private final SearchableTableViewWithButton bookmarkTable = new SearchableTableViewWithButton();
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
+    private boolean isPromptShowing = false;
 
     public BookmarkChannelListUI() {
         initWidgets();
@@ -41,6 +45,7 @@ public class BookmarkChannelListUI extends HBox {
         list.forEach(i -> catList.add(createBookmarkItem(i)));
         bookmarkTable.getTableView().setItems(FXCollections.observableArrayList(catList));
         bookmarkTable.addTextFilter();
+        applyCategoryFilter();
     }
 
     private void initWidgets() {
@@ -139,8 +144,15 @@ public class BookmarkChannelListUI extends HBox {
 
     private void addChannelClickHandler() {
         bookmarkTable.getTableView().setOnKeyReleased(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                play((BookmarkItem) bookmarkTable.getTableView().getFocusModel().getFocusedItem(), false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            if (event.getCode() == KeyCode.DELETE) {
+                handleDeleteMultipleBookmarks();
+            } else if (event.getCode() == KeyCode.ENTER) {
+                if (isPromptShowing) {
+                    event.consume();
+                    isPromptShowing = false;
+                } else {
+                    play((BookmarkItem) bookmarkTable.getTableView().getFocusModel().getFocusedItem(), false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                }
             }
         });
         bookmarkTable.getTableView().setRowFactory(tv -> {
@@ -161,34 +173,46 @@ public class BookmarkChannelListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         MenuItem editItem = new MenuItem("Remove from favorite");
-        editItem.setOnAction(actionEvent -> {
-            rowMenu.hide();
-            BookmarkService.getInstance().remove(row.getItem().getBookmarkId());
-            refresh();
-        });
+        editItem.setOnAction(_ -> handleDeleteMultipleBookmarks());
 
         MenuItem playerItem = new MenuItem("Reconnect & Play");
         playerItem.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), true, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                rowMenu.hide();
+                play(row.getItem(), true, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            }
         });
 
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath1());
+            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                rowMenu.hide();
+                play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath1());
+            }
         });
 
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath2());
+            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                rowMenu.hide();
+                play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath2());
+            }
         });
 
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath3());
+            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                rowMenu.hide();
+                play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath3());
+            }
         });
 
         Menu addToMenu = new Menu("Add to");
@@ -196,10 +220,12 @@ public class BookmarkChannelListUI extends HBox {
         for (BookmarkCategory category : categories) {
             MenuItem categoryItem = new MenuItem(category.getName());
             categoryItem.setOnAction(event -> {
-                row.getItem().setCategoryTitle(category.getName());
-                Bookmark b = BookmarkService.getInstance().getBookmark(row.getItem().getBookmarkId());
-                b.setCategoryId(category.getId());
-                BookmarkService.getInstance().save(b);
+                for (BookmarkItem selectedItem : (List<BookmarkItem>) (List<?>) bookmarkTable.getTableView().getSelectionModel().getSelectedItems()) {
+                    selectedItem.setCategoryTitle(category.getName());
+                    Bookmark b = BookmarkService.getInstance().getBookmark(selectedItem.getBookmarkId());
+                    b.setCategoryId(category.getId());
+                    BookmarkService.getInstance().save(b);
+                }
                 refresh();
             });
             addToMenu.getItems().add(categoryItem);
@@ -209,6 +235,28 @@ public class BookmarkChannelListUI extends HBox {
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
                         .otherwise(rowMenu));
+    }
+
+    private void handleDeleteMultipleBookmarks() {
+        int selectedCount = bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size();
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirmation");
+        alert.setHeaderText(null);
+        alert.setContentText("Are you sure you want to remove " + selectedCount + " bookmark(s) from favorite? Bookmark(s) to be deleted:\n" +
+                bookmarkTable.getTableView().getSelectionModel().getSelectedItems().stream()
+                        .map(bookmarkItem -> ((BookmarkItem) bookmarkItem).getChannelName())
+                        .collect(Collectors.joining(", ")));
+
+        isPromptShowing = true;
+        alert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                for (BookmarkItem selectedItem : (List<BookmarkItem>) (List<?>) bookmarkTable.getTableView().getSelectionModel().getSelectedItems()) {
+                    BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
+                }
+                refresh();
+            }
+        });
     }
 
     private void play(BookmarkItem item, boolean hardReset, String playerPath) {

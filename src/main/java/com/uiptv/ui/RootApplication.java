@@ -93,12 +93,13 @@ import static com.uiptv.util.StringUtils.isNotBlank;
                 ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
                 BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
                 AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI);
-                configureAccountListUI(accountListUI, manageAccountUI);
+                configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI);
                 LogDisplayUI logDisplayUI = new LogDisplayUI();
                 ConfigurationUI configurationUI = new ConfigurationUI(param -> {
                     try {
                         configureFontStyles(RootApplication.primaryStage.getScene());
                         accountListUI.refresh();
+                        bookmarkChannelListUI.refresh();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -116,9 +117,12 @@ import static com.uiptv.util.StringUtils.isNotBlank;
                 primaryStage.show();
             }
 
-            private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI) {
+            private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI) {
                 accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
-                accountListUI.addDeleteCallbackHandler(param -> manageAccountUI.deleteAccount((Account) param));
+                accountListUI.addDeleteCallbackHandler(param -> {
+                    manageAccountUI.deleteAccount((Account) param);
+                    bookmarkChannelListUI.refresh();
+                });
             }
 
             private void configureManageAccountUI(ManageAccountUI manageAccountUI, AccountListUI accountListUI, BookmarkChannelListUI bookmarkChannelListUI) {

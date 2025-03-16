@@ -4,10 +4,7 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.transformation.FilteredList;
 import javafx.collections.transformation.SortedList;
-import javafx.scene.control.Button;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -36,6 +33,7 @@ public class SearchableTableViewWithButton extends VBox {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.getChildren().addAll(hBox, tableView);
         VBox.setVgrow(this, Priority.ALWAYS);
+        tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
     }
 
     public TextField getSearchTextField() {

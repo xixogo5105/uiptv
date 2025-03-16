@@ -6,6 +6,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.AutoGrowPaneVBox;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
@@ -13,10 +14,7 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.scene.Cursor;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableRow;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -26,9 +24,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.ui.RootApplication.primaryStage;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>("Account List");
@@ -37,6 +37,7 @@ public class AccountListUI extends HBox {
     AccountService accountService = AccountService.getInstance();
     private Callback onEditCallback;
     private Callback onDeleteCallback;
+    private boolean isPromptShowing = false;
 
     public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI) {
         this.bookmarkChannelListUI = bookmarkChannelListUI;
@@ -82,21 +83,25 @@ public class AccountListUI extends HBox {
         sceneBox.setMaxHeight(25);
         getChildren().addAll(new AutoGrowPaneVBox(5, sceneBox, table));
         addAccountClickHandler();
+        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
     }
 
     private void addAccountClickHandler() {
         table.setOnKeyReleased(event -> {
             onEditCallback.call(AccountDb.get().getAccountById(((AccountItem) table.getFocusModel().getFocusedItem()).accountId.get()));
             if (event.getCode() == KeyCode.DELETE) {
-                onDeleteCallback.call(AccountDb.get().getAccountById(((AccountItem) table.getFocusModel().getFocusedItem()).accountId.get()));
-            }
-            if (event.getCode() == KeyCode.ENTER) {
-                retrieveThreadedAccountCategories((AccountItem) table.getFocusModel().getFocusedItem(), itv);
+                handleDeleteAccounts();
+            } else if (event.getCode() == KeyCode.ENTER) {
+                if (isPromptShowing) {
+                    event.consume();
+                    isPromptShowing = false;
+                } else {
+                    retrieveThreadedAccountCategories((AccountItem) table.getFocusModel().getFocusedItem(), itv);
+                }
             }
         });
         table.setRowFactory(tv -> {
             TableRow<AccountItem> row = new TableRow<>();
-
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
                     AccountItem clickedRow = row.getItem();
@@ -118,26 +123,64 @@ public class AccountListUI extends HBox {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
+
+        MenuItem deleteItem = new MenuItem("Delete Account");
+        deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
+
         MenuItem itv = new MenuItem("TV/Channels");
         itv.setOnAction(actionEvent -> {
-            retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv);
+            if (table.getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv);
+            }
         });
+
         MenuItem vod = new MenuItem("Video On Demand (VOD)");
         vod.setOnAction(actionEvent -> {
-            retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod);
+            if (table.getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod);
+            }
         });
+
         MenuItem series = new MenuItem("Series");
         series.setOnAction(actionEvent -> {
-            retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series);
+            if (table.getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series);
+            }
         });
 
-        rowMenu.getItems().addAll(itv, vod, series);
+        rowMenu.getItems().addAll(deleteItem, itv, vod, series);
 
-        // only display context menu for non-empty rows:
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
                         .otherwise(rowMenu));
+    }
+
+    private void handleDeleteAccounts() {
+        int selectedCount = table.getSelectionModel().getSelectedItems().size();
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirmation");
+        alert.setHeaderText(null);
+        alert.setContentText("Are you sure you want to remove " + selectedCount + " account(s)? Account(s) to be deleted:\n" +
+                table.getSelectionModel().getSelectedItems().stream()
+                        .map(accountItem -> ((AccountItem) accountItem).getAccountName())
+                        .collect(Collectors.joining(", ")));
+        isPromptShowing = true;
+        alert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                for (AccountItem selectedItem : (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems()) {
+                    AccountService.getInstance().delete(selectedItem.getAccountId());
+                    onDeleteCallback.call(AccountDb.get().getAccountById(selectedItem.getAccountId()));
+                }
+                refresh();
+            }
+        });
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
