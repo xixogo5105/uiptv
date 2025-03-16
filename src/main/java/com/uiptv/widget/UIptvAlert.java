@@ -1,5 +1,6 @@
 package com.uiptv.widget;
 
+import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.ui.RootApplication;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -14,15 +15,15 @@ public class UIptvAlert {
     }
 
     public static void showMessage(String contents) {
-            System.out.println(contents);
+        LogDisplayUI.addLog(contents);
     }
     public static void showError(String contents) {
         showError(contents, null);
     }
     public static void showError(String contents, Exception ex) {
         if (ex != null) {
-            System.out.println(contents);
-            System.out.print(ex.getMessage());
+            LogDisplayUI.addLog(contents);
+            LogDisplayUI.addLog(ex.getMessage());
         }
     }
 
@@ -31,7 +32,7 @@ public class UIptvAlert {
     }
     public static void showErrorAlert(String contents, Exception ex) {
         if (ex != null) {
-            System.out.print(ex.getMessage());
+            LogDisplayUI.addLog(ex.getMessage());
         }
         Alert alert = new Alert(Alert.AlertType.ERROR, contents, ButtonType.CLOSE);
         alert.initModality(Modality.APPLICATION_MODAL);

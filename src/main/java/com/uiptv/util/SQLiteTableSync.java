@@ -1,5 +1,7 @@
 package com.uiptv.util;
 
+import com.uiptv.ui.LogDisplayUI;
+
 import java.sql.*;
 import java.util.Collections;
 
@@ -27,7 +29,7 @@ public class SQLiteTableSync {
             // Sync from second to first
             syncDirection(secondConn, firstConn, tableName);
 
-            System.out.println("Tables '" + tableName + "' in both databases synced successfully.");
+            LogDisplayUI.addLog("Tables '" + tableName + "' in both databases synced successfully.");
 
         }
     }

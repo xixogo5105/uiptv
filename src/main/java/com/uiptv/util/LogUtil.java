@@ -1,40 +1,39 @@
 package com.uiptv.util;
 
+import com.uiptv.ui.LogDisplayUI;
+
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 
+import static com.uiptv.util.StringUtils.EMPTY;
+
 public class LogUtil {
     public static void httpLog(String url, HttpRequest request, HttpResponse<String> response, Map<String, String> params) {
-        System.out.println("URL: " + url);
-        System.out.println();
-//        System.out.println("==========================================Status Code==========================================");
-//        System.out.println(response.statusCode());
-//        System.out.println("==========================================End Status Code==========================================");
-//        System.out.println();
-        System.out.println("==========================================Request Headers==========================================");
-        System.out.println();
-        System.out.print(request.headers());
-        System.out.println();
-        System.out.println("==========================================End Request Headers==========================================");
-        System.out.println();
-        System.out.println("==========================================Request Body==========================================");
-        System.out.println();
-        System.out.print(params);
-        System.out.println();
-        System.out.println("==========================================End Request Body==========================================");
-        System.out.println();
-        System.out.println("==========================================Response Headers==========================================");
-        System.out.println();
-        System.out.print(response.headers());
-        System.out.println();
-        System.out.println("==========================================End Response Headers==========================================");
-        System.out.println();
-        System.out.println("==========================================Response Body==========================================");
-        System.out.println();
-        System.out.print(response.body());
-        System.out.println();
-        System.out.println("==========================================End Response Body==========================================");
-        System.out.println();
+        LogDisplayUI.addLog("URL: " + url);
+        LogDisplayUI.addLog("==========================================Request Headers==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog(String.valueOf(request.headers()));
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================End Request Headers==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================Request Body==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog(params.toString());
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================End Request Body==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================Response Headers==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog(String.valueOf(response.headers()));
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================End Response Headers==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================Response Body==========================================");
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog(response.body());
+        LogDisplayUI.addLog(EMPTY);
+        LogDisplayUI.addLog("==========================================End Response Body==========================================");
+        LogDisplayUI.addLog(EMPTY);
     }
 }

@@ -13,3 +13,10 @@
     -fx-base: darkgreen;
     -fx-text-fill: white;
 }
+
+/* terminal.css */
+.terminal {
+    -fx-font-family: "Courier New", monospace;
+    -fx-highlight-fill: darkgreen;
+    -fx-text-fill: darkgreen;
+}

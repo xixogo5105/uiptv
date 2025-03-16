@@ -81,3 +81,13 @@
     -fx-base: darkgreen;
     -fx-text-fill: white;
 }
+
+
+/* terminal.css */
+.terminal {
+    -fx-control-inner-background: rgba(60, 63, 65, 255);
+    -fx-font-family: "Courier New", monospace;
+    -fx-highlight-fill: #00ff00;
+    -fx-highlight-text-fill: rgba(60, 63, 65, 255);
+    -fx-text-fill: #00ff00;
+}

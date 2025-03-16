@@ -1,5 +1,6 @@
 package com.uiptv.db;
 
+import com.uiptv.ui.LogDisplayUI;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -22,7 +23,7 @@ public class SQLConnection {
                     String sql = DatabaseUtils.createTableSql(t);
                     statement.execute(sql);
                 } catch (Exception ex) {
-                    System.out.println(ex);
+                    LogDisplayUI.addLog(ex.getMessage());
                 }
             }
             for (String sql : getDbPatches()) {
