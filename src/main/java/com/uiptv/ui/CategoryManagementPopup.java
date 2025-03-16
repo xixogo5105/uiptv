@@ -53,7 +53,7 @@ public class CategoryManagementPopup extends VBox {
             BookmarkService.getInstance().addCategory(new BookmarkCategory(null, categoryName));
             categoryListView.setItems(FXCollections.observableArrayList(getBookmarkItems()));
             categoryNameField.clear();
-            parent.populateCategoryComboBox();
+            parent.populateCategoryTabPane();
         }
     }
 
@@ -62,7 +62,7 @@ public class CategoryManagementPopup extends VBox {
         if (selectedItem != null) {
             BookmarkService.getInstance().removeCategory(new BookmarkCategory(selectedItem.getId(), selectedItem.getName()));
             categoryListView.setItems(FXCollections.observableArrayList(getBookmarkItems()));
-            parent.populateCategoryComboBox();
+            parent.populateCategoryTabPane();
         }
     }
 

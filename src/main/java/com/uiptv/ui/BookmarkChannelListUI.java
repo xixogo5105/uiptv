@@ -19,9 +19,9 @@ import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.util.Callback;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
 public class BookmarkChannelListUI extends HBox {
     private SearchableTableView bookmarkTable = new SearchableTableView();
     private TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
-    private ComboBox<BookmarkCategory> categoryComboBox = new ComboBox<>();
+    private TabPane categoryTabPane = new TabPane();
     private Button manageCategoriesButton = new Button("Manage Categories");
 
     public BookmarkChannelListUI() {
@@ -55,75 +55,59 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setCellValueFactory(cellData -> cellData.getValue().channelAccountNameProperty());
         bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
         bookmarkColumn.setText("Bookmarked Channels");
-        populateCategoryComboBox();
-        categoryComboBox.setPromptText("Select Category");
-        categoryComboBox.setOnAction(event -> applyCategoryFilter());
+        populateCategoryTabPane();
+        categoryTabPane.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> applyCategoryFilter());
         manageCategoriesButton.setOnAction(event -> openCategoryManagementPopup());
 
-        HBox hBox = new HBox(5, categoryComboBox, manageCategoriesButton);
+        HBox hBox = new HBox(5, categoryTabPane);
+        HBox.setHgrow(categoryTabPane, Priority.ALWAYS);
+        hBox.getChildren().add(manageCategoriesButton);
         VBox vBox = new VBox(5, hBox, new AutoGrowVBox(5, bookmarkTable.getSearchTextField(), bookmarkTable));
 
         getChildren().add(vBox);
         addChannelClickHandler();
-        categoryComboBox.setCellFactory(new Callback<>() {
-            @Override
-            public ListCell<BookmarkCategory> call(ListView<BookmarkCategory> listView) {
-                return new ListCell<>() {
-                    @Override
-                    protected void updateItem(BookmarkCategory category, boolean empty) {
-                        super.updateItem(category, empty);
-                        if (empty || category == null) {
-                            setText(null);
-                        } else {
-                            setText(category.getName());
-                        }
-                    }
-                };
-            }
-        });
-
-        categoryComboBox.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(BookmarkCategory category, boolean empty) {
-                super.updateItem(category, empty);
-                if (empty || category == null) {
-                    setText(null);
-                } else {
-                    setText(category.getName());
-                }
-            }
-        });
     }
-    public void populateCategoryComboBox() {
+
+    void populateCategoryTabPane() {
+        categoryTabPane.getTabs().clear();
         List<BookmarkCategory> categories = new ArrayList<>();
         categories.add(new BookmarkCategory(null, "All"));
         categories.addAll(BookmarkService.getInstance().getAllCategories());
-        categoryComboBox.setItems(FXCollections.observableArrayList(categories));
-        categoryComboBox.getSelectionModel().selectFirst();
+        for (BookmarkCategory category : categories) {
+            Tab tab = new Tab(category.getName());
+            tab.setClosable(false);
+            tab.setUserData(category);
+            categoryTabPane.getTabs().add(tab);
+        }
+        categoryTabPane.getSelectionModel().selectFirst();
     }
 
     private void applyCategoryFilter() {
-        BookmarkCategory selectedCategory = categoryComboBox.getSelectionModel().getSelectedItem();
-        if (selectedCategory != null && !"All".equals(selectedCategory.getName())) {
-            bookmarkTable.setItems(FXCollections.observableArrayList(
-                    BookmarkService.getInstance().read().stream()
-                            .filter(bookmark -> selectedCategory.getId().equals(bookmark.getCategoryId()))
-                            .map(bookmark -> new BookmarkItem(
-                                    new SimpleStringProperty(bookmark.getDbId()),
-                                    new SimpleStringProperty(bookmark.getChannelName()),
-                                    new SimpleStringProperty(bookmark.getChannelId()),
-                                    new SimpleStringProperty(bookmark.getCmd()),
-                                    new SimpleStringProperty(bookmark.getAccountName()),
-                                    new SimpleStringProperty(bookmark.getCategoryTitle()),
-                                    new SimpleStringProperty(bookmark.getServerPortalUrl()),
-                                    new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")")
-                            ))
-                            .toList()
-            ));
-        } else {
-            refresh();
+        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab != null) {
+            BookmarkCategory selectedCategory = (BookmarkCategory) selectedTab.getUserData();
+            if (selectedCategory != null && !"All".equals(selectedCategory.getName())) {
+                bookmarkTable.setItems(FXCollections.observableArrayList(
+                        BookmarkService.getInstance().read().stream()
+                                .filter(bookmark -> selectedCategory.getId().equals(bookmark.getCategoryId()))
+                                .map(bookmark -> new BookmarkItem(
+                                        new SimpleStringProperty(bookmark.getDbId()),
+                                        new SimpleStringProperty(bookmark.getChannelName()),
+                                        new SimpleStringProperty(bookmark.getChannelId()),
+                                        new SimpleStringProperty(bookmark.getCmd()),
+                                        new SimpleStringProperty(bookmark.getAccountName()),
+                                        new SimpleStringProperty(bookmark.getCategoryTitle()),
+                                        new SimpleStringProperty(bookmark.getServerPortalUrl()),
+                                        new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")")
+                                ))
+                                .toList()
+                ));
+            } else {
+                refresh();
+            }
         }
     }
+
     private void openCategoryManagementPopup() {
         Stage popupStage = new Stage();
         CategoryManagementPopup popup = new CategoryManagementPopup(this);
