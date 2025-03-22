@@ -1,6 +1,7 @@
 package com.uiptv.db;
 
 import com.uiptv.ui.LogDisplayUI;
+import com.uiptv.util.ConfigFileReader;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -10,9 +11,11 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 
 import static com.uiptv.util.Platform.getUserHomeDirPath;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class SQLConnection {
-    private static final String DB_PATH = getUserHomeDirPath() + File.separator + "uiptv.db";
+    private static final String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
+    private static final String DB_PATH = isNotBlank(databasePathFromConfigFile) ? databasePathFromConfigFile : getUserHomeDirPath() + File.separator + "uiptv.db";
 
     static {
         try {
