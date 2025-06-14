@@ -40,6 +40,10 @@ public class CategoryListUI extends HBox {
         this.account = account;
         categoryTitle.setText(account.getAccountName());
         table.addTextFilter();
+        // After table.setItems(...) and other setup in the constructor
+        if (catList.size() == 1) {
+            doRetrieveChannels(catList.get(0));
+        }
     }
 
     private void initWidgets() {
