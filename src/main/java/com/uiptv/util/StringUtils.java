@@ -159,7 +159,8 @@ public class StringUtils {
      * <p>This constructor is public to permit tools that require a JavaBean
      * instance to operate.</p>
      */
-    public StringUtils() {
+    private StringUtils() {
+        super();
     }
 
     public static boolean isBlank(final CharSequence cs) {
@@ -228,5 +229,12 @@ public class StringUtils {
 
     public static <T extends JsonCompliant> String toJson(T t) {
         return t.toJson();
+    }
+
+    public static String[] split(String str) {
+        if (isBlank(str)) {
+            return new String[0];
+        }
+        return str.split(SPACE);
     }
 }
