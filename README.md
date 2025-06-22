@@ -93,6 +93,34 @@ The contents of `_ mpv.sh_` file:
     #!/bin/sh
     /usr/local/bin/mpv "$@"&
 
+on MAC, you also use below sh script to play stream. the script will act as player to UIPTV. It will open the kodi with the stream url or (and if remote access is enabled) send remote request to open the stream if the kodi is already working. 
+
+```
+#!/bin/bash
+
+STREAM_URL="$1"
+KODI_HOST="localhost"
+KODI_PORT="8080"
+KODI_USER=""
+KODI_PASS=""
+
+if [ -z "$STREAM_URL" ]; then
+    exit 1
+fi
+
+if [ -z "$KODI_USER" ] || [ -z "$KODI_PASS" ]; then
+    curl -s -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "2.0", "method": "Player.Stop", "params": {"playerid": 1}, "id": 1}' "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+    curl -s -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "2.0", "method": "Application.SetVolume", "params": {"volume": 0}, "id": 3}' "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+    curl -s -X POST -H 'Content-Type: application/json' -d "{\"jsonrpc\": \"2.0\", \"method\": \"Player.Open\", \"params\": {\"item\": {\"file\": \"$STREAM_URL\"}}, \"id\": 2}" "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+else
+    curl -s -X POST -H 'Content-Type: application/json' -u "$KODI_USER:$KODI_PASS" -d '{"jsonrpc": "2.0", "method": "Player.Stop", "params": {"playerid": 1}, "id": 1}' "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+    curl -s -X POST -H 'Content-Type: application/json' -u "$KODI_USER:$KODI_PASS" -d '{"jsonrpc": "2.0", "method": "Application.SetVolume", "params": {"volume": 0}, "id": 3}' "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+    curl -s -X POST -H 'Content-Type: application/json' -u "$KODI_USER:$KODI_PASS" -d "{\"jsonrpc\": \"2.0\", \"method\": \"Player.Open\", \"params\": {\"item\": {\"file\": \"$STREAM_URL\"}}, \"id\": 2}" "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+fi
+
+open -a Kodi --args "$STREAM_URL"
+```
+
 ## Disclaimer/Final Thoughts
 This is currently only available in **English**. **EPG** is not yet supported. This may be turned into a multilingual project in the future if there is demand for it.
 Please be mindful that this is a fun/personal project only and not much enterprise-level research has been spent on it.
