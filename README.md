@@ -93,7 +93,7 @@ The contents of `_ mpv.sh_` file:
     #!/bin/sh
     /usr/local/bin/mpv "$@"&
 
-on MAC, you also use below sh script to play stream. the script will act as player to UIPTV. It will open the kodi with the stream url or (and if remote access is enabled) send remote request to open the stream if the kodi is already working. 
+You also use below (MacOSX) sh script to play streams on KODI as external player. The script will act as player to UIPTV. It will open the kodi with the stream url or (and if remote access is enabled) send remote request to open the stream if the kodi is already working. 
 
 ```
 #!/bin/bash
