@@ -56,7 +56,7 @@ public class StalkerPortalTextParserService {
                     currentUrl = potentialUrlOrMac;
                 } else if (currentUrl != null && isValidMACAddress(potentialUrlOrMac)) {
 
-                    String name = getNameFromUrl(currentUrl);
+                    String name = getNameFromUrl(currentUrl.replace("_", ""));
                     Account account = AccountService.getInstance().getByName(name);
                     boolean accountExist = collateAccounts && account != null;
                     if (accountExist) {
