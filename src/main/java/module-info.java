@@ -12,6 +12,7 @@ module com.uiptv {
     requires com.rometools.rome;
     requires org.slf4j;
     requires io.github.willena.sqlitejdbc;
+    requires javafx.graphics;
 
     opens com.uiptv.ui to javafx.fxml;
     exports com.uiptv.ui;
