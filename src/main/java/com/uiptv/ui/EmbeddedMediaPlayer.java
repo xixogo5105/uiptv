@@ -25,8 +25,25 @@ import javafx.stage.StageStyle;
 import java.io.File;
 
 public class EmbeddedMediaPlayer {
+    // Constants
+    private static final double VOLUME_STEP = 0.05;
+    private static final double DEFAULT_VOLUME = 0.5;
+    private static final String STYLE_BLACK_BACKGROUND = "-fx-background-color: black;";
+    private static final Insets CONTROLS_PADDING = new Insets(5, 10, 5, 10);
+    private static final double CONTROLS_SPACING = 10;
+    private static final double SLIDER_PREF_WIDTH = 100;
+
+    // SVG Icon Paths
+    private static final String SVG_PLAY = "M8 5v14l11-7z";
+    private static final String SVG_PAUSE = "M6 19h4V5H6v14zm8-14v14h4V5h-4z";
+    private static final String SVG_STOP = "M6 6h12v12H6z";
+    private static final String SVG_VOLUME_ON = "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z";
+    private static final String SVG_VOLUME_OFF = "M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z";
+    private static final String SVG_FULLSCREEN = "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5V14h-2v3zM14 5v2h3v3h2V5h-5z";
+
+    // UI Components
     private final VBox rootLayout = new VBox();
-    private final StackPane mediaPane = new StackPane(); // To hold the MediaView and keep the black background
+    private final StackPane mediaPane = new StackPane();
     private final MediaView mediaView = new MediaView();
     private final HBox controls = new HBox();
     private MediaPlayer mediaPlayer;
@@ -36,14 +53,11 @@ public class EmbeddedMediaPlayer {
     private Pane originalParent;
     private int originalIndex = -1;
 
-    // change increment: 5% per key press
-    private static final double VOLUME_STEP = 0.05;
-
     public EmbeddedMediaPlayer() {
         // Media Pane (video part)
         mediaPane.getChildren().add(mediaView);
-        mediaPane.setStyle("-fx-background-color: black;");
-        VBox.setVgrow(mediaPane, Priority.ALWAYS); // Let the video area grow
+        mediaPane.setStyle(STYLE_BLACK_BACKGROUND);
+        VBox.setVgrow(mediaPane, Priority.ALWAYS);
 
         mediaView.setPreserveRatio(true);
         mediaView.fitWidthProperty().bind(mediaPane.widthProperty());
@@ -55,8 +69,6 @@ public class EmbeddedMediaPlayer {
         // Root VBox layout
         rootLayout.getChildren().addAll(mediaPane, controls);
         rootLayout.setFocusTraversable(true);
-
-        // Initially hide the player until something is played.
         rootLayout.setVisible(false);
         rootLayout.setManaged(false);
 
@@ -72,14 +84,14 @@ public class EmbeddedMediaPlayer {
 
     private void createControls() {
         controls.setAlignment(Pos.CENTER);
-        controls.setPadding(new Insets(5, 10, 5, 10));
-        controls.setSpacing(10);
-        controls.setStyle("-fx-background-color: black;");
+        controls.setPadding(CONTROLS_PADDING);
+        controls.setSpacing(CONTROLS_SPACING);
+        controls.setStyle(STYLE_BLACK_BACKGROUND);
 
         // Play/Pause Button
         Button playPauseButton = new Button();
-        SVGPath playIcon = createSVGIcon("M8 5v14l11-7z"); // Play
-        SVGPath pauseIcon = createSVGIcon("M6 19h4V5H6v14zm8-14v14h4V5h-4z"); // Pause
+        SVGPath playIcon = createSVGIcon(SVG_PLAY);
+        SVGPath pauseIcon = createSVGIcon(SVG_PAUSE);
         playPauseButton.setGraphic(playIcon);
         playPauseButton.setOnAction(e -> {
             if (mediaPlayer != null) {
@@ -93,19 +105,19 @@ public class EmbeddedMediaPlayer {
 
         // Stop Button
         Button stopButton = new Button();
-        stopButton.setGraphic(createSVGIcon("M6 6h12v12H6z")); // Stop
+        stopButton.setGraphic(createSVGIcon(SVG_STOP));
         stopButton.setOnAction(e -> stop());
 
         // Mute Button
         Button muteButton = new Button();
-        SVGPath volumeOnIcon = createSVGIcon("M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z");
-        SVGPath volumeOffIcon = createSVGIcon("M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z");
+        SVGPath volumeOnIcon = createSVGIcon(SVG_VOLUME_ON);
+        SVGPath volumeOffIcon = createSVGIcon(SVG_VOLUME_OFF);
         muteButton.setGraphic(volumeOnIcon);
         muteButton.setOnAction(e -> toggleMute());
 
         // Volume Slider
         Slider volumeSlider = new Slider();
-        volumeSlider.setPrefWidth(100);
+        volumeSlider.setPrefWidth(SLIDER_PREF_WIDTH);
         volumeSlider.setMaxWidth(Region.USE_PREF_SIZE);
         volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (mediaPlayer != null) {
@@ -115,7 +127,7 @@ public class EmbeddedMediaPlayer {
 
         // Fullscreen Button
         Button fullscreenButton = new Button();
-        fullscreenButton.setGraphic(createSVGIcon("M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5V14h-2v3zM14 5v2h3v3h2V5h-5z")); // Fullscreen Enter
+        fullscreenButton.setGraphic(createSVGIcon(SVG_FULLSCREEN));
         fullscreenButton.setOnAction(e -> toggleFullscreen());
 
         controls.getChildren().clear();
@@ -195,9 +207,8 @@ public class EmbeddedMediaPlayer {
             Media media = new Media(uri);
             mediaPlayer = new MediaPlayer(media);
             mediaView.setMediaPlayer(mediaPlayer);
-            mediaPlayer.setVolume(0.5);
+            mediaPlayer.setVolume(DEFAULT_VOLUME);
 
-            // Re-initialize controls for the new media player instance
             createControls();
 
             rootLayout.setManaged(true);
@@ -205,7 +216,7 @@ public class EmbeddedMediaPlayer {
 
             mediaPlayer.play();
         } catch (Exception e) {
-            stop(); // Hide player on error
+            stop();
         }
     }
 
@@ -244,8 +255,8 @@ public class EmbeddedMediaPlayer {
             }
 
             fullscreenStage = new Stage(StageStyle.UNDECORATED);
-            StackPane root = new StackPane(mediaView); // Only show media view in fullscreen
-            root.setStyle("-fx-background-color: black;");
+            StackPane root = new StackPane(mediaView);
+            root.setStyle(STYLE_BLACK_BACKGROUND);
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
             Scene scene = new Scene(root, bounds.getWidth(), bounds.getHeight());
 
