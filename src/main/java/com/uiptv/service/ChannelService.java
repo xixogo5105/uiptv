@@ -7,6 +7,7 @@ import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.ServerUtils;
+import com.uiptv.util.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -71,7 +72,7 @@ public class ChannelService {
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account) {
-        return getStalkerPortalChOrSeries(categoryId, account, movieId, "0");
+        return censor(getStalkerPortalChOrSeries(categoryId, account, movieId, "0"));
     }
 
 
@@ -98,15 +99,55 @@ public class ChannelService {
         return XtremeParser.parseChannels(category, account);
     }
 
+    //    private List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
+//        Set<Channel> channels = new LinkedHashSet<>();
+//        List<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseChannelUrlM3U8(new URL(account.getM3u8Path())) : parseChannelPathM3U8(account.getM3u8Path());
+//        m3uEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
+//            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
+//            channels.add(c);
+//        });
+//        return channels.stream().toList();
+//    }
+// java
     private List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
         Set<Channel> channels = new LinkedHashSet<>();
-        List<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseChannelUrlM3U8(new URL(account.getM3u8Path())) : parseChannelPathM3U8(account.getM3u8Path());
-        m3uEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
+
+        // determine categories (All is always present). if size >= 2 => there are other categories
+        Set<PlaylistEntry> m3uCategories = account.getType() == M3U8_URL
+                ? com.uiptv.ui.M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
+                : com.uiptv.ui.M3U8Parser.parsePathCategory(account.getM3u8Path());
+        boolean hasOtherCategories = m3uCategories.size() >= 2;
+
+        List<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL
+                ? parseChannelUrlM3U8(new URL(account.getM3u8Path()))
+                : parseChannelPathM3U8(account.getM3u8Path());
+
+        m3uEntries.stream().filter(e -> {
+            String gt = e.getGroupTitle();
+            String gtTrim = gt == null ? "" : gt.trim();
+
+            if (category.equalsIgnoreCase("All")) {
+                return true;
+            }
+
+            if (category.equalsIgnoreCase("Uncategorized")) {
+                if (!hasOtherCategories) {
+                    // if no other categories beyond "All", treat Uncategorized as absent
+                    return false;
+                }
+                return gtTrim.isEmpty() || gtTrim.equalsIgnoreCase("Uncategorized");
+            }
+
+            // normal matching by trimmed group title or id
+            return gtTrim.equalsIgnoreCase(category) || (e.getId() != null && e.getId().equalsIgnoreCase(category));
+        }).forEach(entry -> {
             Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
             channels.add(c);
         });
+
         return channels.stream().toList();
     }
+
     private List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
@@ -202,9 +243,15 @@ public class ChannelService {
         Configuration configuration = ConfigurationService.getInstance().read();
         String commaSeparatedList = configuration.getFilterChannelsList();
         if (isBlank(commaSeparatedList) || configuration.isPauseFiltering()) return channelList;
-        List<String> censoredChannels = new ArrayList<>(List.of(ConfigurationService.getInstance().read().getFilterChannelsList().split(",")));
+
+        List<String> censoredChannels = new ArrayList<>(List.of(configuration.getFilterChannelsList().split(",")));
         censoredChannels.replaceAll(String::trim);
-        Predicate<Channel> hasCensoredWord = channel -> censoredChannels.stream().noneMatch(word -> channel.getName().toLowerCase().contains(word.toLowerCase()) || channel.getCensored() == 1);
+
+        Predicate<Channel> hasCensoredWord = channel -> {
+            String safeName = StringUtils.safeUtf(channel.getName()).toLowerCase();
+            boolean containsBanned = censoredChannels.stream().anyMatch(word -> safeName.contains(word.toLowerCase()));
+            return !containsBanned && channel.getCensored() != 1;
+        };
 
         return channelList.stream().filter(hasCensoredWord).collect(Collectors.toList());
     }

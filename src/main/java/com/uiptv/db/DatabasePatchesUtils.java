@@ -1,30 +1,33 @@
 package com.uiptv.db;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.*;
 
 public class DatabasePatchesUtils {
-    private static List<String> dbPatches = new ArrayList<>();
+    private static Map<String, String> dbPatches = new HashMap<>();
 
     static {
-        dbPatches.add("CREATE TABLE IF NOT EXISTS " + BOOKMARK_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, name TEXT NOT NULL)");
-        dbPatches.add("ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN macAddressList TEXT");
-        dbPatches.add("ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN pinToTop TEXT default '0'");
-        dbPatches.add("ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN categoryId TEXT");
+        dbPatches.put("111", "CREATE TABLE IF NOT EXISTS " + BOOKMARK_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, name TEXT NOT NULL)");
+        dbPatches.put("112", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN macAddressList TEXT");
+        dbPatches.put("113", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN pinToTop TEXT default '0'");
+        dbPatches.put("114", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN categoryId TEXT");
+        dbPatches.put("115", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN embeddedPlayer TEXT");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {
         createAppliedPatchesTable(conn);
-        for (int i = 0; i < dbPatches.size(); i++) {
-            String patch = dbPatches.get(i);
-            if (!isPatchApplied(conn, i)) {
+
+        for (String key : dbPatches.keySet()) {
+            String patch = dbPatches.get(key);
+            if (!isPatchApplied(conn, Integer.parseInt(key))) {
+                recordPatchApplied(conn, Integer.parseInt(key));
                 try (Statement stmt = conn.createStatement()) {
                     stmt.executeUpdate(patch);
-                    recordPatchApplied(conn, i);
                 } catch (Exception ignored) {
+                    ignored.getMessage();
                 }
             }
         }

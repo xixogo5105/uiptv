@@ -1,3 +1,4 @@
+
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
@@ -9,8 +10,8 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
-import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.SearchableTableView;
+import com.uiptv.widget.UIptvAlert;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -20,11 +21,11 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.ui.RootApplication.EMBEDDED_VLC_MEDIA_PLAYER;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -123,10 +124,10 @@ public class ChannelListUI extends HBox {
                 this.getChildren().clear();
                 getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId));
             } else {
-                play(item);
+                play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
             }
         } else {
-            play(item);
+            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
         }
     }
 
@@ -142,28 +143,33 @@ public class ChannelListUI extends HBox {
             bookmarkChannelListUI.refresh();
         });
 
+        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        playerEmbeddedItem.setOnAction(event -> {
+            rowMenu.hide();
+            play(row.getItem(), null, false);
+        });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
             rowMenu.hide();
-            play1(row.getItem());
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1(), false);
         });
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
             rowMenu.hide();
-            play2(row.getItem());
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2(), false);
         });
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
             rowMenu.hide();
-            play3(row.getItem());
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3(), false);
         });
 
         MenuItem reconnectAndPlayItem = new MenuItem("Reconnect & Play");
         reconnectAndPlayItem.setOnAction(event -> {
             rowMenu.hide();
-            reconnectAndPlay(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
         });
-        rowMenu.getItems().addAll(editItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
         // only display context menu for non-empty rows:
         row.contextMenuProperty().bind(
@@ -172,42 +178,20 @@ public class ChannelListUI extends HBox {
                         .otherwise(rowMenu));
     }
 
-    private void reconnectAndPlay(ChannelItem item, String playerPath) {
+    private void play(ChannelItem item, String playerPath, boolean runBookmark) {
         try {
-            Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, item.getCmd()));
+            String cmd;
+            if (runBookmark) {
+                cmd = PlayerService.getInstance().runBookmark(account, item.getCmd());
+            } else {
+                cmd = PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId());
+            }
+            if(isBlank(playerPath) || ConfigurationService.getInstance().read().isEmbeddedPlayer()){
+                EMBEDDED_VLC_MEDIA_PLAYER.play(cmd);
+            } else {
+                Platform.executeCommand(playerPath, cmd);
+            }
         } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play(ChannelItem item) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getDefaultPlayerPath(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play1(ChannelItem item) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath1(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play2(ChannelItem item) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath2(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play3(ChannelItem item) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath3(), PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId()));
-        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

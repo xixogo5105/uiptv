@@ -13,6 +13,8 @@ module com.uiptv {
     requires org.slf4j;
     requires io.github.willena.sqlitejdbc;
     requires javafx.graphics;
+    requires annotations;
+    requires javafx.media;
 
     opens com.uiptv.ui to javafx.fxml;
     exports com.uiptv.ui;

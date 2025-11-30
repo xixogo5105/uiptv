@@ -43,7 +43,8 @@ public class DatabaseUtils {
                 new DataColumn("fontWeight", "TEXT"),
                 new DataColumn("darkTheme", "TEXT"),
                 new DataColumn("serverPort", "TEXT"),
-                new DataColumn("pauseCaching", "TEXT")
+                new DataColumn("pauseCaching", "TEXT"),
+                new DataColumn("embeddedPlayer", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

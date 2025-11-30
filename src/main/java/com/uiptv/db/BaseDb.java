@@ -97,10 +97,11 @@ public abstract class BaseDb {
 
     public static boolean safeBoolean(ResultSet resultSet, String column) {
         try {
+            if(isBlank(resultSet.getString(column))) return false;
             return (Integer.parseInt(resultSet.getString(column)) > 0);
         } catch (SQLException ignored) {
+            return false;
         }
-        return false;
     }
 
 }

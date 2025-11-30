@@ -97,7 +97,9 @@ public class M3U8Parser {
         } catch (Exception e) {
             UIptvAlert.showError(e.getMessage());
         }
-
+        if (playlistEntries.size() > 1 && playlistEntries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase("Uncategorized"))) {
+            playlistEntries.add(new PlaylistEntry("Uncategorized", "Uncategorized", null, null, null));
+        }
         return playlistEntries;
     }
 

@@ -20,6 +20,8 @@ import com.uiptv.api.JsonCompliant;
 import com.uiptv.model.Account;
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -236,5 +238,14 @@ public class StringUtils {
             return new String[0];
         }
         return str.split(SPACE);
+    }
+
+    public static String safeUtf(String input) {
+        if (isBlank(input)) return "";
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) return "";
+        String normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFC);
+        byte[] bytes = normalized.getBytes(UTF_8);
+        return new String(bytes, UTF_8);
     }
 }

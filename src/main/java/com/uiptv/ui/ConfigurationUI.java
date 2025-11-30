@@ -32,6 +32,8 @@ public class ConfigurationUI extends VBox {
     private final RadioButton defaultPlayer1 = new RadioButton("");
     private final RadioButton defaultPlayer2 = new RadioButton("");
     private final RadioButton defaultPlayer3 = new RadioButton("");
+    private final RadioButton defaultEmbedPlayer = new RadioButton("Use embedded player as default");
+
     private final UIptvText playerPath1 = new UIptvText("playerPath1", "Enter your favorite player's Path here.", 5);
     private final UIptvText playerPath2 = new UIptvText("playerPath2", "Enter your second favorite player's Path here.", 5);
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "Enter your third favorite player's Path here.", 5);
@@ -64,10 +66,13 @@ public class ConfigurationUI extends VBox {
         defaultPlayer1.setToggleGroup(group);
         defaultPlayer2.setToggleGroup(group);
         defaultPlayer3.setToggleGroup(group);
+        defaultEmbedPlayer.setToggleGroup(group);
+
         defaultPlayer1.setUserData("defaultPlayer1");
         defaultPlayer2.setUserData("defaultPlayer2");
         defaultPlayer3.setUserData("defaultPlayer3");
-        defaultPlayer1.setSelected(true);
+        defaultEmbedPlayer.setUserData("defaultEmbedPlayer");
+        defaultEmbedPlayer.setSelected(true);
         if (configuration != null) {
             this.dbId = configuration.getDbId();
             playerPath1.setText(configuration.getPlayerPath1());
@@ -75,10 +80,15 @@ public class ConfigurationUI extends VBox {
             playerPath3.setText(configuration.getPlayerPath3());
             filterCategoriesWithTextContains.setText(configuration.getFilterCategoriesList());
             filterChannelWithTextContains.setText(configuration.getFilterChannelsList());
-            if (playerPath2.getText() != null && playerPath2.getText().equals(configuration.getDefaultPlayerPath())) {
+            if (playerPath1.getText() != null && playerPath1.getText().equals(configuration.getDefaultPlayerPath())) {
+                defaultPlayer1.setSelected(true);
+            }
+            else if (playerPath2.getText() != null && playerPath2.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer2.setSelected(true);
             } else if (playerPath3.getText() != null && playerPath3.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer3.setSelected(true);
+            } else {
+                defaultEmbedPlayer.setSelected(true);
             }
             filterPausedCheckBox.setSelected(configuration.isPauseFiltering());
             pauseCachingCheckBox.setSelected(configuration.isPauseCaching());
@@ -103,8 +113,9 @@ public class ConfigurationUI extends VBox {
         HBox box1 = new HBox(10, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
         HBox box2 = new HBox(10, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(10, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
+        HBox box4 = new HBox(10, defaultEmbedPlayer);
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton);
-        getChildren().addAll(box1, box2, box3, filterCategoriesWithTextContains, filterChannelWithTextContains,
+        getChildren().addAll(box1, box2, box3, box4, filterCategoriesWithTextContains, filterChannelWithTextContains,
                 fontFamily, fontSize, fontWeight, darkThemeCheckBox, filterPausedCheckBox,
                 new HBox(10, pauseCachingCheckBox, clearCacheButton),
                 serverButtonWrapper, saveButton);
@@ -156,8 +167,10 @@ public class ConfigurationUI extends VBox {
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(actionEvent -> {
             try {
-                String defaultPlayer = playerPath1.getText();
-                if (defaultPlayer2.isSelected()) {
+                String defaultPlayer = defaultEmbedPlayer.getText();
+                if (defaultPlayer1.isSelected()) {
+                    defaultPlayer = playerPath1.getText();
+                } else if (defaultPlayer2.isSelected()) {
                     defaultPlayer = playerPath2.getText();
                 } else if (defaultPlayer3.isSelected()) {
                     defaultPlayer = playerPath3.getText();
@@ -168,7 +181,8 @@ public class ConfigurationUI extends VBox {
                         filterPausedCheckBox.isSelected(),
                         fontFamily.getText(), fontSize.getText(), fontWeight.getText(),
                         darkThemeCheckBox.isSelected(), serverPort.getText(),
-                        pauseCachingCheckBox.isSelected()
+                        pauseCachingCheckBox.isSelected(),
+                        defaultEmbedPlayer.isSelected()
                 );
                 c.setDbId(dbId);
                 service.save(c);

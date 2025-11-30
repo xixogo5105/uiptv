@@ -10,13 +10,13 @@ import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.geometry.Insets;
 import javafx.geometry.Side;
 import javafx.scene.Scene;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.image.Image;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
+import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -31,6 +31,7 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    public static final EmbeddedMediaPlayer EMBEDDED_VLC_MEDIA_PLAYER = new EmbeddedMediaPlayer();
 
     public static void main(String[] args) {
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
@@ -109,7 +110,23 @@ public class RootApplication extends Application {
 
         TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
 
-        HBox mainContent = new HBox(tabPane, accountListUI); // AccountListUI as the first horizontal item
+        if (EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer() instanceof Region) {
+            Region playerContainer = (Region) EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer();
+            playerContainer.setMinWidth(470);
+            playerContainer.setPrefWidth(470);
+            playerContainer.setMaxWidth(470);
+            playerContainer.setMinHeight(275);
+            playerContainer.setPrefHeight(275);
+            playerContainer.setMaxHeight(275);
+        }
+        //EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer().setMaxHeight(180);
+        HBox embeddedPlayer = new HBox(EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer());
+        embeddedPlayer.setPadding(new Insets(5));
+
+        VBox containerWithEmbeddedPlayer = new VBox();
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, tabPane);
+        HBox mainContent = new HBox(containerWithEmbeddedPlayer, accountListUI); // AccountListUI as the first horizontal item
         HBox.setHgrow(tabPane, Priority.ALWAYS);
         tabPane.setMinWidth(480);
         tabPane.setPrefWidth(480);
@@ -117,6 +134,8 @@ public class RootApplication extends Application {
         mainContent.setMinWidth(480);
         mainContent.setPrefWidth(480);
         mainContent.setMaxWidth(480);
+
+
         Scene scene = new Scene(mainContent, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
         configureFontStyles(scene);
         primaryStage.setTitle("UIPTV");

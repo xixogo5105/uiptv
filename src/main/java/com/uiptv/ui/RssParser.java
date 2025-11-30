@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.PlaylistEntry;
 import com.uiptv.util.RssFeedReader;
+import com.uiptv.util.StringUtils;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -12,15 +13,18 @@ public class RssParser {
         playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));
         return playlistEntries;
     }
+
     public static List<PlaylistEntry> parse(String rssUrl) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
             for (RssFeedReader.RssItem item : RssFeedReader.getItems(rssUrl)) {
                 String lUUID = String.format("%040d", new BigInteger(UUID.randomUUID().toString().replace("-", ""), 16));
+
+                String title = StringUtils.safeUtf(item.getTitle());
                 playlistEntries.add(new PlaylistEntry(
                         lUUID,
-                        item.getTitle(),
-                        item.getTitle(),
+                        title,
+                        title,
                         item.getLink(),
                         ""));
             }
@@ -29,6 +33,5 @@ public class RssParser {
         }
         return playlistEntries;
     }
+
 }
-
-

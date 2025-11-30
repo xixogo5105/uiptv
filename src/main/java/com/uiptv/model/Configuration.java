@@ -9,13 +9,13 @@ import static com.uiptv.util.StringUtils.safeJson;
 
 public class Configuration implements Serializable, JsonCompliant {
     private String dbId, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, fontFamily, fontSize, fontWeight, serverPort;
-    private boolean darkTheme, pauseFiltering, pauseCaching;
+    private boolean darkTheme, pauseFiltering, pauseCaching, embeddedPlayer;
 
     public Configuration() {
     }
 
 
-    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String fontFamily, String fontSize, String fontWeight, boolean darkTheme, String serverPort, boolean pauseCaching) {
+    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String fontFamily, String fontSize, String fontWeight, boolean darkTheme, String serverPort, boolean pauseCaching, boolean embeddedPlayer) {
         this.playerPath1 = playerPath1;
         this.playerPath2 = playerPath2;
         this.playerPath3 = playerPath3;
@@ -29,6 +29,7 @@ public class Configuration implements Serializable, JsonCompliant {
         this.darkTheme = darkTheme;
         this.serverPort = serverPort;
         this.pauseCaching = pauseCaching;
+        this.embeddedPlayer = embeddedPlayer;
     }
 
     public String getDbId() {
@@ -142,7 +143,13 @@ public class Configuration implements Serializable, JsonCompliant {
     public void setPauseCaching(boolean pauseCaching) {
         this.pauseCaching = pauseCaching;
     }
+    public boolean isEmbeddedPlayer() {
+        return embeddedPlayer;
+    }
 
+    public void setEmbeddedPlayer(boolean embeddedPlayer) {
+        this.embeddedPlayer = embeddedPlayer;
+    }
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -173,6 +180,7 @@ public class Configuration implements Serializable, JsonCompliant {
                 ", darkTheme=" + darkTheme +
                 ", pauseFiltering=" + pauseFiltering +
                 ", pauseCaching=" + pauseCaching +
+                ", embeddedPlayer=" + embeddedPlayer +
                 '}';
     }
 
@@ -193,6 +201,7 @@ public class Configuration implements Serializable, JsonCompliant {
                 ",         \"darkTheme\":\"" + darkTheme + "\"" +
                 ",         \"pauseFiltering\":\"" + pauseFiltering + "\"" +
                 ",         \"pauseCaching\":\"" + pauseCaching + "\"" +
+                ",         \"embeddedPlayer\":\"" + embeddedPlayer + "\"" +
                 "}";
     }
 }

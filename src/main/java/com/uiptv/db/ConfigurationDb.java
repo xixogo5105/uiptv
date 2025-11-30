@@ -57,7 +57,8 @@ public class ConfigurationDb extends BaseDb {
                 nullSafeString(resultSet, "fontWeight"),
                 safeBoolean(resultSet, "darkTheme"),
                 nullSafeString(resultSet, "serverPort"),
-                safeBoolean(resultSet, "pauseCaching")
+                safeBoolean(resultSet, "pauseCaching"),
+                safeBoolean(resultSet, "embeddedPlayer")
         );
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
@@ -88,6 +89,7 @@ public class ConfigurationDb extends BaseDb {
             statement.setString(11, configuration.isDarkTheme() ? "1" : "0");
             statement.setString(12, configuration.getServerPort());
             statement.setString(13, configuration.isPauseCaching() ? "1" : "0");
+            statement.setString(14, configuration.isEmbeddedPlayer() ? "1" : "0");
             statement.execute();
         } catch (SQLException e) {
             throw new RuntimeException("Unable to execute query");

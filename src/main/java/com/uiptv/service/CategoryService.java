@@ -53,15 +53,16 @@ public class CategoryService {
     public List<Category> get(Account account) {
         List<Category> cachedCategories = CategoryDb.get().getCategories(account);
         if (cachedCategories.isEmpty() || account.isPauseCaching() || ConfigurationService.getInstance().read().isPauseCaching()) {
+            cachedCategories.clear();
             hardReloadCategories(account);
-            return CategoryDb.get().getCategories(account);
+            cachedCategories.addAll(CategoryDb.get().getCategories(account));
         } else {
             if (account.getType() == STALKER_PORTAL) {
                 HandshakeService.getInstance().hardTokenRefresh(account);
             }
 
         }
-        return cachedCategories;
+        return censor(cachedCategories);
     }
 
     private void hardReloadCategories(Account account) {
