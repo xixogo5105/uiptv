@@ -31,7 +31,7 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    public static final EmbeddedMediaPlayer EMBEDDED_VLC_MEDIA_PLAYER = new EmbeddedMediaPlayer();
+    private EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Changed to instance variable
 
     public static void main(String[] args) {
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
@@ -88,11 +88,12 @@ public class RootApplication extends Application {
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
+        embeddedVlcMediaPlayer = new EmbeddedMediaPlayer(); // Initialized here
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
-        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
-        AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI);
+        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(embeddedVlcMediaPlayer); // Pass embeddedVlcMediaPlayer
+        AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI, embeddedVlcMediaPlayer); // Pass embeddedVlcMediaPlayer
         configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI);
         LogDisplayUI logDisplayUI = new LogDisplayUI();
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {
@@ -110,8 +111,8 @@ public class RootApplication extends Application {
 
         TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
 
-        if (EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer() instanceof Region) {
-            Region playerContainer = (Region) EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer();
+        if (embeddedVlcMediaPlayer.getPlayerContainer() instanceof Region) { // Usage updated
+            Region playerContainer = (Region) embeddedVlcMediaPlayer.getPlayerContainer(); // Usage updated
             playerContainer.setMinWidth(470);
             playerContainer.setPrefWidth(470);
             playerContainer.setMaxWidth(470);
@@ -119,8 +120,8 @@ public class RootApplication extends Application {
             playerContainer.setPrefHeight(275);
             playerContainer.setMaxHeight(275);
         }
-        //EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer().setMaxHeight(180);
-        HBox embeddedPlayer = new HBox(EMBEDDED_VLC_MEDIA_PLAYER.getPlayerContainer());
+        //embeddedVlcMediaPlayer.getPlayerContainer().setMaxHeight(180); // Usage updated
+        HBox embeddedPlayer = new HBox(embeddedVlcMediaPlayer.getPlayerContainer()); // Usage updated
         embeddedPlayer.setPadding(new Insets(5));
 
         VBox containerWithEmbeddedPlayer = new VBox();

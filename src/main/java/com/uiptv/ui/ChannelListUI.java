@@ -25,10 +25,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
-import static com.uiptv.ui.RootApplication.EMBEDDED_VLC_MEDIA_PLAYER;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class ChannelListUI extends HBox {
     private final Account account;
@@ -38,14 +38,16 @@ public class ChannelListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<ChannelItem, String> channelName = new TableColumn("Channels");
     private final List<Channel> channelList;
+    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer;
 
 
-    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
+    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId, EmbeddedMediaPlayer embeddedVlcMediaPlayer) {
         this.categoryId = categoryId;
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
+        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer;
         initWidgets();
         refresh();
 
@@ -115,14 +117,14 @@ public class ChannelListUI extends HBox {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI));
+            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, embeddedVlcMediaPlayer));
         } else if (account.getAction() == series && account.getType() == STALKER_PORTAL) {
             if (isBlank(item.getCmd())) {
                 if (this.getChildren().size() > 1) {
                     this.getChildren().remove(1);
                 }
                 this.getChildren().clear();
-                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId));
+                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId, embeddedVlcMediaPlayer));
             } else {
                 play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
             }
@@ -146,7 +148,7 @@ public class ChannelListUI extends HBox {
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
         playerEmbeddedItem.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), null, false);
+            play(row.getItem(), "embedded", false); // Explicitly pass "embedded"
         });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
@@ -180,16 +182,30 @@ public class ChannelListUI extends HBox {
 
     private void play(ChannelItem item, String playerPath, boolean runBookmark) {
         try {
-            String cmd;
+            String evaluatedStreamUrl;
             if (runBookmark) {
-                cmd = PlayerService.getInstance().runBookmark(account, item.getCmd());
+                evaluatedStreamUrl = PlayerService.getInstance().runBookmark(account, item.getCmd());
             } else {
-                cmd = PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId());
+                evaluatedStreamUrl = PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId());
             }
-            if((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()){
-                EMBEDDED_VLC_MEDIA_PLAYER.play(cmd);
-            } else {
-                Platform.executeCommand(playerPath, cmd);
+
+            boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+            boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+
+            if (playerPathIsEmbedded) {
+                if (useEmbeddedPlayerConfig) {
+                    embeddedVlcMediaPlayer.play(evaluatedStreamUrl);
+                } else {
+                    showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                }
+            } else { // playerPath is not "embedded" or is blank
+                if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
+                    embeddedVlcMediaPlayer.play(evaluatedStreamUrl);
+                } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
+                    showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                } else { // Use external player
+                    Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

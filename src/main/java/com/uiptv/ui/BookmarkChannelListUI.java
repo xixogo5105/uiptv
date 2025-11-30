@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.uiptv.ui.RootApplication.EMBEDDED_VLC_MEDIA_PLAYER;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
@@ -35,8 +34,10 @@ public class BookmarkChannelListUI extends HBox {
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
     private boolean isPromptShowing = false;
+    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Added instance variable
 
-    public BookmarkChannelListUI() {
+    public BookmarkChannelListUI(EmbeddedMediaPlayer embeddedVlcMediaPlayer) { // Modified constructor
+        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
         refresh();
     }
@@ -284,10 +285,24 @@ public class BookmarkChannelListUI extends HBox {
             } else {
                 evaluatedStreamUrl = PlayerService.getInstance().get(account, item.getCmd());
             }
-            if ((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
-                EMBEDDED_VLC_MEDIA_PLAYER.play(evaluatedStreamUrl);
-            } else {
-                Platform.executeCommand(playerPath, evaluatedStreamUrl);
+
+            boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+            boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+
+            if (playerPathIsEmbedded) {
+                if (useEmbeddedPlayerConfig) {
+                    embeddedVlcMediaPlayer.play(evaluatedStreamUrl);
+                } else {
+                    showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                }
+            } else { // playerPath is not "embedded" or is blank
+                if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
+                    embeddedVlcMediaPlayer.play(evaluatedStreamUrl);
+                } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
+                    showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                } else { // Use external player
+                    Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

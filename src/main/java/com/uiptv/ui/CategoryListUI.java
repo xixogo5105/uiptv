@@ -30,9 +30,11 @@ public class CategoryListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
+    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Added instance variable
 
-    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) {
+    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI, EmbeddedMediaPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.bookmarkChannelListUI = bookmarkChannelListUI;
+        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
         List<CategoryItem> catList = new ArrayList<>();
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
@@ -98,7 +100,7 @@ public class CategoryListUI extends HBox {
         try {
             this.getChildren().clear();
 
-            getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(), account, item.getId()), account, item.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle()));
+            getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(), account, item.getId()), account, item.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(), embeddedVlcMediaPlayer)); // Pass embeddedVlcMediaPlayer
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

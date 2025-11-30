@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.uiptv.util.StringUtils.isBlank;
+
 public class EpisodesListUI extends HBox {
     private final Account account;
     private final String categoryTitle;
@@ -29,12 +31,14 @@ public class EpisodesListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<EpisodeItem, String> channelName = new TableColumn("Episodes");
     private final EpisodeList channelList;
+    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Added instance variable
 
-    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) {
+    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, EmbeddedMediaPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
+        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
         refresh();
     }
@@ -80,14 +84,14 @@ public class EpisodesListUI extends HBox {
     private void addChannelClickHandler() {
         table.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER) {
-                play((EpisodeItem) table.getFocusModel().getFocusedItem());
+                play((EpisodeItem) table.getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
             }
         });
         table.setRowFactory(tv -> {
             TableRow<EpisodeItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    play(row.getItem());
+                    play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
                 }
             });
             addRightClickContextMenu(row);
@@ -99,28 +103,34 @@ public class EpisodesListUI extends HBox {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
+
+        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        playerEmbeddedItem.setOnAction(event -> {
+            rowMenu.hide();
+            play(row.getItem(), null, false);
+        });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
             rowMenu.hide();
-            play1(row);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1(), false);
         });
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
             rowMenu.hide();
-            play2(row);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2(), false);
         });
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
             rowMenu.hide();
-            play3(row);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3(), false);
         });
 
         MenuItem reconnectAndPlayItem = new MenuItem("Reconnect & Play");
         reconnectAndPlayItem.setOnAction(event -> {
             rowMenu.hide();
-            reconnectAndPlay(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
         });
-        rowMenu.getItems().addAll(player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
         // only display context menu for non-empty rows:
         row.contextMenuProperty().bind(
@@ -129,42 +139,20 @@ public class EpisodesListUI extends HBox {
                         .otherwise(rowMenu));
     }
 
-    private void reconnectAndPlay(TableRow<EpisodeItem> row, String playerPath) {
+    private void play(EpisodeItem item, String playerPath, boolean runBookmark) {
         try {
-            Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, row.getItem().getCmd()));
+            String cmd;
+            if (runBookmark) {
+                cmd = PlayerService.getInstance().runBookmark(account, item.getCmd());
+            } else {
+                cmd = PlayerService.getInstance().get(account, item.getCmd());
+            }
+            if((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()){
+                embeddedVlcMediaPlayer.play(cmd); // Usage updated
+            } else {
+                Platform.executeCommand(playerPath, cmd);
+            }
         } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play(EpisodeItem item) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getDefaultPlayerPath(), PlayerService.getInstance().get(account, item.getCmd()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play1(TableRow<EpisodeItem> row) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath1(), PlayerService.getInstance().get(account, row.getItem().getCmd()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play2(TableRow<EpisodeItem> row) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath2(), PlayerService.getInstance().get(account, row.getItem().getCmd()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void play3(TableRow<EpisodeItem> row) {
-        try {
-            Platform.executeCommand(ConfigurationService.getInstance().read().getPlayerPath3(), PlayerService.getInstance().get(account, row.getItem().getCmd()));
-        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
