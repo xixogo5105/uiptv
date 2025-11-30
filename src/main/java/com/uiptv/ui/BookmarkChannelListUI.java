@@ -180,6 +180,16 @@ public class BookmarkChannelListUI extends HBox {
             handleDeleteMultipleBookmarks();
         });
 
+        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        playerEmbeddedItem.setOnAction(event -> {
+            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                rowMenu.hide();
+                play(row.getItem(), false, "embedded"); // Use "embedded" as a special playerPath
+            }
+        });
+
         MenuItem playerItem = new MenuItem("Reconnect & Play");
         playerItem.setOnAction(event -> {
             if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
@@ -235,7 +245,7 @@ public class BookmarkChannelListUI extends HBox {
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().addAll(editItem, player1Item, player2Item, player3Item, playerItem, addToMenu);
+        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, playerItem, addToMenu);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)

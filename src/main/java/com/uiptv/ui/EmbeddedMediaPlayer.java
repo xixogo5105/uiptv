@@ -105,7 +105,7 @@ public class EmbeddedMediaPlayer {
         fadeOutControls = new FadeTransition(Duration.millis(200), controls);
         fadeOutControls.setToValue(0);
         fadeOutControls.setOnFinished(e -> {
-            if (fullscreenStage != null) {
+            if (fullscreenStage != null) { // Only hide cursor if in fullscreen
                 hideMouseCursor();
             }
         });
@@ -118,7 +118,7 @@ public class EmbeddedMediaPlayer {
             fadeInControls.play();
             autoHideTimer.stop();
             autoHideTimer.playFromStart();
-            if (fullscreenStage != null) {
+            if (fullscreenStage != null) { // Only show cursor if in fullscreen
                 showMouseCursor();
             }
         });
@@ -308,18 +308,7 @@ public class EmbeddedMediaPlayer {
             fullscreenStage.setFullScreenExitHint("");
             fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
 
-            // Attach mouse moved listener to the fullscreen scene
-            scene.setOnMouseMoved(e -> {
-                fadeOutControls.stop();
-                fadeInControls.play();
-                autoHideTimer.stop();
-                autoHideTimer.playFromStart();
-                showMouseCursor(); // Show cursor when mouse moves in fullscreen
-            });
-            scene.setOnMouseExited(e -> {
-                autoHideTimer.stop();
-                fadeOutControls.play();
-            });
+            // Removed scene.setOnMouseMoved and scene.setOnMouseExited - playerContainer handlers will now manage this.
 
             fullscreenStage.show();
             updateButtonStyles();
