@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.uiptv.ui.RootApplication.EMBEDDED_VLC_MEDIA_PLAYER;
+import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class BookmarkChannelListUI extends HBox {
@@ -174,7 +176,7 @@ public class BookmarkChannelListUI extends HBox {
 
         MenuItem editItem = new MenuItem("Remove from favorite");
 
-        editItem.setOnAction( actionEvent-> {
+        editItem.setOnAction(actionEvent -> {
             handleDeleteMultipleBookmarks();
         });
 
@@ -266,10 +268,16 @@ public class BookmarkChannelListUI extends HBox {
         try {
             Account account = AccountService.getInstance().getAll().get(item.getAccountName());
             account.setServerPortalUrl(item.getServerPortalUrl());
+            String evaluatedStreamUrl = "";
             if (hardReset) {
-                Platform.executeCommand(playerPath, PlayerService.getInstance().runBookmark(account, item.getCmd()));
+                evaluatedStreamUrl = PlayerService.getInstance().runBookmark(account, item.getCmd());
             } else {
-                Platform.executeCommand(playerPath, PlayerService.getInstance().get(account, item.getCmd()));
+                evaluatedStreamUrl = PlayerService.getInstance().get(account, item.getCmd());
+            }
+            if ((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
+                EMBEDDED_VLC_MEDIA_PLAYER.play(evaluatedStreamUrl);
+            } else {
+                Platform.executeCommand(playerPath, evaluatedStreamUrl);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -186,7 +186,7 @@ public class ChannelListUI extends HBox {
             } else {
                 cmd = PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId());
             }
-            if(isBlank(playerPath) || ConfigurationService.getInstance().read().isEmbeddedPlayer()){
+            if((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()){
                 EMBEDDED_VLC_MEDIA_PLAYER.play(cmd);
             } else {
                 Platform.executeCommand(playerPath, cmd);
