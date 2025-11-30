@@ -29,6 +29,7 @@ public class EmbeddedMediaPlayer {
     private static final double VOLUME_STEP = 0.05;
     private static final double DEFAULT_VOLUME = 0.5;
     private static final String STYLE_BLACK_BACKGROUND = "-fx-background-color: black;";
+    private static final String STYLE_BUTTON_TOGGLED = "-fx-background-color: darkgreen;";
     private static final Insets CONTROLS_PADDING = new Insets(5, 10, 5, 10);
     private static final double CONTROLS_SPACING = 10;
     private static final double SLIDER_PREF_WIDTH = 100;
@@ -47,6 +48,7 @@ public class EmbeddedMediaPlayer {
     private final MediaView mediaView = new MediaView();
     private final HBox controls = new HBox();
     private MediaPlayer mediaPlayer;
+    private Button fullscreenButton;
 
     // Fullscreen bookkeeping
     private Stage fullscreenStage;
@@ -126,7 +128,7 @@ public class EmbeddedMediaPlayer {
         });
 
         // Fullscreen Button
-        Button fullscreenButton = new Button();
+        fullscreenButton = new Button();
         fullscreenButton.setGraphic(createSVGIcon(SVG_FULLSCREEN));
         fullscreenButton.setOnAction(e -> toggleFullscreen());
 
@@ -136,7 +138,9 @@ public class EmbeddedMediaPlayer {
         // Listeners to update control states
         if (mediaPlayer != null) {
             mediaPlayer.statusProperty().addListener((obs, oldStatus, newStatus) -> {
-                playPauseButton.setGraphic(newStatus == MediaPlayer.Status.PLAYING ? pauseIcon : playIcon);
+                boolean isPlaying = newStatus == MediaPlayer.Status.PLAYING;
+                playPauseButton.setGraphic(isPlaying ? pauseIcon : playIcon);
+                playPauseButton.setStyle(isPlaying ? "" : STYLE_BUTTON_TOGGLED);
             });
             mediaPlayer.volumeProperty().addListener((obs, oldVal, newVal) -> {
                 if (!volumeSlider.isValueChanging()) {
@@ -145,13 +149,31 @@ public class EmbeddedMediaPlayer {
             });
             mediaPlayer.muteProperty().addListener((obs, wasMuted, isMuted) -> {
                 muteButton.setGraphic(isMuted ? volumeOffIcon : volumeOnIcon);
+                muteButton.setStyle(isMuted ? STYLE_BUTTON_TOGGLED : "");
             });
             mediaPlayer.setOnReady(() -> {
                 volumeSlider.setValue(mediaPlayer.getVolume() * 100);
-                muteButton.setGraphic(mediaPlayer.isMute() ? volumeOffIcon : volumeOnIcon);
+                updateButtonStyles(playPauseButton, muteButton);
             });
         }
     }
+
+    private void updateButtonStyles(Button playPauseButton, Button muteButton) {
+        if (mediaPlayer == null) return;
+
+        boolean isPlaying = mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING;
+        playPauseButton.setGraphic(isPlaying ? createSVGIcon(SVG_PAUSE) : createSVGIcon(SVG_PLAY));
+        playPauseButton.setStyle(isPlaying ? "" : STYLE_BUTTON_TOGGLED);
+
+        boolean isMuted = mediaPlayer.isMute();
+        muteButton.setGraphic(isMuted ? createSVGIcon(SVG_VOLUME_OFF) : createSVGIcon(SVG_VOLUME_ON));
+        muteButton.setStyle(isMuted ? STYLE_BUTTON_TOGGLED : "");
+
+        if (fullscreenButton != null) {
+            fullscreenButton.setStyle(fullscreenStage != null ? STYLE_BUTTON_TOGGLED : "");
+        }
+    }
+
 
     private SVGPath createSVGIcon(String path) {
         SVGPath svg = new SVGPath();
@@ -277,6 +299,10 @@ public class EmbeddedMediaPlayer {
             fullscreenStage.setFullScreenExitHint("");
             fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
             fullscreenStage.show();
+
+            if (fullscreenButton != null) {
+                fullscreenButton.setStyle(STYLE_BUTTON_TOGGLED);
+            }
         });
     }
 
@@ -302,6 +328,10 @@ public class EmbeddedMediaPlayer {
 
             originalParent = null;
             originalIndex = -1;
+
+            if (fullscreenButton != null) {
+                fullscreenButton.setStyle("");
+            }
         });
     }
 
