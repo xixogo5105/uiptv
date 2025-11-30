@@ -14,7 +14,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <platform>Linux</platform>
         <sqlite.arch>x86_64</sqlite.arch>
-        <javafx.version>24.0.2</javafx.version>
+        <javafx.version>25.0.1</javafx.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
@@ -190,7 +190,7 @@
             <plugin>
                 <groupId>com.gluonhq</groupId>
                 <artifactId>gluonfx-maven-plugin</artifactId>
-                <version>1.0.26</version>
+                <version>1.0.28</version>
                 <configuration>
                     <target>host</target>
                     <mainClass>com.uiptv.ui.RootApplication</mainClass>
