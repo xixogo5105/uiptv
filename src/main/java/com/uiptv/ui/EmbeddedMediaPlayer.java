@@ -2,6 +2,8 @@
 package com.uiptv.ui;
 
 import javafx.animation.FadeTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -9,7 +11,6 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.Slider;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
@@ -23,6 +24,7 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import javafx.scene.Cursor; // Added import
 
 import java.io.File;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,7 +38,7 @@ public class EmbeddedMediaPlayer {
     private static final String STYLE_BUTTON_TOGGLED = "-fx-background-color: darkgreen;";
     private static final Insets CONTROLS_PADDING = new Insets(5, 10, 5, 10);
     private static final double CONTROLS_SPACING = 10;
-    private static final double SLIDER_PREF_WIDTH = 100;
+    private static final Duration AUTO_HIDE_DELAY = Duration.seconds(3);
 
     // SVG Icon Paths
     private static final String SVG_PLAY = "M8 5v14l11-7z";
@@ -60,7 +62,6 @@ public class EmbeddedMediaPlayer {
     private Button stopButton;
     private Button reloadButton;
     private Button muteButton;
-    private Slider volumeSlider;
     private Button fullscreenButton;
 
     // Fullscreen bookkeeping
@@ -68,17 +69,19 @@ public class EmbeddedMediaPlayer {
     private Pane originalParent;
     private int originalIndex = -1;
 
-    public EmbeddedMediaPlayer() {
-        // Create controls once
-        createControls();
-        controls.setOpacity(0); // Initially hidden
+    // Fade transitions and auto-hide timer
+    private FadeTransition fadeInControls;
+    private FadeTransition fadeOutControls;
+    private Timeline autoHideTimer;
 
-        // MediaView
+    public EmbeddedMediaPlayer() {
+        createControls();
+        controls.setOpacity(0);
+
         mediaView.setPreserveRatio(true);
         mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
         mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
 
-        // Player Container (the root)
         playerContainer.getChildren().addAll(mediaView, controls);
         playerContainer.setStyle(STYLE_BLACK_BACKGROUND);
         StackPane.setAlignment(controls, Pos.BOTTOM_CENTER);
@@ -86,7 +89,6 @@ public class EmbeddedMediaPlayer {
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
 
-        // Event handlers
         setupHoverFade();
         playerContainer.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getClickCount() == 2) {
@@ -98,13 +100,32 @@ public class EmbeddedMediaPlayer {
     }
 
     private void setupHoverFade() {
-        FadeTransition fadeIn = new FadeTransition(Duration.millis(200), controls);
-        fadeIn.setToValue(1.0);
-        FadeTransition fadeOut = new FadeTransition(Duration.millis(200), controls);
-        fadeOut.setToValue(0);
+        fadeInControls = new FadeTransition(Duration.millis(200), controls);
+        fadeInControls.setToValue(1.0);
+        fadeOutControls = new FadeTransition(Duration.millis(200), controls);
+        fadeOutControls.setToValue(0);
+        fadeOutControls.setOnFinished(e -> {
+            if (fullscreenStage != null) {
+                hideMouseCursor();
+            }
+        });
 
-        playerContainer.setOnMouseEntered(e -> fadeIn.play());
-        playerContainer.setOnMouseExited(e -> fadeOut.play());
+        autoHideTimer = new Timeline(new KeyFrame(AUTO_HIDE_DELAY, e -> fadeOutControls.play()));
+        autoHideTimer.setCycleCount(1);
+
+        playerContainer.setOnMouseMoved(e -> {
+            fadeOutControls.stop();
+            fadeInControls.play();
+            autoHideTimer.stop();
+            autoHideTimer.playFromStart();
+            if (fullscreenStage != null) {
+                showMouseCursor();
+            }
+        });
+        playerContainer.setOnMouseExited(e -> {
+            autoHideTimer.stop();
+            fadeOutControls.play();
+        });
     }
 
     private void createControls() {
@@ -117,7 +138,6 @@ public class EmbeddedMediaPlayer {
         stopButton = new Button();
         reloadButton = new Button();
         muteButton = new Button();
-        volumeSlider = new Slider();
         fullscreenButton = new Button();
 
         playPauseButton.setGraphic(createSVGIcon(SVG_PLAY));
@@ -126,11 +146,9 @@ public class EmbeddedMediaPlayer {
         muteButton.setGraphic(createSVGIcon(SVG_VOLUME_ON));
         fullscreenButton.setGraphic(createSVGIcon(SVG_FULLSCREEN));
 
-        volumeSlider.setPrefWidth(SLIDER_PREF_WIDTH);
-        volumeSlider.setMaxWidth(Region.USE_PREF_SIZE);
-
         controls.getChildren().clear();
-        controls.getChildren().addAll(playPauseButton, stopButton, reloadButton, muteButton, volumeSlider, fullscreenButton);
+        // Reload button is now the first from the left
+        controls.getChildren().addAll(reloadButton, playPauseButton, stopButton, muteButton, fullscreenButton);
     }
 
     private void attachListeners() {
@@ -145,19 +163,9 @@ public class EmbeddedMediaPlayer {
         muteButton.setOnAction(e -> toggleMute());
         fullscreenButton.setOnAction(e -> toggleFullscreen());
 
-        volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (mediaPlayer != null) mediaPlayer.setVolume(newVal.doubleValue() / 100.0);
-        });
-
         mediaPlayer.statusProperty().addListener((obs, o, n) -> updateButtonStyles());
-        mediaPlayer.volumeProperty().addListener((obs, o, n) -> {
-            if (!volumeSlider.isValueChanging()) volumeSlider.setValue(n.doubleValue() * 100);
-        });
         mediaPlayer.muteProperty().addListener((obs, o, n) -> updateButtonStyles());
-        mediaPlayer.setOnReady(() -> {
-            volumeSlider.setValue(mediaPlayer.getVolume() * 100);
-            updateButtonStyles();
-        });
+        mediaPlayer.setOnReady(this::updateButtonStyles);
     }
 
     private void reloadStream() {
@@ -299,8 +307,26 @@ public class EmbeddedMediaPlayer {
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
             fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
+
+            // Attach mouse moved listener to the fullscreen scene
+            scene.setOnMouseMoved(e -> {
+                fadeOutControls.stop();
+                fadeInControls.play();
+                autoHideTimer.stop();
+                autoHideTimer.playFromStart();
+                showMouseCursor(); // Show cursor when mouse moves in fullscreen
+            });
+            scene.setOnMouseExited(e -> {
+                autoHideTimer.stop();
+                fadeOutControls.play();
+            });
+
             fullscreenStage.show();
             updateButtonStyles();
+            // Ensure controls are visible when entering fullscreen
+            fadeInControls.play();
+            autoHideTimer.playFromStart();
+            hideMouseCursor(); // Hide cursor initially when entering fullscreen
         });
     }
 
@@ -315,6 +341,13 @@ public class EmbeddedMediaPlayer {
                 originalParent.getChildren().add(originalIndex, playerContainer);
             }
             updateButtonStyles();
+            // Stop auto-hide timer when exiting fullscreen
+            autoHideTimer.stop();
+            // Re-apply normal mouse listeners (already set on playerContainer)
+            // Ensure controls are visible briefly after exiting fullscreen
+            fadeInControls.play();
+            autoHideTimer.playFromStart();
+            showMouseCursor(); // Show cursor when exiting fullscreen
         });
     }
 
@@ -324,15 +357,33 @@ public class EmbeddedMediaPlayer {
 
     private void increaseVolume() {
         if (mediaPlayer != null) {
-            double vol = clamp(mediaPlayer.getVolume() + VOLUME_STEP, 0.0, 1.0);
-            mediaPlayer.setVolume(vol);
+            if (mediaPlayer.isMute()) {
+                mediaPlayer.setMute(false);
+            }
+            double currentVolume = mediaPlayer.getVolume();
+            mediaPlayer.setVolume(clamp(currentVolume + VOLUME_STEP, 0.0, 1.0));
         }
     }
 
     private void decreaseVolume() {
         if (mediaPlayer != null) {
-            double vol = clamp(mediaPlayer.getVolume() - VOLUME_STEP, 0.0, 1.0);
-            mediaPlayer.setVolume(vol);
+            if (mediaPlayer.isMute()) {
+                mediaPlayer.setMute(false);
+            }
+            double currentVolume = mediaPlayer.getVolume();
+            mediaPlayer.setVolume(clamp(currentVolume - VOLUME_STEP, 0.0, 1.0));
+        }
+    }
+
+    private void hideMouseCursor() {
+        if (fullscreenStage != null && fullscreenStage.getScene() != null) {
+            fullscreenStage.getScene().setCursor(Cursor.NONE);
+        }
+    }
+
+    private void showMouseCursor() {
+        if (fullscreenStage != null && fullscreenStage.getScene() != null) {
+            fullscreenStage.getScene().setCursor(Cursor.DEFAULT);
         }
     }
 
