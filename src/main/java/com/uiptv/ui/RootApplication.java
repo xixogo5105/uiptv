@@ -16,7 +16,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.image.Image;
-import javafx.scene.layout.*;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -31,8 +33,6 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private VlcVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
-
     public static void main(String[] args) {
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
             handleSync(args);
@@ -88,12 +88,12 @@ public class RootApplication extends Application {
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
-        embeddedVlcMediaPlayer = new VlcVideoPlayer(); // Initialized with new class
+
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
-        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(embeddedVlcMediaPlayer); // Pass embeddedVlcMediaPlayer
-        AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI, embeddedVlcMediaPlayer); // Pass embeddedVlcMediaPlayer
+        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
+        AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI);
         configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI);
         LogDisplayUI logDisplayUI = new LogDisplayUI();
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {
@@ -111,17 +111,7 @@ public class RootApplication extends Application {
 
         TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
 
-        if (embeddedVlcMediaPlayer.getPlayerContainer() instanceof Region) { // Usage updated
-            Region playerContainer = (Region) embeddedVlcMediaPlayer.getPlayerContainer(); // Usage updated
-            playerContainer.setMinWidth(470);
-            playerContainer.setPrefWidth(470);
-            playerContainer.setMaxWidth(470);
-            playerContainer.setMinHeight(275);
-            playerContainer.setPrefHeight(275);
-            playerContainer.setMaxHeight(275);
-        }
-        //embeddedVlcMediaPlayer.getPlayerContainer().setMaxHeight(180); // Usage updated
-        HBox embeddedPlayer = new HBox(embeddedVlcMediaPlayer.getPlayerContainer()); // Usage updated
+        HBox embeddedPlayer = new HBox(MediaPlayerFactory.createMediaPlayer().getPlayerContainer()); // Usage updated
         embeddedPlayer.setPadding(new Insets(5));
 
 

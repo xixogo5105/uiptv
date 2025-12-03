@@ -8,8 +8,8 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
-import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.SearchableTableView;
+import com.uiptv.widget.UIptvAlert;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -30,14 +30,12 @@ public class EpisodesListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<EpisodeItem, String> channelName = new TableColumn("Episodes");
     private final EpisodeList channelList;
-    private final VlcVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
 
-    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, VlcVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
-        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
         refresh();
     }
@@ -146,8 +144,8 @@ public class EpisodesListUI extends HBox {
             } else {
                 cmd = PlayerService.getInstance().get(account, item.getCmd());
             }
-            if((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()){
-                embeddedVlcMediaPlayer.play(cmd); // Usage updated
+            if ((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
+                MediaPlayerFactory.createMediaPlayer().play(cmd); // Usage updated
             } else {
                 Platform.executeCommand(playerPath, cmd);
             }

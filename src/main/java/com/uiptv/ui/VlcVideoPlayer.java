@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.api.EmbeddedVideoPlayer;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -25,11 +26,10 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
-import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 
-public class VlcVideoPlayer {
+public class VlcVideoPlayer implements EmbeddedVideoPlayer {
     private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
 
@@ -140,7 +140,7 @@ public class VlcVideoPlayer {
             }
         });
 
-        btnStop.setOnAction(e -> mediaPlayer.controls().stop());
+        btnStop.setOnAction(e -> stop());
 
         btnRepeat.setOnAction(e -> {
             boolean isRepeating = !mediaPlayer.controls().getRepeat();
@@ -194,7 +194,7 @@ public class VlcVideoPlayer {
         // --- VLC EVENTS ---
         mediaPlayer.events().addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
             @Override
-            public void playing(MediaPlayer mediaPlayer) {
+            public void playing(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     btnPlayPause.setGraphic(pauseIcon);
@@ -204,27 +204,27 @@ public class VlcVideoPlayer {
             }
 
             @Override
-            public void paused(MediaPlayer mediaPlayer) {
+            public void paused(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
             }
 
             @Override
-            public void positionChanged(MediaPlayer mediaPlayer, float newPosition) {
+            public void positionChanged(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer, float newPosition) {
                 if (!isUserSeeking) Platform.runLater(() -> timeSlider.setValue(newPosition));
             }
 
             @Override
-            public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
+            public void timeChanged(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer, long newTime) {
                 Platform.runLater(() -> timeLabel.setText(formatTime(newTime) + " / " + formatTime(mediaPlayer.status().length())));
             }
 
             @Override
-            public void finished(MediaPlayer mediaPlayer) {
+            public void finished(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
             }
 
             @Override
-            public void stopped(MediaPlayer mediaPlayer) {
+            public void stopped(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
                     btnPlayPause.setGraphic(playIcon);
                     timeSlider.setValue(0);
@@ -233,7 +233,7 @@ public class VlcVideoPlayer {
             }
 
             @Override
-            public void error(MediaPlayer mediaPlayer) {
+            public void error(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     System.err.println("An error occurred in the media player.");
@@ -307,6 +307,7 @@ public class VlcVideoPlayer {
         playerContainer.setOnMouseExited(e -> fadeOut.play());
     }
 
+    @Override
     public void play(String uri) {
         if (uri != null && !uri.isEmpty()) {
             this.currentMediaUri = uri; // Store the current media URI
@@ -317,6 +318,7 @@ public class VlcVideoPlayer {
         }
     }
 
+    @Override
     public Node getPlayerContainer() {
         return playerContainer;
     }
@@ -326,15 +328,19 @@ public class VlcVideoPlayer {
         return h > 0 ? String.format("%02d:%02d:%02d", h, m, s) : String.format("%02d:%02d", m, s);
     }
 
+    @Override
     public void stop() {
         if (mediaPlayer != null) {
             mediaPlayer.controls().stop();
-            mediaPlayer.release();
+            playerContainer.setVisible(false);
+            playerContainer.setManaged(false);
+
+            // mediaPlayer.release();
         }
-        if (mediaPlayerFactory != null) mediaPlayerFactory.release();
-        Platform.exit();
+        //if (mediaPlayerFactory != null) mediaPlayerFactory.release();
     }
 
+    @Override
     public void toggleFullscreen() {
         if (fullscreenStage == null) enterFullscreen();
         else exitFullscreen();

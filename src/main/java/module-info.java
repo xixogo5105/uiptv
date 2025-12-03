@@ -18,6 +18,7 @@ module com.uiptv {
 
     requires transitive uk.co.caprica.vlcj;
     requires transitive uk.co.caprica.vlcj.javafx;
+
     opens com.uiptv.ui to javafx.fxml;
     exports com.uiptv.ui;
     exports com.uiptv.api;

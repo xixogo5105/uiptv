@@ -38,16 +38,14 @@ public class ChannelListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<ChannelItem, String> channelName = new TableColumn("Channels");
     private final List<Channel> channelList;
-    private final VlcVideoPlayer embeddedVlcMediaPlayer;
 
 
-    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId, VlcVideoPlayer embeddedVlcMediaPlayer) {
+    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) { // Removed MediaPlayer argument
         this.categoryId = categoryId;
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
-        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer;
         initWidgets();
         refresh();
 
@@ -117,14 +115,14 @@ public class ChannelListUI extends HBox {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, embeddedVlcMediaPlayer));
+            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI));
         } else if (account.getAction() == series && account.getType() == STALKER_PORTAL) {
             if (isBlank(item.getCmd())) {
                 if (this.getChildren().size() > 1) {
                     this.getChildren().remove(1);
                 }
                 this.getChildren().clear();
-                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId, embeddedVlcMediaPlayer));
+                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId));
             } else {
                 play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
             }
@@ -194,13 +192,13 @@ public class ChannelListUI extends HBox {
 
             if (playerPathIsEmbedded) {
                 if (useEmbeddedPlayerConfig) {
-                    embeddedVlcMediaPlayer.play(evaluatedStreamUrl);
+                    MediaPlayerFactory.createMediaPlayer().play(evaluatedStreamUrl);
                 } else {
                     showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                 }
             } else { // playerPath is not "embedded" or is blank
                 if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
-                    embeddedVlcMediaPlayer.play(evaluatedStreamUrl);
+                    MediaPlayerFactory.createMediaPlayer().play(evaluatedStreamUrl);
                 } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
                     showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                 } else { // Use external player

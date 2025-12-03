@@ -37,11 +37,9 @@ public class AccountListUI extends HBox {
     private Callback onEditCallback;
     private Callback onDeleteCallback;
     private boolean isPromptShowing = false;
-    private final VlcVideoPlayer embeddedVlcMediaPlayer; // Changed to EmbeddedVlcMediaPlayer
 
-    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI, VlcVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
         this.bookmarkChannelListUI = bookmarkChannelListUI;
-        this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
         refresh();
     }
@@ -49,7 +47,7 @@ public class AccountListUI extends HBox {
     public CategoryListUI refreshCategoryList(Account account) {
         List<Category> list = CategoryService.getInstance().get(account);
         if (account.isNotConnected()) return null;
-        return new CategoryListUI(list, account, bookmarkChannelListUI, embeddedVlcMediaPlayer); // Pass embeddedVlcMediaPlayer
+        return new CategoryListUI(list, account, bookmarkChannelListUI);
     }
 
     public void addUpdateCallbackHandler(Callback onEditCallback) {
