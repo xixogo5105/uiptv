@@ -38,10 +38,10 @@ public class ChannelListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<ChannelItem, String> channelName = new TableColumn("Channels");
     private final List<Channel> channelList;
-    private final UIPTVVideoPlayer embeddedVlcMediaPlayer;
+    private final VlcVideoPlayer embeddedVlcMediaPlayer;
 
 
-    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId, UIPTVVideoPlayer embeddedVlcMediaPlayer) {
+    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId, VlcVideoPlayer embeddedVlcMediaPlayer) {
         this.categoryId = categoryId;
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;

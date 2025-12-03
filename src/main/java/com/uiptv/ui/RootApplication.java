@@ -31,7 +31,7 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
+    private VlcVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
 
     public static void main(String[] args) {
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
@@ -88,7 +88,7 @@ public class RootApplication extends Application {
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
-        embeddedVlcMediaPlayer = new UIPTVVideoPlayer(); // Initialized with new class
+        embeddedVlcMediaPlayer = new VlcVideoPlayer(); // Initialized with new class
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();

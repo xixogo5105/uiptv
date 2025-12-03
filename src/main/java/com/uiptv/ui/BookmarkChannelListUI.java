@@ -34,9 +34,9 @@ public class BookmarkChannelListUI extends HBox {
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
     private boolean isPromptShowing = false;
-    private final UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
+    private final VlcVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
 
-    public BookmarkChannelListUI(UIPTVVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public BookmarkChannelListUI(VlcVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
         refresh();

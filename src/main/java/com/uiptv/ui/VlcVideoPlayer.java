@@ -29,7 +29,7 @@ import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 
-public class UIPTVVideoPlayer {
+public class VlcVideoPlayer {
     private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
 
@@ -61,7 +61,7 @@ public class UIPTVVideoPlayer {
     private FadeTransition fadeOut;
     private String currentMediaUri; // Added to store current media URI for reload
 
-    public UIPTVVideoPlayer() {
+    public VlcVideoPlayer() {
         // --- 1. VLCJ SETUP ---
         mediaPlayerFactory = new MediaPlayerFactory();
         mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();

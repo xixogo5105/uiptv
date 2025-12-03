@@ -37,9 +37,9 @@ public class AccountListUI extends HBox {
     private Callback onEditCallback;
     private Callback onDeleteCallback;
     private boolean isPromptShowing = false;
-    private final UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed to EmbeddedVlcMediaPlayer
+    private final VlcVideoPlayer embeddedVlcMediaPlayer; // Changed to EmbeddedVlcMediaPlayer
 
-    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI, UIPTVVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI, VlcVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();
