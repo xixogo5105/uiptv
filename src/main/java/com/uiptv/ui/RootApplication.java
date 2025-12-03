@@ -31,7 +31,7 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Changed to instance variable
+    private UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
 
     public static void main(String[] args) {
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
@@ -88,7 +88,7 @@ public class RootApplication extends Application {
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
-        embeddedVlcMediaPlayer = new EmbeddedMediaPlayer(); // Initialized here
+        embeddedVlcMediaPlayer = new UIPTVVideoPlayer(); // Initialized with new class
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
@@ -123,6 +123,7 @@ public class RootApplication extends Application {
         //embeddedVlcMediaPlayer.getPlayerContainer().setMaxHeight(180); // Usage updated
         HBox embeddedPlayer = new HBox(embeddedVlcMediaPlayer.getPlayerContainer()); // Usage updated
         embeddedPlayer.setPadding(new Insets(5));
+
 
         VBox containerWithEmbeddedPlayer = new VBox();
         VBox.setVgrow(tabPane, Priority.ALWAYS);

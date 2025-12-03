@@ -30,9 +30,9 @@ public class CategoryListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
-    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Added instance variable
+    private final UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
 
-    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI, EmbeddedMediaPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI, UIPTVVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();

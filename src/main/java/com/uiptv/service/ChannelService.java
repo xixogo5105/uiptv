@@ -56,8 +56,10 @@ public class ChannelService {
             params.put("season_id", isBlank(seriesId) ? "0" : seriesId);
             params.put("episode_id", "0");
         }
-        params.put("hd", "0");
+        params.put("hd", "1");
         params.put("p", String.valueOf(pageNumber));
+        params.put("per_page", "999");
+        params.put("max_count", "0");
         params.put("JsHttpRequest", new Date().getTime() + "-xml");
         return params;
     }
@@ -164,10 +166,16 @@ public class ChannelService {
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
         Pagination pagination = parsePagination(json);
         if (pagination == null) return channelList;
-        channelList.addAll(account.getAction() == itv ? parseItvChannels(json) : parseVodChannels(account, json));
+        List<Channel> page1Channels = account.getAction() == itv ? parseItvChannels(json) : parseVodChannels(account, json);
+        if (page1Channels != null) {
+            channelList.addAll(page1Channels);
+        }
         for (pageNumber = 2; pageNumber <= pagination.getPageCount(); pageNumber++) {
             json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
-            channelList.addAll(account.getAction() == itv ? parseItvChannels(json) : parseVodChannels(account, json));
+            List<Channel> pagedChannels = account.getAction() == itv ? parseItvChannels(json) : parseVodChannels(account, json);
+            if (pagedChannels != null) {
+                channelList.addAll(pagedChannels);
+            }
         }
         return channelList;
     }
@@ -188,25 +196,27 @@ public class ChannelService {
 
     public List<Channel> parseItvChannels(String json) {
         try {
-            JSONObject js = new JSONObject(json).getJSONObject("js");
-            JSONArray list = js.getJSONArray("data");
+            JSONObject root = new JSONObject(json);
+            JSONObject js = root.optJSONObject("js", root); // Use root if "js" object doesn't exist
+            JSONArray list = js.getJSONArray("data"); // Now get "data" from the correct object
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
-                channelList.add(new Channel(jsonChannel.getString("id"), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
+                channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
             }
             return censor(channelList);
 
         } catch (Exception ignored) {
             showError("Error while processing itv response data");
         }
-        return null;
+        return Collections.emptyList();
     }
 
     public List<Channel> parseVodChannels(Account account, String json) {
         try {
-            JSONObject js = new JSONObject(json).getJSONObject("js");
-            JSONArray list = js.getJSONArray("data");
+            JSONObject root = new JSONObject(json);
+            JSONObject js = root.optJSONObject("js", root); // Use root if "js" object doesn't exist
+            JSONArray list = js.getJSONArray("data"); // Now get "data" from the correct object
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
@@ -227,7 +237,7 @@ public class ChannelService {
                         }
                     }
                 } else {
-                    channelList.add(new Channel(jsonChannel.getString("id"), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
+                    channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
                 }
             }
             List<Channel> censoredChannelList = censor(channelList);
@@ -236,7 +246,7 @@ public class ChannelService {
         } catch (Exception ignored) {
             showError("Error while processing vod response data");
         }
-        return null;
+        return Collections.emptyList();
     }
 
     public List<Channel> censor(List<Channel> channelList) {
@@ -257,4 +267,3 @@ public class ChannelService {
     }
 
 }
-

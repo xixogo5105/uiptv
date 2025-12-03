@@ -6,7 +6,6 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
-import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.AutoGrowPaneVBox;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
@@ -38,9 +37,9 @@ public class AccountListUI extends HBox {
     private Callback onEditCallback;
     private Callback onDeleteCallback;
     private boolean isPromptShowing = false;
-    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Added instance variable
+    private final UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed to EmbeddedVlcMediaPlayer
 
-    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI, EmbeddedMediaPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI, UIPTVVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.embeddedVlcMediaPlayer = embeddedVlcMediaPlayer; // Initialize instance variable
         initWidgets();

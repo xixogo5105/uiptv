@@ -82,6 +82,16 @@
             <version>2.1.0</version>
         </dependency>
         <dependency>
+            <groupId>uk.co.caprica</groupId>
+            <artifactId>vlcj</artifactId>
+            <version>4.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>uk.co.caprica</groupId>
+            <artifactId>vlcj-javafx</artifactId>
+            <version>1.2.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
             <version>5.13.1</version>
@@ -90,6 +100,11 @@
     </dependencies>
     <build>
         <finalName>UIPTV</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -186,29 +201,6 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>com.gluonhq</groupId>
-                <artifactId>gluonfx-maven-plugin</artifactId>
-                <version>1.0.28</version>
-                <configuration>
-                    <target>host</target>
-                    <mainClass>com.uiptv.ui.RootApplication</mainClass>
-                    <appIdentifier>UIPTV</appIdentifier>
-                    <resourcesList>
-                        <list>org/sqlite/native/${platform}/${sqlite.arch}/.*</list>
-                    </resourcesList>
-                    <jniList>
-                        <list>org.sqlite.core.DB</list>
-                        <list>org.sqlite.core.NativeDB</list>
-                        <list>org.sqlite.BusyHandler</list>
-                        <list>org.sqlite.Function</list>
-                        <list>org.sqlite.ProgressHandler</list>
-                        <list>org.sqlite.Function$Aggregate</list>
-                        <list>org.sqlite.Function$Window</list>
-                        <list>org.sqlite.core.DB$ProgressObserver</list>
-                    </jniList>
-                </configuration>
             </plugin>
         </plugins>
     </build>

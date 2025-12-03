@@ -18,7 +18,6 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,9 +30,9 @@ public class EpisodesListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<EpisodeItem, String> channelName = new TableColumn("Episodes");
     private final EpisodeList channelList;
-    private final EmbeddedMediaPlayer embeddedVlcMediaPlayer; // Added instance variable
+    private final UIPTVVideoPlayer embeddedVlcMediaPlayer; // Changed type to EmbeddedVlcMediaPlayer
 
-    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, EmbeddedMediaPlayer embeddedVlcMediaPlayer) { // Modified constructor
+    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, UIPTVVideoPlayer embeddedVlcMediaPlayer) { // Modified constructor
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
