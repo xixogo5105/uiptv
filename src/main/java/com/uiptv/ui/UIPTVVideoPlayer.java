@@ -12,6 +12,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Slider;
+import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -22,7 +23,6 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
-import javafx.scene.effect.ColorAdjust; // Import ColorAdjust
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
@@ -88,7 +88,7 @@ public class UIPTVVideoPlayer {
         // Initialize mute button graphic: if currently muted, show muteOnIcon (to unmute); otherwise, show muteOffIcon (to mute)
         btnMute.setGraphic(mediaPlayer.audio().isMute() ? muteOnIcon : muteOffIcon);
 
-        volumeSlider = new Slider(0, 100, 100);
+        volumeSlider = new Slider(0, 200, 50);
         volumeSlider.setPrefWidth(100);
 
         HBox topRow = new HBox(8); // Increased spacing for icons
@@ -368,6 +368,9 @@ public class UIPTVVideoPlayer {
             fullscreenStage.close();
             fullscreenStage = null;
             if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
+            playerContainer.applyCss();
+            playerContainer.layout();
+            playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenIcon);
         });
