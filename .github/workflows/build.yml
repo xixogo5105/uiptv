@@ -48,12 +48,12 @@ jobs:
         if: runner.os == 'macOS' && runner.arch == 'X64'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-macOS-Intel
+          name: UIPTV-macOS-X64
           path: target/dist/UIPTV-*.dmg
           
       - name: Upload macOS Apple Silicon Artifact
         if: runner.os == 'macOS' && runner.arch == 'ARM64'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-macOS-Apple-Silicon
+          name: UIPTV-macOS-ARM64
           path: target/dist/UIPTV-*.dmg
