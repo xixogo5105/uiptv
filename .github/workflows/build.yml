@@ -35,7 +35,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-Windows
+          name: UIPTV-${{ matrix.os }}
           path: |
             target/dist/*.exe
             target/dist/*.msi
@@ -44,7 +44,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-Linux
+          name: UIPTV-${{ matrix.os }}
           path: |
             target/dist/*.deb
             target/dist/*.rpm
@@ -55,7 +55,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-macOS-${{ runner.arch }}
+          name: UIPTV-${{ matrix.os }}-${{ runner.arch }}
           path: |
             target/dist/*.dmg
             target/dist/*.pkg
@@ -65,5 +65,5 @@ jobs:
         if: failure() # Only runs if previous steps fail
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-JAR
+          name: UIPTV-JAR-${{ matrix.os }}
           path: target/UIPTV.jar
