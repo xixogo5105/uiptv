@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-13, macos-14]
         java: [17] # Or your desired Java version, ensure it's >= 14 for jpackage
 
     steps:
@@ -44,9 +44,16 @@ jobs:
           name: UIPTV-Linux
           path: target/dist/UIPTV-*.deb
 
-      - name: Upload macOS Artifact
-        if: runner.os == 'macOS'
+      - name: Upload macOS Intel Artifact
+        if: runner.os == 'macOS' && contains(matrix.os, '13')
         uses: actions/upload-artifact@v4
         with:
-          name: UIPTV-macOS
+          name: UIPTV-macOS-Intel
+          path: target/dist/UIPTV-*.dmg
+          
+      - name: Upload macOS Apple Silicon Artifact
+        if: runner.os == 'macOS' && contains(matrix.os, '14')
+        uses: actions/upload-artifact@v4
+        with:
+          name: UIPTV-macOS-Apple-Silicon
           path: target/dist/UIPTV-*.dmg

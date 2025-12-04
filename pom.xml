@@ -12,9 +12,8 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <platform>Linux</platform>
         <sqlite.arch>x86_64</sqlite.arch>
-        <javafx.version>25.0.1</javafx.version>
+        <javafx.version>21.0.2</javafx.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
@@ -41,21 +40,25 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-graphics</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-media</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.controlsfx</groupId>
@@ -112,8 +115,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -207,12 +209,57 @@
     </build>
     <profiles>
         <profile>
-            <id>mac</id>
+            <id>mac-aarch64</id>
             <activation>
                 <os>
                     <family>mac</family>
+                    <arch>aarch64</arch>
                 </os>
             </activation>
+            <properties>
+                <javafx.platform>mac-aarch64</javafx.platform>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.panteleyev</groupId>
+                        <artifactId>jpackage-maven-plugin</artifactId>
+                        <version>1.5.0</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>jpackage</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <name>UIPTV</name>
+                            <input>${project.build.directory}</input>
+                            <mainClass>com.uiptv.Main</mainClass>
+                            <mainJar>UIPTV.jar</mainJar>
+                            <destination>target/dist</destination>
+                            <icon>src/main/resources/icon.icns</icon>
+                            <appVersion>${jpackage.version}</appVersion>
+                            <javaOptions>
+                                <option>-Duser.dir=$APPDIR</option>
+                            </javaOptions>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>mac-x86_64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>mac-x86_64</javafx.platform>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -250,6 +297,9 @@
                     <family>windows</family>
                 </os>
             </activation>
+            <properties>
+                <javafx.platform>win</javafx.platform>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -288,6 +338,9 @@
                     <name>linux</name>
                 </os>
             </activation>
+            <properties>
+                <javafx.platform>linux</javafx.platform>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
