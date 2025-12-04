@@ -350,13 +350,15 @@
             </activation>
             <properties>
                 <javafx.platform>linux</javafx.platform>
+                <jpackage.linuxPackageName></jpackage.linuxPackageName>
+                <jpackage.linuxMenuGroup></jpackage.linuxMenuGroup>
             </properties>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.5.0</version>
+                        <version>1.7.1</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -379,6 +381,8 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
+                            <linuxPackageName>${jpackage.linuxPackageName}</linuxPackageName>
+                            <linuxMenuGroup>${jpackage.linuxMenuGroup}</linuxMenuGroup>
                         </configuration>
                     </plugin>
                 </plugins>
