@@ -20,6 +20,8 @@
         <jpackage.version>1.0.8</jpackage.version>
         <!-- Default javafx.platform for non-profile builds -->
         <javafx.platform>mac-aarch64</javafx.platform>
+<!--        <javafx.platform>win</javafx.platform>-->
+<!--        <javafx.platform>linux</javafx.platform>-->
     </properties>
 
     <dependencies>
