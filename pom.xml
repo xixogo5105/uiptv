@@ -357,6 +357,7 @@
                         </executions>
                         <configuration>
                             <name>UIPTV</name>
+                            <type>DEB</type>
                             <input>${project.build.directory}</input>
                             <mainClass>com.uiptv.Main</mainClass>
                             <mainJar>UIPTV.jar</mainJar>

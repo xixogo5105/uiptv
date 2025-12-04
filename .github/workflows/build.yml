@@ -13,8 +13,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-13, macos-14]
-        java: ['17.0.11+9'] # Specific, secure patch version of Java 17
+        os: [windows-latest, ubuntu-latest, macos-14]
+        java: ['17.0.11+9']
 
     steps:
       - name: Checkout code
@@ -45,14 +45,14 @@ jobs:
           path: target/dist/UIPTV-*.deb
 
       - name: Upload macOS Intel Artifact
-        if: runner.os == 'macOS' && contains(matrix.os, '13')
+        if: runner.os == 'macOS' && runner.arch == 'X64'
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-macOS-Intel
           path: target/dist/UIPTV-*.dmg
           
       - name: Upload macOS Apple Silicon Artifact
-        if: runner.os == 'macOS' && contains(matrix.os, '14')
+        if: runner.os == 'macOS' && runner.arch == 'ARM64'
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-macOS-Apple-Silicon
