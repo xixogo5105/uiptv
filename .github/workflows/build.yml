@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-13, macos-14]
-        java: [17] # Or your desired Java version, ensure it's >= 14 for jpackage
+        java: ['17.0.11+9'] # Specific, secure patch version of Java 17
 
     steps:
       - name: Checkout code
@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java }}
-          distribution: 'temurin' # Or 'adopt', 'zulu', etc.
+          distribution: 'temurin'
           cache: 'maven'
 
       - name: Build with Maven
