@@ -380,8 +380,6 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
-                            <jpackage.linuxPackageName></jpackage.linuxPackageName>
-                            <jpackage.linuxMenuGroup></jpackage.linuxMenuGroup>
                         </configuration>
                     </plugin>
                 </plugins>
