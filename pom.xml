@@ -250,47 +250,6 @@
             </build>
         </profile>
         <profile>
-            <id>mac-x86_64</id>
-            <activation>
-                <os>
-                    <family>mac</family>
-                    <arch>x86_64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>mac</javafx.platform>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.5.0</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <input>${project.build.directory}</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>${jpackage.version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
             <id>windows</id>
             <activation>
                 <os>
