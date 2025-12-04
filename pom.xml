@@ -350,8 +350,6 @@
             </activation>
             <properties>
                 <javafx.platform>linux</javafx.platform>
-                <jpackage.linuxPackageName></jpackage.linuxPackageName>
-                <jpackage.linuxMenuGroup></jpackage.linuxMenuGroup>
             </properties>
             <build>
                 <plugins>
@@ -382,8 +380,8 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
-                            <linuxPackageName>${jpackage.linuxPackageName}</linuxPackageName>
-                            <linuxMenuGroup>${jpackage.linuxMenuGroup}</linuxMenuGroup>
+                            <jpackage.linuxPackageName></jpackage.linuxPackageName>
+                            <jpackage.linuxMenuGroup></jpackage.linuxMenuGroup>
                         </configuration>
                     </plugin>
                 </plugins>
