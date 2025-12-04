@@ -9,19 +9,7 @@ on:
       - main # or your default branch
 
 jobs:
-  cleanup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Remove old artifacts
-        uses: nerd-company/cleanup-artifacts@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          workflow_id: ${{ github.workflow }}
-          branch: ${{ github.head_ref || github.ref_name }}
-          keep_latest: 0
-
   build:
-    needs: cleanup
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
