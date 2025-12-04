@@ -13,11 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Remove old artifacts
-        uses: c-hive/gha-remove-artifacts@v1
+        uses: nerd-company/cleanup-artifacts@v3
         with:
-          # Remove all artifacts from the current branch
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow_id: ${{ github.workflow }}
           branch: ${{ github.head_ref || github.ref_name }}
-          skip-recent: 0
+          keep_latest: 0
 
   build:
     needs: cleanup
