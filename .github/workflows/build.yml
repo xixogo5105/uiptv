@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-14, macos-15]
+        os: [windows-latest, ubuntu-latest, macos-latest]
         java: ['17.0.11+9']
 
     steps:
