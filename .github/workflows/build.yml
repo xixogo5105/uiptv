@@ -29,14 +29,8 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build with Maven (Default Profiles)
-        # This will run the default Windows, Mac, and Linux DEB/RPM/AppImage builds
+      - name: Build with Maven
         run: mvn -B clean package
-
-      - name: Generate Generic Linux Binary (TAR_GZ)
-        # Separate run to activate the new linux-generic profile and deactivate the default linux profile
-        if: runner.os == 'Linux'
-        run: mvn -B package -P linux-app-image,!linux
 
       - name: Upload Windows Artifacts
         if: runner.os == 'Windows'
@@ -56,7 +50,7 @@ jobs:
             target/dist/*.deb
             target/dist/*.rpm
             target/dist/*.AppImage
-            target/dist/*.tar.gz # NEW: includes the generic binary
+            target/dist/*.tar.gz
 
       - name: Upload macOS Artifacts
         if: runner.os == 'macOS'

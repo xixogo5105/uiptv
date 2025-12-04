@@ -341,49 +341,5 @@
                 </plugins>
             </build>
         </profile>
-        <profile>
-            <id>linux-app-image</id>
-            <activation>
-                <os>
-                    <family>linux</family>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>linux</javafx.platform>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.1</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV-Generic</name>
-                            <type>APP_IMAGE</type>
-                            <vendor>SPC</vendor>
-                            <copyright>Copyright © 2024 SPC</copyright>
-                            <input>${project.build.directory}</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>${project.build.directory}/dist</destination>
-                            <icon>src/main/resources/icon.png</icon>
-                            <linuxShortcut>true</linuxShortcut>
-                            <appVersion>${jpackage.version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
     </profiles>
 </project>
