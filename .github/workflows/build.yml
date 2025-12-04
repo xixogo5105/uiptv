@@ -9,7 +9,18 @@ on:
       - main # or your default branch
 
 jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove old artifacts
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          # Remove all artifacts from the current branch
+          branch: ${{ github.head_ref || github.ref_name }}
+          skip-recent: 0
+
   build:
+    needs: cleanup
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -19,12 +30,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Delete old workflow run artifacts
-        uses: actions/delete-run-artifacts@v1
-        with:
-          except-artifacts: false
-          skip-recent-runs: false
 
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v5
