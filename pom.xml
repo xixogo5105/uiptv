@@ -131,7 +131,7 @@
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.uiptv.ui.RootApplication</mainClass>
+                                    <mainClass>com.uiptv.Main</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
@@ -146,7 +146,7 @@
                     <execution>
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.uiptv.ui.RootApplication</mainClass>
+                            <mainClass>om.uiptv.Main</mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>

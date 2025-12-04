@@ -28,6 +28,9 @@ import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.Cursor;
+
 
 public class VlcVideoPlayer implements EmbeddedVideoPlayer {
     private MediaPlayerFactory mediaPlayerFactory;
@@ -45,8 +48,10 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
     private Button btnMute;
     private Button btnRepeat;
     private Button btnFullscreen;
-    private Button btnReload; // Added reload button
-    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon; // Added reloadIcon
+    private Button btnReload;
+    private Button btnPip; // New PiP button
+    private Button btnStop; // Declared as a class member
+    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon; // New PiP icons
 
     private boolean isUserSeeking = false;
     private PauseTransition idleTimer;
@@ -54,12 +59,27 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
 
     // Fullscreen bookkeeping
     private Stage fullscreenStage;
+    // PiP bookkeeping
+    private Stage pipStage;
     private Pane originalParent;
     private int originalIndex = -1;
     private final ImageView videoImageView;
     private FadeTransition fadeIn;
     private FadeTransition fadeOut;
-    private String currentMediaUri; // Added to store current media URI for reload
+    private String currentMediaUri;
+
+    // For custom title bar drag
+    private double xOffset = 0;
+    private double yOffset = 0;
+
+    // For custom window resizing
+    private boolean isResizing = false;
+    private int resizeDirection = 0; // 0=none, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW
+    private double initialX, initialY, initialWidth, initialHeight;
+    private static final double RESIZE_BORDER = 5;
+    private static final double MIN_WIDTH = 200;
+    private static final double MIN_HEIGHT = 150;
+
 
     public VlcVideoPlayer() {
         // --- 1. VLCJ SETUP ---
@@ -75,11 +95,12 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
 
         // --- 2. BUILD CONTROLS ---
         btnPlayPause = createIconButton(pauseIcon);
-        Button btnStop = createIconButton(stopIcon);
+        btnStop = createIconButton(stopIcon); // Now assigns to the class member
         btnRepeat = createIconButton(repeatOffIcon);
         btnRepeat.setOpacity(0.7);
-        btnReload = createIconButton(reloadIcon); // Initialize reload button
+        btnReload = createIconButton(reloadIcon);
         btnFullscreen = createIconButton(fullscreenIcon);
+        btnPip = createIconButton(pipIcon); // Initialize PiP button
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -91,9 +112,9 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
         volumeSlider = new Slider(0, 200, 50);
         volumeSlider.setPrefWidth(100);
 
-        HBox topRow = new HBox(8); // Increased spacing for icons
+        HBox topRow = new HBox(8);
         topRow.setAlignment(Pos.CENTER_LEFT);
-        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, spacer, btnMute, volumeSlider); // Added btnReload
+        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider); // Added btnPip
 
         timeSlider = new Slider(0, 1, 0);
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
@@ -149,18 +170,19 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
         });
 
-        btnReload.setOnAction(e -> { // Reload action
+        btnReload.setOnAction(e -> {
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(currentMediaUri); // Replay the current media
+                play(currentMediaUri);
             }
         });
 
         btnFullscreen.setOnAction(e -> toggleFullscreen());
 
+        btnPip.setOnAction(e -> togglePip()); // PiP button action
+
         btnMute.setOnAction(e -> {
             boolean isMuted = !mediaPlayer.audio().isMute();
             mediaPlayer.audio().setMute(isMuted);
-            // After toggling, if it's now muted, show muteOnIcon (to unmute); otherwise, show muteOffIcon (to mute)
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
         });
 
@@ -246,31 +268,47 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
     }
 
     private void loadIcons() {
-        playIcon = createIconView("play.png");
-        pauseIcon = createIconView("pause.png");
-        stopIcon = createIconView("stop.png");
-        repeatOnIcon = createIconView("repeat-on.png");
-        repeatOffIcon = createIconView("repeat-off.png");
-        reloadIcon = createIconView("reload.png"); // Load reload icon
-        fullscreenIcon = createIconView("fullscreen.png");
-        fullscreenExitIcon = createIconView("fullscreen-exit.png");
-        muteOnIcon = createIconView("mute-on.png");
-        muteOffIcon = createIconView("mute-off.png");
+        playIcon = createIconView("play.png", true);
+        pauseIcon = createIconView("pause.png", true);
+        stopIcon = createIconView("stop.png", true);
+        repeatOnIcon = createIconView("repeat-on.png", true);
+        repeatOffIcon = createIconView("repeat-off.png", true);
+        reloadIcon = createIconView("reload.png", true);
+        fullscreenIcon = createIconView("fullscreen.png", true);
+        fullscreenExitIcon = createIconView("fullscreen-exit.png", true);
+        muteOnIcon = createIconView("mute-on.png", true);
+        muteOffIcon = createIconView("mute-off.png", true);
+        pipIcon = createIconView("picture-in-picture.png", true);
+        pipExitIcon = createIconView("picture-in-picture-exit.png", false); // Load without ColorAdjust
     }
 
-    private ImageView createIconView(String iconName) {
+    private ImageView createIconView(String iconName, boolean applyColorAdjust) {
         try {
             String iconPath = "/icons/videoPlayer/" + iconName;
-            Image image = new Image(getClass().getResource(iconPath).toExternalForm());
+            java.net.URL resourceUrl = getClass().getResource(iconPath);
+            if (resourceUrl == null) {
+                System.err.println("Resource URL for " + iconName + " not found: " + iconPath);
+                return new ImageView(); // Return empty view if resource not found
+            }
+            System.out.println("Resource URL for " + iconName + ": " + resourceUrl.toExternalForm()); // Diagnostic output
+
+            Image image = new Image(resourceUrl.toExternalForm());
             ImageView imageView = new ImageView(image);
             imageView.setFitHeight(20);
             imageView.setFitWidth(20);
             imageView.setPreserveRatio(true);
 
-            // Apply ColorAdjust to lighten the icons
-            ColorAdjust colorAdjust = new ColorAdjust();
-            colorAdjust.setBrightness(0.8); // Adjust brightness as needed (0.0 to 1.0)
-            imageView.setEffect(colorAdjust);
+            if (applyColorAdjust) {
+                ColorAdjust colorAdjust = new ColorAdjust();
+                colorAdjust.setBrightness(0.8);
+                imageView.setEffect(colorAdjust);
+            } else if (iconName.equals("picture-in-picture-exit.png")) {
+                // Apply a ColorAdjust to make the pipExitIcon white
+                ColorAdjust whiteColorAdjust = new ColorAdjust();
+                whiteColorAdjust.setBrightness(1.0); // Max brightness
+                whiteColorAdjust.setSaturation(-1.0); // Fully desaturate to remove original color tint
+                imageView.setEffect(whiteColorAdjust);
+            }
 
             return imageView;
         } catch (Exception e) {
@@ -310,7 +348,7 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
     @Override
     public void play(String uri) {
         if (uri != null && !uri.isEmpty()) {
-            this.currentMediaUri = uri; // Store the current media URI
+            this.currentMediaUri = uri;
             playerContainer.setVisible(true);
             playerContainer.setManaged(true);
             loadingSpinner.setVisible(true);
@@ -365,6 +403,12 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             fullscreenStage.show();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
+            // Hide PiP button when entering fullscreen
+            btnPip.setVisible(false);
+            btnPip.setManaged(false);
+            // Hide stop button when entering fullscreen
+            btnStop.setVisible(false);
+            btnStop.setManaged(false);
         });
     }
 
@@ -379,6 +423,293 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenIcon);
+            // Show PiP button when exiting fullscreen
+            btnPip.setVisible(true);
+            btnPip.setManaged(true);
+            // Show stop button when exiting fullscreen
+            btnStop.setVisible(true);
+            btnStop.setManaged(true);
+        });
+    }
+
+    public void togglePip() {
+        if (pipStage == null) enterPip();
+        else exitPip();
+    }
+
+    public void enterPip() {
+        if (pipStage != null) return;
+        Platform.runLater(() -> {
+            // Store original parent and remove playerContainer from it
+            originalParent = (Pane) playerContainer.getParent();
+            if (originalParent != null) {
+                originalIndex = originalParent.getChildren().indexOf(playerContainer);
+                originalParent.getChildren().remove(playerContainer);
+            }
+
+            // Remove videoImageView from playerContainer before moving it to PiP stage
+            playerContainer.getChildren().remove(videoImageView);
+
+            // Create new stage for PiP
+            pipStage = new Stage(StageStyle.UNDECORATED); // Changed to UNDECORATED
+            pipStage.setAlwaysOnTop(true);
+
+            // Create a custom title bar
+            HBox titleBar = new HBox();
+            titleBar.setAlignment(Pos.CENTER_LEFT); // Reverted alignment
+            titleBar.setPadding(new Insets(5, 10, 5, 10)); // Reverted padding
+            titleBar.setStyle("-fx-background-color: #222;"); // Reverted background
+
+            Label titleLabel = new Label("Picture-in-Picture"); // Re-added title label
+            titleLabel.setTextFill(Color.WHITE);
+            titleLabel.setStyle("-fx-font-weight: bold;");
+
+            Region titleSpacer = new Region();
+            HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+
+            // Use pipExitIcon for the close button and apply specific styling
+            Button closeButton = new Button();
+            if (pipExitIcon != null && pipExitIcon.getImage() != null) {
+                closeButton.setGraphic(pipExitIcon);
+            } else {
+                closeButton.setText("X"); // Fallback text if icon fails to load
+                closeButton.setTextFill(Color.WHITE); // Ensure text is visible
+            }
+            closeButton.setPadding(new Insets(2, 5, 2, 5)); // Apply specific padding
+            // Simplified styling for debugging
+            closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+            closeButton.setOnMouseEntered(e -> closeButton.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
+            closeButton.setOnMouseExited(e -> closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+            closeButton.setOnAction(e -> exitPip());
+
+            titleBar.getChildren().addAll(titleLabel, titleSpacer, closeButton); // Re-added title label to children
+
+            // Make window draggable and clickable to bring to front
+            titleBar.setOnMousePressed(event -> {
+                xOffset = pipStage.getX() - event.getScreenX();
+                yOffset = pipStage.getY() - event.getScreenY();
+            });
+            titleBar.setOnMouseDragged(event -> {
+                pipStage.setX(event.getScreenX() + xOffset);
+                pipStage.setY(event.getScreenY() + yOffset);
+            });
+            titleBar.setOnMouseClicked(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    pipStage.toFront(); // Bring the PiP window to the front on click
+                }
+            });
+
+
+            // Create a new BorderPane for the PiP window to hold videoImageView and titleBar
+            BorderPane pipRoot = new BorderPane(); // Changed to BorderPane
+            // Removed the border style to make it truly borderless
+            pipRoot.setStyle("-fx-background-color: black;"); 
+
+            // Set titleBar at the top
+            pipRoot.setTop(titleBar);
+
+            // Set videoImageView in the center
+            pipRoot.setCenter(videoImageView);
+
+            // Bind videoImageView size to pipRoot size (BorderPane handles this automatically for CENTER)
+            videoImageView.fitWidthProperty().bind(pipRoot.widthProperty());
+            videoImageView.fitHeightProperty().bind(pipRoot.heightProperty());
+
+
+            Scene scene = new Scene(pipRoot, 480, 270); // Default PiP size
+            scene.setFill(Color.TRANSPARENT); // Make scene transparent for undecorated window
+            pipStage.setScene(scene);
+
+            // Position PiP window (e.g., bottom right)
+            Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
+            pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20); // Adjust X position for new width
+            pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20); // Adjust Y position for new height
+
+            // --- Resizing Logic for PiP Window ---
+            pipRoot.setOnMouseMoved(event -> {
+                if (isResizing) return;
+
+                double x = event.getX();
+                double y = event.getY();
+                double width = pipStage.getWidth();
+                double height = pipStage.getHeight();
+
+                Cursor cursor = Cursor.DEFAULT;
+                resizeDirection = 0;
+
+                if (y < RESIZE_BORDER) { // North
+                    cursor = Cursor.N_RESIZE;
+                    resizeDirection = 1;
+                } else if (y > height - RESIZE_BORDER) { // South
+                    cursor = Cursor.S_RESIZE;
+                    resizeDirection = 5;
+                }
+
+                if (x < RESIZE_BORDER) { // West
+                    if (resizeDirection == 1) cursor = Cursor.NW_RESIZE; // North-West
+                    else if (resizeDirection == 5) cursor = Cursor.SW_RESIZE; // South-West
+                    else {
+                        cursor = Cursor.W_RESIZE;
+                        resizeDirection = 7;
+                    }
+                } else if (x > width - RESIZE_BORDER) { // East
+                    if (resizeDirection == 1) cursor = Cursor.NE_RESIZE; // North-East
+                    else if (resizeDirection == 5) cursor = Cursor.SE_RESIZE; // South-East
+                    else {
+                        cursor = Cursor.E_RESIZE;
+                        resizeDirection = 3;
+                    }
+                }
+                pipStage.getScene().setCursor(cursor);
+            });
+
+            pipRoot.setOnMousePressed(event -> {
+                if (event.getButton() == MouseButton.PRIMARY && resizeDirection != 0) {
+                    isResizing = true;
+                    initialX = event.getScreenX();
+                    initialY = event.getScreenY();
+                    initialWidth = pipStage.getWidth();
+                    initialHeight = pipStage.getHeight();
+                }
+            });
+
+            pipRoot.setOnMouseDragged(event -> {
+                if (isResizing) {
+                    double newWidth = pipStage.getWidth();
+                    double newHeight = pipStage.getHeight();
+                    double newX = pipStage.getX();
+                    double newY = pipStage.getY();
+
+                    double deltaX = event.getScreenX() - initialX;
+                    double deltaY = event.getScreenY() - initialY;
+
+                    switch (resizeDirection) {
+                        case 1: // N
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                        case 2: // NE
+                            newWidth = initialWidth + deltaX;
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                        case 3: // E
+                            newWidth = initialWidth + deltaX;
+                            break;
+                        case 4: // SE
+                            newWidth = initialWidth + deltaX;
+                            newHeight = initialHeight + deltaY;
+                            break;
+                        case 5: // S
+                            newHeight = initialHeight + deltaY;
+                            break;
+                        case 6: // SW
+                            newWidth = initialWidth - deltaX;
+                            newX = initialX + deltaX;
+                            newHeight = initialHeight + deltaY;
+                            break;
+                        case 7: // W
+                            newWidth = initialWidth - deltaX;
+                            newX = initialX + deltaX;
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                        case 8: // NW
+                            newWidth = initialWidth - deltaX;
+                            newX = initialX + deltaX;
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                    }
+
+                    // Apply minimum size constraints
+                    if (newWidth < MIN_WIDTH) {
+                        if (resizeDirection == 7 || resizeDirection == 6 || resizeDirection == 8) { // West side resize
+                            newX = pipStage.getX() + (newWidth - MIN_WIDTH); // Adjust X to keep right edge fixed
+                        }
+                        newWidth = MIN_WIDTH;
+                    }
+                    if (newHeight < MIN_HEIGHT) {
+                        if (resizeDirection == 1 || resizeDirection == 2 || resizeDirection == 8) { // North side resize
+                            newY = pipStage.getY() + (newHeight - MIN_HEIGHT); // Adjust Y to keep bottom edge fixed
+                        }
+                        newHeight = MIN_HEIGHT;
+                    }
+
+                    pipStage.setWidth(newWidth);
+                    pipStage.setHeight(newHeight);
+                    pipStage.setX(newX);
+                    pipStage.setY(newY);
+                }
+            });
+
+            pipRoot.setOnMouseReleased(event -> {
+                isResizing = false;
+                resizeDirection = 0;
+                pipStage.getScene().setCursor(Cursor.DEFAULT);
+            });
+            // --- End Resizing Logic ---
+
+
+            // pipStage.setOnCloseRequest(e -> exitPip()); // No longer needed with custom close button
+            pipStage.show();
+
+            // Hide controls in PiP mode
+            controlsContainer.setVisible(false);
+            controlsContainer.setManaged(false);
+
+            // Hide play/pause and stop buttons
+            btnPlayPause.setVisible(false);
+            btnPlayPause.setManaged(false);
+            btnStop.setVisible(false);
+            btnStop.setManaged(false);
+
+            btnPip.setGraphic(pipIcon);
+        });
+    }
+
+    public void exitPip() {
+        if (pipStage == null) return;
+        Platform.runLater(() -> {
+            pipStage.close();
+            pipStage = null;
+
+            // Remove videoImageView from its current parent (pipRoot)
+            // This is important because pipRoot is about to be garbage collected
+            ((Pane)videoImageView.getParent()).getChildren().remove(videoImageView);
+
+            // Re-add playerContainer to its original parent
+            if (originalParent != null) {
+                originalParent.getChildren().add(originalIndex, playerContainer);
+            } else {
+                System.err.println("Original parent was null when exiting PiP. Cannot re-add playerContainer.");
+            }
+
+            // Re-add videoImageView back to playerContainer
+            // Ensure it's added before other overlays like controlsContainer
+            playerContainer.getChildren().add(0, videoImageView); // Add at index 0 to be at the bottom
+
+            // Ensure videoImageView is correctly re-parented and sized
+            playerContainer.setVisible(true);
+            playerContainer.setManaged(true);
+            videoImageView.fitWidthProperty().bind(playerContainer.widthProperty());
+            videoImageView.fitHeightProperty().bind(playerContainer.heightProperty());
+
+            // Show controls again
+            controlsContainer.setVisible(true);
+            controlsContainer.setManaged(true);
+
+            // Show play/pause and stop buttons
+            btnPlayPause.setVisible(true);
+            btnPlayPause.setManaged(true);
+            btnStop.setVisible(true);
+            btnStop.setManaged(true);
+
+            playerContainer.applyCss();
+            playerContainer.layout();
+            playerContainer.requestLayout();
+            playerContainer.requestFocus();
+            btnPip.setGraphic(pipIcon);
         });
     }
 }
