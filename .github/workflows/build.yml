@@ -49,7 +49,7 @@ jobs:
             target/dist/*.deb
             target/dist/*.rpm
             target/dist/*.AppImage
-            target/dist/*.tar.gz
+            target/*.tar.gz
 
       - name: Upload macOS Artifacts
         if: runner.os == 'macOS'
