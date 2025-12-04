@@ -1,0 +1,52 @@
+name: Build and Package JavaFX App
+
+on:
+  push:
+    branches:
+      - main # or your default branch
+  pull_request:
+    branches:
+      - main # or your default branch
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        java: [17] # Or your desired Java version, ensure it's >= 14 for jpackage
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin' # Or 'adopt', 'zulu', etc.
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: mvn -B clean package
+
+      - name: Upload Windows Artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: UIPTV-Windows
+          path: target/dist/UIPTV-*.exe
+
+      - name: Upload Linux Artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: UIPTV-Linux
+          path: target/dist/UIPTV-*.deb
+
+      - name: Upload macOS Artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: UIPTV-macOS
+          path: target/dist/UIPTV-*.dmg
