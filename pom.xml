@@ -18,6 +18,8 @@
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
         <jpackage.version>1.0.8</jpackage.version>
+        <!-- Default javafx.platform for non-profile builds -->
+        <javafx.platform>mac-aarch64</javafx.platform>
     </properties>
 
     <dependencies>
@@ -122,8 +124,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.5.1</version>
-                <configuration>
-                </configuration>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -149,7 +149,7 @@
                     <execution>
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>om.uiptv.Main</mainClass>
+                            <mainClass>com.uiptv.Main</mainClass> <!-- Fixed from om.uiptv.Main -->
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>
@@ -316,6 +316,8 @@
                         </executions>
                         <configuration>
                             <name>UIPTV</name>
+                            <vendor>SPC</vendor>
+                            <copyright>Copyright © 2024 SPC</copyright>
                             <input>${project.build.directory}</input>
                             <mainClass>com.uiptv.Main</mainClass>
                             <mainJar>UIPTV.jar</mainJar>
@@ -325,6 +327,8 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
+                            <winMenu>true</winMenu>
+                            <winShortcut>true</winShortcut>
                         </configuration>
                     </plugin>
                 </plugins>
@@ -334,8 +338,7 @@
             <id>linux</id>
             <activation>
                 <os>
-                    <family>unix</family>
-                    <name>linux</name>
+                    <family>linux</family> <!-- Changed from unix -->
                 </os>
             </activation>
             <properties>
@@ -358,6 +361,8 @@
                         <configuration>
                             <name>UIPTV</name>
                             <type>DEB</type>
+                            <vendor>SPC</vendor>
+                            <copyright>Copyright © 2024 SPC</copyright>
                             <input>${project.build.directory}</input>
                             <mainClass>com.uiptv.Main</mainClass>
                             <mainJar>UIPTV.jar</mainJar>
@@ -365,6 +370,7 @@
                             <icon>src/main/resources/icon.png</icon>
                             <linuxShortcut>true</linuxShortcut>
                             <linuxPackageName>uiptv</linuxPackageName>
+                            <linuxMenuGroup>Video</linuxMenuGroup>
                             <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>

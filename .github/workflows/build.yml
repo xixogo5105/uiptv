@@ -3,10 +3,10 @@ name: Build and Package JavaFX App
 on:
   push:
     branches:
-      - main # or your default branch
+      - main
   pull_request:
     branches:
-      - main # or your default branch
+      - main
 
 jobs:
   build:
@@ -30,30 +30,48 @@ jobs:
       - name: Build with Maven
         run: mvn -B clean package
 
-      - name: Upload Windows Artifact
+      # Debug step to see what files are generated
+      - name: List generated files
+        run: |
+          echo "=== Listing build artifacts ==="
+          find target -name "*.exe" -o -name "*.deb" -o -name "*.dmg" -o -name "*.msi" -o -name "*.pkg" 2>/dev/null || echo "No installer files found"
+          echo "=== Contents of target/dist ==="
+          ls -la target/dist/ 2>/dev/null || echo "No target/dist directory"
+
+      # Upload artifacts with more flexible patterns
+      - name: Upload Windows Artifacts
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v5
         with:
           name: UIPTV-Windows
-          path: target/dist/UIPTV-*.exe
+          path: |
+            target/dist/*.exe
+            target/dist/*.msi
 
-      - name: Upload Linux Artifact
+      - name: Upload Linux Artifacts
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v5
         with:
           name: UIPTV-Linux
-          path: target/dist/uiptv_*.deb
+          path: |
+            target/dist/*.deb
+            target/dist/*.rpm
+            target/dist/*.AppImage
+            target/dist/*.tar.gz
 
-      - name: Upload macOS Intel Artifact
-        if: runner.os == 'macOS' && runner.arch == 'X64'
+      - name: Upload macOS Artifacts
+        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-macOS-X64
-          path: target/dist/UIPTV-*.dmg
-          
-      - name: Upload macOS Apple Silicon Artifact
-        if: runner.os == 'macOS' && runner.arch == 'ARM64'
+          name: UIPTV-macOS-${{ runner.arch }}
+          path: |
+            target/dist/*.dmg
+            target/dist/*.pkg
+
+      # Fallback: if nothing was uploaded, upload the JAR
+      - name: Upload JAR as fallback
+        if: failure() # Only runs if previous steps fail
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-macOS-ARM64
-          path: target/dist/UIPTV-*.dmg
+          name: UIPTV-JAR
+          path: target/UIPTV.jar
