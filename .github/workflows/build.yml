@@ -36,7 +36,7 @@ jobs:
       - name: Generate Generic Linux Binary (TAR_GZ)
         # Separate run to activate the new linux-generic profile and deactivate the default linux profile
         if: runner.os == 'Linux'
-        run: mvn -B package -P linux-generic,!linux
+        run: mvn -B package -P linux-app-image,!linux
 
       - name: Upload Windows Artifacts
         if: runner.os == 'Windows'

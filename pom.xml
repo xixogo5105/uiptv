@@ -342,7 +342,7 @@
             </build>
         </profile>
         <profile>
-            <id>linux-generic</id>
+            <id>linux-app-image</id>
             <activation>
                 <os>
                     <family>linux</family>
@@ -373,9 +373,9 @@
                             <input>${project.build.directory}</input>
                             <mainClass>com.uiptv.Main</mainClass>
                             <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
+                            <destination>${project.build.directory}/dist</destination>
                             <icon>src/main/resources/icon.png</icon>
-                            <linuxShortcut>false</linuxShortcut>
+                            <linuxShortcut>true</linuxShortcut>
                             <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
