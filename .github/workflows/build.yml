@@ -32,28 +32,28 @@ jobs:
 
       - name: Upload Windows Artifact
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: UIPTV-Windows
           path: target/dist/UIPTV-*.exe
 
       - name: Upload Linux Artifact
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: UIPTV-Linux
           path: target/dist/UIPTV-*.deb
 
       - name: Upload macOS Intel Artifact
         if: runner.os == 'macOS' && runner.arch == 'X64'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: UIPTV-macOS-Intel
           path: target/dist/UIPTV-*.dmg
           
       - name: Upload macOS Apple Silicon Artifact
         if: runner.os == 'macOS' && runner.arch == 'ARM64'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: UIPTV-macOS-Apple-Silicon
           path: target/dist/UIPTV-*.dmg
