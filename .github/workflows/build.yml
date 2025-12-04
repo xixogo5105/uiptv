@@ -30,14 +30,6 @@ jobs:
       - name: Build with Maven
         run: mvn -B clean package
 
-      # Debug step to see what files are generated
-      - name: List generated files
-        run: |
-          echo "=== Listing build artifacts ==="
-          find target -name "*.exe" -o -name "*.deb" -o -name "*.dmg" -o -name "*.msi" -o -name "*.pkg" 2>/dev/null || echo "No installer files found"
-          echo "=== Contents of target/dist ==="
-          ls -la target/dist/ 2>/dev/null || echo "No target/dist directory"
-
       # Upload artifacts with more flexible patterns
       - name: Upload Windows Artifacts
         if: runner.os == 'Windows'
