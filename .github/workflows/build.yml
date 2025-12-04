@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-14]
+        os: [windows-latest, ubuntu-latest, macos-14, macos-15]
         java: ['17.0.11+9']
 
     steps:
@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: UIPTV-Linux
-          path: target/dist/UIPTV-*.deb
+          path: target/dist/uiptv_*.deb
 
       - name: Upload macOS Intel Artifact
         if: runner.os == 'macOS' && runner.arch == 'X64'
