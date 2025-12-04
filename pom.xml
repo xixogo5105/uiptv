@@ -367,7 +367,7 @@
                         </executions>
                         <configuration>
                             <name>UIPTV-Generic</name>
-                            <type>TAR_GZ</type>
+                            <type>APP_IMAGE</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
                             <input>${project.build.directory}</input>
