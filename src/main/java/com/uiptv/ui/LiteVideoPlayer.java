@@ -389,6 +389,7 @@ public class LiteVideoPlayer implements EmbeddedVideoPlayer {
         this.currentMediaUri = uri;
         playerContainer.setVisible(true);
         playerContainer.setManaged(true);
+        playerContainer.setMinHeight(275);
         loadingSpinner.setVisible(true);
 
         // Dispose of old player first
@@ -454,6 +455,7 @@ public class LiteVideoPlayer implements EmbeddedVideoPlayer {
         }
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
+        playerContainer.setMinHeight(0);
     }
 
     @Override

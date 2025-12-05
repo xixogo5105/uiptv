@@ -372,6 +372,7 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             this.currentMediaUri = uri;
             playerContainer.setVisible(true);
             playerContainer.setManaged(true);
+            playerContainer.setMinHeight(275);
             loadingSpinner.setVisible(true);
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
             mediaPlayer.media().play(uri);
@@ -392,6 +393,7 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
     public void stop() {
         if (mediaPlayer != null) {
             mediaPlayer.controls().stop();
+            playerContainer.setMinHeight(0);
             playerContainer.setVisible(false);
             playerContainer.setManaged(false);
 

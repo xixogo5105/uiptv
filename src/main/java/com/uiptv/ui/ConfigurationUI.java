@@ -4,10 +4,9 @@ import com.uiptv.api.Callback;
 import com.uiptv.model.Configuration;
 import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
-import com.uiptv.widget.ProminentButton;
-import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -83,8 +82,7 @@ public class ConfigurationUI extends VBox {
             filterChannelWithTextContains.setText(configuration.getFilterChannelsList());
             if (playerPath1.getText() != null && playerPath1.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer1.setSelected(true);
-            }
-            else if (playerPath2.getText() != null && playerPath2.getText().equals(configuration.getDefaultPlayerPath())) {
+            } else if (playerPath2.getText() != null && playerPath2.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer2.setSelected(true);
             } else if (playerPath3.getText() != null && playerPath3.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer3.setSelected(true);
@@ -190,16 +188,8 @@ public class ConfigurationUI extends VBox {
                 );
                 newConfiguration.setDbId(dbId);
                 service.save(newConfiguration);
-
-                boolean newUseEmbeddedPlayer = newConfiguration.isEmbeddedPlayer();
-
-                if ((!oldUseEmbeddedPlayer && newUseEmbeddedPlayer) || (oldUseEmbeddedPlayer && !newUseEmbeddedPlayer)) {
-                    showMessageAlert("Your settings have been saved. For the embedded player to take effect, the application must be restarted. Please click OK to exit and relaunch the application.");
-                    Platform.exit();
-                    return;
-                }
-                showMessageAlert("Configurations saved!");
                 onSaveCallback.call(null);
+                showMessageAlert("Configurations saved!");
             } catch (Exception e) {
                 showErrorAlert("Failed to save configuration. Please try again!");
             }

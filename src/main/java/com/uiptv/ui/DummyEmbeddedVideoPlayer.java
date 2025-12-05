@@ -1,5 +1,6 @@
-package com.uiptv.api;
+package com.uiptv.ui;
 
+import com.uiptv.api.EmbeddedVideoPlayer;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 

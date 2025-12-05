@@ -1,16 +1,13 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.DummyEmbeddedVideoPlayer;
 import com.uiptv.api.EmbeddedVideoPlayer;
 import com.uiptv.service.ConfigurationService;
 import javafx.scene.Node;
-import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 
 public class MediaPlayerFactory {
 
     private static EmbeddedVideoPlayer instance;
-    private static final Pane PLAYER_PANE = new Pane();
 
 
     public static synchronized EmbeddedVideoPlayer getPlayer() {
@@ -24,17 +21,11 @@ public class MediaPlayerFactory {
                 }
                 if (instance.getPlayerContainer() instanceof Region playerContainer) {
                     definePlayerRegion(playerContainer);
-                    PLAYER_PANE.getChildren().clear();
-                    PLAYER_PANE.getChildren().addAll(playerContainer);
-                    definePlayerRegion(PLAYER_PANE);
                 }
             } else {
                 instance = new DummyEmbeddedVideoPlayer();
                 if (instance.getPlayerContainer() instanceof Region playerContainer) {
                     defineDummyRegion(playerContainer);
-                    PLAYER_PANE.getChildren().clear();
-                    PLAYER_PANE.getChildren().addAll(playerContainer);
-                    defineDummyRegion(PLAYER_PANE);
                 }
             }
         }
@@ -48,7 +39,6 @@ public class MediaPlayerFactory {
         playerContainer.setMinHeight(275);
         playerContainer.setPrefHeight(275);
         playerContainer.setMaxHeight(275);
-        playerContainer.setManaged(true);
 
     }
 
@@ -59,10 +49,10 @@ public class MediaPlayerFactory {
         playerContainer.setMinHeight(0);
         playerContainer.setPrefHeight(0);
         playerContainer.setMaxHeight(0);
-        playerContainer.setManaged(false);
     }
 
     public static synchronized Node getPlayerContainer() {
-        return PLAYER_PANE;
+        if (instance == null) getPlayer();
+        return instance.getPlayerContainer();
     }
 }
