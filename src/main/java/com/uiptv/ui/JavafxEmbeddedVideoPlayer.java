@@ -467,6 +467,9 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             fullscreenStage.close();
             fullscreenStage = null;
             if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
+            playerContainer.applyCss();
+            playerContainer.layout();
+            playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenIcon);
             btnPip.setVisible(true);
@@ -484,75 +487,204 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
     public void enterPip() {
         if (pipStage != null) return;
         Platform.runLater(() -> {
+            // Store original parent and remove playerContainer from it
             originalParent = (Pane) playerContainer.getParent();
             if (originalParent != null) {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
                 originalParent.getChildren().remove(playerContainer);
             }
 
+            // Remove mediaView from playerContainer before moving it to PiP stage
             playerContainer.getChildren().remove(mediaView);
 
+            // Create new stage for PiP
             pipStage = new Stage(StageStyle.UNDECORATED);
             pipStage.setAlwaysOnTop(true);
 
-            HBox titleBar = new HBox();
-            titleBar.setAlignment(Pos.CENTER_LEFT);
-            titleBar.setPadding(new Insets(5, 10, 5, 10));
-            titleBar.setStyle("-fx-background-color: #222;");
-
-            Label titleLabel = new Label("Picture-in-Picture");
-            titleLabel.setTextFill(Color.WHITE);
-            titleLabel.setStyle("-fx-font-weight: bold;");
-
-            Region titleSpacer = new Region();
-            HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-
-            Button closeButton = new Button();
-            if (pipExitIcon != null && pipExitIcon.getImage() != null) {
-                closeButton.setGraphic(pipExitIcon);
-            } else {
-                closeButton.setText("X");
-                closeButton.setTextFill(Color.WHITE);
-            }
-            closeButton.setPadding(new Insets(2, 5, 2, 5));
-            closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
-            closeButton.setOnMouseEntered(e -> closeButton.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
-            closeButton.setOnMouseExited(e -> closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
-            closeButton.setOnAction(e -> exitPip());
-
-            titleBar.getChildren().addAll(titleLabel, titleSpacer, closeButton);
-
-            titleBar.setOnMousePressed(event -> {
-                xOffset = pipStage.getX() - event.getScreenX();
-                yOffset = pipStage.getY() - event.getScreenY();
-            });
-            titleBar.setOnMouseDragged(event -> {
-                pipStage.setX(event.getScreenX() + xOffset);
-                pipStage.setY(event.getScreenY() + yOffset);
-            });
-            titleBar.setOnMouseClicked(event -> {
-                if (event.getButton() == MouseButton.PRIMARY) {
-                    pipStage.toFront();
-                }
-            });
-
-            BorderPane pipRoot = new BorderPane();
+            // Create a StackPane for the PiP window to hold mediaView and the restore button
+            StackPane pipRoot = new StackPane();
             pipRoot.setStyle("-fx-background-color: black;");
-            pipRoot.setTop(titleBar);
-            pipRoot.setCenter(mediaView);
 
+            // Create the restore button that appears on hover
+            Button restoreButton = new Button();
+            if (pipExitIcon != null && pipExitIcon.getImage() != null) {
+                // Make the icon larger for better visibility in the center
+                ImageView restoreIconView = new ImageView(pipExitIcon.getImage());
+                restoreIconView.setFitHeight(64); // Changed to 64
+                restoreIconView.setFitWidth(64);  // Changed to 64
+                // Apply the same white color adjust effect
+                ColorAdjust whiteColorAdjust = new ColorAdjust();
+                whiteColorAdjust.setBrightness(1.0);
+                whiteColorAdjust.setSaturation(-1.0);
+                restoreIconView.setEffect(whiteColorAdjust);
+                restoreButton.setGraphic(restoreIconView);
+            } else {
+                restoreButton.setText("Restore"); // Fallback
+                restoreButton.setTextFill(Color.WHITE);
+            }
+            restoreButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            restoreButton.setPadding(new Insets(15));
+            restoreButton.setVisible(false); // Initially hidden
+            restoreButton.setOnAction(e -> exitPip());
+
+            // Add video and button to the root
+            pipRoot.getChildren().addAll(mediaView, restoreButton);
+            StackPane.setAlignment(restoreButton, Pos.CENTER);
+
+            // Show/hide restore button on hover
+            pipRoot.setOnMouseEntered(e -> restoreButton.setVisible(true));
+            pipRoot.setOnMouseExited(e -> restoreButton.setVisible(false));
+
+            // Bind mediaView size to pipRoot size
             mediaView.fitWidthProperty().bind(pipRoot.widthProperty());
             mediaView.fitHeightProperty().bind(pipRoot.heightProperty());
 
-            Scene scene = new Scene(pipRoot, 480, 270);
+            Scene scene = new Scene(pipRoot, 480, 270); // Default PiP size
             scene.setFill(Color.TRANSPARENT);
             pipStage.setScene(scene);
 
+            // Position PiP window
             Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
             pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20);
             pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20);
 
-            setupPipResizing(pipRoot);
+            // --- Combined Dragging and Resizing Logic ---
+            pipRoot.setOnMouseMoved(event -> {
+                if (isResizing) return;
+
+                double x = event.getX();
+                double y = event.getY();
+                double width = pipStage.getWidth();
+                double height = pipStage.getHeight();
+
+                Cursor cursor = Cursor.DEFAULT;
+                resizeDirection = 0;
+
+                if (y < RESIZE_BORDER) { // North
+                    cursor = Cursor.N_RESIZE;
+                    resizeDirection = 1;
+                } else if (y > height - RESIZE_BORDER) { // South
+                    cursor = Cursor.S_RESIZE;
+                    resizeDirection = 5;
+                }
+
+                if (x < RESIZE_BORDER) { // West
+                    if (resizeDirection == 1) {
+                        cursor = Cursor.NW_RESIZE;
+                        resizeDirection = 8;
+                    } else if (resizeDirection == 5) {
+                        cursor = Cursor.SW_RESIZE;
+                        resizeDirection = 6;
+                    } else {
+                        cursor = Cursor.W_RESIZE;
+                        resizeDirection = 7;
+                    }
+                } else if (x > width - RESIZE_BORDER) { // East
+                    if (resizeDirection == 1) {
+                        cursor = Cursor.NE_RESIZE;
+                        resizeDirection = 2;
+                    } else if (resizeDirection == 5) {
+                        cursor = Cursor.SE_RESIZE;
+                        resizeDirection = 4;
+                    } else {
+                        cursor = Cursor.E_RESIZE;
+                        resizeDirection = 3;
+                    }
+                }
+                pipStage.getScene().setCursor(cursor);
+            });
+
+            pipRoot.setOnMousePressed(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    if (resizeDirection != 0) {
+                        isResizing = true;
+                        initialX = event.getScreenX();
+                        initialY = event.getScreenY();
+                        initialWidth = pipStage.getWidth();
+                        initialHeight = pipStage.getHeight();
+                    } else {
+                        xOffset = pipStage.getX() - event.getScreenX();
+                        yOffset = pipStage.getY() - event.getScreenY();
+                    }
+                }
+            });
+
+            pipRoot.setOnMouseDragged(event -> {
+                if (isResizing) {
+                    double newWidth = initialWidth;
+                    double newHeight = initialHeight;
+                    double newX = pipStage.getX();
+                    double newY = pipStage.getY();
+
+                    double deltaX = event.getScreenX() - initialX;
+                    double deltaY = event.getScreenY() - initialY;
+
+                    switch (resizeDirection) {
+                        case 1: // N
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                        case 2: // NE
+                            newWidth = initialWidth + deltaX;
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                        case 3: // E
+                            newWidth = initialWidth + deltaX;
+                            break;
+                        case 4: // SE
+                            newWidth = initialWidth + deltaX;
+                            newHeight = initialHeight + deltaY;
+                            break;
+                        case 5: // S
+                            newHeight = initialHeight + deltaY;
+                            break;
+                        case 6: // SW
+                            newWidth = initialWidth - deltaX;
+                            newX = initialX + deltaX;
+                            newHeight = initialHeight + deltaY;
+                            break;
+                        case 7: // W
+                            newWidth = initialWidth - deltaX;
+                            newX = initialX + deltaX;
+                            break;
+                        case 8: // NW
+                            newWidth = initialWidth - deltaX;
+                            newX = initialX + deltaX;
+                            newHeight = initialHeight - deltaY;
+                            newY = initialY + deltaY;
+                            break;
+                    }
+
+                    if (newWidth < MIN_WIDTH) {
+                        if (resizeDirection == 7 || resizeDirection == 6 || resizeDirection == 8) { // West side resize
+                            newX = pipStage.getX() + (pipStage.getWidth() - MIN_WIDTH);
+                        }
+                        newWidth = MIN_WIDTH;
+                    }
+                    if (newHeight < MIN_HEIGHT) {
+                        if (resizeDirection == 1 || resizeDirection == 2 || resizeDirection == 8) { // North side resize
+                            newY = pipStage.getY() + (pipStage.getHeight() - MIN_HEIGHT);
+                        }
+                        newHeight = MIN_HEIGHT;
+                    }
+
+                    pipStage.setWidth(newWidth);
+                    pipStage.setHeight(newHeight);
+                    pipStage.setX(newX);
+                    pipStage.setY(newY);
+                } else { // Dragging
+                    pipStage.setX(event.getScreenX() + xOffset);
+                    pipStage.setY(event.getScreenY() + yOffset);
+                }
+            });
+
+            pipRoot.setOnMouseReleased(event -> {
+                isResizing = false;
+                resizeDirection = 0;
+                pipStage.getScene().setCursor(Cursor.DEFAULT);
+            });
+            // --- End Resizing Logic ---
 
             pipStage.show();
             controlsContainer.setVisible(false);
@@ -591,73 +723,14 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             btnStop.setVisible(true);
             btnStop.setManaged(true);
 
+            playerContainer.applyCss();
+            playerContainer.layout();
+            playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnPip.setGraphic(pipIcon);
         });
     }
 
-    private void setupPipResizing(Pane pipRoot) {
-        pipRoot.setOnMouseMoved(event -> {
-            if (isResizing) return;
-            double x = event.getX(), y = event.getY();
-            double width = pipStage.getWidth(), height = pipStage.getHeight();
-            Cursor cursor = Cursor.DEFAULT;
-            resizeDirection = 0;
-            if (y < RESIZE_BORDER) { cursor = Cursor.N_RESIZE; resizeDirection = 1; }
-            else if (y > height - RESIZE_BORDER) { cursor = Cursor.S_RESIZE; resizeDirection = 5; }
-            if (x < RESIZE_BORDER) {
-                if (resizeDirection == 1) { cursor = Cursor.NW_RESIZE; resizeDirection = 8; }
-                else if (resizeDirection == 5) { cursor = Cursor.SW_RESIZE; resizeDirection = 6; }
-                else { cursor = Cursor.W_RESIZE; resizeDirection = 7; }
-            } else if (x > width - RESIZE_BORDER) {
-                if (resizeDirection == 1) { cursor = Cursor.NE_RESIZE; resizeDirection = 2; }
-                else if (resizeDirection == 5) { cursor = Cursor.SE_RESIZE; resizeDirection = 4; }
-                else { cursor = Cursor.E_RESIZE; resizeDirection = 3; }
-            }
-            pipStage.getScene().setCursor(cursor);
-        });
-
-        pipRoot.setOnMousePressed(event -> {
-            if (event.getButton() == MouseButton.PRIMARY && resizeDirection != 0) {
-                isResizing = true;
-                initialX = event.getScreenX();
-                initialY = event.getScreenY();
-                initialWidth = pipStage.getWidth();
-                initialHeight = pipStage.getHeight();
-            }
-        });
-
-        pipRoot.setOnMouseDragged(event -> {
-            if (isResizing) {
-                double newWidth = initialWidth, newHeight = initialHeight;
-                double newX = pipStage.getX(), newY = pipStage.getY();
-                double deltaX = event.getScreenX() - initialX;
-                double deltaY = event.getScreenY() - initialY;
-
-                if ((resizeDirection & 1) != 0) { newHeight = initialHeight - deltaY; newY = initialY + deltaY; } // N
-                if ((resizeDirection & 4) != 0) { newHeight = initialHeight + deltaY; } // S
-                if ((resizeDirection & 2) != 0) { newWidth = initialWidth + deltaX; } // E
-                if ((resizeDirection & 8) != 0) { newWidth = initialWidth - deltaX; newX = initialX + deltaX; } // W
-
-                if (newWidth < MIN_WIDTH) {
-                    if ((resizeDirection & 8) != 0) newX = pipStage.getX() + newWidth - MIN_WIDTH;
-                    newWidth = MIN_WIDTH;
-                }
-                if (newHeight < MIN_HEIGHT) {
-                    if ((resizeDirection & 1) != 0) newY = pipStage.getY() + newHeight - MIN_HEIGHT;
-                    newHeight = MIN_HEIGHT;
-                }
-                pipStage.setWidth(newWidth);
-                pipStage.setHeight(newHeight);
-                pipStage.setX(newX);
-                pipStage.setY(newY);
-            }
-        });
-
-        pipRoot.setOnMouseReleased(event -> {
-            isResizing = false;
-            resizeDirection = 0;
-            pipStage.getScene().setCursor(Cursor.DEFAULT);
-        });
-    }
+    // The setupPipResizing method is no longer needed as its logic is integrated into enterPip.
+    // private void setupPipResizing(Pane pipRoot) { ... }
 }

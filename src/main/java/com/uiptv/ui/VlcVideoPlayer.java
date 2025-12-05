@@ -447,81 +447,57 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             playerContainer.getChildren().remove(videoImageView);
 
             // Create new stage for PiP
-            pipStage = new Stage(StageStyle.UNDECORATED); // Changed to UNDECORATED
+            pipStage = new Stage(StageStyle.UNDECORATED);
             pipStage.setAlwaysOnTop(true);
 
-            // Create a custom title bar
-            HBox titleBar = new HBox();
-            titleBar.setAlignment(Pos.CENTER_LEFT); // Reverted alignment
-            titleBar.setPadding(new Insets(5, 10, 5, 10)); // Reverted padding
-            titleBar.setStyle("-fx-background-color: #222;"); // Reverted background
+            // Create a StackPane for the PiP window to hold videoImageView and the restore button
+            StackPane pipRoot = new StackPane();
+            pipRoot.setStyle("-fx-background-color: black;");
 
-            Label titleLabel = new Label("Picture-in-Picture"); // Re-added title label
-            titleLabel.setTextFill(Color.WHITE);
-            titleLabel.setStyle("-fx-font-weight: bold;");
-
-            Region titleSpacer = new Region();
-            HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-
-            // Use pipExitIcon for the close button and apply specific styling
-            Button closeButton = new Button();
+            // Create the restore button that appears on hover
+            Button restoreButton = new Button();
             if (pipExitIcon != null && pipExitIcon.getImage() != null) {
-                closeButton.setGraphic(pipExitIcon);
+                // Make the icon larger for better visibility in the center
+                ImageView restoreIconView = new ImageView(pipExitIcon.getImage());
+                restoreIconView.setFitHeight(64); // Changed to 64
+                restoreIconView.setFitWidth(64);  // Changed to 64
+                // Apply the same white color adjust effect
+                ColorAdjust whiteColorAdjust = new ColorAdjust();
+                whiteColorAdjust.setBrightness(1.0);
+                whiteColorAdjust.setSaturation(-1.0);
+                restoreIconView.setEffect(whiteColorAdjust);
+                restoreButton.setGraphic(restoreIconView);
             } else {
-                closeButton.setText("X"); // Fallback text if icon fails to load
-                closeButton.setTextFill(Color.WHITE); // Ensure text is visible
+                restoreButton.setText("Restore"); // Fallback
+                restoreButton.setTextFill(Color.WHITE);
             }
-            closeButton.setPadding(new Insets(2, 5, 2, 5)); // Apply specific padding
-            // Simplified styling for debugging
-            closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
-            closeButton.setOnMouseEntered(e -> closeButton.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
-            closeButton.setOnMouseExited(e -> closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
-            closeButton.setOnAction(e -> exitPip());
+            restoreButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            restoreButton.setPadding(new Insets(15));
+            restoreButton.setVisible(false); // Initially hidden
+            restoreButton.setOnAction(e -> exitPip());
 
-            titleBar.getChildren().addAll(titleLabel, titleSpacer, closeButton); // Re-added title label to children
+            // Add video and button to the root
+            pipRoot.getChildren().addAll(videoImageView, restoreButton);
+            StackPane.setAlignment(restoreButton, Pos.CENTER);
 
-            // Make window draggable and clickable to bring to front
-            titleBar.setOnMousePressed(event -> {
-                xOffset = pipStage.getX() - event.getScreenX();
-                yOffset = pipStage.getY() - event.getScreenY();
-            });
-            titleBar.setOnMouseDragged(event -> {
-                pipStage.setX(event.getScreenX() + xOffset);
-                pipStage.setY(event.getScreenY() + yOffset);
-            });
-            titleBar.setOnMouseClicked(event -> {
-                if (event.getButton() == MouseButton.PRIMARY) {
-                    pipStage.toFront(); // Bring the PiP window to the front on click
-                }
-            });
+            // Show/hide restore button on hover
+            pipRoot.setOnMouseEntered(e -> restoreButton.setVisible(true));
+            pipRoot.setOnMouseExited(e -> restoreButton.setVisible(false));
 
-
-            // Create a new BorderPane for the PiP window to hold videoImageView and titleBar
-            BorderPane pipRoot = new BorderPane(); // Changed to BorderPane
-            // Removed the border style to make it truly borderless
-            pipRoot.setStyle("-fx-background-color: black;"); 
-
-            // Set titleBar at the top
-            pipRoot.setTop(titleBar);
-
-            // Set videoImageView in the center
-            pipRoot.setCenter(videoImageView);
-
-            // Bind videoImageView size to pipRoot size (BorderPane handles this automatically for CENTER)
+            // Bind videoImageView size to pipRoot size
             videoImageView.fitWidthProperty().bind(pipRoot.widthProperty());
             videoImageView.fitHeightProperty().bind(pipRoot.heightProperty());
 
-
             Scene scene = new Scene(pipRoot, 480, 270); // Default PiP size
-            scene.setFill(Color.TRANSPARENT); // Make scene transparent for undecorated window
+            scene.setFill(Color.TRANSPARENT);
             pipStage.setScene(scene);
 
-            // Position PiP window (e.g., bottom right)
+            // Position PiP window
             Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
-            pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20); // Adjust X position for new width
-            pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20); // Adjust Y position for new height
+            pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20);
+            pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20);
 
-            // --- Resizing Logic for PiP Window ---
+            // --- Combined Dragging and Resizing Logic ---
             pipRoot.setOnMouseMoved(event -> {
                 if (isResizing) return;
 
@@ -542,16 +518,24 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
                 }
 
                 if (x < RESIZE_BORDER) { // West
-                    if (resizeDirection == 1) cursor = Cursor.NW_RESIZE; // North-West
-                    else if (resizeDirection == 5) cursor = Cursor.SW_RESIZE; // South-West
-                    else {
+                    if (resizeDirection == 1) {
+                        cursor = Cursor.NW_RESIZE;
+                        resizeDirection = 8;
+                    } else if (resizeDirection == 5) {
+                        cursor = Cursor.SW_RESIZE;
+                        resizeDirection = 6;
+                    } else {
                         cursor = Cursor.W_RESIZE;
                         resizeDirection = 7;
                     }
                 } else if (x > width - RESIZE_BORDER) { // East
-                    if (resizeDirection == 1) cursor = Cursor.NE_RESIZE; // North-East
-                    else if (resizeDirection == 5) cursor = Cursor.SE_RESIZE; // South-East
-                    else {
+                    if (resizeDirection == 1) {
+                        cursor = Cursor.NE_RESIZE;
+                        resizeDirection = 2;
+                    } else if (resizeDirection == 5) {
+                        cursor = Cursor.SE_RESIZE;
+                        resizeDirection = 4;
+                    } else {
                         cursor = Cursor.E_RESIZE;
                         resizeDirection = 3;
                     }
@@ -560,19 +544,24 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             });
 
             pipRoot.setOnMousePressed(event -> {
-                if (event.getButton() == MouseButton.PRIMARY && resizeDirection != 0) {
-                    isResizing = true;
-                    initialX = event.getScreenX();
-                    initialY = event.getScreenY();
-                    initialWidth = pipStage.getWidth();
-                    initialHeight = pipStage.getHeight();
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    if (resizeDirection != 0) {
+                        isResizing = true;
+                        initialX = event.getScreenX();
+                        initialY = event.getScreenY();
+                        initialWidth = pipStage.getWidth();
+                        initialHeight = pipStage.getHeight();
+                    } else {
+                        xOffset = pipStage.getX() - event.getScreenX();
+                        yOffset = pipStage.getY() - event.getScreenY();
+                    }
                 }
             });
 
             pipRoot.setOnMouseDragged(event -> {
                 if (isResizing) {
-                    double newWidth = pipStage.getWidth();
-                    double newHeight = pipStage.getHeight();
+                    double newWidth = initialWidth;
+                    double newHeight = initialHeight;
                     double newX = pipStage.getX();
                     double newY = pipStage.getY();
 
@@ -607,8 +596,6 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
                         case 7: // W
                             newWidth = initialWidth - deltaX;
                             newX = initialX + deltaX;
-                            newHeight = initialHeight - deltaY;
-                            newY = initialY + deltaY;
                             break;
                         case 8: // NW
                             newWidth = initialWidth - deltaX;
@@ -618,16 +605,15 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
                             break;
                     }
 
-                    // Apply minimum size constraints
                     if (newWidth < MIN_WIDTH) {
                         if (resizeDirection == 7 || resizeDirection == 6 || resizeDirection == 8) { // West side resize
-                            newX = pipStage.getX() + (newWidth - MIN_WIDTH); // Adjust X to keep right edge fixed
+                            newX = pipStage.getX() + (pipStage.getWidth() - MIN_WIDTH);
                         }
                         newWidth = MIN_WIDTH;
                     }
                     if (newHeight < MIN_HEIGHT) {
                         if (resizeDirection == 1 || resizeDirection == 2 || resizeDirection == 8) { // North side resize
-                            newY = pipStage.getY() + (newHeight - MIN_HEIGHT); // Adjust Y to keep bottom edge fixed
+                            newY = pipStage.getY() + (pipStage.getHeight() - MIN_HEIGHT);
                         }
                         newHeight = MIN_HEIGHT;
                     }
@@ -636,6 +622,9 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
                     pipStage.setHeight(newHeight);
                     pipStage.setX(newX);
                     pipStage.setY(newY);
+                } else { // Dragging
+                    pipStage.setX(event.getScreenX() + xOffset);
+                    pipStage.setY(event.getScreenY() + yOffset);
                 }
             });
 
@@ -646,8 +635,6 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             });
             // --- End Resizing Logic ---
 
-
-            // pipStage.setOnCloseRequest(e -> exitPip()); // No longer needed with custom close button
             pipStage.show();
 
             // Hide controls in PiP mode
