@@ -32,7 +32,7 @@ import javafx.util.Duration;
 
 import java.io.File;
 
-public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
+public class LiteVideoPlayer implements EmbeddedVideoPlayer {
 
     private MediaPlayer mediaPlayer;
     private final MediaView mediaView = new MediaView();
@@ -85,7 +85,7 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
     private final ChangeListener<MediaPlayer.Status> statusListener;
 
 
-    public JavafxEmbeddedVideoPlayer() {
+    public LiteVideoPlayer() {
         mediaView.setPreserveRatio(true);
 
         // --- 1.5 LOAD ICONS ---
