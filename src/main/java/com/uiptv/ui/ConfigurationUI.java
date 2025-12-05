@@ -7,6 +7,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
 import com.uiptv.widget.ProminentButton;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -167,6 +168,9 @@ public class ConfigurationUI extends VBox {
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(actionEvent -> {
             try {
+                Configuration oldConfiguration = service.read();
+                boolean oldUseEmbeddedPlayer = oldConfiguration != null && oldConfiguration.isEmbeddedPlayer();
+
                 String defaultPlayer = defaultEmbedPlayer.getText();
                 if (defaultPlayer1.isSelected()) {
                     defaultPlayer = playerPath1.getText();
@@ -175,7 +179,7 @@ public class ConfigurationUI extends VBox {
                 } else if (defaultPlayer3.isSelected()) {
                     defaultPlayer = playerPath3.getText();
                 }
-                Configuration c = new Configuration(
+                Configuration newConfiguration = new Configuration(
                         playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), defaultPlayer,
                         filterCategoriesWithTextContains.getText(), filterChannelWithTextContains.getText(),
                         filterPausedCheckBox.isSelected(),
@@ -184,12 +188,20 @@ public class ConfigurationUI extends VBox {
                         pauseCachingCheckBox.isSelected(),
                         defaultEmbedPlayer.isSelected()
                 );
-                c.setDbId(dbId);
-                service.save(c);
-                showMessageAlert("Successfully saved!");
+                newConfiguration.setDbId(dbId);
+                service.save(newConfiguration);
+
+                boolean newUseEmbeddedPlayer = newConfiguration.isEmbeddedPlayer();
+
+                if ((!oldUseEmbeddedPlayer && newUseEmbeddedPlayer) || (oldUseEmbeddedPlayer && !newUseEmbeddedPlayer)) {
+                    showMessageAlert("Your settings have been saved. For the embedded player to take effect, the application must be restarted. Please click OK to exit and relaunch the application.");
+                    Platform.exit();
+                    return;
+                }
+                showMessageAlert("Configurations saved!");
                 onSaveCallback.call(null);
             } catch (Exception e) {
-                showErrorAlert("Failed to save successfully saved!");
+                showErrorAlert("Failed to save configuration. Please try again!");
             }
         });
     }

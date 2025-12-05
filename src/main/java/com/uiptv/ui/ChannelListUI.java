@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.ui.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -192,13 +193,13 @@ public class ChannelListUI extends HBox {
 
             if (playerPathIsEmbedded) {
                 if (useEmbeddedPlayerConfig) {
-                    MediaPlayerFactory.createMediaPlayer().play(evaluatedStreamUrl);
+                    getPlayer().play(evaluatedStreamUrl);
                 } else {
                     showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                 }
             } else { // playerPath is not "embedded" or is blank
                 if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
-                    MediaPlayerFactory.createMediaPlayer().play(evaluatedStreamUrl);
+                    getPlayer().play(evaluatedStreamUrl);
                 } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
                     showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                 } else { // Use external player

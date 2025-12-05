@@ -114,7 +114,7 @@ public class RootApplication extends Application {
 
         TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
 
-        HBox embeddedPlayer = new HBox(MediaPlayerFactory.createMediaPlayer().getPlayerContainer()); // Usage updated
+        HBox embeddedPlayer = new HBox(MediaPlayerFactory.getPlayerContainer()); // Usage updated
         embeddedPlayer.setPadding(new Insets(5));
 
 

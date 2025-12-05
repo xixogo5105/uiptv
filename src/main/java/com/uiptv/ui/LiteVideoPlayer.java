@@ -752,6 +752,8 @@ public class LiteVideoPlayer implements EmbeddedVideoPlayer {
         });
     }
 
-    // The setupPipResizing method is no longer needed as its logic is integrated into enterPip.
-    // private void setupPipResizing(Pane pipRoot) { ... }
+    @Override
+    public PlayerType getType() {
+        return PlayerType.LITE;
+    }
 }

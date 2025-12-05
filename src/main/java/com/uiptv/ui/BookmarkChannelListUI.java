@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.EmbeddedVideoPlayer;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
@@ -27,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.uiptv.ui.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
@@ -35,10 +35,8 @@ public class BookmarkChannelListUI extends HBox {
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
     private boolean isPromptShowing = false;
-    private final EmbeddedVideoPlayer embeddedVlcEmbeddedVideoPlayer; // Keep the field, but initialize from factory
 
     public BookmarkChannelListUI() { // Removed MediaPlayer argument
-        this.embeddedVlcEmbeddedVideoPlayer = MediaPlayerFactory.createMediaPlayer(); // Get instance from factory
         initWidgets();
         refresh();
     }
@@ -292,13 +290,13 @@ public class BookmarkChannelListUI extends HBox {
 
             if (playerPathIsEmbedded) {
                 if (useEmbeddedPlayerConfig) {
-                    embeddedVlcEmbeddedVideoPlayer.play(evaluatedStreamUrl);
+                    getPlayer().play(evaluatedStreamUrl);
                 } else {
                     showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                 }
             } else { // playerPath is not "embedded" or is blank
                 if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
-                    embeddedVlcEmbeddedVideoPlayer.play(evaluatedStreamUrl);
+                    getPlayer().play(evaluatedStreamUrl);
                 } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
                     showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                 } else { // Use external player

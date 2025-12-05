@@ -721,4 +721,9 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             btnPip.setGraphic(pipIcon);
         });
     }
+
+    @Override
+    public PlayerType getType() {
+        return PlayerType.VLC;
+    }
 }

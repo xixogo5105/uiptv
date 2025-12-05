@@ -21,6 +21,7 @@ import javafx.scene.layout.HBox;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.uiptv.ui.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class EpisodesListUI extends HBox {
@@ -145,7 +146,7 @@ public class EpisodesListUI extends HBox {
                 cmd = PlayerService.getInstance().get(account, item.getCmd());
             }
             if ((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
-                MediaPlayerFactory.createMediaPlayer().play(cmd); // Usage updated
+                getPlayer().play(cmd); // Usage updated
             } else {
                 Platform.executeCommand(playerPath, cmd);
             }
