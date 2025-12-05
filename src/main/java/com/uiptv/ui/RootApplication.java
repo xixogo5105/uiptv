@@ -113,9 +113,10 @@ public class RootApplication extends Application {
         configureUIComponents(configurationUI, parseMultipleAccountUI, manageAccountUI, bookmarkChannelListUI, accountListUI);
 
         TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
+        tabPane.setPadding(new Insets(0,0,0,0));
 
         HBox embeddedPlayer = new HBox(MediaPlayerFactory.getPlayerContainer()); // Usage updated
-        embeddedPlayer.setPadding(new Insets(5));
+        embeddedPlayer.setPadding(new Insets(0));
 
 
         VBox containerWithEmbeddedPlayer = new VBox();
@@ -126,17 +127,12 @@ public class RootApplication extends Application {
         tabPane.setMinWidth(480);
         tabPane.setPrefWidth(480);
         tabPane.setMaxWidth(480);
-        mainContent.setMinWidth(480);
-        mainContent.setPrefWidth(480);
-        mainContent.setMaxWidth(480);
-
-
         Scene scene = new Scene(mainContent, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
         configureFontStyles(scene);
         primaryStage.setTitle("UIPTV");
         primaryStage.setMaximized(true);
         primaryStage.setScene(scene);
-        primaryStage.getIcons().add(new Image("file:icon.ico"));
+        primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
         primaryStage.show();
     }
 

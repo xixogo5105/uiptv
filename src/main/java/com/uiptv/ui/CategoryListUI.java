@@ -8,6 +8,7 @@ import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -47,7 +48,7 @@ public class CategoryListUI extends HBox {
     }
 
     private void initWidgets() {
-        setSpacing(10);
+        setSpacing(5);
         table.setEditable(true);
         table.getColumns().addAll(categoryTitle);
         categoryTitle.setVisible(true);

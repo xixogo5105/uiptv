@@ -12,6 +12,7 @@ import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -70,7 +71,8 @@ public class AccountListUI extends HBox {
     }
 
     private void initWidgets() {
-        setSpacing(10);
+        setSpacing(5);
+        setPadding(new Insets(5,0,0,0));
         table.setEditable(true);
         table.getColumns().addAll(accountName);
         accountName.setVisible(true);
