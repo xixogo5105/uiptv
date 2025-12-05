@@ -348,6 +348,7 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             playerContainer.setVisible(true);
             playerContainer.setManaged(true);
             loadingSpinner.setVisible(true);
+            mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
             mediaPlayer.media().play(uri);
         }
     }
@@ -459,8 +460,8 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             if (pipExitIcon != null && pipExitIcon.getImage() != null) {
                 // Make the icon larger for better visibility in the center
                 ImageView restoreIconView = new ImageView(pipExitIcon.getImage());
-                restoreIconView.setFitHeight(64); // Changed to 64
-                restoreIconView.setFitWidth(64);  // Changed to 64
+                restoreIconView.setFitHeight(64);
+                restoreIconView.setFitWidth(64);
                 // Apply the same white color adjust effect
                 ColorAdjust whiteColorAdjust = new ColorAdjust();
                 whiteColorAdjust.setBrightness(1.0);

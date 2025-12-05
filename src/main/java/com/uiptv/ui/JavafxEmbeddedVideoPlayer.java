@@ -105,7 +105,7 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
 
         btnMute = createIconButton(muteOffIcon);
 
-        volumeSlider = new Slider(0, 1, 0.5); // JavaFX volume is 0.0 to 1.0
+        volumeSlider = new Slider(0, 100, 50); // Use 0-100 scale
         volumeSlider.setPrefWidth(100);
 
         HBox topRow = new HBox(8);
@@ -184,7 +184,9 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
 
         volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (mediaPlayer != null) {
-                mediaPlayer.setVolume(newVal.doubleValue());
+                // Apply logarithmic scaling for a more natural feel
+                double scaledVolume = Math.pow(newVal.doubleValue() / 100.0, 0.5);
+                mediaPlayer.setVolume(scaledVolume);
             }
         });
 
@@ -212,7 +214,7 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
         playerContainer.setOnScroll(e -> {
             double delta = e.getDeltaY();
             double currentVolume = volumeSlider.getValue();
-            volumeSlider.setValue(currentVolume + (delta > 0 ? 0.05 : -0.05));
+            volumeSlider.setValue(currentVolume + (delta > 0 ? 5 : -5));
         });
 
         // --- JAVAFX MEDIA PLAYER LISTENERS ---
@@ -382,7 +384,9 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             mediaPlayer = new MediaPlayer(media);
             mediaView.setMediaPlayer(mediaPlayer);
 
-            mediaPlayer.setVolume(volumeSlider.getValue());
+            // Set initial volume with logarithmic scaling
+            double initialVolume = Math.pow(volumeSlider.getValue() / 100.0, 0.5);
+            mediaPlayer.setVolume(initialVolume);
             mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
                 btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
             });
@@ -467,9 +471,6 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             fullscreenStage.close();
             fullscreenStage = null;
             if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
-            playerContainer.applyCss();
-            playerContainer.layout();
-            playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenIcon);
             btnPip.setVisible(true);
@@ -510,8 +511,8 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             if (pipExitIcon != null && pipExitIcon.getImage() != null) {
                 // Make the icon larger for better visibility in the center
                 ImageView restoreIconView = new ImageView(pipExitIcon.getImage());
-                restoreIconView.setFitHeight(64); // Changed to 64
-                restoreIconView.setFitWidth(64);  // Changed to 64
+                restoreIconView.setFitHeight(64);
+                restoreIconView.setFitWidth(64);
                 // Apply the same white color adjust effect
                 ColorAdjust whiteColorAdjust = new ColorAdjust();
                 whiteColorAdjust.setBrightness(1.0);
@@ -723,9 +724,6 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             btnStop.setVisible(true);
             btnStop.setManaged(true);
 
-            playerContainer.applyCss();
-            playerContainer.layout();
-            playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnPip.setGraphic(pipIcon);
         });
