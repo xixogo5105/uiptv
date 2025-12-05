@@ -184,19 +184,26 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
 
         volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (mediaPlayer != null) {
-                // Apply logarithmic scaling for a more natural feel
-                double scaledVolume = Math.pow(newVal.doubleValue() / 100.0, 0.5);
-                mediaPlayer.setVolume(scaledVolume);
+                // Map 0-100 slider range to 0.0-1.0 volume range
+                mediaPlayer.setVolume(newVal.doubleValue() / 100.0);
             }
         });
 
-        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
+        timeSlider.setOnMousePressed(e -> {
+            isUserSeeking = true;
+            idleTimer.stop(); // Keep controls visible while seeking
+        });
         timeSlider.setOnMouseReleased(e -> {
             if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
                 mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(timeSlider.getValue()));
             }
             isUserSeeking = false;
+            idleTimer.playFromStart(); // Restart idle timer
         });
+
+        // Add mouse pressed/released handlers for volumeSlider to control idleTimer
+        volumeSlider.setOnMousePressed(e -> idleTimer.stop());
+        volumeSlider.setOnMouseReleased(e -> idleTimer.playFromStart());
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -348,11 +355,25 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
         fadeIn.setToValue(1.0);
         idleTimer = new PauseTransition(Duration.seconds(3));
         idleTimer.setOnFinished(e -> fadeOut.play());
+
+        // Show controls when mouse moves over the player
         playerContainer.setOnMouseMoved(e -> {
-            if (controlsContainer.getOpacity() < 1.0) fadeIn.play();
+            if (controlsContainer.getOpacity() < 1.0) {
+                fadeIn.play();
+            }
             idleTimer.playFromStart();
         });
-        playerContainer.setOnMouseExited(e -> fadeOut.play());
+
+        // Hide controls when mouse exits the player
+        playerContainer.setOnMouseExited(e -> {
+            if (!controlsContainer.isHover()) {
+                idleTimer.playFromStart();
+            }
+        });
+
+        // Keep controls visible when mouse is over them
+        controlsContainer.setOnMouseEntered(e -> idleTimer.stop());
+        controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
     }
 
     @Override
@@ -384,9 +405,8 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
             mediaPlayer = new MediaPlayer(media);
             mediaView.setMediaPlayer(mediaPlayer);
 
-            // Set initial volume with logarithmic scaling
-            double initialVolume = Math.pow(volumeSlider.getValue() / 100.0, 0.5);
-            mediaPlayer.setVolume(initialVolume);
+            // Set initial volume
+            mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
             mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
                 btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
             });

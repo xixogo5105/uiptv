@@ -188,11 +188,19 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
 
         volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
 
-        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
+        timeSlider.setOnMousePressed(e -> {
+            isUserSeeking = true;
+            idleTimer.stop(); // Keep controls visible while seeking
+        });
         timeSlider.setOnMouseReleased(e -> {
             mediaPlayer.controls().setPosition((float) timeSlider.getValue());
             isUserSeeking = false;
+            idleTimer.playFromStart(); // Restart idle timer
         });
+
+        // Add mouse pressed/released handlers for volumeSlider to control idleTimer
+        volumeSlider.setOnMousePressed(e -> idleTimer.stop());
+        volumeSlider.setOnMouseReleased(e -> idleTimer.playFromStart());
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -334,11 +342,25 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
         fadeIn.setToValue(1.0);
         idleTimer = new PauseTransition(Duration.seconds(3));
         idleTimer.setOnFinished(e -> fadeOut.play());
+
+        // Show controls when mouse moves over the player
         playerContainer.setOnMouseMoved(e -> {
-            if (controlsContainer.getOpacity() < 1.0) fadeIn.play();
+            if (controlsContainer.getOpacity() < 1.0) {
+                fadeIn.play();
+            }
             idleTimer.playFromStart();
         });
-        playerContainer.setOnMouseExited(e -> fadeOut.play());
+
+        // Hide controls when mouse exits the player
+        playerContainer.setOnMouseExited(e -> {
+            if (!controlsContainer.isHover()) { // Only fade out if mouse is not over controls
+                idleTimer.playFromStart();
+            }
+        });
+
+        // Keep controls visible when mouse is over them
+        controlsContainer.setOnMouseEntered(e -> idleTimer.stop());
+        controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
     }
 
     @Override
