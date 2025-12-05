@@ -220,8 +220,11 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
 
         playerContainer.setOnScroll(e -> {
             double delta = e.getDeltaY();
-            double currentVolume = volumeSlider.getValue();
-            volumeSlider.setValue(currentVolume + (delta > 0 ? 5 : -5));
+            if (delta == 0) return;
+            // Invert the delta for "natural" scrolling, then multiply by a step value.
+            // This ensures scroll up always increases volume and scroll down always decreases.
+            double change = -Math.signum(delta) * 5;
+            volumeSlider.setValue(volumeSlider.getValue() + change);
         });
 
         // --- JAVAFX MEDIA PLAYER LISTENERS ---
