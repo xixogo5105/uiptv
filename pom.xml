@@ -20,8 +20,8 @@
         <jpackage.version>1.0.8</jpackage.version>
         <!-- Default javafx.platform for non-profile builds -->
         <!--        <javafx.platform>mac-aarch64</javafx.platform>-->
-<!--        <javafx.platform>win</javafx.platform>-->
-                <javafx.platform>linux</javafx.platform>
+        <!--        <javafx.platform>win</javafx.platform>-->
+        <javafx.platform>linux</javafx.platform>
     </properties>
 
     <dependencies>
@@ -205,6 +205,22 @@
                             <encoding>UTF-8</encoding>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>copy-linux-resources</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/linux</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>src/main/resources/linux</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>
@@ -336,6 +352,9 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
+                            <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
+                            <linuxShortcut>true</linuxShortcut>
+                            <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
                         </configuration>
                     </plugin>
                 </plugins>

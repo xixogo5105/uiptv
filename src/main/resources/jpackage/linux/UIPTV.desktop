@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=UIPTV
+Comment=UIPTV
+Exec=/opt/uiptv/bin/UIPTV
+Icon=/opt/uiptv/lib/UIPTV.png
+Terminal=false
+Type=Application
+Categories=Video;AudioVideo;Player;
+StartupWMClass=com.uiptv.ui.RootApplication
+MimeType=
