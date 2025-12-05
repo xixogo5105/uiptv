@@ -27,15 +27,18 @@ import java.util.Arrays;
 
 import static com.uiptv.util.SQLiteTableSync.syncTables;
 import static com.uiptv.util.StringUtils.isNotBlank;
+import static java.lang.System.exit;
 
 public class RootApplication extends Application {
     public final static int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
+
     public static void main(String[] args) {
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
             handleSync(args);
+            exit(0);
         } else if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
             startServer();
         } else {
@@ -49,10 +52,10 @@ public class RootApplication extends Application {
     private static void handleSync(String[] args) {
         if (args.length != 3) {
             System.err.println("Usage: sync <first_db_path> <second_db_path>");
-            System.exit(1);
+            exit(1);
         }
-        String firstDB = args[1];
-        String secondDB = args[2];
+        String firstDB = args[1].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
+        String secondDB = args[2].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         try {
             for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
                 if (DatabaseUtils.Syncable.contains(tableName)) {
@@ -60,7 +63,7 @@ public class RootApplication extends Application {
                 }
             }
             ConfigurationDb.get().clearCache();
-            LogDisplayUI.addLog("Sync complete!");
+            System.out.println("Sync complete!");
         } catch (SQLException e) {
             System.err.println("Error syncing tables: " + e.getMessage());
         }
