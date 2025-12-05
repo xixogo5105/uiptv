@@ -2,24 +2,21 @@ package com.uiptv.ui;
 
 import com.uiptv.api.EmbeddedVideoPlayer;
 import javafx.scene.layout.Region;
-// import com.uiptv.ui.JavafxMediaPlayer; // Uncomment if you want to switch to JavafxMediaPlayer
 
 public class MediaPlayerFactory {
 
-    private static EmbeddedVideoPlayer instance; // Holds the single instance of MediaPlayer
+    private static EmbeddedVideoPlayer instance;
 
-    // Private constructor removed as the factory itself is no longer a singleton
-
-    // Returns a single instance of MediaPlayer
-    public static synchronized EmbeddedVideoPlayer createMediaPlayer() { // Made static
+    public static synchronized EmbeddedVideoPlayer createMediaPlayer() {
         if (instance == null) {
-            // For now, we'll default to VlcVideoPlayer.
-            // In a more complex scenario, you might read a configuration
-            // to decide which implementation to return (e.g., based on user preference or system capabilities).
-//            instance = new JavafxEmbeddedVideoPlayer();
-            instance = new VlcVideoPlayer();
-            if (instance.getPlayerContainer() instanceof Region playerContainer) { // Usage updated
-                // Usage updated
+            try {
+                instance = new VlcVideoPlayer();
+            } catch (Exception ignored) {
+                System.err.println("Failed to load VLC libraries. Falling back to JavaFX media player. Falling back to the Native player that can only play h264 videos");
+                instance = new JavafxEmbeddedVideoPlayer();
+            }
+
+            if (instance.getPlayerContainer() instanceof Region playerContainer) {
                 playerContainer.setMinWidth(470);
                 playerContainer.setPrefWidth(470);
                 playerContainer.setMaxWidth(470);

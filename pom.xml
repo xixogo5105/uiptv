@@ -19,9 +19,9 @@
         <maven.compiler.release>17</maven.compiler.release>
         <jpackage.version>1.0.8</jpackage.version>
         <!-- Default javafx.platform for non-profile builds -->
-        <javafx.platform>mac-aarch64</javafx.platform>
+        <!--        <javafx.platform>mac-aarch64</javafx.platform>-->
 <!--        <javafx.platform>win</javafx.platform>-->
-<!--        <javafx.platform>linux</javafx.platform>-->
+                <javafx.platform>linux</javafx.platform>
     </properties>
 
     <dependencies>
@@ -92,7 +92,7 @@
         <dependency>
             <groupId>uk.co.caprica</groupId>
             <artifactId>vlcj</artifactId>
-            <version>4.12.0</version>
+            <version>4.8.1</version>
         </dependency>
         <dependency>
             <groupId>uk.co.caprica</groupId>

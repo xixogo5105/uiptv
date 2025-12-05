@@ -1,11 +1,10 @@
-// java
 package com.uiptv.ui;
 
 import com.uiptv.api.EmbeddedVideoPlayer;
 import javafx.animation.FadeTransition;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -13,223 +12,398 @@ import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Slider;
+import javafx.scene.effect.ColorAdjust;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
+import javafx.scene.input.MouseButton;
+import javafx.scene.layout.*;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.SVGPath;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.io.File;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
-    // Constants
-    private static final double VOLUME_STEP = 0.05;
-    private static final double DEFAULT_VOLUME = 0.5;
-    private static final String STYLE_BLACK_BACKGROUND = "-fx-background-color: black;";
-    private static final String STYLE_CONTROLS_BACKGROUND = "-fx-background-color: rgba(0, 0, 0, 0.6);";
-    private static final String STYLE_BUTTON_TOGGLED = "-fx-background-color: darkgreen;";
-    private static final Insets CONTROLS_PADDING = new Insets(5, 10, 5, 10);
-    private static final double CONTROLS_SPACING = 10;
-    private static final Duration AUTO_HIDE_DELAY = Duration.seconds(3);
 
-    // SVG Icon Paths
-    private static final String SVG_PLAY = "M8 5v14l11-7z";
-    private static final String SVG_PAUSE = "M6 19h4V5H6v14zm8-14v14h4V5h-4z";
-    private static final String SVG_STOP = "M6 6h12v12H6z";
-    private static final String SVG_RELOAD = "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z";
-    private static final String SVG_VOLUME_ON = "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z";
-    private static final String SVG_VOLUME_OFF = "M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z";
-    private static final String SVG_FULLSCREEN = "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5V14h-2v3zM14 5v2h3v3h2V5h-5z";
+    private MediaPlayer mediaPlayer;
+    private final MediaView mediaView = new MediaView();
 
     // UI Components
-    private final StackPane playerContainer = new StackPane();
-    private final MediaView mediaView = new MediaView();
-    private final HBox controls = new HBox();
-    private MediaPlayer mediaPlayer;
-    private String currentSource;
-    private final AtomicBoolean isReloading = new AtomicBoolean(false);
+    private Slider timeSlider;
+    private Slider volumeSlider;
+    private Label timeLabel;
+    private VBox controlsContainer;
+    private ProgressIndicator loadingSpinner;
 
-    // Control Buttons
-    private Button playPauseButton;
-    private Button stopButton;
-    private Button reloadButton;
-    private Button muteButton;
-    private Button fullscreenButton;
+    // Buttons and Icons
+    private Button btnPlayPause;
+    private Button btnMute;
+    private Button btnRepeat;
+    private Button btnFullscreen;
+    private Button btnReload;
+    private Button btnPip;
+    private Button btnStop;
+    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon;
+
+    private boolean isUserSeeking = false;
+    private boolean isRepeating = false;
+    private PauseTransition idleTimer;
+    private final StackPane playerContainer = new StackPane();
 
     // Fullscreen bookkeeping
     private Stage fullscreenStage;
+    // PiP bookkeeping
+    private Stage pipStage;
     private Pane originalParent;
     private int originalIndex = -1;
+    private FadeTransition fadeIn;
+    private FadeTransition fadeOut;
+    private String currentMediaUri;
 
-    // Fade transitions and auto-hide timer
-    private FadeTransition fadeInControls;
-    private FadeTransition fadeOutControls;
-    private Timeline autoHideTimer;
+    // For custom title bar drag
+    private double xOffset = 0;
+    private double yOffset = 0;
+
+    // For custom window resizing
+    private boolean isResizing = false;
+    private int resizeDirection = 0; // 0=none, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW
+    private double initialX, initialY, initialWidth, initialHeight;
+    private static final double RESIZE_BORDER = 5;
+    private static final double MIN_WIDTH = 200;
+    private static final double MIN_HEIGHT = 150;
+
+    private final ChangeListener<Duration> progressListener;
+    private final ChangeListener<MediaPlayer.Status> statusListener;
+
 
     public JavafxEmbeddedVideoPlayer() {
-        createControls();
-        controls.setOpacity(0);
-
         mediaView.setPreserveRatio(true);
-        mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
-        mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
 
-        playerContainer.getChildren().addAll(mediaView, controls);
-        playerContainer.setStyle(STYLE_BLACK_BACKGROUND);
-        StackPane.setAlignment(controls, Pos.BOTTOM_CENTER);
+        // --- 1.5 LOAD ICONS ---
+        loadIcons();
+
+        // --- 2. BUILD CONTROLS ---
+        btnPlayPause = createIconButton(pauseIcon);
+        btnStop = createIconButton(stopIcon);
+        btnRepeat = createIconButton(repeatOffIcon);
+        btnRepeat.setOpacity(0.7);
+        btnReload = createIconButton(reloadIcon);
+        btnFullscreen = createIconButton(fullscreenIcon);
+        btnPip = createIconButton(pipIcon);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        btnMute = createIconButton(muteOffIcon);
+
+        volumeSlider = new Slider(0, 1, 0.5); // JavaFX volume is 0.0 to 1.0
+        volumeSlider.setPrefWidth(100);
+
+        HBox topRow = new HBox(8);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider);
+
+        timeSlider = new Slider(0, 1, 0);
+        HBox.setHgrow(timeSlider, Priority.ALWAYS);
+        timeLabel = new Label("00:00 / 00:00");
+        timeLabel.setTextFill(Color.WHITE);
+        timeLabel.setStyle("-fx-font-family: monospace; -fx-font-weight: bold;");
+
+        HBox bottomRow = new HBox(10);
+        bottomRow.setAlignment(Pos.CENTER_LEFT);
+        bottomRow.getChildren().addAll(timeSlider, timeLabel);
+
+        controlsContainer = new VBox(10);
+        controlsContainer.setPadding(new Insets(8));
+        controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
+        controlsContainer.getChildren().addAll(topRow, bottomRow);
+        controlsContainer.setMaxWidth(480);
+        controlsContainer.setMaxHeight(80);
+
+        // --- 3. LAYOUT ROOT ---
+        playerContainer.setStyle("-fx-background-color: black;");
         playerContainer.setFocusTraversable(true);
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
 
-        setupHoverFade();
-        playerContainer.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
-            if (event.getClickCount() == 2) {
-                toggleFullscreen();
-            }
-            playerContainer.requestFocus();
-        });
-        playerContainer.addEventHandler(KeyEvent.KEY_PRESSED, this::handleKeyEvent);
-    }
+        mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
+        mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
 
-    private void setupHoverFade() {
-        fadeInControls = new FadeTransition(Duration.millis(200), controls);
-        fadeInControls.setToValue(1.0);
-        fadeOutControls = new FadeTransition(Duration.millis(200), controls);
-        fadeOutControls.setToValue(0);
-        fadeOutControls.setOnFinished(e -> {
-            if (fullscreenStage != null) { // Only hide cursor if in fullscreen
-                hideMouseCursor();
-            }
-        });
+        StackPane overlayWrapper = new StackPane(controlsContainer);
+        overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
+        overlayWrapper.setPadding(new Insets(0, 20, 20, 20));
 
-        autoHideTimer = new Timeline(new KeyFrame(AUTO_HIDE_DELAY, e -> fadeOutControls.play()));
-        autoHideTimer.setCycleCount(1);
+        loadingSpinner = new ProgressIndicator();
+        loadingSpinner.setMaxSize(60, 60);
+        loadingSpinner.setVisible(false);
 
-        playerContainer.setOnMouseMoved(e -> {
-            fadeOutControls.stop();
-            fadeInControls.play();
-            autoHideTimer.stop();
-            autoHideTimer.playFromStart();
-            if (fullscreenStage != null) { // Only show cursor if in fullscreen
-                showMouseCursor();
-            }
-        });
-        playerContainer.setOnMouseExited(e -> {
-            autoHideTimer.stop();
-            fadeOutControls.play();
-        });
-    }
+        playerContainer.getChildren().addAll(mediaView, overlayWrapper, loadingSpinner);
 
-    private void createControls() {
-        controls.setAlignment(Pos.CENTER);
-        controls.setPadding(CONTROLS_PADDING);
-        controls.setSpacing(CONTROLS_SPACING);
-        controls.setStyle(STYLE_CONTROLS_BACKGROUND);
-
-        playPauseButton = new Button();
-        stopButton = new Button();
-        reloadButton = new Button();
-        muteButton = new Button();
-        fullscreenButton = new Button();
-
-        playPauseButton.setGraphic(createSVGIcon(SVG_PLAY));
-        stopButton.setGraphic(createSVGIcon(SVG_STOP));
-        reloadButton.setGraphic(createSVGIcon(SVG_RELOAD));
-        muteButton.setGraphic(createSVGIcon(SVG_VOLUME_ON));
-        fullscreenButton.setGraphic(createSVGIcon(SVG_FULLSCREEN));
-
-        controls.getChildren().clear();
-        // Reload button is now the first from the left
-        controls.getChildren().addAll(reloadButton, playPauseButton, stopButton, muteButton, fullscreenButton);
-    }
-
-    private void attachListeners() {
-        playPauseButton.setOnAction(e -> {
+        // --- 4. EVENT LOGIC ---
+        btnPlayPause.setOnAction(e -> {
             if (mediaPlayer != null) {
-                if (mediaPlayer.getStatus() == javafx.scene.media.MediaPlayer.Status.PLAYING) mediaPlayer.pause();
-                else mediaPlayer.play();
+                if (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                    mediaPlayer.pause();
+                } else {
+                    mediaPlayer.play();
+                }
             }
         });
-        stopButton.setOnAction(e -> stop());
-        reloadButton.setOnAction(e -> reloadStream());
-        muteButton.setOnAction(e -> toggleMute());
-        fullscreenButton.setOnAction(e -> toggleFullscreen());
 
-        mediaPlayer.statusProperty().addListener((obs, o, n) -> updateButtonStyles());
-        mediaPlayer.muteProperty().addListener((obs, o, n) -> updateButtonStyles());
-        mediaPlayer.setOnReady(this::updateButtonStyles);
+        btnStop.setOnAction(e -> stop());
+
+        btnRepeat.setOnAction(e -> {
+            isRepeating = !isRepeating;
+            btnRepeat.setGraphic(isRepeating ? repeatOnIcon : repeatOffIcon);
+            btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
+        });
+
+        btnReload.setOnAction(e -> {
+            if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
+                play(currentMediaUri);
+            }
+        });
+
+        btnFullscreen.setOnAction(e -> toggleFullscreen());
+        btnPip.setOnAction(e -> togglePip());
+
+        btnMute.setOnAction(e -> {
+            if (mediaPlayer != null) {
+                mediaPlayer.setMute(!mediaPlayer.isMute());
+            }
+        });
+
+        volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (mediaPlayer != null) {
+                mediaPlayer.setVolume(newVal.doubleValue());
+            }
+        });
+
+        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
+        timeSlider.setOnMouseReleased(e -> {
+            if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
+                mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(timeSlider.getValue()));
+            }
+            isUserSeeking = false;
+        });
+
+        playerContainer.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                if (e.getClickCount() == 1) playerContainer.requestFocus();
+                else if (e.getClickCount() == 2) toggleFullscreen();
+            }
+        });
+
+        playerContainer.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.F) toggleFullscreen();
+            else if (e.getCode() == KeyCode.M) btnMute.fire();
+            else if (e.getCode() == KeyCode.ESCAPE && fullscreenStage != null) toggleFullscreen();
+        });
+
+        playerContainer.setOnScroll(e -> {
+            double delta = e.getDeltaY();
+            double currentVolume = volumeSlider.getValue();
+            volumeSlider.setValue(currentVolume + (delta > 0 ? 0.05 : -0.05));
+        });
+
+        // --- JAVAFX MEDIA PLAYER LISTENERS ---
+        statusListener = (obs, oldStatus, newStatus) -> {
+            Platform.runLater(() -> {
+                switch (newStatus) {
+                    case PLAYING:
+                        loadingSpinner.setVisible(false);
+                        btnPlayPause.setGraphic(pauseIcon);
+                        fadeIn.play();
+                        idleTimer.playFromStart();
+                        break;
+                    case PAUSED:
+                        btnPlayPause.setGraphic(playIcon);
+                        break;
+                    case STOPPED:
+                    case HALTED:
+                        btnPlayPause.setGraphic(playIcon);
+                        timeSlider.setValue(0);
+                        loadingSpinner.setVisible(false);
+                        if (newStatus == MediaPlayer.Status.HALTED) {
+                            System.err.println("An error occurred in the media player.");
+                        }
+                        break;
+                    case READY:
+                        updateTimeLabel();
+                        break;
+                    case DISPOSED:
+                    case STALLED:
+                        loadingSpinner.setVisible(true);
+                        break;
+                }
+            });
+        };
+
+        progressListener = (obs, oldTime, newTime) -> {
+            if (!isUserSeeking) {
+                Platform.runLater(() -> {
+                    if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
+                        Duration total = mediaPlayer.getTotalDuration();
+                        if (total != null && total.greaterThan(Duration.ZERO) && !total.isIndefinite()) {
+                            timeSlider.setValue(newTime.toMillis() / total.toMillis());
+                        }
+                    }
+                    updateTimeLabel();
+                });
+            }
+        };
+
+
+        // --- 5. FADE / HIDE LOGIC ---
+        setupFadeAndIdleLogic();
     }
 
-    private void reloadStream() {
-        if (currentSource == null || currentSource.trim().isEmpty() || !isReloading.compareAndSet(false, true)) {
+    private void updateTimeLabel() {
+        if (mediaPlayer != null && mediaPlayer.getCurrentTime() != null && mediaPlayer.getTotalDuration() != null) {
+            Duration currentTime = mediaPlayer.getCurrentTime();
+            Duration totalDuration = mediaPlayer.getTotalDuration();
+
+            if (totalDuration.isIndefinite()) {
+                timeLabel.setText(formatTime((long) currentTime.toMillis()) + " / Live");
+            } else {
+                timeLabel.setText(formatTime((long) currentTime.toMillis()) + " / " + formatTime((long) totalDuration.toMillis()));
+            }
+        } else {
+            timeLabel.setText("00:00 / 00:00");
+        }
+    }
+
+    private void loadIcons() {
+        playIcon = createIconView("play.png", true);
+        pauseIcon = createIconView("pause.png", true);
+        stopIcon = createIconView("stop.png", true);
+        repeatOnIcon = createIconView("repeat-on.png", true);
+        repeatOffIcon = createIconView("repeat-off.png", true);
+        reloadIcon = createIconView("reload.png", true);
+        fullscreenIcon = createIconView("fullscreen.png", true);
+        fullscreenExitIcon = createIconView("fullscreen-exit.png", true);
+        muteOnIcon = createIconView("mute-on.png", true);
+        muteOffIcon = createIconView("mute-off.png", true);
+        pipIcon = createIconView("picture-in-picture.png", true);
+        pipExitIcon = createIconView("picture-in-picture-exit.png", false);
+    }
+
+    private ImageView createIconView(String iconName, boolean applyColorAdjust) {
+        try {
+            String iconPath = "/icons/videoPlayer/" + iconName;
+            java.net.URL resourceUrl = getClass().getResource(iconPath);
+            if (resourceUrl == null) {
+                return new ImageView();
+            }
+            Image image = new Image(resourceUrl.toExternalForm());
+            ImageView imageView = new ImageView(image);
+            imageView.setFitHeight(20);
+            imageView.setFitWidth(20);
+            imageView.setPreserveRatio(true);
+
+            if (applyColorAdjust) {
+                ColorAdjust colorAdjust = new ColorAdjust();
+                colorAdjust.setBrightness(0.8);
+                imageView.setEffect(colorAdjust);
+            } else if (iconName.equals("picture-in-picture-exit.png")) {
+                ColorAdjust whiteColorAdjust = new ColorAdjust();
+                whiteColorAdjust.setBrightness(1.0);
+                whiteColorAdjust.setSaturation(-1.0);
+                imageView.setEffect(whiteColorAdjust);
+            }
+            return imageView;
+        } catch (Exception e) {
+            return new ImageView();
+        }
+    }
+
+    private Button createIconButton(ImageView icon) {
+        Button btn = new Button();
+        btn.setGraphic(icon);
+        btn.setPadding(new Insets(6));
+        btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+        return btn;
+    }
+
+    private void setupFadeAndIdleLogic() {
+        controlsContainer.setOpacity(0);
+        fadeOut = new FadeTransition(Duration.millis(500), controlsContainer);
+        fadeOut.setFromValue(1.0);
+        fadeOut.setToValue(0.0);
+        fadeIn = new FadeTransition(Duration.millis(200), controlsContainer);
+        fadeIn.setFromValue(0.0);
+        fadeIn.setToValue(1.0);
+        idleTimer = new PauseTransition(Duration.seconds(3));
+        idleTimer.setOnFinished(e -> fadeOut.play());
+        playerContainer.setOnMouseMoved(e -> {
+            if (controlsContainer.getOpacity() < 1.0) fadeIn.play();
+            idleTimer.playFromStart();
+        });
+        playerContainer.setOnMouseExited(e -> fadeOut.play());
+    }
+
+    @Override
+    public void play(String uri) {
+        if (uri == null || uri.isEmpty()) {
+            stop();
             return;
         }
 
-        reloadButton.setStyle(STYLE_BUTTON_TOGGLED);
-        reloadButton.setDisable(true);
+        this.currentMediaUri = uri;
+        playerContainer.setVisible(true);
+        playerContainer.setManaged(true);
+        loadingSpinner.setVisible(true);
 
-        play(currentSource);
+        // Dispose of old player first
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.dispose();
+        }
 
-        new Thread(() -> {
-            try {
-                Thread.sleep(2000); // 2-second delay
-            } catch (InterruptedException ignored) {
+        try {
+            String sourceUrl = uri.trim();
+            if (!sourceUrl.startsWith("http") && !sourceUrl.startsWith("file:")) {
+                File f = new File(sourceUrl);
+                if (f.exists()) sourceUrl = f.toURI().toString();
             }
-            Platform.runLater(() -> {
-                reloadButton.setStyle("");
-                reloadButton.setDisable(false);
-                isReloading.set(false);
+
+            Media media = new Media(sourceUrl);
+            mediaPlayer = new MediaPlayer(media);
+            mediaView.setMediaPlayer(mediaPlayer);
+
+            mediaPlayer.setVolume(volumeSlider.getValue());
+            mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
+                btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
             });
-        }).start();
-    }
 
-    private void updateButtonStyles() {
-        if (mediaPlayer == null) return;
+            mediaPlayer.statusProperty().addListener(statusListener);
+            mediaPlayer.currentTimeProperty().addListener(progressListener);
+            mediaPlayer.setOnEndOfMedia(() -> {
+                if (isRepeating) {
+                    play(currentMediaUri); // Reload the stream
+                } else {
+                    btnPlayPause.setGraphic(playIcon);
+                    mediaPlayer.seek(Duration.ZERO);
+                    mediaPlayer.pause();
+                }
+            });
 
-        boolean isPlaying = mediaPlayer.getStatus() == javafx.scene.media.MediaPlayer.Status.PLAYING;
-        playPauseButton.setGraphic(isPlaying ? createSVGIcon(SVG_PAUSE) : createSVGIcon(SVG_PLAY));
-        playPauseButton.setStyle(isPlaying ? "" : STYLE_BUTTON_TOGGLED);
-
-        boolean isMuted = mediaPlayer.isMute();
-        muteButton.setGraphic(isMuted ? createSVGIcon(SVG_VOLUME_OFF) : createSVGIcon(SVG_VOLUME_ON));
-        muteButton.setStyle(isMuted ? STYLE_BUTTON_TOGGLED : "");
-
-        fullscreenButton.setStyle(fullscreenStage != null ? STYLE_BUTTON_TOGGLED : "");
-    }
-
-    private SVGPath createSVGIcon(String path) {
-        SVGPath svg = new SVGPath();
-        svg.setContent(path);
-        svg.setFill(Color.WHITE);
-        svg.setStyle("-fx-cursor: hand;");
-        return svg;
-    }
-
-    private void handleKeyEvent(KeyEvent event) {
-        KeyCode code = event.getCode();
-        if (code == KeyCode.F || (code == KeyCode.ESCAPE && fullscreenStage != null)) {
-            toggleFullscreen();
-            event.consume();
-        } else if (code == KeyCode.M) {
-            toggleMute();
-            event.consume();
-        } else if (code == KeyCode.UP) {
-            increaseVolume();
-            event.consume();
-        } else if (code == KeyCode.DOWN) {
-            decreaseVolume();
-            event.consume();
+            mediaPlayer.play();
+        } catch (Exception e) {
+            System.err.println("Error playing media: " + uri);
+            e.printStackTrace();
+            loadingSpinner.setVisible(false);
         }
     }
 
@@ -238,55 +412,21 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
         return playerContainer;
     }
 
-    @Override
-    public void play(String source) {
-        this.currentSource = source;
-        try {
-            if (mediaPlayer != null) {
-                mediaPlayer.stop();
-                mediaPlayer.dispose();
-            }
-            if (source == null || source.trim().isEmpty()) {
-                stop();
-                return;
-            }
-
-            String uri = source.trim();
-            if (!uri.startsWith("http://") && !uri.startsWith("https://") && !uri.startsWith("file:")) {
-                File f = new File(uri);
-                if (f.exists()) uri = f.toURI().toString();
-            }
-
-            Media media = new Media(uri);
-            mediaPlayer = new javafx.scene.media.MediaPlayer(media);
-            mediaView.setMediaPlayer(mediaPlayer);
-            mediaPlayer.setVolume(DEFAULT_VOLUME);
-            attachListeners();
-
-            playerContainer.setManaged(true);
-            playerContainer.setVisible(true);
-
-            mediaPlayer.play();
-        } catch (Exception e) {
-            stop();
-        }
+    private String formatTime(long millis) {
+        if (millis < 0) return "00:00";
+        long seconds = millis / 1000, s = seconds % 60, m = (seconds / 60) % 60, h = (seconds / 3600) % 24;
+        return h > 0 ? String.format("%02d:%02d:%02d", h, m, s) : String.format("%02d:%02d", m, s);
     }
 
     @Override
     public void stop() {
-        try {
-            if (mediaPlayer != null) {
-                mediaPlayer.stop();
-                mediaPlayer.dispose();
-                mediaPlayer = null;
-                mediaView.setMediaPlayer(null);
-            }
-        } catch (Exception ignored) {
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.dispose();
+            mediaPlayer = null;
         }
-        Platform.runLater(() -> {
-            playerContainer.setVisible(false);
-            playerContainer.setManaged(false);
-        });
+        playerContainer.setVisible(false);
+        playerContainer.setManaged(false);
     }
 
     @Override
@@ -297,7 +437,52 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
 
     public void enterFullscreen() {
         if (fullscreenStage != null) return;
+        Platform.runLater(() -> {
+            originalParent = (Pane) playerContainer.getParent();
+            if (originalParent != null) {
+                originalIndex = originalParent.getChildren().indexOf(playerContainer);
+                originalParent.getChildren().remove(playerContainer);
+            }
+            fullscreenStage = new Stage(StageStyle.UNDECORATED);
+            Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+            Scene scene = new Scene(playerContainer, bounds.getWidth(), bounds.getHeight());
+            scene.setFill(Color.BLACK);
+            fullscreenStage.setScene(scene);
+            fullscreenStage.setFullScreen(true);
+            fullscreenStage.setFullScreenExitHint("");
+            fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
+            fullscreenStage.show();
+            playerContainer.requestFocus();
+            btnFullscreen.setGraphic(fullscreenExitIcon);
+            btnPip.setVisible(false);
+            btnPip.setManaged(false);
+            btnStop.setVisible(false);
+            btnStop.setManaged(false);
+        });
+    }
 
+    public void exitFullscreen() {
+        if (fullscreenStage == null) return;
+        Platform.runLater(() -> {
+            fullscreenStage.close();
+            fullscreenStage = null;
+            if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
+            playerContainer.requestFocus();
+            btnFullscreen.setGraphic(fullscreenIcon);
+            btnPip.setVisible(true);
+            btnPip.setManaged(true);
+            btnStop.setVisible(true);
+            btnStop.setManaged(true);
+        });
+    }
+
+    public void togglePip() {
+        if (pipStage == null) enterPip();
+        else exitPip();
+    }
+
+    public void enterPip() {
+        if (pipStage != null) return;
         Platform.runLater(() -> {
             originalParent = (Pane) playerContainer.getParent();
             if (originalParent != null) {
@@ -305,85 +490,174 @@ public class JavafxEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
                 originalParent.getChildren().remove(playerContainer);
             }
 
-            fullscreenStage = new Stage(StageStyle.UNDECORATED);
-            Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
-            Scene scene = new Scene(playerContainer, bounds.getWidth(), bounds.getHeight());
-            scene.setFill(Color.BLACK);
+            playerContainer.getChildren().remove(mediaView);
 
-            fullscreenStage.setScene(scene);
-            fullscreenStage.setFullScreen(true);
-            fullscreenStage.setFullScreenExitHint("");
-            fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
+            pipStage = new Stage(StageStyle.UNDECORATED);
+            pipStage.setAlwaysOnTop(true);
 
-            // Removed scene.setOnMouseMoved and scene.setOnMouseExited - playerContainer handlers will now manage this.
+            HBox titleBar = new HBox();
+            titleBar.setAlignment(Pos.CENTER_LEFT);
+            titleBar.setPadding(new Insets(5, 10, 5, 10));
+            titleBar.setStyle("-fx-background-color: #222;");
 
-            fullscreenStage.show();
-            updateButtonStyles();
-            // Ensure controls are visible when entering fullscreen
-            fadeInControls.play();
-            autoHideTimer.playFromStart();
-            hideMouseCursor(); // Hide cursor initially when entering fullscreen
+            Label titleLabel = new Label("Picture-in-Picture");
+            titleLabel.setTextFill(Color.WHITE);
+            titleLabel.setStyle("-fx-font-weight: bold;");
+
+            Region titleSpacer = new Region();
+            HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+
+            Button closeButton = new Button();
+            if (pipExitIcon != null && pipExitIcon.getImage() != null) {
+                closeButton.setGraphic(pipExitIcon);
+            } else {
+                closeButton.setText("X");
+                closeButton.setTextFill(Color.WHITE);
+            }
+            closeButton.setPadding(new Insets(2, 5, 2, 5));
+            closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+            closeButton.setOnMouseEntered(e -> closeButton.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
+            closeButton.setOnMouseExited(e -> closeButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+            closeButton.setOnAction(e -> exitPip());
+
+            titleBar.getChildren().addAll(titleLabel, titleSpacer, closeButton);
+
+            titleBar.setOnMousePressed(event -> {
+                xOffset = pipStage.getX() - event.getScreenX();
+                yOffset = pipStage.getY() - event.getScreenY();
+            });
+            titleBar.setOnMouseDragged(event -> {
+                pipStage.setX(event.getScreenX() + xOffset);
+                pipStage.setY(event.getScreenY() + yOffset);
+            });
+            titleBar.setOnMouseClicked(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    pipStage.toFront();
+                }
+            });
+
+            BorderPane pipRoot = new BorderPane();
+            pipRoot.setStyle("-fx-background-color: black;");
+            pipRoot.setTop(titleBar);
+            pipRoot.setCenter(mediaView);
+
+            mediaView.fitWidthProperty().bind(pipRoot.widthProperty());
+            mediaView.fitHeightProperty().bind(pipRoot.heightProperty());
+
+            Scene scene = new Scene(pipRoot, 480, 270);
+            scene.setFill(Color.TRANSPARENT);
+            pipStage.setScene(scene);
+
+            Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
+            pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20);
+            pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20);
+
+            setupPipResizing(pipRoot);
+
+            pipStage.show();
+            controlsContainer.setVisible(false);
+            controlsContainer.setManaged(false);
+            btnPlayPause.setVisible(false);
+            btnPlayPause.setManaged(false);
+            btnStop.setVisible(false);
+            btnStop.setManaged(false);
+            btnPip.setGraphic(pipIcon);
         });
     }
 
-    public void exitFullscreen() {
-        if (fullscreenStage == null) return;
-
+    public void exitPip() {
+        if (pipStage == null) return;
         Platform.runLater(() -> {
-            fullscreenStage.close();
-            fullscreenStage = null;
+            pipStage.close();
+            pipStage = null;
+
+            ((Pane) mediaView.getParent()).getChildren().remove(mediaView);
 
             if (originalParent != null) {
                 originalParent.getChildren().add(originalIndex, playerContainer);
             }
-            updateButtonStyles();
-            // Stop auto-hide timer when exiting fullscreen
-            autoHideTimer.stop();
-            // Re-apply normal mouse listeners (already set on playerContainer)
-            // Ensure controls are visible briefly after exiting fullscreen
-            fadeInControls.play();
-            autoHideTimer.playFromStart();
-            showMouseCursor(); // Show cursor when exiting fullscreen
+
+            playerContainer.getChildren().add(0, mediaView);
+
+            playerContainer.setVisible(true);
+            playerContainer.setManaged(true);
+            mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
+            mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
+
+            controlsContainer.setVisible(true);
+            controlsContainer.setManaged(true);
+            btnPlayPause.setVisible(true);
+            btnPlayPause.setManaged(true);
+            btnStop.setVisible(true);
+            btnStop.setManaged(true);
+
+            playerContainer.requestFocus();
+            btnPip.setGraphic(pipIcon);
         });
     }
 
-    private void toggleMute() {
-        if (mediaPlayer != null) mediaPlayer.setMute(!mediaPlayer.isMute());
-    }
-
-    private void increaseVolume() {
-        if (mediaPlayer != null) {
-            if (mediaPlayer.isMute()) {
-                mediaPlayer.setMute(false);
+    private void setupPipResizing(Pane pipRoot) {
+        pipRoot.setOnMouseMoved(event -> {
+            if (isResizing) return;
+            double x = event.getX(), y = event.getY();
+            double width = pipStage.getWidth(), height = pipStage.getHeight();
+            Cursor cursor = Cursor.DEFAULT;
+            resizeDirection = 0;
+            if (y < RESIZE_BORDER) { cursor = Cursor.N_RESIZE; resizeDirection = 1; }
+            else if (y > height - RESIZE_BORDER) { cursor = Cursor.S_RESIZE; resizeDirection = 5; }
+            if (x < RESIZE_BORDER) {
+                if (resizeDirection == 1) { cursor = Cursor.NW_RESIZE; resizeDirection = 8; }
+                else if (resizeDirection == 5) { cursor = Cursor.SW_RESIZE; resizeDirection = 6; }
+                else { cursor = Cursor.W_RESIZE; resizeDirection = 7; }
+            } else if (x > width - RESIZE_BORDER) {
+                if (resizeDirection == 1) { cursor = Cursor.NE_RESIZE; resizeDirection = 2; }
+                else if (resizeDirection == 5) { cursor = Cursor.SE_RESIZE; resizeDirection = 4; }
+                else { cursor = Cursor.E_RESIZE; resizeDirection = 3; }
             }
-            double currentVolume = mediaPlayer.getVolume();
-            mediaPlayer.setVolume(clamp(currentVolume + VOLUME_STEP, 0.0, 1.0));
-        }
-    }
+            pipStage.getScene().setCursor(cursor);
+        });
 
-    private void decreaseVolume() {
-        if (mediaPlayer != null) {
-            if (mediaPlayer.isMute()) {
-                mediaPlayer.setMute(false);
+        pipRoot.setOnMousePressed(event -> {
+            if (event.getButton() == MouseButton.PRIMARY && resizeDirection != 0) {
+                isResizing = true;
+                initialX = event.getScreenX();
+                initialY = event.getScreenY();
+                initialWidth = pipStage.getWidth();
+                initialHeight = pipStage.getHeight();
             }
-            double currentVolume = mediaPlayer.getVolume();
-            mediaPlayer.setVolume(clamp(currentVolume - VOLUME_STEP, 0.0, 1.0));
-        }
-    }
+        });
 
-    private void hideMouseCursor() {
-        if (fullscreenStage != null && fullscreenStage.getScene() != null) {
-            fullscreenStage.getScene().setCursor(Cursor.NONE);
-        }
-    }
+        pipRoot.setOnMouseDragged(event -> {
+            if (isResizing) {
+                double newWidth = initialWidth, newHeight = initialHeight;
+                double newX = pipStage.getX(), newY = pipStage.getY();
+                double deltaX = event.getScreenX() - initialX;
+                double deltaY = event.getScreenY() - initialY;
 
-    private void showMouseCursor() {
-        if (fullscreenStage != null && fullscreenStage.getScene() != null) {
-            fullscreenStage.getScene().setCursor(Cursor.DEFAULT);
-        }
-    }
+                if ((resizeDirection & 1) != 0) { newHeight = initialHeight - deltaY; newY = initialY + deltaY; } // N
+                if ((resizeDirection & 4) != 0) { newHeight = initialHeight + deltaY; } // S
+                if ((resizeDirection & 2) != 0) { newWidth = initialWidth + deltaX; } // E
+                if ((resizeDirection & 8) != 0) { newWidth = initialWidth - deltaX; newX = initialX + deltaX; } // W
 
-    private static double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
+                if (newWidth < MIN_WIDTH) {
+                    if ((resizeDirection & 8) != 0) newX = pipStage.getX() + newWidth - MIN_WIDTH;
+                    newWidth = MIN_WIDTH;
+                }
+                if (newHeight < MIN_HEIGHT) {
+                    if ((resizeDirection & 1) != 0) newY = pipStage.getY() + newHeight - MIN_HEIGHT;
+                    newHeight = MIN_HEIGHT;
+                }
+                pipStage.setWidth(newWidth);
+                pipStage.setHeight(newHeight);
+                pipStage.setX(newX);
+                pipStage.setY(newY);
+            }
+        });
+
+        pipRoot.setOnMouseReleased(event -> {
+            isResizing = false;
+            resizeDirection = 0;
+            pipStage.getScene().setCursor(Cursor.DEFAULT);
+        });
     }
 }

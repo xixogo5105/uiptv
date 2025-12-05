@@ -287,10 +287,8 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             String iconPath = "/icons/videoPlayer/" + iconName;
             java.net.URL resourceUrl = getClass().getResource(iconPath);
             if (resourceUrl == null) {
-                System.err.println("Resource URL for " + iconName + " not found: " + iconPath);
                 return new ImageView(); // Return empty view if resource not found
             }
-            System.out.println("Resource URL for " + iconName + ": " + resourceUrl.toExternalForm()); // Diagnostic output
 
             Image image = new Image(resourceUrl.toExternalForm());
             ImageView imageView = new ImageView(image);
@@ -312,8 +310,6 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
 
             return imageView;
         } catch (Exception e) {
-            System.err.println("Failed to load icon: " + iconName);
-            e.printStackTrace();
             return new ImageView(); // Return empty view on error
         }
     }
