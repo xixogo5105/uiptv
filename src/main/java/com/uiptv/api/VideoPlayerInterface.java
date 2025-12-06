@@ -2,7 +2,7 @@ package com.uiptv.api;
 
 import javafx.scene.Node;
 
-public interface EmbeddedVideoPlayer {
+public interface VideoPlayerInterface {
 
     enum PlayerType {
         VLC,

@@ -1,6 +1,6 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.EmbeddedVideoPlayer;
+import com.uiptv.api.VideoPlayerInterface;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -28,11 +28,10 @@ import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.Cursor;
 
 
-public class VlcVideoPlayer implements EmbeddedVideoPlayer {
+public class VlcVideoPlayer implements VideoPlayerInterface {
     private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
 
@@ -105,11 +104,11 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        btnMute = createIconButton(muteOnIcon);
+        btnMute = createIconButton(muteOffIcon);
         // Initialize mute button graphic: if currently muted, show muteOnIcon (to unmute); otherwise, show muteOffIcon (to mute)
         btnMute.setGraphic(mediaPlayer.audio().isMute() ? muteOnIcon : muteOffIcon);
 
-        volumeSlider = new Slider(0, 200, 50);
+        volumeSlider = new Slider(0, 200, 100);
         volumeSlider.setPrefWidth(100);
 
         HBox topRow = new HBox(8);
@@ -220,7 +219,7 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             if (delta == 0) return;
             // Invert the delta for "natural" scrolling, then multiply by a step value.
             // This ensures scroll up always increases volume and scroll down always decreases.
-            double change = -Math.signum(delta) * 5;
+            double change = Math.signum(delta) * 5;
             volumeSlider.setValue(volumeSlider.getValue() + change);
         });
 
@@ -374,6 +373,8 @@ public class VlcVideoPlayer implements EmbeddedVideoPlayer {
             playerContainer.setManaged(true);
             playerContainer.setMinHeight(275);
             loadingSpinner.setVisible(true);
+            mediaPlayer.audio().setMute(false);
+            btnMute.setGraphic(muteOffIcon);
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
             mediaPlayer.media().play(uri);
         }

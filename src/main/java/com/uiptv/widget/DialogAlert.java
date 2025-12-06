@@ -13,8 +13,7 @@ public class DialogAlert {
         yesButton.setDefaultButton(false);
         Button noButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.NO);
         noButton.setDefaultButton(true);
-        confirmDialogue.initModality(Modality.APPLICATION_MODAL);
-        confirmDialogue.initOwner(RootApplication.primaryStage);
+        confirmDialogue.initModality(Modality.NONE);
         confirmDialogue.showAndWait();
         return confirmDialogue;
     }

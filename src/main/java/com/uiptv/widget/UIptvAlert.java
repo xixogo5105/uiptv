@@ -9,8 +9,7 @@ import javafx.stage.Modality;
 public class UIptvAlert {
     public static void showMessageAlert(String contents) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION, contents, ButtonType.CLOSE);
-        alert.initModality(Modality.APPLICATION_MODAL);
-        alert.initOwner(RootApplication.primaryStage);
+        alert.initModality(Modality.NONE);
         alert.showAndWait();
     }
 
@@ -35,8 +34,7 @@ public class UIptvAlert {
             LogDisplayUI.addLog(ex.getMessage());
         }
         Alert alert = new Alert(Alert.AlertType.ERROR, contents, ButtonType.CLOSE);
-        alert.initModality(Modality.APPLICATION_MODAL);
-        alert.initOwner(RootApplication.primaryStage);
+        alert.initModality(Modality.NONE);
         alert.showAndWait();
     }
 }

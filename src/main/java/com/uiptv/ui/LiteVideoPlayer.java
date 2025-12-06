@@ -1,6 +1,6 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.EmbeddedVideoPlayer;
+import com.uiptv.api.VideoPlayerInterface;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -32,7 +32,7 @@ import javafx.util.Duration;
 
 import java.io.File;
 
-public class LiteVideoPlayer implements EmbeddedVideoPlayer {
+public class LiteVideoPlayer implements VideoPlayerInterface {
 
     private MediaPlayer mediaPlayer;
     private final MediaView mediaView = new MediaView();
@@ -221,9 +221,8 @@ public class LiteVideoPlayer implements EmbeddedVideoPlayer {
         playerContainer.setOnScroll(e -> {
             double delta = e.getDeltaY();
             if (delta == 0) return;
-            // Invert the delta for "natural" scrolling, then multiply by a step value.
             // This ensures scroll up always increases volume and scroll down always decreases.
-            double change = -Math.signum(delta) * 5;
+            double change = Math.signum(delta) * 5;
             volumeSlider.setValue(volumeSlider.getValue() + change);
         });
 
@@ -409,8 +408,9 @@ public class LiteVideoPlayer implements EmbeddedVideoPlayer {
             mediaPlayer = new MediaPlayer(media);
             mediaView.setMediaPlayer(mediaPlayer);
 
-            // Set initial volume
+            // Set initial volume and mute state
             mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
+            mediaPlayer.setMute(false);
             mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
                 btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
             });

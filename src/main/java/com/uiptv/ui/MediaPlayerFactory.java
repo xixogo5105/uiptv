@@ -1,16 +1,16 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.EmbeddedVideoPlayer;
+import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.service.ConfigurationService;
 import javafx.scene.Node;
 import javafx.scene.layout.Region;
 
 public class MediaPlayerFactory {
 
-    private static EmbeddedVideoPlayer instance;
+    private static VideoPlayerInterface instance;
 
 
-    public static synchronized EmbeddedVideoPlayer getPlayer() {
+    public static synchronized VideoPlayerInterface getPlayer() {
         if (instance == null) {
             if (ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
                 try {
@@ -23,7 +23,7 @@ public class MediaPlayerFactory {
                     definePlayerRegion(playerContainer);
                 }
             } else {
-                instance = new DummyEmbeddedVideoPlayer();
+                instance = new DummyVideoPlayer();
                 if (instance.getPlayerContainer() instanceof Region playerContainer) {
                     defineDummyRegion(playerContainer);
                 }

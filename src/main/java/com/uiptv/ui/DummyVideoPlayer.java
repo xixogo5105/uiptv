@@ -1,10 +1,10 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.EmbeddedVideoPlayer;
+import com.uiptv.api.VideoPlayerInterface;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 
-public class DummyEmbeddedVideoPlayer implements EmbeddedVideoPlayer {
+public class DummyVideoPlayer implements VideoPlayerInterface {
     @Override
     public void play(String source) {
         // Do nothing
