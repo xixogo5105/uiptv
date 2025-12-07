@@ -15,8 +15,9 @@ public class MediaPlayerFactory {
             if (ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
                 try {
                     instance = new VlcVideoPlayer();
+                    System.out.println("VLC found. Using it for embedded player");
                 } catch (Throwable bundledError) {
-                    System.err.println("Failed to load VLC libraries. Falling back to the Lite player that can only play h264 videos");
+                    System.out.println("VLC not found. Using Lite player that plays limited set of videos");
                     instance = new LiteVideoPlayer();
                 }
                 if (instance.getPlayerContainer() instanceof Region playerContainer) {
