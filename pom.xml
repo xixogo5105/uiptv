@@ -13,10 +13,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <sqlite.arch>x86_64</sqlite.arch>
-        <javafx.version>21.0.2</javafx.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <maven.compiler.release>17</maven.compiler.release>
+        <javafx.version>25.0.1</javafx.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <maven.compiler.release>25</maven.compiler.release>
         <jpackage.version>1.0.8</jpackage.version>
         <vlcj.version>4.8.3</vlcj.version>
         <!--        <javafx.platform>mac-aarch64</javafx.platform>-->
