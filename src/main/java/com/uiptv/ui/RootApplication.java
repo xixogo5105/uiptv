@@ -22,6 +22,8 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -36,6 +38,17 @@ public class RootApplication extends Application {
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
 
     public static void main(String[] args) {
+        if (args == null || Arrays.stream(args).noneMatch(s -> s.equalsIgnoreCase("--show-logs"))) {
+            PrintStream dummyStream = new PrintStream(new OutputStream() {
+                @Override
+                public void write(int b) {
+                    // NO-OP
+                }
+            });
+            System.setOut(dummyStream);
+            System.setErr(dummyStream);
+        }
+
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
             handleSync(args);
             exit(0);
