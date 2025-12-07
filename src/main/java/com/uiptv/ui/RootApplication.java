@@ -10,7 +10,6 @@ import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.geometry.Insets;
 import javafx.geometry.Side;
 import javafx.scene.Scene;
 import javafx.scene.control.Tab;
@@ -126,12 +125,10 @@ public class RootApplication extends Application {
         configureUIComponents(configurationUI, parseMultipleAccountUI, manageAccountUI, bookmarkChannelListUI, accountListUI);
 
         TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
-        tabPane.setPadding(new Insets(0,0,0,0));
 
         HBox embeddedPlayer = new HBox(MediaPlayerFactory.getPlayerContainer()); // Usage updated
-        embeddedPlayer.setPadding(new Insets(0));
 
-
+        embeddedPlayer.setPadding(new javafx.geometry.Insets(5));
         VBox containerWithEmbeddedPlayer = new VBox();
         VBox.setVgrow(tabPane, Priority.ALWAYS);
         containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, tabPane);
