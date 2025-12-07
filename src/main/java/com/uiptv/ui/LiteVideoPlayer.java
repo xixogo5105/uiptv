@@ -22,6 +22,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.scene.media.Media;
+import javafx.scene.media.MediaException;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
@@ -31,6 +32,8 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.io.File;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class LiteVideoPlayer implements VideoPlayerInterface {
 
@@ -43,6 +46,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private Label timeLabel;
     private VBox controlsContainer;
     private ProgressIndicator loadingSpinner;
+    private Label errorLabel; // Added for displaying errors
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -83,6 +87,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     private final ChangeListener<Duration> progressListener;
     private final ChangeListener<MediaPlayer.Status> statusListener;
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36";
 
 
     public LiteVideoPlayer() {
@@ -146,7 +151,14 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         loadingSpinner.setMaxSize(60, 60);
         loadingSpinner.setVisible(false);
 
-        playerContainer.getChildren().addAll(mediaView, overlayWrapper, loadingSpinner);
+        errorLabel = new Label();
+        errorLabel.setTextFill(Color.WHITE);
+        errorLabel.setWrapText(true);
+        errorLabel.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 10; -fx-background-radius: 5;");
+        errorLabel.setVisible(false);
+        StackPane.setAlignment(errorLabel, Pos.CENTER);
+
+        playerContainer.getChildren().addAll(mediaView, overlayWrapper, loadingSpinner, errorLabel);
 
         // --- 4. EVENT LOGIC ---
         btnPlayPause.setOnAction(e -> {
@@ -240,12 +252,17 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         btnPlayPause.setGraphic(playIcon);
                         break;
                     case STOPPED:
-                    case HALTED:
                         btnPlayPause.setGraphic(playIcon);
                         timeSlider.setValue(0);
                         loadingSpinner.setVisible(false);
-                        if (newStatus == MediaPlayer.Status.HALTED) {
-                            System.err.println("An error occurred in the media player.");
+                        break;
+                    case HALTED:
+                        loadingSpinner.setVisible(false);
+                        // The specific error is handled by the onError handler,
+                        // but we ensure the UI is cleaned up.
+                        if (!errorLabel.isVisible()) {
+                            errorLabel.setText("An error occurred during playback.");
+                            errorLabel.setVisible(true);
                         }
                         break;
                     case READY:
@@ -378,18 +395,26 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
     }
 
+    private String getFinalUrl(String url) throws Exception {
+        HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+        con.setInstanceFollowRedirects(true);
+        con.setRequestProperty("User-Agent", USER_AGENT);
+        con.connect();
+        return con.getURL().toString();
+    }
+
     @Override
     public void play(String uri) {
         if (uri == null || uri.isEmpty()) {
             stop();
             return;
         }
-
-        this.currentMediaUri = uri;
+        this.currentMediaUri = uri.replace("extension=ts", "extension=m3u8");
         playerContainer.setVisible(true);
         playerContainer.setManaged(true);
         playerContainer.setMinHeight(275);
         loadingSpinner.setVisible(true);
+        errorLabel.setVisible(false); // Hide error from previous attempt
 
         // Dispose of old player first
         if (mediaPlayer != null) {
@@ -397,43 +422,73 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             mediaPlayer.dispose();
         }
 
-        try {
-            String sourceUrl = uri.trim();
-            if (!sourceUrl.startsWith("http") && !sourceUrl.startsWith("file:")) {
-                File f = new File(sourceUrl);
-                if (f.exists()) sourceUrl = f.toURI().toString();
-            }
-
-            Media media = new Media(sourceUrl);
-            mediaPlayer = new MediaPlayer(media);
-            mediaView.setMediaPlayer(mediaPlayer);
-
-            // Set initial volume and mute state
-            mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
-            mediaPlayer.setMute(false);
-            mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
-                btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
-            });
-
-            mediaPlayer.statusProperty().addListener(statusListener);
-            mediaPlayer.currentTimeProperty().addListener(progressListener);
-            mediaPlayer.setOnEndOfMedia(() -> {
-                if (isRepeating) {
-                    play(currentMediaUri); // Reload the stream
-                } else {
-                    btnPlayPause.setGraphic(playIcon);
-                    mediaPlayer.seek(Duration.ZERO);
-                    mediaPlayer.pause();
+        new Thread(() -> {
+            try {
+                String sourceUrl = uri.replace("extension=ts", "extension=m3u8").trim();
+                if (sourceUrl.startsWith("http")) {
+                    sourceUrl = getFinalUrl(sourceUrl);
+                } else if (!sourceUrl.startsWith("file:")) {
+                    File f = new File(sourceUrl);
+                    if (f.exists()) sourceUrl = f.toURI().toString();
                 }
-            });
 
-            mediaPlayer.play();
-        } catch (Exception e) {
-            System.err.println("Error playing media: " + uri);
+                final String finalSourceUrl = sourceUrl;
+                Platform.runLater(() -> {
+                    try {
+                        Media media = new Media(finalSourceUrl);
+                        mediaPlayer = new MediaPlayer(media);
+                        mediaView.setMediaPlayer(mediaPlayer);
+
+                        mediaPlayer.setOnError(() -> {
+                            final MediaException me = mediaPlayer.getError();
+                            Platform.runLater(() -> {
+                                System.err.println("MediaPlayer Error: " + me.getMessage() + " (" + me.getType() + ")");
+                                errorLabel.setText("Could not play video.\nUnsupported format or network error.");
+                                errorLabel.setVisible(true);
+                                loadingSpinner.setVisible(false);
+                            });
+                        });
+
+                        // Set initial volume and mute state
+                        mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
+                        mediaPlayer.setMute(false);
+                        mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
+                            btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
+                        });
+
+                        mediaPlayer.statusProperty().addListener(statusListener);
+                        mediaPlayer.currentTimeProperty().addListener(progressListener);
+                        mediaPlayer.setOnEndOfMedia(() -> {
+                            if (isRepeating) {
+                                play(currentMediaUri); // Reload the stream
+                            } else {
+                                btnPlayPause.setGraphic(playIcon);
+                                mediaPlayer.seek(Duration.ZERO);
+                                mediaPlayer.pause();
+                            }
+                        });
+
+                        mediaPlayer.play();
+                    } catch (Exception e) {
+                        handlePlaybackError("Error creating media player.", e);
+                    }
+                });
+            } catch (Exception e) {
+                handlePlaybackError("Error resolving media URL.", e);
+            }
+        }).start();
+    }
+
+    private void handlePlaybackError(String message, Exception e) {
+        Platform.runLater(() -> {
+            System.err.println(message + ": " + e.getMessage());
             e.printStackTrace();
             loadingSpinner.setVisible(false);
-        }
+            errorLabel.setText("Could not load video.\nInvalid path or network issue.");
+            errorLabel.setVisible(true);
+        });
     }
+
 
     @Override
     public Node getPlayerContainer() {

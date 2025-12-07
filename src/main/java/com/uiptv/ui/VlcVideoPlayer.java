@@ -41,6 +41,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private Label timeLabel;
     private VBox controlsContainer;
     private ProgressIndicator loadingSpinner;
+    private Label errorLabel;
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -82,7 +83,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     public VlcVideoPlayer() {
         // --- 1. VLCJ SETUP ---
-        mediaPlayerFactory = new MediaPlayerFactory();
+        String[] vlcArgs = {
+                "--avcodec-hw=auto",              // Automatically select the best hardware decoder
+                "--network-caching=1000"          // Increase network cache for smoother streaming
+        };
+        mediaPlayerFactory = new MediaPlayerFactory(vlcArgs);
         mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
         videoImageView = new ImageView();
         videoImageView.setPreserveRatio(true);
@@ -149,7 +154,14 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         loadingSpinner.setMaxSize(60, 60);
         loadingSpinner.setVisible(false);
 
-        playerContainer.getChildren().addAll(videoImageView, overlayWrapper, loadingSpinner);
+        errorLabel = new Label();
+        errorLabel.setTextFill(Color.WHITE);
+        errorLabel.setWrapText(true);
+        errorLabel.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 10; -fx-background-radius: 5;");
+        errorLabel.setVisible(false);
+        StackPane.setAlignment(errorLabel, Pos.CENTER);
+
+        playerContainer.getChildren().addAll(videoImageView, overlayWrapper, loadingSpinner, errorLabel);
 
         // --- 4. EVENT LOGIC ---
         btnPlayPause.setOnAction(e -> {
@@ -269,6 +281,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     System.err.println("An error occurred in the media player.");
+                    errorLabel.setText("Could not play video.\nUnsupported format or network error.");
+                    errorLabel.setVisible(true);
                 });
             }
         });
@@ -373,6 +387,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             playerContainer.setManaged(true);
             playerContainer.setMinHeight(275);
             loadingSpinner.setVisible(true);
+            errorLabel.setVisible(false);
             mediaPlayer.audio().setMute(false);
             btnMute.setGraphic(muteOffIcon);
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
