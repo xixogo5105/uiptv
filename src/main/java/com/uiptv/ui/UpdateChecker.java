@@ -36,8 +36,9 @@ public class UpdateChecker {
 
                 if (isUpdateAvailable(updateInfo.getVersion())) {
                     Platform.runLater(() -> {
-                        UIptvAlert.showMessageAlert("Update Available: " + updateInfo.getVersion() + "\n\nRelease notes: " + updateInfo.getDescription() + "\n\nClick 'OK' to download.");
-                        openWebpage(hostServices, updateInfo.getUrl());
+                        if (UIptvAlert.showConfirmationAlert("Update Available: " + updateInfo.getVersion() + "\n\nRelease notes: " + updateInfo.getDescription() + "\n\nClick 'OK' to download.")) {
+                            openWebpage(hostServices, updateInfo.getUrl());
+                        }
                     });
                 } else {
                     Platform.runLater(() -> {
