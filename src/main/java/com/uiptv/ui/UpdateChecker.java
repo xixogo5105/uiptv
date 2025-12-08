@@ -14,7 +14,7 @@ import java.net.URL;
 
 public class UpdateChecker {
 
-    private static final String UPDATE_URL = "https://raw.githubusercontent.com/uiptv/uiptv/master/src/main/resources/update.json";
+    private static final String UPDATE_URL = "https://raw.githubusercontent.com/xixogo5105/uiptv/refs/heads/main/src/main/resources/update.json";
 
     public static void checkForUpdates(HostServices hostServices) {
         new Thread(() -> {
