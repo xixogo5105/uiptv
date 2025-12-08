@@ -12,6 +12,9 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Side;
 import javafx.scene.Scene;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.image.Image;
@@ -37,6 +40,7 @@ public class RootApplication extends Application {
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
 
     public static void main(String[] args) {
+        System.setProperty("apple.awt.application.name", "UIPTV");
         if (args == null || Arrays.stream(args).noneMatch(s -> s.equalsIgnoreCase("--show-logs"))) {
             PrintStream dummyStream = new PrintStream(new OutputStream() {
                 @Override
@@ -137,7 +141,21 @@ public class RootApplication extends Application {
         tabPane.setMinWidth(480);
         tabPane.setPrefWidth(480);
         tabPane.setMaxWidth(480);
-        Scene scene = new Scene(mainContent, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
+
+        MenuBar menuBar = new MenuBar();
+        menuBar.setUseSystemMenuBar(true);
+        Menu helpMenu = new Menu("Help");
+        MenuItem aboutItem = new MenuItem("About");
+        aboutItem.setOnAction(e -> new AboutUI(getHostServices()));
+        MenuItem updateItem = new MenuItem("Check for updates...");
+        updateItem.setOnAction(e -> UpdateChecker.checkForUpdates(getHostServices()));
+        helpMenu.getItems().addAll(aboutItem, updateItem);
+        menuBar.getMenus().add(helpMenu);
+
+        VBox rootLayout = new VBox(menuBar, mainContent);
+        VBox.setVgrow(mainContent, Priority.ALWAYS);
+
+        Scene scene = new Scene(rootLayout, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
         configureFontStyles(scene);
         primaryStage.setTitle("UIPTV");
         primaryStage.setMaximized(true);

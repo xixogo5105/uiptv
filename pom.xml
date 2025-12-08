@@ -6,7 +6,7 @@
 
     <groupId>com.spc</groupId>
     <artifactId>uiptv</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>0.0.8-SNAPSHOT</version>
     <name>UIPTV</name>
 
     <properties>
@@ -124,6 +124,26 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[25,)</version>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.6.1</version>
                 <executions>
@@ -161,6 +181,9 @@
                             <stripDebug>true</stripDebug>
                             <noHeaderFiles>true</noHeaderFiles>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <options>
+                                <option>--enable-native-access=javafx.graphics,io.github.willena.sqlitejdbc,com.sun.jna</option>
+                            </options>
                         </configuration>
                     </execution>
                 </executions>
@@ -263,6 +286,7 @@
                             <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
+                                <option>-Xdock:name=UIPTV</option>
                             </javaOptions>
                         </configuration>
                     </plugin>
