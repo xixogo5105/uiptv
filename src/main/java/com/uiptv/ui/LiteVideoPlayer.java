@@ -89,6 +89,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private final ChangeListener<MediaPlayer.Status> statusListener;
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36";
 
+    private boolean isMuted = true; // Track mute state
+
 
     public LiteVideoPlayer() {
         mediaView.setPreserveRatio(true);
@@ -108,7 +110,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        btnMute = createIconButton(muteOffIcon);
+        btnMute = createIconButton(muteOnIcon); // Set to muteOnIcon initially
 
         volumeSlider = new Slider(0, 100, 50); // Use 0-100 scale
         volumeSlider.setPrefWidth(100);
@@ -189,9 +191,11 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         btnPip.setOnAction(e -> togglePip());
 
         btnMute.setOnAction(e -> {
+            isMuted = !isMuted; // Toggle internal state
             if (mediaPlayer != null) {
-                mediaPlayer.setMute(!mediaPlayer.isMute());
+                mediaPlayer.setMute(isMuted); // Apply to player
             }
+            btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
         });
 
         volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -418,6 +422,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         // Dispose of old player first
         if (mediaPlayer != null) {
+            isMuted = mediaPlayer.isMute(); // Preserve current mute state before disposing
             mediaPlayer.stop();
             mediaPlayer.dispose();
         }
@@ -451,8 +456,10 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
                         // Set initial volume and mute state
                         mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
-                        mediaPlayer.setMute(false);
+                        mediaPlayer.setMute(isMuted); // Apply the preserved mute state
+                        btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
                         mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
+                            isMuted = newMute; // Keep internal state in sync
                             btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
                         });
 

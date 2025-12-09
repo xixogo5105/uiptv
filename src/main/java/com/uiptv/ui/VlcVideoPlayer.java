@@ -16,6 +16,9 @@ import javafx.scene.control.Slider;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelFormat;
+import javafx.scene.image.WritableImage;
+import javafx.scene.image.WritablePixelFormat;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
@@ -25,14 +28,23 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
-import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
+import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
+import uk.co.caprica.vlcj.player.embedded.videosurface.CallbackVideoSurface;
+import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurfaceAdapters;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
 import javafx.scene.Cursor;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class VlcVideoPlayer implements VideoPlayerInterface {
-    private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
 
     // UI Components
@@ -80,19 +92,28 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private static final double MIN_WIDTH = 200;
     private static final double MIN_HEIGHT = 150;
 
+    private WritableImage videoImage;
+    private WritablePixelFormat<ByteBuffer> pixelFormat;
+
 
     public VlcVideoPlayer() {
         // --- 1. VLCJ SETUP ---
-        String[] vlcArgs = {
-                "--avcodec-hw=auto",              // Automatically select the best hardware decoder
-                "--network-caching=1000"          // Increase network cache for smoother streaming
-        };
-        mediaPlayerFactory = new MediaPlayerFactory(vlcArgs);
+        List<String> vlcArgs = new ArrayList<>();
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("mac")) {
+            vlcArgs.add("--avcodec-hw=videotoolbox");
+        } else {
+            vlcArgs.add("--avcodec-hw=auto");
+        }
+        vlcArgs.add("--network-caching=5000");
+
+        MediaPlayerFactory mediaPlayerFactory = new MediaPlayerFactory(vlcArgs.toArray(new String[0]));
         mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
         videoImageView = new ImageView();
         videoImageView.setPreserveRatio(true);
-        mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
+        mediaPlayer.videoSurface().set(new FXCallbackVideoSurface()); // Changed to use CallbackVideoSurface
         mediaPlayer.controls().setRepeat(false);
+        mediaPlayer.audio().setMute(true); // Explicitly mute in constructor
 
         // --- 1.5 LOAD ICONS ---
         loadIcons();
@@ -109,9 +130,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        btnMute = createIconButton(muteOffIcon);
-        // Initialize mute button graphic: if currently muted, show muteOnIcon (to unmute); otherwise, show muteOffIcon (to mute)
-        btnMute.setGraphic(mediaPlayer.audio().isMute() ? muteOnIcon : muteOffIcon);
+        btnMute = createIconButton(muteOnIcon); // Set to muteOnIcon initially
 
         volumeSlider = new Slider(0, 200, 100);
         volumeSlider.setPrefWidth(100);
@@ -164,7 +183,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         playerContainer.getChildren().addAll(videoImageView, overlayWrapper, loadingSpinner, errorLabel);
 
         // --- 4. EVENT LOGIC ---
-        btnPlayPause.setOnAction(e -> {
+        btnPlayPause.setOnAction(_ -> {
             if (mediaPlayer.status().isPlaying()) {
                 mediaPlayer.controls().pause();
             } else {
@@ -172,46 +191,46 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             }
         });
 
-        btnStop.setOnAction(e -> stop());
+        btnStop.setOnAction(_ -> stop());
 
-        btnRepeat.setOnAction(e -> {
+        btnRepeat.setOnAction(_ -> {
             boolean isRepeating = !mediaPlayer.controls().getRepeat();
             mediaPlayer.controls().setRepeat(isRepeating);
             btnRepeat.setGraphic(isRepeating ? repeatOnIcon : repeatOffIcon);
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
         });
 
-        btnReload.setOnAction(e -> {
+        btnReload.setOnAction(_ -> {
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
                 play(currentMediaUri);
             }
         });
 
-        btnFullscreen.setOnAction(e -> toggleFullscreen());
+        btnFullscreen.setOnAction(_ -> toggleFullscreen());
 
-        btnPip.setOnAction(e -> togglePip()); // PiP button action
+        btnPip.setOnAction(_ -> togglePip()); // PiP button action
 
-        btnMute.setOnAction(e -> {
+        btnMute.setOnAction(_ -> {
             boolean isMuted = !mediaPlayer.audio().isMute();
             mediaPlayer.audio().setMute(isMuted);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
         });
 
-        volumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
+        volumeSlider.valueProperty().addListener((_, _, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
 
-        timeSlider.setOnMousePressed(e -> {
+        timeSlider.setOnMousePressed(_ -> {
             isUserSeeking = true;
             idleTimer.stop(); // Keep controls visible while seeking
         });
-        timeSlider.setOnMouseReleased(e -> {
+        timeSlider.setOnMouseReleased(_ -> {
             mediaPlayer.controls().setPosition((float) timeSlider.getValue());
             isUserSeeking = false;
             idleTimer.playFromStart(); // Restart idle timer
         });
 
         // Add mouse pressed/released handlers for volumeSlider to control idleTimer
-        volumeSlider.setOnMousePressed(e -> idleTimer.stop());
-        volumeSlider.setOnMouseReleased(e -> idleTimer.playFromStart());
+        volumeSlider.setOnMousePressed(_ -> idleTimer.stop());
+        volumeSlider.setOnMouseReleased(_ -> idleTimer.playFromStart());
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -238,7 +257,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         // --- VLC EVENTS ---
         mediaPlayer.events().addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
             @Override
-            public void playing(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
+            public void playing(MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     btnPlayPause.setGraphic(pauseIcon);
@@ -248,27 +267,27 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             }
 
             @Override
-            public void paused(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
+            public void paused(MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
             }
 
             @Override
-            public void positionChanged(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer, float newPosition) {
+            public void positionChanged(MediaPlayer mediaPlayer, float newPosition) {
                 if (!isUserSeeking) Platform.runLater(() -> timeSlider.setValue(newPosition));
             }
 
             @Override
-            public void timeChanged(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer, long newTime) {
+            public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
                 Platform.runLater(() -> timeLabel.setText(formatTime(newTime) + " / " + formatTime(mediaPlayer.status().length())));
             }
 
             @Override
-            public void finished(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
+            public void finished(MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
             }
 
             @Override
-            public void stopped(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
+            public void stopped(MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
                     btnPlayPause.setGraphic(playIcon);
                     timeSlider.setValue(0);
@@ -277,7 +296,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             }
 
             @Override
-            public void error(uk.co.caprica.vlcj.player.base.MediaPlayer mediaPlayer) {
+            public void error(MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     System.err.println("An error occurred in the media player.");
@@ -343,8 +362,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btn.setGraphic(icon);
         btn.setPadding(new Insets(6));
         btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+        btn.setOnMouseEntered(_ -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
+        btn.setOnMouseExited(_ -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
         return btn;
     }
 
@@ -357,10 +376,10 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         fadeIn.setFromValue(0.0);
         fadeIn.setToValue(1.0);
         idleTimer = new PauseTransition(Duration.seconds(3));
-        idleTimer.setOnFinished(e -> fadeOut.play());
+        idleTimer.setOnFinished(_ -> fadeOut.play());
 
         // Show controls when mouse moves over the player
-        playerContainer.setOnMouseMoved(e -> {
+        playerContainer.setOnMouseMoved(_ -> {
             if (controlsContainer.getOpacity() < 1.0) {
                 fadeIn.play();
             }
@@ -368,15 +387,15 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         });
 
         // Hide controls when mouse exits the player
-        playerContainer.setOnMouseExited(e -> {
+        playerContainer.setOnMouseExited(_ -> {
             if (!controlsContainer.isHover()) { // Only fade out if mouse is not over controls
                 idleTimer.playFromStart();
             }
         });
 
         // Keep controls visible when mouse is over them
-        controlsContainer.setOnMouseEntered(e -> idleTimer.stop());
-        controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
+        controlsContainer.setOnMouseEntered(_ -> idleTimer.stop());
+        controlsContainer.setOnMouseExited(_ -> idleTimer.playFromStart());
     }
 
     @Override
@@ -388,8 +407,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             playerContainer.setMinHeight(275);
             loadingSpinner.setVisible(true);
             errorLabel.setVisible(false);
-            mediaPlayer.audio().setMute(false);
-            btnMute.setGraphic(muteOffIcon);
+
+            boolean isMuted = mediaPlayer.audio().isMute(); // Get current mute state
+            mediaPlayer.audio().setMute(isMuted); // Apply current mute state (redundant but harmless if already set)
+            btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
+
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
             mediaPlayer.media().play(uri);
         }
@@ -439,7 +461,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             fullscreenStage.setScene(scene);
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
-            fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
+            fullscreenStage.setOnCloseRequest(_ -> exitFullscreen()); // Removed unused parameter 'e'
             fullscreenStage.show();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
@@ -455,7 +477,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     public void exitFullscreen() {
         if (fullscreenStage == null) return;
         Platform.runLater(() -> {
-            fullscreenStage.close();
+            if(fullscreenStage!=null)fullscreenStage.close();
             fullscreenStage = null;
             if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
             playerContainer.applyCss();
@@ -518,15 +540,15 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             restoreButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
             restoreButton.setPadding(new Insets(15));
             restoreButton.setVisible(false); // Initially hidden
-            restoreButton.setOnAction(e -> exitPip());
+            restoreButton.setOnAction(_ -> exitPip());
 
             // Add video and button to the root
             pipRoot.getChildren().addAll(videoImageView, restoreButton);
             StackPane.setAlignment(restoreButton, Pos.CENTER);
 
             // Show/hide restore button on hover
-            pipRoot.setOnMouseEntered(e -> restoreButton.setVisible(true));
-            pipRoot.setOnMouseExited(e -> restoreButton.setVisible(false));
+            pipRoot.setOnMouseEntered(_ -> restoreButton.setVisible(true));
+            pipRoot.setOnMouseExited(_ -> restoreButton.setVisible(false));
 
             // Bind videoImageView size to pipRoot size
             videoImageView.fitWidthProperty().bind(pipRoot.widthProperty());
@@ -672,7 +694,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 }
             });
 
-            pipRoot.setOnMouseReleased(event -> {
+            pipRoot.setOnMouseReleased(_ -> {
                 isResizing = false;
                 resizeDirection = 0;
                 pipStage.getScene().setCursor(Cursor.DEFAULT);
@@ -714,7 +736,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
             // Re-add videoImageView back to playerContainer
             // Ensure it's added before other overlays like controlsContainer
-            playerContainer.getChildren().add(0, videoImageView); // Add at index 0 to be at the bottom
+            playerContainer.getChildren().addFirst(videoImageView); // Changed to addFirst()
 
             // Ensure videoImageView is correctly re-parented and sized
             playerContainer.setVisible(true);
@@ -743,5 +765,35 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     @Override
     public PlayerType getType() {
         return PlayerType.VLC;
+    }
+
+    private class FXCallbackVideoSurface extends CallbackVideoSurface {
+        FXCallbackVideoSurface() {
+            super(new FXBufferFormatCallback(), new FXRenderCallback(), false, VideoSurfaceAdapters.getVideoSurfaceAdapter());
+        }
+    }
+
+    private static class FXBufferFormatCallback implements BufferFormatCallback {
+        @Override
+        public BufferFormat getBufferFormat(int sourceWidth, int sourceHeight) {
+            return new RV32BufferFormat(sourceWidth, sourceHeight);
+        }
+
+        @Override
+        public void allocatedBuffers(ByteBuffer[] buffers) {
+            // No-op
+        }
+    }
+
+    private class FXRenderCallback implements RenderCallback {
+        @Override
+        public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers, BufferFormat bufferFormat) {
+            if (videoImage == null || videoImage.getWidth() != bufferFormat.getWidth() || videoImage.getHeight() != bufferFormat.getHeight()) {
+                videoImage = new WritableImage(bufferFormat.getWidth(), bufferFormat.getHeight());
+                videoImageView.setImage(videoImage);
+                pixelFormat = PixelFormat.getByteBgraPreInstance();
+            }
+            Platform.runLater(() -> videoImage.getPixelWriter().setPixels(0, 0, bufferFormat.getWidth(), bufferFormat.getHeight(), pixelFormat, nativeBuffers[0], bufferFormat.getPitches()[0]));
+        }
     }
 }
