@@ -182,7 +182,9 @@
                             <noHeaderFiles>true</noHeaderFiles>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
                             <options>
-                                <option>--enable-native-access=javafx.graphics,io.github.willena.sqlitejdbc,com.sun.jna</option>
+                                <option>
+                                    --enable-native-access=javafx.graphics,io.github.willena.sqlitejdbc,com.sun.jna
+                                </option>
                             </options>
                         </configuration>
                     </execution>
@@ -278,6 +280,7 @@
                         </executions>
                         <configuration>
                             <name>UIPTV</name>
+                            <type>APP_IMAGE</type>
                             <input>${project.build.directory}/jpackage-app</input>
                             <mainClass>com.uiptv.Main</mainClass>
                             <mainJar>UIPTV.jar</mainJar>
@@ -289,6 +292,68 @@
                                 <option>-Xdock:name=UIPTV</option>
                             </javaOptions>
                         </configuration>
+                    </plugin>
+
+                    <plugin>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>swap-launcher-script</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <property name="app.path" value="${project.build.directory}/dist/UIPTV.app"/>
+                                        <property name="macos.dir" value="${app.path}/Contents/MacOS"/>
+                                        <property name="config.dir" value="${app.path}/Contents/app"/>
+                                        <property name="dmg.name" value="UIPTV-${project.version}.dmg"/>
+                                        <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
+
+                                        <echo message="1. Swapping JPackage binary and config..."/>
+
+                                        <move file="${macos.dir}/UIPTV" tofile="${macos.dir}/UIPTV_binary"/>
+
+                                        <move file="${config.dir}/UIPTV.cfg" tofile="${config.dir}/UIPTV_binary.cfg"/>
+
+                                        <copy file="${project.basedir}/src/main/resources/mac/binary/UIPTV"
+                                              tofile="${macos.dir}/UIPTV"/>
+
+                                        <chmod file="${macos.dir}/UIPTV" perm="755"/>
+
+                                        <echo message="5. Re-signing the Application..."/>
+                                        <exec executable="codesign" dir="${project.build.directory}">
+                                            <arg value="--force"/>
+                                            <arg value="--deep"/>
+                                            <arg value="--sign"/>
+                                            <arg value="-"/>
+                                            <arg value="${app.path}"/>
+                                        </exec>
+
+                                        <echo message="6. Creating DMG package..."/>
+                                        <exec executable="hdiutil" dir="${project.build.directory}">
+                                            <arg value="create"/>
+                                            <arg value="-volname"/>
+                                            <arg value="UIPTV"/>
+                                            <arg value="-srcfolder"/>
+                                            <arg value="${app.path}"/>
+                                            <arg value="-ov"/>
+                                            <arg value="-format"/>
+                                            <arg value="UDZO"/>
+                                            <arg value="${dmg.path}"/>
+                                        </exec>
+
+                                        <echo message="7. Cleaning up loose .app folder..."/>
+                                        <exec executable="rm">
+                                            <arg value="-rf"/>
+                                            <arg value="${app.path}"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
