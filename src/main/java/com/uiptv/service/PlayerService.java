@@ -3,6 +3,7 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
+import com.uiptv.util.YoutubeDL; // Import YoutubeDL
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -34,10 +35,13 @@ public class PlayerService {
     }
 
     public String get(Account account, String urlPrefix, String series) throws IOException {
-        if (preDefinedUrls.contains(account.getType())) return urlPrefix;
+        if (preDefinedUrls.contains(account.getType())) {
+            // For pre-defined URLs, we still want to check if they are YouTube links
+            return resolveAndProcessUrl(urlPrefix);
+        }
         try {
             if (isNotBlank(urlPrefix) && urlPrefix.contains("play_token=")) {
-                if (isNotBlank(urlPrefix.split("play_token=")[1])) return processUrl(urlPrefix);
+                if (isNotBlank(urlPrefix.split("play_token=")[1])) return resolveAndProcessUrl(urlPrefix);
             }
         } catch (Exception ignored) {
 
@@ -47,17 +51,18 @@ public class PlayerService {
             HandshakeService.getInstance().hardTokenRefresh(account);
             streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
         }
-        return streamReadyUrl;
+        return resolveAndProcessUrl(streamReadyUrl);
     }
 
     public String runBookmark(Account account, String urlPrefix) {
         HandshakeService.getInstance().connect(account);
-        return parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, ""), account));
+        String streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, ""), account));
+        return resolveAndProcessUrl(streamReadyUrl);
     }
 
     private String parseUrl(String json) {
         try {
-            return processUrl(new JSONObject(json).getJSONObject("js").getString("cmd"));
+            return new JSONObject(json).getJSONObject("js").getString("cmd");
         } catch (Exception ignored) {
         }
         return null;
@@ -76,11 +81,31 @@ public class PlayerService {
         return params;
     }
 
-    private static String processUrl(String url) {
+    /**
+     * Processes the URL, extracting the actual stream URL if it's a YouTube link.
+     * This method ensures that the final URL passed to the player is a direct stream URL
+     * for YouTube videos, while leaving other URLs untouched.
+     *
+     * @param url The URL to process.
+     * @return The resolved streaming URL for YouTube videos, or the original URL for others.
+     */
+    private static String resolveAndProcessUrl(String url) {
         if (isBlank(url)) return url;
+
+        String processedUrl = url;
         String[] uriParts = url.split(" ");
-        return (uriParts.length <= 1) ? url : uriParts[1];
+        if (uriParts.length > 1) {
+            processedUrl = uriParts[1]; // Original logic to extract the actual URL part
+        }
+
+        // Check if the link is a YouTube video URL
+        if (processedUrl != null && (processedUrl.contains("youtube.com/watch?v=") || processedUrl.contains("youtu.be/"))) {
+            String streamingUrl = YoutubeDL.getStreamingUrl(processedUrl);
+            if (streamingUrl != null && !streamingUrl.isEmpty()) {
+                return streamingUrl;
+            }
+        }
+        return processedUrl;
     }
 
 }
-
