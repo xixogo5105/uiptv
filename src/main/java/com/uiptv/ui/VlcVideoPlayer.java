@@ -101,7 +101,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         } else {
             vlcArgs.add("--avcodec-hw=auto");
         }
-        vlcArgs.add("--network-caching=5000");
+        vlcArgs.add("--network-caching=1000");
 
         MediaPlayerFactory mediaPlayerFactory = new MediaPlayerFactory(vlcArgs.toArray(new String[0]));
         mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
@@ -776,6 +776,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         }
 
         @Override
+        public void newFormatSize(int newWidth, int newHeight, int sarNumerator, int sarDenominator) {
+            // No-op, as the BufferFormat is returned by getBufferFormat
+        }
+
+        @Override
         public void allocatedBuffers(ByteBuffer[] buffers) {
             // No-op
         }
@@ -783,7 +788,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     private class FXRenderCallback implements RenderCallback {
         @Override
-        public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers, BufferFormat bufferFormat) {
+        public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers, BufferFormat bufferFormat, int sarNum, int sarDen) {
             if (videoImage == null || videoImage.getWidth() != bufferFormat.getWidth() || videoImage.getHeight() != bufferFormat.getHeight()) {
                 videoImage = new WritableImage(bufferFormat.getWidth(), bufferFormat.getHeight());
                 videoImageView.setImage(videoImage);
@@ -791,5 +796,16 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             }
             Platform.runLater(() -> videoImage.getPixelWriter().setPixels(0, 0, bufferFormat.getWidth(), bufferFormat.getHeight(), pixelFormat, nativeBuffers[0], bufferFormat.getPitches()[0]));
         }
+
+        @Override
+        public void lock(MediaPlayer mediaPlayer) {
+            // No-op, typically used to acquire a lock before rendering
+        }
+
+        @Override
+        public void unlock(MediaPlayer mediaPlayer) {
+            // No-op, typically used to release locks acquired during rendering
+        }
+
     }
 }
