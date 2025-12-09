@@ -18,7 +18,7 @@
         <maven.compiler.target>25</maven.compiler.target>
         <maven.compiler.release>25</maven.compiler.release>
         <jpackage.version>1.0.8</jpackage.version>
-        <vlcj.version>4.12.0</vlcj.version>
+        <vlcj.version>4.8.3</vlcj.version>
         <!--        <javafx.platform>mac-aarch64</javafx.platform>-->
         <!--        <javafx.platform>win</javafx.platform>-->
         <javafx.platform>linux</javafx.platform>

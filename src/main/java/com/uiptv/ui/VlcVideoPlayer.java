@@ -7,6 +7,7 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -14,11 +15,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Slider;
 import javafx.scene.effect.ColorAdjust;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.image.PixelFormat;
-import javafx.scene.image.WritableImage;
-import javafx.scene.image.WritablePixelFormat;
+import javafx.scene.image.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
@@ -37,7 +34,6 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
-import javafx.scene.Cursor;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -477,7 +473,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     public void exitFullscreen() {
         if (fullscreenStage == null) return;
         Platform.runLater(() -> {
-            if(fullscreenStage!=null)fullscreenStage.close();
+            if (fullscreenStage != null) fullscreenStage.close();
             fullscreenStage = null;
             if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
             playerContainer.applyCss();
@@ -725,7 +721,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
             // Remove videoImageView from its current parent (pipRoot)
             // This is important because pipRoot is about to be garbage collected
-            ((Pane)videoImageView.getParent()).getChildren().remove(videoImageView);
+            ((Pane) videoImageView.getParent()).getChildren().remove(videoImageView);
 
             // Re-add playerContainer to its original parent
             if (originalParent != null) {
