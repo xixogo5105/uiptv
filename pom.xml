@@ -345,7 +345,7 @@
                                             <arg value="${dmg.path}"/>
                                         </exec>
 
-                                        <echo message="7. Cleaning up loose .app folder..."/>
+                                        <echo message="7. Cleaning up ${app.path}..."/>
                                         <exec executable="rm">
                                             <arg value="-rf"/>
                                             <arg value="${app.path}"/>
