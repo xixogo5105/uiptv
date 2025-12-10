@@ -8,6 +8,7 @@ import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Side;
@@ -41,6 +42,7 @@ public class RootApplication extends Application {
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
+        addShutdownHook();
         if (args == null || Arrays.stream(args).noneMatch(s -> s.equalsIgnoreCase("--show-logs"))) {
             PrintStream dummyStream = new PrintStream(new OutputStream() {
                 @Override
@@ -62,7 +64,6 @@ public class RootApplication extends Application {
             java.nio.charset.Charset.defaultCharset();
             launch();
         }
-        addShutdownHook();
     }
 
     private static void handleSync(String[] args) {
@@ -157,6 +158,10 @@ public class RootApplication extends Application {
 
         Scene scene = new Scene(rootLayout, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
         configureFontStyles(scene);
+        primaryStage.setOnCloseRequest(event -> {
+            Platform.exit();
+            System.exit(0);
+        });
         primaryStage.setTitle("UIPTV");
         primaryStage.setMaximized(true);
         primaryStage.setScene(scene);
