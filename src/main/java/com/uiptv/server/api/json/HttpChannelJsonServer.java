@@ -22,9 +22,9 @@ public class HttpChannelJsonServer implements HttpHandler {
         if (account.isNotConnected()) {
             HandshakeService.getInstance().connect(account);
         }
-        Category category = CategoryDb.get().getCategoryById(getParam(ex, "categoryId"), account);
+        Category category = CategoryDb.get().getCategoryByDbId(getParam(ex, "categoryId"), account);
 
-        String response = StringUtils.EMPTY + ChannelService.getInstance().readToJson(category.getCategoryId(), account, category.getDbId());
+        String response = StringUtils.EMPTY + ChannelService.getInstance().readToJson(category, account);
         generateJsonResponse(ex, response);
     }
 }

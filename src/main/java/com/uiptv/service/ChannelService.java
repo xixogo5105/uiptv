@@ -23,6 +23,8 @@ import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.ui.M3U8Parser.parseChannelPathM3U8;
 import static com.uiptv.ui.M3U8Parser.parseChannelUrlM3U8;
 import static com.uiptv.util.AccountType.M3U8_URL;
+import static com.uiptv.util.AccountType.STALKER_PORTAL;
+import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.FetchAPI.nullSafeString;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -180,8 +182,14 @@ public class ChannelService {
         return channelList;
     }
 
-    public String readToJson(String category, Account account, String dbId) throws IOException {
-        return ServerUtils.objectToJson(get(category, account, dbId));
+    public String readToJson(Category category, Account account) throws IOException {
+        String categoryIdToUse;
+        if (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) {
+            categoryIdToUse = category.getCategoryId();
+        } else {
+            categoryIdToUse = category.getTitle();
+        }
+        return ServerUtils.objectToJson(get(categoryIdToUse, account, category.getDbId()));
     }
 
     public Pagination parsePagination(String json) {

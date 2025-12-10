@@ -39,7 +39,7 @@ public class ChannelDb extends BaseDb {
     }
 
     public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
-        Category category = new CategoryDb().getCategoryById(dbCategoryId, account);
+        Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
         deleteAll(category.getDbId());
         channels.forEach(c -> insert(c, category));
     }

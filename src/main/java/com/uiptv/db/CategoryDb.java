@@ -36,8 +36,8 @@ public class CategoryDb extends BaseDb {
         return getAll(" WHERE accountId=?", new String[]{accountId});
     }
 
-    public Category getCategoryById(String id, Account account) {
-        return getById(id, " AND accountType='" + account.getAction().name() + "' AND accountId='" + account.getDbId() + "'");
+    public Category getCategoryByDbId(String dbId, Account account) {
+        return getById(dbId, " AND accountType='" + account.getAction().name() + "' AND accountId='" + account.getDbId() + "'");
     }
 
     public void saveAll(List<Category> categories, Account account) {
