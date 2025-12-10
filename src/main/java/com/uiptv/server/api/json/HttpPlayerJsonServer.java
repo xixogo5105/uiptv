@@ -34,7 +34,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         Bookmark bookmark = BookmarkService.getInstance().getBookmark(getParam(ex, "bookmarkId"));
         Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
         String cmd = URLDecoder.decode(bookmark.getCmd(), UTF_8);
-        String response = "{ \"url\":\"" + StringUtils.EMPTY + PlayerService.getInstance().get(account, cmd) + "\",\"channelName\":\" Test " + StringUtils.EMPTY + bookmark.getChannelName() + "\"}";
+        String response = "{ \"url\":\"" + StringUtils.EMPTY + PlayerService.getInstance().get(account, cmd) + "\",\"channelName\":\"" + StringUtils.EMPTY + bookmark.getChannelName() + "\"}";
         generateJsonResponse(ex, response);
     }
 
@@ -43,7 +43,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         Channel channel = ChannelDb.get().getChannelById(getParam(ex, "channelId"), getParam(ex, "categoryId"));
         HandshakeService.getInstance().hardTokenRefresh(account);
         String cmd = URLDecoder.decode(channel.getCmd(), UTF_8);
-        String response = "{ \"url\":\"" + StringUtils.EMPTY + PlayerService.getInstance().get(account, cmd) + "\",\"channelName\":\" Test " + StringUtils.EMPTY + channel.getName() + "\"}";
+        String response = "{ \"url\":\"" + StringUtils.EMPTY + PlayerService.getInstance().get(account, cmd) + "\",\"channelName\":\"" + StringUtils.EMPTY + channel.getName() + "\"}";
         generateJsonResponse(ex, response);
     }
 }
