@@ -34,7 +34,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>2.0.12</version> <!-- Use a recent version compatible with your SLF4J API -->
+            <version>2.0.17</version> <!-- Use a recent version compatible with your SLF4J API -->
             <scope>runtime</scope>
         </dependency>
         <dependency>
