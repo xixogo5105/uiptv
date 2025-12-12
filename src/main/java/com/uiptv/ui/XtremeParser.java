@@ -1,6 +1,9 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.*;
+import com.uiptv.shared.Episode;
+import com.uiptv.shared.EpisodeList;
+import com.uiptv.shared.SeasonInfo;
 import org.json.JSONArray;
 import org.json.JSONObject;
 

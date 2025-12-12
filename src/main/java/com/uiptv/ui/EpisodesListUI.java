@@ -2,7 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
-import com.uiptv.model.EpisodeList;
+import com.uiptv.shared.EpisodeList;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
@@ -13,7 +13,6 @@ import com.uiptv.widget.UIptvAlert;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
-import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;

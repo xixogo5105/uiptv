@@ -18,6 +18,7 @@ module com.uiptv {
 
     requires transitive uk.co.caprica.vlcj;
     requires transitive uk.co.caprica.vlcj.javafx;
+    requires static lombok;
 
     opens com.uiptv.ui to javafx.fxml;
     exports com.uiptv.ui;
@@ -27,4 +28,5 @@ module com.uiptv {
     exports com.uiptv.service;
     exports com.uiptv.model;
     opens com.uiptv.util to javafx.fxml;
+    exports com.uiptv.shared;
 }

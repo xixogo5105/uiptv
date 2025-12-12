@@ -2,6 +2,8 @@ package com.uiptv.service;
 
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.*;
+import com.uiptv.shared.Pagination;
+import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;

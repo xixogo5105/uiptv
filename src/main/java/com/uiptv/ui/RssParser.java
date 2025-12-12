@@ -1,6 +1,6 @@
 package com.uiptv.ui;
 
-import com.uiptv.model.PlaylistEntry;
+import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.RssFeedReader;
 import com.uiptv.util.StringUtils;
 

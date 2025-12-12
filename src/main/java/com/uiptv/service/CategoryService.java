@@ -4,7 +4,7 @@ import com.uiptv.db.CategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Configuration;
-import com.uiptv.model.PlaylistEntry;
+import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
