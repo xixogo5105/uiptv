@@ -5,7 +5,6 @@ import com.uiptv.db.BookmarkDb;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
 import com.uiptv.util.ServerUtils;
 
 import java.util.ArrayList;

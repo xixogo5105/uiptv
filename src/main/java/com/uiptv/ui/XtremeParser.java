@@ -1,6 +1,8 @@
 package com.uiptv.ui;
 
-import com.uiptv.model.*;
+import com.uiptv.model.Account;
+import com.uiptv.model.Category;
+import com.uiptv.model.Channel;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.shared.SeasonInfo;

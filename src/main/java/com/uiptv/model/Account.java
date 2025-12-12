@@ -15,7 +15,8 @@ import java.util.Map;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
-import static com.uiptv.util.StringUtils.*;
+import static com.uiptv.util.StringUtils.SPACE;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 @Data
 @ToString(exclude = {"password", "token", "signature"})

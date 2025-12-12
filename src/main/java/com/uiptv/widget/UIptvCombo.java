@@ -2,7 +2,6 @@ package com.uiptv.widget;
 
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.TextField;
 
 public class UIptvCombo extends ComboBox {
     public UIptvCombo(String id, String hint, int width) {

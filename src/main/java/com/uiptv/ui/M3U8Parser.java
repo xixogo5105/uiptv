@@ -4,7 +4,10 @@ import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.widget.UIptvAlert;
 
 import javax.net.ssl.HttpsURLConnection;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;

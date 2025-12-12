@@ -1,20 +1,20 @@
 package com.uiptv.db;
 
-            import com.uiptv.model.Bookmark;
-            import com.uiptv.model.BookmarkCategory;
+import com.uiptv.model.Bookmark;
+import com.uiptv.model.BookmarkCategory;
 
-            import java.sql.Connection;
-            import java.sql.PreparedStatement;
-            import java.sql.ResultSet;
-            import java.sql.SQLException;
-            import java.util.ArrayList;
-            import java.util.List;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
-            import static com.uiptv.db.DatabaseUtils.DbTable.BOOKMARK_TABLE;
-            import static com.uiptv.db.DatabaseUtils.DbTable.BOOKMARK_CATEGORY_TABLE;
-            import static com.uiptv.db.DatabaseUtils.insertTableSql;
-            import static com.uiptv.db.SQLConnection.connect;
-            import static com.uiptv.util.StringUtils.isNotBlank;
+import static com.uiptv.db.DatabaseUtils.DbTable.BOOKMARK_CATEGORY_TABLE;
+import static com.uiptv.db.DatabaseUtils.DbTable.BOOKMARK_TABLE;
+import static com.uiptv.db.DatabaseUtils.insertTableSql;
+import static com.uiptv.db.SQLConnection.connect;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
             public class BookmarkDb extends BaseDb {
                 private static BookmarkDb instance;

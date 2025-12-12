@@ -20,7 +20,6 @@ import com.uiptv.api.JsonCompliant;
 import com.uiptv.model.Account;
 import org.json.JSONObject;
 
-import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.Map;
 import java.util.regex.Pattern;

@@ -1,7 +1,10 @@
 package com.uiptv.service;
 
 import com.uiptv.db.ChannelDb;
-import com.uiptv.model.*;
+import com.uiptv.model.Account;
+import com.uiptv.model.Category;
+import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
@@ -24,9 +27,7 @@ import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.ui.M3U8Parser.parseChannelPathM3U8;
 import static com.uiptv.ui.M3U8Parser.parseChannelUrlM3U8;
-import static com.uiptv.util.AccountType.M3U8_URL;
-import static com.uiptv.util.AccountType.STALKER_PORTAL;
-import static com.uiptv.util.AccountType.XTREME_API;
+import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.FetchAPI.nullSafeString;
 import static com.uiptv.util.StringUtils.isBlank;

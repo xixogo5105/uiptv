@@ -1,5 +1,7 @@
 package com.uiptv.server.api.json;
 
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
@@ -7,8 +9,6 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.util.StringUtils;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
 

@@ -1,5 +1,7 @@
 package com.uiptv.server.api.json;
 
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
@@ -9,8 +11,6 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.util.StringUtils;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
 import java.net.URLDecoder;

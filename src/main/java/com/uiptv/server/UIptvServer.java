@@ -1,9 +1,9 @@
 package com.uiptv.server;
 
+import com.sun.net.httpserver.HttpServer;
 import com.uiptv.server.api.json.*;
 import com.uiptv.server.html.*;
 import com.uiptv.service.ConfigurationService;
-import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

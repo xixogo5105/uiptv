@@ -1,7 +1,6 @@
 package com.uiptv.widget;
 
 import com.uiptv.ui.LogDisplayUI;
-import javafx.scene.Node;
 
 public class LogCollapsedTitledPane extends CollapsedTitledPane {
 
