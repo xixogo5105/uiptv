@@ -1,4 +1,4 @@
-package com.uiptv.util;
+package com.uiptv.player;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -29,4 +29,6 @@ module com.uiptv {
     exports com.uiptv.model;
     opens com.uiptv.util to javafx.fxml;
     exports com.uiptv.shared;
+    exports com.uiptv.player;
+    opens com.uiptv.player to javafx.fxml;
 }
