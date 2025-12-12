@@ -25,21 +25,12 @@ public class ConfigurationDb extends BaseDb {
     }
 
     public void clearCache() {
-        for (DatabaseUtils.DbTable t : DatabaseUtils.DbTable.values()) {
+        for (DatabaseUtils.DbTable t : DatabaseUtils.Cacheable) {
             try (Connection conn = connect(); Statement statement = conn.createStatement()) {
-                if (DatabaseUtils.Cacheable.contains(t)) {
-                    statement.execute(DatabaseUtils.dropTableSql(t));
-                }
-            } catch (Exception ignored) {
-            }
-            try (Connection conn = connect(); Statement statement = conn.createStatement()) {
-                if (DatabaseUtils.Cacheable.contains(t)) {
-                    statement.execute(DatabaseUtils.createTableSql(t));
-                }
+                statement.execute("DELETE FROM " + t.getTableName());
             } catch (Exception ignored) {
             }
         }
-
     }
 
     @Override

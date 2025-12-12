@@ -19,7 +19,6 @@ import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 @Data
-@ToString(exclude = {"password", "token", "signature"})
 @NoArgsConstructor()
 public class Account extends BaseJson {
 
