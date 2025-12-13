@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
-import static com.uiptv.ui.MediaPlayerFactory.getPlayer;
+import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;

@@ -179,7 +179,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         playerContainer.getChildren().addAll(videoImageView, overlayWrapper, loadingSpinner, errorLabel);
 
         // --- 4. EVENT LOGIC ---
-        btnPlayPause.setOnAction(_ -> {
+        btnPlayPause.setOnAction(e -> {
             if (mediaPlayer.status().isPlaying()) {
                 mediaPlayer.controls().pause();
             } else {
@@ -187,46 +187,46 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             }
         });
 
-        btnStop.setOnAction(_ -> stop());
+        btnStop.setOnAction(e -> stop());
 
-        btnRepeat.setOnAction(_ -> {
+        btnRepeat.setOnAction(e -> {
             boolean isRepeating = !mediaPlayer.controls().getRepeat();
             mediaPlayer.controls().setRepeat(isRepeating);
             btnRepeat.setGraphic(isRepeating ? repeatOnIcon : repeatOffIcon);
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
         });
 
-        btnReload.setOnAction(_ -> {
+        btnReload.setOnAction(e -> {
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
                 play(currentMediaUri);
             }
         });
 
-        btnFullscreen.setOnAction(_ -> toggleFullscreen());
+        btnFullscreen.setOnAction(e -> toggleFullscreen());
 
-        btnPip.setOnAction(_ -> togglePip()); // PiP button action
+        btnPip.setOnAction(e -> togglePip()); // PiP button action
 
-        btnMute.setOnAction(_ -> {
+        btnMute.setOnAction(e -> {
             boolean isMuted = !mediaPlayer.audio().isMute();
             mediaPlayer.audio().setMute(isMuted);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
         });
 
-        volumeSlider.valueProperty().addListener((_, _, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
+        volumeSlider.valueProperty().addListener((e, t, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
 
-        timeSlider.setOnMousePressed(_ -> {
+        timeSlider.setOnMousePressed(e -> {
             isUserSeeking = true;
             idleTimer.stop(); // Keep controls visible while seeking
         });
-        timeSlider.setOnMouseReleased(_ -> {
+        timeSlider.setOnMouseReleased(e -> {
             mediaPlayer.controls().setPosition((float) timeSlider.getValue());
             isUserSeeking = false;
             idleTimer.playFromStart(); // Restart idle timer
         });
 
         // Add mouse pressed/released handlers for volumeSlider to control idleTimer
-        volumeSlider.setOnMousePressed(_ -> idleTimer.stop());
-        volumeSlider.setOnMouseReleased(_ -> idleTimer.playFromStart());
+        volumeSlider.setOnMousePressed(e -> idleTimer.stop());
+        volumeSlider.setOnMouseReleased(e -> idleTimer.playFromStart());
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -358,8 +358,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btn.setGraphic(icon);
         btn.setPadding(new Insets(6));
         btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
-        btn.setOnMouseEntered(_ -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
-        btn.setOnMouseExited(_ -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
         return btn;
     }
 
@@ -372,10 +372,10 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         fadeIn.setFromValue(0.0);
         fadeIn.setToValue(1.0);
         idleTimer = new PauseTransition(Duration.seconds(3));
-        idleTimer.setOnFinished(_ -> fadeOut.play());
+        idleTimer.setOnFinished(e -> fadeOut.play());
 
         // Show controls when mouse moves over the player
-        playerContainer.setOnMouseMoved(_ -> {
+        playerContainer.setOnMouseMoved(e -> {
             if (controlsContainer.getOpacity() < 1.0) {
                 fadeIn.play();
             }
@@ -383,15 +383,15 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         });
 
         // Hide controls when mouse exits the player
-        playerContainer.setOnMouseExited(_ -> {
+        playerContainer.setOnMouseExited(e -> {
             if (!controlsContainer.isHover()) { // Only fade out if mouse is not over controls
                 idleTimer.playFromStart();
             }
         });
 
         // Keep controls visible when mouse is over them
-        controlsContainer.setOnMouseEntered(_ -> idleTimer.stop());
-        controlsContainer.setOnMouseExited(_ -> idleTimer.playFromStart());
+        controlsContainer.setOnMouseEntered(e -> idleTimer.stop());
+        controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
     }
 
     @Override
@@ -457,7 +457,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             fullscreenStage.setScene(scene);
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
-            fullscreenStage.setOnCloseRequest(_ -> exitFullscreen()); // Removed unused parameter 'e'
+            fullscreenStage.setOnCloseRequest(e -> exitFullscreen()); // Removed unused parameter 'e'
             fullscreenStage.show();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
@@ -536,15 +536,15 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             restoreButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
             restoreButton.setPadding(new Insets(15));
             restoreButton.setVisible(false); // Initially hidden
-            restoreButton.setOnAction(_ -> exitPip());
+            restoreButton.setOnAction(e -> exitPip());
 
             // Add video and button to the root
             pipRoot.getChildren().addAll(videoImageView, restoreButton);
             StackPane.setAlignment(restoreButton, Pos.CENTER);
 
             // Show/hide restore button on hover
-            pipRoot.setOnMouseEntered(_ -> restoreButton.setVisible(true));
-            pipRoot.setOnMouseExited(_ -> restoreButton.setVisible(false));
+            pipRoot.setOnMouseEntered(e -> restoreButton.setVisible(true));
+            pipRoot.setOnMouseExited(e -> restoreButton.setVisible(false));
 
             // Bind videoImageView size to pipRoot size
             videoImageView.fitWidthProperty().bind(pipRoot.widthProperty());
@@ -690,7 +690,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 }
             });
 
-            pipRoot.setOnMouseReleased(_ -> {
+            pipRoot.setOnMouseReleased(e -> {
                 isResizing = false;
                 resizeDirection = 0;
                 pipStage.getScene().setCursor(Cursor.DEFAULT);

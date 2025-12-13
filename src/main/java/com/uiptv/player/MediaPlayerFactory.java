@@ -1,9 +1,8 @@
-package com.uiptv.ui;
+package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
-import com.uiptv.player.LiteVideoPlayer;
-import com.uiptv.player.VlcVideoPlayer;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.DummyVideoPlayer;
 import javafx.scene.Node;
 import javafx.scene.layout.Region;
 

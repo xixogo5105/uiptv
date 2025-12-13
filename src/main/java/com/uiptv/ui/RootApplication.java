@@ -4,6 +4,7 @@ import com.uiptv.db.ConfigurationDb;
 import com.uiptv.db.DatabaseUtils;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvAlert;

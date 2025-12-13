@@ -21,7 +21,7 @@ import javafx.scene.layout.HBox;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.uiptv.ui.MediaPlayerFactory.getPlayer;
+import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class EpisodesListUI extends HBox {

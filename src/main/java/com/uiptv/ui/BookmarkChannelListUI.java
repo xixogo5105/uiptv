@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.uiptv.ui.MediaPlayerFactory.getPlayer;
+import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
