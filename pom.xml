@@ -478,7 +478,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV</name>
+                            <name>UIPTV-aarch64</name>
                             <type>DEB</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
