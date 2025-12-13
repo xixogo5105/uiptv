@@ -15,7 +15,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        # To add a build for Linux ARM64, a new runner has been added to the matrix.
+        # You may need to change 'ubuntu-latest-arm64' to the label of your specific runner.
+        os: [windows-latest, ubuntu-latest, macos-latest, 'ubuntu-latest-arm64']
         java: ['25']
 
     steps:
@@ -36,7 +38,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-${{ matrix.os }}
+          name: UIPTV-${{ matrix.os }}-${{ runner.arch }}
           path: |
             target/dist/*.exe
             target/dist/*.msi
@@ -45,7 +47,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-${{ matrix.os }}
+          name: UIPTV-${{ matrix.os }}-${{ runner.arch }}
           path: |
             target/dist/*.deb
             target/dist/*.rpm
