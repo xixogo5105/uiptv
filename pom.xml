@@ -452,5 +452,55 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>linux-aarch64</id>
+            <activation>
+                <os>
+                    <family>linux</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>linux-aarch64</javafx.platform>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.panteleyev</groupId>
+                        <artifactId>jpackage-maven-plugin</artifactId>
+                        <version>1.7.1</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>jpackage</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <name>UIPTV</name>
+                            <type>DEB</type>
+                            <vendor>SPC</vendor>
+                            <copyright>Copyright © 2024 SPC</copyright>
+                            <input>${project.build.directory}/jpackage-app</input>
+                            <mainClass>com.uiptv.Main</mainClass>
+                            <mainJar>UIPTV.jar</mainJar>
+                            <destination>target/dist</destination>
+                            <icon>src/main/resources/icon.png</icon>
+                            <linuxShortcut>true</linuxShortcut>
+                            <linuxPackageName>uiptv</linuxPackageName>
+                            <linuxMenuGroup>Video</linuxMenuGroup>
+                            <appVersion>${jpackage.version}</appVersion>
+                            <javaOptions>
+                                <option>-Duser.dir=$APPDIR</option>
+                            </javaOptions>
+                            <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
+                            <linuxShortcut>true</linuxShortcut>
+                            <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 </project>
