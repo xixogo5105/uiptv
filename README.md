@@ -138,4 +138,4 @@ This is a personal project developed for fun. EPG support is not yet implemented
 
 Merge requests for bug fixes or new features are always welcome.
 
-Donations are not needed or accepted. If you wish to contribute, please consider donating to one of your favorite open-source projects, such as **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**.
+Donations are neither needed nor accepted. If you wish to contribute, please consider donating to one of your favorite open-source projects, such as **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**.
