@@ -689,15 +689,10 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.png</icon>
-                            <linuxShortcut>true</linuxShortcut>
-                            <linuxPackageName>uiptv</linuxPackageName>
-                            <linuxMenuGroup>Video</linuxMenuGroup>
                             <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
-                            <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
-                            <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
                         </configuration>
                     </plugin>
                 </plugins>
