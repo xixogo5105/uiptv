@@ -15,9 +15,37 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # To add a build for Linux ARM64, a new runner has been added to the matrix.
-        # You may need to change 'ubuntu-latest-arm64' to the label of your specific runner.
-        os: [windows-latest, ubuntu-latest, macos-latest, 'ubuntu-latest-arm64']
+        include:
+          - os: windows-latest
+            arch: x86_64
+            profile: windows-x86_64
+          - os: windows-latest-arm64
+            arch: aarch64
+            profile: windows-aarch64
+          - os: macos-latest
+            arch: x86_64
+            profile: mac-x86_64
+          - os: macos-latest
+            arch: aarch64
+            profile: mac-aarch64
+          - os: ubuntu-latest
+            arch: x86_64
+            profile: linux-x86_64,pkg-deb
+          - os: ubuntu-latest
+            arch: x86_64
+            profile: linux-x86_64,pkg-rpm
+          - os: ubuntu-latest
+            arch: x86_64
+            profile: linux-x86_64,pkg-app-image
+          - os: ubuntu-latest-arm64
+            arch: aarch64
+            profile: linux-aarch64,pkg-deb
+          - os: ubuntu-latest-arm64
+            arch: aarch64
+            profile: linux-aarch64,pkg-rpm
+          - os: ubuntu-latest-arm64
+            arch: aarch64
+            profile: linux-aarch64,pkg-app-image
         java: ['25']
 
     steps:
@@ -32,36 +60,14 @@ jobs:
           cache: 'maven'
 
       - name: Build with Maven
-        run: mvn -B clean package
+        run: mvn -B clean package -P ${{ matrix.profile }}
 
-      - name: Upload Windows Artifacts
-        if: runner.os == 'Windows'
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: UIPTV-${{ matrix.os }}-${{ runner.arch }}
+          name: UIPTV-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            target/dist/*.exe
-            target/dist/*.msi
-
-      - name: Upload Linux Artifacts
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v5
-        with:
-          name: UIPTV-${{ matrix.os }}-${{ runner.arch }}
-          path: |
-            target/dist/*.deb
-            target/dist/*.rpm
-            target/dist/*.AppImage
-            target/dist/*.tar.gz
-
-      - name: Upload macOS Artifacts
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v5
-        with:
-          name: UIPTV-${{ matrix.os }}-${{ runner.arch }}
-          path: |
-            target/dist/*.dmg
-            target/dist/*.pkg
+            target/dist/*
 
   release:
     runs-on: ubuntu-latest
