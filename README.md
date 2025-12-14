@@ -1,84 +1,96 @@
 <img src="https://github.com/xixogo5105/uiptv/assets/161976171/5563a042-157e-4ae7-bb6e-a72b38c8aa62"  width="64" height="64"  alt=""/>
 
-# UIPTV - A Universal Windows, Linux & Mac (OSX) IPTV Player
-UIPTV is an IPTV player written in JAVA and can be natively compiled to Linux binary. UIPTV is Linux at heart and built on the Linux philosophy.
-UIPTV, unlike a traditional IPTV player, is purposely designed to be a text-based IPTV player. It also provides limited web support.
-UIPTV binaries are available for Linux (x86-64 only), Windows (64-bit only), and Mac OSX (for silicon or arch64 only).
+# UIPTV - A Universal IPTV Player for Windows, Linux & macOS
+UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. At its core, UIPTV is a text-based IPTV player that also provides limited web support for accessing your content across your local network.
 
-UIPTV user guide is also available at <a href="https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md">https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md</a>
+Native installers and packages are available for Windows (x86_64, aarch64), Linux (x86_64, aarch64), and macOS (x86_64, aarch64).
 
-Download the latest release <a href="https://github.com/xixogo5105/uiptv/releases/latest">here</a>
+A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
 
-![UUIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
+Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/latest).
+
+![UIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
 
 ## Features:
-- **External Player only**: This IPTV player works with external players only and has no built-in player. Tested players are VLC, MPV, SMPLayer & Celluloid. Using an external player gives you complete control and allows the end user to run multiple streams at a time.
-- **Filter Categories/Channels**: Exclude/Filter certain categories or channels that are of no interest to a user. An important aspect of this feature is to censor specific content (adult etc.). You can also pause or unpause the filtering. Please note that it will also impact web server contents.
-- **Dark Mode/Styling**: There is a limited set of built-in styling support. Users can change font, size & weight. They can also apply the stylesheet to components; however, that would need a recompile. There is also a dark mode which is applied to all components except the title bar.
-- **Web Server support (EXPERIMENTAL)**: You can also expose accounts & bookmarks via web server port and they will be immediately available (via web browser) to all devices on your network. A limited set of web HTML is already available and can also be enhanced. Please note that only HLS-compatible streams would be able to play in the web player. Also, the HLS web player currently only supports up to 1080p content. There are some commercial web players that you can purchase to enable 4k support. You can also add custom style-sheets and custom JavaScript but they must be added to the `web/css` & `web/javascript` folders respectively. Assuming the web server is exposed to port 8080, the URL on your local machine will be `http://localhost:8080/`. Replace `localhost` with your IP address (again assuming the IP address and port are available on the local network) to access it on the local network.
-- **Web Server Headless support**: You can also run UIPTV in headless mode if the intention is to only access the channels through a browser. Your pwd must be where the `/WEB` folder exists. Assuming UIPTV & `/WEB` exist in `/usr/local/bin/uiptv` (default path when you install through `UIPTV.deb`) then execute the following command from the terminal:
-
-  _cd /usr/local/bin/uiptv && /usr/local/bin/uiptv/UIPTV --headless_
-
-- **Parse multiple stalker portal accounts**: You can bulk import stalker portal accounts but they must comply with the format. Each line should have either a URL or mac address. All other lines are ignored. Please ensure that the text to be imported is in the proper format.
-- **IPTV Protocols support**: This player will support the following protocols/formats
-  - **Stalker Portal**: Support Live Channels, Video On Demand, and Series
-  - **M3U8 Local Playlist**: Run a local file. Playlist entries only. EPG is not yet supported.
-  - **M3U8 Remote Playlist**: Run a remote URL file. Playlist entries only. EPG is not yet supported.
-  - **XTREME**: Support Live Channels, Video On Demand, and Series
-  - **RSS**: Support for adding RSS feeds, including YouTube channels as RSS feeds
-
-- **Favourite/Bookmarks (EXPERIMENTAL)**: Users can bookmark favourite channels to quickly run them. This support is available on live channels at this moment.
-- **Cache**: This player uses SQLite to save and cache data. Data is saved in the file `_~/.config/uiptv/uiptv.db_` (`_~\uiptv\uiptv.db_` on Windows). Caching has some glitches (known issue) and is currently meant to reduce repeated calls to the servers. Please use "clear cache" occasionally to reset the cache. You can also "Pause Caching" globally or at a certain account level.
-- **RSS Feed Support**: You can add RSS feeds to the player. This includes support for YouTube channels as RSS feeds. Here is an example of how to use YouTube channels as RSS feeds:
-
-  1. Find the channel ID of the YouTube channel you want to add.
-  2. Use the following URL format to add the RSS feed: `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`
-  3. Add this URL to the UIPTV configuration.
+- **Embedded & External Player Support**: UIPTV now includes two embedded video players: a full-featured player powered by **VLC** and a limited, lightweight alternative.
+  - For the best experience, it is highly recommended to have **VLC** installed on your system and available in the system's PATH.
+  - If VLC is not found, the player will fall back to a basic, lightweight player with fewer features.
+  - You can still configure an external player (like MPV, SMPlayer, etc.) for maximum control.
+- **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
+- **Dark Mode/Styling**: A limited set of built-in styling options is available, allowing users to change the font, size, and weight. A dark mode is also included, which applies to all components.
+- **Web Server (EXPERIMENTAL)**: Expose your accounts and bookmarks via a web server port, making them instantly available to any device on your local network through a web browser. Please note that only HLS-compatible streams will play in the web player.
+- **Web Server Headless Support**: Run UIPTV in headless mode if you only intend to access channels through a browser.
+- **Multiple IPTV Protocols**: The player supports the following protocols and formats:
+  - **Stalker Portal**: Live Channels, Video On Demand, and Series.
+  - **M3U Playlists**: Supports local and remote M3U files (EPG is not yet supported).
+  - **Xtreme Codes**: Live Channels, Video On Demand, and Series.
+  - **RSS Feeds**: Add and watch content from RSS feeds. This includes support for YouTube channels by using their RSS feed URL (e.g., `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`). For YouTube videos to play, **yt-dlp** must be installed and accessible in the system's PATH.
+- **Tab-Based Interface**: The user interface has been updated from expandable panels to a more intuitive tab-based layout for managing accounts and settings.
+- **About Page & Update Checks**: An "About" page has been added, which includes a mechanism to check for new application updates.
+- **Cache Management**: UIPTV uses an SQLite database to cache data, reducing repeated calls to servers. You can "Clear Cache" or "Pause Caching" globally or on a per-account basis to manage performance.
 
 ## Compiling UIPTV
-This application is built on Java 17 and JavaFX. This application can also be natively compiled using GraalVM.
-Before compiling please make sure that you have added **JAVA_HOME** and **GRAALVM_HOME** in the path.
+This application is built using **Java 25** and **JavaFX**, and it is packaged into native installers using **jpackage**.
 
-Example:
+Before compiling, please ensure you have:
+1.  A JDK (version 25 or higher) installed, with the `JAVA_HOME` environment variable correctly set.
+2.  Apache Maven installed.
 
-    export JAVA_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
-    export GRAALVM_HOME=~/graalvm/graalvm-svm-java17-linux-gluon-22.1.0.1-Final
+To compile the project, you can use Maven profiles to target specific operating systems and package formats. The final application will be generated in the `target/dist` directory.
 
-It is also recommended to add **JAVA_HOME** and **GRAALVM_HOME** variables to the path variable:
+### Build Commands
+Here are some examples of how to build the application for different targets.
 
-    export PATH=$JAVA_HOME/bin:$GRAALVM_HOME/bin:$PATH
+#### Windows
+- **Windows (x86_64):**
+  ```sh
+  mvn clean package -P windows-x86_64
+  ```
+- **Windows (ARM64/aarch64):**
+  ```sh
+  mvn clean package -P windows-aarch64
+  ```
 
-Please install maven:
+#### macOS
+- **macOS (Intel/x86_64):**
+  ```sh
+  mvn clean package -P mac-x86_64
+  ```
+- **macOS (Apple Silicon/aarch64):**
+  ```sh
+  mvn clean package -P mac-aarch64
+  ```
 
-    sudo apt install maven
+#### Linux
+For Linux, you combine an OS/architecture profile with a packaging profile.
 
-There are two ways you can run this project.
+- **Linux (x86_64):**
+  - **DEB Package:**
+    ```sh
+    mvn clean package -P linux-x86_64,pkg-deb
+    ```
+  - **RPM Package:** (Requires `rpm` to be installed)
+    ```sh
+    mvn clean package -P linux-x86_64,pkg-rpm
+    ```
+  - **AppImage:**
+    ```sh
+    mvn clean package -P linux-x86_64,pkg-app-image
+    ```
 
-#### Method 1:
-This should work on Windows, OSX, and Linux.
-
-    mvn clean install
-
-Go to the target folder, copy the `/web` folder, `/lib` folder, and `UIPTV.jar` file into your favourite folder (assuming you have copied the above files and folder into `~/uiptv/` folder) and then run:
-
-    cd ~/uiptv && java --module-path ./lib --add-modules=javafx.controls -jar ./UIPTV.jar
-
-You may also create a shell script for the above.
-
-#### Method 2 (Native binary image):
-
-It's recommended because it runs a lot faster and smoother. Please head on to [GraalVM Manual](https://www.graalvm.org/22.0/reference-manual/native-image/). This page has step-by-step guidelines and helps you to install prerequisite dependencies that are needed. In order to compile UIPTV on Ubuntu for instance, you need to install:
-
-    sudo apt-get install build-essential libz-dev zlib1g-dev
-Then compile with:
-
-    mvn gluonfx:build
-
-Chances are that there will be further missing dependencies. _mvn gluonfx:build_ may fail in this case,
-please carefully read the message as it will describe the missing dependencies (or google error messages). Once everything is successfully compiled, copy
-`.../target/uiptv/target/gluonfx/x86_64-linux/UIPTV` & `web` folder from `.../target` to a folder of your own choice (assuming you have copied the above files and folder into `~/uiptv/` folder).
-Then go to that folder, make the `UIPTV` binary executable and simply double-click to run it.
+- **Linux (ARM64/aarch64):**
+  - **DEB Package:**
+    ```sh
+    mvn clean package -P linux-aarch64,pkg-deb
+    ```
+  - **RPM Package:** (Requires `rpm` to be installed)
+    ```sh
+    mvn clean package -P linux-aarch64,pkg-rpm
+    ```
+  - **AppImage:**
+    ```sh
+    mvn clean package -P linux-aarch64,pkg-app-image
+    ```
 
 ## Misc
 
@@ -93,7 +105,7 @@ The contents of `_ mpv.sh_` file:
     #!/bin/sh
     /usr/local/bin/mpv "$@"&
 
-You also use below (MacOSX) sh script to play streams on KODI as external player. The script will act as player to UIPTV. It will open the kodi with the stream url or (and if remote access is enabled) send remote request to open the stream if the kodi is already working. 
+You also use below (MacOSX) sh script to play streams on KODI as external player. The script will act as player to UIPTV. It will open the kodi with the stream url or (and if remote access is enabled) send remote request to open the stream if the kodi is already working.
 
 ```
 #!/bin/bash
@@ -121,10 +133,9 @@ fi
 open -a Kodi --args "$STREAM_URL"
 ```
 
-## Disclaimer/Final Thoughts
-This is currently only available in **English**. **EPG** is not yet supported. This may be turned into a multilingual project in the future if there is demand for it.
-Please be mindful that this is a fun/personal project only and not much enterprise-level research has been spent on it.
-Please feel free to send merge requests for bug fixes or additional features or functionality.
-Donations are neither needed nor accepted at this moment for UIPTV as it's just a fun/personal project. Instead, please consider donating to any of your favorite Linux projects that are in need.
+## Disclaimer
+This is a personal project developed for fun. EPG support is not yet implemented. While it is currently only available in English, it may become a multilingual project in the future if there is sufficient demand.
 
-Donate to **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**
+Merge requests for bug fixes or new features are always welcome.
+
+Donations are not needed or accepted. If you wish to contribute, please consider donating to one of your favorite open-source projects, such as **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**.

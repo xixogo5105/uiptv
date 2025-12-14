@@ -21,37 +21,40 @@ UIPTV is a tool designed to manage and stream IPTV content efficiently. This gui
 ## 2. Installation
 Follow these steps to install UIPTV:
 
-1. **Download the software** from the official repository: [UIPTV GitHub](https://github.com/xixogo5105/uiptv).
-2. **Install Dependencies**: Ensure all required dependencies are installed by following the instructions in the developer's guide.
-3. **Run UIPTV**: Start the application after installation.
+1. **Download the software** from the official repository: [UIPTV Releases](https://github.com/xixogo5105/uiptv/releases/latest).
+2. **Install the Application**: Run the downloaded installer (`.msi`, `.deb`, `.dmg`, etc.) and follow the on-screen instructions.
+3. **Dependencies for Enhanced Features**:
+   - For the best video playback experience, install **VLC Media Player** and ensure it is accessible from your system's PATH.
+   - To play YouTube videos via RSS feeds, install **yt-dlp** and ensure it is accessible from your system's PATH.
+4. **Run UIPTV**: Start the application after installation.
 
 ---
 
 ## 3. Configuration
 
-The **Configuration** panel allows you to customize your experience with UIPTV. Here's a breakdown of the settings:
+The **Configuration** tab allows you to customize your experience with UIPTV. Here's a breakdown of the settings:
 
-### Player Paths
-You can specify up to three different media player paths for playing IPTV channels:
+### Player Options
+UIPTV includes two built-in players and also supports external players.
 
-- **Player 1**: Use the **Browse...** button to select the path for your primary media player.
-- **Player 2**: Select the path for your second media player.
-- **Player 3**: Configure a third media player if needed.
+- **Embedded VLC Player**: The default and recommended player. It provides a full-featured experience but requires VLC to be installed on your system.
+- **Embedded Lite Player**: A lightweight player with limited features that is used as a fallback if VLC is not detected.
+- **External Player Paths**: You can specify up to three different external media players (e.g., MPV, SMPlayer) for playing IPTV channels. Use the **Browse...** button to select the executable for each player.
 
-On the left of each player's path field, you'll see **radio buttons**. These buttons allow you to select which player will be used by default when you **double-click a channel** to start playback. Only one player can be selected at a time.
+On the left of each player's path field are **radio buttons**. These allow you to select which player will be used by default when you **double-click a channel**.
 
 ### Filtering Options:
-- **Category Filter**: Enter a comma-separated list of categories. Channels from these categories will be excluded from the listing.
-- **Channel Filter**: Enter a comma-separated list of specific channel names you want to exclude from the view.
+- **Category Filter**: Enter a comma-separated list of categories to exclude from the channel listing.
+- **Channel Filter**: Enter a comma-separated list of specific channel names to exclude.
 
 ### Font Settings:
 - Customize the **font family**, **size**, and **weight** to adjust the look of the UI.
 
 ### Additional Options:
 - **Use Dark Theme**: Toggle dark mode for better visibility in low-light environments.
-- **Pause Filtering**: Temporarily stop applying the filters you’ve set.
+- **Pause Filtering**: Temporarily stop applying the category and channel filters.
 - **Pause Caching**: Pause the caching of streamed content.
-- **Clear Cache**: Manually clear cached data.
+- **Clear Cache**: Manually clear all cached data to refresh content and resolve potential issues.
 
 Once you’ve configured these options, click **Save** to apply your changes.
 
@@ -59,116 +62,108 @@ Once you’ve configured these options, click **Save** to apply your changes.
 
 ## 4. Managing Accounts
 
-UIPTV allows users to configure five types of accounts. Here's how to manage each account type:
+UIPTV allows users to configure five types of accounts from the **Manage Account** tab.
 
 1. **Stalker Portal Account**:
    - A portal-based service for IPTV.
-   - Users need to enter the portal URL, username, and password in the account configuration.
+   - Enter the portal URL and MAC address.
 
 2. **Xtream Codes API Account**:
-   - For Xtream-based services.
-   - Users will need to input the API URL, username, password, and optional settings like the stream type.
+   - For Xtreme-based services.
+   - Input the API URL, username, and password.
 
-3. **M3U8 Remote URL Account**:
-   - Users can configure an M3U8 playlist from a remote URL.
-   - Simply paste the URL in the account section, and the channels will be loaded from that online source.
+3. **M3U Remote URL Account**:
+   - Configure an M3U playlist from a remote URL.
+   - Paste the URL to load channels from the online source.
 
-4. **M3U8 Local File Account**:
-   - For users who have an M3U8 playlist saved locally on their computer.
-   - Browse and select the local file to add this playlist to UIPTV.
+4. **M3U Local File Account**:
+   - For users who have an M3U playlist saved locally.
+   - Browse and select the local file to add the playlist.
 
 5. **RSS Feed Account**:
-   - Users can add RSS feeds, including YouTube channels as RSS feeds.
-   - Enter the RSS feed URL in the account section to add it to UIPTV.
+   - Add RSS feeds, including YouTube channels.
+   - Enter the RSS feed URL to add it to UIPTV.
 
-Each account type can be added, managed, and removed under the **Manage Account** section. You can switch between accounts, enable or disable them, and parse the account details by clicking **Parse Accounts**.
+Each account can be added, managed, and removed. You can switch between accounts, enable or disable them, and parse the account details by clicking **Parse Accounts**.
 
 ---
 
 ## 5. Favorites
 
-The **Favorites** section allows you to manage and quickly access your preferred channels:
+The **Favorites** tab allows you to manage and quickly access your preferred channels:
 
-- **Adding Favorites**: Right-click a channel and select "Add to Favorites" to mark it for quick access.
-- **Managing Favorites**: Use this tab to remove or reorder channels you've added to your favorites list.
+- **Adding Favorites**: Right-click a channel and select "Add to Favorites" to bookmark it.
+- **Managing Favorites**: Use this tab to remove or reorder channels in your favorites list.
 
 ---
 
 ## 6. Starting and Stopping the Server
 
-UIPTV includes an **experimental web server** feature that allows users to run the entire application through a web-based interface. This transforms UIPTV from a desktop-based app into a web solution that can be accessed via a web browser.
+UIPTV includes an **experimental web server** that allows you to access your content through a web browser.
 
 ### How it Works:
 
 - **Starting the Server**:
-  - You can start the server by clicking the **Start Server** button in the configuration panel.
-  - Optionally, specify a port (e.g., 8080) in the provided text field before starting. By default, it uses a standard port number.
+  - Navigate to the **Configuration** tab and click the **Start Server** button.
+  - You can specify a port (e.g., 8080) before starting.
 
 - **Accessing the Web Interface**:
-  - Once the server is running, you can access UIPTV by opening a web browser and navigating to `http://localhost:<port>` (replace `<port>` with the number you specified or the default port).
-  - This opens a **fully interactive web-based version** of the app, where you can:
-    - **Select Accounts**: Manage and choose from the configured IPTV accounts.
-    - **Filter Categories**: Narrow down available channels based on categories.
-    - **Browse Channels**: Select and play channels directly from the web interface.
-    - **Player Controls**: You can play content directly through the web pages by selecting channels, categories, and accounts, just like in the desktop version.
-
-### Purpose of the Web Interface:
-This web server functionality was designed to provide users with **flexibility** in how they access and manage their IPTV content. By running a local web server, you can expose a **web service** version of UIPTV that can be accessed on other devices or remotely (with appropriate network setup).
+  - Once the server is running, open a web browser and navigate to `http://localhost:<port>`.
+  - The web interface allows you to select accounts, filter categories, and play channels directly in the browser (HLS streams only).
 
 ### Important Disclaimer:
-- **Experimental Feature**: Please note that the web server feature is **experimental** and not intended to function as a commercial-grade or flawless web service. While it offers great flexibility, it may have limitations, and users might experience issues when running the web version.
-
-- **Customizable Web Pages**: The hosted pages can be **modified by the end user**, meaning the appearance and functionality of the web interface can be customized if desired.
-
-The primary purpose of this feature is to **expose the web service** and offer users an alternative method to access their IPTV content, but it should not be viewed as a fully commercial web-based IPTV service.
+- **Experimental Feature**: This feature is experimental and may have limitations.
+- **Customizable**: The web pages are user-modifiable, allowing for customization of the appearance and functionality.
 
 - **Stopping the Server**:
-  - To stop the server, simply click the **Stop Server** button. This will terminate the local web service, and the app will revert to desktop-only use.
+  - To stop the server, click the **Stop Server** button in the **Configuration** tab.
 
 ---
 
 ## 7. Search Functionality
 
-UIPTV offers a **Search** feature that allows you to filter and narrow down results for accounts, categories, and channels.
+UIPTV offers a **Search** feature to quickly filter accounts, categories, and channels.
 
-- **Search Box**: At the top of the screen, there is a search input box that can be used to quickly filter the account list, categories, or channels.
-- **Auto-clear on Click**: When you click inside the search box, any existing text will automatically be cleared, allowing you to start a new search easily.
-- **Real-time Filtering**: As you start typing, the account list or channel list will be filtered in real-time, showing only the matching results. The search is dynamic and updates instantly as you type.
-
-This feature is useful when managing large lists of accounts or channels, providing a quick way to find exactly what you’re looking for.
+- **Search Box**: At the top of the screen, a search box allows you to filter the lists in real-time.
+- **Auto-clear**: Clicking inside the search box clears any existing text.
+- **Real-time Filtering**: The lists update instantly as you type, showing only matching results.
 
 ---
 
 ## 8. Advanced Features
 
-### Player Selection for Channels
-When you double-click a channel to play, the **selected player** (as configured in the **Player Paths** section) will be used for playback. You can switch between players by choosing one of the radio buttons next to each player’s path.
+### Player Selection
+When you double-click a channel, the player selected via the radio button in the **Configuration** tab will be used.
 
-### Caching and Filtering:
-You can pause both caching and filtering options temporarily by enabling the relevant checkboxes in the configuration panel.
+### Caching and Filtering
+You can temporarily disable caching and filtering by checking the corresponding boxes in the **Configuration** tab.
 
-### Font and Theme Customization:
-Adjust the UI appearance through font family, size, and theme settings.
+### Update Mechanism
+The application includes an **About** page that checks for new releases. This feature will be enhanced in the future.
 
-### RSS Feed Support:
-You can add RSS feeds to the player. This includes support for YouTube channels as RSS feeds. Here is an example of how to use YouTube channels as RSS feeds:
+### RSS Feed for YouTube
+You can add a YouTube channel as an RSS feed to watch its videos.
 
-1. Find the channel ID of the YouTube channel you want to add.
-2. Use the following URL format to add the RSS feed: `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`
-3. Add this URL to the UIPTV configuration.
+1. Find the `channel_id` of the YouTube channel.
+2. Use the following URL format: `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`
+3. Add this URL as an RSS Feed account in UIPTV.
+4. **Note**: **yt-dlp** must be installed and in your system's PATH for playback to work.
 
 ---
 
 ## 9. Troubleshooting and FAQs
 
 - **Issue: Channels not appearing**
-  **Solution**: Check your account configuration under **Manage Accounts** and ensure the correct account type is set up. Also, make sure you’re not filtering out channels unintentionally via the category or channel filters.
+  **Solution**: Check your account configuration in the **Manage Account** tab. Ensure the account is enabled and parsed. Also, check that your filters are not unintentionally hiding channels.
 
 - **Issue: The server won’t start**
-  **Solution**: Ensure that the port number specified (e.g., 8080) is not in use by another application, and check if your firewall settings allow UIPTV to run the server.
+  **Solution**: Ensure the specified port is not in use by another application and that your firewall is not blocking UIPTV.
 
-- **Issue: Double-clicking a channel doesn’t start playback**
-  **Solution**: Verify that you’ve selected the correct media player using the radio buttons next to the player paths. Ensure the player paths are correctly configured, and the player is installed.
+- **Issue: Video playback fails**
+  **Solution**:
+    - If using the embedded VLC player, ensure **VLC** is installed correctly.
+    - If playing a YouTube video, ensure **yt-dlp** is installed and in your system's PATH.
+    - Verify that the correct player is selected in the **Configuration** tab.
 
 - **Issue: Slow performance or delays**
-  **Solution**: Clear the cache periodically by using the **Clear Cache** button in the configuration panel to improve performance.
+  **Solution**: Use the **Clear Cache** button in the **Configuration** tab periodically to refresh data and improve performance.
