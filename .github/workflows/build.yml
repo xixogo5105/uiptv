@@ -52,6 +52,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Install RPM builder for DEB-based systems
+        if: runner.os == 'Linux' && contains(matrix.profile, 'pkg-rpm')
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v5
         with:
