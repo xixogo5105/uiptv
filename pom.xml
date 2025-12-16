@@ -6,7 +6,7 @@
 
     <groupId>com.spc</groupId>
     <artifactId>uiptv</artifactId>
-    <version>0.1.3</version>
+    <version>0.1.4</version>
     <name>UIPTV</name>
 
     <properties>
