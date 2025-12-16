@@ -19,9 +19,9 @@ jobs:
           - os: windows-latest
             arch: x86_64
             profile: windows-x86_64
-          - os: windows-latest-arm64
-            arch: aarch64
-            profile: windows-aarch64
+#          - os: windows-latest-arm64
+#            arch: aarch64
+#            profile: windows-aarch64
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -104,6 +104,44 @@ jobs:
         with:
           name: UIPTV-ubuntu-latest-x86_64-app-image
           path: target/dist/*
+
+#  build_linux_arm:
+#    runs-on: ubuntu-latest-arm64
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v6
+#      - name: Set up JDK 25
+#        uses: actions/setup-java@v5
+#        with:
+#          java-version: '25'
+#          distribution: 'temurin'
+#          cache: 'maven'
+#      - name: Install RPM builder
+#        run: sudo apt-get update && sudo apt-get install -y rpm
+#
+#      - name: Build DEB package
+#        run: mvn -B clean package -P linux-aarch64,pkg-deb
+#      - name: Upload DEB Artifact
+#        uses: actions/upload-artifact@v6
+#        with:
+#          name: UIPTV-ubuntu-latest-arm64-deb
+#          path: target/dist/*
+#
+#      - name: Build RPM package
+#        run: mvn -B clean package -P linux-aarch64,pkg-rpm
+#      - name: Upload RPM Artifact
+#        uses: actions/upload-artifact@v6
+#        with:
+#          name: UIPTV-ubuntu-latest-arm64-rpm
+#          path: target/dist/*
+#
+#      - name: Build AppImage package
+#        run: mvn -B clean package -P linux-aarch64,pkg-app-image
+#      - name: Upload AppImage Artifact
+#        uses: actions/upload-artifact@v6
+#        with:
+#          name: UIPTV-ubuntu-latest-arm64-app-image
+#          path: target/dist/*
 
   release:
     runs-on: ubuntu-latest
