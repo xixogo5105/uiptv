@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# --- Self-locate to the script's directory ---
+cd "$(dirname "$0")" || exit
+
 # This script automates the release process for the UIPTV application.
 # It updates the pom.xml version, commits the change, creates a Git tag,
 # and pushes everything to the remote repository.
