@@ -1,4 +1,6 @@
 name: Build, Package and Release
+permissions:
+  contents: read
 
 on:
   push:
