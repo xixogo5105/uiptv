@@ -11,7 +11,7 @@ on:
       - main
 
 jobs:
-  build:
+  build_windows:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -19,73 +19,95 @@ jobs:
           - os: windows-latest
             arch: x86_64
             profile: windows-x86_64
-            pkg_suffix: ""
           - os: windows-latest-arm64
             arch: aarch64
             profile: windows-aarch64
-            pkg_suffix: ""
-          - os: macos-latest
-            arch: x86_64
-            profile: mac-x86_64
-            pkg_suffix: ""
-          - os: macos-latest
-            arch: aarch64
-            profile: mac-aarch64
-            pkg_suffix: ""
-          - os: ubuntu-latest
-            arch: x86_64
-            profile: linux-x86_64,pkg-deb
-            pkg_suffix: "-deb"
-          - os: ubuntu-latest
-            arch: x86_64
-            profile: linux-x86_64,pkg-rpm
-            pkg_suffix: "-rpm"
-          - os: ubuntu-latest
-            arch: x86_64
-            profile: linux-x86_64,pkg-app-image
-            pkg_suffix: "-app-image"
-#          - os: ubuntu-latest-arm64
-#            arch: aarch64
-#            profile: linux-aarch64,pkg-deb
-#            pkg_suffix: "-deb"
-#          - os: ubuntu-latest-arm64
-#            arch: aarch64
-#            profile: linux-aarch64,pkg-rpm
-#            pkg_suffix: "-rpm"
-#          - os: ubuntu-latest-arm64
-#            arch: aarch64
-#            profile: linux-aarch64,pkg-app-image
-#            pkg_suffix: "-app-image"
-        java: ['25']
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install RPM builder for DEB-based systems
-        if: runner.os == 'Linux' && contains(matrix.profile, 'pkg-rpm')
-        run: sudo apt-get update && sudo apt-get install -y rpm
-
-      - name: Set up JDK ${{ matrix.java }}
+      - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
-          java-version: ${{ matrix.java }}
+          java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
-
       - name: Build with Maven
         run: mvn -B clean package -P ${{ matrix.profile }}
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: UIPTV-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.pkg_suffix }}
-          path: |
-            target/dist/*
+          name: UIPTV-${{ matrix.os }}-${{ matrix.arch }}
+          path: target/dist/*
+
+  build_mac:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            arch: x86_64
+            profile: mac-x86_64
+          - os: macos-latest
+            arch: aarch64
+            profile: mac-aarch64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Build with Maven
+        run: mvn -B clean package -P ${{ matrix.profile }}
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: UIPTV-${{ matrix.os }}-${{ matrix.arch }}
+          path: target/dist/*
+
+  build_linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Install RPM builder
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Build DEB package
+        run: mvn -B clean package -P linux-x86_64,pkg-deb
+      - name: Upload DEB Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: UIPTV-ubuntu-latest-x86_64-deb
+          path: target/dist/*
+
+      - name: Build RPM package
+        run: mvn -B clean package -P linux-x86_64,pkg-rpm
+      - name: Upload RPM Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: UIPTV-ubuntu-latest-x86_64-rpm
+          path: target/dist/*
+
+      - name: Build AppImage package
+        run: mvn -B clean package -P linux-x86_64,pkg-app-image
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: UIPTV-ubuntu-latest-x86_64-app-image
+          path: target/dist/*
 
   release:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build_windows, build_mac, build_linux]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -94,7 +116,6 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           path: artifacts
-
       - name: Create Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
         with:
