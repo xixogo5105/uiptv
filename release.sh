@@ -1,100 +1,96 @@
 #!/bin/bash
+set -e
 
-# --- Self-locate to the script's directory ---
-cd "$(dirname "$0")" || exit
+PROJECT_DIR="" #add you projected path
+cd "$PROJECT_DIR" || error_exit "Could not change to project directory: $PROJECT_DIR"
 
-# This script automates the release process for the UIPTV application.
-# It updates the pom.xml version, commits the change, creates a Git tag,
-# and pushes everything to the remote repository.
 
-# Usage: ./release.sh <version>
-# Example: ./release.sh 1.0.0 or ./release.sh v1.0.0
+# ===============================
+# Configuration
+# ===============================
+REMOTE="origin"
+DEFAULT_BRANCH="main"
+TAG_PREFIX="v"   # set to "" if you do not want v0.0.8 style tags
 
-# --- Configuration ---
-POM_FILE="pom.xml"
-MAVEN_COMMAND="mvn"
-GIT_COMMAND="git"
-
-# --- Functions ---
-
-# Function to display error messages and exit
-error_exit() {
-  echo "Error: $1" >&2
+# ===============================
+# Helper functions
+# ===============================
+error() {
+  echo "❌ $1"
   exit 1
 }
 
-# Function to check if a command exists
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
+info() {
+  echo "▶ $1"
 }
 
-# --- Pre-checks ---
+# ===============================
+# Validate input
+# ===============================
+VERSION="$1"
 
-# Check for required commands
-if ! command_exists "$MAVEN_COMMAND"; then
-  error_exit "Maven ($MAVEN_COMMAND) is not installed or not in your PATH. Please install it."
+if [ -z "$VERSION" ]; then
+  error "No version supplied. Usage: sh release.sh <version> (e.g. 0.0.8)"
 fi
 
-if ! command_exists "$GIT_COMMAND"; then
-  error_exit "Git ($GIT_COMMAND) is not installed or not in your PATH. Please install it."
+# Simple semver-ish validation
+if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  error "Invalid version format. Expected: X.Y.Z"
 fi
 
-# Check if we are in a Git repository
-if ! "$GIT_COMMAND" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  error_exit "Not inside a Git repository. Please run this script from the project root."
+TAG="${TAG_PREFIX}${VERSION}"
+
+# ===============================
+# Git checks
+# ===============================
+info "Checking git repository state..."
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || error "Not a git repository"
+
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD)
+
+if [ "$CURRENT_BRANCH" != "$DEFAULT_BRANCH" ]; then
+  error "You must be on the '$DEFAULT_BRANCH' branch (current: $CURRENT_BRANCH)"
 fi
 
-# Check for uncommitted changes
-if ! "$GIT_COMMAND" diff-index --quiet HEAD --; then
-  error_exit "You have uncommitted changes. Please commit or stash them before running the release script."
+if [ -n "$(git status --porcelain)" ]; then
+  error "Working tree is not clean. Commit or stash changes first."
 fi
 
-# --- Main Logic ---
-
-# Get the version argument
-RAW_VERSION="$1"
-
-if [ -z "$RAW_VERSION" ]; then
-  error_exit "No version specified. Usage: ./release.sh <version>"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  error "Tag '$TAG' already exists."
 fi
 
-# Determine the version for pom.xml and the tag
-if [[ "$RAW_VERSION" == v* ]]; then
-  POM_VERSION="${RAW_VERSION#v}" # Remove 'v' prefix for pom.xml
-  GIT_TAG="$RAW_VERSION"
-else
-  POM_VERSION="$RAW_VERSION"
-  GIT_TAG="v$RAW_VERSION" # Add 'v' prefix for the tag
-fi
+# ===============================
+# Update version in pom.xml
+# ===============================
+info "Updating pom.xml to version $VERSION"
+mvn versions:set -DnewVersion="$VERSION"
+git add pom.xml
 
-echo "--- Starting Release Process ---"
-echo "  Target POM Version: $POM_VERSION"
-echo "  Target Git Tag:     $GIT_TAG"
-echo ""
+# ===============================
+# Create release commit
+# ===============================
+info "Creating release commit for version $VERSION"
 
-# 1. Update pom.xml version
-echo "1. Updating $POM_FILE to version $POM_VERSION..."
-"$MAVEN_COMMAND" versions:set -DnewVersion="$POM_VERSION" -DgenerateBackupPoms=false || error_exit "Failed to update $POM_FILE version."
-echo "   $POM_FILE updated successfully."
+git commit -m "Release $VERSION"
 
-# 2. Commit the version change
-echo "2. Committing version change to Git..."
-"$GIT_COMMAND" add "$POM_FILE" || error_exit "Failed to add $POM_FILE to Git staging."
-"$GIT_COMMAND" commit -m "Prepare release $GIT_TAG" || error_exit "Failed to commit version change."
-echo "   Commit successful."
+# ===============================
+# Create tag
+# ===============================
+info "Creating git tag $TAG"
 
-# 3. Create the Git tag
-echo "3. Creating Git tag $GIT_TAG..."
-"$GIT_COMMAND" tag "$GIT_TAG" || error_exit "Failed to create Git tag $GIT_TAG. It might already exist."
-echo "   Tag $GIT_TAG created successfully."
+git tag -a "$TAG" -m "Release $VERSION"
 
-# 4. Push commit and tag to remote
-echo "4. Pushing commit and tag to remote (origin main)..."
-"$GIT_COMMAND" push origin main || error_exit "Failed to push commit to origin/main."
-"$GIT_COMMAND" push origin "$GIT_TAG" || error_exit "Failed to push tag $GIT_TAG to origin."
-echo "   Successfully pushed commit and tag to remote."
+# ===============================
+# Push changes
+# ===============================
+info "Pushing commit and tag to $REMOTE"
 
-echo ""
-echo "--- Release Process Completed Successfully! ---"
-echo "The GitHub Actions workflow should now be triggered for tag $GIT_TAG."
-echo "Check your GitHub repository for the release progress."
+git push "$REMOTE" "$DEFAULT_BRANCH"
+git push "$REMOTE" "$TAG"
+
+# ===============================
+# Done
+# ===============================
+info "Release $VERSION completed successfully 🎉"
