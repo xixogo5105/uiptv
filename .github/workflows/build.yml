@@ -16,6 +16,8 @@ jobs:
         include:
           - arch: x86_64
             profile: windows-x86_64
+          # - arch: aarch64
+          #   profile: windows-aarch64
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -30,11 +32,15 @@ jobs:
       - name: Build Windows package
         run: mvn -B clean package -P ${{ matrix.profile }}
 
+      - name: Zip Windows App Image
+        # This zips the output folder so it can be uploaded as a single file
+        run: Compress-Archive -Path target/dist/UIPTV -DestinationPath target/dist/UIPTV-windows-${{ matrix.arch }}.zip
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-windows-${{ matrix.arch }}
-          path: target/dist/*
+          path: target/dist/*.zip
 
 
   build_mac:
@@ -64,11 +70,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-macos-${{ matrix.arch }}
-          path: target/dist/*
+          # Uploads the .dmg file created by the antrun script
+          path: target/dist/*.dmg
 
 
   build_linux:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            profile: linux-x86_64
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -80,41 +92,49 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Install RPM tools
-        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Install RPM tools and Zip
+        run: sudo apt-get update && sudo apt-get install -y rpm zip
 
+      # 1. Build DEB
       - name: Build DEB package
-        run: mvn -B clean package -P linux-x86_64,pkg-deb
+        run: mvn -B clean package -P ${{ matrix.profile }},pkg-deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UIPTV-linux-x86_64-deb
-          path: target/dist/*
+          name: UIPTV-linux-${{ matrix.arch }}-deb
+          path: target/dist/*.deb
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
 
+      # 2. Build RPM
       - name: Build RPM package
-        run: mvn -B clean package -P linux-x86_64,pkg-rpm
+        run: mvn -B clean package -P ${{ matrix.profile }},pkg-rpm
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UIPTV-linux-x86_64-rpm
-          path: target/dist/*
+          name: UIPTV-linux-${{ matrix.arch }}-rpm
+          path: target/dist/*.rpm
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
 
+      # 3. Build AppImage (Portable Zip)
       - name: Build AppImage package
-        run: mvn -B clean package -P linux-x86_64,pkg-app-image
+        run: mvn -B clean package -P ${{ matrix.profile }},pkg-app-image
+
+      - name: Zip Linux App Image
+        run: |
+          cd target/dist
+          zip -r UIPTV-linux-${{ matrix.arch }}-portable.zip UIPTV-app-image
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UIPTV-linux-x86_64-app-image
-          path: target/dist/*
+          name: UIPTV-linux-${{ matrix.arch }}-portable
+          path: target/dist/*.zip
 
 
   release:
@@ -132,8 +152,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
-      - name: Verify artifacts
+      - name: Display structure of downloaded files
         run: ls -R artifacts
 
       - name: Create GitHub Release and upload assets
@@ -143,4 +164,5 @@ jobs:
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: artifacts/*/*
+          # Uploads every file found in the artifacts folder
+          files: artifacts/**

@@ -37,11 +37,10 @@
             <artifactId>slf4j-api</artifactId>
             <version>2.0.17</version>
         </dependency>
-        <!-- SLF4J Simple binding for logging output -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>2.0.17</version> <!-- Use a recent version compatible with your SLF4J API -->
+            <version>2.0.17</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -254,7 +253,6 @@
         </plugins>
     </build>
     <profiles>
-        <!-- Windows Profiles -->
         <profile>
             <id>windows-x86_64</id>
             <properties>
@@ -276,6 +274,7 @@
                         </executions>
                         <configuration>
                             <name>UIPTV</name>
+                            <type>APP_IMAGE</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
                             <input>${project.build.directory}/jpackage-app</input>
@@ -315,6 +314,7 @@
                         </executions>
                         <configuration>
                             <name>UIPTV</name>
+                            <type>APP_IMAGE</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
                             <input>${project.build.directory}/jpackage-app</input>
@@ -334,7 +334,6 @@
             </build>
         </profile>
 
-        <!-- macOS Profiles -->
         <profile>
             <id>mac-x86_64</id>
             <properties>
@@ -388,14 +387,10 @@
                                         <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
 
                                         <echo message="1. Swapping JPackage binary and config..."/>
-
                                         <move file="${macos.dir}/UIPTV" tofile="${macos.dir}/UIPTV_binary"/>
-
                                         <move file="${config.dir}/UIPTV.cfg" tofile="${config.dir}/UIPTV_binary.cfg"/>
-
                                         <copy file="${project.basedir}/src/main/resources/mac/binary/UIPTV"
                                               tofile="${macos.dir}/UIPTV"/>
-
                                         <chmod file="${macos.dir}/UIPTV" perm="755"/>
 
                                         <echo message="5. Re-signing the Application..."/>
@@ -486,14 +481,10 @@
                                         <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
 
                                         <echo message="1. Swapping JPackage binary and config..."/>
-
                                         <move file="${macos.dir}/UIPTV" tofile="${macos.dir}/UIPTV_binary"/>
-
                                         <move file="${config.dir}/UIPTV.cfg" tofile="${config.dir}/UIPTV_binary.cfg"/>
-
                                         <copy file="${project.basedir}/src/main/resources/mac/binary/UIPTV"
                                               tofile="${macos.dir}/UIPTV"/>
-
                                         <chmod file="${macos.dir}/UIPTV" perm="755"/>
 
                                         <echo message="5. Re-signing the Application..."/>
@@ -532,7 +523,6 @@
             </build>
         </profile>
 
-        <!-- Linux OS/Arch Profiles -->
         <profile>
             <id>linux-x86_64</id>
             <properties>
@@ -546,7 +536,6 @@
             </properties>
         </profile>
 
-        <!-- Linux Packaging Profiles -->
         <profile>
             <id>pkg-deb</id>
             <build>
