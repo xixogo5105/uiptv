@@ -17,6 +17,7 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <maven.compiler.release>25</maven.compiler.release>
+        <jpackage.version>1.0.8</jpackage.version>
         <vlcj.version>4.12.1</vlcj.version>
         <lombok.version>1.18.42</lombok.version>
         <!--        <javafx.platform>mac-aarch64</javafx.platform>-->
@@ -282,7 +283,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.ico</icon>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
@@ -321,7 +322,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.ico</icon>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
@@ -338,7 +339,6 @@
             <id>mac-x86_64</id>
             <properties>
                 <javafx.platform>mac</javafx.platform>
-                <os.arch>x86_64</os.arch>
             </properties>
             <build>
                 <plugins>
@@ -362,7 +362,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                                 <option>-Xdock:name=UIPTV</option>
@@ -384,7 +384,7 @@
                                         <property name="app.path" value="${project.build.directory}/dist/UIPTV.app"/>
                                         <property name="macos.dir" value="${app.path}/Contents/MacOS"/>
                                         <property name="config.dir" value="${app.path}/Contents/app"/>
-                                        <property name="dmg.name" value="UIPTV-${project.version}-${os.arch}.dmg"/>
+                                        <property name="dmg.name" value="UIPTV-${project.version}.dmg"/>
                                         <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
 
                                         <echo message="1. Swapping JPackage binary and config..."/>
@@ -437,7 +437,6 @@
             <id>mac-aarch64</id>
             <properties>
                 <javafx.platform>mac-aarch64</javafx.platform>
-                <os.arch>aarch64</os.arch>
             </properties>
             <build>
                 <plugins>
@@ -461,7 +460,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                                 <option>-Xdock:name=UIPTV</option>
@@ -483,7 +482,7 @@
                                         <property name="app.path" value="${project.build.directory}/dist/UIPTV.app"/>
                                         <property name="macos.dir" value="${app.path}/Contents/MacOS"/>
                                         <property name="config.dir" value="${app.path}/Contents/app"/>
-                                        <property name="dmg.name" value="UIPTV-${project.version}-${os.arch}.dmg"/>
+                                        <property name="dmg.name" value="UIPTV-${project.version}.dmg"/>
                                         <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
 
                                         <echo message="1. Swapping JPackage binary and config..."/>
@@ -577,7 +576,7 @@
                             <linuxShortcut>true</linuxShortcut>
                             <linuxPackageName>uiptv</linuxPackageName>
                             <linuxMenuGroup>Video</linuxMenuGroup>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
@@ -617,7 +616,7 @@
                             <linuxShortcut>true</linuxShortcut>
                             <linuxPackageName>uiptv</linuxPackageName>
                             <linuxMenuGroup>Video</linuxMenuGroup>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>
@@ -654,7 +653,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.png</icon>
-                            <appVersion>${project.version}</appVersion>
+                            <appVersion>${jpackage.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                             </javaOptions>

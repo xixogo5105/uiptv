@@ -83,26 +83,38 @@ jobs:
       - name: Install RPM tools
         run: sudo apt-get update && sudo apt-get install -y rpm
 
-      - name: Build All Linux packages
-        run: mvn -B clean package -P linux-x86_64,pkg-deb,pkg-rpm,pkg-app-image
+      - name: Build DEB package
+        run: mvn -B clean package -P linux-x86_64,pkg-deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-linux-x86_64-deb
-          path: target/dist/*.deb
+          path: target/dist/*
+
+      - name: Clean dist directory
+        run: rm -rf target/dist/*
+
+      - name: Build RPM package
+        run: mvn -B clean package -P linux-x86_64,pkg-rpm
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-linux-x86_64-rpm
-          path: target/dist/*.rpm
+          path: target/dist/*
+
+      - name: Clean dist directory
+        run: rm -rf target/dist/*
+
+      - name: Build AppImage package
+        run: mvn -B clean package -P linux-x86_64,pkg-app-image
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-linux-x86_64-app-image
-          path: target/dist/*.AppImage
+          path: target/dist/*
 
 
   release:
