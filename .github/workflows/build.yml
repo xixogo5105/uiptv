@@ -35,27 +35,27 @@ jobs:
           - os: ubuntu-latest
             arch: x86_64
             profile: linux-x86_64,pkg-deb
-            pkg_suffix: -deb
+            pkg_suffix: "-deb"
           - os: ubuntu-latest
             arch: x86_64
             profile: linux-x86_64,pkg-rpm
-            pkg_suffix: -rpm
+            pkg_suffix: "-rpm"
           - os: ubuntu-latest
             arch: x86_64
             profile: linux-x86_64,pkg-app-image
-            pkg_suffix: -app-image
+            pkg_suffix: "-app-image"
 #          - os: ubuntu-latest-arm64
 #            arch: aarch64
 #            profile: linux-aarch64,pkg-deb
-#            pkg_suffix: -deb
+#            pkg_suffix: "-deb"
 #          - os: ubuntu-latest-arm64
 #            arch: aarch64
 #            profile: linux-aarch64,pkg-rpm
-#            pkg_suffix: -rpm
+#            pkg_suffix: "-rpm"
 #          - os: ubuntu-latest-arm64
 #            arch: aarch64
 #            profile: linux-aarch64,pkg-app-image
-#            pkg_suffix: -app-image
+#            pkg_suffix: "-app-image"
         java: ['25']
 
     steps:

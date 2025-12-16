@@ -257,12 +257,6 @@
         <!-- Windows Profiles -->
         <profile>
             <id>windows-x86_64</id>
-            <activation>
-                <os>
-                    <family>windows</family>
-                    <arch>amd64</arch>
-                </os>
-            </activation>
             <properties>
                 <javafx.platform>win</javafx.platform>
             </properties>
@@ -302,12 +296,6 @@
         </profile>
         <profile>
             <id>windows-aarch64</id>
-            <activation>
-                <os>
-                    <family>windows</family>
-                    <arch>aarch64</arch>
-                </os>
-            </activation>
             <properties>
                 <javafx.platform>win-aarch64</javafx.platform>
             </properties>
@@ -349,12 +337,6 @@
         <!-- macOS Profiles -->
         <profile>
             <id>mac-x86_64</id>
-            <activation>
-                <os>
-                    <family>mac</family>
-                    <arch>x86_64</arch>
-                </os>
-            </activation>
             <properties>
                 <javafx.platform>mac-x86_64</javafx.platform>
             </properties>
@@ -453,12 +435,6 @@
         </profile>
         <profile>
             <id>mac-aarch64</id>
-            <activation>
-                <os>
-                    <family>mac</family>
-                    <arch>aarch64</arch>
-                </os>
-            </activation>
             <properties>
                 <javafx.platform>mac-aarch64</javafx.platform>
             </properties>
@@ -559,24 +535,12 @@
         <!-- Linux OS/Arch Profiles -->
         <profile>
             <id>linux-x86_64</id>
-            <activation>
-                <os>
-                    <family>linux</family>
-                    <arch>amd64</arch>
-                </os>
-            </activation>
             <properties>
                 <javafx.platform>linux</javafx.platform>
             </properties>
         </profile>
         <profile>
             <id>linux-aarch64</id>
-            <activation>
-                <os>
-                    <family>linux</family>
-                    <arch>aarch64</arch>
-                </os>
-            </activation>
             <properties>
                 <javafx.platform>linux-aarch64</javafx.platform>
             </properties>
@@ -600,7 +564,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV</name>
+                            <name>UIPTV-deb</name>
                             <type>DEB</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
@@ -640,7 +604,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV</name>
+                            <name>UIPTV-rpm</name>
                             <type>RPM</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
@@ -680,7 +644,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV</name>
+                            <name>UIPTV-app-image</name>
                             <type>APP_IMAGE</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
