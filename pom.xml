@@ -348,16 +348,12 @@
 
         <!-- macOS Profiles -->
         <profile>
-            <id>mac-x86_64</id>
+            <id>mac-build</id>
             <activation>
                 <os>
                     <family>mac</family>
-                    <arch>x86_64</arch>
                 </os>
             </activation>
-            <properties>
-                <javafx.platform>mac-x86_64</javafx.platform>
-            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -452,6 +448,18 @@
             </build>
         </profile>
         <profile>
+            <id>mac-x86_64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>mac-x86_64</javafx.platform>
+            </properties>
+        </profile>
+        <profile>
             <id>mac-aarch64</id>
             <activation>
                 <os>
@@ -462,98 +470,6 @@
             <properties>
                 <javafx.platform>mac-aarch64</javafx.platform>
             </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.1</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <type>APP_IMAGE</type>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>${jpackage.version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                                <option>-Xdock:name=UIPTV</option>
-                            </javaOptions>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>3.2.0</version>
-                        <executions>
-                            <execution>
-                                <id>swap-launcher-script</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <property name="app.path" value="${project.build.directory}/dist/UIPTV.app"/>
-                                        <property name="macos.dir" value="${app.path}/Contents/MacOS"/>
-                                        <property name="config.dir" value="${app.path}/Contents/app"/>
-                                        <property name="dmg.name" value="UIPTV-${project.version}.dmg"/>
-                                        <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
-
-                                        <echo message="1. Swapping JPackage binary and config..."/>
-
-                                        <move file="${macos.dir}/UIPTV" tofile="${macos.dir}/UIPTV_binary"/>
-
-                                        <move file="${config.dir}/UIPTV.cfg" tofile="${config.dir}/UIPTV_binary.cfg"/>
-
-                                        <copy file="${project.basedir}/src/main/resources/mac/binary/UIPTV"
-                                              tofile="${macos.dir}/UIPTV"/>
-
-                                        <chmod file="${macos.dir}/UIPTV" perm="755"/>
-
-                                        <echo message="5. Re-signing the Application..."/>
-                                        <exec executable="codesign" dir="${project.build.directory}">
-                                            <arg value="--force"/>
-                                            <arg value="--deep"/>
-                                            <arg value="--sign"/>
-                                            <arg value="-"/>
-                                            <arg value="${app.path}"/>
-                                        </exec>
-
-                                        <echo message="6. Creating DMG package..."/>
-                                        <exec executable="hdiutil" dir="${project.build.directory}">
-                                            <arg value="create"/>
-                                            <arg value="-volname"/>
-                                            <arg value="UIPTV"/>
-                                            <arg value="-srcfolder"/>
-                                            <arg value="${app.path}"/>
-                                            <arg value="-ov"/>
-                                            <arg value="-format"/>
-                                            <arg value="UDZO"/>
-                                            <arg value="${dmg.path}"/>
-                                        </exec>
-
-                                        <echo message="7. Cleaning up ${app.path}..."/>
-                                        <exec executable="rm">
-                                            <arg value="-rf"/>
-                                            <arg value="${app.path}"/>
-                                        </exec>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
 
         <!-- Linux OS/Arch Profiles -->
