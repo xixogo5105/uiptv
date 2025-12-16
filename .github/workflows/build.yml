@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: git pull
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -49,6 +52,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: git pull
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -72,6 +78,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: git pull
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -83,38 +92,26 @@ jobs:
       - name: Install RPM tools
         run: sudo apt-get update && sudo apt-get install -y rpm
 
-      - name: Build DEB package
-        run: mvn -B clean package -P linux-x86_64,pkg-deb
+      - name: Build All Linux packages
+        run: mvn -B clean package -P linux-x86_64,pkg-deb,pkg-rpm,pkg-app-image
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-linux-x86_64-deb
-          path: target/dist/*
-
-      - name: Clean dist directory
-        run: rm -rf target/dist/*
-
-      - name: Build RPM package
-        run: mvn -B clean package -P linux-x86_64,pkg-rpm
+          path: target/dist/*.deb
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-linux-x86_64-rpm
-          path: target/dist/*
-
-      - name: Clean dist directory
-        run: rm -rf target/dist/*
-
-      - name: Build AppImage package
-        run: mvn -B clean package -P linux-x86_64,pkg-app-image
+          path: target/dist/*.rpm
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
           name: UIPTV-linux-x86_64-app-image
-          path: target/dist/*
+          path: target/dist/*.AppImage
 
 
   release:
