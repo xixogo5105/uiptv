@@ -338,7 +338,7 @@
         <profile>
             <id>mac-x86_64</id>
             <properties>
-                <javafx.platform>mac-x86_64</javafx.platform>
+                <javafx.platform>mac</javafx.platform>
             </properties>
             <build>
                 <plugins>
