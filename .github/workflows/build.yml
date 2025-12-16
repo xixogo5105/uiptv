@@ -19,33 +19,43 @@ jobs:
           - os: windows-latest
             arch: x86_64
             profile: windows-x86_64
+            pkg_suffix: ""
           - os: windows-latest-arm64
             arch: aarch64
             profile: windows-aarch64
+            pkg_suffix: ""
           - os: macos-latest
             arch: x86_64
             profile: mac-x86_64
+            pkg_suffix: ""
           - os: macos-latest
             arch: aarch64
             profile: mac-aarch64
+            pkg_suffix: ""
           - os: ubuntu-latest
             arch: x86_64
             profile: linux-x86_64,pkg-deb
+            pkg_suffix: -deb
           - os: ubuntu-latest
             arch: x86_64
             profile: linux-x86_64,pkg-rpm
+            pkg_suffix: -rpm
           - os: ubuntu-latest
             arch: x86_64
             profile: linux-x86_64,pkg-app-image
+            pkg_suffix: -app-image
 #          - os: ubuntu-latest-arm64
 #            arch: aarch64
 #            profile: linux-aarch64,pkg-deb
+#            pkg_suffix: -deb
 #          - os: ubuntu-latest-arm64
 #            arch: aarch64
 #            profile: linux-aarch64,pkg-rpm
+#            pkg_suffix: -rpm
 #          - os: ubuntu-latest-arm64
 #            arch: aarch64
 #            profile: linux-aarch64,pkg-app-image
+#            pkg_suffix: -app-image
         java: ['25']
 
     steps:
@@ -69,7 +79,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: UIPTV-${{ matrix.os }}-${{ matrix.arch }}
+          name: UIPTV-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.pkg_suffix }}
           path: |
             target/dist/*
 
