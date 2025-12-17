@@ -9,7 +9,8 @@ A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/
 
 Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/latest).
 
-![UIPTV](https://github.com/xixogo5105/uiptv/assets/161976171/ca298e57-034e-486f-ba2d-d0f795389da3)
+<img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
+
 
 ## Features:
 - **Embedded & External Player Support**: UIPTV now includes two embedded video players: a full-featured player powered by **VLC** and a limited, lightweight alternative.
