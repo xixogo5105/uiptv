@@ -578,6 +578,7 @@
                             <appVersion>${version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
+                                <option>-Dawt.toolkit.name=UIPTV</option>
                             </javaOptions>
                             <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
@@ -618,6 +619,7 @@
                             <appVersion>${version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
+                                <option>-Dawt.toolkit.name=UIPTV</option>
                             </javaOptions>
                             <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
@@ -655,6 +657,7 @@
                             <appVersion>${version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
+                                <option>-Dawt.toolkit.name=UIPTV</option>
                             </javaOptions>
                         </configuration>
                     </plugin>
