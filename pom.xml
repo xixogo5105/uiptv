@@ -563,7 +563,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV-deb</name>
+                            <name>UIPTV</name>
                             <type>DEB</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
@@ -603,7 +603,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV-rpm</name>
+                            <name>UIPTV</name>
                             <type>RPM</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>
@@ -643,7 +643,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <name>UIPTV-app-image</name>
+                            <name>UIPTV</name>
                             <type>APP_IMAGE</type>
                             <vendor>SPC</vendor>
                             <copyright>Copyright © 2024 SPC</copyright>

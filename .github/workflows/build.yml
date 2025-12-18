@@ -92,7 +92,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: UIPTV-linux-x86_64-deb
-          path: target/dist/*
+          path: target/dist/*.deb
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
@@ -104,7 +104,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: UIPTV-linux-x86_64-rpm
-          path: target/dist/*
+          path: target/dist/*.rpm
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
@@ -116,4 +116,4 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: UIPTV-linux-x86_64-app-image
-          path: target/dist/*
+          path: target/dist/*.AppImage
