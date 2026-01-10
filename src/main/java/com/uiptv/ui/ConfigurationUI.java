@@ -10,6 +10,7 @@ import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
@@ -39,6 +40,7 @@ public class ConfigurationUI extends VBox {
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "Enter your third favorite player's Path here.", 5);
     private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "Enter comma separated list. All categories containing this would be filtered out.", 5);
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "Enter comma separated list. All Channels containing this would be filtered out.", 5);
+    private final Hyperlink showHideFilters = new Hyperlink("Show Filters");
     private final CheckBox filterPausedCheckBox = new CheckBox("Pause filtering");
     private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Caching");
     private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
@@ -102,6 +104,21 @@ public class ConfigurationUI extends VBox {
         playerPath3.setMinWidth(315);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
+
+        filterCategoriesWithTextContains.setVisible(false);
+        filterCategoriesWithTextContains.setManaged(false);
+        filterChannelWithTextContains.setVisible(false);
+        filterChannelWithTextContains.setManaged(false);
+
+        showHideFilters.setOnAction(event -> {
+            boolean visible = !filterCategoriesWithTextContains.isVisible();
+            filterCategoriesWithTextContains.setVisible(visible);
+            filterCategoriesWithTextContains.setManaged(visible);
+            filterChannelWithTextContains.setVisible(visible);
+            filterChannelWithTextContains.setManaged(visible);
+            showHideFilters.setText(visible ? "Hide Filters" : "Show Filters");
+        });
+
         filterPausedCheckBox.setMinWidth(250);
 //        pauseCachingCheckBox.setMinWidth(250);
         saveButton.setMinWidth(40);
@@ -114,7 +131,7 @@ public class ConfigurationUI extends VBox {
         HBox box3 = new HBox(10, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
         HBox box4 = new HBox(10, defaultEmbedPlayer);
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton);
-        getChildren().addAll(box1, box2, box3, box4, filterCategoriesWithTextContains, filterChannelWithTextContains,
+        getChildren().addAll(box1, box2, box3, box4, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains,
                 fontFamily, fontSize, fontWeight, darkThemeCheckBox, filterPausedCheckBox,
                 new HBox(10, pauseCachingCheckBox, clearCacheButton),
                 serverButtonWrapper, saveButton);
