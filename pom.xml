@@ -361,7 +361,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>1.0.0</appVersion> <!-- macOS requires version starting with non-zero -->
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                                 <option>-Xdock:name=UIPTV</option>
@@ -459,7 +459,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>1.0.0</appVersion> <!-- macOS requires version starting with non-zero -->
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                                 <option>-Xdock:name=UIPTV</option>

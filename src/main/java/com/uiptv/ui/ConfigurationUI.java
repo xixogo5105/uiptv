@@ -8,6 +8,7 @@ import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Hyperlink;
@@ -16,6 +17,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,6 +53,7 @@ public class ConfigurationUI extends VBox {
 
     private final Button startServerButton = new Button("Start Server");
     private final Button stopServerButton = new Button("Stop Server");
+    private final Button publishM3u8Button = new Button("Publish M3U8");
     private final Button clearCacheButton = new Button("Clear Cache");
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final Callback onSaveCallback;
@@ -130,7 +133,7 @@ public class ConfigurationUI extends VBox {
         HBox box2 = new HBox(10, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(10, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
         HBox box4 = new HBox(10, defaultEmbedPlayer);
-        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton);
+        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton, publishM3u8Button);
         getChildren().addAll(box1, box2, box3, box4, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains,
                 fontFamily, fontSize, fontWeight, darkThemeCheckBox, filterPausedCheckBox,
                 new HBox(10, pauseCachingCheckBox, clearCacheButton),
@@ -142,6 +145,7 @@ public class ConfigurationUI extends VBox {
         addStartServerButtonClickHandler();
         addStopServerButtonClickHandler();
         addClearCacheButtonClickHandler();
+        addPublishM3u8ButtonClickHandler();
     }
 
     private void addStopServerButtonClickHandler() {
@@ -177,6 +181,17 @@ public class ConfigurationUI extends VBox {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        });
+    }
+
+    private void addPublishM3u8ButtonClickHandler() {
+        publishM3u8Button.setOnAction(event -> {
+            Stage popupStage = new Stage();
+            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
+            Scene scene = new Scene(popup, 400, 300);
+            popupStage.setTitle("Publish M3U8");
+            popupStage.setScene(scene);
+            popupStage.showAndWait();
         });
     }
 

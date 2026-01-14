@@ -51,6 +51,8 @@ public class UIptvServer {
         server.createContext("/playlist.m3u8", new HttpM3u8PlayListServer());
         server.createContext("/bookmarkEntry.ts", new HttpM3u8BookmarkEntry());
         server.createContext("/bookmarks.m3u8", new HttpM3u8BookmarkPlayListServer());
+        server.createContext("/iptv.m3u8", new HttpIptvM3u8Server());
+        server.createContext("/iptv.m3u", new HttpIptvM3u8Server());
     }
 
     private static String getHttpPort() {
