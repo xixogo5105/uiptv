@@ -21,8 +21,8 @@ public class ServerUtils {
     public static final String CONTENT_TYPE_TEXT = "text/plain";
     public static final String CONTENT_TYPE_TS = "video/mp2t";
     public static final String CONTENT_TYPE_JSON = "application/json";
-    public static final String CONTENT_TYPE_M3U8 = "application/vnd.apple.mpegurl";
-    public static final List<String> DOWNLOADABLE = Arrays.asList(CONTENT_TYPE_TS, CONTENT_TYPE_JAVASCRIPT, CONTENT_TYPE_CSS, CONTENT_TYPE_M3U8);
+    public static final String CONTENT_TYPE_M3U8 = "vnd.apple.mpegurl";
+    public static final List<String> DOWNLOADABLE = Arrays.asList(CONTENT_TYPE_TS, CONTENT_TYPE_JAVASCRIPT, CONTENT_TYPE_CSS);
 
     private static Map<String, String> queryToMap(String query) {
         if (query == null) {
