@@ -1,8 +1,6 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
-import javafx.animation.FadeTransition;
-import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
@@ -60,7 +58,6 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     private boolean isUserSeeking = false;
     private boolean isRepeating = false;
-    private PauseTransition idleTimer;
     private final StackPane playerContainer = new StackPane();
 
     // Fullscreen bookkeeping
@@ -69,8 +66,6 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private Stage pipStage;
     private Pane originalParent;
     private int originalIndex = -1;
-    private FadeTransition fadeIn;
-    private FadeTransition fadeOut;
     private String currentMediaUri;
 
     // For custom title bar drag
@@ -205,21 +200,13 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             }
         });
 
-        timeSlider.setOnMousePressed(e -> {
-            isUserSeeking = true;
-            idleTimer.stop(); // Keep controls visible while seeking
-        });
+        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
         timeSlider.setOnMouseReleased(e -> {
             if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
                 mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(timeSlider.getValue()));
             }
             isUserSeeking = false;
-            idleTimer.playFromStart(); // Restart idle timer
         });
-
-        // Add mouse pressed/released handlers for volumeSlider to control idleTimer
-        volumeSlider.setOnMousePressed(e -> idleTimer.stop());
-        volumeSlider.setOnMouseReleased(e -> idleTimer.playFromStart());
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -249,8 +236,6 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                     case PLAYING:
                         loadingSpinner.setVisible(false);
                         btnPlayPause.setGraphic(pauseIcon);
-                        fadeIn.play();
-                        idleTimer.playFromStart();
                         break;
                     case PAUSED:
                         btnPlayPause.setGraphic(playIcon);
@@ -369,34 +354,9 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupFadeAndIdleLogic() {
-        controlsContainer.setOpacity(0);
-        fadeOut = new FadeTransition(Duration.millis(500), controlsContainer);
-        fadeOut.setFromValue(1.0);
-        fadeOut.setToValue(0.0);
-        fadeIn = new FadeTransition(Duration.millis(200), controlsContainer);
-        fadeIn.setFromValue(0.0);
-        fadeIn.setToValue(1.0);
-        idleTimer = new PauseTransition(Duration.seconds(3));
-        idleTimer.setOnFinished(e -> fadeOut.play());
-
-        // Show controls when mouse moves over the player
-        playerContainer.setOnMouseMoved(e -> {
-            if (controlsContainer.getOpacity() < 1.0) {
-                fadeIn.play();
-            }
-            idleTimer.playFromStart();
-        });
-
-        // Hide controls when mouse exits the player
-        playerContainer.setOnMouseExited(e -> {
-            if (!controlsContainer.isHover()) {
-                idleTimer.playFromStart();
-            }
-        });
-
-        // Keep controls visible when mouse is over them
-        controlsContainer.setOnMouseEntered(e -> idleTimer.stop());
-        controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
+        controlsContainer.setVisible(false);
+        playerContainer.setOnMouseEntered(e -> controlsContainer.setVisible(true));
+        playerContainer.setOnMouseExited(e -> controlsContainer.setVisible(false));
     }
 
     private String getFinalUrl(String url) throws Exception {

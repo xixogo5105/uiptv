@@ -1,8 +1,6 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
-import javafx.animation.FadeTransition;
-import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -23,7 +21,6 @@ import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
@@ -63,7 +60,6 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon; // New PiP icons
 
     private boolean isUserSeeking = false;
-    private PauseTransition idleTimer;
     private StackPane playerContainer = new StackPane();
 
     // Fullscreen bookkeeping
@@ -73,8 +69,6 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private Pane originalParent;
     private int originalIndex = -1;
     private final ImageView videoImageView;
-    private FadeTransition fadeIn;
-    private FadeTransition fadeOut;
     private String currentMediaUri;
 
     // For custom title bar drag
@@ -215,19 +209,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         volumeSlider.valueProperty().addListener((e, t, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
 
-        timeSlider.setOnMousePressed(e -> {
-            isUserSeeking = true;
-            idleTimer.stop(); // Keep controls visible while seeking
-        });
+        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
         timeSlider.setOnMouseReleased(e -> {
             mediaPlayer.controls().setPosition((float) timeSlider.getValue());
             isUserSeeking = false;
-            idleTimer.playFromStart(); // Restart idle timer
         });
-
-        // Add mouse pressed/released handlers for volumeSlider to control idleTimer
-        volumeSlider.setOnMousePressed(e -> idleTimer.stop());
-        volumeSlider.setOnMouseReleased(e -> idleTimer.playFromStart());
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -258,8 +244,6 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     btnPlayPause.setGraphic(pauseIcon);
-                    fadeIn.play();
-                    idleTimer.playFromStart();
                 });
             }
 
@@ -365,34 +349,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupFadeAndIdleLogic() {
-        controlsContainer.setOpacity(0);
-        fadeOut = new FadeTransition(Duration.millis(500), controlsContainer);
-        fadeOut.setFromValue(1.0);
-        fadeOut.setToValue(0.0);
-        fadeIn = new FadeTransition(Duration.millis(200), controlsContainer);
-        fadeIn.setFromValue(0.0);
-        fadeIn.setToValue(1.0);
-        idleTimer = new PauseTransition(Duration.seconds(3));
-        idleTimer.setOnFinished(e -> fadeOut.play());
-
-        // Show controls when mouse moves over the player
-        playerContainer.setOnMouseMoved(e -> {
-            if (controlsContainer.getOpacity() < 1.0) {
-                fadeIn.play();
-            }
-            idleTimer.playFromStart();
-        });
-
-        // Hide controls when mouse exits the player
-        playerContainer.setOnMouseExited(e -> {
-            if (!controlsContainer.isHover()) { // Only fade out if mouse is not over controls
-                idleTimer.playFromStart();
-            }
-        });
-
-        // Keep controls visible when mouse is over them
-        controlsContainer.setOnMouseEntered(e -> idleTimer.stop());
-        controlsContainer.setOnMouseExited(e -> idleTimer.playFromStart());
+        controlsContainer.setVisible(false);
+        playerContainer.setOnMouseEntered(e -> controlsContainer.setVisible(true));
+        playerContainer.setOnMouseExited(e -> controlsContainer.setVisible(false));
     }
 
     @Override
