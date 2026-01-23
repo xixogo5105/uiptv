@@ -26,11 +26,21 @@
     --modal-bg: #212529;
     --modal-text: #f8f9fa;
     --modal-border: #6c757d;
-    --player-bg: #000;
+    --player-bg: #000; /* Background for the player area when no video is playing */
     --player-placeholder-text: #555;
     --scrollbar-track: #222;
     --scrollbar-thumb: #444;
     --scrollbar-thumb-hover: #555;
+
+    /* Video.js specific variables (Dark Theme) */
+    --vjs-player-bg: #000;
+    --vjs-text-color: #fff;
+    --vjs-control-bar-bg: rgba(43, 51, 63, 0.7);
+    --vjs-control-bar-hover-bg: rgba(43, 51, 63, 0.9);
+    --vjs-button-hover-color: #fff;
+    --vjs-loading-spinner-border: #fff;
+    --vjs-big-play-button-bg: rgba(43, 51, 63, 0.7);
+    --vjs-big-play-button-border: #fff;
 }
 
 [data-theme="light"] {
@@ -61,11 +71,21 @@
     --modal-bg: #fff;
     --modal-text: #212529;
     --modal-border: #dee2e6;
-    --player-bg: #f8f9fa;
+    --player-bg: #f8f9fa; /* Light background for player area */
     --player-placeholder-text: #6c757d;
     --scrollbar-track: #f1f1f1;
     --scrollbar-thumb: #c1c1c1;
     --scrollbar-thumb-hover: #a8a8a8;
+
+    /* Video.js specific variables (Light Theme) */
+    --vjs-player-bg: #f8f9fa;
+    --vjs-text-color: #212529;
+    --vjs-control-bar-bg: rgba(248, 249, 250, 0.7); /* Light gray */
+    --vjs-control-bar-hover-bg: rgba(248, 249, 250, 0.9); /* Slightly darker light gray */
+    --vjs-button-hover-color: #212529;
+    --vjs-loading-spinner-border: #212529;
+    --vjs-big-play-button-bg: rgba(248, 249, 250, 0.7); /* Light gray */
+    --vjs-big-play-button-border: #212529;
 }
 
 /* System Preference Overrides if no data-theme set */
@@ -103,6 +123,16 @@
         --scrollbar-track: #f1f1f1;
         --scrollbar-thumb: #c1c1c1;
         --scrollbar-thumb-hover: #a8a8a8;
+
+        /* Video.js specific variables (System Light Theme) */
+        --vjs-player-bg: #f8f9fa;
+        --vjs-text-color: #212529;
+        --vjs-control-bar-bg: rgba(248, 249, 250, 0.7); /* Light gray */
+        --vjs-control-bar-hover-bg: rgba(248, 249, 250, 0.9); /* Slightly darker light gray */
+        --vjs-button-hover-color: #212529;
+        --vjs-loading-spinner-border: #212529;
+        --vjs-big-play-button-bg: rgba(248, 249, 250, 0.7); /* Light gray */
+        --vjs-big-play-button-border: #212529;
     }
 }
 
@@ -151,7 +181,7 @@ body {
 
 /* Main Content */
 .main-content {
-    background-color: var(--player-bg) !important; /* Added !important */
+    background-color: var(--player-bg) !important;
     height: 100%;
     padding: 0;
     display: flex;
@@ -219,7 +249,6 @@ body {
     z-index: 15;
     display: flex;
 }
-
 /* Sidebar */
 .sidebar {
     background-color: var(--sidebar-bg);
@@ -291,6 +320,49 @@ body {
     box-shadow: none;
     border-color: var(--input-border);
 }
+
+/* VideoJS Theme Overrides */
+.video-js {
+    background-color: var(--vjs-player-bg) !important;
+    color: var(--vjs-text-color) !important;
+}
+
+.video-js .vjs-control-bar {
+    background-color: var(--vjs-control-bar-bg) !important;
+    color: var(--vjs-text-color) !important;
+}
+
+.video-js .vjs-control-bar .vjs-button {
+    color: var(--vjs-text-color) !important;
+}
+
+.video-js .vjs-control-bar .vjs-button:hover {
+    color: var(--vjs-button-hover-color) !important;
+}
+
+.video-js .vjs-control-bar .vjs-menu-button-popup .vjs-menu .vjs-menu-item {
+    color: var(--vjs-text-color) !important;
+}
+
+.video-js .vjs-control-bar .vjs-menu-button-popup .vjs-menu .vjs-menu-item:hover {
+    background-color: var(--vjs-control-bar-hover-bg) !important;
+    color: var(--vjs-button-hover-color) !important;
+}
+
+.video-js .vjs-loading-spinner {
+    border-color: var(--vjs-loading-spinner-border) !important;
+}
+
+.video-js .vjs-big-play-button {
+    background-color: var(--vjs-big-play-button-bg) !important;
+    border-color: var(--vjs-big-play-button-border) !important;
+    color: var(--vjs-text-color) !important;
+}
+
+.video-js .vjs-big-play-button:hover {
+    background-color: var(--vjs-control-bar-hover-bg) !important;
+}
+
 
 /* List Layout for Sidebar Items */
 .grid-container {
