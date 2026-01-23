@@ -36,13 +36,25 @@ public class UIptvServer {
         server.createContext("/categories.html", new HttpCategoryHtmlServer());
         server.createContext("/channels.html", new HttpChannelHtmlServer());
         server.createContext("/play.html", new HttpPlayerHtmlServer());
-        server.createContext("/", new HttpBookmarksHtmlServer());
+        
+        // SPA routes
+        server.createContext("/", new HttpSpaHtmlServer());
+        server.createContext("/index.html", new HttpSpaHtmlServer());
+        
+        // PWA routes
+        server.createContext("/manifest.json", new HttpManifestServer());
+        server.createContext("/sw.js", new HttpJavascriptServer());
+        
+        // Assets
+        server.createContext("/icon.ico", new HttpIconServer());
+
+        // Legacy routes
         server.createContext("/bookmarks.html", new HttpBookmarksHtmlServer());
-        server.createContext("/index.hml", new HttpBookmarksHtmlServer());
 
         server.createContext("/javascript", new HttpJavascriptServer());
         server.createContext("/js", new HttpJavascriptServer());
-        server.createContext("/css", new HttpJavascriptServer());
+        server.createContext("/css", new HttpCssServer());
+        
         server.createContext("/accounts", new HttpAccountJsonServer());
         server.createContext("/categories", new HttpCategoryJsonServer());
         server.createContext("/channels", new HttpChannelJsonServer());

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>UIPTV Web</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#222">
+    <link rel="icon" type="image/x-icon" href="/icon.ico">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+            crossorigin="anonymous"></script>
+    <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="css/spa.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+
+<div id="app" class="container-fluid h-100 d-flex flex-column">
+    <!-- Top Bar -->
+    <div class="top-bar d-flex justify-content-between align-items-center px-3 py-2">
+        <div class="d-flex align-items-center app-title-link" @click="resetApp">
+            <img src="/icon.ico" alt="UIPTV" height="24" class="me-2">
+            <span class="fw-bold text-white">UIPTV Web</span>
+        </div>
+        <div class="d-flex align-items-center">
+            <button class="btn btn-link text-muted me-2 p-0 top-bar-icon" @click="toggleTheme" :title="'Theme: ' + theme">
+                <i class="bi" :class="themeIcon"></i>
+            </button>
+            <a href="#" class="text-muted text-decoration-none me-2 top-bar-icon" @click.prevent="showBookmarkModal = true" title="Bookmark this app">
+                <i class="bi bi-bookmark-plus"></i>
+            </a>
+            <a href="https://github.com/xixogo5105/uiptv" target="_blank" class="text-muted text-decoration-none top-bar-icon" title="Help">
+                <i class="bi bi-question-circle"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="row flex-grow-1 g-0 overflow-hidden content-row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-3 sidebar d-flex flex-column order-2 order-md-1">
+            <!-- Tabs -->
+            <ul class="nav nav-tabs nav-justified" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link" :class="{ active: activeTab === 'bookmarks' }" @click="switchTab('bookmarks')" title="Bookmarks">
+                        <i class="bi bi-bookmark-star-fill"></i>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" :class="{ active: activeTab === 'accounts' }" @click="switchTab('accounts')" title="Accounts">
+                        <i class="bi bi-person-lines-fill"></i>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" :class="{ active: activeTab === 'favorites' }" @click="switchTab('favorites')" title="Favorites">
+                        <i class="bi bi-heart-fill"></i>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" :class="{ active: activeTab === 'downloads' }" @click="switchTab('downloads')" title="Downloads">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Search Bar (Under Tabs) -->
+            <div class="p-2 search-container">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" v-model="searchQuery" class="form-control" :placeholder="searchPlaceholder" id="searchInput">
+                </div>
+            </div>
+
+            <!-- Sidebar Content -->
+            <div class="sidebar-content flex-grow-1">
+                <!-- Bookmarks Tab -->
+                <div v-if="activeTab === 'bookmarks'">
+                    <div class="grid-container">
+                        <div v-for="bookmark in filteredBookmarks" :key="bookmark.dbId" class="card-item" @click="playBookmark(bookmark)">
+                            <div class="icon-placeholder"><i class="bi bi-bookmark-fill"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ bookmark.channelName }}</div>
+                                <div class="subtitle">{{ bookmark.accountName }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accounts Tab -->
+                <div v-if="activeTab === 'accounts'">
+                    <!-- Accounts List -->
+                    <div v-if="viewState === 'accounts'" class="grid-container">
+                        <div v-for="account in filteredAccounts" :key="account.dbId" class="card-item" @click="loadCategories(account.dbId)">
+                            <div class="icon-placeholder"><i class="bi bi-person-circle"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ account.accountName }}</div>
+                                <div class="subtitle">Account</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories List -->
+                    <div v-if="viewState === 'categories'">
+                        <div class="d-flex align-items-center p-2 border-bottom border-secondary mb-2">
+                            <button class="btn btn-sm btn-secondary me-2" @click="goBackToAccounts"><i class="bi bi-arrow-left"></i></button>
+                            <span class="text-white">Categories</span>
+                        </div>
+                        <div class="grid-container">
+                            <div v-for="category in filteredCategories" :key="category.dbId" class="card-item" @click="loadChannels(category.dbId)">
+                                <div class="icon-placeholder"><i class="bi bi-folder-fill"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ category.title }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Channels List -->
+                    <div v-if="viewState === 'channels'">
+                        <div class="d-flex align-items-center p-2 border-bottom border-secondary mb-2">
+                            <button class="btn btn-sm btn-secondary me-2" @click="goBackToCategories"><i class="bi bi-arrow-left"></i></button>
+                            <span class="text-white">Channels</span>
+                        </div>
+                        <div class="grid-container">
+                            <div v-for="channel in filteredChannels" :key="channel.dbId" class="card-item" @click="playChannel(channel)">
+                                <img v-if="channel.logo" :src="channel.logo" @error="imageError" alt="logo">
+                                <div v-else class="icon-placeholder"><i class="bi bi-tv"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ channel.name }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Favorites Tab -->
+                <div v-if="activeTab === 'favorites'">
+                    <div v-if="filteredFavorites.length === 0" class="text-center text-muted mt-4">No favorites found.</div>
+                    <div class="grid-container">
+                        <div v-for="fav in filteredFavorites" :key="fav.id + fav.name" class="card-item" @click="playFavorite(fav)">
+                            <img v-if="fav.logo" :src="fav.logo" @error="imageError" alt="logo">
+                            <div v-else class="icon-placeholder"><i class="bi bi-heart-fill"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ fav.name }}</div>
+                                <div class="subtitle">{{ fav.accountName || 'Favorite' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Downloads Tab -->
+                <div v-if="activeTab === 'downloads'">
+                    <div class="grid-container">
+                        <a href="/bookmarks.m3u8" class="card-item text-decoration-none text-light" download>
+                            <div class="icon-placeholder"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">Download Bookmarks Playlist</div>
+                                <div class="subtitle">M3U8 Format</div>
+                            </div>
+                        </a>
+                        <a href="/iptv.m3u8" class="card-item text-decoration-none text-light" download>
+                            <div class="icon-placeholder"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">Download Published Playlist</div>
+                                <div class="subtitle">M3U8 Format</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content (Player) -->
+        <div class="col-md-9 col-lg-9 main-content order-1 order-md-2">
+            <div id="player-wrapper">
+                <div v-if="!isPlaying" id="player-placeholder">
+                    <i class="bi bi-play-circle" style="font-size: 5rem; color: #333;"></i>
+                    <h3>Select a channel to play</h3>
+                </div>
+
+                <!-- Player Container -->
+                <div v-else :key="playerKey" id="player" class="w-100 h-100 position-relative" @mouseenter="showOverlay = true" @mouseleave="showOverlay = false">
+                    <div id="player-overlay" :style="{ opacity: showOverlay ? 1 : 0 }">
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                            <h4 id="headerTitle">{{ currentChannelName }}</h4>
+                            <div>
+                                <button class="btn btn-link text-white me-2" @click="toggleFavorite" title="Favorite">
+                                    <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
+                                </button>
+                                <button class="btn btn-link text-white" @click="stopPlayback" title="Stop">
+                                    <i class="bi bi-stop-circle-fill" style="font-size: 1.5rem;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VideoJS Player -->
+                    <video
+                            v-if="!isYoutube"
+                            ref="videoPlayer"
+                            class="video-js vjs-default-skin vjs-big-play-centered"
+                            controls
+                            autoplay
+                            preload="auto"
+                    ></video>
+
+                    <!-- YouTube Player -->
+                    <iframe
+                            v-if="isYoutube"
+                            :src="youtubeSrc"
+                            frameborder="0"
+                            allowfullscreen
+                            allow="autoplay; encrypted-media"
+                            class="w-100 h-100"
+                    ></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bookmark Modal -->
+    <div v-if="showBookmarkModal" class="modal-backdrop fade show"></div>
+    <div v-if="showBookmarkModal" class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-light border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">How to Bookmark App</h5>
+                    <button type="button" class="btn-close btn-close-white" @click="showBookmarkModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Chrome (Desktop):</strong> Click the star icon in the address bar or press Ctrl+D (Cmd+D on Mac).</p>
+                    <p><strong>Chrome (Android):</strong> Tap the menu icon (three dots) > "Add to Home screen".</p>
+                    <p><strong>Safari (iOS):</strong> Tap the Share button > "Add to Home Screen".</p>
+                    <p><strong>Safari (Mac):</strong> Press Cmd+D.</p>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" @click="showBookmarkModal = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/videojs-http-streaming@3.9.0/dist/videojs-http-streaming.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/videojs-youtube@3.0.1/dist/Youtube.min.js"></script>
+<script src="javascript/spa.js"></script>
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+        });
+    }
+</script>
+
+</body>
+</html>

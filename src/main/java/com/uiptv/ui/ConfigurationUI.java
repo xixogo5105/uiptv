@@ -153,7 +153,7 @@ public class ConfigurationUI extends VBox {
             try {
                 UIptvServer.stop();
                 startServerButton.getStyleClass().remove("dangerous");
-                showMessageAlert("Server stopped");
+                // showMessageAlert("Server stopped"); // Removed alert
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -177,7 +177,7 @@ public class ConfigurationUI extends VBox {
             try {
                 UIptvServer.start();
                 startServerButton.getStyleClass().add("dangerous");
-                showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort());
+                // showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort()); // Removed alert
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
