@@ -2,7 +2,7 @@ package com.uiptv.server;
 
 import com.sun.net.httpserver.HttpServer;
 import com.uiptv.server.api.json.*;
-import com.uiptv.server.html.*;
+import com.uiptv.server.html.HttpSpaHtmlServer; // Keep HttpSpaHtmlServer
 import com.uiptv.service.ConfigurationService;
 
 import java.io.IOException;
@@ -31,12 +31,6 @@ public class UIptvServer {
     }
 
     private static void configureServer(HttpServer server) {
-        server.createContext("/accounts.html", new HttpAccountHtmlServer());
-        server.createContext("/acc", new HttpAccountHtmlServer());
-        server.createContext("/categories.html", new HttpCategoryHtmlServer());
-        server.createContext("/channels.html", new HttpChannelHtmlServer());
-        server.createContext("/play.html", new HttpPlayerHtmlServer());
-        
         // SPA routes
         server.createContext("/", new HttpSpaHtmlServer());
         server.createContext("/index.html", new HttpSpaHtmlServer());
@@ -48,13 +42,12 @@ public class UIptvServer {
         // Assets
         server.createContext("/icon.ico", new HttpIconServer());
 
-        // Legacy routes
-        server.createContext("/bookmarks.html", new HttpBookmarksHtmlServer());
-
+        // Static file servers
         server.createContext("/javascript", new HttpJavascriptServer());
         server.createContext("/js", new HttpJavascriptServer());
         server.createContext("/css", new HttpCssServer());
         
+        // API JSON servers
         server.createContext("/accounts", new HttpAccountJsonServer());
         server.createContext("/categories", new HttpCategoryJsonServer());
         server.createContext("/channels", new HttpChannelJsonServer());
