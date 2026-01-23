@@ -42,6 +42,7 @@ import java.util.List;
 
 public class VlcVideoPlayer implements VideoPlayerInterface {
     private EmbeddedMediaPlayer mediaPlayer;
+    private boolean isMuted = true; // Single source of truth for mute state
 
     // UI Components
     private Slider timeSlider;
@@ -109,7 +110,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         videoImageView.setPreserveRatio(true);
         mediaPlayer.videoSurface().set(new FXCallbackVideoSurface()); // Changed to use CallbackVideoSurface
         mediaPlayer.controls().setRepeat(false);
-        mediaPlayer.audio().setMute(true); // Explicitly mute in constructor
+        mediaPlayer.audio().setMute(isMuted); // Explicitly mute in constructor
 
         // --- 1.5 LOAD ICONS ---
         loadIcons();
@@ -207,7 +208,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btnPip.setOnAction(e -> togglePip()); // PiP button action
 
         btnMute.setOnAction(e -> {
-            boolean isMuted = !mediaPlayer.audio().isMute();
+            isMuted = !isMuted;
             mediaPlayer.audio().setMute(isMuted);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
         });
@@ -404,8 +405,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             loadingSpinner.setVisible(true);
             errorLabel.setVisible(false);
 
-            boolean isMuted = mediaPlayer.audio().isMute(); // Get current mute state
-            mediaPlayer.audio().setMute(isMuted); // Apply current mute state (redundant but harmless if already set)
+            mediaPlayer.audio().setMute(isMuted); // Apply persistent mute state
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
 
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume

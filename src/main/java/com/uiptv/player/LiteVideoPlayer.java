@@ -422,7 +422,6 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         // Dispose of old player first
         if (mediaPlayer != null) {
-            isMuted = mediaPlayer.isMute(); // Preserve current mute state before disposing
             mediaPlayer.stop();
             mediaPlayer.dispose();
         }
@@ -456,7 +455,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
                         // Set initial volume and mute state
                         mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
-                        mediaPlayer.setMute(isMuted); // Apply the preserved mute state
+                        mediaPlayer.setMute(isMuted); // Apply the persistent mute state
                         btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
                         mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
                             isMuted = newMute; // Keep internal state in sync
