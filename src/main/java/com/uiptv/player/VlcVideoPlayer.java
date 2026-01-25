@@ -1,6 +1,7 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -8,10 +9,7 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.Slider;
+import javafx.scene.control.*;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.*;
 import javafx.scene.input.KeyCode;
@@ -21,6 +19,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
@@ -57,13 +56,16 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private Button btnReload;
     private Button btnPip; // New PiP button
     private Button btnStop; // Declared as a class member
-    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon; // New PiP icons
+    private Button btnAspectRatio; // Changed from MenuButton to Button
+    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioStretchIcon; // New PiP icons
 
     private boolean isUserSeeking = false;
+    private PauseTransition idleTimer; // Re-introducing idleTimer for fullscreen mouse/overlay hide
     private StackPane playerContainer = new StackPane();
 
     // Fullscreen bookkeeping
     private Stage fullscreenStage;
+    private boolean isFullscreen = false; // Track fullscreen state
     // PiP bookkeeping
     private Stage pipStage;
     private Pane originalParent;
@@ -85,6 +87,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     private WritableImage videoImage;
     private WritablePixelFormat<ByteBuffer> pixelFormat;
+    private int aspectRatioMode = 0; // 0=Fit (Default), 1=Stretch
+    private int videoSourceWidth, videoSourceHeight, videoSarNum, videoSarDen;
 
 
     public VlcVideoPlayer() {
@@ -101,7 +105,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         MediaPlayerFactory mediaPlayerFactory = new MediaPlayerFactory(vlcArgs.toArray(new String[0]));
         mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
         videoImageView = new ImageView();
-        videoImageView.setPreserveRatio(true);
+        videoImageView.setPreserveRatio(true); // Default to preserve ratio
         mediaPlayer.videoSurface().set(new FXCallbackVideoSurface()); // Changed to use CallbackVideoSurface
         mediaPlayer.controls().setRepeat(false);
         mediaPlayer.audio().setMute(isMuted); // Explicitly mute in constructor
@@ -117,6 +121,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btnReload = createIconButton(reloadIcon);
         btnFullscreen = createIconButton(fullscreenIcon);
         btnPip = createIconButton(pipIcon); // Initialize PiP button
+        btnAspectRatio = createIconButton(aspectRatioIcon); // Initialize aspect ratio button
+        btnAspectRatio.setTooltip(new Tooltip("Fit"));
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -128,7 +134,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         HBox topRow = new HBox(8);
         topRow.setAlignment(Pos.CENTER_LEFT);
-        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider); // Added btnPip
+        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio); // Added btnPip
 
         timeSlider = new Slider(0, 1, 0);
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
@@ -153,8 +159,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
 
-        videoImageView.fitWidthProperty().bind(playerContainer.widthProperty());
-        videoImageView.fitHeightProperty().bind(playerContainer.heightProperty());
+        playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
+        playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
 
         StackPane overlayWrapper = new StackPane(controlsContainer);
         overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
@@ -201,6 +207,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         btnPip.setOnAction(e -> togglePip()); // PiP button action
 
+        btnAspectRatio.setOnAction(e -> toggleAspectRatio());
+
         btnMute.setOnAction(e -> {
             isMuted = !isMuted;
             mediaPlayer.audio().setMute(isMuted);
@@ -209,11 +217,19 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         volumeSlider.valueProperty().addListener((e, t, newVal) -> mediaPlayer.audio().setVolume(newVal.intValue()));
 
-        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
+        timeSlider.setOnMousePressed(e -> {
+            isUserSeeking = true;
+            if (isFullscreen) idleTimer.stop(); // Keep controls visible while seeking in fullscreen
+        });
         timeSlider.setOnMouseReleased(e -> {
             mediaPlayer.controls().setPosition((float) timeSlider.getValue());
             isUserSeeking = false;
+            if (isFullscreen) idleTimer.playFromStart(); // Restart idle timer after seeking
         });
+
+        // Add mouse pressed/released handlers for volumeSlider to control idleTimer
+        volumeSlider.setOnMousePressed(e -> { if (isFullscreen) idleTimer.stop(); });
+        volumeSlider.setOnMouseReleased(e -> { if (isFullscreen) idleTimer.playFromStart(); });
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -244,6 +260,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     btnPlayPause.setGraphic(pauseIcon);
+                    updateVideoSize(); // Ensure video size is correct on playback start
+                    if (isFullscreen) idleTimer.playFromStart(); // Start idle timer when playback begins in fullscreen
                 });
             }
 
@@ -291,6 +309,49 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         setupFadeAndIdleLogic();
     }
 
+    private void toggleAspectRatio() {
+        aspectRatioMode = (aspectRatioMode + 1) % 2; // Now only 2 modes
+        String tooltipText;
+        ImageView icon;
+        if (aspectRatioMode == 1) {
+            tooltipText = "Stretch";
+            icon = aspectRatioStretchIcon;
+        } else {
+            tooltipText = "Fit";
+            icon = aspectRatioIcon;
+        }
+        btnAspectRatio.setGraphic(icon);
+        if (btnAspectRatio.getTooltip() != null) {
+            btnAspectRatio.getTooltip().setText(tooltipText);
+        }
+        updateVideoSize();
+    }
+
+    private void updateVideoSize() {
+        if (playerContainer.getWidth() <= 0 || playerContainer.getHeight() <= 0) {
+            return;
+        }
+
+        // Unbind properties to prevent RuntimeException when setting them manually
+        videoImageView.fitWidthProperty().unbind();
+        videoImageView.fitHeightProperty().unbind();
+
+        double containerWidth = playerContainer.getWidth();
+        double containerHeight = playerContainer.getHeight();
+
+        if (aspectRatioMode == 1) {
+            // Stretch to Fill
+            videoImageView.setFitWidth(containerWidth);
+            videoImageView.setFitHeight(containerHeight);
+            videoImageView.setPreserveRatio(false);
+        } else {
+            // Default: Fit within (Contain)
+            videoImageView.setFitWidth(containerWidth);
+            videoImageView.setFitHeight(containerHeight);
+            videoImageView.setPreserveRatio(true);
+        }
+    }
+
     private void loadIcons() {
         playIcon = createIconView("play.png", true);
         pauseIcon = createIconView("pause.png", true);
@@ -304,6 +365,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         muteOffIcon = createIconView("mute-off.png", true);
         pipIcon = createIconView("picture-in-picture.png", true);
         pipExitIcon = createIconView("picture-in-picture-exit.png", false); // Load without ColorAdjust
+        aspectRatioIcon = createIconView("aspect-ratio.png", true);
+        aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
     }
 
     private ImageView createIconView(String iconName, boolean applyColorAdjust) {
@@ -350,8 +413,47 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     private void setupFadeAndIdleLogic() {
         controlsContainer.setVisible(false);
-        playerContainer.setOnMouseEntered(e -> controlsContainer.setVisible(true));
-        playerContainer.setOnMouseExited(e -> controlsContainer.setVisible(false));
+
+        idleTimer = new PauseTransition(Duration.seconds(5));
+        idleTimer.setOnFinished(e -> {
+            if (isFullscreen) {
+                controlsContainer.setVisible(false);
+                if (playerContainer.getScene() != null) {
+                    playerContainer.getScene().setCursor(Cursor.NONE);
+                }
+            }
+        });
+
+        playerContainer.setOnMouseMoved(e -> {
+            if (isFullscreen) {
+                controlsContainer.setVisible(true);
+                if (playerContainer.getScene() != null) {
+                    playerContainer.getScene().setCursor(Cursor.DEFAULT);
+                }
+                idleTimer.playFromStart();
+            } else {
+                controlsContainer.setVisible(true);
+            }
+        });
+
+        playerContainer.setOnMouseExited(e -> {
+            if (isFullscreen) {
+                idleTimer.playFromStart(); // Start timer to hide controls/cursor
+            } else {
+                controlsContainer.setVisible(false);
+            }
+        });
+
+        controlsContainer.setOnMouseEntered(e -> {
+            if (isFullscreen) {
+                idleTimer.stop(); // Keep controls visible if mouse is over them
+            }
+        });
+        controlsContainer.setOnMouseExited(e -> {
+            if (isFullscreen) {
+                idleTimer.playFromStart(); // Start timer to hide controls/cursor
+            }
+        });
     }
 
     @Override
@@ -368,6 +470,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
 
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
+            updateVideoSize(); // Apply the last selected aspect ratio
             mediaPlayer.media().play(uri);
         }
     }
@@ -389,6 +492,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             playerContainer.setMinHeight(0);
             playerContainer.setVisible(false);
             playerContainer.setManaged(false);
+            btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
 
             // mediaPlayer.release();
         }
@@ -416,7 +520,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             fullscreenStage.setScene(scene);
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
-            fullscreenStage.setOnCloseRequest(e -> exitFullscreen()); // Removed unused parameter 'e'
+            fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
             fullscreenStage.show();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
@@ -426,6 +530,13 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             // Hide stop button when entering fullscreen
             btnStop.setVisible(false);
             btnStop.setManaged(false);
+
+            isFullscreen = true;
+            controlsContainer.setVisible(true); // Show controls initially
+            if (playerContainer.getScene() != null) {
+                playerContainer.getScene().setCursor(Cursor.DEFAULT); // Show cursor initially
+            }
+            idleTimer.playFromStart(); // Start idle timer
         });
     }
 
@@ -446,6 +557,13 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             // Show stop button when exiting fullscreen
             btnStop.setVisible(true);
             btnStop.setManaged(true);
+
+            isFullscreen = false;
+            idleTimer.stop(); // Stop idle timer
+            controlsContainer.setVisible(false); // Hide controls on exit
+            if (playerContainer.getScene() != null) {
+                playerContainer.getScene().setCursor(Cursor.DEFAULT); // Restore default cursor
+            }
         });
     }
 
@@ -497,13 +615,62 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             restoreButton.setVisible(false); // Initially hidden
             restoreButton.setOnAction(e -> exitPip());
 
-            // Add video and button to the root
-            pipRoot.getChildren().addAll(videoImageView, restoreButton);
+            // Create mute button for PiP
+            Button pipMuteButton = new Button();
+            ImageView pipMuteIcon = new ImageView(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
+            pipMuteIcon.setFitHeight(20);
+            pipMuteIcon.setFitWidth(20);
+            ColorAdjust whiteColorAdjust = new ColorAdjust();
+            whiteColorAdjust.setBrightness(1.0);
+            pipMuteIcon.setEffect(whiteColorAdjust);
+            pipMuteButton.setGraphic(pipMuteIcon);
+            pipMuteButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            pipMuteButton.setPadding(new Insets(8));
+            pipMuteButton.setVisible(false);
+            pipMuteButton.setOnAction(e -> {
+                btnMute.fire(); // Toggle mute using main button logic
+                pipMuteIcon.setImage(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
+            });
+
+            // Create reload button for PiP
+            Button pipReloadButton = new Button();
+            ImageView pipReloadIcon = new ImageView(reloadIcon.getImage());
+            pipReloadIcon.setFitHeight(20);
+            pipReloadIcon.setFitWidth(20);
+            pipReloadIcon.setEffect(whiteColorAdjust);
+            pipReloadButton.setGraphic(pipReloadIcon);
+            pipReloadButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            pipReloadButton.setPadding(new Insets(8));
+            pipReloadButton.setVisible(false);
+            pipReloadButton.setOnAction(e -> {
+                if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
+                    play(currentMediaUri);
+                }
+            });
+
+            HBox pipControls = new HBox(10);
+            pipControls.setAlignment(Pos.TOP_RIGHT);
+            pipControls.setPadding(new Insets(10));
+            pipControls.getChildren().addAll(pipReloadButton, pipMuteButton);
+            pipControls.setPickOnBounds(false); // Allow clicks to pass through transparent areas
+
+            StackPane.setAlignment(pipControls, Pos.TOP_RIGHT);
+
+            // Add video and buttons to the root
+            pipRoot.getChildren().addAll(videoImageView, restoreButton, pipControls);
             StackPane.setAlignment(restoreButton, Pos.CENTER);
 
-            // Show/hide restore button on hover
-            pipRoot.setOnMouseEntered(e -> restoreButton.setVisible(true));
-            pipRoot.setOnMouseExited(e -> restoreButton.setVisible(false));
+            // Show/hide buttons on hover
+            pipRoot.setOnMouseEntered(e -> {
+                restoreButton.setVisible(true);
+                pipMuteButton.setVisible(true);
+                pipReloadButton.setVisible(true);
+            });
+            pipRoot.setOnMouseExited(e -> {
+                restoreButton.setVisible(false);
+                pipMuteButton.setVisible(false);
+                pipReloadButton.setVisible(false);
+            });
 
             // Bind videoImageView size to pipRoot size
             videoImageView.fitWidthProperty().bind(pipRoot.widthProperty());
@@ -649,7 +816,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 }
             });
 
-            pipRoot.setOnMouseReleased(e -> {
+            pipRoot.setOnMouseReleased(event -> {
                 isResizing = false;
                 resizeDirection = 0;
                 pipStage.getScene().setCursor(Cursor.DEFAULT);
@@ -728,7 +895,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         }
     }
 
-    private static class FXBufferFormatCallback implements BufferFormatCallback {
+    private class FXBufferFormatCallback implements BufferFormatCallback {
         @Override
         public BufferFormat getBufferFormat(int sourceWidth, int sourceHeight) {
             return new RV32BufferFormat(sourceWidth, sourceHeight);
@@ -736,7 +903,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         @Override
         public void newFormatSize(int newWidth, int newHeight, int sarNumerator, int sarDenominator) {
-            // No-op, as the BufferFormat is returned by getBufferFormat
+            VlcVideoPlayer.this.videoSourceWidth = newWidth;
+            VlcVideoPlayer.this.videoSourceHeight = newHeight;
+            VlcVideoPlayer.this.videoSarNum = sarNumerator;
+            VlcVideoPlayer.this.videoSarDen = sarDenominator;
+            Platform.runLater(VlcVideoPlayer.this::updateVideoSize);
         }
 
         @Override

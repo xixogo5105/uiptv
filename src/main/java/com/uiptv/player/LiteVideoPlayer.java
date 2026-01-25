@@ -1,6 +1,8 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
@@ -9,10 +11,7 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.Slider;
+import javafx.scene.control.*;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -37,6 +36,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     private MediaPlayer mediaPlayer;
     private final MediaView mediaView = new MediaView();
+    private Timeline inactivityTimer;
 
     // UI Components
     private Slider timeSlider;
@@ -54,7 +54,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private Button btnReload;
     private Button btnPip;
     private Button btnStop;
-    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon;
+    private Button btnAspectRatio; // Changed from MenuButton to Button
+    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioStretchIcon;
 
     private boolean isUserSeeking = false;
     private boolean isRepeating = false;
@@ -85,6 +86,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36";
 
     private boolean isMuted = true; // Track mute state
+    private int aspectRatioMode = 0; // 0=Fit (Default), 1=Stretch
 
 
     public LiteVideoPlayer() {
@@ -101,6 +103,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         btnReload = createIconButton(reloadIcon);
         btnFullscreen = createIconButton(fullscreenIcon);
         btnPip = createIconButton(pipIcon);
+        btnAspectRatio = createIconButton(aspectRatioIcon); // Initialize aspect ratio button
+        btnAspectRatio.setTooltip(new Tooltip("Fit"));
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -112,7 +116,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         HBox topRow = new HBox(8);
         topRow.setAlignment(Pos.CENTER_LEFT);
-        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider);
+        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
 
         timeSlider = new Slider(0, 1, 0);
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
@@ -137,8 +141,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
 
-        mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
-        mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
+        playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
+        playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
 
         StackPane overlayWrapper = new StackPane(controlsContainer);
         overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
@@ -184,6 +188,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         btnFullscreen.setOnAction(e -> toggleFullscreen());
         btnPip.setOnAction(e -> togglePip());
+
+        btnAspectRatio.setOnAction(e -> toggleAspectRatio());
 
         btnMute.setOnAction(e -> {
             isMuted = !isMuted; // Toggle internal state
@@ -256,6 +262,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         break;
                     case READY:
                         updateTimeLabel();
+                        updateVideoSize();
                         break;
                     case DISPOSED:
                     case STALLED:
@@ -283,6 +290,50 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         // --- 5. FADE / HIDE LOGIC ---
         setupFadeAndIdleLogic();
     }
+
+    private void toggleAspectRatio() {
+        aspectRatioMode = (aspectRatioMode + 1) % 2; // Now only 2 modes
+        String tooltipText;
+        ImageView icon;
+        if (aspectRatioMode == 1) {
+            tooltipText = "Stretch";
+            icon = aspectRatioStretchIcon;
+        } else {
+            tooltipText = "Fit";
+            icon = aspectRatioIcon;
+        }
+        btnAspectRatio.setGraphic(icon);
+        if (btnAspectRatio.getTooltip() != null) {
+            btnAspectRatio.getTooltip().setText(tooltipText);
+        }
+        updateVideoSize();
+    }
+
+    private void updateVideoSize() {
+        if (playerContainer.getWidth() <= 0 || playerContainer.getHeight() <= 0) {
+            return;
+        }
+
+        // Unbind properties to prevent RuntimeException when setting them manually
+        mediaView.fitWidthProperty().unbind();
+        mediaView.fitHeightProperty().unbind();
+
+        double containerWidth = playerContainer.getWidth();
+        double containerHeight = playerContainer.getHeight();
+
+        if (aspectRatioMode == 1) {
+            // Stretch to Fill
+            mediaView.setFitWidth(containerWidth);
+            mediaView.setFitHeight(containerHeight);
+            mediaView.setPreserveRatio(false);
+        } else {
+            // Default: Fit within (Contain)
+            mediaView.setFitWidth(containerWidth);
+            mediaView.setFitHeight(containerHeight);
+            mediaView.setPreserveRatio(true);
+        }
+    }
+
 
     private void updateTimeLabel() {
         if (mediaPlayer != null && mediaPlayer.getCurrentTime() != null && mediaPlayer.getTotalDuration() != null) {
@@ -312,6 +363,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         muteOffIcon = createIconView("mute-off.png", true);
         pipIcon = createIconView("picture-in-picture.png", true);
         pipExitIcon = createIconView("picture-in-picture-exit.png", false);
+        aspectRatioIcon = createIconView("aspect-ratio.png", true);
+        aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
     }
 
     private ImageView createIconView(String iconName, boolean applyColorAdjust) {
@@ -354,9 +407,51 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupFadeAndIdleLogic() {
-        controlsContainer.setVisible(false);
-        playerContainer.setOnMouseEntered(e -> controlsContainer.setVisible(true));
-        playerContainer.setOnMouseExited(e -> controlsContainer.setVisible(false));
+        // Timer to hide controls after 5 seconds of inactivity.
+        inactivityTimer = new Timeline(new KeyFrame(Duration.seconds(5), event -> {
+            // Only hide controls if the video is playing.
+            if (mediaPlayer != null && mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                controlsContainer.setVisible(false);
+                // In fullscreen, also hide the mouse cursor.
+                if (fullscreenStage != null) {
+                    playerContainer.setCursor(Cursor.NONE);
+                }
+            }
+        }));
+        inactivityTimer.setCycleCount(1); // Run once per trigger
+
+        // Event handler for mouse movement.
+        playerContainer.setOnMouseMoved(event -> {
+            // Show controls and restore cursor.
+            controlsContainer.setVisible(true);
+            if (playerContainer.getCursor() != Cursor.DEFAULT) {
+                playerContainer.setCursor(Cursor.DEFAULT);
+            }
+            // Restart the inactivity timer.
+            inactivityTimer.playFromStart();
+        });
+
+        // When the mouse enters, we also want to show controls and start the timer.
+        playerContainer.setOnMouseEntered(event -> {
+            controlsContainer.setVisible(true);
+            if (playerContainer.getCursor() != Cursor.DEFAULT) {
+                playerContainer.setCursor(Cursor.DEFAULT);
+            }
+            inactivityTimer.playFromStart();
+        });
+
+        // When the mouse exits, we have different behavior for fullscreen.
+        playerContainer.setOnMouseExited(event -> {
+            // If not in fullscreen, hide controls immediately.
+            if (fullscreenStage == null) {
+                controlsContainer.setVisible(false);
+                inactivityTimer.stop();
+            }
+        });
+
+        // Initially, the controls are visible, and we start the timer.
+        controlsContainer.setVisible(true);
+        inactivityTimer.play();
     }
 
     private String getFinalUrl(String url) throws Exception {
@@ -477,6 +572,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
         playerContainer.setMinHeight(0);
+        btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
     }
 
     @Override
@@ -574,13 +670,62 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             restoreButton.setVisible(false); // Initially hidden
             restoreButton.setOnAction(e -> exitPip());
 
-            // Add video and button to the root
-            pipRoot.getChildren().addAll(mediaView, restoreButton);
+            // Create mute button for PiP
+            Button pipMuteButton = new Button();
+            ImageView pipMuteIcon = new ImageView(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
+            pipMuteIcon.setFitHeight(20);
+            pipMuteIcon.setFitWidth(20);
+            ColorAdjust whiteColorAdjust = new ColorAdjust();
+            whiteColorAdjust.setBrightness(1.0);
+            pipMuteIcon.setEffect(whiteColorAdjust);
+            pipMuteButton.setGraphic(pipMuteIcon);
+            pipMuteButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            pipMuteButton.setPadding(new Insets(8));
+            pipMuteButton.setVisible(false);
+            pipMuteButton.setOnAction(e -> {
+                btnMute.fire(); // Toggle mute using main button logic
+                pipMuteIcon.setImage(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
+            });
+
+            // Create reload button for PiP
+            Button pipReloadButton = new Button();
+            ImageView pipReloadIcon = new ImageView(reloadIcon.getImage());
+            pipReloadIcon.setFitHeight(20);
+            pipReloadIcon.setFitWidth(20);
+            pipReloadIcon.setEffect(whiteColorAdjust);
+            pipReloadButton.setGraphic(pipReloadIcon);
+            pipReloadButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            pipReloadButton.setPadding(new Insets(8));
+            pipReloadButton.setVisible(false);
+            pipReloadButton.setOnAction(e -> {
+                if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
+                    play(currentMediaUri);
+                }
+            });
+
+            HBox pipControls = new HBox(10);
+            pipControls.setAlignment(Pos.TOP_RIGHT);
+            pipControls.setPadding(new Insets(10));
+            pipControls.getChildren().addAll(pipReloadButton, pipMuteButton);
+            pipControls.setPickOnBounds(false); // Allow clicks to pass through transparent areas
+
+            StackPane.setAlignment(pipControls, Pos.TOP_RIGHT);
+
+            // Add video and buttons to the root
+            pipRoot.getChildren().addAll(mediaView, restoreButton, pipControls);
             StackPane.setAlignment(restoreButton, Pos.CENTER);
 
-            // Show/hide restore button on hover
-            pipRoot.setOnMouseEntered(e -> restoreButton.setVisible(true));
-            pipRoot.setOnMouseExited(e -> restoreButton.setVisible(false));
+            // Show/hide buttons on hover
+            pipRoot.setOnMouseEntered(e -> {
+                restoreButton.setVisible(true);
+                pipMuteButton.setVisible(true);
+                pipReloadButton.setVisible(true);
+            });
+            pipRoot.setOnMouseExited(e -> {
+                restoreButton.setVisible(false);
+                pipMuteButton.setVisible(false);
+                pipReloadButton.setVisible(false);
+            });
 
             // Bind mediaView size to pipRoot size
             mediaView.fitWidthProperty().bind(pipRoot.widthProperty());
