@@ -55,7 +55,7 @@ public class ChannelListUI extends HBox {
     private void refresh() {
         List<ChannelItem> catList = new ArrayList<>();
         channelList.forEach(i -> {
-            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl());
+            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
             boolean checkBookmark = BookmarkService.getInstance().isChannelBookmarked(b);
             UIptvAlert.showMessage(b + " --- " + checkBookmark);
             catList.add(new ChannelItem(new SimpleStringProperty(checkBookmark ? "**" + i.getName().replace("*", "") + "**" : i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd())));
@@ -139,7 +139,7 @@ public class ChannelListUI extends HBox {
         MenuItem editItem = new MenuItem("Toggle Bookmark");
         editItem.setOnAction(actionEvent -> {
             rowMenu.hide();
-            BookmarkService.getInstance().toggleBookmark(new Bookmark(account.getAccountName(), categoryTitle, row.getItem().getChannelId(), row.getItem().getChannelName(), row.getItem().getCmd(), account.getServerPortalUrl()));
+            BookmarkService.getInstance().toggleBookmark(new Bookmark(account.getAccountName(), categoryTitle, row.getItem().getChannelId(), row.getItem().getChannelName(), row.getItem().getCmd(), account.getServerPortalUrl(), categoryId));
             this.refresh();
             bookmarkChannelListUI.refresh();
         });

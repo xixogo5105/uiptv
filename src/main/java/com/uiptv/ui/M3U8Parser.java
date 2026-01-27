@@ -11,16 +11,20 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class M3U8Parser {
     private static final String EXTINF = "#EXTINF";
+    private static final String EXT_X_KEY = "#EXT-X-KEY";
+    private static final String KODIPROP_INPUTSTREAM_ADDON = "#KODIPROP:inputstreamaddon=";
+    private static final String KODIPROP_MANIFEST_TYPE = "#KODIPROP:inputstream.adaptive.manifest_type=";
+    private static final String KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type=";
+    private static final String KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key=";
     private static final String COMMENT_PREFIX = "#";
 
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
@@ -111,34 +115,60 @@ public class M3U8Parser {
         try {
             String line;
             while ((line = reader.readLine()) != null) {
-                try {
-                    if (line.startsWith(EXTINF)) {
-                        playlistEntries.add(new PlaylistEntry(
-                                parseItem(line, "tvg-id=\""),
-                                parseItem(line, "group-title=\""),
-                                parseTitle(line),
-                                parseUrl(reader),
-                                parseItem(line, "tvg-logo=\"")));
+                if (!line.startsWith(EXTINF)) {
+                    continue;
+                }
+
+                String tvgId = parseItem(line, "tvg-id=\"");
+                String groupTitle = parseItem(line, "group-title=\"");
+                String title = parseTitle(line);
+                String logo = parseItem(line, "tvg-logo=\"");
+
+                String drmType = null;
+                String drmLicenseUrl = null;
+                Map<String, String> clearKeys = null;
+                String inputstreamaddon = null;
+                String manifestType = null;
+                String url = null;
+                String nextLine;
+
+                while ((nextLine = reader.readLine()) != null) {
+                    if (nextLine.startsWith(EXT_X_KEY)) {
+                        drmType = parseDrmType(nextLine);
+                        drmLicenseUrl = parseItem(nextLine, "URI=\"");
+                    } else if (nextLine.startsWith(KODIPROP_INPUTSTREAM_ADDON)) {
+                        inputstreamaddon = nextLine.substring(KODIPROP_INPUTSTREAM_ADDON.length()).trim();
+                    } else if (nextLine.startsWith(KODIPROP_MANIFEST_TYPE)) {
+                        manifestType = nextLine.substring(KODIPROP_MANIFEST_TYPE.length()).trim();
+                    } else if (nextLine.startsWith(KODIPROP_LICENSE_TYPE)) {
+                        String type = nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim();
+                        if ("com.widevine.alpha".equalsIgnoreCase(type)) {
+                            drmType = "com.widevine.alpha";
+                        } else if ("clearkey".equalsIgnoreCase(type) || "org.w3.clearkey".equalsIgnoreCase(type)) {
+                            drmType = "org.w3.clearkey";
+                        }
+                    } else if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
+                        String key = nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim();
+                        if ("org.w3.clearkey".equalsIgnoreCase(drmType)) {
+                            if (clearKeys == null) clearKeys = new HashMap<>();
+                            clearKeys.putAll(parseClearKeys(key));
+                        } else {
+                            drmLicenseUrl = key;
+                        }
+                    } else if (isNotBlank(nextLine) && !nextLine.startsWith(COMMENT_PREFIX)) {
+                        url = nextLine;
+                        break;
                     }
-                } catch (Exception e) {
-                    UIptvAlert.showError(e.getMessage());
+                }
+
+                if (url != null) {
+                    playlistEntries.add(new PlaylistEntry(tvgId, groupTitle, title, url, logo, drmType, drmLicenseUrl, clearKeys, inputstreamaddon, manifestType));
                 }
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             UIptvAlert.showError(e.getMessage());
         }
-
         return playlistEntries;
-    }
-
-    private static String parseUrl(BufferedReader reader) throws IOException {
-        String line;
-        while ((line = reader.readLine()) != null) {
-            if (isNotBlank(line) && !line.startsWith(COMMENT_PREFIX)) {
-                return line;
-            }
-        }
-        return EMPTY;
     }
 
     private static String parseItem(String line, String key) {
@@ -155,5 +185,28 @@ public class M3U8Parser {
             return line.substring(lastCommaIndex + 1).trim();
         }
         return EMPTY;
+    }
+
+    private static String parseDrmType(String line) {
+        Pattern pattern = Pattern.compile("KEYFORMAT=\"(.*?)\"");
+        Matcher matcher = pattern.matcher(line);
+        if (matcher.find()) {
+            String keyFormat = matcher.group(1);
+            if ("com.widevine.alpha".equalsIgnoreCase(keyFormat)) {
+                return "com.widevine.alpha";
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, String> parseClearKeys(String keyString) {
+        Map<String, String> keys = new HashMap<>();
+        for (String pair : keyString.split(";")) {
+            String[] parts = pair.split(":");
+            if (parts.length == 2) {
+                keys.put(parts[0], parts[1]);
+            }
+        }
+        return keys;
     }
 }

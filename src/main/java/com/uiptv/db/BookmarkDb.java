@@ -86,9 +86,9 @@ import static com.uiptv.util.StringUtils.isNotBlank;
                             nullSafeString(resultSet, "channelId"),
                             nullSafeString(resultSet, "channelName"),
                             nullSafeString(resultSet, "cmd"),
-                            nullSafeString(resultSet, "serverPortalUrl"));
+                            nullSafeString(resultSet, "serverPortalUrl"),
+                            nullSafeString(resultSet, "categoryId"));
                     bookmark.setDbId(nullSafeString(resultSet, "id"));
-                    bookmark.setCategoryId(nullSafeString(resultSet, "categoryId")); // New field
                     return bookmark;
                 }
 

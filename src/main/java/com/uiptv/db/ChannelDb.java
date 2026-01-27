@@ -58,6 +58,11 @@ public class ChannelDb extends BaseDb {
             statement.setInt(10, channel.getCensored());
             statement.setInt(11, channel.getStatus());
             statement.setInt(12, channel.getHd());
+            statement.setString(13, channel.getDrmType());
+            statement.setString(14, channel.getDrmLicenseUrl());
+            statement.setString(15, channel.getClearKeysJson());
+            statement.setString(16, channel.getInputstreamaddon());
+            statement.setString(17, channel.getManifestType());
             statement.execute();
         } catch (SQLException e) {
             throw new RuntimeException("Unable to execute query");
@@ -83,9 +88,27 @@ public class ChannelDb extends BaseDb {
 
     @Override
     Channel populate(ResultSet resultSet) {
-        Channel c = new Channel(nullSafeString(resultSet, "channelId"), nullSafeString(resultSet, "name"), nullSafeString(resultSet, "number"), nullSafeString(resultSet, "cmd"), nullSafeString(resultSet, "cmd_1"), nullSafeString(resultSet, "cmd_2"), nullSafeString(resultSet, "cmd_3"), nullSafeString(resultSet, "logo"), safeInteger(resultSet, "censored"), safeInteger(resultSet, "status"), safeInteger(resultSet, "hd"));
+        Channel c = new Channel(
+                nullSafeString(resultSet, "channelId"),
+                nullSafeString(resultSet, "name"),
+                nullSafeString(resultSet, "number"),
+                nullSafeString(resultSet, "cmd"),
+                nullSafeString(resultSet, "cmd_1"),
+                nullSafeString(resultSet, "cmd_2"),
+                nullSafeString(resultSet, "cmd_3"),
+                nullSafeString(resultSet, "logo"),
+                safeInteger(resultSet, "censored"),
+                safeInteger(resultSet, "status"),
+                safeInteger(resultSet, "hd"),
+                nullSafeString(resultSet, "drmType"),
+                nullSafeString(resultSet, "drmLicenseUrl"),
+                null, // clearKeys map is reconstructed from JSON
+                nullSafeString(resultSet, "inputstreamaddon"),
+                nullSafeString(resultSet, "manifestType")
+        );
         c.setDbId(nullSafeString(resultSet, "id"));
         c.setCategoryId(nullSafeString(resultSet, "categoryId"));
+        c.setClearKeysJson(nullSafeString(resultSet, "clearKeysJson"));
         return c;
     }
 

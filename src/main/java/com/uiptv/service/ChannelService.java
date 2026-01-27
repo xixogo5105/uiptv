@@ -106,20 +106,9 @@ public class ChannelService {
         return XtremeParser.parseChannels(category, account);
     }
 
-    //    private List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
-//        Set<Channel> channels = new LinkedHashSet<>();
-//        List<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseChannelUrlM3U8(new URL(account.getM3u8Path())) : parseChannelPathM3U8(account.getM3u8Path());
-//        m3uEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
-//            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
-//            channels.add(c);
-//        });
-//        return channels.stream().toList();
-//    }
-// java
     private List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
         Set<Channel> channels = new LinkedHashSet<>();
 
-        // determine categories (All is always present). if size >= 2 => there are other categories
         Set<PlaylistEntry> m3uCategories = account.getType() == M3U8_URL
                 ? com.uiptv.ui.M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
                 : com.uiptv.ui.M3U8Parser.parsePathCategory(account.getM3u8Path());
@@ -139,16 +128,14 @@ public class ChannelService {
 
             if (category.equalsIgnoreCase("Uncategorized")) {
                 if (!hasOtherCategories) {
-                    // if no other categories beyond "All", treat Uncategorized as absent
                     return false;
                 }
                 return gtTrim.isEmpty() || gtTrim.equalsIgnoreCase("Uncategorized");
             }
 
-            // normal matching by trimmed group title or id
             return gtTrim.equalsIgnoreCase(category) || (e.getId() != null && e.getId().equalsIgnoreCase(category));
         }).forEach(entry -> {
-            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
+            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
             channels.add(c);
         });
 
@@ -159,7 +146,7 @@ public class ChannelService {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
         rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
-            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0);
+            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
             channels.add(c);
         });
         return channels.stream().toList();
@@ -208,12 +195,12 @@ public class ChannelService {
     public List<Channel> parseItvChannels(String json) {
         try {
             JSONObject root = new JSONObject(json);
-            JSONObject js = root.optJSONObject("js", root); // Use root if "js" object doesn't exist
-            JSONArray list = js.getJSONArray("data"); // Now get "data" from the correct object
+            JSONObject js = root.optJSONObject("js", root);
+            JSONArray list = js.getJSONArray("data");
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
-                channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
+                channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null));
             }
             return censor(channelList);
 
@@ -226,8 +213,8 @@ public class ChannelService {
     public List<Channel> parseVodChannels(Account account, String json) {
         try {
             JSONObject root = new JSONObject(json);
-            JSONObject js = root.optJSONObject("js", root); // Use root if "js" object doesn't exist
-            JSONArray list = js.getJSONArray("data"); // Now get "data" from the correct object
+            JSONObject js = root.optJSONObject("js", root);
+            JSONArray list = js.getJSONArray("data");
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
@@ -235,20 +222,17 @@ public class ChannelService {
                 if (isBlank(name)) {
                     name = nullSafeString(jsonChannel, "o_name");
                 }
-                //String number = nullSafeString(jsonChannel, "tmdb");
-                //if (isBlank(number)) {
                 String number = nullSafeString(jsonChannel, "id");
-                //}
                 String cmd = nullSafeString(jsonChannel, "cmd");
                 if (account.getAction() == series && isNotBlank(cmd)) {
-                    JSONArray series = jsonChannel.getJSONArray("series");
-                    if (series != null) {
-                        for (int j = 0; j < series.length(); j++) {
-                            channelList.add(new Channel(String.valueOf(series.get(j)), name + " - Episode " + String.valueOf(series.get(j)), number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
+                    JSONArray seriesArray = jsonChannel.getJSONArray("series");
+                    if (seriesArray != null) {
+                        for (int j = 0; j < seriesArray.length(); j++) {
+                            channelList.add(new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + String.valueOf(seriesArray.get(j)), number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null));
                         }
                     }
                 } else {
-                    channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd")));
+                    channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null));
                 }
             }
             List<Channel> censoredChannelList = censor(channelList);
@@ -265,7 +249,7 @@ public class ChannelService {
         String commaSeparatedList = configuration.getFilterChannelsList();
         if (isBlank(commaSeparatedList) || configuration.isPauseFiltering()) return channelList;
 
-        List<String> censoredChannels = new ArrayList<>(List.of(configuration.getFilterChannelsList().split(",")));
+        List<String> censoredChannels = new ArrayList<>(List.of(commaSeparatedList.split(",")));
         censoredChannels.replaceAll(String::trim);
 
         Predicate<Channel> hasCensoredWord = channel -> {

@@ -14,9 +14,10 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
             crossorigin="anonymous"></script>
-    <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet"/>
     <link rel="stylesheet" href="css/spa.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Shaka Player -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.compiled.js"></script>
 </head>
 <body>
 
@@ -130,7 +131,10 @@
                                 <img v-if="channel.logo" :src="channel.logo" @error="imageError" alt="logo">
                                 <div v-else class="icon-placeholder"><i class="bi bi-tv"></i></div>
                                 <div class="content-wrapper">
-                                    <div class="title">{{ channel.name }}</div>
+                                    <div class="title">
+                                        {{ channel.name }}
+                                        <span v-if="channel.drmType" class="badge bg-primary ms-2">DRM</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -145,7 +149,10 @@
                             <img v-if="fav.logo" :src="fav.logo" @error="imageError" alt="logo">
                             <div v-else class="icon-placeholder"><i class="bi bi-heart-fill"></i></div>
                             <div class="content-wrapper">
-                                <div class="title">{{ fav.name }}</div>
+                                <div class="title">
+                                    {{ fav.name }}
+                                    <span v-if="fav.drmType" class="badge bg-primary ms-2">DRM</span>
+                                </div>
                                 <div class="subtitle">{{ fav.accountName || 'Favorite' }}</div>
                             </div>
                         </div>
@@ -191,6 +198,19 @@
                                 <button class="btn btn-link text-white me-2" @click="toggleFavorite" title="Favorite">
                                     <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
                                 </button>
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-link text-white me-2" type="button" id="resolutionMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Resolutions">
+                                        <i class="bi bi-gear-fill"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="resolutionMenuButton">
+                                        <li v-for="track in videoTracks" :key="track.id">
+                                            <a class="dropdown-item" href="#" @click.prevent="switchVideoTrack(track.id)">
+                                                {{ track.height }}p
+                                                <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                                 <button class="btn btn-link text-white" @click="stopPlayback" title="Stop">
                                     <i class="bi bi-stop-circle-fill" style="font-size: 1.5rem;"></i>
                                 </button>
@@ -198,14 +218,13 @@
                         </div>
                     </div>
 
-                    <!-- VideoJS Player -->
+                    <!-- Video Player -->
                     <video
                             v-if="!isYoutube"
                             ref="videoPlayer"
-                            class="video-js vjs-default-skin vjs-big-play-centered"
+                            class="w-100 h-100"
                             controls
                             autoplay
-                            preload="auto"
                     ></video>
 
                     <!-- YouTube Player -->
@@ -245,9 +264,6 @@
     </div>
 </div>
 
-<script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/videojs-http-streaming@3.9.0/dist/videojs-http-streaming.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/videojs-youtube@3.0.1/dist/Youtube.min.js"></script>
 <script src="javascript/spa.js"></script>
 <script>
     if ('serviceWorker' in navigator) {

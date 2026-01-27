@@ -44,7 +44,7 @@ public class EpisodesListUI extends HBox {
     private void refresh() {
         List<EpisodeItem> catList = new ArrayList<>();
         channelList.episodes.forEach(i -> {
-            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl());
+            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(),null);
             boolean checkBookmark = BookmarkService.getInstance().isChannelBookmarked(b);
             UIptvAlert.showMessage(b + " --- " + String.valueOf(checkBookmark));
             catList.add(new EpisodeItem(new SimpleStringProperty(checkBookmark ? "**" + i.getTitle().replace("*", "") + "**" : i.getTitle()), new SimpleStringProperty(i.getId()), new SimpleStringProperty(i.getCmd())));

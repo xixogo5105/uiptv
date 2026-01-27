@@ -108,7 +108,24 @@ public class XtremeParser {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonCategory = list.getJSONObject(i);
-                categoryList.add(new Channel(safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"), safeGetString(jsonCategory, "name"), null, getXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")), null, null, null, safeGetString(jsonCategory, account.getAction() == series ? "cover" : "stream_icon"), 0, 0, 0));
+                categoryList.add(new Channel(
+                        safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
+                        safeGetString(jsonCategory, "name"),
+                        null,
+                        getXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")),
+                        null,
+                        null,
+                        null,
+                        safeGetString(jsonCategory, account.getAction() == series ? "cover" : "stream_icon"),
+                        0,
+                        0,
+                        0,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                ));
             }
         } catch (Exception e) {
             showError("Error while processing response data" + e.getMessage());
@@ -121,8 +138,6 @@ public class XtremeParser {
         try {
             JSONObject data = new JSONObject(json);
             episodeList.seasonInfo = new SeasonInfo(data.getJSONObject("info"));
-            //int seasons = 0;
-            //while (!episodes.isNull(++seasons + "") || seasons <= 100000) ;
             for (Map.Entry<String, Object> entry : data.getJSONObject("episodes").toMap().entrySet()) {
                 List seasonEpisodes = (List) entry.getValue();
                 if (seasonEpisodes != null && !seasonEpisodes.isEmpty()) {

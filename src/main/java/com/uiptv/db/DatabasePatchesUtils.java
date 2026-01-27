@@ -15,6 +15,16 @@ public class DatabasePatchesUtils {
         dbPatches.put("113", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN pinToTop TEXT default '0'");
         dbPatches.put("114", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN categoryId TEXT");
         dbPatches.put("115", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN embeddedPlayer TEXT");
+        dbPatches.put("116", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN drmType TEXT");
+        dbPatches.put("117", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN drmLicenseUrl TEXT");
+        dbPatches.put("118", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN clearKeysJson TEXT");
+        dbPatches.put("119", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN inputstreamaddon TEXT");
+        dbPatches.put("120", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN manifestType TEXT");
+        dbPatches.put("121", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN drmType TEXT");
+        dbPatches.put("122", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN drmLicenseUrl TEXT");
+        dbPatches.put("123", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN clearKeysJson TEXT");
+        dbPatches.put("124", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN inputstreamaddon TEXT");
+        dbPatches.put("125", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN manifestType TEXT");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

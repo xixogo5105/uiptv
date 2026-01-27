@@ -355,7 +355,7 @@ body {
 
 .video-js .vjs-big-play-button {
     background-color: var(--vjs-big-play-button-bg) !important;
-    border-color: var(--vjs-big-play-button-border) !important;
+    border-color: var(--vjs-big-play-button-border) !importan;
     color: var(--vjs-text-color) !important;
 }
 
@@ -413,6 +413,14 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     color: var(--card-title);
+    display: flex;
+    align-items: center;
+}
+
+.card-item .title .badge {
+    font-size: 0.6rem;
+    padding: 0.2em 0.4em;
+    line-height: 1;
 }
 
 .card-item .subtitle {

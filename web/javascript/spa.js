@@ -23,8 +23,9 @@ createApp({
         const playerKey = ref(0);
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
-        const playerInstance = ref(null);
-        const videoPlayer = ref(null);
+        const playerInstance = ref(null); // Will hold Shaka player instance
+        const videoPlayer = ref(null); // Ref to the <video> element
+        const videoTracks = ref([]); // For resolution switching
 
         // Theme State: 'system', 'dark', 'light'
         const theme = ref('system');
@@ -165,7 +166,9 @@ createApp({
                 logo: channel.logo,
                 accountId: currentContext.value.accountId,
                 categoryId: currentContext.value.categoryId,
-                type: 'channel'
+                type: 'channel',
+                drmType: channel.drmType,
+                clearKeys: channel.clearKeys
             };
             startPlayback(window.location.origin + "/player?channelId=" + channel.dbId + "&categoryId=" + currentContext.value.categoryId + "&accountId=" + currentContext.value.accountId);
         };
@@ -189,91 +192,152 @@ createApp({
             }
         };
 
+        // --- NEW PLAYER LOGIC ---
+
         const startPlayback = async (url) => {
-            if (playerInstance.value) {
-                try {
-                    playerInstance.value.dispose();
-                } catch (e) {
-                    console.warn("Error disposing player", e);
-                }
-                playerInstance.value = null;
-            }
+            await stopPlayback(); // Stop any current playback
 
             playerKey.value++;
             isPlaying.value = true;
 
             try {
                 const response = await fetch(url);
-                const data = await response.json();
-                initPlayer(data.url);
+                const channelData = await response.json();
+                await initPlayer(channelData);
             } catch (e) {
                 console.error("Failed to start playback", e);
+                isPlaying.value = false;
             }
         };
 
-        const stopPlayback = () => {
+        const stopPlayback = async () => {
             if (playerInstance.value) {
                 try {
-                    playerInstance.value.dispose();
+                    await playerInstance.value.destroy();
                 } catch (e) {
-                    console.warn("Error disposing player", e);
+                    console.warn("Error destroying Shaka player", e);
                 }
                 playerInstance.value = null;
+            }
+            if (videoPlayer.value) {
+                videoPlayer.value.pause();
+                videoPlayer.value.src = '';
+                videoPlayer.value.removeAttribute('src'); // Good practice
+                videoPlayer.value.load();
             }
             isPlaying.value = false;
             currentChannel.value = null;
             isYoutube.value = false;
             youtubeSrc.value = '';
+            videoTracks.value = [];
         };
 
-        const initPlayer = (uri) => {
-            if (uri.includes("youtube.com") || uri.includes("youtu.be") || uri.includes("googlevideo.com")) {
+        const initPlayer = async (channel) => {
+            const uri = channel.url;
+            if (!uri) {
+                console.error("No URL provided for playback.");
+                isPlaying.value = false;
+                return;
+            }
+
+            if (uri.includes("youtube.com") || uri.includes("youtu.be")) {
                 isYoutube.value = true;
-                const videoId = uri.split("v=")[1] || uri.split("/").pop();
+                const videoId = uri.split('v=')[1] ? uri.split('v=')[1].split('&')[0] : uri.split('/').pop();
                 youtubeSrc.value = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                return;
+            }
+
+            isYoutube.value = false;
+            await nextTick();
+
+            const video = videoPlayer.value;
+            if (!video) {
+                console.error("Video element not found.");
+                return;
+            }
+
+            const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
+            const canNative = video.canPlayType('application/vnd.apple.mpegurl');
+            const hasDRM = channel.drm != null;
+
+            if (hasDRM) {
+                console.log("Player choice: Shaka (DRM)");
+                await loadShaka(channel);
+            } else if (isApple && canNative) {
+                console.log("Player choice: Native (Apple HLS)");
+                await loadNative(channel);
+            } else if (canNative && uri.endsWith('.m3u8')) { // Be more specific for native
+                 console.log("Player choice: Native (HLS)");
+                 await loadNative(channel);
             } else {
-                isYoutube.value = false;
-                nextTick(() => {
-                    if (videoPlayer.value) {
-                        const player = videojs(videoPlayer.value, {
-                            controls: true,
-                            autoplay: true,
-                            preload: 'auto',
-                            html5: {
-                                hls: {
-                                    overrideNative: true
-                                },
-                                nativeAudioTracks: false,
-                                nativeVideoTracks: false
-                            }
-                        });
-
-                        playerInstance.value = player;
-
-                        let sourceType = 'application/x-mpegURL';
-                        if (uri.includes('.mpd')) sourceType = 'application/dash+xml';
-                        else if (uri.includes('.mp4')) sourceType = 'video/mp4';
-                        else if (uri.includes('.webm')) sourceType = 'video/webm';
-                        else if (uri.includes('.ts')) sourceType = 'video/mp2t';
-
-                        player.ready(() => {
-                            player.src({
-                                src: uri,
-                                type: sourceType
-                            });
-
-                            const playPromise = player.play();
-                            if (playPromise !== undefined) {
-                                playPromise.then(_ => {
-                                }).catch(error => {
-                                    console.warn("Autoplay prevented or interrupted:", error);
-                                });
-                            }
-                        });
-                    }
-                });
+                console.log("Player choice: Shaka (Fallback)");
+                await loadShaka(channel);
             }
         };
+
+        const loadNative = async (channel) => {
+            await nextTick();
+            const video = videoPlayer.value;
+            if (video) {
+                video.src = channel.url;
+                try {
+                    await video.play();
+                } catch (e) {
+                    console.warn("Autoplay was prevented.", e);
+                }
+            }
+        };
+
+        const loadShaka = async (channel) => {
+            await nextTick();
+            const video = videoPlayer.value;
+            if (!video) return;
+
+            // Install polyfills
+            shaka.polyfill.installAll();
+
+            // Check browser support
+            if (!shaka.Player.isBrowserSupported()) {
+                console.error("Shaka Player is not supported by this browser.");
+                return;
+            }
+
+            const player = new shaka.Player(video);
+            playerInstance.value = player;
+
+            // Listen for errors
+            player.addEventListener('error', (event) => {
+                console.error('Shaka Player Error:', event.detail);
+            });
+
+            // Configure DRM if present
+            if (channel.drm) {
+                let drmConfig = {};
+                if (channel.drm.licenseUrl) {
+                    drmConfig.servers = { [channel.drm.type]: channel.drm.licenseUrl };
+                }
+                if (channel.drm.clearKeys) {
+                    drmConfig.clearKeys = channel.drm.clearKeys;
+                }
+                player.configure({ drm: drmConfig });
+            }
+
+            try {
+                await player.load(channel.url);
+                console.log('Shaka: Video loaded successfully.');
+                videoTracks.value = player.getVariantTracks();
+            } catch (e) {
+                console.error('Shaka: Error loading video:', e);
+            }
+        };
+
+        const switchVideoTrack = (trackId) => {
+            if (playerInstance.value) {
+                playerInstance.value.selectVariantTrack(playerInstance.value.getVariantTracks().find(t => t.id === trackId), true);
+            }
+        };
+
+        // --- END NEW PLAYER LOGIC ---
 
         const toggleFavorite = () => {
             if (!currentChannel.value) return;
@@ -356,6 +420,7 @@ createApp({
             isYoutube,
             youtubeSrc,
             videoPlayer,
+            videoTracks,
             theme,
             themeIcon,
 
@@ -371,7 +436,8 @@ createApp({
             toggleFavorite,
             imageError,
             toggleTheme,
-            resetApp
+            resetApp,
+            switchVideoTrack
         };
     }
 }).mount('#app');

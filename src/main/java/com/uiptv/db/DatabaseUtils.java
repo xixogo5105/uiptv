@@ -73,7 +73,12 @@ public class DatabaseUtils {
                 new DataColumn("channelName", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
-                new DataColumn("categoryId", "TEXT")
+                new DataColumn("categoryId", "TEXT"),
+                new DataColumn("drmType", "TEXT"),
+                new DataColumn("drmLicenseUrl", "TEXT"),
+                new DataColumn("clearKeysJson", "TEXT"),
+                new DataColumn("inputstreamaddon", "TEXT"),
+                new DataColumn("manifestType", "TEXT")
         )));
         dbStructure.put(DbTable.CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),
@@ -99,7 +104,12 @@ public class DatabaseUtils {
                 new DataColumn("logo", "TEXT"),
                 new DataColumn("censored", "INTEGER"),
                 new DataColumn("status", "INTEGER"),
-                new DataColumn("hd", "INTEGER")
+                new DataColumn("hd", "INTEGER"),
+                new DataColumn("drmType", "TEXT"),
+                new DataColumn("drmLicenseUrl", "TEXT"),
+                new DataColumn("clearKeysJson", "TEXT"),
+                new DataColumn("inputstreamaddon", "TEXT"),
+                new DataColumn("manifestType", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),
