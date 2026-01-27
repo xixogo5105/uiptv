@@ -1,6 +1,7 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.model.PlayerResponse;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -31,6 +32,8 @@ import javafx.util.Duration;
 import java.io.File;
 import java.net.HttpURLConnection;
 import java.net.URL;
+
+import static com.uiptv.util.StringUtils.isBlank;
 
 public class LiteVideoPlayer implements VideoPlayerInterface {
 
@@ -182,7 +185,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         btnReload.setOnAction(e -> {
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(currentMediaUri);
+                play(new PlayerResponse(currentMediaUri));
             }
         });
 
@@ -463,8 +466,14 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     }
 
     @Override
-    public void play(String uri) {
-        if (uri == null || uri.isEmpty()) {
+    public void play(PlayerResponse response) {
+        String uri;
+        if (response != null) {
+            uri = response.getUrl();
+        } else {
+            uri = null;
+        }
+        if (isBlank(uri)) {
             stop();
             return;
         }
@@ -521,7 +530,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         mediaPlayer.currentTimeProperty().addListener(progressListener);
                         mediaPlayer.setOnEndOfMedia(() -> {
                             if (isRepeating) {
-                                play(currentMediaUri); // Reload the stream
+                                play(new PlayerResponse(currentMediaUri)); // Reload the stream
                             } else {
                                 btnPlayPause.setGraphic(playIcon);
                                 mediaPlayer.seek(Duration.ZERO);
@@ -699,7 +708,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             pipReloadButton.setVisible(false);
             pipReloadButton.setOnAction(e -> {
                 if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                    play(currentMediaUri);
+                    play(new PlayerResponse(currentMediaUri));
                 }
             });
 

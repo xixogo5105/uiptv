@@ -1,6 +1,7 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.model.PlayerResponse;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -34,6 +35,8 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32Buffe
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 
 public class VlcVideoPlayer implements VideoPlayerInterface {
@@ -199,7 +202,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         btnReload.setOnAction(e -> {
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(currentMediaUri);
+                play(new PlayerResponse(currentMediaUri));
             }
         });
 
@@ -228,8 +231,12 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         });
 
         // Add mouse pressed/released handlers for volumeSlider to control idleTimer
-        volumeSlider.setOnMousePressed(e -> { if (isFullscreen) idleTimer.stop(); });
-        volumeSlider.setOnMouseReleased(e -> { if (isFullscreen) idleTimer.playFromStart(); });
+        volumeSlider.setOnMousePressed(e -> {
+            if (isFullscreen) idleTimer.stop();
+        });
+        volumeSlider.setOnMouseReleased(e -> {
+            if (isFullscreen) idleTimer.playFromStart();
+        });
 
         playerContainer.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
@@ -457,8 +464,14 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     }
 
     @Override
-    public void play(String uri) {
-        if (uri != null && !uri.isEmpty()) {
+    public void play(PlayerResponse response) {
+        String uri;
+        if (response != null) {
+            uri = response.getUrl();
+        } else {
+            uri = null;
+        }
+        if (isNotBlank(uri)) {
             this.currentMediaUri = uri;
             playerContainer.setVisible(true);
             playerContainer.setManaged(true);
@@ -644,7 +657,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             pipReloadButton.setVisible(false);
             pipReloadButton.setOnAction(e -> {
                 if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                    play(currentMediaUri);
+                    play(new PlayerResponse(currentMediaUri));
                 }
             });
 

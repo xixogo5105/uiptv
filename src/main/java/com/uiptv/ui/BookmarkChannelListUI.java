@@ -3,6 +3,8 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
+import com.uiptv.model.Channel;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
@@ -278,25 +280,44 @@ public class BookmarkChannelListUI extends HBox {
         try {
             Account account = AccountService.getInstance().getAll().get(item.getAccountName());
             account.setServerPortalUrl(item.getServerPortalUrl());
-            String evaluatedStreamUrl = "";
-            if (hardReset) {
-                evaluatedStreamUrl = PlayerService.getInstance().runBookmark(account, item.getCmd());
-            } else {
-                evaluatedStreamUrl = PlayerService.getInstance().get(account, item.getCmd());
+            
+            Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
+            if (bookmark == null) {
+                 bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
+                 bookmark.setDbId(item.getBookmarkId());
             }
+
+            PlayerResponse response;
+            if (hardReset) {
+                response = PlayerService.getInstance().runBookmark(account, bookmark);
+            } else {
+                Channel channel = new Channel();
+                channel.setCmd(bookmark.getCmd());
+                channel.setChannelId(bookmark.getChannelId());
+                channel.setName(bookmark.getChannelName());
+                channel.setDrmType(bookmark.getDrmType());
+                channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
+                channel.setClearKeysJson(bookmark.getClearKeysJson());
+                channel.setInputstreamaddon(bookmark.getInputstreamaddon());
+                channel.setManifestType(bookmark.getManifestType());
+                
+                response = PlayerService.getInstance().get(account, channel);
+            }
+
+            String evaluatedStreamUrl = response.getUrl();
 
             boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
             boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
 
             if (playerPathIsEmbedded) {
                 if (useEmbeddedPlayerConfig) {
-                    getPlayer().play(evaluatedStreamUrl);
+                    getPlayer().play(response);
                 } else {
                     showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                 }
             } else { // playerPath is not "embedded" or is blank
                 if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
-                    getPlayer().play(evaluatedStreamUrl);
+                    getPlayer().play(response);
                 } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
                     showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                 } else { // Use external player

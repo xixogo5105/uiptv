@@ -1,9 +1,9 @@
-
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
@@ -181,25 +181,40 @@ public class ChannelListUI extends HBox {
 
     private void play(ChannelItem item, String playerPath, boolean runBookmark) {
         try {
-            String evaluatedStreamUrl;
+            PlayerResponse response;
             if (runBookmark) {
-                evaluatedStreamUrl = PlayerService.getInstance().runBookmark(account, item.getCmd());
+                Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
+                response = PlayerService.getInstance().runBookmark(account, bookmark);
             } else {
-                evaluatedStreamUrl = PlayerService.getInstance().get(account, item.getCmd(), item.getChannelId());
+                Channel channel = channelList.stream()
+                        .filter(c -> c.getChannelId().equals(item.getChannelId()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (channel == null) {
+                    channel = new Channel();
+                    channel.setChannelId(item.getChannelId());
+                    channel.setName(item.getChannelName());
+                    channel.setCmd(item.getCmd());
+                }
+
+                response = PlayerService.getInstance().get(account, channel, item.getChannelId());
             }
+
+            String evaluatedStreamUrl = response.getUrl();
 
             boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
             boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
 
             if (playerPathIsEmbedded) {
                 if (useEmbeddedPlayerConfig) {
-                    getPlayer().play(evaluatedStreamUrl);
+                    getPlayer().play(response);
                 } else {
                     showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                 }
             } else { // playerPath is not "embedded" or is blank
                 if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
-                    getPlayer().play(evaluatedStreamUrl);
+                    getPlayer().play(response);
                 } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
                     showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                 } else { // Use external player

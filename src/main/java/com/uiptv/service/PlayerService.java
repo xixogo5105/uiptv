@@ -1,9 +1,12 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
+import com.uiptv.model.Channel;
+import com.uiptv.model.PlayerResponse;
+import com.uiptv.player.YoutubeDL;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
-import com.uiptv.player.YoutubeDL;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -30,34 +33,53 @@ public class PlayerService {
         return instance;
     }
 
-    public String get(Account account, String urlPrefix) throws IOException {
-        return get(account, urlPrefix, "");
+    public PlayerResponse get(Account account, Channel channel) throws IOException {
+        return get(account, channel, "");
     }
 
-    public String get(Account account, String urlPrefix, String series) throws IOException {
+    public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
+        String urlPrefix = channel.getCmd();
+        String finalUrl;
+
         if (preDefinedUrls.contains(account.getType())) {
-            // For pre-defined URLs, we still want to check if they are YouTube links
-            return resolveAndProcessUrl(urlPrefix);
-        }
-        try {
-            if (isNotBlank(urlPrefix) && urlPrefix.contains("play_token=")) {
-                if (isNotBlank(urlPrefix.split("play_token=")[1])) return resolveAndProcessUrl(urlPrefix);
+            finalUrl = resolveAndProcessUrl(urlPrefix);
+        } else {
+            boolean isPlayTokenUrl = false;
+            try {
+                if (isNotBlank(urlPrefix) && urlPrefix.contains("play_token=")) {
+                    if (isNotBlank(urlPrefix.split("play_token=")[1])) {
+                        isPlayTokenUrl = true;
+                    }
+                }
+            } catch (Exception ignored) {
             }
-        } catch (Exception ignored) {
 
+            if (isPlayTokenUrl) {
+                finalUrl = resolveAndProcessUrl(urlPrefix);
+            } else {
+                String streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
+                if (isBlank(streamReadyUrl)) {
+                    HandshakeService.getInstance().hardTokenRefresh(account);
+                    streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
+                }
+                finalUrl = resolveAndProcessUrl(streamReadyUrl);
+            }
         }
-        String streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
-        if (isBlank(streamReadyUrl)) {
-            HandshakeService.getInstance().hardTokenRefresh(account);
-            streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
-        }
-        return resolveAndProcessUrl(streamReadyUrl);
+
+        PlayerResponse response = new PlayerResponse(finalUrl);
+        response.setFromChannel(channel);
+        return response;
     }
 
-    public String runBookmark(Account account, String urlPrefix) {
+    public PlayerResponse runBookmark(Account account, Bookmark bookmark) {
         HandshakeService.getInstance().connect(account);
+        String urlPrefix = bookmark.getCmd();
         String streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, ""), account));
-        return resolveAndProcessUrl(streamReadyUrl);
+        String finalUrl = resolveAndProcessUrl(streamReadyUrl);
+
+        PlayerResponse response = new PlayerResponse(finalUrl);
+        response.setFromBookmark(bookmark);
+        return response;
     }
 
     private String parseUrl(String json) {

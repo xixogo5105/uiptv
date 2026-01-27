@@ -25,29 +25,19 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String categoryId = getParam(ex, "categoryId");
         String channelId = getParam(ex, "channelId");
 
+        PlayerResponse response;
+
         if (isNotBlank(bookmarkId)) {
             Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
             Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
-            String finalUrl = PlayerService.getInstance().runBookmark(account, bookmark.getCmd());
-            generateJsonResponse(ex, buildJsonResponse(getBookmarkResponse(bookmark, finalUrl)));
+            response = PlayerService.getInstance().runBookmark(account, bookmark);
         } else {
             Account account = AccountService.getInstance().getById(accountId);
             Channel channel = ChannelDb.get().getChannelById(channelId, categoryId);
-            String finalUrl = PlayerService.getInstance().get(account, channel.getCmd());
-            generateJsonResponse(ex, buildJsonResponse(getChannelResponse(channel, finalUrl)));
+            response = PlayerService.getInstance().get(account, channel);
         }
-    }
 
-    private PlayerResponse getChannelResponse(Channel channel, String finalUrl) {
-        PlayerResponse response = new PlayerResponse(finalUrl);
-        response.setFromChannel(channel);
-        return response;
-    }
-
-    private PlayerResponse getBookmarkResponse(Bookmark bookmark, String finalUrl) {
-        PlayerResponse response = new PlayerResponse(finalUrl);
-        response.setFromBookmark(bookmark);
-        return response;
+        generateJsonResponse(ex, buildJsonResponse(response));
     }
 
     private String buildJsonResponse(PlayerResponse response) {

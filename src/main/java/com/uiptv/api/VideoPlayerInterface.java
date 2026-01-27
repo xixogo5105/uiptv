@@ -1,5 +1,6 @@
 package com.uiptv.api;
 
+import com.uiptv.model.PlayerResponse;
 import javafx.scene.Node;
 
 public interface VideoPlayerInterface {
@@ -10,7 +11,7 @@ public interface VideoPlayerInterface {
         DUMMY
     }
     
-    void play(String source);
+    void play(PlayerResponse response);
     void stop();
     void toggleFullscreen();
     Node getPlayerContainer();

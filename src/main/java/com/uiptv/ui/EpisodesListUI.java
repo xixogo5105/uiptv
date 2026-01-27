@@ -2,6 +2,8 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.Channel;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
@@ -139,16 +141,24 @@ public class EpisodesListUI extends HBox {
 
     private void play(EpisodeItem item, String playerPath, boolean runBookmark) {
         try {
-            String cmd;
+            PlayerResponse response;
             if (runBookmark) {
-                cmd = PlayerService.getInstance().runBookmark(account, item.getCmd());
+                Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
+                response = PlayerService.getInstance().runBookmark(account, bookmark);
             } else {
-                cmd = PlayerService.getInstance().get(account, item.getCmd());
+                Channel channel = new Channel();
+                channel.setChannelId(item.getEpisodeId());
+                channel.setName(item.getEpisodeName());
+                channel.setCmd(item.getCmd());
+                response = PlayerService.getInstance().get(account, channel);
             }
+
+            String evaluatedStreamUrl = response.getUrl();
+
             if ((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
-                getPlayer().play(cmd); // Usage updated
+                getPlayer().play(response);
             } else {
-                Platform.executeCommand(playerPath, cmd);
+                Platform.executeCommand(playerPath, evaluatedStreamUrl);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

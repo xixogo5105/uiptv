@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.PlayerService;
@@ -29,8 +30,14 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
     private static String bookmarkPlayerResponse(HttpExchange ex) throws IOException {
         Bookmark bookmark = BookmarkService.getInstance().getBookmark(getParam(ex, "bookmarkId"));
         Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
-        String cmd = URLDecoder.decode(bookmark.getCmd(), UTF_8);
-        return PlayerService.getInstance().get(account, cmd);
+        
+        String originalCmd = bookmark.getCmd();
+        bookmark.setCmd(URLDecoder.decode(originalCmd, UTF_8));
+        
+        PlayerResponse playerResponse = PlayerService.getInstance().runBookmark(account, bookmark);
+        
+        bookmark.setCmd(originalCmd);
+        return playerResponse.getUrl();
     }
 
 }

@@ -1,13 +1,14 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.model.PlayerResponse;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 
 public class DummyVideoPlayer implements VideoPlayerInterface {
     @Override
-    public void play(String source) {
-        // Do nothing
+    public void play(PlayerResponse response) {
+
     }
 
     @Override
