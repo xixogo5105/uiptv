@@ -150,7 +150,7 @@ public class ManageAccountUI extends VBox {
         new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
-
+            
             Platform.runLater(() -> {
                 if (newDefault != null && macAddress.getItems().contains(newDefault)) {
                     macAddress.setValue(newDefault);
@@ -187,7 +187,7 @@ public class ManageAccountUI extends VBox {
 
                     String mac = macList.get(i);
                     progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
-
+                    
                     boolean isValid = isValidMac(mac);
                     progressDialog.addResult(isValid);
 
@@ -201,12 +201,15 @@ public class ManageAccountUI extends VBox {
                     if (isCancelled() || stopRequested.get()) break;
 
                     if (i < total - 1) {
-                        for (int seconds = 10; seconds > 0; seconds--) {
+                        long delayMillis = progressDialog.getSelectedDelayMillis();
+                        int totalSeconds = (int) (delayMillis / 1000);
+                        
+                        for (int seconds = totalSeconds; seconds > 0; seconds--) {
                             if (isCancelled() || stopRequested.get()) break;
-                            progressDialog.setPauseStatus(seconds);
+                            progressDialog.setPauseStatus(seconds, totalSeconds);
                             Thread.sleep(1000);
                         }
-                        progressDialog.setPauseStatus(0);
+                        progressDialog.setPauseStatus(0, 0);
                     }
                 }
                 return invalidMacs;
@@ -277,25 +280,25 @@ public class ManageAccountUI extends VBox {
 
         String invalidMacsStr = String.join(", ", invalidMacs);
         StringBuilder message = new StringBuilder("Found invalid MAC addresses: " + invalidMacsStr + "\n");
-
+        
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : "";
         boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
-
+        
         if (defaultIsInvalid) {
             message.append("\nNote: The default MAC address is invalid and will be removed.\nThe first valid MAC address will be set as the new default.\n");
         }
-
+        
         message.append("\nDelete them?");
         Alert alert = showDialog(message.toString());
         if (alert.getResult() == ButtonType.YES) {
             List<String> validMacs = new ArrayList<>(allMacs);
             validMacs.removeAll(invalidMacs);
             String newMacsStr = String.join(", ", validMacs);
-
+            
             if (defaultIsInvalid && !validMacs.isEmpty()) {
                 macAddress.setValue(validMacs.get(0));
             }
-
+            
             macAddressList.setText(newMacsStr);
             saveAccount(false);
         }
