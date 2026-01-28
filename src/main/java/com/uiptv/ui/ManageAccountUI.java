@@ -10,6 +10,7 @@ import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
@@ -42,6 +44,8 @@ public class ManageAccountUI extends VBox {
     private final UIptvCombo macAddress = new UIptvCombo("macAddress", PRIMARY_MAC_ADDRESS_HINT, 350);
     private final UIptvTextArea macAddressList = new UIptvTextArea("macAddress", "Your Comma separated MAC Addresses.", 5);
     private final Hyperlink verifyMacsLink = new Hyperlink("Verify");
+    private final Hyperlink manageMacsLink = new Hyperlink("Manage");
+    private final Label pipeLabel = new Label("|");
     private final UIptvText serialNumber = new UIptvText("serialNumber", "Serial Number (SN)", 5);
     private final UIptvText deviceId1 = new UIptvText("deviceId1", "Device ID 1", 5);
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "Device ID 2", 5);
@@ -77,7 +81,7 @@ public class ManageAccountUI extends VBox {
         saveButton.setPrefHeight(50);
         m3u8Path.setMinWidth(180);
         accountType.setMinWidth(250);
-        macAddress.setPrefWidth(320); // Reduced by 10% from 350
+        macAddress.setPrefWidth(280); // Reduced by 20% from 350
 
         clearButton.setMinWidth(140);
         clearButton.setPrefWidth(140);
@@ -91,7 +95,15 @@ public class ManageAccountUI extends VBox {
 
         verifyMacsLink.setVisible(false);
         verifyMacsLink.setOnAction(event -> verifyMacAddresses());
-        HBox macAddressContainer = new HBox(10, macAddress, verifyMacsLink);
+
+        manageMacsLink.setVisible(false);
+        manageMacsLink.setOnAction(event -> openManageMacsPopup());
+
+        pipeLabel.visibleProperty().bind(verifyMacsLink.visibleProperty());
+        manageMacsLink.visibleProperty().bind(verifyMacsLink.visibleProperty());
+
+        HBox macAddressContainer = new HBox(5, macAddress, verifyMacsLink, pipeLabel, manageMacsLink);
+        macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, deleteButton, deleteAllButton);
         getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
@@ -126,6 +138,28 @@ public class ManageAccountUI extends VBox {
         });
     }
 
+    private void openManageMacsPopup() {
+        String currentMacs = macAddressList.getText();
+        List<String> macList = new ArrayList<>();
+        if (isNotBlank(currentMacs)) {
+            macList.addAll(Arrays.stream(currentMacs.replace(SPACE, "").split(",")).toList());
+        }
+
+        String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : null;
+
+        new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
+            String newMacsStr = String.join(", ", newMacs);
+            macAddressList.setText(newMacsStr);
+            
+            Platform.runLater(() -> {
+                if (newDefault != null && macAddress.getItems().contains(newDefault)) {
+                    macAddress.setValue(newDefault);
+                }
+                saveAccount(false);
+            });
+        }).show();
+    }
+
     private void verifyMacAddresses() {
         String macs = macAddressList.getText();
         if (isBlank(macs)) {
@@ -139,16 +173,18 @@ public class ManageAccountUI extends VBox {
         ProgressDialog progressDialog = new ProgressDialog((Stage) getScene().getWindow());
         progressDialog.show();
 
+        AtomicBoolean stopRequested = new AtomicBoolean(false);
+
         Task<List<String>> task = new Task<>() {
             @Override
             protected List<String> call() throws Exception {
                 List<String> invalidMacs = new ArrayList<>();
                 int total = macList.size();
                 for (int i = 0; i < total; i++) {
-                    if (isCancelled()) break;
+                    if (isCancelled() || stopRequested.get()) break;
 
                     String mac = macList.get(i);
-                    progressDialog.addProgressText("Verifying " + mac + "...");
+                    progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
                     updateProgress(i, total);
 
                     if (isValidMac(mac)) {
@@ -158,15 +194,15 @@ public class ManageAccountUI extends VBox {
                         progressDialog.addProgressText("Result: [INVALID]INVALID");
                     }
 
-                    if (isCancelled()) break;
+                    if (isCancelled() || stopRequested.get()) break;
 
                     if (i < total - 1) {
-                        progressDialog.addProgressText("Paused for 10");
                         for (int seconds = 10; seconds > 0; seconds--) {
-                            if (isCancelled()) break;
-                            progressDialog.addProgressText("[UPDATE_LAST]Paused for " + seconds);
+                            if (isCancelled() || stopRequested.get()) break;
+                            progressDialog.setPauseStatus(seconds);
                             Thread.sleep(1000);
                         }
+                        progressDialog.setPauseStatus(0);
                     }
                 }
                 updateProgress(total, total);
@@ -175,13 +211,14 @@ public class ManageAccountUI extends VBox {
         };
 
         progressDialog.setOnClose(task::cancel);
+        progressDialog.setOnStop(() -> stopRequested.set(true));
 
         task.progressProperty().addListener((obs, oldVal, newVal) -> progressDialog.setProgress(newVal.doubleValue()));
 
         task.setOnSucceeded(e -> {
             progressDialog.close();
             List<String> invalidMacs = task.getValue();
-            handleVerificationResults(macList, invalidMacs);
+            handleVerificationResults(macList, invalidMacs, stopRequested.get());
         });
 
         task.setOnFailed(e -> {
@@ -221,13 +258,13 @@ public class ManageAccountUI extends VBox {
     }
 
 
-    private void handleVerificationResults(List<String> allMacs, List<String> invalidMacs) {
+    private void handleVerificationResults(List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {
         if (invalidMacs.isEmpty()) {
             showMessageAlert("All MAC addresses are valid.");
             return;
         }
 
-        if (invalidMacs.size() == allMacs.size()) {
+        if (!wasStopped && invalidMacs.size() == allMacs.size()) {
             Alert alert = showDialog("No valid MAC addresses found. Delete this account?");
             if (alert.getResult() == ButtonType.YES) {
                 deleteAccount(name.getText(), accountId);
@@ -236,13 +273,28 @@ public class ManageAccountUI extends VBox {
         }
 
         String invalidMacsStr = String.join(", ", invalidMacs);
-        Alert alert = showDialog("Found invalid MAC addresses: " + invalidMacsStr + "\nDelete them?");
+        StringBuilder message = new StringBuilder("Found invalid MAC addresses: " + invalidMacsStr + "\n");
+        
+        String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : "";
+        boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
+        
+        if (defaultIsInvalid) {
+            message.append("\nNote: The default MAC address is invalid and will be removed.\nThe first valid MAC address will be set as the new default.\n");
+        }
+        
+        message.append("\nDelete them?");
+        Alert alert = showDialog(message.toString());
         if (alert.getResult() == ButtonType.YES) {
             List<String> validMacs = new ArrayList<>(allMacs);
             validMacs.removeAll(invalidMacs);
             String newMacsStr = String.join(", ", validMacs);
+            
+            if (defaultIsInvalid && !validMacs.isEmpty()) {
+                macAddress.setValue(validMacs.get(0));
+            }
+
             macAddressList.setText(newMacsStr);
-            saveAccount();
+            saveAccount(false);
         }
     }
 
@@ -284,25 +336,37 @@ public class ManageAccountUI extends VBox {
         verifyMacsLink.setVisible(false);
     }
 
-    private void saveAccount() {
+    private Account getAccountFromForm() {
+        Account account = new Account(name.getText(), username.getText(), password.getText(), url.getText(),
+                macAddress.getValue() != null ? macAddress.getValue().toString() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
+                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue().toString()) ? accountType.getValue().toString() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pauseCachingCheckBox.isSelected(), pinToTopCheckBox.isSelected());
+        if (accountId != null) {
+            account.setDbId(accountId);
+        }
+        return account;
+    }
+
+    private void saveAccount(boolean isFullSave) {
         try {
             if (isBlank(name.getText())) {
                 showErrorAlert("Name cannot be empty");
                 return;
             }
-            service.save(new Account(name.getText(), username.getText(), password.getText(), url.getText(),
-                    macAddress.getValue() != null ? macAddress.getValue().toString() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
-                    getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue().toString()) ? accountType.getValue().toString() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pauseCachingCheckBox.isSelected(), pinToTopCheckBox.isSelected()));
-            clearAll();
-            showMessageAlert("Your Account details have been successfully saved!");
-            onSaveCallback.call(null);
+            Account account = getAccountFromForm();
+            service.save(account);
+            
+            if (isFullSave) {
+                clearAll();
+                showMessageAlert("Your Account details have been successfully saved!");
+                onSaveCallback.call(null);
+            }
         } catch (Exception e) {
             showErrorAlert("Failed to save successfully saved!");
         }
     }
 
     private void addSubmitButtonClickHandler() {
-        saveButton.setOnAction(actionEvent -> saveAccount());
+        saveButton.setOnAction(actionEvent -> saveAccount(true));
     }
 
     private void addDeleteAllButtonClickHandler() {
