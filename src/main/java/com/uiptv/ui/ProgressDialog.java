@@ -5,17 +5,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -29,12 +20,12 @@ import java.util.List;
 
 public class ProgressDialog extends Stage {
 
-    private final HBox progressBarContainer = new HBox(2); // 2px spacing
+    private final HBox progressBarContainer = new HBox(0); // Spacing set to 0
     private final VBox messageContainer = new VBox();
     private final ScrollPane scrollPane = new ScrollPane(messageContainer);
     private final Button cancelButton = new Button("Cancel");
     private final Button stopButton = new Button("Stop");
-    
+
     // Pause Widget Components
     private final HBox pauseWidget = new HBox(10);
     private final Line clockHand = new Line(0, 0, 0, -10);
@@ -51,20 +42,20 @@ public class ProgressDialog extends Stage {
         // Root Layout
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(20));
-        
+
         // Progress Bar (Top)
-        progressBarContainer.setMinHeight(20);
-        progressBarContainer.setPrefHeight(20);
-        progressBarContainer.setMaxHeight(20);
+        progressBarContainer.setMinHeight(14);
+        progressBarContainer.setPrefHeight(14);
+        progressBarContainer.setMaxHeight(14);
         progressBarContainer.setAlignment(Pos.CENTER_LEFT);
         progressBarContainer.setStyle("-fx-background-color: #f4f4f4; -fx-padding: 2; -fx-border-color: #cccccc; -fx-border-width: 1; -fx-border-radius: 3;");
         BorderPane.setMargin(progressBarContainer, new Insets(0, 0, 10, 0));
-        
+
         // Message Area (Center)
         scrollPane.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-border-radius: 3;");
         scrollPane.setFitToWidth(true);
         messageContainer.heightProperty().addListener((observable, oldValue, newValue) -> scrollPane.setVvalue(1.0));
-        
+
         // Bottom Bar (Bottom)
         String buttonStyle = "-fx-font-size: 14px; -fx-padding: 5 15 5 15;";
         cancelButton.setStyle(buttonStyle);
@@ -85,12 +76,12 @@ public class ProgressDialog extends Stage {
         HBox bottomBar = new HBox(10);
         bottomBar.setAlignment(Pos.CENTER_LEFT);
         bottomBar.setPadding(new Insets(10, 0, 0, 0));
-        
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox buttonBox = new HBox(10, stopButton, cancelButton);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        
+
         bottomBar.getChildren().addAll(pauseWidget, spacer, buttonBox);
 
         // Assemble Root
@@ -100,9 +91,7 @@ public class ProgressDialog extends Stage {
 
         Scene scene = new Scene(root, 500, 450);
         setScene(scene);
-        
-        // CRITICAL: Bind container width to scene width to avoid "expanding universe" loop
-        // Subtract padding (20*2) + extra safety
+
         progressBarContainer.prefWidthProperty().bind(scene.widthProperty().subtract(45));
     }
 
@@ -114,13 +103,8 @@ public class ProgressDialog extends Stage {
             if (total > 0) {
                 for (int i = 0; i < total; i++) {
                     Region segment = new Region();
-                    // Bind segment width to container width / total
-                    // We subtract spacing * (total - 1) from available width first? 
-                    // HBox handles spacing. If we set Hgrow, it fills.
-                    // Let's try Hgrow first, it's cleaner than binding math.
                     HBox.setHgrow(segment, Priority.ALWAYS);
-                    
-                    segment.setStyle("-fx-background-color: #e0e0e0; -fx-background-radius: 2;"); // Gray
+                    segment.setStyle("-fx-background-color: #e0e0e0; -fx-background-radius: 0;"); // Gray, no radius for seamless look
                     progressBarContainer.getChildren().add(segment);
                 }
             }
@@ -133,7 +117,7 @@ public class ProgressDialog extends Stage {
                 Node node = progressBarContainer.getChildren().get(currentIndex);
                 if (node instanceof Region) {
                     String color = isValid ? "#4CAF50" : "#F44336"; // Green : Red
-                    node.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 2;");
+                    node.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 0;");
                 }
                 currentIndex++;
             }
@@ -149,13 +133,13 @@ public class ProgressDialog extends Stage {
             }
         });
     }
-    
+
     public void setPauseStatus(int secondsRemaining) {
         Platform.runLater(() -> {
             if (secondsRemaining > 0) {
                 pauseWidget.setVisible(true);
                 pauseLabel.setText("Paused: " + secondsRemaining + "s");
-                double rotation = (10 - secondsRemaining) * 36; 
+                double rotation = (10 - secondsRemaining) * 36;
                 clockHand.setRotate(rotation);
             } else {
                 pauseWidget.setVisible(false);

@@ -150,7 +150,7 @@ public class ManageAccountUI extends VBox {
         new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
-            
+
             Platform.runLater(() -> {
                 if (newDefault != null && macAddress.getItems().contains(newDefault)) {
                     macAddress.setValue(newDefault);
@@ -187,7 +187,7 @@ public class ManageAccountUI extends VBox {
 
                     String mac = macList.get(i);
                     progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
-                    
+
                     boolean isValid = isValidMac(mac);
                     progressDialog.addResult(isValid);
 
@@ -261,7 +261,9 @@ public class ManageAccountUI extends VBox {
 
     private void handleVerificationResults(List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {
         if (invalidMacs.isEmpty()) {
-            showMessageAlert("All MAC addresses are valid.");
+            if (!wasStopped) {
+                showMessageAlert("All MAC addresses are valid.");
+            }
             return;
         }
 
@@ -275,21 +277,21 @@ public class ManageAccountUI extends VBox {
 
         String invalidMacsStr = String.join(", ", invalidMacs);
         StringBuilder message = new StringBuilder("Found invalid MAC addresses: " + invalidMacsStr + "\n");
-        
+
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : "";
         boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
-        
+
         if (defaultIsInvalid) {
             message.append("\nNote: The default MAC address is invalid and will be removed.\nThe first valid MAC address will be set as the new default.\n");
         }
-        
+
         message.append("\nDelete them?");
         Alert alert = showDialog(message.toString());
         if (alert.getResult() == ButtonType.YES) {
             List<String> validMacs = new ArrayList<>(allMacs);
             validMacs.removeAll(invalidMacs);
             String newMacsStr = String.join(", ", validMacs);
-            
+
             if (defaultIsInvalid && !validMacs.isEmpty()) {
                 macAddress.setValue(validMacs.get(0));
             }
@@ -355,7 +357,7 @@ public class ManageAccountUI extends VBox {
             }
             Account account = getAccountFromForm();
             service.save(account);
-            
+
             if (isFullSave) {
                 clearAll();
                 showMessageAlert("Your Account details have been successfully saved!");
