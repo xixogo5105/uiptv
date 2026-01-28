@@ -180,14 +180,18 @@ public class ManageAccountUI extends VBox {
             protected List<String> call() throws Exception {
                 List<String> invalidMacs = new ArrayList<>();
                 int total = macList.size();
+                progressDialog.setTotal(total);
+
                 for (int i = 0; i < total; i++) {
                     if (isCancelled() || stopRequested.get()) break;
 
                     String mac = macList.get(i);
                     progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
-                    updateProgress(i, total);
+                    
+                    boolean isValid = isValidMac(mac);
+                    progressDialog.addResult(isValid);
 
-                    if (isValidMac(mac)) {
+                    if (isValid) {
                         progressDialog.addProgressText("Result: [VALID]VALID");
                     } else {
                         invalidMacs.add(mac);
@@ -205,15 +209,12 @@ public class ManageAccountUI extends VBox {
                         progressDialog.setPauseStatus(0);
                     }
                 }
-                updateProgress(total, total);
                 return invalidMacs;
             }
         };
 
         progressDialog.setOnClose(task::cancel);
         progressDialog.setOnStop(() -> stopRequested.set(true));
-
-        task.progressProperty().addListener((obs, oldVal, newVal) -> progressDialog.setProgress(newVal.doubleValue()));
 
         task.setOnSucceeded(e -> {
             progressDialog.close();
