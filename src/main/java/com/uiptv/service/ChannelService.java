@@ -9,10 +9,7 @@ import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
-import com.uiptv.util.AccountType;
-import com.uiptv.util.FetchAPI;
-import com.uiptv.util.ServerUtils;
-import com.uiptv.util.StringUtils;
+import com.uiptv.util.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -25,8 +22,8 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
-import static com.uiptv.ui.M3U8Parser.parseChannelPathM3U8;
-import static com.uiptv.ui.M3U8Parser.parseChannelUrlM3U8;
+import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
+import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
 import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.FetchAPI.nullSafeString;
@@ -110,8 +107,8 @@ public class ChannelService {
         Set<Channel> channels = new LinkedHashSet<>();
 
         Set<PlaylistEntry> m3uCategories = account.getType() == M3U8_URL
-                ? com.uiptv.ui.M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
-                : com.uiptv.ui.M3U8Parser.parsePathCategory(account.getM3u8Path());
+                ? M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
+                : M3U8Parser.parsePathCategory(account.getM3u8Path());
         boolean hasOtherCategories = m3uCategories.size() >= 2;
 
         List<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL

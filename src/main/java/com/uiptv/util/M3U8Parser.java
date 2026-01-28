@@ -1,4 +1,4 @@
-package com.uiptv.ui;
+package com.uiptv.util;
 
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.widget.UIptvAlert;

@@ -20,12 +20,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
-import static com.uiptv.ui.M3U8Parser.parsePathCategory;
-import static com.uiptv.ui.M3U8Parser.parseUrlCategory;
 import static com.uiptv.util.AccountType.M3U8_URL;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.FetchAPI.nullSafeBoolean;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
+import static com.uiptv.util.M3U8Parser.parsePathCategory;
+import static com.uiptv.util.M3U8Parser.parseUrlCategory;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
@@ -48,6 +48,19 @@ public class CategoryService {
         params.put("type", accountAction.name());
         params.put("action", accountAction == itv ? "get_genres" : "get_categories");
         return params;
+    }
+
+    public boolean anyCategoryExists(Account account) {
+        HandshakeService.getInstance().connect(account);
+        if (account.isNotConnected()) return false;
+        String json = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
+        try {
+            JSONArray list = new JSONObject(json).getJSONArray("js");
+            return list != null && !list.isEmpty();
+        } catch (Exception e) {
+            showError("Error while processing response data" + e.getMessage());
+        }
+        return false;
     }
 
     public List<Category> get(Account account) {
