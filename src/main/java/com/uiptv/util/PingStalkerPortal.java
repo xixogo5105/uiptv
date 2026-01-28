@@ -23,6 +23,7 @@ public class PingStalkerPortal {
             String pingUrl = !url.endsWith("/") ? url + "/" + "xpcom.common.js" : url + "xpcom.common.js";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(pingUrl))
+                    .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
                     .GET().build();
 
             HttpResponse<String> response = HttpClient.newBuilder()
@@ -36,6 +37,7 @@ public class PingStalkerPortal {
                 return parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
             }
         } catch (Exception ex) {
+            ex.printStackTrace();
             LogDisplayUI.addLog("Network Error: " + ex.getMessage());
         }
         return PORTAL.getLoader();
