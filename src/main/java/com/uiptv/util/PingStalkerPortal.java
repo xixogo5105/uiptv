@@ -29,6 +29,7 @@ public class PingStalkerPortal {
             HttpResponse<String> response = HttpClient.newBuilder()
                     .followRedirects(HttpClient.Redirect.ALWAYS)
                     .connectTimeout(Duration.ofSeconds(10))
+                    .version(HttpClient.Version.HTTP_1_1)
                     .build()
                     .send(request, HttpResponse.BodyHandlers.ofString());
 
