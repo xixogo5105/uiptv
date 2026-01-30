@@ -25,6 +25,7 @@ public class DatabasePatchesUtils {
         dbPatches.put("123", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN clearKeysJson TEXT");
         dbPatches.put("124", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN inputstreamaddon TEXT");
         dbPatches.put("125", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN manifestType TEXT");
+        dbPatches.put("127", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN enableFfmpegTranscoding TEXT");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

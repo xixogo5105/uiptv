@@ -46,6 +46,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox filterPausedCheckBox = new CheckBox("Pause filtering");
     private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Caching");
     private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
+    private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
     private final UIptvText fontFamily = new UIptvText("fontFamily", "Font family. e.g. 'Helvetica', Arial, sans-serif.", 5);
     private final UIptvText fontSize = new UIptvText("fontSize", "Font size. e.g. 13pt", 5);
     private final UIptvText fontWeight = new UIptvText("fontWeight", "Font weight. e.g. bold", 5);
@@ -101,6 +102,7 @@ public class ConfigurationUI extends VBox {
             fontSize.setText(configuration.getFontSize());
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
             serverPort.setText(configuration.getServerPort());
+            enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
         }
         playerPath1.setMinWidth(315);
         playerPath2.setMinWidth(315);
@@ -137,6 +139,7 @@ public class ConfigurationUI extends VBox {
         getChildren().addAll(box1, box2, box3, box4, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains,
                 fontFamily, fontSize, fontWeight, darkThemeCheckBox, filterPausedCheckBox,
                 new HBox(10, pauseCachingCheckBox, clearCacheButton),
+                enableFfmpegCheckBox,
                 serverButtonWrapper, saveButton);
         addSaveButtonClickHandler();
         addBrowserButton1ClickHandler();
@@ -216,7 +219,8 @@ public class ConfigurationUI extends VBox {
                         fontFamily.getText(), fontSize.getText(), fontWeight.getText(),
                         darkThemeCheckBox.isSelected(), serverPort.getText(),
                         pauseCachingCheckBox.isSelected(),
-                        defaultEmbedPlayer.isSelected()
+                        defaultEmbedPlayer.isSelected(),
+                        enableFfmpegCheckBox.isSelected()
                 );
                 newConfiguration.setDbId(dbId);
                 service.save(newConfiguration);

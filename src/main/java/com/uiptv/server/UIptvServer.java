@@ -2,7 +2,7 @@ package com.uiptv.server;
 
 import com.sun.net.httpserver.HttpServer;
 import com.uiptv.server.api.json.*;
-import com.uiptv.server.html.HttpSpaHtmlServer; // Keep HttpSpaHtmlServer
+import com.uiptv.server.html.HttpSpaHtmlServer;
 import com.uiptv.service.ConfigurationService;
 
 import java.io.IOException;
@@ -46,6 +46,9 @@ public class UIptvServer {
         server.createContext("/javascript", new HttpJavascriptServer());
         server.createContext("/js", new HttpJavascriptServer());
         server.createContext("/css", new HttpCssServer());
+        
+        // HLS Stream Server
+        server.createContext("/hls", new HttpHlsFileServer());
         
         // API JSON servers
         server.createContext("/accounts", new HttpAccountJsonServer());

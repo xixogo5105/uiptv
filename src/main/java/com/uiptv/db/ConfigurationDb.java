@@ -7,6 +7,7 @@ import java.util.List;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.CONFIGURATION_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
+import static com.uiptv.db.DatabaseUtils.updateTableSql;
 import static com.uiptv.db.SQLConnection.connect;
 
 public class ConfigurationDb extends BaseDb {
@@ -16,6 +17,12 @@ public class ConfigurationDb extends BaseDb {
     public static synchronized ConfigurationDb get() {
         if (instance == null) {
             instance = new ConfigurationDb();
+            // Ensure patches are applied, especially if hot-swapped
+            try (Connection conn = connect()) {
+                DatabasePatchesUtils.applyPatches(conn);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
         return instance;
     }
@@ -49,7 +56,8 @@ public class ConfigurationDb extends BaseDb {
                 safeBoolean(resultSet, "darkTheme"),
                 nullSafeString(resultSet, "serverPort"),
                 safeBoolean(resultSet, "pauseCaching"),
-                safeBoolean(resultSet, "embeddedPlayer")
+                safeBoolean(resultSet, "embeddedPlayer"),
+                safeBoolean(resultSet, "enableFfmpegTranscoding")
         );
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
@@ -61,29 +69,46 @@ public class ConfigurationDb extends BaseDb {
     }
 
     public void save(final Configuration configuration) {
-        super.<Configuration>getAll().forEach(c -> {
-            delete(c.getDbId());
-        });
-        String saveQuery;
-        saveQuery = insertTableSql(CONFIGURATION_TABLE);
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(saveQuery)) {
-            statement.setString(1, configuration.getPlayerPath1());
-            statement.setString(2, configuration.getPlayerPath2());
-            statement.setString(3, configuration.getPlayerPath3());
-            statement.setString(4, configuration.getDefaultPlayerPath());
-            statement.setString(5, configuration.getFilterCategoriesList());
-            statement.setString(6, configuration.getFilterChannelsList());
-            statement.setString(7, configuration.isPauseFiltering() ? "1" : "0");
-            statement.setString(8, configuration.getFontFamily());
-            statement.setString(9, configuration.getFontSize());
-            statement.setString(10, configuration.getFontWeight());
-            statement.setString(11, configuration.isDarkTheme() ? "1" : "0");
-            statement.setString(12, configuration.getServerPort());
-            statement.setString(13, configuration.isPauseCaching() ? "1" : "0");
-            statement.setString(14, configuration.isEmbeddedPlayer() ? "1" : "0");
-            statement.execute();
-        } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query");
+        List<Configuration> existing = super.getAll();
+        
+        if (existing != null && !existing.isEmpty()) {
+            // Update existing
+            Configuration current = existing.get(0);
+            String updateQuery = updateTableSql(CONFIGURATION_TABLE);
+            try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
+                setParameters(statement, configuration);
+                statement.setString(16, current.getDbId());
+                statement.execute();
+            } catch (SQLException e) {
+                throw new RuntimeException("Unable to execute update query", e);
+            }
+        } else {
+            // Insert new
+            String insertQuery = insertTableSql(CONFIGURATION_TABLE);
+            try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(insertQuery)) {
+                setParameters(statement, configuration);
+                statement.execute();
+            } catch (SQLException e) {
+                throw new RuntimeException("Unable to execute insert query", e);
+            }
         }
+    }
+
+    private void setParameters(PreparedStatement statement, Configuration configuration) throws SQLException {
+        statement.setString(1, configuration.getPlayerPath1());
+        statement.setString(2, configuration.getPlayerPath2());
+        statement.setString(3, configuration.getPlayerPath3());
+        statement.setString(4, configuration.getDefaultPlayerPath());
+        statement.setString(5, configuration.getFilterCategoriesList());
+        statement.setString(6, configuration.getFilterChannelsList());
+        statement.setString(7, configuration.isPauseFiltering() ? "1" : "0");
+        statement.setString(8, configuration.getFontFamily());
+        statement.setString(9, configuration.getFontSize());
+        statement.setString(10, configuration.getFontWeight());
+        statement.setString(11, configuration.isDarkTheme() ? "1" : "0");
+        statement.setString(12, configuration.getServerPort());
+        statement.setString(13, configuration.isPauseCaching() ? "1" : "0");
+        statement.setString(14, configuration.isEmbeddedPlayer() ? "1" : "0");
+        statement.setString(15, configuration.isEnableFfmpegTranscoding() ? "1" : "0");
     }
 }

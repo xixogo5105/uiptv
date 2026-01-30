@@ -9,6 +9,8 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.FfmpegService;
 import com.uiptv.service.PlayerService;
 
 import java.io.IOException;
@@ -35,6 +37,14 @@ public class HttpPlayerJsonServer implements HttpHandler {
             Account account = AccountService.getInstance().getById(accountId);
             Channel channel = ChannelDb.get().getChannelById(channelId, categoryId);
             response = PlayerService.getInstance().get(account, channel);
+        }
+
+        // Check if transmuxing is needed and enabled
+        boolean isFfmpegEnabled = ConfigurationService.getInstance().read().isEnableFfmpegTranscoding();
+        if (isFfmpegEnabled && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl())) {
+            FfmpegService.getInstance().startTransmuxing(response.getUrl());
+            response.setUrl("/hls/stream.m3u8");
+            response.setManifestType("hls");
         }
 
         generateJsonResponse(ex, buildJsonResponse(response));
