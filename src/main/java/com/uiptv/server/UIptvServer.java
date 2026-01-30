@@ -7,6 +7,7 @@ import com.uiptv.service.ConfigurationService;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.concurrent.Executors;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showMessage;
@@ -24,7 +25,8 @@ public class UIptvServer {
             httpServer = HttpServer.create(httpAddress, 0);
             configureServer(httpServer);
 
-            httpServer.setExecutor(null); // creates a default executor
+            // Use a thread pool to handle multiple connections (essential for FFmpeg upload + Player requests)
+            httpServer.setExecutor(Executors.newCachedThreadPool());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -47,8 +49,9 @@ public class UIptvServer {
         server.createContext("/js", new HttpJavascriptServer());
         server.createContext("/css", new HttpCssServer());
         
-        // HLS Stream Server
+        // HLS Stream Server (Memory-based)
         server.createContext("/hls", new HttpHlsFileServer());
+        server.createContext("/hls-upload", new HttpHlsUploadServer());
         
         // API JSON servers
         server.createContext("/accounts", new HttpAccountJsonServer());

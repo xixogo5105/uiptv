@@ -2,11 +2,8 @@ package com.uiptv.server;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.uiptv.service.FfmpegService;
-import org.apache.commons.io.IOUtils;
+import com.uiptv.service.InMemoryHlsService;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -18,9 +15,10 @@ public class HttpHlsFileServer implements HttpHandler {
     public void handle(HttpExchange ex) throws IOException {
         String path = ex.getRequestURI().getPath();
         String fileName = path.substring(path.lastIndexOf('/') + 1);
-        File file = new File(FfmpegService.getInstance().getOutputDir(), fileName);
+        
+        byte[] data = InMemoryHlsService.getInstance().get(fileName);
 
-        if (!file.exists()) {
+        if (data == null) {
             ex.sendResponseHeaders(404, -1);
             return;
         }
@@ -29,11 +27,10 @@ public class HttpHlsFileServer implements HttpHandler {
         
         ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
         ex.getResponseHeaders().add("Content-Type", contentType);
-        ex.sendResponseHeaders(200, file.length());
+        ex.sendResponseHeaders(200, data.length);
 
-        try (OutputStream os = ex.getResponseBody();
-             FileInputStream fis = new FileInputStream(file)) {
-            IOUtils.copy(fis, os);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(data);
         }
     }
 }

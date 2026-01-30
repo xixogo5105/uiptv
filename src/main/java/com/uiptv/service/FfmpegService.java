@@ -2,24 +2,16 @@ package com.uiptv.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
+
+import static com.uiptv.util.StringUtils.isBlank;
 
 public class FfmpegService {
     private static FfmpegService instance;
     private Process currentProcess;
-    private final String outputDir;
     private static final String STREAM_FILENAME = "stream.m3u8";
 
     private FfmpegService() {
-        String tempPath = System.getProperty("java.io.tmpdir");
-        outputDir = tempPath + File.separator + "uiptv_hls";
-        File dir = new File(outputDir);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
     }
 
     public static synchronized FfmpegService getInstance() {
@@ -29,20 +21,18 @@ public class FfmpegService {
         return instance;
     }
 
-    public String getOutputDir() {
-        return outputDir;
-    }
-
     public boolean isTransmuxingNeeded(String url) {
-        // Simple check: if it contains .ts and not .m3u8, it likely needs transmuxing for web playback
         return url != null && url.contains("extension=ts");
     }
 
     public synchronized void startTransmuxing(String inputUrl) throws IOException {
         stopTransmuxing();
-        cleanOutputDir();
+        InMemoryHlsService.getInstance().clear();
 
-        String outputPath = outputDir + File.separator + STREAM_FILENAME;
+        String port = ConfigurationService.getInstance().read().getServerPort();
+        if (isBlank(port)) port = "8888";
+        
+        String outputUrl = "http://127.0.0.1:" + port + "/hls-upload/" + STREAM_FILENAME;
 
         // Ensure ffmpeg is in PATH
         ProcessBuilder pb = new ProcessBuilder(
@@ -53,19 +43,21 @@ public class FfmpegService {
                 "-hls_time", "2",
                 "-hls_list_size", "5",
                 "-hls_flags", "delete_segments",
-                outputPath
+                "-method", "PUT", // Use HTTP PUT method
+                outputUrl
         );
 
         pb.redirectErrorStream(true);
-        File logFile = new File(outputDir, "ffmpeg.log");
-        pb.redirectOutput(logFile);
+        // We can redirect to a log file in temp if needed, or just discard for now to avoid disk I/O
+        // For debugging, logging to a file is still useful, but let's minimize disk usage as requested.
+        // We'll discard stdout/stderr to avoid buffer filling.
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
 
         currentProcess = pb.start();
         
-        // Wait for the file to appear
-        File m3u8File = new File(outputPath);
+        // Wait for the playlist to appear in memory
         int attempts = 0;
-        while (!m3u8File.exists() && attempts < 50) { // Wait up to 5 seconds
+        while (!InMemoryHlsService.getInstance().exists(STREAM_FILENAME) && attempts < 50) { // Wait up to 5 seconds
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -91,18 +83,6 @@ public class FfmpegService {
             }
             currentProcess = null;
         }
-    }
-
-    private void cleanOutputDir() {
-        try {
-            if (Files.exists(Paths.get(outputDir))) {
-                Files.walk(Paths.get(outputDir))
-                        .filter(Files::isRegularFile)
-                        .map(Path::toFile)
-                        .forEach(File::delete);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        InMemoryHlsService.getInstance().clear();
     }
 }
