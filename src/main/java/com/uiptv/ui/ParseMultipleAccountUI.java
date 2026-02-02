@@ -7,7 +7,9 @@ import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import static com.uiptv.util.StringUtils.isBlank;
@@ -18,20 +20,19 @@ public class ParseMultipleAccountUI extends VBox {
     private final String newLine = "\r" + System.lineSeparator();
 
     private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "Enter Data to parse multiple stalker portal accounts" + newLine + "e.g." + newLine + "http://website1.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website2.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website3.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "http://website4.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "For M3U play list use the following format:" + newLine + "http://somewebsiteurl.iptv:8080/get.php?username=username&password=password&type=m3u" + newLine + "http://somewebsiteurl2.iptv:8080/get.php.iptv:8080/get.php?username=username2&password=password2&type=m3u", 5);
-    private final CheckBox collateAccountsCheckBox = new CheckBox("Where possible, Group Account(s) by MAC Address");
-    private final CheckBox parsePlaylistCheckBox = new CheckBox("Parse M3U Playlists Only");
-    private final CheckBox findXtremeAccountsPlaylistCheckBox = new CheckBox("Where Possible, Convert M3U to Xtreme");
-    private final CheckBox parseXtremeAccountsCheckBox = new CheckBox("Parse Xtreme Accounts Only");
+    private final ComboBox<String> parseModeComboBox = new ComboBox<>();
+    private final CheckBox groupAccountsCheckBox = new CheckBox("Group Account(s) by MAC Address");
+    private final CheckBox convertM3uToXtremeCheckBox = new CheckBox("Where Possible, Convert M3U to Xtreme");
     private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Caching");
     private final ProminentButton saveButton = new ProminentButton("Parse & Save");
     private final Button clearButton = new Button("Clear");
-    private Callback onSaveCallback;
+    private Callback<Void> onSaveCallback;
 
     public ParseMultipleAccountUI() {
         initWidgets();
     }
 
-    public void addCallbackHandler(Callback onSaveCallback) {
+    public void addCallbackHandler(Callback<Void> onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
     }
 
@@ -42,46 +43,41 @@ public class ParseMultipleAccountUI extends VBox {
         saveButton.setPrefHeight(50);
         multipleSPAccounts.setMinHeight(400);
         multipleSPAccounts.setPrefHeight(400);
+
+        parseModeComboBox.getItems().addAll(StalkerPortalTextParserService.MODE_STALKER, StalkerPortalTextParserService.MODE_XTREME, StalkerPortalTextParserService.MODE_M3U);
+        parseModeComboBox.setValue(StalkerPortalTextParserService.MODE_STALKER);
+
         pauseCachingCheckBox.setSelected(true);
-        collateAccountsCheckBox.setSelected(true);
+        groupAccountsCheckBox.setSelected(true);
+        convertM3uToXtremeCheckBox.setSelected(true);
+
+        groupAccountsCheckBox.managedProperty().bind(groupAccountsCheckBox.visibleProperty());
+        convertM3uToXtremeCheckBox.managedProperty().bind(convertM3uToXtremeCheckBox.visibleProperty());
+
+        Region spacer = new Region();
+        spacer.setPrefHeight(10);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, saveButton);
-        getChildren().addAll(multipleSPAccounts, collateAccountsCheckBox, parsePlaylistCheckBox, findXtremeAccountsPlaylistCheckBox, parseXtremeAccountsCheckBox, pauseCachingCheckBox, buttonWrapper2);
+        getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, pauseCachingCheckBox, buttonWrapper2);
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
         addCheckBoxListeners();
+
+        // Initial state
+        updateCheckboxesVisibility(StalkerPortalTextParserService.MODE_STALKER);
     }
 
     private void addCheckBoxListeners() {
-        // Grouping: collate, m3u, xtreme are mutually exclusive modes.
-        collateAccountsCheckBox.selectedProperty().addListener((obs, oldV, newV) -> {
-            if (newV) {
-                parsePlaylistCheckBox.setSelected(false);
-                parseXtremeAccountsCheckBox.setSelected(false);
+        parseModeComboBox.valueProperty().addListener((obs, oldV, newV) -> {
+            if (newV != null) {
+                updateCheckboxesVisibility(newV);
             }
         });
+    }
 
-        parsePlaylistCheckBox.selectedProperty().addListener((obs, oldV, newV) -> {
-            if (newV) {
-                collateAccountsCheckBox.setSelected(false);
-                parseXtremeAccountsCheckBox.setSelected(false);
-            }
-            // The "Convert" checkbox is only active when "Parse M3U" is.
-            findXtremeAccountsPlaylistCheckBox.setDisable(!newV);
-            if (!newV) {
-                findXtremeAccountsPlaylistCheckBox.setSelected(false);
-            }
-        });
-
-        parseXtremeAccountsCheckBox.selectedProperty().addListener((obs, oldV, newV) -> {
-            if (newV) {
-                collateAccountsCheckBox.setSelected(false);
-                parsePlaylistCheckBox.setSelected(false);
-            }
-        });
-
-        // Initial state
-        findXtremeAccountsPlaylistCheckBox.setDisable(!parsePlaylistCheckBox.isSelected());
+    private void updateCheckboxesVisibility(String mode) {
+        groupAccountsCheckBox.setVisible(StalkerPortalTextParserService.MODE_STALKER.equals(mode));
+        convertM3uToXtremeCheckBox.setVisible(StalkerPortalTextParserService.MODE_M3U.equals(mode));
     }
 
     private void addClearButtonClickHandler() {
@@ -90,11 +86,9 @@ public class ParseMultipleAccountUI extends VBox {
 
     private void clearAll() {
         multipleSPAccounts.clear();
-        // Reset checkboxes to default state
-        collateAccountsCheckBox.setSelected(true);
-        parsePlaylistCheckBox.setSelected(false);
-        findXtremeAccountsPlaylistCheckBox.setSelected(false);
-        parseXtremeAccountsCheckBox.setSelected(false);
+        parseModeComboBox.setValue(StalkerPortalTextParserService.MODE_STALKER);
+        groupAccountsCheckBox.setSelected(true);
+        convertM3uToXtremeCheckBox.setSelected(true);
         pauseCachingCheckBox.setSelected(true);
     }
 
@@ -105,9 +99,12 @@ public class ParseMultipleAccountUI extends VBox {
                     showErrorAlert("Input cannot be empty.");
                     return;
                 }
-                StalkerPortalTextParserService.saveBulkAccounts(multipleSPAccounts.getText(), pauseCachingCheckBox.isSelected(), collateAccountsCheckBox.isSelected(), parsePlaylistCheckBox.isSelected(), findXtremeAccountsPlaylistCheckBox.isSelected(), parseXtremeAccountsCheckBox.isSelected());
+                String selectedMode = parseModeComboBox.getValue();
+                StalkerPortalTextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, pauseCachingCheckBox.isSelected(), groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
                 clearAll();
-                onSaveCallback.call(null);
+                if (onSaveCallback != null) {
+                    onSaveCallback.call(null);
+                }
                 showMessageAlert("Accounts parsed and saved.");
             } catch (Exception e) {
                 showErrorAlert("Error parsing or saving accounts.");
