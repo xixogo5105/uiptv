@@ -94,7 +94,7 @@ public class FetchAPI {
     }
 
     public enum ServerType {
-        PORTAL("/c/portal.php?"),
+        PORTAL("portal.php"),
 
         LOAD("load.php?");
         private String loader;

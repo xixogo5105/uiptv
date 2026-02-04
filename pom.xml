@@ -118,6 +118,12 @@
             <version>6.0.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>6.0.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <finalName>UIPTV</finalName>
@@ -209,6 +215,16 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- Use a modern Surefire to run JUnit Jupiter tests correctly -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M7</version>
+                <configuration>
+                    <!-- Allow discovery of Jupiter tests and improved logging -->
+                    <useModulePath>false</useModulePath>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -664,3 +680,4 @@
         </profile>
     </profiles>
 </project>
+

@@ -87,7 +87,7 @@ public class HandshakeService {
     public void connect(Account account) {
         account.setToken(null);
         if (isBlank(account.getServerPortalUrl())) {
-            account.setServerPortalUrl(PingStalkerPortal.ping(account.getUrl()));
+            account.setServerPortalUrl(PingStalkerPortal.ping(account));
             AccountDb.get().saveServerPortalUrl(account);
         }
         String json = fetch(getHandshakeParams(), account);
@@ -105,7 +105,7 @@ public class HandshakeService {
     public void hardTokenRefresh(Account account) {
         account.setToken(null);
         if (isBlank(account.getServerPortalUrl())) {
-            account.setServerPortalUrl(PingStalkerPortal.ping(account.getUrl()));
+            account.setServerPortalUrl(PingStalkerPortal.ping(account));
             AccountDb.get().saveServerPortalUrl(account);
         }
         String json = fetch(getHandshakeParams(), account);

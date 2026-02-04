@@ -1,0 +1,1134 @@
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM
+
+Lorem
+LOREM IPSUM DOLOR SIT AMET
+Lorem ipsum
+
+
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Lorem ipsum dolor sit amet
+
+├◉𝐑𝐞𝐚𝐥 ➤ http://mock.one:80/c/
+├◉𝐏𝐨𝐫𝐭𝐚𝐥 ➤ http://mock.one:80/c/
+├◉𝐏𝐨𝐫𝐭𝐚𝐥𝐓𝐲𝐩𝐞 ➤  portal.php
+├◉𝐌𝐚𝐜 ➤ 00:1A:79:05:45:52
+├◉𝐄𝐧𝐝𝐬 ➤ March 2, 2026, 4:20 pm 30 Days
+├◉𝐀𝐝𝐮𝐥𝐭𝐏𝐚𝐬𝐬𝐰𝐨𝐫𝐝 ➤ 0000
+├⟐🔑𝐒𝐞𝐫𝐢𝐚𝐥 ➤ be601b657920983845afca9d3f13f1ad
+├⟐🔑𝐒𝐞𝐫𝐢𝐚𝐥𝐂𝐮𝐭 ➤ BE601B6579209
+├⟐🆔𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟏 ➤ DC42B0D82A09EEC10D06B9794D1632D4980FA82BACD928D07729F124940FC51A
+
+├⟐🆔𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟐 ➤ 1CA24ECB1AAD7D2D7D8DFD50EFCF14235BB2DAF4CB88E2729EAB790357C3F92B
+├⟐📝𝐒𝐢𝐠𝐧𝐚𝐭𝐮𝐫𝐞 ➤ B57A644020D5B8AE9A3C77C347C7128885F92AE009E580339DB65120D6D600F3
+╰─◉𝐌𝟑𝐮 ➤ http://mock.one:80/get.php?username=play&password=live.php?mac=00:1A:79:05:45:52&stream=1355&extension=ts&play_token=vS8NP9lEiG&type=m3u_plus&output=m3u8
+
+
+├◉𝐑𝐞𝐚𝐥 ➤ http://mock.one:80/c/
+├◉𝐏𝐨𝐫𝐭𝐚𝐥 ➤ http://mock.one:80/c/
+├◉𝐏𝐨𝐫𝐭𝐚𝐥𝐓𝐲𝐩𝐞 ➤  portal.php
+├◉𝐌𝐚𝐜 ➤ 00:1A:79:06:23:62
+├◉𝐄𝐧𝐝𝐬 ➤ August 13, 2026, 2:32 pm 194 Days
+├◉𝐀𝐝𝐮𝐥𝐭𝐏𝐚𝐬𝐬𝐰𝐨𝐫𝐝 ➤ 0000
+├⟐🔑𝐒𝐞𝐫𝐢𝐚𝐥 ➤ 3c1aa2711ff457f948f7e96e02c25a90
+├⟐🔑𝐒𝐞𝐫𝐢𝐚𝐥𝐂𝐮𝐭 ➤ 3C1AA2711FF45
+├⟐🆔𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟏 ➤ 9BEE76CABC8003E85AEDACCEE7FA35E7FFA2795E3603E1AF6351BB1184E2F330
+├⟐🆔𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟐 ➤ DBC96C50B2DD25F13B19CDDED89577F92159C6C5075DEFF4B830F2414C4CC6BC
+├⟐📝𝐒𝐢𝐠𝐧𝐚𝐭𝐮𝐫𝐞 ➤ 4E978A3E585D9B72066E67E91D46A3CE531F99719125C69DA5ECBE6C26C86C50
+╰─◉𝐌𝟑𝐮 ➤ http://mock.one:80/get.php?username=play&password=live.php?mac=00:1A:79:06:23:62&stream=372699&extension=ts&play_token=IeS0jiKCeI&type=m3u_plus&output=m3u8
+
+
+🏁  Portal : http://mock.two:8080/c/
+🏁  Portal : http://mock.two:8080/c/
+🔑  Mac : 00:1A:79:3B:2F:91
+⏰  Expire :January 16, 2027, 8:26 pm
+👽  Login : j4GgRdcjvK
+🔐  Password : QYFWjFmlCT
+🪢  STB Type : MAG250
+🎯  Client Type : STB
+📮  Client IP Adress : 76.66.98.189
+🌐  TimeZone : America/New_York
+⛑  PlayToken : y1SZr9qT4s:1768226182:1738
+🌍  http://mock.two:8080/get.php?username=j4GgRdcjvK&password=QYFWjFmlCT&type=m3u
+🌍  http://mock.two:8080/j4GgRdcjvK/QYFWjFmlCT/18398?play_token=cRS29AjVht
+SNcut = 78D24AA25373A
+SN = 78D24AA25373A06AFBF63BF1374A7880
+ID1 = 42980C5B0D2C22910076E29D86F32E0655F242809D13374788E2509E61619613
+ID2 = CD85AEC5AD4E72F39CDF354F59CA1BBE97E78AC5126B588B3BEACDCE7144FDF0
+SIGNATURE1 = E9B86B5E4D24847638898E41219B22A68F3F81FE19EAA1FE6CA0C33B66D0DE3B
+SIGNATURE2 = 54B25E2439581C16E6E3DD612140E570D227199F82C834C182CE3BCE66512014
+⚜️★☆★☆★☆★☆★☆★☠️★☆★☆★☆★☆★☆★⚜️
+
+🏁  Portal : http://mock.two:8080/c/
+🏁  Portal : http://mock.two:8080/c/
+🔑  Mac : 00:1A:79:39:9D:90
+⏰  Expire :January 17, 2027, 10:15 am
+👽  Login : 3eUKFHXzTR
+🔐  Password : nx02laAGqk
+🪢  STB Type : MAG270
+🎯  Client Type : STB
+📮  Client IP Adress : 206.75.128.122
+🌐  TimeZone : America/New_York
+⛑  PlayToken : H64wwwmddf:1765654608:161089
+🌍  http://mock.two:8080/get.php?username=3eUKFHXzTR&password=nx02laAGqk&type=m3u
+🌍  http://mock.two:8080/3eUKFHXzTR/nx02laAGqk/18398?play_token=uPn3r2CiwH
+SNcut = 3AD508969A385
+SN = 3AD508969A385F160170172CB469A67C
+ID1 = C5096E35584006D5BBF30D0FA9270AB10C2E7499F986892CC5008AEF3FA03614
+ID2 = 83B1FB2AD667B1F18F50A455DF84D4D32A59436B9FB8493450840B6DA33457CA
+SIGNATURE1 = 406BBF9DE4198E09DE70D53F6B719BA9558FDDEB42DDF1103B3F2B48B08ED359
+SIGNATURE2 = E9132DF68BE71E88BA0592B9AE0811BB7EAC1FD94F42637DACB30C05B55AEDE5
+⚜️★☆★☆★☆★☆★☆★☠️★☆★☆★☆★☆★☆★⚜️
+
+
+
+http://mock.three:80/c/
+
+00:1A:79:5D:3D:CD
+
+January 3, 2027, 12:00 am 26 Dni
+
+http://mock.four:80/c/
+
+00:1A:79:3B:7F:91
+
+March 17, 2026, 3:00 am 99 Dni
+
+http://mock.five:80/c/
+
+00:1A:79:24:36:8A
+
+August 4, 2026, 12:03 pm 240 Dni
+
+http://mock.six:80/c/
+
+00:1A:79:F5:00:5C
+
+May 23, 2026, 12:00 am 166 Dni
+
+http://mock.seven:80/c/
+
+00:1A:79:0E:1D:79
+
+December 15, 2026, 12:00 am 7 Dni
+
+http://mock.seven:80/c/
+
+00:1A:79:EC:9D:93
+
+December 29, 2026, 10:05 pm 22 Dni
+
+http://mock.five:80/c/
+
+00:1A:79:A2:BC:EA
+
+July 1, 2026, 3:42 am 205 Dni
+
+
+
+├🔸𝐑𝐞𝐚𝐥 ➤ http://mock.eight:80/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥 ➤ http://mock.eight/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥𝐓𝐲𝐩𝐞 ➤     portal.php
+
+├🔸𝐌𝐚𝐜 ➤ 00:1A:79:BB:D1:84
+
+├🔸𝐄𝐧𝐝𝐬 ➤ January 17, 2027, 12:00 am 363 Days
+
+├🔸𝐀𝐝𝐮𝐥𝐭𝐏𝐚𝐬𝐬𝐰𝐨𝐫𝐝 ➤ 0000
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥 ➤ dc817ba87a232f8a26a4f1846cac5eb3
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥𝐂𝐮𝐭 ➤ DC817BA87A232
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟏 ➤ E5EACC6156E70C13FD9E45F24BDC77299A2950FC26F2A85C5C5F4C767E14A519
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟐 ➤ 0891240D302D6CCB92BD8543FE330C3EFBB81479A308393FCB77BFF0DF13BD00
+
+├🔸📝 𝐒𝐢𝐠𝐧𝐚𝐭𝐮𝐫𝐞 ➤ C98332610E4D26DDFB6FB02958BF2522193DAB48307F7563BCA15433C05E7D0F
+
+╰─🔸𝐌𝟑𝐮 ➤ http://mock.eight:80/get.php?username=play&password=live.php?mac=00:1A:79:BB:D1:84&stream=845449&extension=ts&play_token=kh4cHfYc5y&sn2=&type=m3u_plus&output=m3u8
+
+
+
+├🔸𝐑𝐞𝐚𝐥 ➤ http://mock.eight:80/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥 ➤ http://mock.eight/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥𝐓𝐲𝐩𝐞 ➤     portal.php
+
+├🔸𝐌𝐚𝐜 ➤ 00:1A:79:CF:46:45
+
+├🔸𝐄𝐧𝐝𝐬 ➤ January 25, 2027, 12:00 am 6 Days
+
+├🔸𝐀𝐝𝐮𝐥𝐭𝐏𝐚𝐬𝐬𝐰𝐨𝐫𝐝 ➤ 0000
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥 ➤ 83c9d439bbf5e2351e2b805446fa4953
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥𝐂𝐮𝐭 ➤ 83C9D439BBF5E
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟏 ➤ F53A7584FA2D08F3F89C3B2AF21E903BD9A593768BA0E0DAC201C1C07FE2DD27
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟐 ➤ 6258553724971DD3A7516E65DD899B8785D35034B8BB1F88272EAE997F1B115F
+
+├🔸📝 𝐒𝐢𝐠𝐧𝐚𝐭𝐮𝐫𝐞 ➤ 89A41E301B340651CFC272A7B1D0B7F1ABAA6558AC8D0E5560B590BEC40A5A93
+
+╰─🔸𝐌𝟑𝐮 ➤ http://mock.eight:80/get.php?username=play&password=live.php?mac=00:1A:79:CF:46:45&stream=699850&extension=ts&play_token=eADBJVCE1L&sn2=&type=m3u_plus&output=m3u8
+
+
+
+├🔸𝐑𝐞𝐚𝐥 ➤ http://mock.nine:8080/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥 ➤ http://mock.ten:8080/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥𝐓𝐲𝐩𝐞 ➤     portal.php
+
+├🔸𝐌𝐚𝐜 ➤ 00:1A:79:59:47:5A
+
+├🔸𝐄𝐧𝐝𝐬 ➤ March 23, 2026, 5:44 pm 65 Days
+
+├🔸𝐀𝐝𝐮𝐥𝐭𝐏𝐚𝐬𝐬𝐰𝐨𝐫𝐝 ➤ 0000
+
+├🔸 Hᴏsᴛ➩ http://mock.ten:8080/c/
+
+├🔸 Rᴇᴀʟ➩ http://mock.ten:8080/c/
+
+╰─🔸Pᴏʀᴛ➩ 8080
+
+├🔸 Usᴇʀɴᴀᴍᴇ➩ ZDx1UxoSyF
+
+├🔸 Pᴀssᴡᴏʀᴅ➩ UyjnUwO6L8
+
+├🔸 Exᴘɪʀᴀᴛɪᴏɴ➩ 23-03-2026 13:44:26
+
+├🔸 AᴄᴛɪᴠᴇCᴏɴɴᴇᴄᴛɪᴏɴ➩ 0
+
+├🔸 MᴀxɪᴍᴜᴍCᴏɴɴᴇᴄᴛɪᴏɴ➩ 1
+
+├🔸 Sᴛᴀᴛᴜs➩ Active
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥 ➤ 6dd87a604dfb497002afa71f03c682f9
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥𝐂𝐮𝐭 ➤ 6DD87A604DFB4
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟏 ➤ E69656C310999BCC2E97A9E871B6CF159FD1680B278015F291759FB71D5F399D
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟐 ➤ 04E4CBC3274B575C6765E3E852A72044CF22C5945EC25F870B9550BB1763C239
+
+├🔸📝 𝐒𝐢𝐠𝐧𝐚𝐭𝐮𝐫𝐞 ➤ 80014AD161DABEA8DF2DA95FF5DDDB13F49E18749E104D33CB6ABD01B1375864
+
+╰─🔸𝐌𝟑𝐮 ➤ http://mock.nine:8080/get.php?username=ZDx1UxoSyF&password=UyjnUwO6L8&type=m3u_plus&output=m3u8
+
+
+
+├🔸𝐑𝐞𝐚𝐥 ➤ http://mock.nine:8080/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥 ➤ http://mock.ten:8080/c/
+
+├🔸𝐏𝐨𝐫𝐭𝐚𝐥𝐓𝐲𝐩𝐞 ➤     portal.php
+
+├🔸𝐌𝐚𝐜 ➤ 00:1A:79:08:48:45
+
+├🔸𝐄𝐧𝐝𝐬 ➤ April 13, 2026, 5:54 pm 86 Days
+
+├🔸𝐀𝐝𝐮𝐥𝐭𝐏𝐚𝐬𝐬𝐰𝐨𝐫𝐝 ➤ 0000
+
+├🔸 Hᴏsᴛ➩ http://mock.ten:8080/c/
+
+├🔸 Rᴇᴀʟ➩ http://mock.ten:8080/c/
+
+╰─🔸Pᴏʀᴛ➩ 8080
+
+├🔸      Team Gyalzen Gokak
+
+├🔸 Usᴇʀɴᴀᴍᴇ➩ rPnBzAKHe5
+
+├🔸 Pᴀssᴡᴏʀᴅ➩ gAeGtEdWYb
+
+├🔸 Exᴘɪʀᴀᴛɪᴏɴ➩ 13-04-2026 13:54:36
+
+├🔸 AᴄᴛɪᴠᴇCᴏɴɴᴇᴄᴛɪᴏɴ➩ 1
+
+├🔸 MᴀxɪᴍᴜᴍCᴏɴɴᴇᴄᴛɪᴏɴ➩ 1
+
+├🔸 Sᴛᴀᴛᴜs➩ Active
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥 ➤ 96a4e7fa35e3b97b0e952ca4e858d49e
+
+├🔸🔑 𝐒𝐞𝐫𝐢𝐚𝐥𝐂𝐮𝐭 ➤ 96A4E7FA35E3B
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟏 ➤ E669DDE82ECF980E167FE520A73CB28620300904144C44783D5B9E163E785D1B
+
+├🔸🆔 𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃𝟐 ➤ 4977A8C32A9EEFC2D2D78484D6526D519B527E1917210759835F86D4DE2B9562
+
+├🔸📝 𝐒𝐢𝐠𝐧𝐚𝐭𝐮𝐫𝐞 ➤ B86C69A0983EC70EA6D22E3883EFE5A9B97F4D307C03F3F8731DB5730F4FED69
+
+╰─🔸𝐌𝟑𝐮 ➤ http://mock.nine:8080/get.php?username=rPnBzAKHe5&password=gAeGtEdWYb&type=m3u_plus&output=m3u8
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:00:16:2f
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ February 1, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.eleven:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.eleven:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 5CE59AA334B704023A94F1E8BDA1C35A
+
+├●🆂🅽🅲🆄🆃 ➤➤ 5CE59AA334B70
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 2A8B34D7459666E5F41E4DD0DF6AFCCE4A166448D868EC28DD75B5741E8A72FD
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 5A22C286FA7AF5640F453BC147C80AA6DED44A2C87EF1935D00187CDF29E3208
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 6FDF82EB43B7CB17F76F6D252E0936E1B012BDFC98EC6E93BE38EADBF0FC9D87
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:c9:de:ad
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ December 15, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.eleven:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.eleven:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 4BE615442A14BD80DA32C31D5453DA2C
+
+├●🆂🅽🅲🆄🆃 ➤➤ 4BE615442A14B
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ ACD84554B796C5007CF15AED2266F6D65EEC4CA2C25FF17C057E4FB2FACC232F
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 3C3EEA98F5BF9363B760B48BE98A97A09E2397489935566634B9866832309CE7
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ EE296F6EDBACD4D813DFF4268C1217668B8FC69EE99FD925B72B734AED489DE9
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:9c:9d:25
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ February 23, 2026, 6:52 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.eleven:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.eleven:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 8DEB31FD8AFA9CA7C3E017F3E7CBABD4
+
+├●🆂🅽🅲🆄🆃 ➤➤ 8DEB31FD8AFA9
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 1F99C35451487772AA0D21CBFFA208770DCBCA97049CB6DCDCB76D830B9E4777
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ DDAF53B04316C7043D6206EF1473A77FD88591288B4A50B6D8FEE0C8D9562CF3
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 1A40D9E24E1B9AA60B600444C8BDF87C213572262B589EF79D8EFF8BC7C339A3
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:b5:bf:27
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ March 7, 2026, 10:51 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.eleven:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.eleven:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 5B2ED5ADBA3C08491496C57D3682E7D4
+
+├●🆂🅽🅲🆄🆃 ➤➤ 5B2ED5ADBA3C0
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 24385048CD408E5BAB86789716A77D9C5E8484222CF1D4C188801FF7D577B2B7
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ D084C10A69A9125FB250F90A43B6F9987820584983AA21E7CEA0117EFCE7F7E0
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 90580DD138DB41269B93D1DE0222FE490E2372A1E296FD9AA838686A483505D0
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:61:fa:23
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ March 23, 2026, 7:38 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.eleven:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.eleven:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 137589A2D155D1D7A5DE847DB061BD08
+
+├●🆂🅽🅲🆄🆃 ➤➤ 137589A2D155D
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 26DB93FCC1B3D3F7CBD3B879EC30AE1006879D0E1CFD170B066225AA2D6BB6A2
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 8E1A743B3DE9BB962850819703DE1BF8C1985330C51C204D6ACE600934D26599
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ E801B895325F4BF64C56967CF390115C90CECFD2C071C538D432E623A4C3A299
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.eleven:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:7b:59:14
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ September 2, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.eleven:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.eleven:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 8B02A364BA2D31ACDF5C5EA7FC75B2FA
+
+├●🆂🅽🅲🆄🆃 ➤➤ 8B02A364BA2D3
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ E8DF3DA0F440749EF1275095876E9915ACFA02F511C12D98A85CD2C96786006D
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 3F1B4F3EDF65693AB8F79CE8FA307500A9C61FBED23D51673382473DC328DEAD
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 1B609E2D9F3076527957CAE25323351DDE1B5D580BD5660C0E1E9FCCF2D8579D
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:c0:b0:22
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ May 27, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.twelve:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.twelve:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 5D962DD6332C3B333A5D6A4D3C088F96
+
+├●🆂🅽🅲🆄🆃 ➤➤ 5D962DD6332C3
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 2F2DC0FB3ADC3C585397D039A9B6C619FC8B94AEBBCC3B93918DF16475279D8D
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 4DE68DA3027133CE6C887772699D2F91B662942318E7450D82B04DE86F73D1E8
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ AA11C49B4FCA169819BFEB2A65E41DD303CE87097E40F8273CCED5AF91B33B86
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:d8:a7:79
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ February 22, 2026, 5:46 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.twelve:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.twelve:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ D73EB602F3034A188A358726066F96CE
+
+├●🆂🅽🅲🆄🆃 ➤➤ D73EB602F3034
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 3A74B3E72135D7045AD4F85C4A06BAE9CFF079CE0676D5B076EF8B10D2D40355
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 8A9A5231B34345D98F7F816A0AB958B7D16D512D3148A208C7AD036A94D74D57
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 9D2F632958D9D09ECD81DCED91ADD6AD5B77B3F864918EE6B48028279568F261
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:ae:c6:1c
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ September 30, 2026, 6:17 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.twelve:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.twelve:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 109414B4BE6CFF91D6320889A8EA96CB
+
+├●🆂🅽🅲🆄🆃 ➤➤ 109414B4BE6CF
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 2C798056EB72C72D2739F03323B6B526E2424CAEAA194D942AEB2EBC8C9DF5AA
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 5564BCCE95080B6756D135D2F96C9FC6F1EDBDAF1ECE70D3912752EEE7DB0A9C
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 344FD6F6DCDAB01DEC11F2D996C9C6C607AC79E47ACD0D2B7FB2F7B518871B40
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:a7:50:75
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ January 11, 2027, 11:11 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.twelve:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.twelve:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 589879544FEE0A8CE5DE62783D0C3125
+
+├●🆂🅽🅲🆄🆃 ➤➤ 589879544FEE0
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ F5FE53187B72A076F5151CC10282E10FED570B008478FD7F7B77062B60474751
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ B4E37785B8CA4A67E17AA1BB16122BB5C5424787CCD6EC326B90D61FF8398C8E
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ C0E235BD25F61F2C15F7D8AA135C8877AB08DB7B134325462F6C1D49709E155D
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.twelve:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:b6:44:69
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ February 1, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.twelve:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.twelve:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 566796687F5046C5A926DD2C3C7174EC
+
+├●🆂🅽🅲🆄🆃 ➤➤ 566796687F504
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ ED1586B18385FC897EF297367E8D51DF25EA2A0D8D31F12EFE67C5DE6B7D520D
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ F0A015375856AA18761CF1C443E7782040936D3E2C149D265EE6CC6F28EF2CC9
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ E3E02C2E6EDE49758D8493DFE165CB7DC097ECAB71B0DD25B0A3C48DC0E61B6B
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:88:08:50
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ February 18, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ F009FFCB647EA3AB3BEE4D979B3D2BF7
+
+├●🆂🅽🅲🆄🆃 ➤➤ F009FFCB647EA
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ E248A01DED42B9ECC53721000885B00912F565CAC085304E8F812605ED379B7E
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 9A12505D019EB001A0D68FFE0AF6096D890452066455112CEC836DA73368F7C6
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 295D35BD914478D457EF695F831B9619476F23B4D942C0CA68AB3A400B14B7D5
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:be:d8:66
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ May 8, 2026, 12:35 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 999829ED9F21DE858618A23F2671F3EE
+
+├●🆂🅽🅲🆄🆃 ➤➤ 999829ED9F21D
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 68B7CE0CB25E27E4F8F8F2A08E41C57D820601936607918BFE0EFC3B15E431EE
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ E925043F9C2EBCCEEE12E36E4D4F19E6E946FBB1484C164B0F17E5BB60D26F77
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ B95CE96D456AE6C8F24D62525EE98448530B15898F647955792F9534A6FEE333
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:d2:ca:58
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ March 31, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ B84AFD65D9BD613A75087793AC079831
+
+├●🆂🅽🅲🆄🆃 ➤➤ B84AFD65D9BD6
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ D40D14B0933A22A0D9F3F62EFFB2837F9CABC7E3A528FE8840C22A00D2F67458
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 7D7CCA0665EBC909AE8384445FC226A2C1B897D8BD2C17E5884B5024DEF4F6BA
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ FD604509DFF6C082087DB030476DC2628416D9C2FEC1736C99432AAC58021075
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:5e:0d:cb
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ January 7, 2027, 4:49 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 36F3CC86318BF28C7A3CB7184B3C4260
+
+├●🆂🅽🅲🆄🆃 ➤➤ 36F3CC86318BF
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 90DF7B0A1B49FD1567E523BC90DC4C4B614B2DB6E16413E149F1DD10F8C52F95
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ A3C806ABC936B5B2B265A39AD698A620C39EBAA2175EC163CD6BFA6389D232D9
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 3BF000B5679771B2BEC32A75EC857BBA7CB43E876752C29ECA2A2E15E7A4C5F4
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:48:13:d9
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ May 11, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ D06E41969088A1CEAD39287AA242066D
+
+├●🆂🅽🅲🆄🆃 ➤➤ D06E41969088A
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ E4DEC9146A30EB3B7EC0E83D5557D9A1D1CD1A6146840D5716C81E7FD75D8B40
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ E273922AC7C82B1E4DBEA5BB3EDC47407986AD40F51754CD12B5846C067E3D95
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ E803D44FB2E05430C43603ECDD30CAEB3BAFDDFB81A0A47B325527B432BF5E1B
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:c7:7b:23
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ September 1, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 16C51AF92BBEC95DE6A1D28A3D9F1CFE
+
+├●🆂🅽🅲🆄🆃 ➤➤ 16C51AF92BBEC
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ C66DD7C493AECC364358A1829908F5494EE581C673DC60F11F7B32C5558193C6
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ A2EFC436D00D7D61786A0C877F0871D786884764019CEB83F65C63E7BC321DB3
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 15792EFD4D21F2EB5F93F89A753356B93CA4F441CE11FD0DFA3B20A66B384934
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.thirteen:80/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:01:30:82
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ April 19, 2026, 12:00 am
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ <Active Connections>/<Max Connections>
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ Europe\/Amsterdam
+
+╭● 🅤🅡🅛 ➤➤ http://mock.thirteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ <username>
+
+├● 🅟🅐🅢🅢 ➤➤ <password>
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.thirteen:80/get.php?username=<username>&password=<password>&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 761CB30734AE8028D251C796BFEC3032
+
+├●🆂🅽🅲🆄🆃 ➤➤ 761CB30734AE8
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ F396E0FA19B6864D6CD02487F683D43B0A27C8506AC8416B1F7CD16B71BCB1D5
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ EB4D0DF8C94C53867F91A0CC9F6FE417ECAE7853C3A7D370E4520E36E80E0A43
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 165C91EA7A18056CB3594D60C0BBE1017957BC7B0E3A3DD8EF4D9A0471C37CF0
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.fourteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.fifteen/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:00:1a:79
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ April 15, 2026, 11:26 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ 0/1
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ UTC
+
+╭● 🅤🅡🅛 ➤➤ http://mock.fourteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ XMC3XH8J23V8R85
+
+├● 🅟🅐🅢🅢 ➤➤ zQlEMwBnvs
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.fourteen:80/get.php?username=XMC3XH8J23V8R85&password=zQlEMwBnvs&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ 177ECC7EC610E721BBEEF774FA461A1B
+
+├●🆂🅽🅲🆄🆃 ➤➤ 177ECC7EC610E
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ 950BDE26AAEF819D47EBC3732F1EA3840E80AA5EF19DA054CA398CD3247FE31D
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ BAE136F370CD5246892DCC8ED87EBD9EC80B305482304114C7CF9277B7ED8DEE
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ E61780CA9A0989CB886944518EB852D8D45300848BC6A720D80F9ECA8CCD982C
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+╰────● <LIVE TV>
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.fourteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.fifteen/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:c7:00:2d
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ October 16, 2026, 6:26 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ 1/1
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ UTC
+
+╭● 🅤🅡🅛 ➤➤ http://mock.fourteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ A9LBPT8MCZ965SK
+
+├● 🅟🅐🅢🅢 ➤➤ Li9shSowQb
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.fourteen:80/get.php?username=A9LBPT8MCZ965SK&password=Li9shSowQb&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ D1CC891103A6060EF51D2DE2A8CDB120
+
+├●🆂🅽🅲🆄🆃 ➤➤ D1CC891103A60
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ DA5E22E56CF50286E1949587ED5A8DD444CCFDCFD45CA10C16BAD9CBA78E5001
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ 196CF90765B7927253EBF7928C2D4B56E9F059A3B5C95057AD1935D68CF18063
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 909437161AFFFE96050074053802C6C93F30EA5DBE0E66E78E86114D31FB95F4
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+╰────● <LIVE TV>
+
+
+
+├──● 🅟🅞🅡🅣🅐🅛 🅤🅡🅛 ➤➤ http://mock.fourteen:80/c/
+
+├─● 🅡🅔🅐🅛 🅤🅡🅛 ➤➤ http://mock.fifteen/c/
+
+├─● 🅜🅐🅒 🅐🅓🅡🅔🅢🅢 ➤➤ 00:1A:79:32:01:9e
+
+├─● 🅐🅓🅤🅛🅣 🅟🅐🅢🅢 ➤➤ 0000
+
+├● 🅔🅧🅟🅘🅡🅔 🅓🅐🅣🅔 ➤➤ March 26, 2026, 10:59 pm
+
+├─● 🅐🅒🅣.🅜🅐🅧 ➤➤ 0/1
+
+╰──● 🅥🅟🅝 🅘🅕 🅝🅔🅔🅓 ➤➤ UTC
+
+╭● 🅤🅡🅛 ➤➤ http://mock.fourteen:80
+
+├● 🅤🅢🅔🅡 ➤➤ FVgA2C2EuQ
+
+├● 🅟🅐🅢🅢 ➤➤ hqufqTlCkU
+
+╰● 🅜➌🅤 🅛🅘🅢🅣 ➤➤ http://mock.fourteen:80/get.php?username=FVgA2C2EuQ&password=hqufqTlCkU&type=m3u_plus
+
+╭──●🆂🅽 ➤➤ CC210745F35DF51C655BFA81721B410A
+
+├●🆂🅽🅲🆄🆃 ➤➤ CC210745F35DF
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❶ ➤➤ EB25108FFC5FE78D54BB0D4DEEB2AC69069DCA11EDDB289455715E569A20B392
+
+├● 🅳🅴🆅🅸🅲🅴 🅸🅳 ❷ ➤➤ C8C154075B49932CA524943C24BA096F757FBFBF1EA090B39080A8B35D2A3ACB
+
+╰● 🅢🅘🅖🅝🅐🅣🅤🅡🅔 ➤➤ 629921C56CE5E328CAAB1A4622DAA783C4FDCBD2AFE7A22DA9D8278D56D03FBE
+
+╭─●🖥 🅛🅘🅥🅔 🅣🅥 🖥
+
+╰────● <LIVE TV>
+
+
+
+Lorem Ipsum
+loremipsum
+Lorem Ipsum
+Lorem Ipsum
+
+
+
+Lorem Ipsum
+Lorem
+LOREM IPSUM:
+
+Lorem ipsum dolor sit amet
+
+http://mock.sixteen/
+
+http://mock.seventeen/
+
+Lorem ipsum dolor sit amet : email@mock.test
+
+Lorem ipsum dolor sit amet: email@mock.test
+
+Lorem Ipsum
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+LOREM IPSUM DOLOR SIT AMET
+Categories
+lorem
+iptv
+m3u
+stb
+lorem
+lorem
+xtream
+Lorem Ipsum
+Lorem Ipsum
+
+LOREM IPSUM DOLOR SIT AMET
+
+LOREM IPSUM DOLOR SIT AMET
+
+LOREM IPSUM DOLOR SIT AMET
+
+LOREM IPSUM DOLOR SIT AMET
+
+LOREM IPSUM DOLOR SIT AMET
+Lorem Ipsum
+Lorem
+Lorem *
+Lorem *
+Lorem ipsum dolor sit amet

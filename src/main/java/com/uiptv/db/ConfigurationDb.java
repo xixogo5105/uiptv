@@ -38,6 +38,10 @@ public class ConfigurationDb extends BaseDb {
             } catch (Exception ignored) {
             }
         }
+        try (Connection conn = connect(); Statement statement = conn.createStatement()) {
+            statement.execute("UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl=''");
+        } catch (Exception ignored) {
+        }
     }
 
     @Override
@@ -70,7 +74,7 @@ public class ConfigurationDb extends BaseDb {
 
     public void save(final Configuration configuration) {
         List<Configuration> existing = super.getAll();
-        
+
         if (existing != null && !existing.isEmpty()) {
             // Update existing
             Configuration current = existing.get(0);

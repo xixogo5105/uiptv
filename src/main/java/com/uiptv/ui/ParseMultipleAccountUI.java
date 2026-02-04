@@ -1,7 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
-import com.uiptv.util.StalkerPortalTextParserService;
+import com.uiptv.util.TextParserService;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
@@ -44,8 +44,8 @@ public class ParseMultipleAccountUI extends VBox {
         multipleSPAccounts.setMinHeight(400);
         multipleSPAccounts.setPrefHeight(400);
 
-        parseModeComboBox.getItems().addAll(StalkerPortalTextParserService.MODE_STALKER, StalkerPortalTextParserService.MODE_XTREME, StalkerPortalTextParserService.MODE_M3U);
-        parseModeComboBox.setValue(StalkerPortalTextParserService.MODE_STALKER);
+        parseModeComboBox.getItems().addAll(TextParserService.MODE_STALKER, TextParserService.MODE_XTREME, TextParserService.MODE_M3U);
+        parseModeComboBox.setValue(TextParserService.MODE_STALKER);
 
         pauseCachingCheckBox.setSelected(true);
         groupAccountsCheckBox.setSelected(true);
@@ -64,7 +64,7 @@ public class ParseMultipleAccountUI extends VBox {
         addCheckBoxListeners();
 
         // Initial state
-        updateCheckboxesVisibility(StalkerPortalTextParserService.MODE_STALKER);
+        updateCheckboxesVisibility(TextParserService.MODE_STALKER);
     }
 
     private void addCheckBoxListeners() {
@@ -76,8 +76,8 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void updateCheckboxesVisibility(String mode) {
-        groupAccountsCheckBox.setVisible(StalkerPortalTextParserService.MODE_STALKER.equals(mode));
-        convertM3uToXtremeCheckBox.setVisible(StalkerPortalTextParserService.MODE_M3U.equals(mode));
+        groupAccountsCheckBox.setVisible(TextParserService.MODE_STALKER.equals(mode));
+        convertM3uToXtremeCheckBox.setVisible(TextParserService.MODE_M3U.equals(mode));
     }
 
     private void addClearButtonClickHandler() {
@@ -86,7 +86,7 @@ public class ParseMultipleAccountUI extends VBox {
 
     private void clearAll() {
         multipleSPAccounts.clear();
-        parseModeComboBox.setValue(StalkerPortalTextParserService.MODE_STALKER);
+        parseModeComboBox.setValue(TextParserService.MODE_STALKER);
         groupAccountsCheckBox.setSelected(true);
         convertM3uToXtremeCheckBox.setSelected(true);
         pauseCachingCheckBox.setSelected(true);
@@ -100,7 +100,7 @@ public class ParseMultipleAccountUI extends VBox {
                     return;
                 }
                 String selectedMode = parseModeComboBox.getValue();
-                StalkerPortalTextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, pauseCachingCheckBox.isSelected(), groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
+                TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, pauseCachingCheckBox.isSelected(), groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
                 clearAll();
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);
