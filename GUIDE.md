@@ -149,6 +149,9 @@ You can add a YouTube channel as an RSS feed to watch its videos.
 3. Add this URL as an RSS Feed account in UIPTV.
 4. **Note**: **yt-dlp** must be installed and in your system's PATH for playback to work.
 
+### Website
+A promotional website is available at [https://xixogo5105.github.io/uiptv/](https://xixogo5105.github.io/uiptv/).
+
 ---
 
 ## 9. Troubleshooting and FAQs

@@ -29,6 +29,7 @@ Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/
 - **Tab-Based Interface**: The user interface has been updated from expandable panels to a more intuitive tab-based layout for managing accounts and settings.
 - **About Page & Update Checks**: An "About" page has been added, which includes a mechanism to check for new application updates.
 - **Cache Management**: UIPTV uses an SQLite database to cache data, reducing repeated calls to servers. You can "Clear Cache" or "Pause Caching" globally or on a per-account basis to manage performance.
+- **Website**: A promotional website is now available at [https://xixogo5105.github.io/uiptv/](https://xixogo5105.github.io/uiptv/).
 
 ## Compiling UIPTV
 This application is built using **Java 25** and **JavaFX**, and it is packaged into native installers using **jpackage**.

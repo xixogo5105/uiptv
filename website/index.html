@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UIPTV - Universal IPTV Player</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <img src="https://github.com/xixogo5105/uiptv/assets/161976171/5563a042-157e-4ae7-bb6e-a72b38c8aa62" alt="UIPTV Logo">
+                <span>UIPTV</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#requirements">Requirements</a>
+                <a href="#guide">Guide</a>
+                <a href="https://github.com/xixogo5105/uiptv" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+            </div>
+        </nav>
+        <div class="hero">
+            <div class="hero-content">
+                <h1>Universal IPTV Player</h1>
+                <p>A versatile, modern IPTV player for Windows, Linux, and macOS. Now with tab-based navigation and enhanced player support.</p>
+                <div class="cta-buttons">
+                    <a href="https://github.com/xixogo5105/uiptv/releases/latest" class="btn primary"><i class="fas fa-download"></i> Download Latest</a>
+                    <a href="#features" class="btn secondary">Learn More</a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" alt="UIPTV Screenshot">
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <h2>Key Features</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <i class="fas fa-tv"></i>
+                <h3>Multi-Protocol Support</h3>
+                <p>Stalker Portal, Xtream Codes, M3U Playlists (Local & Remote), and RSS Feeds.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-play-circle"></i>
+                <h3>Advanced Player Support</h3>
+                <p>Includes embedded VLC & Lite players. Fully supports external players like MPV or SMPlayer.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fab fa-youtube"></i>
+                <h3>YouTube Integration</h3>
+                <p>Watch YouTube channels directly via RSS feeds (requires <code>yt-dlp</code>).</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-network-wired"></i>
+                <h3>Web Server & Headless</h3>
+                <p>Stream to any device on your network via browser. Supports headless mode for server-only usage.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-search"></i>
+                <h3>Search & Favorites</h3>
+                <p>Real-time search filtering and easy favorites management for quick access to your content.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-filter"></i>
+                <h3>Smart Filtering</h3>
+                <p>Exclude unwanted categories or channels. Pause filters on the fly for full access.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-palette"></i>
+                <h3>Customizable UI</h3>
+                <p>Modern tab-based interface with Dark Mode, custom fonts, and scaling options.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-sync-alt"></i>
+                <h3>Auto-Updates</h3>
+                <p>Built-in update checker ensures you are always running the latest version.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-database"></i>
+                <h3>Performance</h3>
+                <p>SQLite caching for fast load times. Options to pause or clear cache as needed.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="requirements" class="requirements">
+        <h2>System Requirements</h2>
+        <div class="req-container">
+            <div class="req-text">
+                <p>UIPTV is available for <strong>Windows</strong> (x64, ARM64), <strong>Linux</strong> (x64, ARM64), and <strong>macOS</strong> (Intel, Apple Silicon).</p>
+                <p>For the best experience, we recommend the following:</p>
+            </div>
+            <ul class="req-list">
+                <li>
+                    <i class="fab fa-java"></i>
+                    <div>
+                        <strong>Java 25</strong>
+                        <span>Bundled with installers, no separate installation needed.</span>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-file-video"></i>
+                    <div>
+                        <strong>VLC Media Player</strong>
+                        <span>Highly recommended for the best video playback compatibility.</span>
+                    </div>
+                </li>
+                <li>
+                    <i class="fab fa-youtube"></i>
+                    <div>
+                        <strong>yt-dlp</strong>
+                        <span>Required if you intend to play YouTube videos via RSS feeds.</span>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="guide" class="guide-teaser">
+        <h2>Getting Started</h2>
+        <p>Need help configuring your accounts or setting up the web server? Check out our comprehensive guide.</p>
+        <a href="https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md" target="_blank" class="btn secondary">Read the User Guide</a>
+    </section>
+
+    <footer>
+        <p>&copy; 2024 UIPTV. Open Source Project.</p>
+        <div class="socials">
+            <a href="https://github.com/xixogo5105/uiptv"><i class="fab fa-github"></i></a>
+        </div>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
