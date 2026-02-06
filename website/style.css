@@ -29,10 +29,7 @@ a {
 /* Header & Nav */
 header {
     background-color: var(--surface-color);
-    padding: 1rem 0;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
+    /* Removed sticky positioning from the entire header */
     box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
@@ -42,7 +39,12 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 2rem;
+    padding: 1rem 2rem; /* Moved padding here from header */
+    /* Make nav sticky if desired, or remove sticky entirely */
+    position: sticky;
+    top: 0;
+    background-color: var(--surface-color);
+    z-index: 1000;
 }
 
 .logo {
