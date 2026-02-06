@@ -160,9 +160,14 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
      http://domain.com:8080/get.php?username=user&password=pass&type=m3u
      ```
 3. **Options**:
-   - **Group Account(s) by MAC Address**: Groups multiple portals under the same MAC.
-   - **Convert M3U to Xtreme**: Attempts to convert M3U links to Xtream Codes format for better compatibility.
-   - **Pause Caching**: Prevents immediate caching of the new accounts.
+   - **Group Account(s) by MAC Address** (Stalker Mode only):
+     - When enabled, this option groups multiple portal URLs under a single MAC address entry if they share the same MAC.
+     - **Note**: This option is **not applicable** if the account details include unique attributes such as `signature`, `device_id`, etc., as these are bound to a specific portal/MAC combination.
+   - **Convert M3U to Xtreme** (M3U Mode only):
+     - When enabled, the parser attempts to convert M3U URLs into Xtream Codes API accounts (Host, Username, Password) for better compatibility and performance.
+     - This is only available when parsing M3U links.
+   - **Pause Caching**:
+     - Prevents the application from immediately caching the content of the newly added accounts. This is useful if you are adding many accounts and want to avoid high resource usage immediately.
 4. Click **Parse & Save** to import the accounts.
 
 ---
@@ -193,7 +198,8 @@ UIPTV includes an experimental web server, allowing you to watch your IPTV conte
 ### Setting Up the Server
 1. Go to the **Configuration** tab.
 2. Set a **Port** (default is `8080`).
-3. Click **Start Server**.
+3. Click **Save** to apply the port setting.
+4. Click **Start Server**.
 
 ### Accessing via Browser
 1. Find the IP address of your computer (e.g., `192.168.1.10`).
