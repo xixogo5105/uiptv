@@ -1,4 +1,5 @@
 :root {
+    /* Dark Theme (Default) */
     --primary-color: #007bff;
     --secondary-color: #6c757d;
     --background-color: #121212;
@@ -6,6 +7,17 @@
     --text-color: #ffffff;
     --text-secondary: #b0b0b0;
     --accent-color: #0056b3;
+}
+
+/* Light Theme Variables */
+[data-theme="light"] {
+    --primary-color: #0056b3; /* Darker shade of blue for light theme */
+    --secondary-color: #6c757d;
+    --background-color: #f8f9fa;
+    --surface-color: #ffffff;
+    --text-color: #212529;
+    --text-secondary: #6c757d;
+    --accent-color: #004494;
 }
 
 * {
@@ -19,6 +31,7 @@ body {
     background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.6;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 a {
@@ -33,8 +46,8 @@ nav {
     background-color: var(--surface-color);
     z-index: 1000;
     width: 100%;
-    /* Removed padding from nav itself to allow full width background */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Lighter shadow for light mode compatibility */
+    transition: background-color 0.3s;
 }
 
 .nav-container {
@@ -48,9 +61,8 @@ nav {
 
 header {
     background-color: var(--surface-color);
-    /* Removed box-shadow from header as nav now has it */
     padding-bottom: 3rem;
-    /* Removed margin-top to eliminate gap */
+    transition: background-color 0.3s;
 }
 
 .logo {
@@ -68,6 +80,11 @@ header {
     border-radius: 5px;
 }
 
+.nav-links {
+    display: flex;
+    align-items: center;
+}
+
 .nav-links a {
     margin-left: 2rem;
     color: var(--text-secondary);
@@ -78,14 +95,31 @@ header {
     color: var(--primary-color);
 }
 
+/* Theme Toggle Button */
+.theme-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-left: 2rem;
+    transition: color 0.3s, transform 0.2s;
+    padding: 0.5rem;
+}
+
+.theme-btn:hover {
+    color: var(--primary-color);
+    transform: rotate(15deg);
+}
+
 /* Hero Section */
 .hero {
     display: flex;
     align-items: center;
     justify-content: space-between;
     max-width: 1200px;
-    margin: 0 auto; /* Removed top margin */
-    padding: 2rem 2rem 0; /* Added top padding to compensate */
+    margin: 0 auto;
+    padding: 2rem 2rem 0;
     gap: 2rem;
     flex-wrap: wrap;
 }
@@ -123,6 +157,7 @@ header {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+    cursor: pointer;
 }
 
 .btn.primary {
@@ -149,8 +184,8 @@ header {
 .hero-image img {
     width: 100%;
     border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    border: 1px solid #333;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    border: 1px solid var(--text-secondary); /* Subtle border for light mode visibility */
 }
 
 /* Features Section */
@@ -158,6 +193,7 @@ header {
     padding: 2rem 2rem 4rem;
     background-color: var(--surface-color);
     text-align: center;
+    transition: background-color 0.3s;
 }
 
 .features h2 {
@@ -177,8 +213,9 @@ header {
     background-color: var(--background-color);
     padding: 2rem;
     border-radius: 10px;
-    transition: transform 0.3s;
-    border: 1px solid #333;
+    transition: transform 0.3s, background-color 0.3s, border-color 0.3s;
+    border: 1px solid var(--text-secondary);
+    opacity: 1; /* Ensure visible by default, JS handles animation */
 }
 
 .feature-card:hover {
@@ -206,6 +243,7 @@ header {
     background-color: var(--background-color);
     max-width: 1000px;
     margin: 0 auto;
+    transition: background-color 0.3s;
 }
 
 .requirements h2 {
@@ -218,7 +256,8 @@ header {
     background-color: var(--surface-color);
     padding: 2rem;
     border-radius: 10px;
-    border: 1px solid #333;
+    border: 1px solid var(--text-secondary);
+    transition: background-color 0.3s;
 }
 
 .req-text {
@@ -238,7 +277,7 @@ header {
     align-items: center;
     gap: 1.5rem;
     padding: 1rem;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(128, 128, 128, 0.1); /* Adaptive background */
     border-radius: 8px;
 }
 
@@ -288,7 +327,8 @@ footer {
     padding: 3rem 2rem;
     text-align: center;
     color: var(--text-secondary);
-    border-top: 1px solid #333;
+    border-top: 1px solid var(--text-secondary);
+    transition: background-color 0.3s;
 }
 
 .footer-content {
@@ -329,7 +369,7 @@ footer {
 
 .disclaimer {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--text-secondary);
     max-width: 600px;
 }
 
@@ -363,6 +403,8 @@ footer {
     }
 
     .nav-links {
-        display: none; /* Simple hide for mobile for now, could be a hamburger menu */
+        /* display: none; */ /* Temporarily disabled to show theme toggle on mobile if needed, or adjust layout */
+        /* For now, keep it hidden on mobile as per previous design, or implement a hamburger menu */
+        display: none;
     }
 }
