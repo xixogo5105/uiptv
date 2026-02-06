@@ -26,6 +26,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Navigation](#navigation)
    - [Search & Favorites](#search--favorites)
    - [Playback Controls](#playback-controls)
+   - [Embedded Players Explained](#embedded-players-explained)
 6. [Web Server & Remote Access](#6-web-server--remote-access)
    - [Setting Up the Server](#setting-up-the-server)
    - [Accessing via Browser](#accessing-via-browser)
@@ -66,6 +67,15 @@ To ensure a smooth experience, please verify your system meets the following req
 2. Double-click the installer and follow the on-screen prompts.
 3. Once installed, launch UIPTV from the Start Menu.
 
+#### Installing Dependencies (FFmpeg & yt-dlp)
+To enable YouTube support and web streaming of TS files, you need to install these tools and ensure they are in your system PATH.
+- **Using Winget (Recommended)**: Open PowerShell and run:
+  ```powershell
+  winget install Gyan.FFmpeg
+  winget install yt-dlp.yt-dlp
+  ```
+- **Manual Installation**: Download the executables from their official websites, place them in a permanent folder (e.g., `C:\Tools`), and add that folder to your System Environment Variables (PATH).
+
 ### Installing on Linux
 **Important for DEB users:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV.
 
@@ -76,10 +86,27 @@ To ensure a smooth experience, please verify your system meets the following req
    - **AppImage**: `chmod +x uiptv_*.AppImage && ./uiptv_*.AppImage`
 3. Launch the application from your application menu or terminal.
 
+#### Installing Dependencies
+- **FFmpeg**:
+  - **Debian/Ubuntu**: `sudo apt install ffmpeg`
+  - **Fedora**: `sudo dnf install ffmpeg`
+- **yt-dlp**:
+  It is recommended to install the latest binary directly to ensure compatibility with YouTube's latest changes:
+  ```bash
+  sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+  sudo chmod a+rx /usr/local/bin/yt-dlp
+  ```
+
 ### Installing on macOS
 1. Download the `.dmg` file.
 2. Open the disk image and drag the UIPTV application to your **Applications** folder.
 3. You may need to allow the application to run in **System Settings > Privacy & Security** if it's not signed by an identified developer.
+
+#### Installing Dependencies
+The easiest way to install the required dependencies on macOS is using **Homebrew**. Open your terminal and run:
+```bash
+brew install ffmpeg yt-dlp
+```
 
 ---
 
@@ -188,6 +215,30 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
 ### Playback Controls
 - **Double-Click**: Starts playback using your selected default player.
 - **Right-Click**: Offers options to play with a specific player (Embedded, External 1, 2, or 3).
+
+### Embedded Players Explained
+UIPTV comes with two embedded players, each serving a different purpose.
+
+#### 1. Embedded VLC Player (Recommended)
+This is the primary and most powerful player. It leverages the **VLC Media Player** libraries installed on your system.
+- **Features**:
+  - **Broad Format Support**: Plays almost any video or audio format supported by VLC.
+  - **Hardware Acceleration**: Utilizes system hardware for smooth playback.
+  - **Advanced Controls**: Includes Play/Pause, Stop, Repeat, Reload, Fullscreen, Picture-in-Picture (PiP), Mute, Volume, and Aspect Ratio toggle (Fit/Stretch).
+  - **Overlay Controls**: Controls appear on mouse hover and fade out when idle.
+  - **PiP Mode**: Allows you to detach the video into a floating, resizable window that stays on top of other applications.
+
+#### 2. Embedded Lite Player (Fallback)
+This is a lightweight player based on JavaFX's built-in media engine. It is used as a fallback if VLC is not detected or if you prefer a simpler experience.
+- **Features**:
+  - **Basic Playback**: Supports standard web formats (HLS/m3u8, MP4).
+  - **Simple Interface**: Includes essential controls like Play/Pause, Stop, Repeat, Reload, Fullscreen, PiP, Mute, Volume, and Aspect Ratio.
+  - **Limitations**: Does not support as many codecs or advanced streaming protocols as the VLC player. It is best suited for standard HLS streams.
+
+**Note**: Both players support standard keyboard shortcuts:
+- **F**: Toggle Fullscreen
+- **M**: Toggle Mute
+- **Esc**: Exit Fullscreen
 
 ---
 
