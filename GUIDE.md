@@ -21,6 +21,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Xtream Codes](#xtream-codes)
    - [M3U Playlists (Remote & Local)](#m3u-playlists-remote--local)
    - [RSS Feeds (YouTube Support)](#rss-feeds-youtube-support)
+   - [Bulk Account Import](#bulk-account-import)
 5. [Using the Player](#5-using-the-player)
    - [Navigation](#navigation)
    - [Search & Favorites](#search--favorites)
@@ -32,6 +33,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
 7. [Advanced Features & Tips](#7-advanced-features--tips)
    - [External Player Integration](#external-player-integration)
    - [YouTube Integration](#youtube-integration)
+   - [Database Synchronization](#database-synchronization)
    - [Troubleshooting](#troubleshooting)
 
 ---
@@ -141,6 +143,28 @@ Turn UIPTV into a news or video feed reader.
 
 **Note**: After adding an account, click **Parse Accounts** to load the channels.
 
+### Bulk Account Import
+The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
+
+1. **Select Mode**: Choose between `Stalker Portal`, `Xtream Codes`, or `M3U`.
+2. **Enter Data**: Paste your account details in the text area.
+   - **Stalker Portal Format**:
+     ```
+     http://portal-url.com/c
+     00:1A:79:XX:XX:XX
+     http://another-portal.com/c
+     00:1A:79:YY:YY:YY
+     ```
+   - **M3U Format**:
+     ```
+     http://domain.com:8080/get.php?username=user&password=pass&type=m3u
+     ```
+3. **Options**:
+   - **Group Account(s) by MAC Address**: Groups multiple portals under the same MAC.
+   - **Convert M3U to Xtreme**: Attempts to convert M3U links to Xtream Codes format for better compatibility.
+   - **Pause Caching**: Prevents immediate caching of the new accounts.
+4. Click **Parse & Save** to import the accounts.
+
 ---
 
 ## 5. Using the Player
@@ -204,6 +228,16 @@ To watch YouTube videos seamlessly:
 1. Install **yt-dlp** and add it to your PATH.
 2. Add YouTube RSS feeds as described in the [Accounts section](#rss-feeds-youtube-support).
 3. When you play a video, UIPTV uses `yt-dlp` to fetch the stream URL and plays it in your chosen player.
+
+### Database Synchronization
+UIPTV supports synchronizing its database between two instances or backups. This is useful for keeping your settings and accounts consistent across devices.
+
+**Usage:**
+Run the application from the command line with the `sync` argument:
+```bash
+uiptv sync "/path/to/first.db" "/path/to/second.db"
+```
+This command will synchronize the configuration and account tables between the two specified SQLite database files.
 
 ### Troubleshooting
 
