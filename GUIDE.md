@@ -58,11 +58,15 @@ To ensure a smooth experience, please verify your system meets the following req
 - **FFmpeg**: Required if you plan to stream `.ts` files via the web interface.
 
 ### Installing on Windows
+**Important:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV. The installer does not automatically remove older versions, and failure to do so may result in the upgrade not being applied correctly.
+
 1. Download the latest `.msi` installer from the [Releases Page](https://github.com/xixogo5105/uiptv/releases/latest).
 2. Double-click the installer and follow the on-screen prompts.
 3. Once installed, launch UIPTV from the Start Menu.
 
 ### Installing on Linux
+**Important for DEB users:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV.
+
 1. Download the appropriate package for your distribution (`.deb` for Debian/Ubuntu, `.rpm` for Fedora/RHEL, or `.AppImage`).
 2. Install using your package manager:
    - **Debian/Ubuntu**: `sudo dpkg -i uiptv_*.deb`

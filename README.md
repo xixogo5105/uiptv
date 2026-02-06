@@ -32,6 +32,9 @@ Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/
 - **Cache Management**: UIPTV uses an SQLite database to cache data, reducing repeated calls to servers. You can "Clear Cache" or "Pause Caching" globally or on a per-account basis to manage performance.
 - **Website**: A promotional website is now available at [https://xixogo5105.github.io/uiptv/](https://xixogo5105.github.io/uiptv/).
 
+## Important Installation Note for Windows and Linux (DEB) Users
+**Before installing a new version or upgrading, you must manually uninstall the previously installed version of UIPTV.** The installer does not automatically remove older versions, and failure to do so may result in the upgrade not being applied correctly.
+
 ## Compiling UIPTV
 This application is built using **Java 25** and **JavaFX**, and it is packaged into native installers using **jpackage**.
 
