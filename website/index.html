@@ -3,30 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="UIPTV is a versatile, modern, open-source IPTV player for Windows, Linux, and macOS. Supports Stalker Portal, Xtream Codes, M3U playlists, and RSS feeds.">
+    <meta name="keywords" content="IPTV Player, UIPTV, Windows IPTV, Linux IPTV, macOS IPTV, Stalker Portal, Xtream Codes, M3U8, M3U Playlist, RSS Feed Video, Open Source, Streaming, HLS Player">
+    <meta name="author" content="UIPTV">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://xixogo5105.github.io/uiptv/">
+    <meta property="og:title" content="UIPTV - Universal IPTV Player">
+    <meta property="og:description" content="A versatile, modern IPTV player for Windows, Linux, and macOS. Now with tab-based navigation and enhanced player support.">
+    <meta property="og:image" content="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://xixogo5105.github.io/uiptv/">
+    <meta property="twitter:title" content="UIPTV - Universal IPTV Player">
+    <meta property="twitter:description" content="A versatile, modern IPTV player for Windows, Linux, and macOS. Now with tab-based navigation and enhanced player support.">
+    <meta property="twitter:image" content="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37">
+
     <title>UIPTV - Universal IPTV Player</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
-    <header>
-        <nav>
-            <div class="logo">
+<body id="top">
+    <nav>
+        <div class="nav-container">
+            <a href="#top" class="logo">
                 <img src="https://github.com/xixogo5105/uiptv/assets/161976171/5563a042-157e-4ae7-bb6e-a72b38c8aa62" alt="UIPTV Logo">
                 <span>UIPTV</span>
-            </div>
+            </a>
             <div class="nav-links">
                 <a href="#features">Features</a>
                 <a href="#requirements">Requirements</a>
                 <a href="#guide">Guide</a>
                 <a href="https://github.com/xixogo5105/uiptv" target="_blank"><i class="fab fa-github"></i> GitHub</a>
             </div>
-        </nav>
+        </div>
+    </nav>
+    <header>
         <div class="hero">
             <div class="hero-content">
                 <h1>Universal IPTV Player</h1>
                 <p>A versatile, modern IPTV player for Windows, Linux, and macOS. Now with tab-based navigation and enhanced player support.</p>
                 <div class="cta-buttons">
-                    <a href="https://github.com/xixogo5105/uiptv/releases/latest" class="btn primary"><i class="fas fa-download"></i> Download Latest</a>
+                    <a href="https://github.com/xixogo5105/uiptv/releases/latest" class="btn primary" id="download-btn">
+                        <i class="fas fa-download"></i>
+                        <span id="download-text">Download Latest</span>
+                    </a>
                     <a href="#features" class="btn secondary">Learn More</a>
                 </div>
             </div>
@@ -127,9 +150,22 @@
     </section>
 
     <footer>
-        <p>&copy; 2024 UIPTV. Open Source Project.</p>
-        <div class="socials">
-            <a href="https://github.com/xixogo5105/uiptv"><i class="fab fa-github"></i></a>
+        <div class="footer-content">
+            <p>&copy; 2024 UIPTV. Open Source Project.</p>
+            <div class="made-with-love">
+                <span>Made with <i class="fas fa-heart" style="color: #e25555;"></i> for</span>
+            </div>
+            <div class="os-icons">
+                <i class="fab fa-linux" title="Linux"></i>
+                <i class="fab fa-ubuntu" title="Ubuntu"></i>
+                <i class="fas fa-leaf" title="Linux Mint"></i> <!-- Using leaf icon as a closer representation for Mint -->
+                <i class="fab fa-apple" title="macOS"></i>
+                <i class="fab fa-windows" title="Windows"></i>
+            </div>
+            <p class="disclaimer">This website not affiliated with Linux, Linux Mint, Ubuntu, Apple, or Microsoft. All logos and trademarks belong to their respective owners.</p>
+            <div class="socials">
+                <a href="https://github.com/xixogo5105/uiptv"><i class="fab fa-github"></i></a>
+            </div>
         </div>
     </footer>
     <script src="script.js"></script>

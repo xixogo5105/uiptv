@@ -27,24 +27,30 @@ a {
 }
 
 /* Header & Nav */
-header {
+nav {
+    position: sticky;
+    top: 0;
     background-color: var(--surface-color);
-    /* Removed sticky positioning from the entire header */
+    z-index: 1000;
+    width: 100%;
+    /* Removed padding from nav itself to allow full width background */
     box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
-nav {
+.nav-container {
     max-width: 1200px;
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 2rem; /* Moved padding here from header */
-    /* Make nav sticky if desired, or remove sticky entirely */
-    position: sticky;
-    top: 0;
+    padding: 1rem 2rem;
+}
+
+header {
     background-color: var(--surface-color);
-    z-index: 1000;
+    /* Removed box-shadow from header as nav now has it */
+    padding-bottom: 3rem;
+    /* Removed margin-top to eliminate gap */
 }
 
 .logo {
@@ -53,6 +59,7 @@ nav {
     gap: 10px;
     font-size: 1.5rem;
     font-weight: bold;
+    cursor: pointer;
 }
 
 .logo img {
@@ -77,8 +84,8 @@ nav {
     align-items: center;
     justify-content: space-between;
     max-width: 1200px;
-    margin: 4rem auto;
-    padding: 0 2rem;
+    margin: 0 auto; /* Removed top margin */
+    padding: 2rem 2rem 0; /* Added top padding to compensate */
     gap: 2rem;
     flex-wrap: wrap;
 }
@@ -105,6 +112,7 @@ nav {
 .cta-buttons {
     display: flex;
     gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .btn {
@@ -147,7 +155,7 @@ nav {
 
 /* Features Section */
 .features {
-    padding: 4rem 2rem;
+    padding: 2rem 2rem 4rem;
     background-color: var(--surface-color);
     text-align: center;
 }
@@ -277,14 +285,56 @@ nav {
 /* Footer */
 footer {
     background-color: var(--surface-color);
-    padding: 2rem;
+    padding: 3rem 2rem;
     text-align: center;
     color: var(--text-secondary);
     border-top: 1px solid #333;
 }
 
+.footer-content {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+}
+
+.made-with-love {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.os-icons {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    margin-top: 0.5rem;
+}
+
+.os-icons i {
+    font-size: 2rem;
+    color: var(--text-color);
+    transition: color 0.3s, transform 0.2s;
+}
+
+.os-icons i:hover {
+    color: var(--primary-color);
+    transform: translateY(-3px);
+}
+
+.disclaimer {
+    font-size: 0.8rem;
+    color: #666;
+    max-width: 600px;
+}
+
 .socials {
-    margin-top: 1rem;
+    margin-top: 0.5rem;
 }
 
 .socials a {
