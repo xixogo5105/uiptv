@@ -20,6 +20,7 @@ Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/
 - **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
 - **Dark Mode/Styling**: A limited set of built-in styling options is available, allowing users to change the font, size, and weight. A dark mode is also included, which applies to all components.
 - **Web Server (EXPERIMENTAL)**: Expose your accounts and bookmarks via a web server port, making them instantly available to any device on your local network through a web browser. Please note that only HLS-compatible streams will play in the web player.
+  - **FFmpeg Requirement**: For the web app to play TS files, **ffmpeg** must be installed and accessible in the system's PATH.
 - **Web Server Headless Support**: Run UIPTV in headless mode if you only intend to access channels through a browser.
 - **Multiple IPTV Protocols**: The player supports the following protocols and formats:
   - **Stalker Portal**: Live Channels, Video On Demand, and Series.
