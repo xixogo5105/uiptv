@@ -102,16 +102,20 @@ public class PingStalkerPortal {
      */
     private static boolean checkHandshake(String apiUrl, String macAddress) {
         try {
+            LogDisplayUI.addLog("Checking handshake for : " + apiUrl);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl + HANDSHAKE_QUERY))
                     // Using a set-top box User-Agent often helps avoid blocking
                     .header("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3")
-                    .header("Cookie", "mac=" + macAddress + ";")
+                    .header("X-User-Agent", "Model: MAG250; Link: WiFi")
+                    .header("Referer", apiUrl)
+                    .header("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=GMT")
+
                     .GET()
                     .build();
 
             HttpResponse<String> response = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(3)) // Fast timeout for probing
+                    .connectTimeout(Duration.ofSeconds(10)) // Fast timeout for probing
                     .build()
                     .send(request, HttpResponse.BodyHandlers.ofString());
 

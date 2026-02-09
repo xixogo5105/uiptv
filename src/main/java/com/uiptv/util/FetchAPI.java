@@ -18,16 +18,19 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.LogUtil.httpLog;
-import static java.net.URLEncoder.encode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class FetchAPI {
     public static String fetch(Map<String, String> params, final Account account) {
         try {
+            String urlWithParams = account.getServerPortalUrl();
+            if (params != null && !params.isEmpty()) {
+                urlWithParams += "?" + mapToString(params);
+            }
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(account.getServerPortalUrl()))
+                    .uri(URI.create(urlWithParams))
                     .headers(headers(account.getUrl(), account))
-                    .POST(HttpRequest.BodyPublishers.ofString(mapToString(params))).version(HttpClient.Version.HTTP_1_1).build();
+                    .GET().version(HttpClient.Version.HTTP_1_1).build();
             HttpResponse<String> response = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).version(HttpClient.Version.HTTP_1_1)
                     .followRedirects(HttpClient.Redirect.ALWAYS)
                     .build()
@@ -45,13 +48,12 @@ public class FetchAPI {
     private static String[] headers(String url, Account account) {
         List<String> headers = new ArrayList<>();
         addHeader(headers, "User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
-        addHeader(headers, "Referer", url + "index.html");
-        addHeader(headers, "Content-Type", "application/x-www-form-urlencoded");
+        addHeader(headers, "X-User-Agent", "Model: MAG250; Link: WiFi");
+        addHeader(headers, "Referer", url);
         addHeader(headers, "Accept", "*/*");
         addHeader(headers, "Pragma", "no-cache");
-        addHeader(headers, "X-User-Agent", "Model: MAG250; Link: WiFi");
         if (account.isConnected()) addHeader(headers, "Authorization", "Bearer " + account.getToken());
-        addHeader(headers, "Cookie", "mac=" + encode(account.getMacAddress(), UTF_8) + "; stb_lang=en; timezone=" + encode("Europe/Amsterdam", UTF_8) + ";");
+        addHeader(headers, "Cookie", "mac=" + account.getMacAddress() + "; stb_lang=en; timezone=GMT;");
 //        addHeader(headers, "Expect", "100-continue");
 //        addHeader(headers, "Accept-Encoding", "gzip, deflate");
         return headers.toArray(new String[0]);
