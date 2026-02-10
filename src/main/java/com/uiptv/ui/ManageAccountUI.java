@@ -3,7 +3,8 @@ package com.uiptv.ui;
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
-import com.uiptv.service.CategoryService;
+import com.uiptv.service.CacheService;
+import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.*;
 import javafx.application.Platform;
@@ -11,14 +12,13 @@ import javafx.beans.value.ChangeListener;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,8 +34,9 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT = "Primary MAC Address";
-    private String accountId;
     final FileChooser fileChooser = new FileChooser();
+    final Button browserButtonM3u8Path = new Button("Browse...");
+    final UIptvText m3u8Path = new UIptvText("m3u8Path", "M3u8 file path/url", 5);
     private final ComboBox accountType = new ComboBox();
     private final UIptvText name = new UIptvText("name", "Account Name (must be unique)", 5);
     private final UIptvText username = new UIptvText("username", "User Name", 5);
@@ -52,16 +53,14 @@ public class ManageAccountUI extends VBox {
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "Device ID 2", 5);
     private final UIptvText signature = new UIptvText("signature", "Signature", 5);
     private final CheckBox pinToTopCheckBox = new CheckBox("Pin Account on Top");
-
-
-    final Button browserButtonM3u8Path = new Button("Browse...");
-    final UIptvText m3u8Path = new UIptvText("m3u8Path", "M3u8 file path/url", 5);
-
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final DangerousButton deleteAllButton = new DangerousButton("Delete All");
     private final DangerousButton deleteButton = new DangerousButton("Delete");
     private final Button clearButton = new Button("Clear Data");
+    private final Button refreshChannelsButton = new Button("Refresh Channels");
+    private final CacheService cacheService = new CacheServiceImpl();
     AccountService service = AccountService.getInstance();
+    private String accountId;
     private Callback onSaveCallback;
 
     public ManageAccountUI() {
@@ -79,6 +78,10 @@ public class ManageAccountUI extends VBox {
         saveButton.setPrefWidth(440);
         saveButton.setMinHeight(50);
         saveButton.setPrefHeight(50);
+        refreshChannelsButton.setMinWidth(440);
+        refreshChannelsButton.setPrefWidth(440);
+        refreshChannelsButton.setMinHeight(50);
+        refreshChannelsButton.setPrefHeight(50);
         m3u8Path.setMinWidth(180);
         accountType.setMinWidth(250);
         macAddress.setPrefWidth(280); // Reduced by 20% from 350
@@ -89,6 +92,7 @@ public class ManageAccountUI extends VBox {
         deleteButton.setPrefWidth(140);
         deleteAllButton.setMinWidth(140);
         deleteAllButton.setPrefWidth(140);
+
         macAddressList.textProperty().addListener((observable, oldVal, newVal) -> {
             setupMacAddressByList(newVal);
         });
@@ -106,11 +110,12 @@ public class ManageAccountUI extends VBox {
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, deleteButton, deleteAllButton);
-        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, saveButton, buttonWrapper2);
+        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
         addSubmitButtonClickHandler();
         addDeleteAllButtonClickHandler();
         addDeleteButtonClickHandler();
         addClearButtonClickHandler();
+        addRefreshChannelsButtonClickHandler();
         addBrowserButton1ClickHandler();
         accountType.getItems().addAll(Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList());
         accountType.setValue(STALKER_PORTAL.getDisplay());
@@ -120,17 +125,17 @@ public class ManageAccountUI extends VBox {
                     getChildren().clear();
                     switch (getAccountTypeByDisplay(newValue)) {
                         case STALKER_PORTAL:
-                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
                             break;
                         case M3U8_LOCAL:
-                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
                             break;
                         case M3U8_URL:
                         case RSS_FEED:
-                            getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
                             break;
                         case XTREME_API:
-                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
                             break;
                     }
                 });
@@ -150,7 +155,7 @@ public class ManageAccountUI extends VBox {
         MacAddressManagementPopup popup = new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
-            
+
             Platform.runLater(() -> {
                 if (newDefault != null && macAddress.getItems().contains(newDefault)) {
                     macAddress.setValue(newDefault);
@@ -172,9 +177,8 @@ public class ManageAccountUI extends VBox {
         List<String> macList = new ArrayList<>(Arrays.stream(macs.replace(SPACE, "").split(",")).toList());
         if (macList.isEmpty()) return;
 
-        ProgressDialog progressDialog = new ProgressDialog((Stage) getScene().getWindow());
-        progressDialog.getScene().getStylesheets().add(RootApplication.currentTheme);
-        progressDialog.show();
+        LogPopupUI logPopup = new LogPopupUI("Verifying MAC Addresses...");
+        logPopup.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
 
@@ -182,85 +186,38 @@ public class ManageAccountUI extends VBox {
             @Override
             protected List<String> call() throws Exception {
                 List<String> invalidMacs = new ArrayList<>();
-                int total = macList.size();
-                progressDialog.setTotal(total);
+                Account accountToVerify = service.getById(accountId);
 
-                for (int i = 0; i < total; i++) {
+                for (String mac : macList) {
                     if (isCancelled() || stopRequested.get()) break;
-
-                    String mac = macList.get(i);
-                    progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
-                    
-                    boolean isValid = isValidMac(mac);
-                    progressDialog.addResult(isValid);
-
-                    if (isValid) {
-                        progressDialog.addProgressText("Result: [VALID]VALID");
-                    } else {
+                    logPopup.getLogger().log("Verifying: " + mac);
+                    boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac, logPopup.getLogger());
+                    if (!isValid) {
                         invalidMacs.add(mac);
-                        progressDialog.addProgressText("Result: [INVALID]INVALID");
-                    }
-
-                    if (isCancelled() || stopRequested.get()) break;
-
-                    if (i < total - 1) {
-                        long delayMillis = progressDialog.getSelectedDelayMillis();
-                        int totalSeconds = (int) (delayMillis / 1000);
-                        
-                        for (int seconds = totalSeconds; seconds > 0; seconds--) {
-                            if (isCancelled() || stopRequested.get()) break;
-                            progressDialog.setPauseStatus(seconds, totalSeconds);
-                            Thread.sleep(1000);
-                        }
-                        progressDialog.setPauseStatus(0, 0);
                     }
                 }
                 return invalidMacs;
             }
         };
 
-        progressDialog.setOnClose(task::cancel);
-        progressDialog.setOnStop(() -> stopRequested.set(true));
-
         task.setOnSucceeded(e -> {
-            progressDialog.close();
+            logPopup.closeGracefully();
             List<String> invalidMacs = task.getValue();
             handleVerificationResults(macList, invalidMacs, stopRequested.get());
         });
 
         task.setOnFailed(e -> {
-            progressDialog.close();
+            logPopup.closeGracefully();
             showErrorAlert("Verification failed: " + task.getException().getMessage());
         });
 
         task.setOnCancelled(e -> {
-            progressDialog.close();
+            logPopup.closeGracefully();
             showMessageAlert("Verification cancelled.");
         });
 
         new Thread(task).start();
     }
-
-    private boolean isValidMac(String mac) {
-        if (accountId == null) {
-            return false;
-        }
-        Account accountToVerify = service.getById(accountId);
-
-        if (accountToVerify == null) {
-            return false;
-        }
-
-        String originalMac = accountToVerify.getMacAddress();
-
-        try {
-            accountToVerify.setMacAddress(mac);
-            return CategoryService.getInstance().anyCategoryExists(accountToVerify);
-        } finally {
-            accountToVerify.setMacAddress(originalMac);
-        }
-    }
-
 
     private void handleVerificationResults(List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {
         if (invalidMacs.isEmpty()) {
@@ -280,25 +237,25 @@ public class ManageAccountUI extends VBox {
 
         String invalidMacsStr = String.join(", ", invalidMacs);
         StringBuilder message = new StringBuilder("Found invalid MAC addresses: " + invalidMacsStr + "\n");
-        
+
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : "";
         boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
-        
+
         if (defaultIsInvalid) {
             message.append("\nNote: The default MAC address is invalid and will be removed.\nThe first valid MAC address will be set as the new default.\n");
         }
-        
+
         message.append("\nDelete them?");
         Alert alert = showDialog(message.toString());
         if (alert.getResult() == ButtonType.YES) {
             List<String> validMacs = new ArrayList<>(allMacs);
             validMacs.removeAll(invalidMacs);
             String newMacsStr = String.join(", ", validMacs);
-            
+
             if (defaultIsInvalid && !validMacs.isEmpty()) {
                 macAddress.setValue(validMacs.get(0));
             }
-            
+
             macAddressList.setText(newMacsStr);
             saveAccount(false);
         }
@@ -327,7 +284,36 @@ public class ManageAccountUI extends VBox {
     }
 
     private void addClearButtonClickHandler() {
-        clearButton.setOnAction(event -> clearAll());
+        clearButton.setOnAction(event -> {
+            Alert confirmDialogue = showDialog("Clear all cached data for this account?");
+            if (confirmDialogue.getResult() == ButtonType.YES) {
+                cacheService.clearCache(getAccountFromForm());
+                showMessageAlert("Cache cleared.");
+            }
+        });
+    }
+
+    private void addRefreshChannelsButtonClickHandler() {
+        refreshChannelsButton.setOnAction(event -> {
+            Account account = getAccountFromForm();
+            if (account == null || isBlank(account.getDbId())) {
+                showErrorAlert("Please save the account before refreshing channels.");
+                return;
+            }
+
+            LogPopupUI logPopup = new LogPopupUI("Refreshing channels. This will take a while...");
+            logPopup.show();
+
+            new Thread(() -> {
+                try {
+                    cacheService.reloadCache(account, logPopup.getLogger());
+                } catch (IOException e) {
+                    Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
+                } finally {
+                    logPopup.closeGracefully();
+                }
+            }).start();
+        });
     }
 
     private void clearAll() {

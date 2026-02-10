@@ -6,23 +6,18 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.ChannelService;
 import com.uiptv.widget.AutoGrowVBox;
+import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
-import javafx.geometry.Insets;
 import javafx.scene.Cursor;
-import javafx.scene.Scene;
-import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
-import javafx.scene.control.TextArea;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,26 +83,24 @@ public class CategoryListUI extends HBox {
     }
 
     private void doRetrieveChannels(CategoryItem item) {
-        // Only show popup if it's a STALKER_PORTAL account and the channels are not cached.
-        // The isChannelListCached call is short-circuited if the account type is not STALKER_PORTAL.
-        boolean showPopup = account.getType() == STALKER_PORTAL && !ChannelService.getInstance().isChannelListCached(item.getId());
+        // Check if channels are already loaded for this account
+        int channelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
+        boolean channelsAlreadyLoaded = channelCount > 0;
 
-        if (showPopup) {
-            final Stage logPopup = showLogPopup();
-            final TextArea logArea = (TextArea) logPopup.getScene().getRoot().lookup(".log-area");
+        if (!channelsAlreadyLoaded) { // If no channels are loaded, show popup and reload
+            LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
+            logPopup.show();
             primaryStage.getScene().setCursor(Cursor.WAIT);
 
             new Thread(() -> {
                 try {
-                    retrieveChannels(item, logMessage -> Platform.runLater(() -> logArea.appendText(logMessage + "\n")));
+                    retrieveChannels(item, logPopup.getLogger());
                 } finally {
-                    Platform.runLater(() -> {
-                        primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                        logPopup.close();
-                    });
+                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
+                    logPopup.closeGracefully();
                 }
             }).start();
-        } else {
+        } else { // Channels are already loaded (even if count is 0), just display them
             primaryStage.getScene().setCursor(Cursor.WAIT);
             new Thread(() -> {
                 try {
@@ -121,31 +114,26 @@ public class CategoryListUI extends HBox {
 
     private synchronized void retrieveChannels(CategoryItem item, LoggerCallback logger) {
         try {
-            List<Channel> channels = ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(), account, item.getId(), logger);
+            List<Channel> channels = new ArrayList<>();
+            if ("All".equalsIgnoreCase(item.getCategoryTitle())) {
+                List<CategoryItem> allItems = table.getItems();
+                for (CategoryItem categoryItem : allItems) {
+                    if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
+                        channels.addAll(ChannelService.getInstance().get(account, categoryItem.getId(), logger));
+                    }
+                }
+            } else {
+                channels = ChannelService.getInstance().get(account, item.getId(), logger);
+            }
+
+            List<Channel> finalChannels = channels;
             Platform.runLater(() -> {
                 this.getChildren().clear();
-                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(channels, account, item.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle()));
+                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(finalChannels, account, item.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle()));
             });
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private Stage showLogPopup() {
-        final Stage dialog = new Stage();
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.initOwner(primaryStage);
-        VBox dialogVbox = new VBox(20);
-        dialogVbox.setPadding(new Insets(10, 10, 10, 10));
-        dialogVbox.getChildren().add(new Label("Caching channels. This will take a while..."));
-        TextArea logArea = new TextArea();
-        logArea.setEditable(false);
-        logArea.getStyleClass().add("log-area");
-        dialogVbox.getChildren().add(logArea);
-        Scene dialogScene = new Scene(dialogVbox, 400, 300);
-        dialog.setScene(dialogScene);
-        dialog.show();
-        return dialog;
     }
 
     public class CategoryItem {
@@ -165,12 +153,12 @@ public class CategoryListUI extends HBox {
             return id.get();
         }
 
-        public SimpleStringProperty idProperty() {
-            return id;
-        }
-
         public void setId(String id) {
             this.id.set(id);
+        }
+
+        public SimpleStringProperty idProperty() {
+            return id;
         }
 
         public String getCategoryTitle() {

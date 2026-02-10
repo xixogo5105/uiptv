@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
+import static com.uiptv.db.DatabaseUtils.DbTable.CATEGORY_TABLE;
 import static com.uiptv.db.DatabaseUtils.DbTable.CHANNEL_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.SQLConnection.connect;
@@ -18,45 +19,15 @@ public class ChannelDb extends BaseDb {
     private static ChannelDb instance;
 
 
+    public ChannelDb() {
+        super(CHANNEL_TABLE);
+    }
+
     public static synchronized ChannelDb get() {
         if (instance == null) {
             instance = new ChannelDb();
         }
         return instance;
-    }
-
-    public ChannelDb() {
-        super(CHANNEL_TABLE);
-    }
-
-    public List<Channel> getChannels(String dbId) {
-        return getAll(" WHERE categoryId=?", new String[]{dbId});
-    }
-
-    public boolean isChannelListCached(String dbId) {
-        String sql = "SELECT count(*) FROM " + CHANNEL_TABLE.getTableName() + " WHERE categoryId=?";
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setString(1, dbId);
-            try (ResultSet rs = statement.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute count query", e);
-        }
-        return false;
-    }
-
-    public Channel getChannelById(String dbId, String categoryId) {
-        List<Channel> channels = getAll(" WHERE id=? AND categoryId=?", new String[]{dbId, categoryId});
-        return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;
-    }
-
-    public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
-        Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
-        deleteAll(category.getDbId());
-        channels.forEach(c -> insert(c, category));
     }
 
     public static void insert(Channel channel, Category category) {
@@ -84,13 +55,6 @@ public class ChannelDb extends BaseDb {
         }
     }
 
-    public void deleteByAccount(String accountId) {
-        List<Category> categories = CategoryDb.get().getAllAccountCategories(accountId);
-        if (categories != null) categories.forEach(category -> {
-            deleteAll(category.getDbId());
-        });
-    }
-
     private static void deleteAll(String categoryId) {
         String sql = "DELETE FROM " + CHANNEL_TABLE.getTableName() + " WHERE categoryId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
@@ -99,6 +63,45 @@ public class ChannelDb extends BaseDb {
         } catch (SQLException e) {
             throw new RuntimeException("Unable to execute delete all query");
         }
+    }
+
+    public List<Channel> getChannels(String dbId) {
+        return getAll(" WHERE categoryId=?", new String[]{dbId});
+    }
+
+    public int getChannelCountForAccount(String accountId) {
+        String sql = "SELECT COUNT(*) FROM " + CHANNEL_TABLE.getTableName() +
+                " c JOIN " + CATEGORY_TABLE.getTableName() + " cat ON c.categoryId = cat.id " +
+                "WHERE cat.accountId = ?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, accountId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to execute channel count for account query", e);
+        }
+        return 0;
+    }
+
+    public Channel getChannelById(String dbId, String categoryId) {
+        List<Channel> channels = getAll(" WHERE id=? AND categoryId=?", new String[]{dbId, categoryId});
+        return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;
+    }
+
+    public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
+        Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
+        deleteAll(category.getDbId());
+        channels.forEach(c -> insert(c, category));
+    }
+
+    public void deleteByAccount(String accountId) {
+        List<Category> categories = CategoryDb.get().getAllAccountCategories(accountId);
+        if (categories != null) categories.forEach(category -> {
+            deleteAll(category.getDbId());
+        });
     }
 
     @Override

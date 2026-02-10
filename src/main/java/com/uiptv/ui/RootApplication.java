@@ -1,11 +1,11 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.ConfigurationDb;
 import com.uiptv.db.DatabaseUtils;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
+import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
@@ -77,7 +77,7 @@ public class RootApplication extends Application {
                     syncTables(firstDB, secondDB, tableName.getTableName());
                 }
             }
-            ConfigurationDb.get().clearCache();
+            new CacheServiceImpl().clearAllCache();
             System.out.println("Sync complete!");
         } catch (SQLException e) {
             System.err.println("Error syncing tables: " + e.getMessage());

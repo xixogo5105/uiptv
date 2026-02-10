@@ -5,8 +5,11 @@ import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.CacheService;
+import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.CategoryService;
 import com.uiptv.widget.AutoGrowPaneVBox;
+import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -33,6 +36,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>("Account List");
     private final BookmarkChannelListUI bookmarkChannelListUI;
+    private final CacheService cacheService = new CacheServiceImpl();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
     private Callback onEditCallback;
@@ -72,7 +76,7 @@ public class AccountListUI extends HBox {
 
     private void initWidgets() {
         setSpacing(5);
-        setPadding(new Insets(5,0,0,0));
+        setPadding(new Insets(5, 0, 0, 0));
         table.setEditable(true);
         table.getColumns().addAll(accountName);
         accountName.setVisible(true);
@@ -184,22 +188,51 @@ public class AccountListUI extends HBox {
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
-        primaryStage.getScene().setCursor(Cursor.WAIT);
-        new Thread(() -> {
-            try {
-                Platform.runLater(() -> {
-                    try {
-                        retrieveAccountCategories(item, accountAction);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            } catch (Throwable ignored) {
-            } finally {
-                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
-            }
+        Account account = AccountDb.get().getAccountById(item.getAccountId());
+        account.setAction(accountAction);
 
-        }).start();
+        int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
+        boolean channelsAlreadyLoaded = channelCount > 0;
+
+        if (!channelsAlreadyLoaded) {
+            LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
+            logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
+            logPopup.show();
+            primaryStage.getScene().setCursor(Cursor.WAIT);
+
+            new Thread(() -> {
+                try {
+                    cacheService.reloadCache(account, logPopup.getLogger());
+                    Platform.runLater(() -> {
+                        try {
+                            retrieveAccountCategories(item, accountAction);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                } catch (IOException e) {
+                    Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
+                } finally {
+                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
+                    logPopup.closeGracefully();
+                }
+            }).start();
+        } else {
+            primaryStage.getScene().setCursor(Cursor.WAIT);
+            new Thread(() -> {
+                try {
+                    Platform.runLater(() -> {
+                        try {
+                            retrieveAccountCategories(item, accountAction);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                } finally {
+                    Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
+                }
+            }).start();
+        }
     }
 
     private synchronized void retrieveAccountCategories(AccountItem clickedRow, Account.AccountAction accountAction) throws IOException {
@@ -228,36 +261,36 @@ public class AccountListUI extends HBox {
             return accountId.get();
         }
 
-        public SimpleStringProperty accountIdProperty() {
-            return accountId;
-        }
-
         public void setAccountId(String accountId) {
             this.accountId.set(accountId);
+        }
+
+        public SimpleStringProperty accountIdProperty() {
+            return accountId;
         }
 
         public String getAccountName() {
             return accountName.get();
         }
 
-        public SimpleStringProperty accountNameProperty() {
-            return accountName;
-        }
-
         public void setAccountName(String accountName) {
             this.accountName.set(accountName);
+        }
+
+        public SimpleStringProperty accountNameProperty() {
+            return accountName;
         }
 
         public String getAccountType() {
             return accountType.get();
         }
 
-        public SimpleStringProperty accountTypeProperty() {
-            return accountType;
-        }
-
         public void setAccountType(String accountType) {
             this.accountType.set(accountType);
+        }
+
+        public SimpleStringProperty accountTypeProperty() {
+            return accountType;
         }
     }
 }

@@ -32,7 +32,7 @@ public class ConfigurationDb extends BaseDb {
         super(CONFIGURATION_TABLE);
     }
 
-    public void clearCache() {
+    public void clearAllCache() {
         for (DatabaseUtils.DbTable t : DatabaseUtils.Cacheable) {
             try (Connection conn = connect(); Statement statement = conn.createStatement()) {
                 statement.execute("DELETE FROM " + t.getTableName());

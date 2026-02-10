@@ -1,14 +1,8 @@
 package com.uiptv.service;
 
 import com.uiptv.db.ConfigurationDb;
-import com.uiptv.db.DatabaseUtils;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-
-import static com.uiptv.db.SQLConnection.connect;
 
 public class ConfigurationService {
 
@@ -23,13 +17,11 @@ public class ConfigurationService {
         }
         return instance;
     }
-
-    public void clearCache() {
-        ConfigurationDb.get().clearCache();
-    }
-
     public void clearCache(Account account) {
         ConfigurationDb.get().clearCache(account);
+    }
+    public void clearAllCache() {
+        ConfigurationDb.get().clearAllCache();
     }
 
     public void save(Configuration configuration) {

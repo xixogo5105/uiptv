@@ -2,7 +2,8 @@ package com.uiptv.ui;
 
 import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
-import com.uiptv.service.ChannelService;
+import com.uiptv.service.CacheService;
+import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
 import javafx.animation.RotateTransition;
@@ -23,6 +24,7 @@ import javafx.scene.text.TextFlow;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,6 +39,7 @@ public class ReloadCachePopup extends VBox {
     private final HBox progressBarContainer = new HBox(0);
     private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
     private final StackPane loadingIndicator = createLoadingIndicator();
+    private final CacheService cacheService = new CacheServiceImpl();
 
     public ReloadCachePopup(Stage stage) {
         this.stage = stage;
@@ -180,9 +183,9 @@ public class ReloadCachePopup extends VBox {
             Account account = (Account) checkBox.getUserData();
             boolean success = false;
             try {
-                ChannelService.getInstance().reloadAllChannelsAndCategories(account, this::logMessage);
+                cacheService.reloadCache(account, this::logMessage);
                 success = true;
-            } catch (Exception e) {
+            } catch (IOException e) {
                 logMessage("Error reloading cache for " + account.getAccountName() + ": " + e.getMessage());
             }
 

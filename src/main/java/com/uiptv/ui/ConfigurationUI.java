@@ -1,8 +1,11 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
+import com.uiptv.db.ConfigurationDb;
 import com.uiptv.model.Configuration;
 import com.uiptv.server.UIptvServer;
+import com.uiptv.service.CacheService;
+import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvText;
@@ -59,6 +62,7 @@ public class ConfigurationUI extends VBox {
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final Callback onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
+    private final CacheService cacheService = new CacheServiceImpl();
 
     public ConfigurationUI(Callback onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
@@ -176,7 +180,7 @@ public class ConfigurationUI extends VBox {
     private void addClearCacheButtonClickHandler() {
         clearCacheButton.setOnAction(event -> {
             try {
-                ConfigurationService.getInstance().clearCache();
+                cacheService.clearAllCache();
                 showMessageAlert("Cache cleared");
             } catch (Exception ignored) {
                 showMessageAlert("Error has occurred while clearing cache");
