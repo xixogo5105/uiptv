@@ -10,8 +10,14 @@
 }
 
 .prominent {
-    -fx-base: darkgreen;
+    -fx-background-color: darkgreen; /* Green */
     -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+}
+
+.prominent:hover {
+    -fx-background-color: #45a049; /* Darker Green */
 }
 
 /* terminal.css */
@@ -19,4 +25,26 @@
     -fx-font-family: "Courier New", monospace;
     -fx-highlight-fill: darkgreen;
     -fx-text-fill: darkgreen;
+}
+
+/* Custom segmented progress bar */
+.progress-bar-container {
+    -fx-background-color: #f0f0f0;
+    -fx-padding: 2;
+    -fx-border-color: #c0c0c0;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+}
+
+.progress-bar-segment {
+    -fx-background-color: #e0e0e0; /* Default segment color */
+    -fx-background-radius: 0;
+}
+
+.progress-bar-segment.success {
+    -fx-background-color: #4CAF50; /* Green for success */
+}
+
+.progress-bar-segment.failure {
+    -fx-background-color: #F44336; /* Red for failure */
 }

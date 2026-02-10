@@ -11,6 +11,7 @@ import javafx.beans.value.ChangeListener;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -50,7 +51,6 @@ public class ManageAccountUI extends VBox {
     private final UIptvText deviceId1 = new UIptvText("deviceId1", "Device ID 1", 5);
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "Device ID 2", 5);
     private final UIptvText signature = new UIptvText("signature", "Signature", 5);
-    private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Account Caching");
     private final CheckBox pinToTopCheckBox = new CheckBox("Pin Account on Top");
 
 
@@ -106,7 +106,7 @@ public class ManageAccountUI extends VBox {
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, deleteButton, deleteAllButton);
-        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
+        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, saveButton, buttonWrapper2);
         addSubmitButtonClickHandler();
         addDeleteAllButtonClickHandler();
         addDeleteButtonClickHandler();
@@ -120,17 +120,17 @@ public class ManageAccountUI extends VBox {
                     getChildren().clear();
                     switch (getAccountTypeByDisplay(newValue)) {
                         case STALKER_PORTAL:
-                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, saveButton, buttonWrapper2);
                             break;
                         case M3U8_LOCAL:
-                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, saveButton, buttonWrapper2);
                             break;
                         case M3U8_URL:
                         case RSS_FEED:
-                            getChildren().addAll(accountType, name, m3u8Path, epg, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, saveButton, buttonWrapper2);
                             break;
                         case XTREME_API:
-                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pauseCachingCheckBox, pinToTopCheckBox, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox, saveButton, buttonWrapper2);
                             break;
                     }
                 });
@@ -147,7 +147,7 @@ public class ManageAccountUI extends VBox {
 
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : null;
 
-        new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
+        MacAddressManagementPopup popup = new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
             
@@ -157,7 +157,9 @@ public class ManageAccountUI extends VBox {
                 }
                 saveAccount(false);
             });
-        }).show();
+        });
+        popup.getScene().getStylesheets().add(RootApplication.currentTheme);
+        popup.show();
     }
 
     private void verifyMacAddresses() {
@@ -171,6 +173,7 @@ public class ManageAccountUI extends VBox {
         if (macList.isEmpty()) return;
 
         ProgressDialog progressDialog = new ProgressDialog((Stage) getScene().getWindow());
+        progressDialog.getScene().getStylesheets().add(RootApplication.currentTheme);
         progressDialog.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
@@ -249,15 +252,12 @@ public class ManageAccountUI extends VBox {
         }
 
         String originalMac = accountToVerify.getMacAddress();
-        boolean originalPauseCaching = accountToVerify.isPauseCaching();
 
         try {
             accountToVerify.setMacAddress(mac);
-            accountToVerify.setPauseCaching(true);
             return CategoryService.getInstance().anyCategoryExists(accountToVerify);
         } finally {
             accountToVerify.setMacAddress(originalMac);
-            accountToVerify.setPauseCaching(originalPauseCaching);
         }
     }
 
@@ -337,7 +337,6 @@ public class ManageAccountUI extends VBox {
         macAddress.setValue(null);
         macAddress.setPromptText(PRIMARY_MAC_ADDRESS_HINT);
         accountType.setValue(STALKER_PORTAL.getDisplay());
-        pauseCachingCheckBox.setSelected(false);
         pinToTopCheckBox.setSelected(false);
         verifyMacsLink.setVisible(false);
     }
@@ -345,7 +344,7 @@ public class ManageAccountUI extends VBox {
     private Account getAccountFromForm() {
         Account account = new Account(name.getText(), username.getText(), password.getText(), url.getText(),
                 macAddress.getValue() != null ? macAddress.getValue().toString() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
-                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue().toString()) ? accountType.getValue().toString() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pauseCachingCheckBox.isSelected(), pinToTopCheckBox.isSelected());
+                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue().toString()) ? accountType.getValue().toString() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
         if (accountId != null) {
             account.setDbId(accountId);
         }
@@ -438,7 +437,6 @@ public class ManageAccountUI extends VBox {
         signature.setText(account.getSignature());
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
-        pauseCachingCheckBox.setSelected(account.isPauseCaching());
         pinToTopCheckBox.setSelected(account.isPinToTop());
         accountType.setValue(account.getType().getDisplay());
     }

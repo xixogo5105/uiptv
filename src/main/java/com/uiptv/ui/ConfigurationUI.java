@@ -44,7 +44,6 @@ public class ConfigurationUI extends VBox {
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "Enter comma separated list. All Channels containing this would be filtered out.", 5);
     private final Hyperlink showHideFilters = new Hyperlink("Show Filters");
     private final CheckBox filterPausedCheckBox = new CheckBox("Pause filtering");
-    private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Caching");
     private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
     private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
     private final UIptvText fontFamily = new UIptvText("fontFamily", "Font family. e.g. 'Helvetica', Arial, sans-serif.", 5);
@@ -56,6 +55,7 @@ public class ConfigurationUI extends VBox {
     private final Button stopServerButton = new Button("Stop Server");
     private final Button publishM3u8Button = new Button("Publish M3U8");
     private final Button clearCacheButton = new Button("Clear Cache");
+    private final Button reloadCacheButton = new Button("Reload Stalker Portal Accounts");
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final Callback onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
@@ -96,7 +96,6 @@ public class ConfigurationUI extends VBox {
                 defaultEmbedPlayer.setSelected(true);
             }
             filterPausedCheckBox.setSelected(configuration.isPauseFiltering());
-            pauseCachingCheckBox.setSelected(configuration.isPauseCaching());
             fontFamily.setText(configuration.getFontFamily());
             fontWeight.setText(configuration.getFontWeight());
             fontSize.setText(configuration.getFontSize());
@@ -125,7 +124,6 @@ public class ConfigurationUI extends VBox {
         });
 
         filterPausedCheckBox.setMinWidth(250);
-//        pauseCachingCheckBox.setMinWidth(250);
         saveButton.setMinWidth(40);
         saveButton.setPrefWidth(440);
         saveButton.setMinHeight(50);
@@ -138,7 +136,7 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton, publishM3u8Button);
         getChildren().addAll(box1, box2, box3, box4, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains,
                 fontFamily, fontSize, fontWeight, darkThemeCheckBox, filterPausedCheckBox,
-                new HBox(10, pauseCachingCheckBox, clearCacheButton),
+                new HBox(10, clearCacheButton, reloadCacheButton),
                 enableFfmpegCheckBox,
                 serverButtonWrapper, saveButton);
         addSaveButtonClickHandler();
@@ -149,6 +147,18 @@ public class ConfigurationUI extends VBox {
         addStopServerButtonClickHandler();
         addClearCacheButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
+        addReloadCacheButtonClickHandler();
+    }
+
+    private void addReloadCacheButtonClickHandler() {
+        reloadCacheButton.setOnAction(event -> {
+            Stage popupStage = new Stage();
+            ReloadCachePopup popup = new ReloadCachePopup(popupStage);
+            Scene scene = new Scene(popup, 1368, 720);
+            popupStage.setTitle("Reload Stalker Portal Accounts");
+            popupStage.setScene(scene);
+            popupStage.showAndWait();
+        });
     }
 
     private void addStopServerButtonClickHandler() {
@@ -192,6 +202,7 @@ public class ConfigurationUI extends VBox {
             Stage popupStage = new Stage();
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
             Scene scene = new Scene(popup, 400, 300);
+            scene.getStylesheets().add(RootApplication.currentTheme);
             popupStage.setTitle("Publish M3U8");
             popupStage.setScene(scene);
             popupStage.showAndWait();
@@ -218,7 +229,7 @@ public class ConfigurationUI extends VBox {
                         filterPausedCheckBox.isSelected(),
                         fontFamily.getText(), fontSize.getText(), fontWeight.getText(),
                         darkThemeCheckBox.isSelected(), serverPort.getText(),
-                        pauseCachingCheckBox.isSelected(),
+
                         defaultEmbedPlayer.isSelected(),
                         enableFfmpegCheckBox.isSelected()
                 );

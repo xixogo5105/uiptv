@@ -34,10 +34,10 @@ public class Account extends BaseJson {
     private AccountAction action = itv;
     private String accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path;
     private String dbId, token;
-    private boolean pauseCaching, pinToTop;
+    private boolean pinToTop;
     private AccountType type = STALKER_PORTAL;
 
-    public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pauseCaching, boolean pinToTop) {
+    public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pinToTop) {
         this.accountName = accountName;
         this.username = username;
         this.password = password;
@@ -50,7 +50,6 @@ public class Account extends BaseJson {
         this.type = type;
         this.epg = epg;
         this.m3u8Path = m3u8Path;
-        this.pauseCaching = pauseCaching;
         Map<String, String> macMap = new HashMap<>();
         if (isNotBlank(macAddress)) macMap.put(macAddress.toLowerCase(), macAddress.trim());
         if (isNotBlank(macAddressList)) {

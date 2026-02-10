@@ -22,7 +22,7 @@ public class XtremeParser implements AccountParser {
     private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(pass(word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
 
     @Override
-    public void parseAndSave(String text, boolean pauseCaching, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public void parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
         List<String> lines = Arrays.asList(text.split("\\R"));
         List<String> currentBlock = new ArrayList<>();
 
@@ -30,7 +30,7 @@ public class XtremeParser implements AccountParser {
             String trimmed = replaceAllNonPrintableChars(line).trim();
             if (trimmed.isEmpty()) {
                 if (!currentBlock.isEmpty()) {
-                    processBlock(currentBlock, pauseCaching);
+                    processBlock(currentBlock);
                     currentBlock.clear();
                 }
                 continue;
@@ -38,11 +38,11 @@ public class XtremeParser implements AccountParser {
             currentBlock.add(trimmed);
         }
         if (!currentBlock.isEmpty()) {
-            processBlock(currentBlock, pauseCaching);
+            processBlock(currentBlock);
         }
     }
 
-    private void processBlock(List<String> block, boolean pauseCaching) {
+    private void processBlock(List<String> block) {
         String joinedBlock = String.join(" ", block);
         String url = null, username = null, password = null;
 
@@ -71,7 +71,7 @@ public class XtremeParser implements AccountParser {
         if (url != null && username != null && password != null) {
             String name = getNameFromUrl(url);
             AccountService.getInstance().save(new Account(name, username, password, url, null, null, null, null, null, null,
-                    AccountType.XTREME_API, null, url, pauseCaching, false));
+                    AccountType.XTREME_API, null, url, false));
         }
     }
 }

@@ -26,6 +26,8 @@ public class DatabasePatchesUtils {
         dbPatches.put("124", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN inputstreamaddon TEXT");
         dbPatches.put("125", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN manifestType TEXT");
         dbPatches.put("127", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN enableFfmpegTranscoding TEXT");
+        dbPatches.put("138", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " DROP COLUMN pauseCaching");
+        dbPatches.put("139", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " DROP COLUMN pauseCaching");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

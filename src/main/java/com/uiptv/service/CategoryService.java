@@ -5,6 +5,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Configuration;
 import com.uiptv.shared.PlaylistEntry;
+import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
@@ -65,7 +66,7 @@ public class CategoryService {
 
     public List<Category> get(Account account) {
         List<Category> cachedCategories = CategoryDb.get().getCategories(account);
-        if (cachedCategories.isEmpty() || account.isPauseCaching() || ConfigurationService.getInstance().read().isPauseCaching()) {
+        if (cachedCategories.isEmpty()) {
             cachedCategories.clear();
             hardReloadCategories(account);
             cachedCategories.addAll(CategoryDb.get().getCategories(account));
@@ -92,7 +93,7 @@ public class CategoryService {
                 if (s != null && !s.isEmpty()) categories.addAll(s);
             }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            LogDisplayUI.addLog("Network Error: " + e.getMessage());
         }
         CategoryDb.get().saveAll(categories, account);
     }

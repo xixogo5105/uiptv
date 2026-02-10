@@ -10,7 +10,7 @@ public class TextParserService {
     public static final String MODE_XTREME = "Xtreme";
     public static final String MODE_M3U = "M3U Playlists";
 
-    public static void saveBulkAccounts(String text, String mode, boolean pauseCaching, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public static void saveBulkAccounts(String text, String mode, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
         AccountParser parser;
 
         if (MODE_STALKER.equals(mode)) {
@@ -21,6 +21,6 @@ public class TextParserService {
             parser = new M3uParser();
         }
 
-        parser.parseAndSave(text, pauseCaching, groupAccountsByMac, convertM3uToXtreme);
+        parser.parseAndSave(text, groupAccountsByMac, convertM3uToXtreme);
     }
 }

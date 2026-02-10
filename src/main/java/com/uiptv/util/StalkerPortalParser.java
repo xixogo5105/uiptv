@@ -42,7 +42,7 @@ public class StalkerPortalParser implements AccountParser {
     }
 
     @Override
-    public void parseAndSave(String text, boolean pauseCaching, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public void parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
         String sanitizedText = Arrays.stream(text.split("\\R"))
             .filter(line -> !(line.contains("http") && line.contains("?") && line.contains("=")))
             .map(UiptUtils::sanitizeStalkerText)
@@ -84,7 +84,7 @@ public class StalkerPortalParser implements AccountParser {
         if (isNotBlank(account.getUrl()) && isNotBlank(account.getMacAddress())) {
             parsedAccounts.add(account);
         }
-        saveAccounts(parsedAccounts, pauseCaching, groupAccountsByMac);
+        saveAccounts(parsedAccounts, groupAccountsByMac);
     }
 
     private void applyValueToAccount(Account account, String value, StalkerAttributeType type) {
@@ -120,7 +120,7 @@ public class StalkerPortalParser implements AccountParser {
         }
     }
 
-    private void saveAccounts(List<Account> accounts, boolean pauseCaching, boolean groupAccountsByMac) {
+    private void saveAccounts(List<Account> accounts, boolean groupAccountsByMac) {
         Map<String, Account> groupedAccounts = new LinkedHashMap<>();
         List<Account> individualAccounts = new ArrayList<>();
         Set<String> processedNames = new HashSet<>();
@@ -130,7 +130,6 @@ public class StalkerPortalParser implements AccountParser {
                 .collect(Collectors.toList());
 
         for (Account currentAccount : validAccounts) {
-            currentAccount.setPauseCaching(pauseCaching);
             boolean hasExtraParams = isNotBlank(currentAccount.getSerialNumber()) || isNotBlank(currentAccount.getDeviceId1()) || isNotBlank(currentAccount.getDeviceId2()) || isNotBlank(currentAccount.getSignature());
 
             if (groupAccountsByMac && !hasExtraParams) {

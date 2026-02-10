@@ -44,6 +44,7 @@ public class AboutUI {
         vbox.getChildren().addAll(imageView, titleLabel, authorLabel, copyrightLabel, link, updateButton);
 
         Scene scene = new Scene(vbox);
+        scene.getStylesheets().add(RootApplication.currentTheme);
         stage.setScene(scene);
         stage.showAndWait();
     }

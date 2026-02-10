@@ -23,7 +23,6 @@ public class ParseMultipleAccountUI extends VBox {
     private final ComboBox<String> parseModeComboBox = new ComboBox<>();
     private final CheckBox groupAccountsCheckBox = new CheckBox("Group Account(s) by MAC Address");
     private final CheckBox convertM3uToXtremeCheckBox = new CheckBox("Where Possible, Convert M3U to Xtreme");
-    private final CheckBox pauseCachingCheckBox = new CheckBox("Pause Caching");
     private final ProminentButton saveButton = new ProminentButton("Parse & Save");
     private final Button clearButton = new Button("Clear");
     private Callback<Void> onSaveCallback;
@@ -47,7 +46,6 @@ public class ParseMultipleAccountUI extends VBox {
         parseModeComboBox.getItems().addAll(TextParserService.MODE_STALKER, TextParserService.MODE_XTREME, TextParserService.MODE_M3U);
         parseModeComboBox.setValue(TextParserService.MODE_STALKER);
 
-        pauseCachingCheckBox.setSelected(true);
         groupAccountsCheckBox.setSelected(true);
         convertM3uToXtremeCheckBox.setSelected(true);
 
@@ -58,7 +56,7 @@ public class ParseMultipleAccountUI extends VBox {
         spacer.setPrefHeight(10);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, saveButton);
-        getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, pauseCachingCheckBox, buttonWrapper2);
+        getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, buttonWrapper2);
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
         addCheckBoxListeners();
@@ -89,7 +87,6 @@ public class ParseMultipleAccountUI extends VBox {
         parseModeComboBox.setValue(TextParserService.MODE_STALKER);
         groupAccountsCheckBox.setSelected(true);
         convertM3uToXtremeCheckBox.setSelected(true);
-        pauseCachingCheckBox.setSelected(true);
     }
 
     private void addSubmitButtonClickHandler() {
@@ -100,7 +97,7 @@ public class ParseMultipleAccountUI extends VBox {
                     return;
                 }
                 String selectedMode = parseModeComboBox.getValue();
-                TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, pauseCachingCheckBox.isSelected(), groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
+                TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
                 clearAll();
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);

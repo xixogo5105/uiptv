@@ -43,7 +43,6 @@ public class DatabaseUtils {
                 new DataColumn("fontWeight", "TEXT"),
                 new DataColumn("darkTheme", "TEXT"),
                 new DataColumn("serverPort", "TEXT"),
-                new DataColumn("pauseCaching", "TEXT"),
                 new DataColumn("embeddedPlayer", "TEXT"),
                 new DataColumn("enableFfmpegTranscoding", "TEXT")
         )));
@@ -63,7 +62,6 @@ public class DatabaseUtils {
                 new DataColumn("m3u8Path", "TEXT"),
                 new DataColumn("type", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
-                new DataColumn("pauseCaching", "TEXT"),
                 new DataColumn("pinToTop", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_TABLE.getTableName(), new ArrayList<>(Arrays.asList(

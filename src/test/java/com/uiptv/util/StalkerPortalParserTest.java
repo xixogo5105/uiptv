@@ -27,14 +27,14 @@ class StalkerPortalParserTest {
                 savedAccounts::add // Mock: add to list instead of saving to DB
         );
 
-        parser.parseAndSave(text, false, false, false);
+        parser.parseAndSave(text, false, false);
 
         // Assertions
         assertNotNull(savedAccounts);
 
         Path expectedPath = Paths.get("src/test/resources/stalker_expected.txt");
         List<String> expectedLines = Files.readAllLines(expectedPath);
-        
+
         List<String[]> expected = new ArrayList<>();
         for (String line : expectedLines) {
             if (line.trim().isEmpty()) continue;

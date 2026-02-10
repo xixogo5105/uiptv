@@ -1,65 +1,87 @@
 .root {
-    -fx-accent: #1e74c6;
+    -fx-accent: #0078D7;
     -fx-focus-color: -fx-accent;
-    /*-fx-base: #373e43;*/
-    -fx-base: rgba(60, 63, 65, 255); // dark
-    -fx-control-inner-background: derive(-fx-base, 35%);
-    -fx-control-inner-background-alt: -fx-control-inner-background;
+    -fx-base: #1c1c1c; /* Near-black background */
+    -fx-control-inner-background: #2c2c2c; /* Slightly lighter controls */
+    -fx-control-inner-background-alt: #3c3c3c; /* Even lighter for alternate backgrounds */
+    -fx-text-fill: #e0e0e0; /* Light grey text for readability */
 }
+
 .titleWindowsBorder {
-    -fx-background-color: darkgray;
+    -fx-background-color: #2c2c2c;
 }
 
 .label {
-    -fx-text-fill: lightgray;
+    -fx-text-fill: #e0e0e0;
 }
 
 .text-field {
-    -fx-prompt-text-fill: #808080FF;
+    -fx-prompt-text-fill: #a0a0a0;
+    -fx-text-fill: #e0e0e0;
+    -fx-background-color: #2c2c2c;
+    -fx-border-color: #4c4c4c;
+    -fx-border-radius: 3;
 }
 
 .titulo {
     -fx-font-weight: bold;
     -fx-font-size: 18px;
+    -fx-text-fill: #e0e0e0;
 }
 
 .button {
     -fx-focus-traversable: false;
+    -fx-text-fill: #e0e0e0;
+    -fx-background-color: linear-gradient(to bottom, #3c3c3c, #2c2c2c);
+    -fx-border-color: #5c5c5c;
+    -fx-border-radius: 3;
+    -fx-background-insets: 0;
 }
 
 .button:hover {
-    -fx-text-fill: white;
+    -fx-background-color: linear-gradient(to bottom, #4c4c4c, #3c3c3c);
+    -fx-border-color: #7c7c7c;
+}
+
+.button:pressed {
+    -fx-background-color: #2c2c2c;
 }
 
 .separator *.line {
-    -fx-background-color: #3C3C3C;
-    -fx-border-style: solid;
-    -fx-border-width: 1px;
+    -fx-border-color: #4c4c4c;
 }
 
-.scroll-bar {
-    -fx-background-color: derive(-fx-base, 45%)
+.scroll-bar .thumb {
+    -fx-background-color: #4c4c4c;
+}
+
+.scroll-bar .track {
+    -fx-background-color: #2c2c2c;
 }
 
 .button:default {
     -fx-base: -fx-accent;
+    -fx-text-fill: white;
 }
 
 .table-view {
-    /*-fx-background-color: derive(-fx-base, 10%);*/
-    -fx-selection-bar-non-focused: derive(-fx-base, 50%);
+    -fx-background-color: #1c1c1c;
+    -fx-selection-bar: -fx-accent;
+    -fx-selection-bar-non-focused: #4c4c4c;
 }
 
 .table-view .column-header .label {
     -fx-alignment: CENTER_LEFT;
-    -fx-font-weight: none;
+    -fx-font-weight: bold;
+    -fx-text-fill: #e0e0e0;
 }
 
 .list-cell:even,
 .list-cell:odd,
 .table-row-cell:even,
 .table-row-cell:odd {
-    -fx-control-inner-background: derive(-fx-base, 15%);
+    -fx-control-inner-background: #2c2c2c;
+    -fx-text-fill: #e0e0e0;
 }
 
 .list-cell:empty,
@@ -70,24 +92,65 @@
 .list-cell,
 .table-row-cell {
     -fx-border-color: transparent;
-    -fx-table-cell-border-color: transparent;
+    -fx-table-cell-border-color: #4c4c4c;
 }
 
 .dangerous {
-    -fx-base: darkred;
-    -fx-text-fill: white;
-}
-.prominent {
-    -fx-base: darkgreen;
+    -fx-background-color: #c93c3c;
     -fx-text-fill: white;
 }
 
+.dangerous:hover {
+    -fx-background-color: #e04c4c;
+}
+
+.prominent {
+    -fx-background-color: darkgreen;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+}
+
+.prominent:hover {
+    -fx-background-color: derive(darkgreen, 20%);
+}
+
+/* Standard progress bar */
+.progress-bar .bar {
+    -fx-background-color: -fx-accent;
+}
+
+.progress-bar .track {
+    -fx-background-color: #4c4c4c;
+}
+
+/* Custom segmented progress bar */
+.progress-bar-container {
+    -fx-background-color: #2c2c2c;
+    -fx-padding: 2;
+    -fx-border-color: #4c4c4c;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+}
+
+.progress-bar-segment {
+    -fx-background-color: #4c4c4c; /* Default segment color */
+    -fx-background-radius: 0;
+}
+
+.progress-bar-segment.success {
+    -fx-background-color: #4CAF50; /* Green for success */
+}
+
+.progress-bar-segment.failure {
+    -fx-background-color: #F44336; /* Red for failure */
+}
 
 /* terminal.css */
 .terminal {
-    -fx-control-inner-background: rgba(60, 63, 65, 255);
+    -fx-control-inner-background: #1c1c1c;
     -fx-font-family: "Courier New", monospace;
     -fx-highlight-fill: #00ff00;
-    -fx-highlight-text-fill: rgba(60, 63, 65, 255);
+    -fx-highlight-text-fill: #1c1c1c;
     -fx-text-fill: #00ff00;
 }

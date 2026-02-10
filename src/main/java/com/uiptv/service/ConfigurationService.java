@@ -1,7 +1,14 @@
 package com.uiptv.service;
 
 import com.uiptv.db.ConfigurationDb;
+import com.uiptv.db.DatabaseUtils;
+import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+
+import static com.uiptv.db.SQLConnection.connect;
 
 public class ConfigurationService {
 
@@ -20,6 +27,28 @@ public class ConfigurationService {
     public void clearCache() {
         ConfigurationDb.get().clearCache();
     }
+
+    public void clearCache(Account account) {
+        if (account == null || account.getDbId() == null) {
+            return;
+        }
+        try (Connection conn = connect()) {
+            String deleteChannelsSql = "DELETE FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName() + " WHERE accountId = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(deleteChannelsSql)) {
+                pstmt.setString(1, account.getDbId());
+                pstmt.executeUpdate();
+            }
+
+            String deleteCategoriesSql = "DELETE FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName() + " WHERE accountId = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(deleteCategoriesSql)) {
+                pstmt.setString(1, account.getDbId());
+                pstmt.executeUpdate();
+            }
+        } catch (Exception e) {
+            // Log or handle the exception
+        }
+    }
+
     public void save(Configuration configuration) {
         ConfigurationDb.get().save(configuration);
     }
@@ -28,4 +57,3 @@ public class ConfigurationService {
         return ConfigurationDb.get().getConfiguration();
     }
 }
-

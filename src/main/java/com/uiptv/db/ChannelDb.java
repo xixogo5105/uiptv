@@ -33,6 +33,21 @@ public class ChannelDb extends BaseDb {
         return getAll(" WHERE categoryId=?", new String[]{dbId});
     }
 
+    public boolean isChannelListCached(String dbId) {
+        String sql = "SELECT count(*) FROM " + CHANNEL_TABLE.getTableName() + " WHERE categoryId=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, dbId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to execute count query", e);
+        }
+        return false;
+    }
+
     public Channel getChannelById(String dbId, String categoryId) {
         List<Channel> channels = getAll(" WHERE id=? AND categoryId=?", new String[]{dbId, categoryId});
         return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;

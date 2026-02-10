@@ -1,5 +1,7 @@
 package com.uiptv.service;
 
+import com.uiptv.api.LoggerCallback;
+import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
@@ -10,6 +12,7 @@ import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.*;
+import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -22,15 +25,16 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
-import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
-import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
 import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.FetchAPI.nullSafeString;
+import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
+import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
+@Slf4j
 public class ChannelService {
     private static ChannelService instance;
 
@@ -66,13 +70,142 @@ public class ChannelService {
         return params;
     }
 
-    public List<Channel> get(String categoryId, Account account, String dbId) throws IOException {
-        List<Channel> cachedChannels = ChannelDb.get().getChannels(dbId);
-        if (cachedChannels.isEmpty() || account.isPauseCaching() || ConfigurationService.getInstance().read().isPauseCaching()) {
-            hardReloadChannels(categoryId, account, dbId);
-            return censor(ChannelDb.get().getChannels(dbId));
+    private static Map<String, String> getAllChannelsParams() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("type", "itv");
+        params.put("action", "get_all_channels");
+        params.put("p", "1");
+        params.put("per_page", "99999");
+        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        return params;
+    }
+
+    private static Map<String, String> getCategoryParams(Account.AccountAction accountAction) {
+        final Map<String, String> params = new HashMap<>();
+        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("type", accountAction.name());
+        params.put("action", accountAction == itv ? "get_genres" : "get_categories");
+        return params;
+    }
+
+    public void reloadAllChannelsAndCategories(Account account, LoggerCallback logger) {
+        logger.log("Clearing cache for account: " + account.getAccountName());
+        ConfigurationService.getInstance().clearCache(account);
+        logger.log("Cache cleared for account: " + account.getAccountName());
+
+        logger.log("Performing handshake for: " + account.getAccountName());
+        HandshakeService.getInstance().connect(account);
+        if (account.isNotConnected()) {
+            logger.log("Handshake failed for: " + account.getAccountName());
+            return;
         }
-        return censor(cachedChannels);
+        logger.log("Handshake successful.");
+
+        // 1. Fetch official categories
+        logger.log("Fetching official categories for: " + account.getAccountName());
+        String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
+        List<Category> officialCategories = CategoryService.getInstance().parseCategories(jsonCategories);
+        Map<String, Category> officialCategoryMap = officialCategories.stream()
+                .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
+
+        // 2. Fetch all channels
+        logger.log("Fetching all channels for: " + account.getAccountName());
+        String jsonChannels = FetchAPI.fetch(getAllChannelsParams(), account);
+
+        if (isNotBlank(jsonChannels)) {
+            try {
+                logger.log("Received response for channels.");
+                List<Channel> allChannels = parseItvChannels(jsonChannels);
+                List<Channel> censoredChannels = censor(allChannels);
+                logger.log("Fetched " + censoredChannels.size() + " channels.");
+
+                // 3. Partition channels
+                List<Channel> unmatchedChannels = new ArrayList<>();
+                List<Channel> matchedChannels = new ArrayList<>();
+                for (Channel channel : censoredChannels) {
+                    if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
+                        matchedChannels.add(channel);
+                    } else {
+                        unmatchedChannels.add(channel);
+                    }
+                }
+
+                List<Category> categoriesToSave = new ArrayList<>(officialCategories);
+
+                // 4. Handle unmatched channels
+                final String UNCATEGORIZED_ID = "uncategorized";
+                final String UNCATEGORIZED_NAME = "Uncategorized";
+                boolean hasUnmatched = !unmatchedChannels.isEmpty();
+
+                if (hasUnmatched) {
+                    logger.log("Found " + unmatchedChannels.size() + " channels with no matching category.");
+                    boolean uncategorizedExists = officialCategories.stream()
+                            .anyMatch(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()));
+                    if (!uncategorizedExists) {
+                        categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
+                    }
+                }
+
+                // 5. Save all categories
+                CategoryDb.get().saveAll(categoriesToSave, account);
+
+                // 6. Re-fetch to get all dbIds
+                List<Category> finalSavedCategories = CategoryDb.get().getCategories(account);
+                Map<String, Category> finalCategoryMap = finalSavedCategories.stream()
+                        .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
+
+                // 7. Save matched channels
+                Map<String, List<Channel>> matchedChannelsByCatId = matchedChannels.stream()
+                        .collect(Collectors.groupingBy(Channel::getCategoryId));
+
+                for (Map.Entry<String, List<Channel>> entry : matchedChannelsByCatId.entrySet()) {
+                    Category category = finalCategoryMap.get(entry.getKey());
+                    if (category != null && category.getDbId() != null) {
+                        ChannelDb.get().saveAll(entry.getValue(), category.getDbId(), account);
+                    }
+                }
+
+                // 8. Save unmatched channels
+                if (hasUnmatched) {
+                    Category uncategorizedCategory = finalCategoryMap.values().stream()
+                            .filter(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()))
+                            .findFirst().orElse(null);
+
+                    if (uncategorizedCategory != null && uncategorizedCategory.getDbId() != null) {
+                        ChannelDb.get().saveAll(unmatchedChannels, uncategorizedCategory.getDbId(), account);
+                        logger.log("Saved " + unmatchedChannels.size() + " channels to '" + UNCATEGORIZED_NAME + "' category.");
+                    } else {
+                        logger.log("Error: Could not save unmatched channels because '" + UNCATEGORIZED_NAME + "' category was not found after saving.");
+                    }
+                }
+
+                logger.log("Parsing complete. Found " + finalSavedCategories.size() + " categories and " + allChannels.size() + " channels saved.");
+
+            } catch (Exception e) {
+                logger.log("Error processing channel data: " + e.getMessage());
+                showError("Error while processing channel data");
+            }
+        } else {
+            logger.log("No response or empty response from server for channels");
+        }
+    }
+
+    public List<Channel> get(String categoryId, Account account, String dbId) throws IOException {
+        return get(categoryId, account, dbId, null);
+    }
+
+    public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger) throws IOException {
+        List<Channel> cachedChannels = ChannelDb.get().getChannels(dbId);
+        if (cachedChannels.isEmpty() && account.getType() != STALKER_PORTAL) {
+            hardReloadChannels(categoryId, account, dbId);
+        } else if (cachedChannels.isEmpty()) {
+            reloadAllChannelsAndCategories(account, logger != null ? logger : log::info);
+        }
+        return censor(ChannelDb.get().getChannels(dbId));
+    }
+
+    public boolean isChannelListCached(String dbId) {
+        return ChannelDb.get().isChannelListCached(dbId);
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account) {
@@ -153,7 +286,7 @@ public class ChannelService {
         List<Channel> channelList = new ArrayList<>();
         int pageNumber = 1;
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
-        Pagination pagination = parsePagination(json);
+        Pagination pagination = parsePagination(json, null);
         if (pagination == null) return channelList;
         List<Channel> page1Channels = account.getAction() == itv ? parseItvChannels(json) : parseVodChannels(account, json);
         if (page1Channels != null) {
@@ -179,9 +312,13 @@ public class ChannelService {
         return ServerUtils.objectToJson(get(categoryIdToUse, account, category.getDbId()));
     }
 
-    public Pagination parsePagination(String json) {
+    public Pagination parsePagination(String json, LoggerCallback logger) {
         try {
             JSONObject js = new JSONObject(json).getJSONObject("js");
+            if (logger != null) {
+                logger.log("total_items " + nullSafeInteger(js, "total_items"));
+                logger.log("max_page_items " + nullSafeInteger(js, "max_page_items"));
+            }
             return new Pagination(nullSafeInteger(js, "total_items"), nullSafeInteger(js, "max_page_items"));
         } catch (Exception ignored) {
             showError("Error while processing response data");
@@ -197,7 +334,9 @@ public class ChannelService {
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
-                channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null));
+                Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
+                channelList.add(channel);
             }
             return censor(channelList);
 
@@ -221,15 +360,21 @@ public class ChannelService {
                 }
                 String number = nullSafeString(jsonChannel, "id");
                 String cmd = nullSafeString(jsonChannel, "cmd");
+                String categoryId = nullSafeString(jsonChannel, "tv_genre_id");
+
                 if (account.getAction() == series && isNotBlank(cmd)) {
                     JSONArray seriesArray = jsonChannel.getJSONArray("series");
                     if (seriesArray != null) {
                         for (int j = 0; j < seriesArray.length(); j++) {
-                            channelList.add(new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + String.valueOf(seriesArray.get(j)), number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null));
+                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + String.valueOf(seriesArray.get(j)), number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                            channel.setCategoryId(categoryId);
+                            channelList.add(channel);
                         }
                     }
                 } else {
-                    channelList.add(new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null));
+                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                    channel.setCategoryId(categoryId);
+                    channelList.add(channel);
                 }
             }
             List<Channel> censoredChannelList = censor(channelList);

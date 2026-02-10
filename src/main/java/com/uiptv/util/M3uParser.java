@@ -10,7 +10,7 @@ import static com.uiptv.util.UiptUtils.*;
  */
 public class M3uParser implements AccountParser {
     @Override
-    public void parseAndSave(String text, boolean pauseCaching, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public void parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
         for (String line : text.split("\\R")) {
             for (final String potentialUrl : replaceAllNonPrintableChars(line).split(SPACER)) {
                 if (!isValidURL(potentialUrl)) continue;
@@ -29,7 +29,7 @@ public class M3uParser implements AccountParser {
 
                 String uniqueName = getUniqueNameFromUrl(m3uPlayLIstUrl);
                 AccountService.getInstance().save(new Account(uniqueName, username, password, m3uPlayLIstUrl, null, null, null, null, null, null,
-                        accountType, null, m3uPlayLIstUrl, pauseCaching, false));
+                        accountType, null, m3uPlayLIstUrl, false));
             }
         }
     }

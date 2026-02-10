@@ -33,7 +33,7 @@ public class AccountDb extends BaseDb {
 
     @Override
     Account populate(ResultSet resultSet) {
-        Account account = new Account(nullSafeString(resultSet, "accountName"), nullSafeString(resultSet, "username"), nullSafeString(resultSet, "password"), nullSafeString(resultSet, "url"), nullSafeString(resultSet, "macAddress"),nullSafeString(resultSet, "macAddressList"), nullSafeString(resultSet, "serialNumber"), nullSafeString(resultSet, "deviceId1"), nullSafeString(resultSet, "deviceId2"), nullSafeString(resultSet, "signature"), isNotBlank(nullSafeString(resultSet, "type")) ? AccountType.valueOf(nullSafeString(resultSet, "type")) : AccountType.STALKER_PORTAL, nullSafeString(resultSet, "epg"), nullSafeString(resultSet, "m3u8Path"), safeBoolean(resultSet, "pauseCaching"), safeBoolean(resultSet, "pinToTop"));
+        Account account = new Account(nullSafeString(resultSet, "accountName"), nullSafeString(resultSet, "username"), nullSafeString(resultSet, "password"), nullSafeString(resultSet, "url"), nullSafeString(resultSet, "macAddress"),nullSafeString(resultSet, "macAddressList"), nullSafeString(resultSet, "serialNumber"), nullSafeString(resultSet, "deviceId1"), nullSafeString(resultSet, "deviceId2"), nullSafeString(resultSet, "signature"), isNotBlank(nullSafeString(resultSet, "type")) ? AccountType.valueOf(nullSafeString(resultSet, "type")) : AccountType.STALKER_PORTAL, nullSafeString(resultSet, "epg"), nullSafeString(resultSet, "m3u8Path"), safeBoolean(resultSet, "pinToTop"));
         account.setDbId(nullSafeString(resultSet, "id"));
         account.setServerPortalUrl(nullSafeString(resultSet, "serverPortalUrl"));
         return account;
@@ -71,11 +71,10 @@ public class AccountDb extends BaseDb {
             statement.setString(12, account.getM3u8Path());
             statement.setString(13, account.getType().name());
             statement.setString(14, account.getServerPortalUrl());
-            statement.setString(15, account.isPauseCaching() ? "1" : "0");
-            statement.setString(16, account.isPinToTop() ? "1" : "0");
+            statement.setString(15, account.isPinToTop() ? "1" : "0");
 
             if (accountExist) {
-                statement.setInt(17, Integer.valueOf(dbAccount.getDbId()));
+                statement.setInt(16, Integer.valueOf(dbAccount.getDbId()));
             }
             statement.execute();
         } catch (SQLException e) {

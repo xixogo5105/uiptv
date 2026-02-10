@@ -35,6 +35,7 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
+    public static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
 
     public static void main(String[] args) {
@@ -243,7 +244,8 @@ public class RootApplication extends Application {
             customStylesheet += Bindings.format("-fx-font-weight: %s;", new SimpleStringProperty(configuration.getFontWeight())).getValueSafe();
         }
         scene.getStylesheets().clear();
-        scene.getStylesheets().add(configuration.isDarkTheme() ? "dark-application.css" : "application.css");
+        currentTheme = configuration.isDarkTheme() ? "dark-application.css" : "application.css";
+        scene.getStylesheets().add(currentTheme);
         scene.getRoot().styleProperty().bind(Bindings.format(customStylesheet));
     }
 }
