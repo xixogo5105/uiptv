@@ -10,12 +10,18 @@ public class PlayerResponse {
     private String clearKeysJson;
     private String inputstreamaddon;
     private String manifestType;
+    private Account account;
+    private Channel channel;
 
     public PlayerResponse(String url) {
         this.url = url;
     }
 
-    public void setFromChannel(Channel channel) {
+    public void setFromChannel(Channel channel, Account account) {
+        this.channel = channel;
+        if (channel != null) {
+            this.account = account;
+        }
         this.drmType = channel.getDrmType();
         this.drmLicenseUrl = channel.getDrmLicenseUrl();
         this.clearKeysJson = channel.getClearKeysJson();
@@ -23,7 +29,10 @@ public class PlayerResponse {
         this.manifestType = channel.getManifestType();
     }
 
-    public void setFromBookmark(Bookmark bookmark) {
+    public void setFromBookmark(Bookmark bookmark, Account account) {
+        if (bookmark != null) {
+            this.account = account;
+        }
         this.drmType = bookmark.getDrmType();
         this.drmLicenseUrl = bookmark.getDrmLicenseUrl();
         this.clearKeysJson = bookmark.getClearKeysJson();

@@ -225,24 +225,26 @@ public class ChannelListUI extends HBox {
     private void play(ChannelItem item, String playerPath, boolean runBookmark) {
         try {
             PlayerResponse response;
+            Channel channel = channelList.stream()
+                    .filter(c -> c.getChannelId().equals(item.getChannelId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (channel == null) {
+                channel = new Channel();
+                channel.setChannelId(item.getChannelId());
+                channel.setName(item.getChannelName());
+                channel.setCmd(item.getCmd());
+            }
+
             if (runBookmark) {
                 Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
                 response = PlayerService.getInstance().runBookmark(account, bookmark);
             } else {
-                Channel channel = channelList.stream()
-                        .filter(c -> c.getChannelId().equals(item.getChannelId()))
-                        .findFirst()
-                        .orElse(null);
-
-                if (channel == null) {
-                    channel = new Channel();
-                    channel.setChannelId(item.getChannelId());
-                    channel.setName(item.getChannelName());
-                    channel.setCmd(item.getCmd());
-                }
-
                 response = PlayerService.getInstance().get(account, channel, item.getChannelId());
             }
+
+            response.setFromChannel(channel, account); // Ensure response has channel and account
 
             String evaluatedStreamUrl = response.getUrl();
 

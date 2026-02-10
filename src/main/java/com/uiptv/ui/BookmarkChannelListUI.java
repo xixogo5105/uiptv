@@ -281,29 +281,31 @@ public class BookmarkChannelListUI extends HBox {
         try {
             Account account = AccountService.getInstance().getAll().get(item.getAccountName());
             account.setServerPortalUrl(item.getServerPortalUrl());
-            
+
             Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
             if (bookmark == null) {
-                 bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
-                 bookmark.setDbId(item.getBookmarkId());
+                bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
+                bookmark.setDbId(item.getBookmarkId());
             }
 
             PlayerResponse response;
+            Channel channel = new Channel();
+            channel.setCmd(bookmark.getCmd());
+            channel.setChannelId(bookmark.getChannelId());
+            channel.setName(bookmark.getChannelName());
+            channel.setDrmType(bookmark.getDrmType());
+            channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
+            channel.setClearKeysJson(bookmark.getClearKeysJson());
+            channel.setInputstreamaddon(bookmark.getInputstreamaddon());
+            channel.setManifestType(bookmark.getManifestType());
+
             if (hardReset) {
                 response = PlayerService.getInstance().runBookmark(account, bookmark);
             } else {
-                Channel channel = new Channel();
-                channel.setCmd(bookmark.getCmd());
-                channel.setChannelId(bookmark.getChannelId());
-                channel.setName(bookmark.getChannelName());
-                channel.setDrmType(bookmark.getDrmType());
-                channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
-                channel.setClearKeysJson(bookmark.getClearKeysJson());
-                channel.setInputstreamaddon(bookmark.getInputstreamaddon());
-                channel.setManifestType(bookmark.getManifestType());
-                
                 response = PlayerService.getInstance().get(account, channel);
             }
+
+            response.setFromChannel(channel, account); // Ensure response has channel and account
 
             String evaluatedStreamUrl = response.getUrl();
 

@@ -1,7 +1,10 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.service.PlayerService;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -30,6 +33,7 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -40,6 +44,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private MediaPlayer mediaPlayer;
     private final MediaView mediaView = new MediaView();
     private Timeline inactivityTimer;
+    private Account currentAccount;
+    private Channel currentChannel;
 
     // UI Components
     private Slider timeSlider;
@@ -183,11 +189,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
         });
 
-        btnReload.setOnAction(e -> {
-            if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(new PlayerResponse(currentMediaUri));
-            }
-        });
+        btnReload.setOnAction(e -> refreshAndPlay());
 
         btnFullscreen.setOnAction(e -> toggleFullscreen());
         btnPip.setOnAction(e -> togglePip());
@@ -292,6 +294,31 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         // --- 5. FADE / HIDE LOGIC ---
         setupFadeAndIdleLogic();
+    }
+
+    private void refreshAndPlay() {
+        if (currentAccount != null && currentChannel != null) {
+            loadingSpinner.setVisible(true);
+            errorLabel.setVisible(false);
+            new Thread(() -> {
+                try {
+                    final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
+                    Platform.runLater(() -> play(newResponse));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Platform.runLater(() -> {
+                        loadingSpinner.setVisible(false);
+                        errorLabel.setText("Could not refresh stream.");
+                        errorLabel.setVisible(true);
+                    });
+                }
+            }).start();
+        } else {
+            // Fallback to old behavior if account/channel not available
+            if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
+                play(new PlayerResponse(currentMediaUri));
+            }
+        }
     }
 
     private void toggleAspectRatio() {
@@ -467,12 +494,13 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void play(PlayerResponse response) {
-        String uri;
+        String uri = null;
         if (response != null) {
             uri = response.getUrl();
-        } else {
-            uri = null;
+            this.currentAccount = response.getAccount();
+            this.currentChannel = response.getChannel();
         }
+
         if (isBlank(uri)) {
             stop();
             return;
@@ -492,7 +520,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         new Thread(() -> {
             try {
-                String sourceUrl = uri.replace("extension=ts", "extension=m3u8").trim();
+                String sourceUrl = currentMediaUri.trim();
                 if (sourceUrl.startsWith("http")) {
                     sourceUrl = getFinalUrl(sourceUrl);
                 } else if (!sourceUrl.startsWith("file:")) {
@@ -530,7 +558,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         mediaPlayer.currentTimeProperty().addListener(progressListener);
                         mediaPlayer.setOnEndOfMedia(() -> {
                             if (isRepeating) {
-                                play(new PlayerResponse(currentMediaUri)); // Reload the stream
+                                refreshAndPlay(); // Reload the stream
                             } else {
                                 btnPlayPause.setGraphic(playIcon);
                                 mediaPlayer.seek(Duration.ZERO);
@@ -706,11 +734,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             pipReloadButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
             pipReloadButton.setPadding(new Insets(8));
             pipReloadButton.setVisible(false);
-            pipReloadButton.setOnAction(e -> {
-                if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                    play(new PlayerResponse(currentMediaUri));
-                }
-            });
+            pipReloadButton.setOnAction(e -> refreshAndPlay());
 
             HBox pipControls = new HBox(10);
             pipControls.setAlignment(Pos.TOP_RIGHT);

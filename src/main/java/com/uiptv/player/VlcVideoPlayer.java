@@ -1,7 +1,10 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.service.PlayerService;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -32,6 +35,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCall
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +46,9 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class VlcVideoPlayer implements VideoPlayerInterface {
     private EmbeddedMediaPlayer mediaPlayer;
     private boolean isMuted = true; // Single source of truth for mute state
+    private Account currentAccount;
+    private Channel currentChannel;
+    private boolean isRepeating = false;
 
     // UI Components
     private Slider timeSlider;
@@ -194,17 +201,13 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btnStop.setOnAction(e -> stop());
 
         btnRepeat.setOnAction(e -> {
-            boolean isRepeating = !mediaPlayer.controls().getRepeat();
-            mediaPlayer.controls().setRepeat(isRepeating);
+            isRepeating = !isRepeating;
             btnRepeat.setGraphic(isRepeating ? repeatOnIcon : repeatOffIcon);
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
+            mediaPlayer.controls().setRepeat(false); // Always disable vlcj's own repeat
         });
 
-        btnReload.setOnAction(e -> {
-            if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(new PlayerResponse(currentMediaUri));
-            }
-        });
+        btnReload.setOnAction(e -> refreshAndPlay());
 
         btnFullscreen.setOnAction(e -> toggleFullscreen());
 
@@ -289,7 +292,12 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
             @Override
             public void finished(MediaPlayer mediaPlayer) {
-                Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
+                Platform.runLater(() -> {
+                    btnPlayPause.setGraphic(playIcon);
+                    if (isRepeating) {
+                        refreshAndPlay();
+                    }
+                });
             }
 
             @Override
@@ -314,6 +322,31 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         // --- 5. FADE / HIDE LOGIC ---
         setupFadeAndIdleLogic();
+    }
+
+    private void refreshAndPlay() {
+        if (currentAccount != null && currentChannel != null) {
+            loadingSpinner.setVisible(true);
+            errorLabel.setVisible(false);
+            new Thread(() -> {
+                try {
+                    final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
+                    Platform.runLater(() -> play(newResponse));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Platform.runLater(() -> {
+                        loadingSpinner.setVisible(false);
+                        errorLabel.setText("Could not refresh stream.");
+                        errorLabel.setVisible(true);
+                    });
+                }
+            }).start();
+        } else {
+            // Fallback to old behavior if account/channel not available
+            if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
+                play(new PlayerResponse(currentMediaUri));
+            }
+        }
     }
 
     private void toggleAspectRatio() {
@@ -465,12 +498,13 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void play(PlayerResponse response) {
-        String uri;
+        String uri = null;
         if (response != null) {
             uri = response.getUrl();
-        } else {
-            uri = null;
+            this.currentAccount = response.getAccount();
+            this.currentChannel = response.getChannel();
         }
+
         if (isNotBlank(uri)) {
             this.currentMediaUri = uri;
             playerContainer.setVisible(true);
@@ -655,11 +689,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             pipReloadButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
             pipReloadButton.setPadding(new Insets(8));
             pipReloadButton.setVisible(false);
-            pipReloadButton.setOnAction(e -> {
-                if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                    play(new PlayerResponse(currentMediaUri));
-                }
-            });
+            pipReloadButton.setOnAction(e -> refreshAndPlay());
 
             HBox pipControls = new HBox(10);
             pipControls.setAlignment(Pos.TOP_RIGHT);

@@ -67,7 +67,7 @@ public class PlayerService {
         }
 
         PlayerResponse response = new PlayerResponse(finalUrl);
-        response.setFromChannel(channel);
+        response.setFromChannel(channel, account);
         return response;
     }
 
@@ -78,7 +78,7 @@ public class PlayerService {
         String finalUrl = resolveAndProcessUrl(streamReadyUrl);
 
         PlayerResponse response = new PlayerResponse(finalUrl);
-        response.setFromBookmark(bookmark);
+        response.setFromBookmark(bookmark, account);
         return response;
     }
 
