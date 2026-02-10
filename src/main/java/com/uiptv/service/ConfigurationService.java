@@ -29,24 +29,7 @@ public class ConfigurationService {
     }
 
     public void clearCache(Account account) {
-        if (account == null || account.getDbId() == null) {
-            return;
-        }
-        try (Connection conn = connect()) {
-            String deleteChannelsSql = "DELETE FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName() + " WHERE accountId = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteChannelsSql)) {
-                pstmt.setString(1, account.getDbId());
-                pstmt.executeUpdate();
-            }
-
-            String deleteCategoriesSql = "DELETE FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName() + " WHERE accountId = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteCategoriesSql)) {
-                pstmt.setString(1, account.getDbId());
-                pstmt.executeUpdate();
-            }
-        } catch (Exception e) {
-            // Log or handle the exception
-        }
+        ConfigurationDb.get().clearCache(account);
     }
 
     public void save(Configuration configuration) {

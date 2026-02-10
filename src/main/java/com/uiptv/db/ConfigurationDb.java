@@ -1,5 +1,6 @@
 package com.uiptv.db;
 
+import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 
 import java.sql.*;
@@ -40,6 +41,32 @@ public class ConfigurationDb extends BaseDb {
         }
         try (Connection conn = connect(); Statement statement = conn.createStatement()) {
             statement.execute("UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl=''");
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void clearCache(Account account) {
+        if (account == null || account.getDbId() == null) {
+            return;
+        }
+
+        // Delete channels for this account
+        ChannelDb.get().deleteByAccount(account.getDbId());
+
+        try (Connection conn = connect()) {
+            // Delete categories for this account
+            String deleteCategoriesSql = "DELETE FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName() + " WHERE accountId = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(deleteCategoriesSql)) {
+                pstmt.setString(1, account.getDbId());
+                pstmt.executeUpdate();
+            }
+
+            // Clear serverPortalUrl for this account
+            String updateAccountSql = "UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl='' WHERE id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(updateAccountSql)) {
+                pstmt.setString(1, account.getDbId());
+                pstmt.executeUpdate();
+            }
         } catch (Exception ignored) {
         }
     }
