@@ -9,6 +9,7 @@ import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
@@ -36,6 +37,7 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     public static String currentTheme;
+    private static HostServices hostServices;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
 
     public static void main(String[] args) {
@@ -103,9 +105,14 @@ public class RootApplication extends Application {
         }));
     }
 
+    public static HostServices getStaticHostServices() {
+        return hostServices;
+    }
+
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
+        RootApplication.hostServices = getHostServices();
 
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();

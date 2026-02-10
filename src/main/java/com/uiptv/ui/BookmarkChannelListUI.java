@@ -1,25 +1,26 @@
 package com.uiptv.ui;
 
-import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
-import com.uiptv.model.BookmarkCategory;
-import com.uiptv.model.Channel;
-import com.uiptv.model.PlayerResponse;
+import com.uiptv.db.ChannelDb;
+import com.uiptv.model.*;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.util.ImageCacheManager;
 import com.uiptv.util.Platform;
 import com.uiptv.widget.SearchableTableViewWithButton;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
+import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox {
     private final SearchableTableViewWithButton bookmarkTable = new SearchableTableViewWithButton();
@@ -39,6 +41,7 @@ public class BookmarkChannelListUI extends HBox {
     private boolean isPromptShowing = false;
 
     public BookmarkChannelListUI() { // Removed MediaPlayer argument
+        ImageCacheManager.clearCache("bookmark");
         initWidgets();
         refresh();
     }
@@ -76,6 +79,51 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setCellValueFactory(cellData -> cellData.getValue().channelAccountNameProperty());
         bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
         bookmarkColumn.setText("Bookmarked Channels");
+
+        bookmarkColumn.setCellFactory(column -> new TableCell<>() {
+            private final HBox graphic = new HBox(10);
+            private final Label nameLabel = new Label();
+            private final Pane spacer = new Pane();
+            private final ImageView imageView = new ImageView();
+
+            {
+                imageView.setFitWidth(32);
+                imageView.setFitHeight(32);
+                imageView.setPreserveRatio(true);
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                graphic.setAlignment(Pos.CENTER_LEFT);
+                graphic.getChildren().addAll(imageView, nameLabel, spacer);
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+
+                BookmarkItem bookmarkItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
+                        ? getTableView().getItems().get(getIndex())
+                        : null;
+
+                if (bookmarkItem == null) {
+                    setGraphic(null);
+                    return;
+                }
+
+                nameLabel.setText(item);
+                imageView.setImage(ImageCacheManager.DEFAULT_IMAGE); // Set default image immediately
+
+                ImageCacheManager.loadImageAsync(bookmarkItem.getLogo(), "bookmark")
+                        .thenAccept(image -> {
+                            if (image != null && getItem() != null && getIndex() < getTableView().getItems().size()) {
+                                runLater(() -> imageView.setImage(image));
+                            }
+                        });
+                setGraphic(graphic);
+            }
+        });
     }
 
     private void setupCategoryTabPaneListener() {
@@ -123,6 +171,9 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private BookmarkItem createBookmarkItem(Bookmark bookmark) {
+        Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
+        Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+        String logo = channel != null ? channel.getLogo() : "";
         return new BookmarkItem(
                 new SimpleStringProperty(bookmark.getDbId()),
                 new SimpleStringProperty(bookmark.getChannelName()),
@@ -132,7 +183,8 @@ public class BookmarkChannelListUI extends HBox {
                 new SimpleStringProperty(bookmark.getCategoryTitle()),
                 new SimpleStringProperty(bookmark.getServerPortalUrl()),
                 new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")"),
-                new SimpleStringProperty(bookmark.getCategoryId())
+                new SimpleStringProperty(bookmark.getCategoryId()),
+                new SimpleStringProperty(logo)
         );
     }
 
@@ -282,11 +334,8 @@ public class BookmarkChannelListUI extends HBox {
             Account account = AccountService.getInstance().getAll().get(item.getAccountName());
             account.setServerPortalUrl(item.getServerPortalUrl());
 
-            Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
-            if (bookmark == null) {
-                bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
-                bookmark.setDbId(item.getBookmarkId());
-            }
+            Bookmark bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
+            bookmark.setDbId(item.getBookmarkId());
 
             PlayerResponse response;
             Channel channel = new Channel();
@@ -342,8 +391,9 @@ public class BookmarkChannelListUI extends HBox {
         private final SimpleStringProperty serverPortalUrl;
         private final SimpleStringProperty channelAccountName;
         private final SimpleStringProperty categoryId;
+        private final SimpleStringProperty logo;
 
-        public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId) {
+        public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId, SimpleStringProperty logo) {
             this.bookmarkId = bookmarkId;
             this.channelName = channelName;
             this.channelId = channelId;
@@ -353,18 +403,19 @@ public class BookmarkChannelListUI extends HBox {
             this.serverPortalUrl = serverPortalUrl;
             this.channelAccountName = channelAccountName;
             this.categoryId = categoryId;
+            this.logo = logo;
         }
 
         public String getBookmarkId() {
             return bookmarkId.get();
         }
 
-        public SimpleStringProperty bookmarkIdProperty() {
-            return bookmarkId;
-        }
-
         public void setBookmarkId(String bookmarkId) {
             this.bookmarkId.set(bookmarkId);
+        }
+
+        public SimpleStringProperty bookmarkIdProperty() {
+            return bookmarkId;
         }
 
         public String getChannelName() {
@@ -395,36 +446,36 @@ public class BookmarkChannelListUI extends HBox {
             return accountName.get();
         }
 
-        public String getCategoryTitle() {
-            return categoryTitle.get();
+        public void setAccountName(String accountName) {
+            this.accountName.set(accountName);
         }
 
-        public SimpleStringProperty categoryTitleProperty() {
-            return categoryTitle;
+        public String getCategoryTitle() {
+            return categoryTitle.get();
         }
 
         public void setCategoryTitle(String categoryTitle) {
             this.categoryTitle.set(categoryTitle);
         }
 
-        public String getChannelAccountName() {
-            return channelAccountName.get();
+        public SimpleStringProperty categoryTitleProperty() {
+            return categoryTitle;
         }
 
-        public SimpleStringProperty channelAccountNameProperty() {
-            return channelAccountName;
+        public String getChannelAccountName() {
+            return channelAccountName.get();
         }
 
         public void setChannelAccountName(String channelAccountName) {
             this.channelAccountName.set(channelAccountName);
         }
 
-        public SimpleStringProperty accountNameProperty() {
-            return accountName;
+        public SimpleStringProperty channelAccountNameProperty() {
+            return channelAccountName;
         }
 
-        public void setAccountName(String accountName) {
-            this.accountName.set(accountName);
+        public SimpleStringProperty accountNameProperty() {
+            return accountName;
         }
 
         public SimpleStringProperty cmdProperty() {
@@ -443,12 +494,12 @@ public class BookmarkChannelListUI extends HBox {
             return serverPortalUrl.get();
         }
 
-        public SimpleStringProperty serverPortalUrlProperty() {
-            return serverPortalUrl;
-        }
-
         public void setServerPortalUrl(String serverPortalUrl) {
             this.serverPortalUrl.set(serverPortalUrl);
+        }
+
+        public SimpleStringProperty serverPortalUrlProperty() {
+            return serverPortalUrl;
         }
 
         public String getCategoryId() {
@@ -457,6 +508,14 @@ public class BookmarkChannelListUI extends HBox {
 
         public SimpleStringProperty categoryIdProperty() {
             return categoryId;
+        }
+
+        public String getLogo() {
+            return logo.get();
+        }
+
+        public SimpleStringProperty logoProperty() {
+            return logo;
         }
     }
 }

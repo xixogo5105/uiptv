@@ -8,37 +8,44 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.util.ImageCacheManager;
 import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
-import com.uiptv.widget.UIptvAlert;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
+import static javafx.application.Platform.runLater;
 
 public class EpisodesListUI extends HBox {
     private final Account account;
     private final String categoryTitle;
     private final BookmarkChannelListUI bookmarkChannelListUI;
-    SearchableTableView table = new SearchableTableView();
-    TableColumn<EpisodeItem, String> channelName = new TableColumn("Episodes");
     private final EpisodeList channelList;
+    SearchableTableView table = new SearchableTableView();
+    TableColumn<EpisodeItem, String> channelName = new TableColumn<>("Episodes");
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
+        ImageCacheManager.clearCache("episode");
         initWidgets();
         refresh();
     }
@@ -46,10 +53,17 @@ public class EpisodesListUI extends HBox {
     private void refresh() {
         List<EpisodeItem> catList = new ArrayList<>();
         channelList.episodes.forEach(i -> {
-            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(),null);
+            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
             boolean checkBookmark = BookmarkService.getInstance().isChannelBookmarked(b);
-            UIptvAlert.showMessage(b + " --- " + String.valueOf(checkBookmark));
-            catList.add(new EpisodeItem(new SimpleStringProperty(checkBookmark ? "**" + i.getTitle().replace("*", "") + "**" : i.getTitle()), new SimpleStringProperty(i.getId()), new SimpleStringProperty(i.getCmd())));
+            String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
+            String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
+            catList.add(new EpisodeItem(
+                    new SimpleStringProperty(checkBookmark ? "**" + i.getTitle().replace("*", "") + "**" : i.getTitle()),
+                    new SimpleStringProperty(i.getId()),
+                    new SimpleStringProperty(i.getCmd()),
+                    new SimpleStringProperty(logo),
+                    new SimpleStringProperty(tmdbId)
+            ));
         });
         table.setItems(FXCollections.observableArrayList(catList));
         table.addTextFilter();
@@ -58,20 +72,59 @@ public class EpisodesListUI extends HBox {
     private void initWidgets() {
         setSpacing(5);
         table.setEditable(true);
-        table.getColumns().addAll(channelName);
+        table.getColumns().add(channelName);
         channelName.setText("Episodes of " + categoryTitle);
         channelName.setVisible(true);
         channelName.setCellValueFactory(cellData -> cellData.getValue().episodeNameProperty());
         channelName.setCellFactory(column -> new TableCell<>() {
+            private final HBox graphic = new HBox(10);
+            private final Label nameLabel = new Label();
+            private final Pane spacer = new Pane();
+            private final Hyperlink tmdbLink = new Hyperlink("TMDb");
+            private final ImageView imageView = new ImageView();
+
+            {
+                imageView.setFitWidth(32);
+                imageView.setFitHeight(32);
+                imageView.setPreserveRatio(true);
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                graphic.setAlignment(Pos.CENTER_LEFT);
+                graphic.getChildren().addAll(imageView, nameLabel, spacer, tmdbLink);
+            }
+
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(item);
-                if (item != null && !empty) {
-                    if (item.startsWith("**")) {
-                        setStyle("-fx-font-weight: bold;-fx-font-size: 125%;");
+                if (item == null || empty) {
+                    setGraphic(null);
+                } else {
+                    EpisodeItem episodeItem = (EpisodeItem) getTableRow().getItem();
+                    if (episodeItem != null) {
+                        nameLabel.setText(item);
+                        if (item.startsWith("**")) {
+                            nameLabel.setStyle("-fx-font-weight: bold;-fx-font-size: 125%;");
+                        } else {
+                            nameLabel.setStyle("");
+                        }
+
+                        imageView.setImage(ImageCacheManager.DEFAULT_IMAGE); // Set default image immediately
+
+                        ImageCacheManager.loadImageAsync(episodeItem.getLogo(), "episode")
+                                .thenAccept(image -> {
+                                    if (image != null && getItem() != null && getIndex() < getTableView().getItems().size()) {
+                                        runLater(() -> imageView.setImage(image));
+                                    }
+                                });
+
+                        if (isNotBlank(episodeItem.getTmdbId())) {
+                            tmdbLink.setVisible(true);
+                            tmdbLink.setOnAction(e -> RootApplication.getStaticHostServices().showDocument("https://www.themoviedb.org/movie/" + episodeItem.getTmdbId()));
+                        } else {
+                            tmdbLink.setVisible(false);
+                        }
+                        setGraphic(graphic);
                     } else {
-                        setStyle("");
+                        setGraphic(null);
                     }
                 }
             }
@@ -170,11 +223,15 @@ public class EpisodesListUI extends HBox {
         private final SimpleStringProperty episodeName;
         private final SimpleStringProperty episodeId;
         private final SimpleStringProperty cmd;
+        private final SimpleStringProperty logo;
+        private final SimpleStringProperty tmdbId;
 
-        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd) {
+        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, SimpleStringProperty logo, SimpleStringProperty tmdbId) {
             this.episodeName = episodeName;
             this.episodeId = episodeId;
             this.cmd = cmd;
+            this.logo = logo;
+            this.tmdbId = tmdbId;
         }
 
         public String getEpisodeName() {
@@ -211,6 +268,22 @@ public class EpisodesListUI extends HBox {
 
         public SimpleStringProperty episodeIdProperty() {
             return episodeId;
+        }
+
+        public String getLogo() {
+            return logo.get();
+        }
+
+        public SimpleStringProperty logoProperty() {
+            return logo;
+        }
+
+        public String getTmdbId() {
+            return tmdbId.get();
+        }
+
+        public SimpleStringProperty tmdbIdProperty() {
+            return tmdbId;
         }
     }
 }
