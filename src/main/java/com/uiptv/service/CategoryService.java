@@ -66,8 +66,7 @@ public class CategoryService {
 
     public List<Category> get(Account account) {
         List<Category> cachedCategories = CategoryDb.get().getCategories(account);
-        if (cachedCategories.isEmpty()) {
-            cachedCategories.clear();
+        if (cachedCategories.isEmpty() || account.getAction()!= itv) {
             hardReloadCategories(account);
             cachedCategories.addAll(CategoryDb.get().getCategories(account));
         } else {

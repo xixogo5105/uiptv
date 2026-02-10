@@ -67,16 +67,25 @@ public class ChannelService {
         return instance;
     }
 
-    public List<Channel> get(Account account, String dbId) throws IOException {
-        return get(account, dbId, null);
+    public List<Channel> get(String categoryId, Account account, String dbId) throws IOException {
+        return get(categoryId, account, dbId, null);
     }
 
-    public List<Channel> get(Account account, String dbId, LoggerCallback logger) throws IOException {
+    public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger) throws IOException {
+        if (account.getAction() != itv) {
+            return getVodOrSeries(categoryId, account);
+        }
+
         int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
         if (channelCount == 0) {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
         }
         return censor(ChannelDb.get().getChannels(dbId));
+    }
+
+    private List<Channel> getVodOrSeries(String categoryId, Account account) throws IOException {
+        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0"));
+        return censor(cachedChannels);
     }
 
     public int getChannelCountForAccount(String accountId) {
@@ -116,7 +125,7 @@ public class ChannelService {
         } else {
             categoryIdToUse = category.getTitle();
         }
-        return ServerUtils.objectToJson(get(account, category.getDbId()));
+        return ServerUtils.objectToJson(get(categoryIdToUse, account, category.getDbId()));
     }
 
     public Pagination parsePagination(String json, LoggerCallback logger) {

@@ -119,11 +119,11 @@ public class CategoryListUI extends HBox {
                 List<CategoryItem> allItems = table.getItems();
                 for (CategoryItem categoryItem : allItems) {
                     if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
-                        channels.addAll(ChannelService.getInstance().get(account, categoryItem.getId(), logger));
+                        channels.addAll(ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),account, categoryItem.getId(), logger));
                     }
                 }
             } else {
-                channels = ChannelService.getInstance().get(account, item.getId(), logger);
+                channels = ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),account, item.getId(), logger);
             }
 
             List<Channel> finalChannels = channels;
