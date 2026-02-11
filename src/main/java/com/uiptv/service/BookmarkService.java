@@ -31,6 +31,11 @@ public class BookmarkService {
         return (BookmarkDb.get().getById(dbId));
     }
 
+    // New overloaded method to find a bookmark by its properties
+    public Bookmark getBookmark(Bookmark bookmark) {
+        return BookmarkDb.get().getBookmarkById(bookmark);
+    }
+
     public void toggleBookmark(Bookmark bookmark) {
         Bookmark dbBookmark = BookmarkDb.get().getBookmarkById(bookmark);
         if (dbBookmark != null) {

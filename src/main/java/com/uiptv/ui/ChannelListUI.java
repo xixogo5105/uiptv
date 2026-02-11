@@ -1,18 +1,15 @@
 package com.uiptv.ui;
 
-import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
-import com.uiptv.model.Channel;
-import com.uiptv.model.PlayerResponse;
+import com.uiptv.model.*;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
-import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
+import javafx.application.Platform;
 import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -218,13 +215,46 @@ public class ChannelListUI extends HBox {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-        MenuItem editItem = new MenuItem("Toggle Bookmark");
-        editItem.setOnAction(actionEvent -> {
-            rowMenu.hide();
+
+        Menu bookmarkMenu = new Menu("Bookmark");
+        rowMenu.getItems().add(bookmarkMenu);
+
+        rowMenu.setOnShowing(event -> {
+            bookmarkMenu.getItems().clear();
             ChannelItem item = row.getItem();
-            BookmarkService.getInstance().toggleBookmark(new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId));
-            item.setBookmarked(!item.isBookmarked());
-            bookmarkChannelListUI.refresh();
+            if (item == null) return;
+
+            new Thread(() -> {
+                Bookmark existingBookmark = BookmarkService.getInstance().getBookmark(new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId));
+                List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+
+                Platform.runLater(() -> {
+                    for (BookmarkCategory category : categories) {
+                        MenuItem categoryItem = new MenuItem(category.getName());
+                        categoryItem.setOnAction(e -> {
+                            saveBookmark(item, category.getId());
+                        });
+                        bookmarkMenu.getItems().add(categoryItem);
+                    }
+
+                    if (existingBookmark != null) {
+                        bookmarkMenu.getItems().add(new SeparatorMenuItem());
+                        MenuItem unbookmarkItem = new MenuItem("Remove Bookmark");
+                        unbookmarkItem.setStyle("-fx-text-fill: red;");
+                        unbookmarkItem.setOnAction(e -> {
+                            new Thread(() -> {
+                                BookmarkService.getInstance().remove(existingBookmark.getDbId());
+                                Platform.runLater(() -> {
+                                    item.setBookmarked(false);
+                                    bookmarkChannelListUI.refresh();
+                                    table.refresh();
+                                });
+                            }).start();
+                        });
+                        bookmarkMenu.getItems().add(unbookmarkItem);
+                    }
+                });
+            }).start();
         });
 
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
@@ -253,12 +283,25 @@ public class ChannelListUI extends HBox {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
         });
-        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
                         .otherwise(rowMenu));
+    }
+
+    private void saveBookmark(ChannelItem item, String bookmarkCategoryId) {
+        new Thread(() -> {
+            Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
+            bookmark.setCategoryId(bookmarkCategoryId);
+            BookmarkService.getInstance().save(bookmark);
+            Platform.runLater(() -> {
+                item.setBookmarked(true);
+                bookmarkChannelListUI.refresh();
+                table.refresh();
+            });
+        }).start();
     }
 
     private void play(ChannelItem item, String playerPath, boolean runBookmark) {
@@ -307,7 +350,7 @@ public class ChannelListUI extends HBox {
                         } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
                             showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                         } else {
-                            Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                            com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
                         }
                     }
                 });

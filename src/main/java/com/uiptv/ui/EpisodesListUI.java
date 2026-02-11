@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.BookmarkService;
@@ -9,9 +10,9 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
-import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
+import javafx.application.Platform;
 import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -24,8 +25,6 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
 import javafx.util.Callback;
 
 import java.util.ArrayList;
@@ -33,7 +32,6 @@ import java.util.List;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -151,15 +149,45 @@ public class EpisodesListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
-        MenuItem bookmarkItem = new MenuItem("Toggle Bookmark");
-        bookmarkItem.setOnAction(_ -> {
-            rowMenu.hide();
+        Menu bookmarkMenu = new Menu("Bookmark");
+        rowMenu.getItems().add(bookmarkMenu);
+
+        rowMenu.setOnShowing(event -> {
+            bookmarkMenu.getItems().clear();
             EpisodeItem item = row.getItem();
-            Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
-            BookmarkService.getInstance().toggleBookmark(bookmark);
-            item.setBookmarked(!item.isBookmarked());
-            bookmarkChannelListUI.refresh();
-            row.getTableView().refresh();
+            if (item == null) return;
+
+            new Thread(() -> {
+                Bookmark existingBookmark = BookmarkService.getInstance().getBookmark(new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null));
+                List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+
+                Platform.runLater(() -> {
+                    for (BookmarkCategory category : categories) {
+                        MenuItem categoryItem = new MenuItem(category.getName());
+                        categoryItem.setOnAction(e -> {
+                            saveBookmark(item, category.getId());
+                        });
+                        bookmarkMenu.getItems().add(categoryItem);
+                    }
+
+                    if (existingBookmark != null) {
+                        bookmarkMenu.getItems().add(new SeparatorMenuItem());
+                        MenuItem unbookmarkItem = new MenuItem("Remove Bookmark");
+                        unbookmarkItem.setStyle("-fx-text-fill: red;");
+                        unbookmarkItem.setOnAction(e -> {
+                            new Thread(() -> {
+                                BookmarkService.getInstance().remove(existingBookmark.getDbId());
+                                Platform.runLater(() -> {
+                                    item.setBookmarked(false);
+                                    bookmarkChannelListUI.refresh();
+                                    table.refresh();
+                                });
+                            }).start();
+                        });
+                        bookmarkMenu.getItems().add(unbookmarkItem);
+                    }
+                });
+            }).start();
         });
 
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
@@ -188,12 +216,25 @@ public class EpisodesListUI extends HBox {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
         });
-        rowMenu.getItems().addAll(bookmarkItem, playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
                         .otherwise(rowMenu));
+    }
+
+    private void saveBookmark(EpisodeItem item, String bookmarkCategoryId) {
+        new Thread(() -> {
+            Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
+            bookmark.setCategoryId(bookmarkCategoryId);
+            BookmarkService.getInstance().save(bookmark);
+            Platform.runLater(() -> {
+                item.setBookmarked(true);
+                bookmarkChannelListUI.refresh();
+                table.refresh();
+            });
+        }).start();
     }
 
     private void play(EpisodeItem item, String playerPath, boolean runBookmark) {
@@ -231,7 +272,7 @@ public class EpisodesListUI extends HBox {
                         } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
                             showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
                         } else {
-                            Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                            com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
                         }
                     }
                 });
