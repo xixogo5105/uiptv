@@ -229,6 +229,13 @@ public class ChannelListUI extends HBox {
                 List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
 
                 Platform.runLater(() -> {
+                    MenuItem allItem = new MenuItem("All");
+                    allItem.setOnAction(e -> {
+                        saveBookmark(item, null);
+                    });
+                    bookmarkMenu.getItems().add(allItem);
+                    bookmarkMenu.getItems().add(new SeparatorMenuItem());
+
                     for (BookmarkCategory category : categories) {
                         MenuItem categoryItem = new MenuItem(category.getName());
                         categoryItem.setOnAction(e -> {
