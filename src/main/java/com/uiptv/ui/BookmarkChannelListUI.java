@@ -178,6 +178,7 @@ public class BookmarkChannelListUI extends HBox {
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
         Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
         String logo = channel != null ? channel.getLogo() : "";
+        Account.AccountAction accountAction = bookmark.getAccountAction() != null ? bookmark.getAccountAction() : account.getAction();
         return new BookmarkItem(
                 new SimpleStringProperty(bookmark.getDbId()),
                 new SimpleStringProperty(bookmark.getChannelName()),
@@ -189,7 +190,7 @@ public class BookmarkChannelListUI extends HBox {
                 new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")"),
                 new SimpleStringProperty(bookmark.getCategoryId()),
                 new SimpleStringProperty(logo),
-                bookmark.getAccountAction()
+                accountAction
         );
     }
 
@@ -272,7 +273,7 @@ public class BookmarkChannelListUI extends HBox {
                     bookmarkTable.getTableView().getItems().add(dropIndex, draggedItem);
 
                     event.setDropCompleted(true);
-                    bookmarkTable.getTableView().getSelectionModel().select(dropIndex);
+                    bookmarkTable.getTableView().getSelectionModel().clearSelection();
 
                     // Save the new order
                     List<String> orderedDbIds = bookmarkTable.getTableView().getItems().stream()
