@@ -8,6 +8,7 @@ import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
@@ -179,11 +180,13 @@ public class ConfigurationUI extends VBox {
 
     private void addClearCacheButtonClickHandler() {
         clearCacheButton.setOnAction(event -> {
-            try {
-                cacheService.clearAllCache();
-                showMessageAlert("Cache cleared");
-            } catch (Exception ignored) {
-                showMessageAlert("Error has occurred while clearing cache");
+            if (UIptvAlert.showConfirmationAlert("Are you sure you want to clear the cache?")) {
+                try {
+                    cacheService.clearAllCache();
+                    showMessageAlert("Cache cleared");
+                } catch (Exception ignored) {
+                    showMessageAlert("Error has occurred while clearing cache");
+                }
             }
         });
     }

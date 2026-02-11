@@ -44,7 +44,7 @@ public class ReloadCachePopup extends VBox {
     private final CheckBox selectAllCheckBox = new CheckBox("Select All");
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
-    private final StackPane loadingIndicator = createLoadingIndicator();
+    private final ProgressIndicator loadingIndicator = createLoadingIndicator();
     private final CacheService cacheService = new CacheServiceImpl();
 
     public ReloadCachePopup(Stage stage) {
@@ -85,10 +85,12 @@ public class ReloadCachePopup extends VBox {
 
         accountsScrollPane.setContent(accountsVBox);
         accountsScrollPane.setFitToWidth(true);
-        accountsScrollPane.setMaxHeight(400);
+        accountsScrollPane.setMinHeight(250);
+        VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
 
         logVBox.setPadding(new Insets(5));
         logScrollPane.setFitToWidth(true);
+        logScrollPane.setMinHeight(250);
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
         logVBox.heightProperty().addListener((obs, oldVal, newVal) -> logScrollPane.setVvalue(1.0));
 
@@ -97,6 +99,10 @@ public class ReloadCachePopup extends VBox {
             logVBox.getChildren().clear();
             new Thread(this::reloadSelectedAccounts).start();
         });
+
+        // Ensure proper layout when toggling visibility
+        reloadButton.managedProperty().bind(reloadButton.visibleProperty());
+        loadingIndicator.managedProperty().bind(loadingIndicator.visibleProperty());
 
         Button copyLogButton = new Button("Copy Log");
         copyLogButton.setOnAction(event -> {
@@ -131,27 +137,11 @@ public class ReloadCachePopup extends VBox {
         getChildren().addAll(progressBar, selectAllCheckBox, accountsScrollPane, logScrollPane, buttonBox);
     }
 
-    private StackPane createLoadingIndicator() {
-        SVGPath svgPath = new SVGPath();
-        svgPath.setContent("M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z");
-        svgPath.setFill(Color.TRANSPARENT);
-
-        SVGPath spinner = new SVGPath();
-        spinner.setContent("M12,2A10,10,0,0,1,22,12");
-        spinner.setStroke(Color.BLACK);
-        spinner.setStrokeWidth(3);
-        spinner.setFill(Color.TRANSPARENT);
-
-        StackPane stackPane = new StackPane(svgPath, spinner);
-        stackPane.setPrefSize(24, 24);
-        stackPane.setVisible(false);
-
-        RotateTransition rotateTransition = new RotateTransition(Duration.seconds(1), spinner);
-        rotateTransition.setByAngle(360);
-        rotateTransition.setCycleCount(RotateTransition.INDEFINITE);
-        rotateTransition.play();
-
-        return stackPane;
+    private ProgressIndicator createLoadingIndicator() {
+        ProgressIndicator indicator = new ProgressIndicator();
+        indicator.setMaxSize(24, 24);
+        indicator.setVisible(false);
+        return indicator;
     }
 
     private void reloadSelectedAccounts() {
@@ -177,9 +167,15 @@ public class ReloadCachePopup extends VBox {
             boolean success = false;
             try {
                 cacheService.reloadCache(account, this::logMessage);
-                success = true;
-            } catch (IOException e) {
+                if (cacheService.getChannelCountForAccount(account.getDbId()) > 0) {
+                    success = true;
+                } else {
+                    success = false;
+                    logMessage("Warning: No channels found for " + account.getAccountName());
+                }
+            } catch (Exception e) {
                 logMessage("Error reloading cache for " + account.getAccountName() + ": " + e.getMessage());
+                success = false;
             }
             progressBar.updateSegment(i, success);
         }
@@ -253,7 +249,7 @@ public class ReloadCachePopup extends VBox {
         });
 
         Button cancelButton = new Button("Cancel");
-        cancelButton.setOnAction(_ -> popupStage.close());
+        cancelButton.setOnAction(e -> popupStage.close());
 
         HBox buttons = new HBox(10, deleteButton, cancelButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
