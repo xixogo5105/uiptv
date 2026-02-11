@@ -6,6 +6,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.PlayerService;
 import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -46,6 +47,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private Timeline inactivityTimer;
     private Account currentAccount;
     private Channel currentChannel;
+    private int retryCount = 0;
 
     // UI Components
     private Slider timeSlider;
@@ -189,7 +191,10 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
         });
 
-        btnReload.setOnAction(e -> refreshAndPlay());
+        btnReload.setOnAction(e -> {
+            retryCount = 0;
+            refreshAndPlay();
+        });
 
         btnFullscreen.setOnAction(e -> toggleFullscreen());
         btnPip.setOnAction(e -> togglePip());
@@ -296,6 +301,25 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         setupFadeAndIdleLogic();
     }
 
+    private void handleRepeat() {
+        if (retryCount < 5) {
+            retryCount++;
+            if (retryCount == 1) {
+                refreshAndPlay();
+            } else {
+                PauseTransition delay = new PauseTransition(Duration.seconds(10));
+                delay.setOnFinished(e -> refreshAndPlay());
+                delay.play();
+            }
+        } else {
+            stop();
+            Platform.runLater(() -> {
+                errorLabel.setText("Failed to reconnect after 5 attempts.");
+                errorLabel.setVisible(true);
+            });
+        }
+    }
+
     private void refreshAndPlay() {
         if (currentAccount != null && currentChannel != null) {
             loadingSpinner.setVisible(true);
@@ -303,20 +327,23 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             new Thread(() -> {
                 try {
                     final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
-                    Platform.runLater(() -> play(newResponse));
+                    Platform.runLater(() -> play(newResponse, true));
                 } catch (IOException e) {
                     e.printStackTrace();
                     Platform.runLater(() -> {
                         loadingSpinner.setVisible(false);
                         errorLabel.setText("Could not refresh stream.");
                         errorLabel.setVisible(true);
+                        if (isRepeating) {
+                            handleRepeat();
+                        }
                     });
                 }
             }).start();
         } else {
             // Fallback to old behavior if account/channel not available
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(new PlayerResponse(currentMediaUri));
+                play(new PlayerResponse(currentMediaUri), true);
             }
         }
     }
@@ -494,6 +521,14 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void play(PlayerResponse response) {
+        play(response, false);
+    }
+
+    private void play(PlayerResponse response, boolean isInternalRetry) {
+        if (!isInternalRetry) {
+            retryCount = 0;
+        }
+
         String uri = null;
         if (response != null) {
             uri = response.getUrl();
@@ -542,6 +577,9 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                                 errorLabel.setText("Could not play video.\nUnsupported format or network error.");
                                 errorLabel.setVisible(true);
                                 loadingSpinner.setVisible(false);
+                                if (isRepeating) {
+                                    handleRepeat();
+                                }
                             });
                         });
 
@@ -558,7 +596,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         mediaPlayer.currentTimeProperty().addListener(progressListener);
                         mediaPlayer.setOnEndOfMedia(() -> {
                             if (isRepeating) {
-                                refreshAndPlay(); // Reload the stream
+                                handleRepeat(); // Reload the stream
                             } else {
                                 btnPlayPause.setGraphic(playIcon);
                                 mediaPlayer.seek(Duration.ZERO);
@@ -601,6 +639,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stop() {
+        retryCount = 0;
         if (mediaPlayer != null) {
             mediaPlayer.stop();
             mediaPlayer.dispose();

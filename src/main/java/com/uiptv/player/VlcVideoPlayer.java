@@ -49,6 +49,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private Account currentAccount;
     private Channel currentChannel;
     private boolean isRepeating = false;
+    private int retryCount = 0;
 
     // UI Components
     private Slider timeSlider;
@@ -207,7 +208,10 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             mediaPlayer.controls().setRepeat(false); // Always disable vlcj's own repeat
         });
 
-        btnReload.setOnAction(e -> refreshAndPlay());
+        btnReload.setOnAction(e -> {
+            retryCount = 0;
+            refreshAndPlay();
+        });
 
         btnFullscreen.setOnAction(e -> toggleFullscreen());
 
@@ -295,7 +299,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 Platform.runLater(() -> {
                     btnPlayPause.setGraphic(playIcon);
                     if (isRepeating) {
-                        refreshAndPlay();
+                        handleRepeat();
                     }
                 });
             }
@@ -316,12 +320,34 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                     System.err.println("An error occurred in the media player.");
                     errorLabel.setText("Could not play video.\nUnsupported format or network error.");
                     errorLabel.setVisible(true);
+                    if (isRepeating) {
+                        handleRepeat();
+                    }
                 });
             }
         });
 
         // --- 5. FADE / HIDE LOGIC ---
         setupFadeAndIdleLogic();
+    }
+
+    private void handleRepeat() {
+        if (retryCount < 5) {
+            retryCount++;
+            if (retryCount == 1) {
+                refreshAndPlay();
+            } else {
+                PauseTransition delay = new PauseTransition(Duration.seconds(10));
+                delay.setOnFinished(e -> refreshAndPlay());
+                delay.play();
+            }
+        } else {
+            stop();
+            Platform.runLater(() -> {
+                errorLabel.setText("Failed to reconnect after 5 attempts.");
+                errorLabel.setVisible(true);
+            });
+        }
     }
 
     private void refreshAndPlay() {
@@ -331,20 +357,23 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             new Thread(() -> {
                 try {
                     final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
-                    Platform.runLater(() -> play(newResponse));
+                    Platform.runLater(() -> play(newResponse, true));
                 } catch (IOException e) {
                     e.printStackTrace();
                     Platform.runLater(() -> {
                         loadingSpinner.setVisible(false);
                         errorLabel.setText("Could not refresh stream.");
                         errorLabel.setVisible(true);
+                        if (isRepeating) {
+                            handleRepeat();
+                        }
                     });
                 }
             }).start();
         } else {
             // Fallback to old behavior if account/channel not available
             if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(new PlayerResponse(currentMediaUri));
+                play(new PlayerResponse(currentMediaUri), true);
             }
         }
     }
@@ -498,6 +527,14 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void play(PlayerResponse response) {
+        play(response, false);
+    }
+
+    private void play(PlayerResponse response, boolean isInternalRetry) {
+        if (!isInternalRetry) {
+            retryCount = 0;
+        }
+
         String uri = null;
         if (response != null) {
             uri = response.getUrl();
@@ -534,6 +571,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stop() {
+        retryCount = 0;
         if (mediaPlayer != null) {
             mediaPlayer.controls().stop();
             playerContainer.setMinHeight(0);
