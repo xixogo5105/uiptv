@@ -120,6 +120,9 @@ public class MacAddressManagementPopup extends Stage {
         layout.getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label("Add New:"), addBox, new Separator(), bottomBox);
 
         Scene scene = new Scene(layout, 450, 500);
+        if (RootApplication.currentTheme != null) {
+            scene.getStylesheets().add(RootApplication.currentTheme);
+        }
         setScene(scene);
     }
 

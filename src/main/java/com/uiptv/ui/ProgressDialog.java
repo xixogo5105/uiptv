@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -21,7 +22,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
-import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
@@ -32,7 +32,7 @@ import java.util.List;
 
 public class ProgressDialog extends Stage {
 
-    private final HBox progressBarContainer = new HBox(0);
+    private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final VBox messageContainer = new VBox();
     private final ScrollPane scrollPane = new ScrollPane(messageContainer);
     private final Button cancelButton = new Button("Cancel");
@@ -44,9 +44,6 @@ public class ProgressDialog extends Stage {
     private final Line clockHand = new Line(0, 0, 0, -10);
     private final Label pauseLabel = new Label();
 
-    private int totalItems = 0;
-    private int currentIndex = 0;
-
     public ProgressDialog(Stage owner) {
         initOwner(owner);
         initModality(Modality.APPLICATION_MODAL);
@@ -57,12 +54,7 @@ public class ProgressDialog extends Stage {
         root.setPadding(new Insets(20));
         
         // Progress Bar (Top)
-        progressBarContainer.setMinHeight(14);
-        progressBarContainer.setPrefHeight(14);
-        progressBarContainer.setMaxHeight(14);
-        progressBarContainer.setAlignment(Pos.CENTER_LEFT);
-        progressBarContainer.setStyle("-fx-background-color: #f4f4f4; -fx-padding: 2; -fx-border-color: #cccccc; -fx-border-width: 1; -fx-border-radius: 3;");
-        BorderPane.setMargin(progressBarContainer, new Insets(0, 0, 10, 0));
+        BorderPane.setMargin(progressBar, new Insets(0, 0, 10, 0));
         
         // Message Area (Center)
         scrollPane.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-border-radius: 3;");
@@ -102,14 +94,17 @@ public class ProgressDialog extends Stage {
         bottomBar.getChildren().addAll(pauseWidget, new Label("Delay:"), delayDropdown, spacer, buttonBox);
 
         // Assemble Root
-        root.setTop(progressBarContainer);
+        root.setTop(progressBar);
         root.setCenter(scrollPane);
         root.setBottom(bottomBar);
 
         Scene scene = new Scene(root, 600, 450); // Increased width for dropdown
+        if (RootApplication.currentTheme != null) {
+            scene.getStylesheets().add(RootApplication.currentTheme);
+        }
         setScene(scene);
         
-        progressBarContainer.prefWidthProperty().bind(scene.widthProperty().subtract(45));
+        progressBar.prefWidthProperty().bind(scene.widthProperty().subtract(45));
     }
 
     public long getSelectedDelayMillis() {
@@ -132,32 +127,11 @@ public class ProgressDialog extends Stage {
     }
 
     public void setTotal(int total) {
-        this.totalItems = total;
-        this.currentIndex = 0;
-        Platform.runLater(() -> {
-            progressBarContainer.getChildren().clear();
-            if (total > 0) {
-                for (int i = 0; i < total; i++) {
-                    Region segment = new Region();
-                    HBox.setHgrow(segment, Priority.ALWAYS);
-                    segment.setStyle("-fx-background-color: #e0e0e0; -fx-background-radius: 0;");
-                    progressBarContainer.getChildren().add(segment);
-                }
-            }
-        });
+        progressBar.setTotal(total);
     }
 
     public void addResult(boolean isValid) {
-        Platform.runLater(() -> {
-            if (currentIndex < progressBarContainer.getChildren().size()) {
-                Node node = progressBarContainer.getChildren().get(currentIndex);
-                if (node instanceof Region) {
-                    String color = isValid ? "#4CAF50" : "#F44336";
-                    node.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 0;");
-                }
-                currentIndex++;
-            }
-        });
+        progressBar.addResult(isValid);
     }
 
     public void addProgressText(String text) {

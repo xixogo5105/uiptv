@@ -163,7 +163,6 @@ public class ManageAccountUI extends VBox {
                 saveAccount(false);
             });
         });
-        popup.getScene().getStylesheets().add(RootApplication.currentTheme);
         popup.show();
     }
 

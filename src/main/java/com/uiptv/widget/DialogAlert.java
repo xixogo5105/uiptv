@@ -1,5 +1,6 @@
 package com.uiptv.widget;
 
+import com.uiptv.ui.RootApplication;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -13,6 +14,9 @@ public class DialogAlert {
         Button noButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.NO);
         noButton.setDefaultButton(true);
         confirmDialogue.initModality(Modality.NONE);
+        if (RootApplication.currentTheme != null) {
+            confirmDialogue.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        }
         confirmDialogue.showAndWait();
         return confirmDialogue;
     }

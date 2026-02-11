@@ -58,7 +58,7 @@ public class ConfigurationUI extends VBox {
     private final Button stopServerButton = new Button("Stop Server");
     private final Button publishM3u8Button = new Button("Publish M3U8");
     private final Button clearCacheButton = new Button("Clear Cache");
-    private final Button reloadCacheButton = new Button("Reload Stalker Portal Accounts");
+    private final Button reloadCacheButton = new Button("Reload Accounts Cache");
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final Callback onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
@@ -159,7 +159,7 @@ public class ConfigurationUI extends VBox {
             Stage popupStage = new Stage();
             ReloadCachePopup popup = new ReloadCachePopup(popupStage);
             Scene scene = new Scene(popup, 1368, 720);
-            popupStage.setTitle("Reload Stalker Portal Accounts");
+            popupStage.setTitle("Reload Accounts Cache");
             popupStage.setScene(scene);
             popupStage.showAndWait();
         });

@@ -181,6 +181,9 @@ public class AccountListUI extends HBox {
                 table.getSelectionModel().getSelectedItems().stream()
                         .map(accountItem -> ((AccountItem) accountItem).getAccountName())
                         .collect(Collectors.joining(", ")));
+        if (RootApplication.currentTheme != null) {
+            alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        }
         isPromptShowing = true;
         alert.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {

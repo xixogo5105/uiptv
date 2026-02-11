@@ -2,31 +2,37 @@ package com.uiptv.ui;
 
 import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
+import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
-import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.SegmentedProgressBar;
 import javafx.animation.RotateTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.ScrollPane;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCachePopup extends VBox {
 
@@ -36,7 +42,7 @@ public class ReloadCachePopup extends VBox {
     private final ScrollPane accountsScrollPane = new ScrollPane();
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final CheckBox selectAllCheckBox = new CheckBox("Select All");
-    private final HBox progressBarContainer = new HBox(0);
+    private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
     private final StackPane loadingIndicator = createLoadingIndicator();
     private final CacheService cacheService = new CacheServiceImpl();
@@ -48,19 +54,13 @@ public class ReloadCachePopup extends VBox {
         setPrefSize(1368, 720);
         getStylesheets().add(RootApplication.currentTheme);
 
-        progressBarContainer.setMinHeight(20);
-        progressBarContainer.setPrefHeight(20);
-        progressBarContainer.setMaxHeight(20);
-        progressBarContainer.setAlignment(Pos.CENTER_LEFT);
-        progressBarContainer.getStyleClass().add("progress-bar-container");
-
         accountsVBox.setPadding(new Insets(10));
-        List<Account> stalkerAccounts = AccountDb.get().getAccounts().stream()
-                .filter(account -> account.getType() == AccountType.STALKER_PORTAL)
+        List<Account> supportedAccounts = AccountDb.get().getAccounts().stream()
+                .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
                 .collect(Collectors.toList());
 
-        for (int i = 0; i < stalkerAccounts.size(); i++) {
-            Account account = stalkerAccounts.get(i);
+        for (int i = 0; i < supportedAccounts.size(); i++) {
+            Account account = supportedAccounts.get(i);
             CheckBox accountCheckBox = new CheckBox(account.getAccountName());
             accountCheckBox.setUserData(account);
             accountCheckBox.setMaxWidth(Double.MAX_VALUE);
@@ -128,7 +128,7 @@ public class ReloadCachePopup extends VBox {
         buttonBox.setAlignment(Pos.CENTER_LEFT);
         buttonBox.setPadding(new Insets(10, 0, 0, 0));
 
-        getChildren().addAll(progressBarContainer, selectAllCheckBox, accountsScrollPane, logScrollPane, buttonBox);
+        getChildren().addAll(progressBar, selectAllCheckBox, accountsScrollPane, logScrollPane, buttonBox);
     }
 
     private StackPane createLoadingIndicator() {
@@ -166,21 +166,14 @@ public class ReloadCachePopup extends VBox {
                 .collect(Collectors.toList());
 
         int total = selectedAccounts.size();
-        Platform.runLater(() -> {
-            progressBarContainer.getChildren().clear();
-            if (total > 0) {
-                for (int i = 0; i < total; i++) {
-                    Region segment = new Region();
-                    HBox.setHgrow(segment, Priority.ALWAYS);
-                    segment.getStyleClass().add("progress-bar-segment");
-                    progressBarContainer.getChildren().add(segment);
-                }
-            }
-        });
+        progressBar.setTotal(total);
+
+        List<Account> processedAccounts = new ArrayList<>();
 
         for (int i = 0; i < total; i++) {
             CheckBox checkBox = selectedAccounts.get(i);
             Account account = (Account) checkBox.getUserData();
+            processedAccounts.add(account);
             boolean success = false;
             try {
                 cacheService.reloadCache(account, this::logMessage);
@@ -188,15 +181,7 @@ public class ReloadCachePopup extends VBox {
             } catch (IOException e) {
                 logMessage("Error reloading cache for " + account.getAccountName() + ": " + e.getMessage());
             }
-
-            final int index = i;
-            final boolean result = success;
-            Platform.runLater(() -> {
-                if (index < progressBarContainer.getChildren().size()) {
-                    Region segment = (Region) progressBarContainer.getChildren().get(index);
-                    segment.getStyleClass().add(result ? "success" : "failure");
-                }
-            });
+            progressBar.updateSegment(i, success);
         }
 
         Platform.runLater(() -> {
@@ -206,7 +191,81 @@ public class ReloadCachePopup extends VBox {
             System.out.print("\u0007"); // Beep
             reloadButton.setVisible(true);
             loadingIndicator.setVisible(false);
+
+            List<Account> emptyAccounts = processedAccounts.stream()
+                    .filter(a -> cacheService.getChannelCountForAccount(a.getDbId()) == 0)
+                    .collect(Collectors.toList());
+
+            if (!emptyAccounts.isEmpty()) {
+                showDeleteEmptyAccountsPopup(emptyAccounts);
+            }
         });
+    }
+
+    private void showDeleteEmptyAccountsPopup(List<Account> emptyAccounts) {
+        Stage popupStage = new Stage();
+        popupStage.initModality(Modality.APPLICATION_MODAL);
+        popupStage.setTitle("Delete Empty Accounts");
+
+        VBox root = new VBox(10);
+        root.setPadding(new Insets(20));
+
+        Label warningLabel = new Label("The following accounts have 0 channels. Select the ones you want to delete.");
+        warningLabel.setWrapText(true);
+        warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+
+        VBox accountsBox = new VBox(5);
+        ScrollPane scrollPane = new ScrollPane(accountsBox);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(300);
+
+        CheckBox selectAll = new CheckBox("Select All");
+        selectAll.setOnAction(e -> accountsBox.getChildren().forEach(node -> {
+            if (node instanceof CheckBox) ((CheckBox) node).setSelected(selectAll.isSelected());
+        }));
+
+        for (Account account : emptyAccounts) {
+            CheckBox cb = new CheckBox(account.getAccountName() + " (" + account.getType().getDisplay() + ")");
+            cb.setUserData(account);
+            accountsBox.getChildren().add(cb);
+        }
+
+        Button deleteButton = new Button("Delete Selected");
+        deleteButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-weight: bold;");
+        deleteButton.setOnAction(e -> {
+            List<Account> toDelete = accountsBox.getChildren().stream()
+                    .filter(n -> n instanceof CheckBox && ((CheckBox) n).isSelected())
+                    .map(n -> (Account) n.getUserData())
+                    .collect(Collectors.toList());
+
+            if (toDelete.isEmpty()) return;
+
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to delete " + toDelete.size() + " accounts?", ButtonType.YES, ButtonType.NO);
+            if (RootApplication.currentTheme != null) {
+                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+            }
+            alert.showAndWait().ifPresent(response -> {
+                if (response == ButtonType.YES) {
+                    toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
+                    popupStage.close();
+                }
+            });
+        });
+
+        Button cancelButton = new Button("Cancel");
+        cancelButton.setOnAction(_ -> popupStage.close());
+
+        HBox buttons = new HBox(10, deleteButton, cancelButton);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+
+        root.getChildren().addAll(warningLabel, selectAll, scrollPane, buttons);
+
+        Scene scene = new Scene(root, 500, 500);
+        if (RootApplication.currentTheme != null) {
+            scene.getStylesheets().add(RootApplication.currentTheme);
+        }
+        popupStage.setScene(scene);
+        popupStage.show();
     }
 
     public void logMessage(String message) {
