@@ -167,10 +167,7 @@ public class ChannelListUI extends HBox {
                     PlayOrShowSeries(row.getItem());
                 }
             });
-            if (account.getAction() != series) {
-                addRightClickContextMenu(row);
-            }
-
+            addRightClickContextMenu(row);
             return row;
         });
     }
@@ -294,9 +291,17 @@ public class ChannelListUI extends HBox {
         rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
         row.contextMenuProperty().bind(
-                Bindings.when(row.emptyProperty())
-                        .then((ContextMenu) null)
-                        .otherwise(rowMenu));
+            Bindings.when(
+                row.emptyProperty().or(
+                    Bindings.createBooleanBinding(() ->
+                        account.getAction() == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
+                        row.itemProperty()
+                    )
+                )
+            )
+            .then((ContextMenu) null)
+            .otherwise(rowMenu)
+        );
     }
 
     private void saveBookmark(ChannelItem item, String bookmarkCategoryId) {
