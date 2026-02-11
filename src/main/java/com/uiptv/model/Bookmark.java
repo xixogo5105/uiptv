@@ -4,8 +4,6 @@ import com.uiptv.shared.BaseJson;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Map;
-
 @Data
 @NoArgsConstructor
 public class Bookmark extends BaseJson {
@@ -17,6 +15,7 @@ public class Bookmark extends BaseJson {
     private String cmd;
     private String serverPortalUrl;
     private String categoryId;
+    private Account.AccountAction accountAction; // Added field
     private String drmType;
     private String drmLicenseUrl;
     private String clearKeysJson;

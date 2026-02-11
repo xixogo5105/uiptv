@@ -11,7 +11,8 @@ public class DatabaseUtils {
         BOOKMARK_TABLE("Bookmark"),
         CATEGORY_TABLE("Category"),
         CHANNEL_TABLE("Channel"),
-        BOOKMARK_CATEGORY_TABLE("BookmarkCategory");
+        BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
+        BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
 
         private final String tableName;
 
@@ -26,7 +27,7 @@ public class DatabaseUtils {
     }
 
     public static final EnumSet<DbTable> Cacheable = EnumSet.of(DbTable.CATEGORY_TABLE, DbTable.CHANNEL_TABLE);
-    public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE, DbTable.BOOKMARK_CATEGORY_TABLE);
+    public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE, DbTable.BOOKMARK_CATEGORY_TABLE, DbTable.BOOKMARK_ORDER_TABLE);
 
     static {
         dbStructure.put(DbTable.CONFIGURATION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
@@ -73,6 +74,7 @@ public class DatabaseUtils {
                 new DataColumn("cmd", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
                 new DataColumn("categoryId", "TEXT"),
+                new DataColumn("accountAction", "TEXT"), // Added column
                 new DataColumn("drmType", "TEXT"),
                 new DataColumn("drmLicenseUrl", "TEXT"),
                 new DataColumn("clearKeysJson", "TEXT"),
@@ -113,6 +115,12 @@ public class DatabaseUtils {
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),
                 new DataColumn("name", "TEXT NOT NULL")
+        )));
+        dbStructure.put(DbTable.BOOKMARK_ORDER_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("bookmark_db_id", "TEXT NOT NULL"),
+                new DataColumn("category_id", "TEXT"), // Can be null for "All"
+                new DataColumn("display_order", "INTEGER")
         )));
     }
 

@@ -14,10 +14,10 @@ import java.util.List;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 
-public class SearchableTableViewWithButton extends VBox {
+public class SearchableTableViewWithButton<T> extends VBox { // Made generic
     private final TextField searchTextField = new TextField();
     private final Button manageCategoriesButton = new Button("Add");
-    private final TableView tableView = new TableView();
+    private final TableView<T> tableView = new TableView<>(); // Made generic
 
     public SearchableTableViewWithButton() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
@@ -46,11 +46,11 @@ public class SearchableTableViewWithButton extends VBox {
         return manageCategoriesButton;
     }
 
-    public TableView getTableView() {
+    public TableView<T> getTableView() { // Made generic
         return tableView;
     }
 
-    public <T> void addTextFilter() {
+    public void addTextFilter() { // Removed <T> from here, now uses class T
         TextField filterField = getSearchTextField();
         final List<TableColumn<T, ?>> columns = tableView.getColumns();
         FilteredList<T> filteredData = new FilteredList<>(tableView.getItems());

@@ -57,6 +57,7 @@ public class EpisodesListUI extends HBox {
         List<EpisodeItem> catList = new ArrayList<>();
         channelList.episodes.forEach(i -> {
             Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
+            b.setAccountAction(account.getAction());
             boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
             String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
             String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
@@ -234,6 +235,7 @@ public class EpisodesListUI extends HBox {
     private void saveBookmark(EpisodeItem item, String bookmarkCategoryId) {
         new Thread(() -> {
             Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
+            bookmark.setAccountAction(account.getAction());
             bookmark.setCategoryId(bookmarkCategoryId);
             BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {

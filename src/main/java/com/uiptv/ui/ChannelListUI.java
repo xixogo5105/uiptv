@@ -68,6 +68,7 @@ public class ChannelListUI extends HBox {
         List<ChannelItem> catList = new ArrayList<>();
         channelList.forEach(i -> {
             Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
+            b.setAccountAction(account.getAction());
             boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
             catList.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(i.getLogo())));
         });
@@ -301,6 +302,7 @@ public class ChannelListUI extends HBox {
     private void saveBookmark(ChannelItem item, String bookmarkCategoryId) {
         new Thread(() -> {
             Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
+            bookmark.setAccountAction(account.getAction());
             bookmark.setCategoryId(bookmarkCategoryId);
             BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {

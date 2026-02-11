@@ -31,7 +31,6 @@ public class BookmarkService {
         return (BookmarkDb.get().getById(dbId));
     }
 
-    // New overloaded method to find a bookmark by its properties
     public Bookmark getBookmark(Bookmark bookmark) {
         return BookmarkDb.get().getBookmarkById(bookmark);
     }
@@ -53,6 +52,10 @@ public class BookmarkService {
         return BookmarkDb.get().getBookmarks();
     }
 
+    public List<Bookmark> getBookmarksByCategory(String categoryId) {
+        return BookmarkDb.get().getBookmarksByCategory(categoryId);
+    }
+
     public void remove(String id) {
         try {
             BookmarkDb.get().delete(id);
@@ -65,7 +68,7 @@ public class BookmarkService {
         return ServerUtils.objectToJson(new ArrayList<>(read()));
     }
 
-    // New methods for category operations
+    // Category operations
     public List<BookmarkCategory> getAllCategories() {
         return BookmarkDb.get().getAllCategories();
     }
@@ -76,5 +79,10 @@ public class BookmarkService {
 
     public void removeCategory(BookmarkCategory category) {
         BookmarkDb.get().deleteCategory(category);
+    }
+
+    // Order operations
+    public void saveBookmarkOrder(String categoryId, List<String> orderedBookmarkDbIds) {
+        BookmarkDb.get().updateBookmarkOrders(categoryId, orderedBookmarkDbIds);
     }
 }
