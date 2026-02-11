@@ -8,6 +8,7 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
@@ -20,6 +21,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -167,7 +169,7 @@ public class ChannelListUI extends HBox {
                     PlayOrShowSeries(row.getItem());
                 }
             });
-            if (!(account.getAction() == series && account.getType() == XTREME_API)) {
+            if (account.getAction() != series) {
                 addRightClickContextMenu(row);
             }
 
@@ -177,21 +179,36 @@ public class ChannelListUI extends HBox {
 
     private void PlayOrShowSeries(ChannelItem item) {
         if (item == null) return;
-        if (account.getAction() == series && account.getType() == XTREME_API) {
-            if (this.getChildren().size() > 1) {
-                this.getChildren().remove(1);
-            }
-            this.getChildren().add(new EpisodesListUI(XtremeParser.parseEpisodes(item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI));
-        } else if (account.getAction() == series && account.getType() == STALKER_PORTAL) {
-            if (isBlank(item.getCmd())) {
-                if (this.getChildren().size() > 1) {
-                    this.getChildren().remove(1);
+
+        if (account.getAction() == series) {
+            getScene().setCursor(Cursor.WAIT);
+            new Thread(() -> {
+                try {
+                    if (account.getType() == XTREME_API) {
+                        EpisodeList episodes = XtremeParser.parseEpisodes(item.getChannelId(), account);
+                        runLater(() -> {
+                            if (this.getChildren().size() > 1) {
+                                this.getChildren().remove(1);
+                            }
+                            this.getChildren().add(new EpisodesListUI(episodes, account, item.getChannelName(), bookmarkChannelListUI));
+                        });
+                    } else if (account.getType() == STALKER_PORTAL) {
+                        if (isBlank(item.getCmd())) {
+                            List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account);
+                            runLater(() -> {
+                                this.getChildren().clear();
+                                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(seriesChannels, account, item.getChannelName(), bookmarkChannelListUI, categoryId));
+                            });
+                        } else {
+                            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
+                        }
+                    }
+                } catch (Exception e) {
+                    runLater(() -> showErrorAlert("Error loading series: " + e.getMessage()));
+                } finally {
+                    runLater(() -> getScene().setCursor(Cursor.DEFAULT));
                 }
-                this.getChildren().clear();
-                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account), account, item.getChannelName(), bookmarkChannelListUI, categoryId));
-            } else {
-                play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
-            }
+            }).start();
         } else {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
         }
@@ -245,53 +262,61 @@ public class ChannelListUI extends HBox {
     }
 
     private void play(ChannelItem item, String playerPath, boolean runBookmark) {
-        try {
-            PlayerResponse response;
-            Channel channel = channelList.stream()
-                    .filter(c -> c.getChannelId().equals(item.getChannelId()))
-                    .findFirst()
-                    .orElse(null);
+        getScene().setCursor(Cursor.WAIT);
+        new Thread(() -> {
+            try {
+                PlayerResponse response;
+                Channel channel = channelList.stream()
+                        .filter(c -> c.getChannelId().equals(item.getChannelId()))
+                        .findFirst()
+                        .orElse(null);
 
-            if (channel == null) {
-                channel = new Channel();
-                channel.setChannelId(item.getChannelId());
-                channel.setName(item.getChannelName());
-                channel.setCmd(item.getCmd());
-                channel.setLogo(item.getLogo());
-            }
-
-            if (runBookmark) {
-                Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
-                response = PlayerService.getInstance().runBookmark(account, bookmark);
-            } else {
-                response = PlayerService.getInstance().get(account, channel, item.getChannelId());
-            }
-
-            response.setFromChannel(channel, account); // Ensure response has channel and account
-
-            String evaluatedStreamUrl = response.getUrl();
-
-            boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-            boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-
-            if (playerPathIsEmbedded) {
-                if (useEmbeddedPlayerConfig) {
-                    getPlayer().play(response);
-                } else {
-                    showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                if (channel == null) {
+                    channel = new Channel();
+                    channel.setChannelId(item.getChannelId());
+                    channel.setName(item.getChannelName());
+                    channel.setCmd(item.getCmd());
+                    channel.setLogo(item.getLogo());
                 }
-            } else {
-                if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
-                    getPlayer().play(response);
-                } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
-                    showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+
+                if (runBookmark) {
+                    Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
+                    response = PlayerService.getInstance().runBookmark(account, bookmark);
                 } else {
-                    Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                    response = PlayerService.getInstance().get(account, channel, item.getChannelId());
                 }
+
+                response.setFromChannel(channel, account); // Ensure response has channel and account
+
+                final String evaluatedStreamUrl = response.getUrl();
+                final PlayerResponse finalResponse = response;
+
+                runLater(() -> {
+                    boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+                    boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+
+                    if (playerPathIsEmbedded) {
+                        if (useEmbeddedPlayerConfig) {
+                            getPlayer().play(finalResponse);
+                        } else {
+                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                        }
+                    } else {
+                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
+                            getPlayer().play(finalResponse);
+                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
+                            showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                        } else {
+                            Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                runLater(() -> showErrorAlert("Error playing channel: " + e.getMessage()));
+            } finally {
+                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        }).start();
     }
 
     public static class ChannelItem {

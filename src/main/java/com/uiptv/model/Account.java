@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.uiptv.model.Account.AccountAction.itv;
-import static com.uiptv.util.AccountType.STALKER_PORTAL;
+import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
@@ -31,6 +31,8 @@ public class Account extends BaseJson {
     }
 
     public static final EnumSet<AccountAction> NOT_LIVE_TV_CHANNELS = EnumSet.of(AccountAction.vod, AccountAction.series);
+    public static final EnumSet<AccountType> VOD_AND_SERIES_SUPPORTED = EnumSet.of(STALKER_PORTAL, XTREME_API);
+    public static final EnumSet<AccountType> CACHE_SUPPORTED = EnumSet.of(STALKER_PORTAL, XTREME_API, M3U8_URL, M3U8_LOCAL);
     public static final String LINE_SEPARATOR = "\n\r";
     private String serverPortalUrl;
     private AccountAction action = itv;

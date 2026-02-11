@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
+import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
@@ -49,12 +50,6 @@ public class AccountListUI extends HBox {
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         initWidgets();
         refresh();
-    }
-
-    public CategoryListUI refreshCategoryList(Account account) {
-        List<Category> list = CategoryService.getInstance().get(account);
-        if (account.isNotConnected()) return null;
-        return new CategoryListUI(list, account, bookmarkChannelListUI);
     }
 
     public void addUpdateCallbackHandler(Callback onEditCallback) {
@@ -162,6 +157,15 @@ public class AccountListUI extends HBox {
 
         rowMenu.getItems().addAll(deleteItem, itv, vod, series);
 
+        rowMenu.setOnShowing(e -> {
+            if (row.getItem() != null) {
+                Account account = AccountDb.get().getAccountById(row.getItem().getAccountId());
+                boolean supported = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
+                vod.setVisible(supported);
+                series.setVisible(supported);
+            }
+        });
+
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
@@ -195,56 +199,47 @@ public class AccountListUI extends HBox {
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
         boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
 
+        primaryStage.getScene().setCursor(Cursor.WAIT);
+        LogPopupUI logPopup = null;
+
         if (!channelsAlreadyLoaded) {
-            LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
+            logPopup = new LogPopupUI("Caching channels. This will take a while...");
             logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
             logPopup.show();
-            primaryStage.getScene().setCursor(Cursor.WAIT);
-
-            new Thread(() -> {
-                try {
-                    cacheService.reloadCache(account, logPopup.getLogger());
-                    Platform.runLater(() -> {
-                        try {
-                            retrieveAccountCategories(item, accountAction);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                } catch (IOException e) {
-                    Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
-                } finally {
-                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                    logPopup.closeGracefully();
-                }
-            }).start();
-        } else {
-            primaryStage.getScene().setCursor(Cursor.WAIT);
-            new Thread(() -> {
-                try {
-                    Platform.runLater(() -> {
-                        try {
-                            retrieveAccountCategories(item, accountAction);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                } finally {
-                    Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
-                }
-            }).start();
         }
-    }
 
-    private synchronized void retrieveAccountCategories(AccountItem clickedRow, Account.AccountAction accountAction) throws IOException {
-        Account account = AccountDb.get().getAccountById(clickedRow.getAccountId());
-        account.setAction(accountAction);
-        CategoryListUI categoryListUI = refreshCategoryList(account);
-        if (categoryListUI == null) return;
-        AccountListUI.this.getChildren().clear();
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
-        sceneBox.setMaxHeight(25);
-        AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
+        final LogPopupUI finalLogPopup = logPopup;
+
+        new Thread(() -> {
+            try {
+                if (!channelsAlreadyLoaded) {
+                    cacheService.reloadCache(account, finalLogPopup.getLogger());
+                }
+
+                final List<Category> list = CategoryService.getInstance().get(account);
+
+                Platform.runLater(() -> {
+                    if (account.isNotConnected()) {
+                        return;
+                    }
+                    CategoryListUI categoryListUI = new CategoryListUI(list, account, bookmarkChannelListUI);
+
+                    AccountListUI.this.getChildren().clear();
+                    HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
+                    sceneBox.setMaxHeight(25);
+                    AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
+                });
+            } catch (IOException e) {
+                Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
+            } finally {
+                Platform.runLater(() -> {
+                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
+                    if (finalLogPopup != null) {
+                        finalLogPopup.closeGracefully();
+                    }
+                });
+            }
+        }).start();
     }
 
     public class AccountItem {

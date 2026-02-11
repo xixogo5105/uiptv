@@ -12,10 +12,13 @@ import com.uiptv.util.ImageCacheManager;
 import com.uiptv.util.Platform;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
+import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -23,6 +26,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.util.Callback;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +34,7 @@ import java.util.List;
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public class EpisodesListUI extends HBox {
@@ -40,7 +45,7 @@ public class EpisodesListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<EpisodeItem, String> channelName = new TableColumn<>("Episodes");
 
-    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
+    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) {
         this.channelList = channelList;
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
@@ -54,13 +59,14 @@ public class EpisodesListUI extends HBox {
         List<EpisodeItem> catList = new ArrayList<>();
         channelList.episodes.forEach(i -> {
             Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
-            boolean checkBookmark = BookmarkService.getInstance().isChannelBookmarked(b);
+            boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
             String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
             String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
             catList.add(new EpisodeItem(
-                    new SimpleStringProperty(checkBookmark ? "**" + i.getTitle().replace("*", "") + "**" : i.getTitle()),
+                    new SimpleStringProperty(i.getTitle()),
                     new SimpleStringProperty(i.getId()),
                     new SimpleStringProperty(i.getCmd()),
+                    isBookmarked,
                     new SimpleStringProperty(logo),
                     new SimpleStringProperty(tmdbId)
             ));
@@ -79,17 +85,14 @@ public class EpisodesListUI extends HBox {
         channelName.setCellFactory(column -> new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Pane spacer = new Pane();
-            private final Hyperlink tmdbLink = new Hyperlink("TMDb");
             private final ImageView imageView = new ImageView();
 
             {
                 imageView.setFitWidth(32);
                 imageView.setFitHeight(32);
                 imageView.setPreserveRatio(true);
-                HBox.setHgrow(spacer, Priority.ALWAYS);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, nameLabel, spacer, tmdbLink);
+                graphic.getChildren().addAll(imageView, nameLabel);
             }
 
             @Override
@@ -97,17 +100,14 @@ public class EpisodesListUI extends HBox {
                 super.updateItem(item, empty);
                 if (item == null || empty) {
                     setGraphic(null);
+                    setStyle("");
                 } else {
-                    EpisodeItem episodeItem = (EpisodeItem) getTableRow().getItem();
+                    EpisodeItem episodeItem = getTableRow().getItem();
                     if (episodeItem != null) {
                         nameLabel.setText(item);
-                        if (item.startsWith("**")) {
-                            nameLabel.setStyle("-fx-font-weight: bold;-fx-font-size: 125%;");
-                        } else {
-                            nameLabel.setStyle("");
-                        }
+                        setStyle(episodeItem.isBookmarked() ? "-fx-font-weight: bold; -fx-font-size: 125%;" : "");
 
-                        imageView.setImage(ImageCacheManager.DEFAULT_IMAGE); // Set default image immediately
+                        imageView.setImage(ImageCacheManager.DEFAULT_IMAGE);
 
                         ImageCacheManager.loadImageAsync(episodeItem.getLogo(), "episode")
                                 .thenAccept(image -> {
@@ -115,16 +115,10 @@ public class EpisodesListUI extends HBox {
                                         runLater(() -> imageView.setImage(image));
                                     }
                                 });
-
-                        if (isNotBlank(episodeItem.getTmdbId())) {
-                            tmdbLink.setVisible(true);
-                            tmdbLink.setOnAction(e -> RootApplication.getStaticHostServices().showDocument("https://www.themoviedb.org/movie/" + episodeItem.getTmdbId()));
-                        } else {
-                            tmdbLink.setVisible(false);
-                        }
                         setGraphic(graphic);
                     } else {
                         setGraphic(null);
+                        setStyle("");
                     }
                 }
             }
@@ -157,10 +151,21 @@ public class EpisodesListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
+        MenuItem bookmarkItem = new MenuItem("Toggle Bookmark");
+        bookmarkItem.setOnAction(_ -> {
+            rowMenu.hide();
+            EpisodeItem item = row.getItem();
+            Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
+            BookmarkService.getInstance().toggleBookmark(bookmark);
+            item.setBookmarked(!item.isBookmarked());
+            bookmarkChannelListUI.refresh();
+            row.getTableView().refresh();
+        });
+
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
         playerEmbeddedItem.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), null, false);
+            play(row.getItem(), "embedded", false);
         });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
@@ -183,9 +188,8 @@ public class EpisodesListUI extends HBox {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
         });
-        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(bookmarkItem, playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
 
-        // only display context menu for non-empty rows:
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
@@ -193,29 +197,50 @@ public class EpisodesListUI extends HBox {
     }
 
     private void play(EpisodeItem item, String playerPath, boolean runBookmark) {
-        try {
-            PlayerResponse response;
-            if (runBookmark) {
-                Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
-                response = PlayerService.getInstance().runBookmark(account, bookmark);
-            } else {
-                Channel channel = new Channel();
-                channel.setChannelId(item.getEpisodeId());
-                channel.setName(item.getEpisodeName());
-                channel.setCmd(item.getCmd());
-                response = PlayerService.getInstance().get(account, channel);
-            }
+        getScene().setCursor(Cursor.WAIT);
+        new Thread(() -> {
+            try {
+                PlayerResponse response;
+                if (runBookmark) {
+                    Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
+                    response = PlayerService.getInstance().runBookmark(account, bookmark);
+                } else {
+                    Channel channel = new Channel();
+                    channel.setChannelId(item.getEpisodeId());
+                    channel.setName(item.getEpisodeName());
+                    channel.setCmd(item.getCmd());
+                    response = PlayerService.getInstance().get(account, channel);
+                }
 
-            String evaluatedStreamUrl = response.getUrl();
+                final String evaluatedStreamUrl = response.getUrl();
+                final PlayerResponse finalResponse = response;
 
-            if ((isBlank(playerPath) || playerPath.toLowerCase().contains("embedded")) && ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
-                getPlayer().play(response);
-            } else {
-                Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                runLater(() -> {
+                    boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+                    boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+
+                    if (playerPathIsEmbedded) {
+                        if (useEmbeddedPlayerConfig) {
+                            getPlayer().play(finalResponse);
+                        } else {
+                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                        }
+                    } else {
+                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
+                            getPlayer().play(finalResponse);
+                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
+                            showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                        } else {
+                            Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                runLater(() -> showErrorAlert("Error playing episode: " + e.getMessage()));
+            } finally {
+                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        }).start();
     }
 
     public static class EpisodeItem {
@@ -223,15 +248,21 @@ public class EpisodesListUI extends HBox {
         private final SimpleStringProperty episodeName;
         private final SimpleStringProperty episodeId;
         private final SimpleStringProperty cmd;
+        private final SimpleBooleanProperty bookmarked;
         private final SimpleStringProperty logo;
         private final SimpleStringProperty tmdbId;
 
-        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, SimpleStringProperty logo, SimpleStringProperty tmdbId) {
+        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, SimpleStringProperty tmdbId) {
             this.episodeName = episodeName;
             this.episodeId = episodeId;
             this.cmd = cmd;
+            this.bookmarked = new SimpleBooleanProperty(isBookmarked);
             this.logo = logo;
             this.tmdbId = tmdbId;
+        }
+
+        public static Callback<EpisodeItem, Observable[]> extractor() {
+            return item -> new Observable[]{item.bookmarkedProperty()};
         }
 
         public String getEpisodeName() {
@@ -258,6 +289,14 @@ public class EpisodesListUI extends HBox {
             this.cmd.set(cmd);
         }
 
+        public boolean isBookmarked() {
+            return bookmarked.get();
+        }
+
+        public void setBookmarked(boolean bookmarked) {
+            this.bookmarked.set(bookmarked);
+        }
+
         public SimpleStringProperty cmdProperty() {
             return cmd;
         }
@@ -268,6 +307,10 @@ public class EpisodesListUI extends HBox {
 
         public SimpleStringProperty episodeIdProperty() {
             return episodeId;
+        }
+
+        public SimpleBooleanProperty bookmarkedProperty() {
+            return bookmarked;
         }
 
         public String getLogo() {

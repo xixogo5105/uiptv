@@ -9,6 +9,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
+import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.ServerUtils;
@@ -79,7 +80,11 @@ public class ChannelService {
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger) throws IOException {
         //no caching
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
-            return getVodOrSeries(categoryId, account);
+            if (account.getType() == AccountType.XTREME_API) {
+                return XtremeParser.parseChannels(categoryId, account);
+            } else {
+                return getVodOrSeries(categoryId, account);
+            }
         }
         //no caching
         if (account.getType() == AccountType.RSS_FEED) {
