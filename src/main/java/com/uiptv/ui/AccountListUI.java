@@ -8,6 +8,7 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.CategoryService;
+import com.uiptv.util.AccountType;
 import com.uiptv.widget.AutoGrowPaneVBox;
 import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableFilterableTableView;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
+import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
@@ -190,9 +192,8 @@ public class AccountListUI extends HBox {
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
         Account account = AccountDb.get().getAccountById(item.getAccountId());
         account.setAction(accountAction);
-
-        int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
-        boolean channelsAlreadyLoaded = channelCount > 0;
+        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
+        boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
 
         if (!channelsAlreadyLoaded) {
             LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");

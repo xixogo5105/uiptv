@@ -5,6 +5,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.ChannelService;
+import com.uiptv.util.AccountType;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableTableView;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -84,8 +86,8 @@ public class CategoryListUI extends HBox {
 
     private void doRetrieveChannels(CategoryItem item) {
         // Check if channels are already loaded for this account
-        int channelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
-        boolean channelsAlreadyLoaded = channelCount > 0;
+        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
+        boolean channelsAlreadyLoaded = noCachingNeeded || ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) > 0;
 
         if (!channelsAlreadyLoaded) { // If no channels are loaded, show popup and reload
             LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
@@ -94,7 +96,7 @@ public class CategoryListUI extends HBox {
 
             new Thread(() -> {
                 try {
-                    retrieveChannels(item, logPopup.getLogger());
+                    retrieveChannels(item, logPopup.getLogger(), noCachingNeeded);
                 } finally {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
                     logPopup.closeGracefully();
@@ -104,7 +106,7 @@ public class CategoryListUI extends HBox {
             primaryStage.getScene().setCursor(Cursor.WAIT);
             new Thread(() -> {
                 try {
-                    retrieveChannels(item, null);
+                    retrieveChannels(item, null, noCachingNeeded);
                 } finally {
                     Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
                 }
@@ -112,10 +114,11 @@ public class CategoryListUI extends HBox {
         }
     }
 
-    private synchronized void retrieveChannels(CategoryItem item, LoggerCallback logger) {
+    private synchronized void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded) {
         try {
             List<Channel> channels = new ArrayList<>();
-            if ("All".equalsIgnoreCase(item.getCategoryTitle())) {
+            boolean cachingNeeded = !noCachingNeeded;
+            if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
                 List<CategoryItem> allItems = table.getItems();
                 for (CategoryItem categoryItem : allItems) {
                     if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {

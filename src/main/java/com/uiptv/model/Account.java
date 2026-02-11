@@ -10,6 +10,7 @@ import lombok.ToString;
 import org.json.JSONPropertyIgnore;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +30,7 @@ public class Account extends BaseJson {
         series
     }
 
+    public static final EnumSet<AccountAction> NOT_LIVE_TV_CHANNELS = EnumSet.of(AccountAction.vod, AccountAction.series);
     public static final String LINE_SEPARATOR = "\n\r";
     private String serverPortalUrl;
     private AccountAction action = itv;

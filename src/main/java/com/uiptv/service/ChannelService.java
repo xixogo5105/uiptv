@@ -7,6 +7,9 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.shared.Pagination;
+import com.uiptv.shared.PlaylistEntry;
+import com.uiptv.ui.RssParser;
+import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.ServerUtils;
 import com.uiptv.util.StringUtils;
@@ -15,12 +18,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
@@ -72,10 +77,15 @@ public class ChannelService {
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger) throws IOException {
-        if (account.getAction() != itv) {
+        //no caching
+        if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             return getVodOrSeries(categoryId, account);
         }
-
+        //no caching
+        if (account.getType() == AccountType.RSS_FEED) {
+            return censor(rssChannels(categoryId, account));
+        }
+        //caching for everything else
         int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
         if (channelCount == 0) {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
@@ -86,6 +96,16 @@ public class ChannelService {
     private List<Channel> getVodOrSeries(String categoryId, Account account) throws IOException {
         List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0"));
         return censor(cachedChannels);
+    }
+
+    private List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
+        Set<Channel> channels = new LinkedHashSet<>();
+        List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
+        rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
+            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
+            channels.add(c);
+        });
+        return channels.stream().toList();
     }
 
     public int getChannelCountForAccount(String accountId) {
