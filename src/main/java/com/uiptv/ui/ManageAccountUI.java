@@ -16,6 +16,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
@@ -152,7 +153,7 @@ public class ManageAccountUI extends VBox {
 
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : null;
 
-        MacAddressManagementPopup popup = new MacAddressManagementPopup(macList, currentDefault, (newMacs, newDefault) -> {
+        MacAddressManagementPopup popup = new MacAddressManagementPopup((Stage) getScene().getWindow(), macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
 
@@ -176,8 +177,8 @@ public class ManageAccountUI extends VBox {
         List<String> macList = new ArrayList<>(Arrays.stream(macs.replace(SPACE, "").split(",")).toList());
         if (macList.isEmpty()) return;
 
-        LogPopupUI logPopup = new LogPopupUI("Verifying MAC Addresses...");
-        logPopup.show();
+        ProgressDialog progressDialog = new ProgressDialog((Stage) getScene().getWindow());
+        progressDialog.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
 
@@ -185,33 +186,60 @@ public class ManageAccountUI extends VBox {
             @Override
             protected List<String> call() throws Exception {
                 List<String> invalidMacs = new ArrayList<>();
+                int total = macList.size();
+                progressDialog.setTotal(total);
                 Account accountToVerify = service.getById(accountId);
 
-                for (String mac : macList) {
+                for (int i = 0; i < total; i++) {
                     if (isCancelled() || stopRequested.get()) break;
-                    logPopup.getLogger().log("Verifying: " + mac);
-                    boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac, logPopup.getLogger());
-                    if (!isValid) {
+
+                    String mac = macList.get(i);
+                    progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
+
+                    boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac);
+                    progressDialog.addResult(isValid);
+
+                    if (isValid) {
+                        progressDialog.addProgressText("Result: [VALID]VALID");
+                    } else {
                         invalidMacs.add(mac);
+                        progressDialog.addProgressText("Result: [INVALID]INVALID");
+                    }
+
+                    if (isCancelled() || stopRequested.get()) break;
+
+                    if (i < total - 1) {
+                        long delayMillis = progressDialog.getSelectedDelayMillis();
+                        int totalSeconds = (int) (delayMillis / 1000);
+
+                        for (int seconds = totalSeconds; seconds > 0; seconds--) {
+                            if (isCancelled() || stopRequested.get()) break;
+                            progressDialog.setPauseStatus(seconds, totalSeconds);
+                            Thread.sleep(1000);
+                        }
+                        progressDialog.setPauseStatus(0, 0);
                     }
                 }
                 return invalidMacs;
             }
         };
 
+        progressDialog.setOnClose(task::cancel);
+        progressDialog.setOnStop(() -> stopRequested.set(true));
+
         task.setOnSucceeded(e -> {
-            logPopup.closeGracefully();
+            progressDialog.close();
             List<String> invalidMacs = task.getValue();
             handleVerificationResults(macList, invalidMacs, stopRequested.get());
         });
 
         task.setOnFailed(e -> {
-            logPopup.closeGracefully();
+            progressDialog.close();
             showErrorAlert("Verification failed: " + task.getException().getMessage());
         });
 
         task.setOnCancelled(e -> {
-            logPopup.closeGracefully();
+            progressDialog.close();
             showMessageAlert("Verification cancelled.");
         });
 
@@ -295,7 +323,7 @@ public class ManageAccountUI extends VBox {
     private void addRefreshChannelsButtonClickHandler() {
         refreshChannelsButton.setOnAction(event -> {
             Account account = getAccountFromForm();
-            if (account == null || isBlank(account.getDbId())) {
+            if (account == null || isNotBlank(account.getDbId())) {
                 showErrorAlert("Please save the account before refreshing channels.");
                 return;
             }

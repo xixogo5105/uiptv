@@ -250,6 +250,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             Platform.runLater(() -> {
                 switch (newStatus) {
                     case PLAYING:
+                        retryCount = 0;
                         loadingSpinner.setVisible(false);
                         btnPlayPause.setGraphic(pauseIcon);
                         break;

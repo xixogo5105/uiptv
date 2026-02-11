@@ -154,3 +154,43 @@
     -fx-highlight-text-fill: #1c1c1c;
     -fx-text-fill: #00ff00;
 }
+
+.log-scroll-pane {
+    -fx-border-color: #4c4c4c;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+}
+
+.log-message-container {
+    -fx-background-color: #2c2c2c;
+}
+
+.log-text {
+    -fx-fill: #e0e0e0;
+}
+
+.clock-face {
+    -fx-fill: transparent;
+    -fx-stroke: #a0a0a0;
+    -fx-stroke-width: 2;
+}
+
+.clock-hand {
+    -fx-stroke: #e04c4c;
+    -fx-stroke-width: 2;
+}
+
+.valid-text {
+    -fx-font-weight: bold;
+    -fx-fill: #4CAF50;
+}
+
+.invalid-text {
+    -fx-font-weight: bold;
+    -fx-fill: #F44336;
+}
+
+.default-text {
+    -fx-font-weight: bold;
+    -fx-fill: #4CAF50;
+}

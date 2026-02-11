@@ -272,6 +272,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             @Override
             public void playing(MediaPlayer mediaPlayer) {
                 Platform.runLater(() -> {
+                    retryCount = 0;
                     loadingSpinner.setVisible(false);
                     btnPlayPause.setGraphic(pauseIcon);
                     updateVideoSize(); // Ensure video size is correct on playback start

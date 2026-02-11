@@ -19,7 +19,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
@@ -57,14 +56,14 @@ public class ProgressDialog extends Stage {
         BorderPane.setMargin(progressBar, new Insets(0, 0, 10, 0));
         
         // Message Area (Center)
-        scrollPane.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-border-radius: 3;");
+        scrollPane.getStyleClass().add("log-scroll-pane");
         scrollPane.setFitToWidth(true);
+        messageContainer.getStyleClass().add("log-message-container");
         messageContainer.heightProperty().addListener((observable, oldValue, newValue) -> scrollPane.setVvalue(1.0));
         
         // Bottom Bar (Bottom)
-        String buttonStyle = "-fx-font-size: 14px; -fx-padding: 5 15 5 15;";
-        cancelButton.setStyle(buttonStyle);
-        stopButton.setStyle(buttonStyle);
+        cancelButton.getStyleClass().add("dialog-button");
+        stopButton.getStyleClass().add("dialog-button");
 
         // Delay Dropdown
         delayDropdown.setItems(FXCollections.observableArrayList("1 sec", "5 secs", "10 secs", "30 secs", "1 min", "10 mins", "30 mins"));
@@ -72,11 +71,8 @@ public class ProgressDialog extends Stage {
 
         // Pause Widget
         Circle clockFace = new Circle(12);
-        clockFace.setFill(Color.TRANSPARENT);
-        clockFace.setStroke(Color.GRAY);
-        clockFace.setStrokeWidth(2);
-        clockHand.setStroke(Color.RED);
-        clockHand.setStrokeWidth(2);
+        clockFace.getStyleClass().add("clock-face");
+        clockHand.getStyleClass().add("clock-hand");
         StackPane clockIcon = new StackPane(clockFace, clockHand);
         pauseWidget.getChildren().addAll(clockIcon, pauseLabel);
         pauseWidget.setAlignment(Pos.CENTER_LEFT);
@@ -99,8 +95,8 @@ public class ProgressDialog extends Stage {
         root.setBottom(bottomBar);
 
         Scene scene = new Scene(root, 600, 450); // Increased width for dropdown
-        if (RootApplication.currentTheme != null) {
-            scene.getStylesheets().add(RootApplication.currentTheme);
+        if (owner != null && owner.getScene() != null) {
+            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
         setScene(scene);
         
@@ -175,18 +171,24 @@ public class ProgressDialog extends Stage {
 
         if (text.contains("[VALID]")) {
             String[] parts = text.split("\\[VALID\\]", 2);
-            texts.add(new Text(parts[0]));
+            Text part1 = new Text(parts[0]);
+            part1.getStyleClass().add("log-text");
+            texts.add(part1);
             Text validText = new Text(parts[1]);
-            validText.setStyle("-fx-font-weight: bold; -fx-fill: green;");
+            validText.getStyleClass().add("valid-text");
             texts.add(validText);
         } else if (text.contains("[INVALID]")) {
             String[] parts = text.split("\\[INVALID\\]", 2);
-            texts.add(new Text(parts[0]));
+            Text part1 = new Text(parts[0]);
+            part1.getStyleClass().add("log-text");
+            texts.add(part1);
             Text invalidText = new Text(parts[1]);
-            invalidText.setStyle("-fx-font-weight: bold; -fx-fill: red;");
+            invalidText.getStyleClass().add("invalid-text");
             texts.add(invalidText);
         } else {
-            texts.add(new Text(text));
+            Text part1 = new Text(text);
+            part1.getStyleClass().add("log-text");
+            texts.add(part1);
         }
 
         textFlow.getChildren().addAll(texts);

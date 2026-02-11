@@ -26,8 +26,9 @@ import java.util.stream.Collectors;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
 
-public class MacAddressManagementPopup extends Stage {
+public class MacAddressManagementPopup extends VBox {
 
+    private final Stage stage;
     private final ListView<MacItem> macListView = new ListView<>();
     private final TextField addMacField = new TextField();
     private final Button addButton = new Button("Add");
@@ -41,18 +42,20 @@ public class MacAddressManagementPopup extends Stage {
     private String defaultMac;
     private final BiConsumer<List<String>, String> onSave;
 
-    public MacAddressManagementPopup(List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
+    public MacAddressManagementPopup(Stage owner, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
         this.defaultMac = currentDefaultMac;
         this.onSave = onSave;
         this.macItems = FXCollections.observableArrayList(
                 initialMacs.stream().map(MacItem::new).collect(Collectors.toList())
         );
 
-        initModality(Modality.APPLICATION_MODAL);
-        setTitle("Manage MAC Addresses");
+        stage = new Stage();
+        stage.initOwner(owner);
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle("Manage MAC Addresses");
 
-        VBox layout = new VBox(10);
-        layout.setPadding(new Insets(10));
+        setPadding(new Insets(10));
+        setSpacing(10);
 
         selectAllCheckBox.setOnAction(e -> {
             boolean selected = selectAllCheckBox.isSelected();
@@ -89,7 +92,7 @@ public class MacAddressManagementPopup extends Stage {
                     if (item.getMac().equalsIgnoreCase(defaultMac)) {
                         textFlow.getChildren().add(new Text(" ("));
                         Text defaultText = new Text("Default");
-                        defaultText.setStyle("-fx-font-weight: bold; -fx-fill: darkgreen;");
+                        defaultText.getStyleClass().add("default-text");
                         textFlow.getChildren().add(defaultText);
                         textFlow.getChildren().add(new Text(")"));
                     }
@@ -108,7 +111,7 @@ public class MacAddressManagementPopup extends Stage {
         removeButton.setOnAction(e -> removeMacs());
         setDefaultButton.setOnAction(e -> setDefaultMac());
         saveButton.setOnAction(e -> saveAndClose());
-        closeButton.setOnAction(e -> close());
+        closeButton.setOnAction(e -> stage.close());
 
         HBox addBox = new HBox(10, addMacField, addButton);
         HBox.setHgrow(addMacField, Priority.ALWAYS);
@@ -117,13 +120,17 @@ public class MacAddressManagementPopup extends Stage {
         HBox bottomBox = new HBox(10, saveButton, closeButton);
         bottomBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
 
-        layout.getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label("Add New:"), addBox, new Separator(), bottomBox);
+        getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label("Add New:"), addBox, new Separator(), bottomBox);
 
-        Scene scene = new Scene(layout, 450, 500);
-        if (RootApplication.currentTheme != null) {
-            scene.getStylesheets().add(RootApplication.currentTheme);
+        Scene scene = new Scene(this, 450, 500);
+        if (owner != null && owner.getScene() != null) {
+            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
-        setScene(scene);
+        stage.setScene(scene);
+    }
+
+    public void show() {
+        stage.show();
     }
 
     private void addMacs() {
@@ -162,7 +169,7 @@ public class MacAddressManagementPopup extends Stage {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
                     "You are removing the default MAC address. The first available MAC will become the new default. Continue?",
                     ButtonType.YES, ButtonType.NO);
-            alert.initOwner(this);
+            alert.initOwner(stage);
             if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
                 return;
             }
@@ -199,12 +206,12 @@ public class MacAddressManagementPopup extends Stage {
             List<String> macStrings = macItems.stream().map(MacItem::getMac).collect(Collectors.toList());
             onSave.accept(macStrings, defaultMac);
         }
-        close();
+        stage.close();
     }
 
     private void showAlert(String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING, message);
-        alert.initOwner(this);
+        alert.initOwner(stage);
         alert.showAndWait();
     }
 

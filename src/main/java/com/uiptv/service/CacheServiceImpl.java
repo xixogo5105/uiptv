@@ -58,7 +58,7 @@ public class CacheServiceImpl implements CacheService {
     }
 
     @Override
-    public boolean verifyMacAddress(Account account, String macAddress, LoggerCallback logger) {
+    public boolean verifyMacAddress(Account account, String macAddress) {
         if (account == null) {
             return false;
         }
@@ -67,16 +67,15 @@ public class CacheServiceImpl implements CacheService {
         try {
             account.setMacAddress(macAddress);
             HandshakeService.getInstance().connect(account);
+
             if (account.isNotConnected()) {
-                logger.log("Handshake failed for MAC: " + macAddress);
                 return false;
             }
-            String json = FetchAPI.fetch(getAllChannelsParams(), account);
 
-            JSONObject js = new JSONObject(json).getJSONObject("js");
-            int totalItems = nullSafeInteger(js, "total_items");
-            logger.log("Found " + totalItems + " channels for MAC: " + macAddress);
-            return totalItems > 0;
+            String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
+            return !CategoryService.getInstance().parseCategories(jsonCategories).isEmpty();
+        } catch (Exception e) {
+            return false;
         } finally {
             account.setMacAddress(originalMac);
         }

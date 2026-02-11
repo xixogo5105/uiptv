@@ -48,3 +48,43 @@
 .progress-bar-segment.failure {
     -fx-background-color: #F44336; /* Red for failure */
 }
+
+.log-scroll-pane {
+    -fx-border-color: #cccccc;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+}
+
+.log-message-container {
+    -fx-background-color: white;
+}
+
+.log-text {
+    -fx-fill: black;
+}
+
+.clock-face {
+    -fx-fill: transparent;
+    -fx-stroke: gray;
+    -fx-stroke-width: 2;
+}
+
+.clock-hand {
+    -fx-stroke: red;
+    -fx-stroke-width: 2;
+}
+
+.valid-text {
+    -fx-font-weight: bold;
+    -fx-fill: green;
+}
+
+.invalid-text {
+    -fx-font-weight: bold;
+    -fx-fill: red;
+}
+
+.default-text {
+    -fx-font-weight: bold;
+    -fx-fill: darkgreen;
+}

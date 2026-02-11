@@ -16,7 +16,7 @@ public interface CacheService {
 
     void reloadCache(Account account, LoggerCallback logger) throws IOException;
 
-    boolean verifyMacAddress(Account account, String macAddress, LoggerCallback logger);
+    boolean verifyMacAddress(Account account, String macAddress);
 
     int getChannelCountForAccount(String accountId);
 }
