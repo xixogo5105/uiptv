@@ -199,6 +199,14 @@ public class AccountListUI extends HBox {
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
         Account account = AccountDb.get().getAccountById(item.getAccountId());
         account.setAction(accountAction);
+
+        // Immediately show the CategoryListUI in loading state
+        CategoryListUI categoryListUI = new CategoryListUI(account, bookmarkChannelListUI);
+        AccountListUI.this.getChildren().clear();
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
+        sceneBox.setMaxHeight(25);
+        AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
+
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
         boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
 
@@ -225,12 +233,7 @@ public class AccountListUI extends HBox {
                     if (account.isNotConnected()) {
                         return;
                     }
-                    CategoryListUI categoryListUI = new CategoryListUI(list, account, bookmarkChannelListUI);
-
-                    AccountListUI.this.getChildren().clear();
-                    HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
-                    sceneBox.setMaxHeight(25);
-                    AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
+                    categoryListUI.setItems(list);
                 });
             } catch (IOException e) {
                 Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));

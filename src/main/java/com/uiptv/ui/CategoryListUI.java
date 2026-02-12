@@ -13,6 +13,7 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.scene.Cursor;
+import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.input.KeyCode;
@@ -23,11 +24,13 @@ import javafx.scene.layout.VBox;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class CategoryListUI extends HBox {
     private final Account account;
@@ -35,17 +38,27 @@ public class CategoryListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
+    private volatile Thread currentLoadingThread;
 
     public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
+        this(account, bookmarkChannelListUI);
+        setItems(list);
+    }
+
+    public CategoryListUI(Account account, BookmarkChannelListUI bookmarkChannelListUI) {
         this.bookmarkChannelListUI = bookmarkChannelListUI;
+        this.account = account;
         initWidgets();
+        categoryTitle.setText(account.getAccountName());
+        table.addTextFilter();
+        table.setPlaceholder(new Label("Loading categories..."));
+    }
+
+    public void setItems(List<Category> list) {
         List<CategoryItem> catList = new ArrayList<>();
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
         table.setItems(FXCollections.observableArrayList(catList));
-        this.account = account;
-        categoryTitle.setText(account.getAccountName());
-        table.addTextFilter();
-        // After table.setItems(...) and other setup in the constructor
+        table.setPlaceholder(null);
         if (catList.size() == 1) {
             doRetrieveChannels(catList.get(0));
         }
@@ -89,53 +102,85 @@ public class CategoryListUI extends HBox {
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
         boolean channelsAlreadyLoaded = noCachingNeeded || ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) > 0;
 
+        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+            currentLoadingThread.interrupt();
+        }
+
         if (!channelsAlreadyLoaded) { // If no channels are loaded, show popup and reload
             LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
             logPopup.show();
             primaryStage.getScene().setCursor(Cursor.WAIT);
 
-            new Thread(() -> {
+            currentLoadingThread = new Thread(() -> {
                 try {
                     retrieveChannels(item, logPopup.getLogger(), noCachingNeeded);
                 } finally {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
                     logPopup.closeGracefully();
                 }
-            }).start();
+            });
+            currentLoadingThread.start();
         } else { // Channels are already loaded (even if count is 0), just display them
             primaryStage.getScene().setCursor(Cursor.WAIT);
-            new Thread(() -> {
+            currentLoadingThread = new Thread(() -> {
                 try {
                     retrieveChannels(item, null, noCachingNeeded);
                 } finally {
                     Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
                 }
-            }).start();
+            });
+            currentLoadingThread.start();
         }
     }
 
-    private synchronized void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded) {
-        try {
-            List<Channel> channels = new ArrayList<>();
-            boolean cachingNeeded = !noCachingNeeded;
-            if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
-                List<CategoryItem> allItems = table.getItems();
-                for (CategoryItem categoryItem : allItems) {
-                    if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
-                        channels.addAll(ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),account, categoryItem.getId(), logger));
-                    }
-                }
-            } else {
-                channels = ChannelService.getInstance().get(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),account, item.getId(), logger);
-            }
+    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded) {
+        final String categoryId = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
+        final ChannelListUI[] channelListUIHolder = new ChannelListUI[1];
+        final List<CategoryItem> allItems = new ArrayList<>();
+        
+        CountDownLatch latch = new CountDownLatch(1);
 
-            List<Channel> finalChannels = channels;
-            Platform.runLater(() -> {
-                this.getChildren().clear();
-                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(finalChannels, account, item.getCategoryTitle(), bookmarkChannelListUI, account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle()));
-            });
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        Platform.runLater(() -> {
+            this.getChildren().clear();
+            ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), bookmarkChannelListUI, categoryId);
+            channelListUIHolder[0] = ui;
+            getChildren().addAll(new VBox(5, table.getSearchTextField(), table), ui);
+            if ("All".equalsIgnoreCase(item.getCategoryTitle())) {
+                 allItems.addAll(table.getItems());
+            }
+            latch.countDown();
+        });
+
+        try {
+            latch.await();
+            ChannelListUI channelListUI = channelListUIHolder[0];
+
+            try {
+                boolean cachingNeeded = !noCachingNeeded;
+                if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
+                    for (CategoryItem categoryItem : allItems) {
+                        if (Thread.currentThread().isInterrupted()) return;
+                        if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
+                            ChannelService.getInstance().get(
+                                account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
+                                account, 
+                                categoryItem.getId(), 
+                                logger,
+                                channelListUI::addItems
+                            );
+                        }
+                    }
+                } else {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    ChannelService.getInstance().get(categoryId, account, item.getId(), logger, channelListUI::addItems);
+                }
+            } finally {
+                channelListUI.setLoadingComplete();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            Platform.runLater(() -> showErrorAlert("Error loading channels: " + e.getMessage()));
         }
     }
 

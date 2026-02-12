@@ -29,6 +29,7 @@ import javafx.util.Callback;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -42,36 +43,62 @@ public class EpisodesListUI extends HBox {
     private final EpisodeList channelList;
     SearchableTableView table = new SearchableTableView();
     TableColumn<EpisodeItem, String> channelName = new TableColumn<>("Episodes");
+    private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) {
-        this.channelList = channelList;
+        this(account, categoryTitle, bookmarkChannelListUI);
+        setItems(channelList);
+    }
+
+    public EpisodesListUI(Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) {
+        this.channelList = new EpisodeList();
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
         ImageCacheManager.clearCache("episode");
         initWidgets();
-        refresh();
+        table.setPlaceholder(new Label("Loading episodes for '" + categoryTitle + "'..."));
     }
 
-    private void refresh() {
-        List<EpisodeItem> catList = new ArrayList<>();
-        channelList.episodes.forEach(i -> {
-            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
-            b.setAccountAction(account.getAction());
-            boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
-            String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
-            String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
-            catList.add(new EpisodeItem(
-                    new SimpleStringProperty(i.getTitle()),
-                    new SimpleStringProperty(i.getId()),
-                    new SimpleStringProperty(i.getCmd()),
-                    isBookmarked,
-                    new SimpleStringProperty(logo),
-                    new SimpleStringProperty(tmdbId)
-            ));
+    public void setItems(EpisodeList newChannelList) {
+        if (newChannelList == null) return;
+        
+        if (newChannelList.episodes != null && !newChannelList.episodes.isEmpty()) {
+            itemsLoaded.set(true);
+            this.channelList.episodes.addAll(newChannelList.episodes);
+            this.channelList.seasonInfo = newChannelList.seasonInfo;
+            
+            List<EpisodeItem> catList = new ArrayList<>();
+            newChannelList.episodes.forEach(i -> {
+                Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
+                b.setAccountAction(account.getAction());
+                boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
+                String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
+                String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
+                catList.add(new EpisodeItem(
+                        new SimpleStringProperty(i.getTitle()),
+                        new SimpleStringProperty(i.getId()),
+                        new SimpleStringProperty(i.getCmd()),
+                        isBookmarked,
+                        new SimpleStringProperty(logo),
+                        new SimpleStringProperty(tmdbId)
+                ));
+            });
+            
+            runLater(() -> {
+                table.setItems(FXCollections.observableArrayList(catList));
+                table.addTextFilter();
+                table.setPlaceholder(null);
+            });
+        }
+    }
+    
+    public void setLoadingComplete() {
+        runLater(() -> {
+            if (!itemsLoaded.get()) {
+                table.setPlaceholder(new Label("Nothing found for '" + categoryTitle + "'"));
+            }
         });
-        table.setItems(FXCollections.observableArrayList(catList));
-        table.addTextFilter();
     }
 
     private void initWidgets() {

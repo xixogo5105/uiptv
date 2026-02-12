@@ -34,6 +34,8 @@ import javafx.util.Callback;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
@@ -52,28 +54,50 @@ public class ChannelListUI extends HBox {
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>("Channels");
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
+    private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private volatile Thread currentLoadingThread;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
+        this(account, categoryTitle, bookmarkChannelListUI, categoryId);
+        addItems(channelList);
+    }
+
+    public ChannelListUI(Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
         this.categoryId = categoryId;
-        this.channelList = channelList;
+        this.channelList = new ArrayList<>();
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
         ImageCacheManager.clearCache("channel");
         initWidgets();
-        refresh();
+        table.setPlaceholder(new Label("Loading channels for '" + categoryTitle + "'..."));
     }
 
-    private void refresh() {
-        List<ChannelItem> catList = new ArrayList<>();
-        channelList.forEach(i -> {
-            Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
-            b.setAccountAction(account.getAction());
-            boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
-            catList.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(i.getLogo())));
+    public void addItems(List<Channel> newChannels) {
+        if (newChannels != null && !newChannels.isEmpty()) {
+            itemsLoaded.set(true);
+            channelList.addAll(newChannels);
+            List<ChannelItem> newItems = new ArrayList<>();
+            newChannels.forEach(i -> {
+                Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
+                b.setAccountAction(account.getAction());
+                boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
+                newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(i.getLogo())));
+            });
+            
+            runLater(() -> {
+                channelItems.addAll(newItems);
+                table.setPlaceholder(null);
+            });
+        }
+    }
+    
+    public void setLoadingComplete() {
+        runLater(() -> {
+            if (!itemsLoaded.get()) {
+                table.setPlaceholder(new Label("Nothing found for '" + categoryTitle + "'"));
+            }
         });
-        channelItems.setAll(catList);
-        table.addTextFilter();
     }
 
     private void initWidgets() {
@@ -175,35 +199,64 @@ public class ChannelListUI extends HBox {
     private void PlayOrShowSeries(ChannelItem item) {
         if (item == null) return;
 
+        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+            currentLoadingThread.interrupt();
+        }
+
         if (account.getAction() == series) {
             getScene().setCursor(Cursor.WAIT);
-            new Thread(() -> {
+            currentLoadingThread = new Thread(() -> {
                 try {
                     if (account.getType() == XTREME_API) {
-                        EpisodeList episodes = XtremeParser.parseEpisodes(item.getChannelId(), account);
+                        final EpisodesListUI[] episodesListUIHolder = new EpisodesListUI[1];
+                        CountDownLatch latch = new CountDownLatch(1);
+                        
                         runLater(() -> {
                             if (this.getChildren().size() > 1) {
                                 this.getChildren().remove(1);
                             }
-                            this.getChildren().add(new EpisodesListUI(episodes, account, item.getChannelName(), bookmarkChannelListUI));
+                            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), bookmarkChannelListUI);
+                            episodesListUIHolder[0] = ui;
+                            this.getChildren().add(ui);
+                            latch.countDown();
                         });
+                        
+                        latch.await();
+                        if (Thread.currentThread().isInterrupted()) return;
+                        try {
+                            EpisodeList episodes = XtremeParser.parseEpisodes(item.getChannelId(), account);
+                            episodesListUIHolder[0].setItems(episodes);
+                        } finally {
+                            episodesListUIHolder[0].setLoadingComplete();
+                        }
                     } else if (account.getType() == STALKER_PORTAL) {
                         if (isBlank(item.getCmd())) {
-                            List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account);
+                            // Immediately show the ChannelListUI in loading state
+                            ChannelListUI channelListUI = new ChannelListUI(account, item.getChannelName(), bookmarkChannelListUI, categoryId);
                             runLater(() -> {
                                 this.getChildren().clear();
-                                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), new ChannelListUI(seriesChannels, account, item.getChannelName(), bookmarkChannelListUI, categoryId));
+                                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), channelListUI);
                             });
+                            
+                            // Fetch series channels
+                            try {
+                                ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, channelListUI::addItems);
+                            } finally {
+                                channelListUI.setLoadingComplete();
+                            }
                         } else {
                             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
                         }
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 } catch (Exception e) {
                     runLater(() -> showErrorAlert("Error loading series: " + e.getMessage()));
                 } finally {
                     runLater(() -> getScene().setCursor(Cursor.DEFAULT));
                 }
-            }).start();
+            });
+            currentLoadingThread.start();
         } else {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
         }

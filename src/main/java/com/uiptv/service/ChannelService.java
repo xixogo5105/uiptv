@@ -21,6 +21,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -74,32 +75,46 @@ public class ChannelService {
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId) throws IOException {
-        return get(categoryId, account, dbId, null);
+        return get(categoryId, account, dbId, null, null);
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger) throws IOException {
+        return get(categoryId, account, dbId, logger, null);
+    }
+
+    public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback) throws IOException {
         //no caching
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             if (account.getType() == AccountType.XTREME_API) {
-                return XtremeParser.parseChannels(categoryId, account);
+                List<Channel> channels = XtremeParser.parseChannels(categoryId, account);
+                if (callback != null) callback.accept(channels);
+                return channels;
             } else {
-                return getVodOrSeries(categoryId, account);
+                return getVodOrSeries(categoryId, account, callback);
             }
         }
         //no caching
         if (account.getType() == AccountType.RSS_FEED) {
-            return censor(rssChannels(categoryId, account));
+            List<Channel> channels = censor(rssChannels(categoryId, account));
+            if (callback != null) callback.accept(channels);
+            return channels;
         }
         //caching for everything else
         int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
         if (channelCount == 0) {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
         }
-        return censor(ChannelDb.get().getChannels(dbId));
+        List<Channel> channels = censor(ChannelDb.get().getChannels(dbId));
+        if (callback != null) callback.accept(channels);
+        return channels;
     }
 
     private List<Channel> getVodOrSeries(String categoryId, Account account) throws IOException {
-        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0"));
+        return getVodOrSeries(categoryId, account, null);
+    }
+
+    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback) throws IOException {
+        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback));
         return censor(cachedChannels);
     }
 
@@ -118,6 +133,10 @@ public class ChannelService {
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId) {
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, null);
+    }
+
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback) {
         List<Channel> channelList = new ArrayList<>();
         int pageNumber = 1;
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
@@ -126,21 +145,30 @@ public class ChannelService {
         List<Channel> page1Channels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json) : ChannelService.getInstance().parseVodChannels(account, json);
         if (page1Channels != null) {
             channelList.addAll(page1Channels);
+            if (callback != null) callback.accept(censor(page1Channels));
         }
         for (pageNumber = 2; pageNumber <= pagination.getPageCount(); pageNumber++) {
+            if (Thread.currentThread().isInterrupted()) {
+                break;
+            }
             json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
             List<Channel> pagedChannels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json) : ChannelService.getInstance().parseVodChannels(account, json);
             if (pagedChannels != null) {
                 channelList.addAll(pagedChannels);
+                if (callback != null) callback.accept(censor(pagedChannels));
             }
         }
         return channelList;
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account) {
+        return getSeries(categoryId, movieId, account, null);
+    }
+
+    public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback) {
         // This method does not seem to be part of the caching logic, so it can stay here.
         // If it needs to be cached, it should be moved to CacheServiceImpl.
-        return censor(getStalkerPortalChOrSeries(categoryId, account, movieId, "0"));
+        return censor(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback));
     }
 
     public String readToJson(Category category, Account account) throws IOException {
