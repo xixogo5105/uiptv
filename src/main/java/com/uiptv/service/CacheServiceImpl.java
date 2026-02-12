@@ -27,6 +27,7 @@ import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
 import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
 import static com.uiptv.util.StringUtils.isNotBlank;
+import static com.uiptv.util.StringUtils.isBlank;
 
 public class CacheServiceImpl implements CacheService {
 
@@ -293,7 +294,11 @@ public class CacheServiceImpl implements CacheService {
 
             return gtTrim.equalsIgnoreCase(category) || (e.getId() != null && e.getId().equalsIgnoreCase(category));
         }).forEach(entry -> {
-            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
+            String channelId = entry.getId();
+            if (isBlank(channelId)) {
+                channelId = UUID.nameUUIDFromBytes((entry.getTitle() + entry.getPlaylistEntry()).getBytes()).toString();
+            }
+            Channel c = new Channel(channelId, entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
             channels.add(c);
         });
 
