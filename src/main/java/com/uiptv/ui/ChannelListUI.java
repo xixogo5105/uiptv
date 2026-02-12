@@ -159,6 +159,7 @@ public class ChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
+                nameLabel.setStyle("-fx-font-size: 120%;");
                 bookmarkIcon.setVisible(channelItem.isBookmarked());
                 imageView.loadImage(channelItem.getLogo(), "channel");
                 setGraphic(graphic);

@@ -129,6 +129,7 @@ public class EpisodesListUI extends HBox {
                     EpisodeItem episodeItem = getTableRow().getItem();
                     if (episodeItem != null) {
                         nameLabel.setText(item);
+                        nameLabel.setStyle("-fx-font-size: 120%;");
                         setStyle(episodeItem.isBookmarked() ? "-fx-font-weight: bold; -fx-font-size: 125%;" : "");
                         imageView.loadImage(episodeItem.getLogo(), "episode");
                         setGraphic(graphic);
