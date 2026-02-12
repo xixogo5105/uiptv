@@ -11,6 +11,7 @@ import com.uiptv.service.PlayerService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
@@ -22,7 +23,6 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.control.*;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -112,12 +112,9 @@ public class EpisodesListUI extends HBox {
         channelName.setCellFactory(column -> new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final ImageView imageView = new ImageView();
+            private final AsyncImageView imageView = new AsyncImageView();
 
             {
-                imageView.setFitWidth(32);
-                imageView.setFitHeight(32);
-                imageView.setPreserveRatio(true);
                 graphic.setAlignment(Pos.CENTER_LEFT);
                 graphic.getChildren().addAll(imageView, nameLabel);
             }
@@ -133,15 +130,7 @@ public class EpisodesListUI extends HBox {
                     if (episodeItem != null) {
                         nameLabel.setText(item);
                         setStyle(episodeItem.isBookmarked() ? "-fx-font-weight: bold; -fx-font-size: 125%;" : "");
-
-                        imageView.setImage(ImageCacheManager.DEFAULT_IMAGE);
-
-                        ImageCacheManager.loadImageAsync(episodeItem.getLogo(), "episode")
-                                .thenAccept(image -> {
-                                    if (image != null && getItem() != null && getIndex() < getTableView().getItems().size()) {
-                                        runLater(() -> imageView.setImage(image));
-                                    }
-                                });
+                        imageView.loadImage(episodeItem.getLogo(), "episode");
                         setGraphic(graphic);
                     } else {
                         setGraphic(null);

@@ -5,19 +5,39 @@
 }
 
 .dangerous {
-    -fx-base: darkred;
-    -fx-text-fill: white;
-}
-
-.prominent {
-    -fx-background-color: darkgreen; /* Green */
+    -fx-background-color: linear-gradient(to bottom, #e57373, #c62828);
     -fx-text-fill: white;
     -fx-font-weight: bold;
     -fx-background-radius: 5;
+    -fx-border-color: #b71c1c;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+}
+
+.dangerous:hover {
+    -fx-background-color: linear-gradient(to bottom, #ef9a9a, #d32f2f);
+}
+
+.dangerous:pressed {
+    -fx-background-color: #c62828;
+}
+
+.prominent {
+    -fx-background-color: linear-gradient(to bottom, #66bb6a, darkgreen);
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+    -fx-border-color: #004d00;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
 }
 
 .prominent:hover {
-    -fx-background-color: #45a049; /* Darker Green */
+    -fx-background-color: linear-gradient(to bottom, #81c784, #006400);
+}
+
+.prominent:pressed {
+    -fx-background-color: darkgreen;
 }
 
 /* terminal.css */
@@ -87,4 +107,10 @@
 .default-text {
     -fx-font-weight: bold;
     -fx-fill: darkgreen;
+}
+
+.channel-logo-view {
+    /*-fx-background-color: #333333;*/
+    -fx-background-radius: 3;
+    /*-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 3, 0, 0, 1);*/
 }

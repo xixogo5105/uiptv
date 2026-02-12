@@ -7,6 +7,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
@@ -20,7 +21,6 @@ import javafx.collections.transformation.SortedList;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.control.*;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -129,12 +129,9 @@ public class ChannelListUI extends HBox {
             private final Label nameLabel = new Label();
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = new SVGPath();
-            private final ImageView imageView = new ImageView();
+            private final AsyncImageView imageView = new AsyncImageView();
 
             {
-                imageView.setFitWidth(32);
-                imageView.setFitHeight(32);
-                imageView.setPreserveRatio(true);
                 bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
                 bookmarkIcon.setFill(Color.BLACK);
 
@@ -163,14 +160,7 @@ public class ChannelListUI extends HBox {
 
                 nameLabel.setText(item);
                 bookmarkIcon.setVisible(channelItem.isBookmarked());
-                imageView.setImage(ImageCacheManager.DEFAULT_IMAGE); // Set default image immediately
-
-                ImageCacheManager.loadImageAsync(channelItem.getLogo(), "channel")
-                        .thenAccept(image -> {
-                            if (image != null && getItem() != null && getIndex() < getTableView().getItems().size()) {
-                                runLater(() -> imageView.setImage(image));
-                            }
-                        });
+                imageView.loadImage(channelItem.getLogo(), "channel");
                 setGraphic(graphic);
             }
         });

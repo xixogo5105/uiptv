@@ -96,23 +96,39 @@
 }
 
 .dangerous {
-    -fx-background-color: #c93c3c;
-    -fx-text-fill: white;
-}
-
-.dangerous:hover {
-    -fx-background-color: #e04c4c;
-}
-
-.prominent {
-    -fx-background-color: darkgreen;
+    -fx-background-color: linear-gradient(to bottom, #d32f2f, #b71c1c);
     -fx-text-fill: white;
     -fx-font-weight: bold;
     -fx-background-radius: 5;
+    -fx-border-color: #8a0000;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+}
+
+.dangerous:hover {
+    -fx-background-color: linear-gradient(to bottom, #e57373, #c62828);
+}
+
+.dangerous:pressed {
+    -fx-background-color: #b71c1c;
+}
+
+.prominent {
+    -fx-background-color: linear-gradient(to bottom, #006400, #004d00);
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+    -fx-border-color: #003300;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
 }
 
 .prominent:hover {
-    -fx-background-color: derive(darkgreen, 20%);
+    -fx-background-color: linear-gradient(to bottom, #66bb6a, darkgreen);
+}
+
+.prominent:pressed {
+    -fx-background-color: #004d00;
 }
 
 /* Standard progress bar */
@@ -193,4 +209,10 @@
 .default-text {
     -fx-font-weight: bold;
     -fx-fill: #4CAF50;
+}
+
+.channel-logo-view {
+    /*-fx-background-color: #cccccc;*/
+    -fx-background-radius: 3;
+    /*-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 3, 0, 0, 1);*/
 }

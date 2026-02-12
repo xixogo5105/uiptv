@@ -8,6 +8,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.Episode;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.SearchableTableViewWithButton;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
@@ -18,7 +19,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -100,12 +100,9 @@ public class BookmarkChannelListUI extends HBox {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
             private final Pane spacer = new Pane();
-            private final ImageView imageView = new ImageView();
+            private final AsyncImageView imageView = new AsyncImageView();
 
             {
-                imageView.setFitWidth(32);
-                imageView.setFitHeight(32);
-                imageView.setPreserveRatio(true);
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 graphic.setAlignment(Pos.CENTER_LEFT);
                 graphic.getChildren().addAll(imageView, nameLabel, spacer);
@@ -129,14 +126,7 @@ public class BookmarkChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
-                imageView.setImage(ImageCacheManager.DEFAULT_IMAGE); // Set default image immediately
-
-                ImageCacheManager.loadImageAsync(bookmarkItem.getLogo(), "bookmark")
-                        .thenAccept(image -> {
-                            if (image != null && getItem() != null && getIndex() < getTableView().getItems().size()) {
-                                runLater(() -> imageView.setImage(image));
-                            }
-                        });
+                imageView.loadImage(bookmarkItem.getLogo(), "bookmark");
                 setGraphic(graphic);
             }
         });
