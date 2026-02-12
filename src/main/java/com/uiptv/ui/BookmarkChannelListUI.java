@@ -126,7 +126,6 @@ public class BookmarkChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
-                nameLabel.setStyle("-fx-font-size: 120%;");
                 imageView.loadImage(bookmarkItem.getLogo(), "bookmark");
                 setGraphic(graphic);
             }
