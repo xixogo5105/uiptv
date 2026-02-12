@@ -213,8 +213,11 @@
 
 .channel-logo-view {
     /*-fx-background-color: #cccccc;*/
-/*
-    -fx-background-radius: 3;
-*/
+    -fx-background-radius: 5;
     /*-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 3, 0, 0, 1);*/
+}
+
+.video-player-slider {
+    -fx-base: white;
+    -fx-control-inner-background: white;
 }

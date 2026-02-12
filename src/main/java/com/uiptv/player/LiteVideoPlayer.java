@@ -132,12 +132,14 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         volumeSlider = new Slider(0, 100, 50); // Use 0-100 scale
         volumeSlider.setPrefWidth(100);
+        volumeSlider.getStyleClass().add("video-player-slider");
 
         HBox buttonRow = new HBox(8);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
         buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
 
         timeSlider = new Slider(0, 1, 0);
+        timeSlider.getStyleClass().add("video-player-slider");
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
         timeLabel = new Label("00:00 / 00:00");
         timeLabel.setTextFill(Color.WHITE);
