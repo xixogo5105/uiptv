@@ -87,10 +87,6 @@ public class CacheServiceImpl implements CacheService {
     }
 
     private void reloadAllChannelsAndCategories(Account account, LoggerCallback logger) {
-        logger.log("Clearing cache for account: " + account.getAccountName());
-        clearCache(account);
-        logger.log("Cache cleared for account: " + account.getAccountName());
-
         logger.log("Performing handshake for: " + account.getAccountName());
         HandshakeService.getInstance().connect(account);
         if (account.isNotConnected()) {
@@ -116,6 +112,16 @@ public class CacheServiceImpl implements CacheService {
                 List<Channel> allChannels = ChannelService.getInstance().parseItvChannels(jsonChannels);
                 List<Channel> censoredChannels = ChannelService.getInstance().censor(allChannels);
                 logger.log("Fetched " + censoredChannels.size() + " channels.");
+
+                if (censoredChannels.isEmpty()) {
+                    logger.log("No channels found. Keeping existing cache.");
+                    return;
+                }
+
+                // Clear cache only after successful fetch
+                logger.log("Clearing cache for account: " + account.getAccountName());
+                clearCache(account);
+                logger.log("Cache cleared for account: " + account.getAccountName());
 
                 // 3. Partition and group channels in a single pass
                 List<Channel> unmatchedChannels = new ArrayList<>();
@@ -185,28 +191,53 @@ public class CacheServiceImpl implements CacheService {
     }
 
     private void reloadChannelsForOtherTypes(Account account, LoggerCallback logger) throws IOException {
-        logger.log("Clearing cache for account: " + account.getAccountName());
-        clearCache(account);
-        logger.log("Cache cleared for account: " + account.getAccountName());
-
         logger.log("Fetching categories for: " + account.getAccountName());
         List<Category> categories = CategoryService.getInstance().get(account); // This fetches from the source, not DB
         logger.log("Found " + categories.size() + " categories.");
+
+        if (categories.isEmpty()) {
+            logger.log("No categories found. Keeping existing cache.");
+            return;
+        }
+
+        Map<String, List<Channel>> channelsMap = new HashMap<>();
+        int totalChannels = 0;
+
+        for (Category category : categories) {
+            String categoryId = account.getType() == XTREME_API ? category.getCategoryId() : category.getTitle();
+            List<Channel> channels = fetchChannelsForCategory(categoryId, account, logger);
+            if (!channels.isEmpty()) {
+                channelsMap.put(categoryId, channels);
+                totalChannels += channels.size();
+            }
+        }
+
+        if (totalChannels == 0) {
+            logger.log("No channels found in any category. Keeping existing cache.");
+            return;
+        }
+
+        // Clear cache only after successful fetch
+        logger.log("Clearing cache for account: " + account.getAccountName());
+        clearCache(account);
+        logger.log("Cache cleared for account: " + account.getAccountName());
 
         // Save categories to get DB IDs
         CategoryDb.get().saveAll(categories, account);
         List<Category> savedCategories = CategoryDb.get().getCategories(account); // Re-fetch to get DB IDs
 
-        for (Category category : savedCategories) {
-            logger.log("Reloading channels for category: " + category.getTitle());
-            // The hardReloadChannels method already handles fetching and saving for non-Stalker types
-            // It expects categoryId (which is category.getTitle() for non-Stalker) and dbId
-            hardReloadChannels(account.getType() == XTREME_API ? category.getCategoryId() : category.getTitle(), account, category.getDbId(), logger);
+        for (Category savedCat : savedCategories) {
+            String key = account.getType() == XTREME_API ? savedCat.getCategoryId() : savedCat.getTitle();
+            List<Channel> channels = channelsMap.get(key);
+            if (channels != null && !channels.isEmpty()) {
+                ChannelDb.get().saveAll(channels, savedCat.getDbId(), account);
+                logger.log("Saved " + channels.size() + " channels to database for category: " + savedCat.getTitle());
+            }
         }
         logger.log("All channels reloaded for account: " + account.getAccountName());
     }
 
-    private void hardReloadChannels(String categoryId, Account account, String dbId, LoggerCallback logger) {
+    private List<Channel> fetchChannelsForCategory(String categoryId, Account account, LoggerCallback logger) {
         List<Channel> channels = new ArrayList<>();
         try {
             if (Objects.requireNonNull(account.getType()) == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) {
@@ -225,11 +256,8 @@ public class CacheServiceImpl implements CacheService {
             logger.log("Found " + channels.size() + " channels for category: " + categoryId);
         } catch (Exception e) {
             logger.log("Error fetching channels for category " + categoryId + ": " + e.getMessage());
-            throw new RuntimeException(e);
         }
-
-        ChannelDb.get().saveAll(channels, dbId, account);
-        logger.log("Saved " + channels.size() + " channels to database for category: " + categoryId);
+        return channels;
     }
 
     private List<Channel> xtremeAPICategories(String category, Account account) {

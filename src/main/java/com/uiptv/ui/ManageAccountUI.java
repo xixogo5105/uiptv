@@ -323,7 +323,7 @@ public class ManageAccountUI extends VBox {
     private void addRefreshChannelsButtonClickHandler() {
         refreshChannelsButton.setOnAction(event -> {
             Account account = getAccountFromForm();
-            if (account == null || isNotBlank(account.getDbId())) {
+            if (account == null || isBlank(account.getDbId())) {
                 showErrorAlert("Please save the account before refreshing channels.");
                 return;
             }
