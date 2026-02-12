@@ -58,6 +58,10 @@ public class CategoryListUI extends HBox {
 
     public void setItems(List<Category> list) {
         List<CategoryItem> catList = new ArrayList<>();
+        boolean hasAllCategory = list.stream().anyMatch(c -> "All".equalsIgnoreCase(c.getTitle()));
+        if (!hasAllCategory) {
+            catList.add(new CategoryItem(new SimpleStringProperty("all"), new SimpleStringProperty("All"), new SimpleStringProperty("all")));
+        }
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
         table.setItems(FXCollections.observableArrayList(catList));
         table.addTextFilter();
@@ -175,17 +179,28 @@ public class CategoryListUI extends HBox {
             try {
                 boolean cachingNeeded = !noCachingNeeded;
                 if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
-                    for (CategoryItem categoryItem : allItems) {
-                        if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
-                        if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
-                            ChannelService.getInstance().get(
-                                account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
+                    if (allItems.size() == 1 && "All".equalsIgnoreCase(allItems.get(0).getCategoryTitle())) {
+                         ChannelService.getInstance().get(
+                                account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),
                                 account, 
-                                categoryItem.getId(), 
+                                item.getId(), 
                                 logger,
                                 channelListUI::addItems,
                                 isCancelled
                             );
+                    } else {
+                        for (CategoryItem categoryItem : allItems) {
+                            if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
+                            if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
+                                ChannelService.getInstance().get(
+                                    account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
+                                    account, 
+                                    categoryItem.getId(), 
+                                    logger,
+                                    channelListUI::addItems,
+                                    isCancelled
+                                );
+                            }
                         }
                     }
                 } else {
