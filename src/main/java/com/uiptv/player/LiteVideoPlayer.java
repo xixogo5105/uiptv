@@ -28,6 +28,8 @@ import javafx.scene.media.MediaException;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -58,7 +60,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private VBox controlsContainer;
     private ProgressIndicator loadingSpinner;
     private Label errorLabel; // Added for displaying errors
-    private Label nowShowingLabel;
+    private TextFlow nowShowingFlow;
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -110,10 +112,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         loadIcons();
 
         // --- 2. BUILD CONTROLS ---
-        nowShowingLabel = new Label();
-        nowShowingLabel.setTextFill(Color.WHITE);
-        nowShowingLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
-        nowShowingLabel.setPadding(new Insets(0, 0, 5, 0));
+        nowShowingFlow = new TextFlow();
+        nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
@@ -150,7 +150,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         controlsContainer = new VBox(5);
         controlsContainer.setPadding(new Insets(5));
         controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
-        controlsContainer.getChildren().addAll(nowShowingLabel, buttonRow, timeRow);
+        controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(480);
         controlsContainer.setPrefWidth(30);
         controlsContainer.setMaxHeight(50);
@@ -474,31 +474,26 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupFadeAndIdleLogic() {
-        // Timer to hide controls after 5 seconds of inactivity.
+        controlsContainer.setVisible(false);
+
         inactivityTimer = new Timeline(new KeyFrame(Duration.seconds(5), event -> {
-            // Only hide controls if the video is playing.
-            if (mediaPlayer != null && mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+            if (mediaPlayer != null && (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING || mediaPlayer.getStatus() == MediaPlayer.Status.PAUSED)) {
                 controlsContainer.setVisible(false);
-                // In fullscreen, also hide the mouse cursor.
                 if (fullscreenStage != null) {
                     playerContainer.setCursor(Cursor.NONE);
                 }
             }
         }));
-        inactivityTimer.setCycleCount(1); // Run once per trigger
+        inactivityTimer.setCycleCount(1);
 
-        // Event handler for mouse movement.
         playerContainer.setOnMouseMoved(event -> {
-            // Show controls and restore cursor.
             controlsContainer.setVisible(true);
             if (playerContainer.getCursor() != Cursor.DEFAULT) {
                 playerContainer.setCursor(Cursor.DEFAULT);
             }
-            // Restart the inactivity timer.
             inactivityTimer.playFromStart();
         });
 
-        // When the mouse enters, we also want to show controls and start the timer.
         playerContainer.setOnMouseEntered(event -> {
             controlsContainer.setVisible(true);
             if (playerContainer.getCursor() != Cursor.DEFAULT) {
@@ -507,18 +502,14 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             inactivityTimer.playFromStart();
         });
 
-        // When the mouse exits, we have different behavior for fullscreen.
         playerContainer.setOnMouseExited(event -> {
-            // If not in fullscreen, hide controls immediately.
             if (fullscreenStage == null) {
                 controlsContainer.setVisible(false);
                 inactivityTimer.stop();
             }
         });
 
-        // Initially, the controls are visible, and we start the timer.
-        controlsContainer.setVisible(true);
-        inactivityTimer.play();
+        controlsContainer.setVisible(false);
     }
 
     private String getFinalUrl(String url) throws Exception {
@@ -558,14 +549,22 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         errorLabel.setVisible(false); // Hide error from previous attempt
         controlsContainer.setVisible(false);
 
+        nowShowingFlow.getChildren().clear();
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
-            nowShowingLabel.setText("Now Showing: " + currentChannel.getName());
-            nowShowingLabel.setVisible(true);
-            nowShowingLabel.setManaged(true);
+            Text nowShowingText = new Text("Now Showing: ");
+            nowShowingText.setFill(Color.WHITE);
+            nowShowingText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+            Text channelNameText = new Text(currentChannel.getName());
+            channelNameText.setFill(Color.YELLOW);
+            channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+            nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText);
+            nowShowingFlow.setVisible(true);
+            nowShowingFlow.setManaged(true);
         } else {
-            nowShowingLabel.setText("");
-            nowShowingLabel.setVisible(false);
-            nowShowingLabel.setManaged(false);
+            nowShowingFlow.setVisible(false);
+            nowShowingFlow.setManaged(false);
         }
 
         // Dispose of old player first

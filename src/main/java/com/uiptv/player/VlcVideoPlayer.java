@@ -20,6 +20,8 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -59,7 +61,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private VBox controlsContainer;
     private ProgressIndicator loadingSpinner;
     private Label errorLabel;
-    private Label nowShowingLabel;
+    private TextFlow nowShowingFlow;
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -127,10 +129,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         loadIcons();
 
         // --- 2. BUILD CONTROLS ---
-        nowShowingLabel = new Label();
-        nowShowingLabel.setTextFill(Color.WHITE);
-        nowShowingLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
-        nowShowingLabel.setPadding(new Insets(0, 0, 5, 0));
+        nowShowingFlow = new TextFlow();
+        nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon); // Now assigns to the class member
@@ -167,7 +167,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         controlsContainer = new VBox(5);
         controlsContainer.setPadding(new Insets(5));
         controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
-        controlsContainer.getChildren().addAll(nowShowingLabel, buttonRow, timeRow);
+        controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(480);
         controlsContainer.setPrefWidth(30);
         controlsContainer.setMaxHeight(50);
@@ -562,14 +562,22 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             errorLabel.setVisible(false);
             controlsContainer.setVisible(false);
 
+            nowShowingFlow.getChildren().clear();
             if (currentChannel != null && isNotBlank(currentChannel.getName())) {
-                nowShowingLabel.setText("Now Showing: " + currentChannel.getName());
-                nowShowingLabel.setVisible(true);
-                nowShowingLabel.setManaged(true);
+                Text nowShowingText = new Text("Now Showing: ");
+                nowShowingText.setFill(Color.WHITE);
+                nowShowingText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+                Text channelNameText = new Text(currentChannel.getName());
+                channelNameText.setFill(Color.YELLOW);
+                channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+                nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText);
+                nowShowingFlow.setVisible(true);
+                nowShowingFlow.setManaged(true);
             } else {
-                nowShowingLabel.setText("");
-                nowShowingLabel.setVisible(false);
-                nowShowingLabel.setManaged(false);
+                nowShowingFlow.setVisible(false);
+                nowShowingFlow.setManaged(false);
             }
 
             mediaPlayer.audio().setMute(isMuted); // Apply persistent mute state
