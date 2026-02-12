@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ImageCacheManager {
 
-    public static final Image DEFAULT_IMAGE = new Image(ImageCacheManager.class.getResource("/icons/others/tv.png").toExternalForm());
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.ALWAYS)
             .version(HttpClient.Version.HTTP_2)
@@ -24,7 +23,7 @@ public class ImageCacheManager {
     public static CompletableFuture<Image> loadImageAsync(String url, String caller) {
         String cacheKey = caller + ":" + url;
         if (url == null || !url.startsWith("http")) {
-            return CompletableFuture.completedFuture(DEFAULT_IMAGE);
+            return CompletableFuture.completedFuture(null);
         }
 
         if (IMAGE_CACHE.containsKey(cacheKey)) {
@@ -48,23 +47,23 @@ public class ImageCacheManager {
                         .thenApply(resp -> {
                             if (resp.statusCode() >= 400) {
                                 System.err.println("Failed to load image from " + url + ", status code: " + resp.statusCode());
-                                return DEFAULT_IMAGE;
+                                return null;
                             }
                             Image image = new Image(resp.body());
                             if (image.isError()) {
                                 System.err.println("Failed to decode image from " + url);
-                                return DEFAULT_IMAGE;
+                                return null;
                             }
                             IMAGE_CACHE.put(cacheKey, image);
                             return image;
                         })
                         .exceptionally(e -> {
                             System.err.println("Failed to load image from " + url + ": " + e.getMessage());
-                            return DEFAULT_IMAGE;
+                            return null;
                         }).whenComplete((img, ex) -> LOADING_TASKS.remove(cacheKey));
             } catch (Exception e) {
                 System.err.println("Failed to create URI from " + url + ": " + e.getMessage());
-                return CompletableFuture.completedFuture(DEFAULT_IMAGE);
+                return CompletableFuture.completedFuture(null);
             }
         });
     }

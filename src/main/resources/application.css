@@ -111,6 +111,6 @@
 
 .channel-logo-view {
     /*-fx-background-color: #333333;*/
-    -fx-background-radius: 3;
+    /*-fx-background-radius: 3;*/
     /*-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 3, 0, 0, 1);*/
 }
