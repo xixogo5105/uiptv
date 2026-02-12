@@ -38,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -83,7 +84,7 @@ public class ChannelListUI extends HBox {
                 Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
                 b.setAccountAction(account.getAction());
                 boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
-                newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(i.getLogo())));
+                newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(i.getLogo()), i));
             });
             
             runLater(() -> {
@@ -260,7 +261,7 @@ public class ChannelListUI extends HBox {
                                 channelListUI.setLoadingComplete();
                             }
                         } else {
-                            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
+                            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
                         }
                     }
                 } catch (InterruptedException e) {
@@ -273,7 +274,7 @@ public class ChannelListUI extends HBox {
             });
             currentLoadingThread.start();
         } else {
-            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
+            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
         }
     }
 
@@ -319,7 +320,7 @@ public class ChannelListUI extends HBox {
                                 BookmarkService.getInstance().remove(existingBookmark.getDbId());
                                 Platform.runLater(() -> {
                                     item.setBookmarked(false);
-                                    bookmarkChannelListUI.refresh();
+                                    bookmarkChannelListUI.forceReload();
                                     table.refresh();
                                 });
                             }).start();
@@ -333,30 +334,25 @@ public class ChannelListUI extends HBox {
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
         playerEmbeddedItem.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), "embedded", false);
+            play(row.getItem(), "embedded");
         });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1(), false);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
         });
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2(), false);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
         });
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3(), false);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
         });
 
-        MenuItem reconnectAndPlayItem = new MenuItem("Reconnect & Play");
-        reconnectAndPlayItem.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
-        });
-        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item);
 
         row.contextMenuProperty().bind(
             Bindings.when(
@@ -377,16 +373,32 @@ public class ChannelListUI extends HBox {
             Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
             bookmark.setAccountAction(account.getAction());
             bookmark.setCategoryId(bookmarkCategoryId);
+            
+            Category cat = new Category();
+            cat.setCategoryId(categoryId);
+            cat.setTitle(categoryTitle);
+            bookmark.setCategoryJson(cat.toJson());
+
+            if (item.getChannel() != null) {
+                if (account.getAction() == vod) {
+                    bookmark.setVodJson(item.getChannel().toJson());
+                } else {
+                    bookmark.setChannelJson(item.getChannel().toJson());
+                }
+            }
             BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {
                 item.setBookmarked(true);
-                bookmarkChannelListUI.refresh();
+                bookmarkChannelListUI.forceReload();
                 table.refresh();
             });
         }).start();
     }
 
-    private void play(ChannelItem item, String playerPath, boolean runBookmark) {
+    private void play(ChannelItem item, String playerPath) {
+        // Stop any existing playback immediately
+        runLater(() -> getPlayer().stop());
+
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
@@ -404,13 +416,7 @@ public class ChannelListUI extends HBox {
                     channel.setLogo(item.getLogo());
                 }
 
-                if (runBookmark) {
-                    Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
-                    response = PlayerService.getInstance().runBookmark(account, bookmark);
-                } else {
-                    response = PlayerService.getInstance().get(account, channel, item.getChannelId());
-                }
-
+                response = PlayerService.getInstance().get(account, channel, item.getChannelId());
                 response.setFromChannel(channel, account); // Ensure response has channel and account
 
                 final String evaluatedStreamUrl = response.getUrl();
@@ -451,13 +457,15 @@ public class ChannelListUI extends HBox {
         private final SimpleStringProperty cmd;
         private final SimpleBooleanProperty bookmarked;
         private final SimpleStringProperty logo;
+        private final Channel channel;
 
-        public ChannelItem(SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo) {
+        public ChannelItem(SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, Channel channel) {
             this.channelName = channelName;
             this.channelId = channelId;
             this.cmd = cmd;
             this.bookmarked = new SimpleBooleanProperty(isBookmarked);
             this.logo = logo;
+            this.channel = channel;
         }
 
         public static Callback<ChannelItem, Observable[]> extractor() {
@@ -522,6 +530,10 @@ public class ChannelListUI extends HBox {
 
         public SimpleStringProperty channelIdProperty() {
             return channelId;
+        }
+
+        public Channel getChannel() {
+            return channel;
         }
     }
 }

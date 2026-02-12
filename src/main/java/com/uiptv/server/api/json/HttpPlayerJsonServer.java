@@ -7,11 +7,8 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.BookmarkService;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.FfmpegService;
-import com.uiptv.service.PlayerService;
+import com.uiptv.service.*;
+import com.uiptv.shared.Episode;
 
 import java.io.IOException;
 
@@ -31,8 +28,38 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
         if (isNotBlank(bookmarkId)) {
             Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
-            Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
-            response = PlayerService.getInstance().runBookmark(account, bookmark);
+            Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
+            
+            Channel channel = null;
+            if (isNotBlank(bookmark.getSeriesJson())) {
+                Episode episode = Episode.fromJson(bookmark.getSeriesJson());
+                if (episode != null) {
+                    channel = new Channel();
+                    channel.setCmd(episode.getCmd());
+                    channel.setName(episode.getTitle());
+                    channel.setChannelId(episode.getId());
+                    if (episode.getInfo() != null) {
+                        channel.setLogo(episode.getInfo().getMovieImage());
+                    }
+                }
+            } else if (isNotBlank(bookmark.getChannelJson())) {
+                channel = Channel.fromJson(bookmark.getChannelJson());
+            } else if (isNotBlank(bookmark.getVodJson())) {
+                channel = Channel.fromJson(bookmark.getVodJson());
+            }
+
+            if (channel == null) { // Fallback for legacy bookmarks
+                channel = new Channel();
+                channel.setCmd(bookmark.getCmd());
+                channel.setChannelId(bookmark.getChannelId());
+                channel.setName(bookmark.getChannelName());
+                channel.setDrmType(bookmark.getDrmType());
+                channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
+                channel.setClearKeysJson(bookmark.getClearKeysJson());
+                channel.setInputstreamaddon(bookmark.getInputstreamaddon());
+                channel.setManifestType(bookmark.getManifestType());
+            }
+            response = PlayerService.getInstance().get(account, channel, bookmark.getChannelId());
         } else {
             Account account = AccountService.getInstance().getById(accountId);
             Channel channel = ChannelDb.get().getChannelById(channelId, categoryId);

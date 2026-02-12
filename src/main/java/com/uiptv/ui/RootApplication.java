@@ -125,7 +125,7 @@ public class RootApplication extends Application {
             try {
                 configureFontStyles(RootApplication.primaryStage.getScene());
                 accountListUI.refresh();
-                bookmarkChannelListUI.refresh();
+                bookmarkChannelListUI.forceReload();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -194,7 +194,7 @@ public class RootApplication extends Application {
         accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
         accountListUI.addDeleteCallbackHandler(param -> {
             manageAccountUI.deleteAccount((Account) param);
-            bookmarkChannelListUI.refresh();
+            bookmarkChannelListUI.forceReload();
         });
     }
 
@@ -202,7 +202,7 @@ public class RootApplication extends Application {
         manageAccountUI.addCallbackHandler(param -> {
             try {
                 accountListUI.refresh();
-                bookmarkChannelListUI.refresh();
+                bookmarkChannelListUI.forceReload();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

@@ -6,6 +6,7 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.shared.Episode;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.SearchableTableViewWithButton;
 import javafx.beans.binding.Bindings;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -40,31 +42,40 @@ public class BookmarkChannelListUI extends HBox {
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
     private boolean isPromptShowing = false;
-    private List<BookmarkItem> currentTabItems = new ArrayList<>();
+    private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
 
-    public BookmarkChannelListUI() { // Removed MediaPlayer argument
+    public BookmarkChannelListUI() {
         ImageCacheManager.clearCache("bookmark");
         initWidgets();
-        refresh();
+        forceReload();
     }
 
-    public void refresh() {
-        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
-        String selectedCategoryId = null;
-        if (selectedTab != null) {
-            BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
-            if (category != null) {
-                selectedCategoryId = category.getId();
-            }
-        }
-        loadBookmarksForCategory(selectedCategoryId);
+    public void forceReload() {
+        bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
+        new Thread(() -> {
+            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            List<BookmarkItem> items = bookmarks.stream()
+                    .map(this::createBookmarkItem)
+                    .collect(Collectors.toList());
+
+            runLater(() -> {
+                allBookmarkItems.clear();
+                allBookmarkItems.addAll(items);
+                populateCategoryTabPane();
+                filterView();
+                if (allBookmarkItems.isEmpty()) {
+                    bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
+                } else {
+                    bookmarkTable.getTableView().setPlaceholder(null);
+                }
+            });
+        }).start();
     }
 
     private void initWidgets() {
         setPadding(new Insets(5));
         setSpacing(5);
         setupBookmarkTable();
-        populateCategoryTabPane();
         setupCategoryTabPaneListener();
         setupSearchTextFieldListener();
         setupManageCategoriesButton();
@@ -134,13 +145,13 @@ public class BookmarkChannelListUI extends HBox {
     private void setupCategoryTabPaneListener() {
         categoryTabPane.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) {
-                refresh();
+                filterView();
             }
         });
     }
 
     private void setupSearchTextFieldListener() {
-        bookmarkTable.getSearchTextField().textProperty().addListener((observable, oldValue, newValue) -> applyFilter());
+        bookmarkTable.getSearchTextField().textProperty().addListener((observable, oldValue, newValue) -> filterView());
     }
 
     private void setupManageCategoriesButton() {
@@ -148,6 +159,15 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     void populateCategoryTabPane() {
+        String selectedCategoryId = null;
+        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab != null) {
+            BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
+            if (category != null) {
+                selectedCategoryId = category.getId();
+            }
+        }
+
         categoryTabPane.getTabs().clear();
         List<BookmarkCategory> categories = new ArrayList<>();
         categories.add(new BookmarkCategory(null, "All"));
@@ -158,38 +178,46 @@ public class BookmarkChannelListUI extends HBox {
             tab.setUserData(category);
             categoryTabPane.getTabs().add(tab);
         }
-        categoryTabPane.getSelectionModel().selectFirst();
+
+        // Restore selection
+        final String finalSelectedCategoryId = selectedCategoryId;
+        categoryTabPane.getTabs().stream()
+                .filter(tab -> {
+                    BookmarkCategory category = (BookmarkCategory) tab.getUserData();
+                    if (category == null || category.getId() == null) {
+                        return finalSelectedCategoryId == null;
+                    }
+                    return category.getId().equals(finalSelectedCategoryId);
+                })
+                .findFirst()
+                .ifPresent(tab -> categoryTabPane.getSelectionModel().select(tab));
+
+        if (categoryTabPane.getSelectionModel().getSelectedItem() == null) {
+            categoryTabPane.getSelectionModel().selectFirst();
+        }
     }
 
-    private void loadBookmarksForCategory(String categoryId) {
-        bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
-        new Thread(() -> {
-            List<Bookmark> bookmarks = (categoryId == null)
-                    ? BookmarkService.getInstance().read()
-                    : BookmarkService.getInstance().getBookmarksByCategory(categoryId);
+    private void filterView() {
+        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
+        String categoryId = null;
+        if (selectedTab != null) {
+            BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
+            if (category != null) {
+                categoryId = category.getId();
+            }
+        }
 
-            List<BookmarkItem> items = bookmarks.stream()
-                    .map(this::createBookmarkItem)
-                    .collect(Collectors.toList());
-
-            runLater(() -> {
-                currentTabItems = items;
-                applyFilter();
-                if (currentTabItems.isEmpty()) {
-                    bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
-                } else {
-                    bookmarkTable.getTableView().setPlaceholder(null);
-                }
-            });
-        }).start();
-    }
-
-    private void applyFilter() {
         String searchText = bookmarkTable.getSearchTextField().getText().toLowerCase();
-        List<BookmarkItem> filteredList = currentTabItems.stream()
-                .filter(item -> searchText.isEmpty() 
-                        || item.getChannelName().toLowerCase().contains(searchText) 
-                        || item.getAccountName().toLowerCase().contains(searchText))
+        final String finalCategoryId = categoryId;
+
+        List<BookmarkItem> filteredList = allBookmarkItems.stream()
+                .filter(item -> {
+                    boolean categoryMatch = (finalCategoryId == null) || finalCategoryId.equals(item.getCategoryId());
+                    boolean searchMatch = searchText.isEmpty()
+                            || item.getChannelName().toLowerCase().contains(searchText)
+                            || item.getAccountName().toLowerCase().contains(searchText);
+                    return categoryMatch && searchMatch;
+                })
                 .collect(Collectors.toList());
 
         bookmarkTable.getTableView().setItems(FXCollections.observableArrayList(filteredList));
@@ -211,7 +239,11 @@ public class BookmarkChannelListUI extends HBox {
                 new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")"),
                 new SimpleStringProperty(bookmark.getCategoryId()),
                 new SimpleStringProperty(logo),
-                accountAction
+                accountAction,
+                new SimpleStringProperty(bookmark.getCategoryJson()),
+                new SimpleStringProperty(bookmark.getChannelJson()),
+                new SimpleStringProperty(bookmark.getVodJson()),
+                new SimpleStringProperty(bookmark.getSeriesJson())
         );
     }
 
@@ -223,7 +255,7 @@ public class BookmarkChannelListUI extends HBox {
         popupStage.setTitle("Manage Categories");
         popupStage.setScene(scene);
         popupStage.showAndWait();
-        refresh();
+        forceReload();
     }
 
     private void addChannelClickHandler() {
@@ -235,7 +267,7 @@ public class BookmarkChannelListUI extends HBox {
                     event.consume();
                     isPromptShowing = false;
                 } else {
-                    play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                    play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
                 }
             }
         });
@@ -245,13 +277,10 @@ public class BookmarkChannelListUI extends HBox {
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY) {
                     if (event.getClickCount() == 2) {
-                        play(row.getItem(), false, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                        play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
                     } else if (!event.isControlDown() && !event.isShiftDown()) {
                         TableView.TableViewSelectionModel<BookmarkItem> sm = bookmarkTable.getTableView().getSelectionModel();
                         if (sm.isSelected(row.getIndex())) {
-                            // Optional: if you want a click on an already selected row to do nothing,
-                            // or maybe to deselect all but this one if others are selected.
-                            // For now, we ensure only this one is selected.
                             if (sm.getSelectedItems().size() > 1) {
                                 sm.clearAndSelect(row.getIndex());
                             }
@@ -296,7 +325,6 @@ public class BookmarkChannelListUI extends HBox {
                     event.setDropCompleted(true);
                     bookmarkTable.getTableView().getSelectionModel().clearSelection();
 
-                    // Save the new order
                     List<String> orderedDbIds = bookmarkTable.getTableView().getItems().stream()
                             .map(BookmarkItem::getBookmarkId)
                             .collect(Collectors.toList());
@@ -337,17 +365,7 @@ public class BookmarkChannelListUI extends HBox {
                 showErrorAlert("This action is disabled for multiple selections.");
             } else {
                 rowMenu.hide();
-                play(row.getItem(), false, "embedded"); // Use "embedded" as a special playerPath
-            }
-        });
-
-        MenuItem playerItem = new MenuItem("Reconnect & Play");
-        playerItem.setOnAction(event -> {
-            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
-            } else {
-                rowMenu.hide();
-                play(row.getItem(), true, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                play(row.getItem(), "embedded");
             }
         });
 
@@ -357,7 +375,7 @@ public class BookmarkChannelListUI extends HBox {
                 showErrorAlert("This action is disabled for multiple selections.");
             } else {
                 rowMenu.hide();
-                play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath1());
+                play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
             }
         });
 
@@ -367,7 +385,7 @@ public class BookmarkChannelListUI extends HBox {
                 showErrorAlert("This action is disabled for multiple selections.");
             } else {
                 rowMenu.hide();
-                play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath2());
+                play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
             }
         });
 
@@ -377,7 +395,7 @@ public class BookmarkChannelListUI extends HBox {
                 showErrorAlert("This action is disabled for multiple selections.");
             } else {
                 rowMenu.hide();
-                play(row.getItem(), false, ConfigurationService.getInstance().read().getPlayerPath3());
+                play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
             }
         });
 
@@ -393,11 +411,11 @@ public class BookmarkChannelListUI extends HBox {
                     b.setCategoryId(category.getId());
                     BookmarkService.getInstance().save(b);
                 }
-                refresh();
+                forceReload();
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, playerItem, addToMenu);
+        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, addToMenu);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
@@ -422,41 +440,53 @@ public class BookmarkChannelListUI extends HBox {
                 for (BookmarkItem selectedItem : selectedItems) {
                     BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
                 }
-                refresh();
+                forceReload();
             }
         });
     }
 
-    private void play(BookmarkItem item, boolean hardReset, String playerPath) {
+    private void play(BookmarkItem item, String playerPath) {
+        runLater(() -> getPlayer().stop());
+
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
                 Account account = AccountService.getInstance().getAll().get(item.getAccountName());
                 account.setServerPortalUrl(item.getServerPortalUrl());
-                account.setAction(item.getAccountAction()); // Set the correct action
+                account.setAction(item.getAccountAction());
 
-                Bookmark bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
-                bookmark.setDbId(item.getBookmarkId());
-                bookmark.setAccountAction(item.getAccountAction());
-
-                PlayerResponse response;
-                Channel channel = new Channel();
-                channel.setCmd(bookmark.getCmd());
-                channel.setChannelId(bookmark.getChannelId());
-                channel.setName(bookmark.getChannelName());
-                channel.setDrmType(bookmark.getDrmType());
-                channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
-                channel.setClearKeysJson(bookmark.getClearKeysJson());
-                channel.setInputstreamaddon(bookmark.getInputstreamaddon());
-                channel.setManifestType(bookmark.getManifestType());
-
-                if (hardReset) {
-                    response = PlayerService.getInstance().runBookmark(account, bookmark);
-                } else {
-                    response = PlayerService.getInstance().get(account, channel);
+                Channel channel = null;
+                if (isNotBlank(item.getSeriesJson())) {
+                    Episode episode = Episode.fromJson(item.getSeriesJson());
+                    if (episode != null) {
+                        channel = new Channel();
+                        channel.setCmd(episode.getCmd());
+                        channel.setName(episode.getTitle());
+                        channel.setChannelId(episode.getId());
+                        if (episode.getInfo() != null) {
+                            channel.setLogo(episode.getInfo().getMovieImage());
+                        }
+                    }
+                } else if (isNotBlank(item.getChannelJson())) {
+                    channel = Channel.fromJson(item.getChannelJson());
+                } else if (isNotBlank(item.getVodJson())) {
+                    channel = Channel.fromJson(item.getVodJson());
                 }
 
-                response.setFromChannel(channel, account); // Ensure response has channel and account
+                if (channel == null) {
+                    channel = new Channel();
+                    channel.setCmd(item.getCmd());
+                    channel.setChannelId(item.getChannelId());
+                    channel.setName(item.getChannelName());
+                    channel.setDrmType(item.getDrmType());
+                    channel.setDrmLicenseUrl(item.getDrmLicenseUrl());
+                    channel.setClearKeysJson(item.getClearKeysJson());
+                    channel.setInputstreamaddon(item.getInputstreamaddon());
+                    channel.setManifestType(item.getManifestType());
+                }
+
+                PlayerResponse response = PlayerService.getInstance().get(account, channel, item.getChannelId());
+                response.setFromChannel(channel, account);
 
                 String evaluatedStreamUrl = response.getUrl();
 
@@ -470,12 +500,12 @@ public class BookmarkChannelListUI extends HBox {
                         } else {
                             showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                         }
-                    } else { // playerPath is not "embedded" or is blank
-                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
+                    } else {
+                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
                             getPlayer().play(response);
-                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
+                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
                             showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
-                        } else { // Use external player
+                        } else {
                             com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
                         }
                     }
@@ -500,8 +530,18 @@ public class BookmarkChannelListUI extends HBox {
         private final SimpleStringProperty categoryId;
         private final SimpleStringProperty logo;
         private final Account.AccountAction accountAction;
+        private final SimpleStringProperty categoryJson;
+        private final SimpleStringProperty channelJson;
+        private final SimpleStringProperty vodJson;
+        private final SimpleStringProperty seriesJson;
+        private final String drmType;
+        private final String drmLicenseUrl;
+        private final String clearKeysJson;
+        private final String inputstreamaddon;
+        private final String manifestType;
 
-        public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId, SimpleStringProperty logo, Account.AccountAction accountAction) {
+
+        public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId, SimpleStringProperty logo, Account.AccountAction accountAction, SimpleStringProperty categoryJson, SimpleStringProperty channelJson, SimpleStringProperty vodJson, SimpleStringProperty seriesJson) {
             this.bookmarkId = bookmarkId;
             this.channelName = channelName;
             this.channelId = channelId;
@@ -513,6 +553,15 @@ public class BookmarkChannelListUI extends HBox {
             this.categoryId = categoryId;
             this.logo = logo;
             this.accountAction = accountAction;
+            this.categoryJson = categoryJson;
+            this.channelJson = channelJson;
+            this.vodJson = vodJson;
+            this.seriesJson = seriesJson;
+            this.drmType = null;
+            this.drmLicenseUrl = null;
+            this.clearKeysJson = null;
+            this.inputstreamaddon = null;
+            this.manifestType = null;
         }
 
         public String getBookmarkId() {
@@ -629,6 +678,58 @@ public class BookmarkChannelListUI extends HBox {
 
         public Account.AccountAction getAccountAction() {
             return accountAction;
+        }
+
+        public String getCategoryJson() {
+            return categoryJson.get();
+        }
+
+        public SimpleStringProperty categoryJsonProperty() {
+            return categoryJson;
+        }
+
+        public String getChannelJson() {
+            return channelJson.get();
+        }
+
+        public SimpleStringProperty channelJsonProperty() {
+            return channelJson;
+        }
+
+        public String getVodJson() {
+            return vodJson.get();
+        }
+
+        public SimpleStringProperty vodJsonProperty() {
+            return vodJson;
+        }
+
+        public String getSeriesJson() {
+            return seriesJson.get();
+        }
+
+        public SimpleStringProperty seriesJsonProperty() {
+            return seriesJson;
+        }
+
+        public String getDrmType() {
+            return drmType;
+        }
+
+        public String getDrmLicenseUrl() {
+            return drmLicenseUrl;
+        }
+
+        public String getClearKeysJson() {
+            return clearKeysJson;
+        }
+
+        public String getInputstreamaddon() {
+            return inputstreamaddon;
+        }
+
+        public String getManifestType() {
+            return manifestType;
         }
     }
 }

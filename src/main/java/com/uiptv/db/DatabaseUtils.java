@@ -79,7 +79,11 @@ public class DatabaseUtils {
                 new DataColumn("drmLicenseUrl", "TEXT"),
                 new DataColumn("clearKeysJson", "TEXT"),
                 new DataColumn("inputstreamaddon", "TEXT"),
-                new DataColumn("manifestType", "TEXT")
+                new DataColumn("manifestType", "TEXT"),
+                new DataColumn("categoryJson", "TEXT"),
+                new DataColumn("channelJson", "TEXT"),
+                new DataColumn("vodJson", "TEXT"),
+                new DataColumn("seriesJson", "TEXT")
         )));
         dbStructure.put(DbTable.CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

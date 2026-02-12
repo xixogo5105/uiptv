@@ -8,6 +8,7 @@ import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AutoGrowVBox;
@@ -81,7 +82,8 @@ public class EpisodesListUI extends HBox {
                         new SimpleStringProperty(i.getCmd()),
                         isBookmarked,
                         new SimpleStringProperty(logo),
-                        new SimpleStringProperty(tmdbId)
+                        new SimpleStringProperty(tmdbId),
+                        i
                 ));
             });
             
@@ -157,14 +159,14 @@ public class EpisodesListUI extends HBox {
     private void addChannelClickHandler() {
         table.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER) {
-                play((EpisodeItem) table.getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
+                play((EpisodeItem) table.getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
             }
         });
         table.setRowFactory(tv -> {
             TableRow<EpisodeItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), false);
+                    play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
                 }
             });
             addRightClickContextMenu(row);
@@ -214,7 +216,7 @@ public class EpisodesListUI extends HBox {
                                 BookmarkService.getInstance().remove(existingBookmark.getDbId());
                                 Platform.runLater(() -> {
                                     item.setBookmarked(false);
-                                    bookmarkChannelListUI.refresh();
+                                    bookmarkChannelListUI.forceReload();
                                     table.refresh();
                                 });
                             }).start();
@@ -228,30 +230,25 @@ public class EpisodesListUI extends HBox {
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
         playerEmbeddedItem.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), "embedded", false);
+            play(row.getItem(), "embedded");
         });
         MenuItem player1Item = new MenuItem("Player 1");
         player1Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1(), false);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
         });
         MenuItem player2Item = new MenuItem("Player 2");
         player2Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2(), false);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
         });
         MenuItem player3Item = new MenuItem("Player 3");
         player3Item.setOnAction(event -> {
             rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3(), false);
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
         });
 
-        MenuItem reconnectAndPlayItem = new MenuItem("Reconnect & Play");
-        reconnectAndPlayItem.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath(), true);
-        });
-        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, reconnectAndPlayItem);
+        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item);
 
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
@@ -264,30 +261,31 @@ public class EpisodesListUI extends HBox {
             Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
             bookmark.setAccountAction(account.getAction());
             bookmark.setCategoryId(bookmarkCategoryId);
+            if (item.getEpisode() != null) {
+                bookmark.setSeriesJson(item.getEpisode().toJson());
+            }
             BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {
                 item.setBookmarked(true);
-                bookmarkChannelListUI.refresh();
+                bookmarkChannelListUI.forceReload();
                 table.refresh();
             });
         }).start();
     }
 
-    private void play(EpisodeItem item, String playerPath, boolean runBookmark) {
+    private void play(EpisodeItem item, String playerPath) {
+        // Stop any existing playback immediately
+        runLater(() -> getPlayer().stop());
+
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
                 PlayerResponse response;
-                if (runBookmark) {
-                    Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
-                    response = PlayerService.getInstance().runBookmark(account, bookmark);
-                } else {
-                    Channel channel = new Channel();
-                    channel.setChannelId(item.getEpisodeId());
-                    channel.setName(item.getEpisodeName());
-                    channel.setCmd(item.getCmd());
-                    response = PlayerService.getInstance().get(account, channel);
-                }
+                Channel channel = new Channel();
+                channel.setChannelId(item.getEpisodeId());
+                channel.setName(item.getEpisodeName());
+                channel.setCmd(item.getCmd());
+                response = PlayerService.getInstance().get(account, channel);
 
                 final String evaluatedStreamUrl = response.getUrl();
                 final PlayerResponse finalResponse = response;
@@ -328,14 +326,16 @@ public class EpisodesListUI extends HBox {
         private final SimpleBooleanProperty bookmarked;
         private final SimpleStringProperty logo;
         private final SimpleStringProperty tmdbId;
+        private final Episode episode;
 
-        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, SimpleStringProperty tmdbId) {
+        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, SimpleStringProperty tmdbId, Episode episode) {
             this.episodeName = episodeName;
             this.episodeId = episodeId;
             this.cmd = cmd;
             this.bookmarked = new SimpleBooleanProperty(isBookmarked);
             this.logo = logo;
             this.tmdbId = tmdbId;
+            this.episode = episode;
         }
 
         public static Callback<EpisodeItem, Observable[]> extractor() {
@@ -404,6 +404,10 @@ public class EpisodesListUI extends HBox {
 
         public SimpleStringProperty tmdbIdProperty() {
             return tmdbId;
+        }
+
+        public Episode getEpisode() {
+            return episode;
         }
     }
 }

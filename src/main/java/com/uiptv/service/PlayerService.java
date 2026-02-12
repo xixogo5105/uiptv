@@ -1,7 +1,6 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.player.YoutubeDL;
@@ -17,11 +16,10 @@ import java.util.Map;
 
 import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class PlayerService {
     private static PlayerService instance;
-    public static final EnumSet<AccountType> preDefinedUrls = EnumSet.of(RSS_FEED, M3U8_URL, M3U8_LOCAL, XTREME_API);
+    public static final EnumSet<AccountType> PRE_DEFINED_URLS = EnumSet.of(RSS_FEED, M3U8_URL, M3U8_LOCAL, XTREME_API);
 
     private PlayerService() {
     }
@@ -41,29 +39,10 @@ public class PlayerService {
         String urlPrefix = channel.getCmd();
         String finalUrl;
 
-        if (preDefinedUrls.contains(account.getType())) {
+        if (PRE_DEFINED_URLS.contains(account.getType())) {
             finalUrl = resolveAndProcessUrl(urlPrefix);
         } else {
-            boolean isPlayTokenUrl = false;
-            try {
-                if (isNotBlank(urlPrefix) && urlPrefix.contains("play_token=")) {
-                    if (isNotBlank(urlPrefix.split("play_token=")[1])) {
-                        isPlayTokenUrl = true;
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-
-            if (isPlayTokenUrl) {
-                finalUrl = resolveAndProcessUrl(urlPrefix);
-            } else {
-                String streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
-                if (isBlank(streamReadyUrl)) {
-                    HandshakeService.getInstance().hardTokenRefresh(account);
-                    streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, series), account));
-                }
-                finalUrl = resolveAndProcessUrl(streamReadyUrl);
-            }
+            finalUrl = resolveAndProcessUrl(fetchStalkerPortalUrl(account, series, urlPrefix));
         }
 
         PlayerResponse response = new PlayerResponse(finalUrl);
@@ -71,15 +50,13 @@ public class PlayerService {
         return response;
     }
 
-    public PlayerResponse runBookmark(Account account, Bookmark bookmark) {
-        HandshakeService.getInstance().connect(account);
-        String urlPrefix = bookmark.getCmd();
-        String streamReadyUrl = parseUrl(FetchAPI.fetch(getParams(account, urlPrefix, ""), account));
-        String finalUrl = resolveAndProcessUrl(streamReadyUrl);
-
-        PlayerResponse response = new PlayerResponse(finalUrl);
-        response.setFromBookmark(bookmark, account);
-        return response;
+    private String fetchStalkerPortalUrl(final Account account, final String series, final String origUrl) {
+        String freshUrl = parseUrl(FetchAPI.fetch(getParams(account, origUrl, series), account));
+        if (isBlank(freshUrl)) {
+            HandshakeService.getInstance().hardTokenRefresh(account);
+            freshUrl = parseUrl(FetchAPI.fetch(getParams(account, origUrl, series), account));
+        }
+        return isBlank(freshUrl) ? origUrl : freshUrl;
     }
 
     private String parseUrl(String json) {

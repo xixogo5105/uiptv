@@ -3,6 +3,7 @@ package com.uiptv.shared;
 import com.uiptv.model.Account;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.json.JSONObject;
 
 import java.util.Map;
 
@@ -28,5 +29,27 @@ public class Episode extends BaseJson {
         this.direct_source = safeGetString(map, "direct_source");
         this.info = new EpisodeInfo((Map) map.get("info"));
         this.cmd = getXtremeStreamUrl(account, id, containerExtension);
+    }
+
+    public static Episode fromJson(String json) {
+        try {
+            JSONObject jsonObj = new JSONObject(json);
+            Episode episode = new Episode();
+            episode.setId(safeGetString(jsonObj, "id"));
+            episode.setEpisodeNum(safeGetString(jsonObj, "episodeNum"));
+            episode.setTitle(safeGetString(jsonObj, "title"));
+            episode.setContainerExtension(safeGetString(jsonObj, "containerExtension"));
+            episode.setCustom_sid(safeGetString(jsonObj, "custom_sid"));
+            episode.setAdded(safeGetString(jsonObj, "added"));
+            episode.setSeason(safeGetString(jsonObj, "season"));
+            episode.setDirect_source(safeGetString(jsonObj, "direct_source"));
+            episode.setCmd(safeGetString(jsonObj, "cmd"));
+            if (jsonObj.has("info")) {
+                episode.setInfo(new EpisodeInfo(jsonObj.getJSONObject("info").toMap()));
+            }
+            return episode;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

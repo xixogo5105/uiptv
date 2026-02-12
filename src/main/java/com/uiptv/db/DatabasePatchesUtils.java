@@ -31,6 +31,10 @@ public class DatabasePatchesUtils {
         dbPatches.put("140", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN accountAction TEXT");
         dbPatches.put("141", "CREATE TABLE IF NOT EXISTS " + BOOKMARK_ORDER_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, bookmark_db_id TEXT NOT NULL, category_id TEXT, display_order INTEGER)");
         dbPatches.put("142", "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) SELECT id, categoryId, 0 FROM " + BOOKMARK_TABLE.getTableName() + " WHERE id NOT IN (SELECT bookmark_db_id FROM " + BOOKMARK_ORDER_TABLE.getTableName() + ")");
+        dbPatches.put("143", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN categoryJson TEXT");
+        dbPatches.put("144", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN channelJson TEXT");
+        dbPatches.put("145", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN vodJson TEXT");
+        dbPatches.put("146", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN seriesJson TEXT");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

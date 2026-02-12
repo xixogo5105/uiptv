@@ -20,10 +20,7 @@ import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
@@ -58,7 +55,7 @@ public class ManageAccountUI extends VBox {
     private final DangerousButton deleteAllButton = new DangerousButton("Delete All");
     private final DangerousButton deleteButton = new DangerousButton("Delete");
     private final Button clearButton = new Button("Clear Data");
-    private final Button refreshChannelsButton = new Button("Refresh Channels");
+    private final Button refreshChannelsButton = new Button("Reload Cache");
     private final CacheService cacheService = new CacheServiceImpl();
     AccountService service = AccountService.getInstance();
     private String accountId;
@@ -324,22 +321,32 @@ public class ManageAccountUI extends VBox {
         refreshChannelsButton.setOnAction(event -> {
             Account account = getAccountFromForm();
             if (account == null || isBlank(account.getDbId())) {
-                showErrorAlert("Please save the account before refreshing channels.");
+                showErrorAlert("Please save the account before reloading the cache.");
                 return;
             }
 
-            LogPopupUI logPopup = new LogPopupUI("Refreshing channels. This will take a while...");
-            logPopup.show();
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Confirmation");
+            alert.setHeaderText(null);
+            alert.setContentText("Are you sure you want to reload the cache for " + account.getAccountName() + "? This may take a while.");
+            if (RootApplication.currentTheme != null) {
+                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+            }
+            Optional<ButtonType> result = alert.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                LogPopupUI logPopup = new LogPopupUI("Reloading cache. This will take a while...");
+                logPopup.show();
 
-            new Thread(() -> {
-                try {
-                    cacheService.reloadCache(account, logPopup.getLogger());
-                } catch (IOException e) {
-                    Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
-                } finally {
-                    logPopup.closeGracefully();
-                }
-            }).start();
+                new Thread(() -> {
+                    try {
+                        cacheService.reloadCache(account, logPopup.getLogger());
+                    } catch (IOException e) {
+                        Platform.runLater(() -> showErrorAlert("Failed to reload cache: " + e.getMessage()));
+                    } finally {
+                        logPopup.closeGracefully();
+                    }
+                }).start();
+            }
         });
     }
 

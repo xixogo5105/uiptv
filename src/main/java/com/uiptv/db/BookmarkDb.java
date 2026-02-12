@@ -101,6 +101,10 @@ public class BookmarkDb extends BaseDb {
             statement.setString(i++, bookmark.getClearKeysJson());
             statement.setString(i++, bookmark.getInputstreamaddon());
             statement.setString(i++, bookmark.getManifestType());
+            statement.setString(i++, bookmark.getCategoryJson());
+            statement.setString(i++, bookmark.getChannelJson());
+            statement.setString(i++, bookmark.getVodJson());
+            statement.setString(i++, bookmark.getSeriesJson());
             statement.execute();
             // Retrieve the generated ID for the new bookmark
             try (ResultSet rs = statement.getGeneratedKeys()) {
@@ -114,7 +118,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     private void update(Bookmark bookmark) {
-        String sql = "UPDATE " + BOOKMARK_TABLE.getTableName() + " SET accountName=?, categoryTitle=?, channelId=?, channelName=?, cmd=?, serverPortalUrl=?, categoryId=?, accountAction=?, drmType=?, drmLicenseUrl=?, clearKeysJson=?, inputstreamaddon=?, manifestType=? WHERE id=?";
+        String sql = "UPDATE " + BOOKMARK_TABLE.getTableName() + " SET accountName=?, categoryTitle=?, channelId=?, channelName=?, cmd=?, serverPortalUrl=?, categoryId=?, accountAction=?, drmType=?, drmLicenseUrl=?, clearKeysJson=?, inputstreamaddon=?, manifestType=?, categoryJson=?, channelJson=?, vodJson=?, seriesJson=? WHERE id=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             int i = 1;
             statement.setString(i++, bookmark.getAccountName());
@@ -130,6 +134,10 @@ public class BookmarkDb extends BaseDb {
             statement.setString(i++, bookmark.getClearKeysJson());
             statement.setString(i++, bookmark.getInputstreamaddon());
             statement.setString(i++, bookmark.getManifestType());
+            statement.setString(i++, bookmark.getCategoryJson());
+            statement.setString(i++, bookmark.getChannelJson());
+            statement.setString(i++, bookmark.getVodJson());
+            statement.setString(i++, bookmark.getSeriesJson());
             statement.setString(i++, bookmark.getDbId());
             statement.execute();
         } catch (SQLException e) {
@@ -183,6 +191,10 @@ public class BookmarkDb extends BaseDb {
         bookmark.setClearKeysJson(nullSafeString(resultSet, "clearKeysJson"));
         bookmark.setInputstreamaddon(nullSafeString(resultSet, "inputstreamaddon"));
         bookmark.setManifestType(nullSafeString(resultSet, "manifestType"));
+        bookmark.setCategoryJson(nullSafeString(resultSet, "categoryJson"));
+        bookmark.setChannelJson(nullSafeString(resultSet, "channelJson"));
+        bookmark.setVodJson(nullSafeString(resultSet, "vodJson"));
+        bookmark.setSeriesJson(nullSafeString(resultSet, "seriesJson"));
         return bookmark;
     }
 

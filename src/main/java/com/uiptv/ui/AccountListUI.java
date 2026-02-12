@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -125,10 +126,7 @@ public class AccountListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
-        MenuItem deleteItem = new MenuItem("Delete Account");
-        deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
-
-        MenuItem itv = new MenuItem("TV/Channels");
+        MenuItem itv = new MenuItem("TV Channels");
         itv.setOnAction(actionEvent -> {
             if (table.getSelectionModel().getSelectedItems().size() > 1) {
                 showErrorAlert("This action is disabled for multiple selections.");
@@ -137,7 +135,7 @@ public class AccountListUI extends HBox {
             }
         });
 
-        MenuItem vod = new MenuItem("Video On Demand (VOD)");
+        MenuItem vod = new MenuItem("VOD");
         vod.setOnAction(actionEvent -> {
             if (table.getSelectionModel().getSelectedItems().size() > 1) {
                 showErrorAlert("This action is disabled for multiple selections.");
@@ -155,7 +153,19 @@ public class AccountListUI extends HBox {
             }
         });
 
-        rowMenu.getItems().addAll(deleteItem, itv, vod, series);
+        MenuItem reloadCache = new MenuItem("Reload Cache");
+        reloadCache.setOnAction(actionEvent -> {
+            if (table.getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                handleReloadCache(row.getItem());
+            }
+        });
+
+        MenuItem deleteItem = new MenuItem("Delete Account");
+        deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
+
+        rowMenu.getItems().addAll(itv, vod, series, new SeparatorMenuItem(), reloadCache, deleteItem);
 
         rowMenu.setOnShowing(e -> {
             if (row.getItem() != null) {
@@ -170,6 +180,32 @@ public class AccountListUI extends HBox {
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
                         .otherwise(rowMenu));
+    }
+
+    private void handleReloadCache(AccountItem item) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirmation");
+        alert.setHeaderText(null);
+        alert.setContentText("Are you sure you want to reload the cache for " + item.getAccountName() + "? This may take a while.");
+        if (RootApplication.currentTheme != null) {
+            alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        }
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            Account account = AccountDb.get().getAccountById(item.getAccountId());
+            LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
+            logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
+            logPopup.show();
+            new Thread(() -> {
+                try {
+                    cacheService.reloadCache(account, logPopup.getLogger());
+                } catch (IOException e) {
+                    Platform.runLater(() -> showErrorAlert("Failed to reload cache: " + e.getMessage()));
+                } finally {
+                    Platform.runLater(logPopup::closeGracefully);
+                }
+            }).start();
+        }
     }
 
     private void handleDeleteAccounts() {

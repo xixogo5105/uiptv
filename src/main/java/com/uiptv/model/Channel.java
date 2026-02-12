@@ -3,10 +3,13 @@ package com.uiptv.model;
 import com.uiptv.shared.BaseJson;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.json.JSONObject;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static com.uiptv.util.StringUtils.safeGetString;
 
 @Data
 @NoArgsConstructor
@@ -36,6 +39,34 @@ public class Channel extends BaseJson {
         setClearKeys(clearKeys);
         this.inputstreamaddon = inputstreamaddon;
         this.manifestType = manifestType;
+    }
+
+    public static Channel fromJson(String json) {
+        try {
+            JSONObject jsonObj = new JSONObject(json);
+            Channel channel = new Channel();
+            channel.setDbId(safeGetString(jsonObj, "dbId"));
+            channel.setChannelId(safeGetString(jsonObj, "channelId"));
+            channel.setCategoryId(safeGetString(jsonObj, "categoryId"));
+            channel.setName(safeGetString(jsonObj, "name"));
+            channel.setNumber(safeGetString(jsonObj, "number"));
+            channel.setCmd(safeGetString(jsonObj, "cmd"));
+            channel.setCmd_1(safeGetString(jsonObj, "cmd_1"));
+            channel.setCmd_2(safeGetString(jsonObj, "cmd_2"));
+            channel.setCmd_3(safeGetString(jsonObj, "cmd_3"));
+            channel.setLogo(safeGetString(jsonObj, "logo"));
+            channel.setCensored(jsonObj.optInt("censored"));
+            channel.setStatus(jsonObj.optInt("status"));
+            channel.setHd(jsonObj.optInt("hd"));
+            channel.setDrmType(safeGetString(jsonObj, "drmType"));
+            channel.setDrmLicenseUrl(safeGetString(jsonObj, "drmLicenseUrl"));
+            channel.setClearKeysJson(safeGetString(jsonObj, "clearKeysJson"));
+            channel.setInputstreamaddon(safeGetString(jsonObj, "inputstreamaddon"));
+            channel.setManifestType(safeGetString(jsonObj, "manifestType"));
+            return channel;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public Map<String, String> getClearKeys() {

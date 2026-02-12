@@ -21,6 +21,10 @@ public class Bookmark extends BaseJson {
     private String clearKeysJson;
     private String inputstreamaddon;
     private String manifestType;
+    private String categoryJson;
+    private String channelJson;
+    private String vodJson;
+    private String seriesJson;
 
     public Bookmark(String accountName, String categoryTitle, String channelId, String channelName, String cmd, String serverPortalUrl, String categoryId) {
         this.accountName = accountName;
