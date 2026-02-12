@@ -275,7 +275,7 @@ public class EpisodesListUI extends HBox {
 
     private void play(EpisodeItem item, String playerPath) {
         // Stop any existing playback immediately
-        runLater(() -> getPlayer().stop());
+        runLater(() -> getPlayer().stopForReload());
 
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {

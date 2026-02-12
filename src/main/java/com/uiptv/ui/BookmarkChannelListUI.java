@@ -446,7 +446,7 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void play(BookmarkItem item, String playerPath) {
-        runLater(() -> getPlayer().stop());
+        runLater(() -> getPlayer().stopForReload());
 
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {

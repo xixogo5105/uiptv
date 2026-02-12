@@ -17,6 +17,11 @@ public class DummyVideoPlayer implements VideoPlayerInterface {
     }
 
     @Override
+    public void stopForReload() {
+
+    }
+
+    @Override
     public void toggleFullscreen() {
         // Do nothing
     }

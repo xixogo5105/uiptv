@@ -536,11 +536,13 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             retryCount = 0;
         }
 
-        String uri = null;
+        String uri;
         if (response != null) {
             uri = response.getUrl();
             this.currentAccount = response.getAccount();
             this.currentChannel = response.getChannel();
+        } else {
+            uri = null;
         }
 
         if (isNotBlank(uri)) {
@@ -556,7 +558,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
             mediaPlayer.audio().setVolume((int) volumeSlider.getValue()); // Set initial volume
             updateVideoSize(); // Apply the last selected aspect ratio
-            mediaPlayer.media().play(uri);
+            new Thread(() -> mediaPlayer.media().play(uri)).start();
         }
     }
 
@@ -579,10 +581,21 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             playerContainer.setVisible(false);
             playerContainer.setManaged(false);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
+            videoImageView.setImage(null);
+            videoImage = null;
 
             // mediaPlayer.release();
         }
         //if (mediaPlayerFactory != null) mediaPlayerFactory.release();
+    }
+
+    @Override
+    public void stopForReload() {
+        if (mediaPlayer != null) {
+            mediaPlayer.controls().stop();
+            videoImageView.setImage(null);
+            videoImage = null;
+        }
     }
 
     @Override

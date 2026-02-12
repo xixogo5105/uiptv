@@ -650,6 +650,17 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         playerContainer.setManaged(false);
         playerContainer.setMinHeight(0);
         btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
+        mediaView.setMediaPlayer(null);
+    }
+
+    @Override
+    public void stopForReload() {
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.dispose();
+            mediaPlayer = null;
+            mediaView.setMediaPlayer(null);
+        }
     }
 
     @Override

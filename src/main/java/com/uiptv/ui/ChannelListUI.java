@@ -397,7 +397,7 @@ public class ChannelListUI extends HBox {
 
     private void play(ChannelItem item, String playerPath) {
         // Stop any existing playback immediately
-        runLater(() -> getPlayer().stop());
+        runLater(() -> getPlayer().stopForReload());
 
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
