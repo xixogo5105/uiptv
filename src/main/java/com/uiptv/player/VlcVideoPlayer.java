@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
 
@@ -58,6 +59,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private VBox controlsContainer;
     private ProgressIndicator loadingSpinner;
     private Label errorLabel;
+    private Label nowShowingLabel;
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -125,6 +127,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         loadIcons();
 
         // --- 2. BUILD CONTROLS ---
+        nowShowingLabel = new Label();
+        nowShowingLabel.setTextFill(Color.WHITE);
+        nowShowingLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        nowShowingLabel.setPadding(new Insets(0, 0, 5, 0));
+
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon); // Now assigns to the class member
         btnRepeat = createIconButton(repeatOffIcon);
@@ -143,9 +150,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         volumeSlider = new Slider(0, 150, 75);
         volumeSlider.setPrefWidth(100);
 
-        HBox topRow = new HBox(8);
-        topRow.setAlignment(Pos.CENTER_LEFT);
-        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio); // Added btnPip
+        HBox buttonRow = new HBox(8);
+        buttonRow.setAlignment(Pos.CENTER_LEFT);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio); // Added btnPip
 
         timeSlider = new Slider(0, 1, 0);
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
@@ -153,16 +160,17 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         timeLabel.setTextFill(Color.WHITE);
         timeLabel.setStyle("-fx-font-family: monospace; -fx-font-weight: bold;");
 
-        HBox bottomRow = new HBox(10);
-        bottomRow.setAlignment(Pos.CENTER_LEFT);
-        bottomRow.getChildren().addAll(timeSlider, timeLabel);
+        HBox timeRow = new HBox(5);
+        timeRow.setAlignment(Pos.CENTER_LEFT);
+        timeRow.getChildren().addAll(timeSlider, timeLabel);
 
-        controlsContainer = new VBox(10);
-        controlsContainer.setPadding(new Insets(8));
+        controlsContainer = new VBox(5);
+        controlsContainer.setPadding(new Insets(5));
         controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
-        controlsContainer.getChildren().addAll(topRow, bottomRow);
+        controlsContainer.getChildren().addAll(nowShowingLabel, buttonRow, timeRow);
         controlsContainer.setMaxWidth(480);
-        controlsContainer.setMaxHeight(80);
+        controlsContainer.setPrefWidth(30);
+        controlsContainer.setMaxHeight(50);
 
         // --- 3. LAYOUT ROOT ---
         playerContainer.setStyle("-fx-background-color: black;");
@@ -175,7 +183,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         StackPane overlayWrapper = new StackPane(controlsContainer);
         overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
-        overlayWrapper.setPadding(new Insets(0, 20, 20, 20));
+        overlayWrapper.setPadding(new Insets(0, 10, 10, 10));
 
         loadingSpinner = new ProgressIndicator();
         loadingSpinner.setMaxSize(60, 60);
@@ -552,6 +560,17 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             playerContainer.setMinHeight(275);
             loadingSpinner.setVisible(true);
             errorLabel.setVisible(false);
+            controlsContainer.setVisible(false);
+
+            if (currentChannel != null && isNotBlank(currentChannel.getName())) {
+                nowShowingLabel.setText("Now Showing: " + currentChannel.getName());
+                nowShowingLabel.setVisible(true);
+                nowShowingLabel.setManaged(true);
+            } else {
+                nowShowingLabel.setText("");
+                nowShowingLabel.setVisible(false);
+                nowShowingLabel.setManaged(false);
+            }
 
             mediaPlayer.audio().setMute(isMuted); // Apply persistent mute state
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon); // Update button graphic
@@ -591,10 +610,30 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stopForReload() {
-        if (mediaPlayer != null) {
+        if (mediaPlayer == null) {
+            return;
+        }
+
+        if (Platform.isFxApplicationThread()) {
             mediaPlayer.controls().stop();
             videoImageView.setImage(null);
             videoImage = null;
+        } else {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    mediaPlayer.controls().stop();
+                    videoImageView.setImage(null);
+                    videoImage = null;
+                } finally {
+                    latch.countDown();
+                }
+            });
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

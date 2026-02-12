@@ -37,8 +37,10 @@ import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.CountDownLatch;
 
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class LiteVideoPlayer implements VideoPlayerInterface {
 
@@ -56,6 +58,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private VBox controlsContainer;
     private ProgressIndicator loadingSpinner;
     private Label errorLabel; // Added for displaying errors
+    private Label nowShowingLabel;
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -107,6 +110,11 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         loadIcons();
 
         // --- 2. BUILD CONTROLS ---
+        nowShowingLabel = new Label();
+        nowShowingLabel.setTextFill(Color.WHITE);
+        nowShowingLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        nowShowingLabel.setPadding(new Insets(0, 0, 5, 0));
+
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
         btnRepeat = createIconButton(repeatOffIcon);
@@ -125,9 +133,9 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         volumeSlider = new Slider(0, 100, 50); // Use 0-100 scale
         volumeSlider.setPrefWidth(100);
 
-        HBox topRow = new HBox(8);
-        topRow.setAlignment(Pos.CENTER_LEFT);
-        topRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
+        HBox buttonRow = new HBox(8);
+        buttonRow.setAlignment(Pos.CENTER_LEFT);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
 
         timeSlider = new Slider(0, 1, 0);
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
@@ -135,16 +143,17 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         timeLabel.setTextFill(Color.WHITE);
         timeLabel.setStyle("-fx-font-family: monospace; -fx-font-weight: bold;");
 
-        HBox bottomRow = new HBox(10);
-        bottomRow.setAlignment(Pos.CENTER_LEFT);
-        bottomRow.getChildren().addAll(timeSlider, timeLabel);
+        HBox timeRow = new HBox(5);
+        timeRow.setAlignment(Pos.CENTER_LEFT);
+        timeRow.getChildren().addAll(timeSlider, timeLabel);
 
-        controlsContainer = new VBox(10);
-        controlsContainer.setPadding(new Insets(8));
+        controlsContainer = new VBox(5);
+        controlsContainer.setPadding(new Insets(5));
         controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
-        controlsContainer.getChildren().addAll(topRow, bottomRow);
+        controlsContainer.getChildren().addAll(nowShowingLabel, buttonRow, timeRow);
         controlsContainer.setMaxWidth(480);
-        controlsContainer.setMaxHeight(80);
+        controlsContainer.setPrefWidth(30);
+        controlsContainer.setMaxHeight(50);
 
         // --- 3. LAYOUT ROOT ---
         playerContainer.setStyle("-fx-background-color: black;");
@@ -157,7 +166,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
         StackPane overlayWrapper = new StackPane(controlsContainer);
         overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
-        overlayWrapper.setPadding(new Insets(0, 20, 20, 20));
+        overlayWrapper.setPadding(new Insets(0, 10, 10, 10));
 
         loadingSpinner = new ProgressIndicator();
         loadingSpinner.setMaxSize(60, 60);
@@ -547,6 +556,17 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         playerContainer.setMinHeight(275);
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false); // Hide error from previous attempt
+        controlsContainer.setVisible(false);
+
+        if (currentChannel != null && isNotBlank(currentChannel.getName())) {
+            nowShowingLabel.setText("Now Showing: " + currentChannel.getName());
+            nowShowingLabel.setVisible(true);
+            nowShowingLabel.setManaged(true);
+        } else {
+            nowShowingLabel.setText("");
+            nowShowingLabel.setVisible(false);
+            nowShowingLabel.setManaged(false);
+        }
 
         // Dispose of old player first
         if (mediaPlayer != null) {
@@ -655,11 +675,33 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stopForReload() {
-        if (mediaPlayer != null) {
+        if (mediaPlayer == null) {
+            return;
+        }
+        if (Platform.isFxApplicationThread()) {
             mediaPlayer.stop();
             mediaPlayer.dispose();
             mediaPlayer = null;
             mediaView.setMediaPlayer(null);
+        } else {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    if (mediaPlayer != null) {
+                        mediaPlayer.stop();
+                        mediaPlayer.dispose();
+                        mediaPlayer = null;
+                        mediaView.setMediaPlayer(null);
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
