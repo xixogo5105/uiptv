@@ -5,7 +5,6 @@ import com.uiptv.ui.RootApplication;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
-import javafx.event.Event;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -29,12 +28,20 @@ public class LogPopupUI extends Stage {
 
     private final TextFlow logArea;
     private final ScrollPane scrollPane;
+    private final HBox bottomBar = new HBox(10);
     private Timeline timeline;
+    private Runnable onStop;
 
     public LogPopupUI(String title) {
         initModality(Modality.APPLICATION_MODAL);
         initOwner(primaryStage);
-        setOnCloseRequest(Event::consume); // Prevent closing while process is running
+        
+        // Allow closing, but trigger onStop if set
+        setOnCloseRequest(e -> {
+            if (onStop != null) {
+                onStop.run();
+            }
+        });
 
         VBox dialogVbox = new VBox(10);
         dialogVbox.setPadding(new Insets(10, 10, 10, 10));
@@ -48,9 +55,27 @@ public class LogPopupUI extends Stage {
 
         logArea.heightProperty().addListener((obs, oldVal, newVal) -> scrollPane.setVvalue(1.0));
 
+        // Initialize bottom bar with Close button
+        bottomBar.setAlignment(Pos.CENTER_RIGHT);
+        Button closeButton = new Button("Close");
+        closeButton.setOnAction(e -> {
+            if (onStop != null) {
+                onStop.run();
+            }
+            close();
+        });
+        bottomBar.getChildren().add(closeButton);
+        dialogVbox.getChildren().add(bottomBar);
+
         Scene dialogScene = new Scene(dialogVbox, 672, 342); // Adjusted dimensions
-        dialogScene.getStylesheets().add(RootApplication.currentTheme);
+        if (RootApplication.currentTheme != null) {
+            dialogScene.getStylesheets().add(RootApplication.currentTheme);
+        }
         setScene(dialogScene);
+    }
+
+    public void setOnStop(Runnable onStop) {
+        this.onStop = onStop;
     }
 
     public LoggerCallback getLogger() {
@@ -62,14 +87,18 @@ public class LogPopupUI extends Stage {
 
     public void closeGracefully() {
         Platform.runLater(() -> {
+            // Process finished, so onStop is no longer needed
+            onStop = null;
+            setOnCloseRequest(null);
+
             // Add final message
             Text finalMessage = new Text("All done\n");
             finalMessage.setStyle("-fx-font-weight: bold;");
             finalMessage.setFill(Color.DARKGREEN);
             logArea.getChildren().add(finalMessage);
 
-            // Prepare bottom bar
-            HBox bottomBar = new HBox(10);
+            // Update bottom bar
+            bottomBar.getChildren().clear();
             bottomBar.setAlignment(Pos.CENTER_LEFT);
 
             Label countdownLabel = new Label();
@@ -85,12 +114,6 @@ public class LogPopupUI extends Stage {
             Pane spacer = new Pane();
             HBox.setHgrow(spacer, Priority.ALWAYS);
             bottomBar.getChildren().addAll(clock, countdownLabel, spacer, closeButton);
-
-            VBox root = (VBox) getScene().getRoot();
-            root.getChildren().add(bottomBar);
-
-            // Allow closing now
-            setOnCloseRequest(null);
 
             // Start countdown
             final int[] secondsRemaining = {30};

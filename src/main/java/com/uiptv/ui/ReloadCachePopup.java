@@ -8,7 +8,6 @@ import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
-import javafx.animation.RotateTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -18,18 +17,16 @@ import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.util.Duration;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -59,6 +56,16 @@ public class ReloadCachePopup extends VBox {
         List<Account> supportedAccounts = AccountDb.get().getAccounts().stream()
                 .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
                 .collect(Collectors.toList());
+
+        // Define the sort order for AccountType
+        EnumMap<AccountType, Integer> order = new EnumMap<>(AccountType.class);
+        order.put(AccountType.STALKER_PORTAL, 1);
+        order.put(AccountType.XTREME_API, 2);
+        order.put(AccountType.M3U8_LOCAL, 3);
+        order.put(AccountType.M3U8_URL, 4);
+
+        // Sort the accounts based on the defined order
+        supportedAccounts.sort(Comparator.comparing(account -> order.getOrDefault(account.getType(), Integer.MAX_VALUE)));
 
         for (int i = 0; i < supportedAccounts.size(); i++) {
             Account account = supportedAccounts.get(i);

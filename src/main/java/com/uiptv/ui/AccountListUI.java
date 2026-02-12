@@ -81,7 +81,7 @@ public class AccountListUI extends HBox {
         accountName.setSortType(TableColumn.SortType.ASCENDING);
         accountName.setSortable(true);
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton());
         sceneBox.setMaxHeight(25);
         getChildren().addAll(new AutoGrowPaneVBox(5, sceneBox, table));
         addAccountClickHandler();
@@ -239,7 +239,7 @@ public class AccountListUI extends HBox {
         // Immediately show the CategoryListUI in loading state
         CategoryListUI categoryListUI = new CategoryListUI(account, bookmarkChannelListUI);
         AccountListUI.this.getChildren().clear();
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getComboBox());
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton());
         sceneBox.setMaxHeight(25);
         AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
 

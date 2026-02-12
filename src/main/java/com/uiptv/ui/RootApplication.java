@@ -251,7 +251,9 @@ public class RootApplication extends Application {
             customStylesheet += Bindings.format("-fx-font-weight: %s;", new SimpleStringProperty(configuration.getFontWeight())).getValueSafe();
         }
         scene.getStylesheets().clear();
-        currentTheme = configuration.isDarkTheme() ? "dark-application.css" : "application.css";
+        String themeFileName = configuration.isDarkTheme() ? "dark-application.css" : "application.css";
+        java.net.URL themeUrl = getClass().getResource("/" + themeFileName);
+        currentTheme = themeUrl != null ? themeUrl.toExternalForm() : themeFileName;
         scene.getStylesheets().add(currentTheme);
         scene.getRoot().styleProperty().bind(Bindings.format(customStylesheet));
     }

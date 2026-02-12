@@ -337,7 +337,7 @@ public class ManageAccountUI extends VBox {
                 LogPopupUI logPopup = new LogPopupUI("Reloading cache. This will take a while...");
                 logPopup.show();
 
-                new Thread(() -> {
+                Thread thread = new Thread(() -> {
                     try {
                         cacheService.reloadCache(account, logPopup.getLogger());
                     } catch (IOException e) {
@@ -345,7 +345,9 @@ public class ManageAccountUI extends VBox {
                     } finally {
                         logPopup.closeGracefully();
                     }
-                }).start();
+                });
+                logPopup.setOnStop(thread::interrupt);
+                thread.start();
             }
         });
     }
