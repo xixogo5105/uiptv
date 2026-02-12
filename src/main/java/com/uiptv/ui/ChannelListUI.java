@@ -120,6 +120,7 @@ public class ChannelListUI extends HBox {
         }, table.comparatorProperty()));
 
         table.setItems(sortedList);
+        table.addTextFilter();
 
         channelName.setCellFactory(column -> new TableCell<>() {
 

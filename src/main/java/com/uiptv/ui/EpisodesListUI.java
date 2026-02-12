@@ -87,7 +87,6 @@ public class EpisodesListUI extends HBox {
             
             runLater(() -> {
                 table.setItems(FXCollections.observableArrayList(catList));
-                table.addTextFilter();
                 table.setPlaceholder(null);
             });
         }
@@ -152,6 +151,7 @@ public class EpisodesListUI extends HBox {
         channelName.setSortType(TableColumn.SortType.ASCENDING);
         getChildren().addAll(new AutoGrowVBox(5, table.getSearchTextField(), table));
         addChannelClickHandler();
+        table.addTextFilter();
     }
 
     private void addChannelClickHandler() {

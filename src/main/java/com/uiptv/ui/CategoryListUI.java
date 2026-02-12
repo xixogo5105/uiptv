@@ -53,7 +53,6 @@ public class CategoryListUI extends HBox {
         this.account = account;
         initWidgets();
         categoryTitle.setText(account.getAccountName());
-        table.addTextFilter();
         table.setPlaceholder(new Label("Loading categories..."));
     }
 
@@ -61,6 +60,7 @@ public class CategoryListUI extends HBox {
         List<CategoryItem> catList = new ArrayList<>();
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
         table.setItems(FXCollections.observableArrayList(catList));
+        table.addTextFilter();
         table.setPlaceholder(null);
         if (catList.size() == 1) {
             doRetrieveChannels(catList.get(0));

@@ -14,6 +14,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
@@ -39,6 +40,7 @@ public class BookmarkChannelListUI extends HBox {
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
     private boolean isPromptShowing = false;
+    private List<BookmarkItem> currentTabItems = new ArrayList<>();
 
     public BookmarkChannelListUI() { // Removed MediaPlayer argument
         ImageCacheManager.clearCache("bookmark");
@@ -55,7 +57,7 @@ public class BookmarkChannelListUI extends HBox {
                 selectedCategoryId = category.getId();
             }
         }
-        applyCategoryFilter(selectedCategoryId);
+        loadBookmarksForCategory(selectedCategoryId);
     }
 
     private void initWidgets() {
@@ -132,14 +134,13 @@ public class BookmarkChannelListUI extends HBox {
     private void setupCategoryTabPaneListener() {
         categoryTabPane.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) {
-                BookmarkCategory selectedCategory = (BookmarkCategory) newValue.getUserData();
-                applyCategoryFilter(selectedCategory != null ? selectedCategory.getId() : null);
+                refresh();
             }
         });
     }
 
     private void setupSearchTextFieldListener() {
-        bookmarkTable.getSearchTextField().textProperty().addListener((observable, oldValue, newValue) -> refresh());
+        bookmarkTable.getSearchTextField().textProperty().addListener((observable, oldValue, newValue) -> applyFilter());
     }
 
     private void setupManageCategoriesButton() {
@@ -160,15 +161,35 @@ public class BookmarkChannelListUI extends HBox {
         categoryTabPane.getSelectionModel().selectFirst();
     }
 
-    private void applyCategoryFilter(String categoryId) {
-        List<Bookmark> bookmarks = (categoryId == null)
-                ? BookmarkService.getInstance().read()
-                : BookmarkService.getInstance().getBookmarksByCategory(categoryId);
+    private void loadBookmarksForCategory(String categoryId) {
+        bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
+        new Thread(() -> {
+            List<Bookmark> bookmarks = (categoryId == null)
+                    ? BookmarkService.getInstance().read()
+                    : BookmarkService.getInstance().getBookmarksByCategory(categoryId);
 
+            List<BookmarkItem> items = bookmarks.stream()
+                    .map(this::createBookmarkItem)
+                    .collect(Collectors.toList());
+
+            runLater(() -> {
+                currentTabItems = items;
+                applyFilter();
+                if (currentTabItems.isEmpty()) {
+                    bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
+                } else {
+                    bookmarkTable.getTableView().setPlaceholder(null);
+                }
+            });
+        }).start();
+    }
+
+    private void applyFilter() {
         String searchText = bookmarkTable.getSearchTextField().getText().toLowerCase();
-        List<BookmarkItem> filteredList = bookmarks.stream()
-                .filter(bookmark -> searchText.isEmpty() || bookmark.getChannelName().toLowerCase().contains(searchText) || bookmark.getAccountName().toLowerCase().contains(searchText))
-                .map(this::createBookmarkItem)
+        List<BookmarkItem> filteredList = currentTabItems.stream()
+                .filter(item -> searchText.isEmpty() 
+                        || item.getChannelName().toLowerCase().contains(searchText) 
+                        || item.getAccountName().toLowerCase().contains(searchText))
                 .collect(Collectors.toList());
 
         bookmarkTable.getTableView().setItems(FXCollections.observableArrayList(filteredList));
@@ -407,57 +428,64 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void play(BookmarkItem item, boolean hardReset, String playerPath) {
-        try {
-            Account account = AccountService.getInstance().getAll().get(item.getAccountName());
-            account.setServerPortalUrl(item.getServerPortalUrl());
-            account.setAction(item.getAccountAction()); // Set the correct action
+        getScene().setCursor(Cursor.WAIT);
+        new Thread(() -> {
+            try {
+                Account account = AccountService.getInstance().getAll().get(item.getAccountName());
+                account.setServerPortalUrl(item.getServerPortalUrl());
+                account.setAction(item.getAccountAction()); // Set the correct action
 
-            Bookmark bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
-            bookmark.setDbId(item.getBookmarkId());
-            bookmark.setAccountAction(item.getAccountAction());
+                Bookmark bookmark = new Bookmark(item.getAccountName(), item.getCategoryTitle(), item.getChannelId(), item.getChannelName(), item.getCmd(), item.getServerPortalUrl(), item.getCategoryId());
+                bookmark.setDbId(item.getBookmarkId());
+                bookmark.setAccountAction(item.getAccountAction());
 
-            PlayerResponse response;
-            Channel channel = new Channel();
-            channel.setCmd(bookmark.getCmd());
-            channel.setChannelId(bookmark.getChannelId());
-            channel.setName(bookmark.getChannelName());
-            channel.setDrmType(bookmark.getDrmType());
-            channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
-            channel.setClearKeysJson(bookmark.getClearKeysJson());
-            channel.setInputstreamaddon(bookmark.getInputstreamaddon());
-            channel.setManifestType(bookmark.getManifestType());
+                PlayerResponse response;
+                Channel channel = new Channel();
+                channel.setCmd(bookmark.getCmd());
+                channel.setChannelId(bookmark.getChannelId());
+                channel.setName(bookmark.getChannelName());
+                channel.setDrmType(bookmark.getDrmType());
+                channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
+                channel.setClearKeysJson(bookmark.getClearKeysJson());
+                channel.setInputstreamaddon(bookmark.getInputstreamaddon());
+                channel.setManifestType(bookmark.getManifestType());
 
-            if (hardReset) {
-                response = PlayerService.getInstance().runBookmark(account, bookmark);
-            } else {
-                response = PlayerService.getInstance().get(account, channel);
-            }
-
-            response.setFromChannel(channel, account); // Ensure response has channel and account
-
-            String evaluatedStreamUrl = response.getUrl();
-
-            boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-            boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-
-            if (playerPathIsEmbedded) {
-                if (useEmbeddedPlayerConfig) {
-                    getPlayer().play(response);
+                if (hardReset) {
+                    response = PlayerService.getInstance().runBookmark(account, bookmark);
                 } else {
-                    showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                    response = PlayerService.getInstance().get(account, channel);
                 }
-            } else { // playerPath is not "embedded" or is blank
-                if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
-                    getPlayer().play(response);
-                } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
-                    showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
-                } else { // Use external player
-                    com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
-                }
+
+                response.setFromChannel(channel, account); // Ensure response has channel and account
+
+                String evaluatedStreamUrl = response.getUrl();
+
+                runLater(() -> {
+                    boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+                    boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+
+                    if (playerPathIsEmbedded) {
+                        if (useEmbeddedPlayerConfig) {
+                            getPlayer().play(response);
+                        } else {
+                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                        }
+                    } else { // playerPath is not "embedded" or is blank
+                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) { // Default player is embedded
+                            getPlayer().play(response);
+                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) { // Default player is not embedded, and playerPath is blank
+                            showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                        } else { // Use external player
+                            com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                runLater(() -> showErrorAlert("Error playing bookmark: " + e.getMessage()));
+            } finally {
+                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        }).start();
     }
 
     public static class BookmarkItem {
