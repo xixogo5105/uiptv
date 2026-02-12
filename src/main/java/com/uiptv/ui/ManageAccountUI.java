@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.uiptv.model.Account.CACHE_SUPPORTED;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 import static com.uiptv.util.StringUtils.*;
@@ -121,21 +122,29 @@ public class ManageAccountUI extends VBox {
             if (newValue != null) {
                 Platform.runLater(() -> {
                     getChildren().clear();
-                    switch (getAccountTypeByDisplay(newValue)) {
+                    AccountType type = getAccountTypeByDisplay(newValue);
+                    boolean cacheSupported = CACHE_SUPPORTED.contains(type);
+                    
+                    switch (type) {
                         case STALKER_PORTAL:
-                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox);
                             break;
                         case M3U8_LOCAL:
-                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
                             break;
                         case M3U8_URL:
                         case RSS_FEED:
-                            getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
                             break;
                         case XTREME_API:
-                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
+                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox);
                             break;
                     }
+                    
+                    if (cacheSupported) {
+                        getChildren().add(refreshChannelsButton);
+                    }
+                    getChildren().addAll(saveButton, buttonWrapper2);
                 });
             }
         });

@@ -19,7 +19,9 @@ import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 public class SearchableFilterableTableView extends TableView {
     private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "Search", 10);
     private final MenuButton menuButton = new MenuButton("All");
-    private final List<CheckMenuItem> checkMenuItems = new ArrayList<>();
+    private final List<CheckMenuItem> typeCheckMenuItems = new ArrayList<>();
+    private final CheckMenuItem allMenuItem;
+    private boolean isUpdating = false;
 
     public SearchableFilterableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
@@ -28,21 +30,52 @@ public class SearchableFilterableTableView extends TableView {
         menuButton.setPrefWidth(175);
         textField.setPrefWidth(275);
 
+        allMenuItem = new CheckMenuItem("All");
+        allMenuItem.setSelected(true);
+        allMenuItem.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
+            if (isUpdating) return;
+            if (isSelected) {
+                isUpdating = true;
+                typeCheckMenuItems.forEach(item -> item.setSelected(false));
+                isUpdating = false;
+            }
+            updateMenuButtonText();
+        });
+
+        menuButton.getItems().add(allMenuItem);
+        menuButton.getItems().add(new SeparatorMenuItem());
+
         for (AccountType type : AccountType.values()) {
             CheckMenuItem item = new CheckMenuItem(type.getDisplay());
-            item.selectedProperty().addListener((obs, wasSelected, isSelected) -> updateMenuButtonText());
+            item.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
+                if (isUpdating) return;
+                if (isSelected) {
+                    isUpdating = true;
+                    allMenuItem.setSelected(false);
+                    isUpdating = false;
+                }
+                updateMenuButtonText();
+            });
             menuButton.getItems().add(item);
-            checkMenuItems.add(item);
+            typeCheckMenuItems.add(item);
         }
     }
 
     private void updateMenuButtonText() {
-        String selectedItemsText = checkMenuItems.stream()
+        if (allMenuItem.isSelected()) {
+            menuButton.setText("All");
+            return;
+        }
+
+        String selectedItemsText = typeCheckMenuItems.stream()
                 .filter(CheckMenuItem::isSelected)
                 .map(MenuItem::getText)
                 .collect(Collectors.joining(", "));
 
         if (selectedItemsText.isEmpty()) {
+            isUpdating = true;
+            allMenuItem.setSelected(true);
+            isUpdating = false;
             menuButton.setText("All");
         } else {
             menuButton.setText(selectedItemsText);
@@ -63,18 +96,19 @@ public class SearchableFilterableTableView extends TableView {
 
         List<Observable> dependencies = new ArrayList<>();
         dependencies.add(textField.textProperty());
-        checkMenuItems.forEach(item -> dependencies.add(item.selectedProperty()));
+        dependencies.add(allMenuItem.selectedProperty());
+        typeCheckMenuItems.forEach(item -> dependencies.add(item.selectedProperty()));
 
         filteredItems.predicateProperty().bind(Bindings.createObjectBinding(() -> {
             String searchText = textField.getText() == null ? "" : textField.getText().toLowerCase();
-            List<String> selectedTypes = checkMenuItems.stream()
+            List<String> selectedTypes = typeCheckMenuItems.stream()
                     .filter(CheckMenuItem::isSelected)
                     .map(item -> getAccountTypeByDisplay(item.getText()).name())
                     .collect(Collectors.toList());
 
             return accountItem -> {
                 boolean matchesText = accountItem.getAccountName().toLowerCase().contains(searchText);
-                boolean matchesType = selectedTypes.isEmpty() || selectedTypes.contains(accountItem.getAccountType());
+                boolean matchesType = allMenuItem.isSelected() || selectedTypes.contains(accountItem.getAccountType());
                 return matchesText && matchesType;
             };
         }, dependencies.toArray(new Observable[0])));

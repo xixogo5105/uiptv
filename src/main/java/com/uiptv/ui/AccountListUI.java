@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
+import static com.uiptv.model.Account.CACHE_SUPPORTED;
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.ui.RootApplication.primaryStage;
@@ -170,9 +171,12 @@ public class AccountListUI extends HBox {
         rowMenu.setOnShowing(e -> {
             if (row.getItem() != null) {
                 Account account = AccountDb.get().getAccountById(row.getItem().getAccountId());
-                boolean supported = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
-                vod.setVisible(supported);
-                series.setVisible(supported);
+                boolean vodSupported = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
+                vod.setVisible(vodSupported);
+                series.setVisible(vodSupported);
+                
+                boolean cacheSupported = CACHE_SUPPORTED.contains(account.getType());
+                reloadCache.setVisible(cacheSupported);
             }
         });
 
