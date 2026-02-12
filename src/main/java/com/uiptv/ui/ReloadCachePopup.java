@@ -5,6 +5,7 @@ import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
+import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.animation.RotateTransition;
@@ -41,11 +42,11 @@ public class ReloadCachePopup extends VBox {
     private final VBox logVBox = new VBox(5);
     private final ScrollPane accountsScrollPane = new ScrollPane();
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
-    private final CheckBox selectAllCheckBox = new CheckBox("Select All");
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
     private final ProgressIndicator loadingIndicator = createLoadingIndicator();
     private final CacheService cacheService = new CacheServiceImpl();
+    private final List<CheckBox> checkBoxes = new ArrayList<>();
 
     public ReloadCachePopup(Stage stage) {
         this.stage = stage;
@@ -72,16 +73,31 @@ public class ReloadCachePopup extends VBox {
                 accountCheckBox.setStyle("-fx-background-color: -fx-control-inner-background;");
             }
             accountsVBox.getChildren().add(accountCheckBox);
+            checkBoxes.add(accountCheckBox);
         }
 
-        selectAllCheckBox.setOnAction(event -> {
-            boolean selected = selectAllCheckBox.isSelected();
-            accountsVBox.getChildren().forEach(node -> {
-                if (node instanceof CheckBox) {
-                    ((CheckBox) node).setSelected(selected);
-                }
-            });
+        MenuButton selectMenu = new MenuButton("Select by types");
+        CheckMenuItem allItem = new CheckMenuItem("ALL");
+        CheckMenuItem stalkerItem = new CheckMenuItem("Stalker Portal Accounts");
+        CheckMenuItem xtremeItem = new CheckMenuItem("Xtreme Account");
+        CheckMenuItem m3uLocalItem = new CheckMenuItem("M3U Local Playlist");
+        CheckMenuItem m3uRemoteItem = new CheckMenuItem("M3U Remote Playlist");
+
+        allItem.setOnAction(e -> {
+            boolean selected = allItem.isSelected();
+            checkBoxes.forEach(cb -> cb.setSelected(selected));
+            stalkerItem.setSelected(selected);
+            xtremeItem.setSelected(selected);
+            m3uLocalItem.setSelected(selected);
+            m3uRemoteItem.setSelected(selected);
         });
+
+        stalkerItem.setOnAction(e -> updateCheckboxes(AccountType.STALKER_PORTAL, stalkerItem.isSelected()));
+        xtremeItem.setOnAction(e -> updateCheckboxes(AccountType.XTREME_API, xtremeItem.isSelected()));
+        m3uLocalItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_LOCAL, m3uLocalItem.isSelected()));
+        m3uRemoteItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_URL, m3uRemoteItem.isSelected()));
+        selectMenu.setPrefWidth(200);
+        selectMenu.getItems().addAll(allItem, new SeparatorMenuItem(), stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem);
 
         accountsScrollPane.setContent(accountsVBox);
         accountsScrollPane.setFitToWidth(true);
@@ -134,7 +150,16 @@ public class ReloadCachePopup extends VBox {
         buttonBox.setAlignment(Pos.CENTER_LEFT);
         buttonBox.setPadding(new Insets(10, 0, 0, 0));
 
-        getChildren().addAll(progressBar, selectAllCheckBox, accountsScrollPane, logScrollPane, buttonBox);
+        getChildren().addAll(progressBar, selectMenu, accountsScrollPane, logScrollPane, buttonBox);
+    }
+
+    private void updateCheckboxes(AccountType type, boolean selected) {
+        for (CheckBox cb : checkBoxes) {
+            Account acc = (Account) cb.getUserData();
+            if (acc.getType() == type) {
+                cb.setSelected(selected);
+            }
+        }
     }
 
     private ProgressIndicator createLoadingIndicator() {

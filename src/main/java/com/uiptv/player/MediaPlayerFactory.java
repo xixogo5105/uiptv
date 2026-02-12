@@ -9,29 +9,39 @@ import javafx.scene.layout.Region;
 public class MediaPlayerFactory {
 
     private static VideoPlayerInterface instance;
-
+    public static VideoPlayerInterface.PlayerType playerType;
 
     public static synchronized VideoPlayerInterface getPlayer() {
         if (instance == null) {
             if (ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
                 try {
                     instance = new VlcVideoPlayer();
+                    playerType = VideoPlayerInterface.PlayerType.VLC;
                     System.out.println("VLC found. Using it for embedded player");
                 } catch (Throwable bundledError) {
                     System.out.println("VLC not found. Using Lite player that plays limited set of videos");
                     instance = new LiteVideoPlayer();
+                    playerType = VideoPlayerInterface.PlayerType.LITE;
                 }
                 if (instance.getPlayerContainer() instanceof Region playerContainer) {
                     definePlayerRegion(playerContainer);
                 }
             } else {
                 instance = new DummyVideoPlayer();
+                playerType = VideoPlayerInterface.PlayerType.DUMMY;
                 if (instance.getPlayerContainer() instanceof Region playerContainer) {
                     defineDummyRegion(playerContainer);
                 }
             }
         }
         return instance;
+    }
+
+    public static VideoPlayerInterface.PlayerType getPlayerType() {
+        if (playerType == null) {
+            getPlayer(); // Ensure player is initialized
+        }
+        return playerType;
     }
 
     private static void definePlayerRegion(Region playerContainer) {

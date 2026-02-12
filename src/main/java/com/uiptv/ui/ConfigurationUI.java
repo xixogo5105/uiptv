@@ -1,8 +1,9 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
-import com.uiptv.db.ConfigurationDb;
+import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;
+import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
@@ -13,11 +14,7 @@ import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.Hyperlink;
-import javafx.scene.control.RadioButton;
-import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -39,7 +36,7 @@ public class ConfigurationUI extends VBox {
     private final RadioButton defaultPlayer1 = new RadioButton("");
     private final RadioButton defaultPlayer2 = new RadioButton("");
     private final RadioButton defaultPlayer3 = new RadioButton("");
-    private final RadioButton defaultEmbedPlayer = new RadioButton("Use embedded player as default");
+    private final RadioButton defaultEmbedPlayer = new RadioButton();
 
     private final UIptvText playerPath1 = new UIptvText("playerPath1", "Enter your favorite player's Path here.", 5);
     private final UIptvText playerPath2 = new UIptvText("playerPath2", "Enter your second favorite player's Path here.", 5);
@@ -78,6 +75,8 @@ public class ConfigurationUI extends VBox {
         defaultPlayer2.setToggleGroup(group);
         defaultPlayer3.setToggleGroup(group);
         defaultEmbedPlayer.setToggleGroup(group);
+
+        updateEmbeddedPlayerTitle();
 
         defaultPlayer1.setUserData("defaultPlayer1");
         defaultPlayer2.setUserData("defaultPlayer2");
@@ -164,6 +163,17 @@ public class ConfigurationUI extends VBox {
             popupStage.setScene(scene);
             popupStage.showAndWait();
         });
+    }
+
+    private void updateEmbeddedPlayerTitle() {
+        VideoPlayerInterface.PlayerType playerType = MediaPlayerFactory.getPlayerType();
+        String title = "Embedded Player";
+        if (playerType == VideoPlayerInterface.PlayerType.VLC) {
+            title = "Embedded Player (Vlc)";
+        } else if (playerType == VideoPlayerInterface.PlayerType.LITE) {
+            title = "Embedded Player (Limited Lite Player)";
+        }
+        defaultEmbedPlayer.setText(title);
     }
 
     private void addStopServerButtonClickHandler() {
