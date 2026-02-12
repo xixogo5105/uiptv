@@ -436,8 +436,6 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void play(BookmarkItem item, String playerPath) {
-        runLater(() -> getPlayer().stopForReload());
-
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
@@ -486,12 +484,14 @@ public class BookmarkChannelListUI extends HBox {
 
                     if (playerPathIsEmbedded) {
                         if (useEmbeddedPlayerConfig) {
+                            getPlayer().stopForReload();
                             getPlayer().play(response);
                         } else {
                             showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                         }
                     } else {
                         if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
+                            getPlayer().stopForReload();
                             getPlayer().play(response);
                         } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
                             showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");

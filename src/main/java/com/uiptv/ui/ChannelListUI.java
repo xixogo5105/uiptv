@@ -386,9 +386,6 @@ public class ChannelListUI extends HBox {
     }
 
     private void play(ChannelItem item, String playerPath) {
-        // Stop any existing playback immediately
-        runLater(() -> getPlayer().stopForReload());
-
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
@@ -418,12 +415,14 @@ public class ChannelListUI extends HBox {
 
                     if (playerPathIsEmbedded) {
                         if (useEmbeddedPlayerConfig) {
+                            getPlayer().stopForReload();
                             getPlayer().play(finalResponse);
                         } else {
                             showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                         }
                     } else {
                         if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
+                            getPlayer().stopForReload();
                             getPlayer().play(finalResponse);
                         } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
                             showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
