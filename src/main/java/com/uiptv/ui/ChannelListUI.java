@@ -56,6 +56,7 @@ public class ChannelListUI extends HBox {
     private ObservableList<ChannelItem> channelItems;
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private volatile Thread currentLoadingThread;
+    private AtomicBoolean currentRequestCancelled;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
         this(account, categoryTitle, bookmarkChannelListUI, categoryId);
@@ -199,9 +200,22 @@ public class ChannelListUI extends HBox {
     private void PlayOrShowSeries(ChannelItem item) {
         if (item == null) return;
 
-        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
-            currentLoadingThread.interrupt();
+        if (currentRequestCancelled != null) {
+            currentRequestCancelled.set(true);
         }
+
+        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+            getScene().setCursor(Cursor.WAIT);
+            currentLoadingThread.interrupt();
+            try {
+                currentLoadingThread.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        currentRequestCancelled = new AtomicBoolean(false);
+        AtomicBoolean isCancelled = currentRequestCancelled;
 
         if (account.getAction() == series) {
             getScene().setCursor(Cursor.WAIT);
@@ -222,7 +236,7 @@ public class ChannelListUI extends HBox {
                         });
                         
                         latch.await();
-                        if (Thread.currentThread().isInterrupted()) return;
+                        if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
                         try {
                             EpisodeList episodes = XtremeParser.parseEpisodes(item.getChannelId(), account);
                             episodesListUIHolder[0].setItems(episodes);
@@ -240,7 +254,7 @@ public class ChannelListUI extends HBox {
                             
                             // Fetch series channels
                             try {
-                                ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, channelListUI::addItems);
+                                ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, channelListUI::addItems, isCancelled::get);
                             } finally {
                                 channelListUI.setLoadingComplete();
                             }

@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.ui.RootApplication.primaryStage;
@@ -39,6 +41,7 @@ public class CategoryListUI extends HBox {
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
     private volatile Thread currentLoadingThread;
+    private AtomicBoolean currentRequestCancelled;
 
     public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
         this(account, bookmarkChannelListUI);
@@ -102,9 +105,23 @@ public class CategoryListUI extends HBox {
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
         boolean channelsAlreadyLoaded = noCachingNeeded || ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) > 0;
 
-        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
-            currentLoadingThread.interrupt();
+        if (currentRequestCancelled != null) {
+            currentRequestCancelled.set(true);
         }
+        
+        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+            primaryStage.getScene().setCursor(Cursor.WAIT);
+            currentLoadingThread.interrupt();
+            try {
+                // Wait a bit for the thread to finish, but don't block forever
+                currentLoadingThread.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        currentRequestCancelled = new AtomicBoolean(false);
+        AtomicBoolean isCancelled = currentRequestCancelled;
 
         if (!channelsAlreadyLoaded) { // If no channels are loaded, show popup and reload
             LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
@@ -113,7 +130,7 @@ public class CategoryListUI extends HBox {
 
             currentLoadingThread = new Thread(() -> {
                 try {
-                    retrieveChannels(item, logPopup.getLogger(), noCachingNeeded);
+                    retrieveChannels(item, logPopup.getLogger(), noCachingNeeded, isCancelled::get);
                 } finally {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
                     logPopup.closeGracefully();
@@ -124,7 +141,7 @@ public class CategoryListUI extends HBox {
             primaryStage.getScene().setCursor(Cursor.WAIT);
             currentLoadingThread = new Thread(() -> {
                 try {
-                    retrieveChannels(item, null, noCachingNeeded);
+                    retrieveChannels(item, null, noCachingNeeded, isCancelled::get);
                 } finally {
                     Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
                 }
@@ -133,7 +150,7 @@ public class CategoryListUI extends HBox {
         }
     }
 
-    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded) {
+    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded, Supplier<Boolean> isCancelled) {
         final String categoryId = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
         final ChannelListUI[] channelListUIHolder = new ChannelListUI[1];
         final List<CategoryItem> allItems = new ArrayList<>();
@@ -159,20 +176,21 @@ public class CategoryListUI extends HBox {
                 boolean cachingNeeded = !noCachingNeeded;
                 if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
                     for (CategoryItem categoryItem : allItems) {
-                        if (Thread.currentThread().isInterrupted()) return;
+                        if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
                         if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
                             ChannelService.getInstance().get(
                                 account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
                                 account, 
                                 categoryItem.getId(), 
                                 logger,
-                                channelListUI::addItems
+                                channelListUI::addItems,
+                                isCancelled
                             );
                         }
                     }
                 } else {
-                    if (Thread.currentThread().isInterrupted()) return;
-                    ChannelService.getInstance().get(categoryId, account, item.getId(), logger, channelListUI::addItems);
+                    if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
+                    ChannelService.getInstance().get(categoryId, account, item.getId(), logger, channelListUI::addItems, isCancelled);
                 }
             } finally {
                 channelListUI.setLoadingComplete();

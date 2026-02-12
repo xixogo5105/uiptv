@@ -23,6 +23,7 @@ import java.net.MalformedURLException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -75,14 +76,18 @@ public class ChannelService {
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId) throws IOException {
-        return get(categoryId, account, dbId, null, null);
+        return get(categoryId, account, dbId, null, null, null);
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger) throws IOException {
-        return get(categoryId, account, dbId, logger, null);
+        return get(categoryId, account, dbId, logger, null, null);
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback) throws IOException {
+        return get(categoryId, account, dbId, logger, callback, null);
+    }
+
+    public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
         //no caching
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             if (account.getType() == AccountType.XTREME_API) {
@@ -90,7 +95,7 @@ public class ChannelService {
                 if (callback != null) callback.accept(channels);
                 return channels;
             } else {
-                return getVodOrSeries(categoryId, account, callback);
+                return getVodOrSeries(categoryId, account, callback, isCancelled);
             }
         }
         //no caching
@@ -110,11 +115,11 @@ public class ChannelService {
     }
 
     private List<Channel> getVodOrSeries(String categoryId, Account account) throws IOException {
-        return getVodOrSeries(categoryId, account, null);
+        return getVodOrSeries(categoryId, account, null, null);
     }
 
-    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback) throws IOException {
-        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback));
+    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
+        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled));
         return censor(cachedChannels);
     }
 
@@ -133,10 +138,14 @@ public class ChannelService {
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId) {
-        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, null);
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, null, null);
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback) {
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, null);
+    }
+
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         List<Channel> channelList = new ArrayList<>();
         int pageNumber = 1;
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
@@ -148,7 +157,7 @@ public class ChannelService {
             if (callback != null) callback.accept(censor(page1Channels));
         }
         for (pageNumber = 2; pageNumber <= pagination.getPageCount(); pageNumber++) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
                 break;
             }
             json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
@@ -162,13 +171,17 @@ public class ChannelService {
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account) {
-        return getSeries(categoryId, movieId, account, null);
+        return getSeries(categoryId, movieId, account, null, null);
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback) {
+        return getSeries(categoryId, movieId, account, callback, null);
+    }
+
+    public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         // This method does not seem to be part of the caching logic, so it can stay here.
         // If it needs to be cached, it should be moved to CacheServiceImpl.
-        return censor(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback));
+        return censor(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled));
     }
 
     public String readToJson(Category category, Account account) throws IOException {
