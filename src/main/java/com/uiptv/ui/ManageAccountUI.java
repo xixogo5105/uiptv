@@ -393,8 +393,8 @@ public class ManageAccountUI extends VBox {
 
             if (isFullSave) {
                 clearAll();
-                showMessageAlert("Your Account details have been successfully saved!");
                 onSaveCallback.call(null);
+                showMessageAlert("Your Account details have been successfully saved!");
             }
         } catch (Exception e) {
             showErrorAlert("Failed to save successfully saved!");
@@ -435,13 +435,22 @@ public class ManageAccountUI extends VBox {
         }
         Alert confirmDialogue = showDialog("Delete This account " + name + "?");
         if (confirmDialogue.getResult() == ButtonType.YES) {
-            try {
-                service.delete(accountId);
+            Task<Void> task = new Task<>() {
+                @Override
+                protected Void call() throws Exception {
+                    service.delete(accountId);
+                    return null;
+                }
+            };
+
+            task.setOnSucceeded(event -> {
                 onSaveCallback.call(null);
                 clearAll();
-            } catch (Exception e) {
-                showErrorAlert("Failed!");
-            }
+            });
+
+            task.setOnFailed(event -> showErrorAlert("Failed!"));
+
+            new Thread(task).start();
         }
     }
 
