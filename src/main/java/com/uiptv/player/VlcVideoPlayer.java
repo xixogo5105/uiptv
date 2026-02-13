@@ -1090,12 +1090,21 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private class FXRenderCallback implements RenderCallback {
         @Override
         public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers, BufferFormat bufferFormat, int sarNum, int sarDen) {
-            if (videoImage == null || videoImage.getWidth() != bufferFormat.getWidth() || videoImage.getHeight() != bufferFormat.getHeight()) {
-                videoImage = new WritableImage(bufferFormat.getWidth(), bufferFormat.getHeight());
-                videoImageView.setImage(videoImage);
+            WritableImage img = videoImage;
+            if (img == null || img.getWidth() != bufferFormat.getWidth() || img.getHeight() != bufferFormat.getHeight()) {
+                img = new WritableImage(bufferFormat.getWidth(), bufferFormat.getHeight());
+                videoImage = img;
+                final WritableImage newImage = img;
+                Platform.runLater(() -> videoImageView.setImage(newImage));
                 pixelFormat = PixelFormat.getByteBgraPreInstance();
             }
-            Platform.runLater(() -> videoImage.getPixelWriter().setPixels(0, 0, bufferFormat.getWidth(), bufferFormat.getHeight(), pixelFormat, nativeBuffers[0], bufferFormat.getPitches()[0]));
+
+            final WritableImage imageToRender = img;
+            Platform.runLater(() -> {
+                if (imageToRender != null) {
+                    imageToRender.getPixelWriter().setPixels(0, 0, bufferFormat.getWidth(), bufferFormat.getHeight(), pixelFormat, nativeBuffers[0], bufferFormat.getPitches()[0]);
+                }
+            });
         }
 
         @Override
