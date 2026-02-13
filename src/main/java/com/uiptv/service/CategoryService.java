@@ -52,16 +52,22 @@ public class CategoryService {
     }
 
     public List<Category> get(Account account) {
+        return get(account, true);
+    }
+
+    public List<Category> get(Account account, boolean censor) {
         if (account.getType() == RSS_FEED) {
             hardReloadCategories(account);
-            return censor(CategoryDb.get().getCategories(account));
+            List<Category> cats = CategoryDb.get().getCategories(account);
+            return censor ? censor(cats) : cats;
         }
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             if (account.getType() == STALKER_PORTAL) {
                 HandshakeService.getInstance().hardTokenRefresh(account);
             }
             hardReloadCategories(account);
-            return censor(CategoryDb.get().getCategories(account));
+            List<Category> cats = CategoryDb.get().getCategories(account);
+            return censor ? censor(cats) : cats;
         }
 
         List<Category> cachedCategories = CategoryDb.get().getCategories(account);
@@ -74,7 +80,7 @@ public class CategoryService {
             }
 
         }
-        return censor(cachedCategories);
+        return censor ? censor(cachedCategories) : cachedCategories;
     }
 
     private void hardReloadCategories(Account account) {
@@ -97,7 +103,7 @@ public class CategoryService {
     }
 
     private List<Category> xtremeAPICategories(Account account) {
-        return censor(XtremeParser.parseCategories(account));
+        return XtremeParser.parseCategories(account);
     }
 
     private List<Category> m3u8Categories(Account account) throws MalformedURLException {
@@ -107,7 +113,7 @@ public class CategoryService {
             Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
             categories.add(c);
         });
-        return censor(categories.stream().toList());
+        return categories.stream().toList();
     }
 
     private List<Category> rssCategories() {
@@ -117,21 +123,21 @@ public class CategoryService {
             Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
             categories.add(c);
         });
-        return censor(categories.stream().toList());
+        return categories.stream().toList();
     }
 
     private List<Category> stalkerPortalCategories(Account account) {
         HandshakeService.getInstance().connect(account);
         if (account.isNotConnected()) return null;
         String jsonResponse = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
-        return parseCategories(jsonResponse);
+        return parseCategories(jsonResponse, false);
     }
 
     public String readToJson(Account account) {
         return ServerUtils.objectToJson(get(account));
     }
 
-    public List<Category> parseCategories(String json) {
+    public List<Category> parseCategories(String json, boolean censor) {
         List<Category> categoryList = new ArrayList<>();
         try {
             JSONArray list = new JSONObject(json).getJSONArray("js");
@@ -142,7 +148,7 @@ public class CategoryService {
         } catch (Exception e) {
             showError("Error while processing response data" + e.getMessage());
         }
-        return censor(categoryList);
+        return censor ? censor(categoryList) : categoryList;
     }
 
     public List<Category> censor(List<Category> categoryList) {
@@ -156,4 +162,3 @@ public class CategoryService {
     }
 
 }
-

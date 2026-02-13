@@ -146,25 +146,29 @@ public class ChannelService {
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true);
+    }
+
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor) {
         List<Channel> channelList = new ArrayList<>();
         int pageNumber = 1;
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
         Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
         if (pagination == null) return channelList;
-        List<Channel> page1Channels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json) : ChannelService.getInstance().parseVodChannels(account, json);
+        List<Channel> page1Channels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json, censor) : ChannelService.getInstance().parseVodChannels(account, json, censor);
         if (page1Channels != null) {
             channelList.addAll(page1Channels);
-            if (callback != null) callback.accept(censor(page1Channels));
+            if (callback != null) callback.accept(censor ? censor(page1Channels) : page1Channels);
         }
         for (pageNumber = 2; pageNumber <= pagination.getPageCount(); pageNumber++) {
             if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
                 break;
             }
             json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
-            List<Channel> pagedChannels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json) : ChannelService.getInstance().parseVodChannels(account, json);
+            List<Channel> pagedChannels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json, censor) : ChannelService.getInstance().parseVodChannels(account, json, censor);
             if (pagedChannels != null) {
                 channelList.addAll(pagedChannels);
-                if (callback != null) callback.accept(censor(pagedChannels));
+                if (callback != null) callback.accept(censor ? censor(pagedChannels) : pagedChannels);
             }
         }
         return channelList;
@@ -215,6 +219,10 @@ public class ChannelService {
     }
 
     public List<Channel> parseItvChannels(String json) {
+        return parseItvChannels(json, true);
+    }
+
+    public List<Channel> parseItvChannels(String json, boolean censor) {
         try {
             JSONObject root = new JSONObject(json);
             JSONObject js = root.optJSONObject("js", root);
@@ -226,7 +234,7 @@ public class ChannelService {
                 channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
                 channelList.add(channel);
             }
-            return censor(channelList);
+            return censor ? censor(channelList) : channelList;
 
         } catch (Exception ignored) {
             showError("Error while processing itv response data");
@@ -235,6 +243,10 @@ public class ChannelService {
     }
 
     public List<Channel> parseVodChannels(Account account, String json) {
+        return parseVodChannels(account, json, true);
+    }
+
+    public List<Channel> parseVodChannels(Account account, String json, boolean censor) {
         try {
             JSONObject root = new JSONObject(json);
             JSONObject js = root.optJSONObject("js", root);
@@ -265,7 +277,7 @@ public class ChannelService {
                     channelList.add(channel);
                 }
             }
-            List<Channel> censoredChannelList = censor(channelList);
+            List<Channel> censoredChannelList = censor ? censor(channelList) : channelList;
             Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
             return censoredChannelList;
         } catch (Exception ignored) {

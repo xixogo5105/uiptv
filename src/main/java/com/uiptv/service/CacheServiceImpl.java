@@ -12,7 +12,6 @@ import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.M3U8Parser;
-import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -23,11 +22,10 @@ import java.util.stream.Collectors;
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
-import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
 import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
-import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class CacheServiceImpl implements CacheService {
 
@@ -74,7 +72,7 @@ public class CacheServiceImpl implements CacheService {
             }
 
             String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
-            return !CategoryService.getInstance().parseCategories(jsonCategories).isEmpty();
+            return !CategoryService.getInstance().parseCategories(jsonCategories, false).isEmpty();
         } catch (Exception e) {
             return false;
         } finally {
@@ -99,7 +97,7 @@ public class CacheServiceImpl implements CacheService {
         // 1. Fetch official categories
         logger.log("Fetching official categories for: " + account.getAccountName());
         String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
-        List<Category> officialCategories = CategoryService.getInstance().parseCategories(jsonCategories);
+        List<Category> officialCategories = CategoryService.getInstance().parseCategories(jsonCategories, false);
         Map<String, Category> officialCategoryMap = officialCategories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
 
@@ -110,11 +108,10 @@ public class CacheServiceImpl implements CacheService {
         if (isNotBlank(jsonChannels)) {
             try {
                 logger.log("Received response for channels.");
-                List<Channel> allChannels = ChannelService.getInstance().parseItvChannels(jsonChannels);
-                List<Channel> censoredChannels = ChannelService.getInstance().censor(allChannels);
-                logger.log("Fetched " + censoredChannels.size() + " channels.");
+                List<Channel> allChannels = ChannelService.getInstance().parseItvChannels(jsonChannels, false);
+                logger.log("Fetched " + allChannels.size() + " channels.");
 
-                if (censoredChannels.isEmpty()) {
+                if (allChannels.isEmpty()) {
                     logger.log("No channels found. Keeping existing cache.");
                     return;
                 }
@@ -127,7 +124,7 @@ public class CacheServiceImpl implements CacheService {
                 // 3. Partition and group channels in a single pass
                 List<Channel> unmatchedChannels = new ArrayList<>();
                 Map<String, List<Channel>> matchedChannelsByCatId = new HashMap<>();
-                for (Channel channel : censoredChannels) {
+                for (Channel channel : allChannels) {
                     if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
                         matchedChannelsByCatId.computeIfAbsent(channel.getCategoryId(), k -> new ArrayList<>()).add(channel);
                     } else {
@@ -193,7 +190,7 @@ public class CacheServiceImpl implements CacheService {
 
     private void reloadChannelsForOtherTypes(Account account, LoggerCallback logger) throws IOException {
         logger.log("Fetching categories for: " + account.getAccountName());
-        List<Category> categories = CategoryService.getInstance().get(account); // This fetches from the source, not DB
+        List<Category> categories = CategoryService.getInstance().get(account, false); // This fetches from the source, not DB
         logger.log("Found " + categories.size() + " categories.");
 
         if (categories.isEmpty()) {
@@ -252,7 +249,7 @@ public class CacheServiceImpl implements CacheService {
                 channels.addAll(rssChannels(categoryId, account));
             } else {
                 logger.log("Fetching Stalker Portal channels for category: " + categoryId);
-                channels.addAll(ChannelService.getInstance().getStalkerPortalChOrSeries(categoryId, account, null, "0"));
+                channels.addAll(ChannelService.getInstance().getStalkerPortalChOrSeries(categoryId, account, null, "0", null, null, false));
             }
             logger.log("Found " + channels.size() + " channels for category: " + categoryId);
         } catch (Exception e) {
