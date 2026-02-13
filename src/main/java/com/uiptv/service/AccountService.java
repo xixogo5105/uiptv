@@ -33,10 +33,10 @@ public class AccountService {
     }
 
     public void delete(final String accountId) {
-        BookmarkDb.get().getBookmarks()
-                .stream()
-                .filter(b -> b.getAccountName().equalsIgnoreCase(AccountDb.get().getAccountById(accountId).getAccountName()))
-                .forEach(b -> BookmarkDb.get().delete(b.getDbId()));
+        Account account = AccountDb.get().getAccountById(accountId);
+        if (account != null) {
+            BookmarkDb.get().deleteByAccountName(account.getAccountName());
+        }
         ChannelDb.get().deleteByAccount(accountId);
         CategoryDb.get().deleteByAccount(AccountDb.get().getAccountById(accountId));
         AccountDb.get().delete(accountId);

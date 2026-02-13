@@ -171,6 +171,32 @@ public class BookmarkDb extends BaseDb {
         }
     }
 
+    public void deleteByAccountName(String accountName) {
+        String deleteOrderSql = "DELETE FROM " + BOOKMARK_ORDER_TABLE.getTableName() +
+                " WHERE bookmark_db_id IN (SELECT id FROM " + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?)";
+        String deleteBookmarkSql = "DELETE FROM " + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?";
+
+        try (Connection conn = connect()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement stmt1 = conn.prepareStatement(deleteOrderSql)) {
+                stmt1.setString(1, accountName);
+                stmt1.executeUpdate();
+            }
+            try (PreparedStatement stmt2 = conn.prepareStatement(deleteBookmarkSql)) {
+                stmt2.setString(1, accountName);
+                stmt2.executeUpdate();
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            try {
+                connect().rollback();
+            } catch (SQLException ex) {
+                throw new RuntimeException("Failed to rollback transaction", ex);
+            }
+            throw new RuntimeException("Unable to delete bookmarks by account name", e);
+        }
+    }
+
     @Override
     Bookmark populate(ResultSet resultSet) {
         Bookmark bookmark = new Bookmark(

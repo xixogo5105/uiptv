@@ -116,10 +116,14 @@ public class ChannelDb extends BaseDb {
     }
 
     public void deleteByAccount(String accountId) {
-        List<Category> categories = CategoryDb.get().getAllAccountCategories(accountId);
-        if (categories != null) categories.forEach(category -> {
-            deleteAll(category.getDbId());
-        });
+        String sql = "DELETE FROM " + CHANNEL_TABLE.getTableName() +
+                " WHERE categoryId IN (SELECT id FROM " + CATEGORY_TABLE.getTableName() + " WHERE accountId=?)";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, accountId);
+            statement.execute();
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to execute deleteByAccount query", e);
+        }
     }
 
     @Override
