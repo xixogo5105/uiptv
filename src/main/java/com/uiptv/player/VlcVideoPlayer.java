@@ -27,6 +27,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
+import uk.co.caprica.vlcj.media.VideoTrackInfo;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
@@ -62,6 +63,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private ProgressIndicator loadingSpinner;
     private Label errorLabel;
     private TextFlow nowShowingFlow;
+    private Text streamInfoText;
 
     // Buttons and Icons
     private Button btnPlayPause;
@@ -131,6 +133,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         // --- 2. BUILD CONTROLS ---
         nowShowingFlow = new TextFlow();
         nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
+        streamInfoText = new Text();
+        streamInfoText.setFill(Color.WHITE);
+        //streamInfoText.setStyle("-fx-font-size: 14px;");
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon); // Now assigns to the class member
@@ -170,9 +175,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         controlsContainer.setPadding(new Insets(5));
         controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
-        controlsContainer.setMaxWidth(480);
-        controlsContainer.setPrefWidth(30);
-        controlsContainer.setMaxHeight(50);
+        controlsContainer.setMaxWidth(576); // Increased by 20%
+        controlsContainer.setPrefWidth(36);
+        controlsContainer.setMaxHeight(60); // Increased to accommodate 2 lines of text
 
         // --- 3. LAYOUT ROOT ---
         playerContainer.setStyle("-fx-background-color: black;");
@@ -287,6 +292,18 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                     btnPlayPause.setGraphic(pauseIcon);
                     updateVideoSize(); // Ensure video size is correct on playback start
                     if (isFullscreen) idleTimer.playFromStart(); // Start idle timer when playback begins in fullscreen
+
+                    List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
+                    if (tracks != null && !tracks.isEmpty()) {
+                        VideoTrackInfo track = tracks.get(0);
+                        float fps = 0;
+                        if (track.frameRateBase() > 0) {
+                            fps = (float) track.frameRate() / track.frameRateBase();
+                        }
+                        streamInfoText.setText(String.format("\n[codec: %s, res: %dx%d, fps: %.2f]", track.codecName(), track.width(), track.height(), fps));
+                    } else {
+                        streamInfoText.setText("");
+                    }
                 });
             }
 
@@ -568,13 +585,14 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             if (currentChannel != null && isNotBlank(currentChannel.getName())) {
                 Text nowShowingText = new Text("Now Showing: ");
                 nowShowingText.setFill(Color.WHITE);
-                nowShowingText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+//                nowShowingText.setStyle("-fx-font-size: 14px;");
 
                 Text channelNameText = new Text(currentChannel.getName());
-                channelNameText.setFill(Color.YELLOW);
-                channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+                channelNameText.setFill(Color.WHITE);
+//                channelNameText.setStyle("-fx-font-size: 14px;");
 
-                nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText);
+                streamInfoText.setText("");
+                nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText, streamInfoText);
                 nowShowingFlow.setVisible(true);
                 nowShowingFlow.setManaged(true);
             } else {
