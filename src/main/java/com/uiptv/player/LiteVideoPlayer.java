@@ -23,10 +23,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaException;
-import javafx.scene.media.MediaPlayer;
-import javafx.scene.media.MediaView;
+import javafx.scene.media.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
@@ -291,7 +288,16 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         updateVideoSize();
                         Media m = mediaPlayer.getMedia();
                         if (m != null) {
-                            streamInfoText.setText(String.format("\n[res: %dx%d]", m.getWidth(), m.getHeight()));
+                            String encoding = "";
+                            if (m.getTracks() != null && !m.getTracks().isEmpty()) {
+                                for (Track track : m.getTracks()) {
+                                    if (track instanceof VideoTrack) {
+                                        encoding = String.valueOf(track.getMetadata().get("encoding"));
+                                        break;
+                                    }
+                                }
+                            }
+                            streamInfoText.setText(String.format("\n%dx%d %s (Lite)", m.getWidth(), m.getHeight(), encoding));
                             m.widthProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
                             m.heightProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
                         }
@@ -573,11 +579,11 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
             Text nowShowingText = new Text("Now Showing: ");
             nowShowingText.setFill(Color.WHITE);
-//            nowShowingText.setStyle("-fx-font-size: 14px;");
+            nowShowingText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
             Text channelNameText = new Text(currentChannel.getName());
-            channelNameText.setFill(Color.WHITE);
-//           channelNameText.setStyle("-fx-font-size: 14px;");
+            channelNameText.setFill(Color.YELLOW);
+            channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
             streamInfoText.setText("");
             nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText, streamInfoText);

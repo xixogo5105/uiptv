@@ -296,11 +296,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                     List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
                     if (tracks != null && !tracks.isEmpty()) {
                         VideoTrackInfo track = tracks.get(0);
-                        float fps = 0;
-                        if (track.frameRateBase() > 0) {
-                            fps = (float) track.frameRate() / track.frameRateBase();
-                        }
-                        streamInfoText.setText(String.format("\n[codec: %s, res: %dx%d, fps: %.2f]", track.codecName(), track.width(), track.height(), fps));
+                        streamInfoText.setText(String.format("\n%dx%d %s (vlc)", track.width(), track.height(), track.codecName()));
                     } else {
                         streamInfoText.setText("");
                     }
@@ -585,11 +581,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             if (currentChannel != null && isNotBlank(currentChannel.getName())) {
                 Text nowShowingText = new Text("Now Showing: ");
                 nowShowingText.setFill(Color.WHITE);
-//                nowShowingText.setStyle("-fx-font-size: 14px;");
+                nowShowingText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
                 Text channelNameText = new Text(currentChannel.getName());
-                channelNameText.setFill(Color.WHITE);
-//                channelNameText.setStyle("-fx-font-size: 14px;");
+                channelNameText.setFill(Color.YELLOW);
+                channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
                 streamInfoText.setText("");
                 nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText, streamInfoText);
