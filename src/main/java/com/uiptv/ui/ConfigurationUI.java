@@ -253,7 +253,12 @@ public class ConfigurationUI extends VBox {
                 newConfiguration.setDbId(dbId);
                 service.save(newConfiguration);
                 onSaveCallback.call(null);
-                showMessageAlert("Configurations saved!");
+
+                if (newConfiguration.isEmbeddedPlayer() && MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.DUMMY) {
+                    showMessageAlert("Configurations saved! Please restart the application for the embedded player to be initialized.");
+                } else {
+                    showMessageAlert("Configurations saved!");
+                }
             } catch (Exception e) {
                 showErrorAlert("Failed to save configuration. Please try again!");
             }
