@@ -288,16 +288,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         updateVideoSize();
                         Media m = mediaPlayer.getMedia();
                         if (m != null) {
-                            String encoding = "";
-                            if (m.getTracks() != null && !m.getTracks().isEmpty()) {
-                                for (Track track : m.getTracks()) {
-                                    if (track instanceof VideoTrack) {
-                                        encoding = String.valueOf(track.getMetadata().get("encoding"));
-                                        break;
-                                    }
-                                }
-                            }
-                            streamInfoText.setText(String.format("\n%dx%d %s (Lite)", m.getWidth(), m.getHeight(), encoding));
+                            updateStreamInfo(m);
                             m.widthProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
                             m.heightProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
                         }
@@ -332,7 +323,19 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private void updateStreamInfo(Media m) {
         Platform.runLater(() -> {
             if (m != null) {
-                streamInfoText.setText(String.format("\n[res: %dx%d]", m.getWidth(), m.getHeight()));
+                String encoding = "";
+                if (m.getTracks() != null) {
+                    for (Track track : m.getTracks()) {
+                        if (track instanceof VideoTrack) {
+                            Object enc = track.getMetadata().get("encoding");
+                            if (enc != null) {
+                                encoding = String.valueOf(enc);
+                            }
+                            break;
+                        }
+                    }
+                }
+                streamInfoText.setText(String.format("\n%dx%d %s (Lite)", m.getWidth(), m.getHeight(), encoding));
             }
         });
     }

@@ -292,14 +292,6 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                     btnPlayPause.setGraphic(pauseIcon);
                     updateVideoSize(); // Ensure video size is correct on playback start
                     if (isFullscreen) idleTimer.playFromStart(); // Start idle timer when playback begins in fullscreen
-
-                    List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
-                    if (tracks != null && !tracks.isEmpty()) {
-                        VideoTrackInfo track = tracks.get(0);
-                        streamInfoText.setText(String.format("\n%dx%d %s (vlc)", track.width(), track.height(), track.codecName()));
-                    } else {
-                        streamInfoText.setText("");
-                    }
                 });
             }
 
@@ -443,6 +435,24 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             videoImageView.setFitHeight(containerHeight);
             videoImageView.setPreserveRatio(true);
         }
+    }
+
+    private void updateStreamInfo(int width, int height) {
+        String codec = "";
+        if (mediaPlayer != null) {
+            List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
+            if (tracks != null && !tracks.isEmpty()) {
+                VideoTrackInfo bestTrack = tracks.get(0);
+                for (VideoTrackInfo track : tracks) {
+                    if (track.width() == width && track.height() == height) {
+                        bestTrack = track;
+                        break;
+                    }
+                }
+                codec = bestTrack.codecName();
+            }
+        }
+        streamInfoText.setText(String.format("\n%dx%d %s (vlc)", width, height, codec));
     }
 
     private void loadIcons() {
@@ -1065,7 +1075,10 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             VlcVideoPlayer.this.videoSourceHeight = newHeight;
             VlcVideoPlayer.this.videoSarNum = sarNumerator;
             VlcVideoPlayer.this.videoSarDen = sarDenominator;
-            Platform.runLater(VlcVideoPlayer.this::updateVideoSize);
+            Platform.runLater(() -> {
+                VlcVideoPlayer.this.updateVideoSize();
+                VlcVideoPlayer.this.updateStreamInfo(newWidth, newHeight);
+            });
         }
 
         @Override
