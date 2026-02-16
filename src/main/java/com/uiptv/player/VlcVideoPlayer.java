@@ -599,16 +599,12 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
             nowShowingFlow.getChildren().clear();
             if (currentChannel != null && isNotBlank(currentChannel.getName())) {
-                Text nowShowingText = new Text("Now Showing: ");
-                nowShowingText.setFill(Color.WHITE);
-                nowShowingText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-
                 Text channelNameText = new Text(currentChannel.getName());
                 channelNameText.setFill(Color.YELLOW);
                 channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
                 streamInfoText.setText("");
-                nowShowingFlow.getChildren().addAll(nowShowingText, channelNameText, streamInfoText);
+                nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
                 nowShowingFlow.setVisible(true);
                 nowShowingFlow.setManaged(true);
             } else {

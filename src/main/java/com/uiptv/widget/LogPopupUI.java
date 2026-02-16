@@ -81,6 +81,7 @@ public class LogPopupUI extends Stage {
     public LoggerCallback getLogger() {
         return logMessage -> Platform.runLater(() -> {
             Text text = new Text(logMessage + "\n");
+            text.getStyleClass().add("log-text");
             logArea.getChildren().add(text);
         });
     }

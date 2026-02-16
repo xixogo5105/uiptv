@@ -109,13 +109,18 @@ public class ChannelService {
         if (channelCount == 0) {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
         }
-        List<Channel> channels = censor(ChannelDb.get().getChannels(dbId));
-        if (callback != null) callback.accept(channels);
-        return channels;
-    }
 
-    private List<Channel> getVodOrSeries(String categoryId, Account account) throws IOException {
-        return getVodOrSeries(categoryId, account, null, null);
+        List<Channel> channels = ChannelDb.get().getChannels(dbId);
+        if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
+            //if live TV channels for a category is empty then make a direct call to stream server for fetching the contents
+            List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false);
+            if (!fetchedChannels.isEmpty()) {
+                ChannelDb.get().saveAll(fetchedChannels, dbId, account);
+            }
+        }
+        List<Channel> censoredChannels = censor(ChannelDb.get().getChannels(dbId));
+        if (callback != null) callback.accept(censoredChannels);
+        return censoredChannels;
     }
 
     private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
@@ -135,14 +140,6 @@ public class ChannelService {
 
     public int getChannelCountForAccount(String accountId) {
         return cacheService.getChannelCountForAccount(accountId);
-    }
-
-    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId) {
-        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, null, null);
-    }
-
-    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback) {
-        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, null);
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
@@ -172,14 +169,6 @@ public class ChannelService {
             }
         }
         return channelList;
-    }
-
-    public List<Channel> getSeries(String categoryId, String movieId, Account account) {
-        return getSeries(categoryId, movieId, account, null, null);
-    }
-
-    public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback) {
-        return getSeries(categoryId, movieId, account, callback, null);
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
@@ -218,10 +207,6 @@ public class ChannelService {
         return null;
     }
 
-    public List<Channel> parseItvChannels(String json) {
-        return parseItvChannels(json, true);
-    }
-
     public List<Channel> parseItvChannels(String json, boolean censor) {
         try {
             JSONObject root = new JSONObject(json);
@@ -240,10 +225,6 @@ public class ChannelService {
             showError("Error while processing itv response data");
         }
         return Collections.emptyList();
-    }
-
-    public List<Channel> parseVodChannels(Account account, String json) {
-        return parseVodChannels(account, json, true);
     }
 
     public List<Channel> parseVodChannels(Account account, String json, boolean censor) {

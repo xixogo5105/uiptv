@@ -297,6 +297,10 @@ public class ReloadCachePopup extends VBox {
     }
 
     public void logMessage(String message) {
-        Platform.runLater(() -> logVBox.getChildren().add(new Text(message)));
+        Platform.runLater(() -> {
+            Text text = new Text(message);
+            text.getStyleClass().add("log-text");
+            logVBox.getChildren().add(text);
+        });
     }
 }
