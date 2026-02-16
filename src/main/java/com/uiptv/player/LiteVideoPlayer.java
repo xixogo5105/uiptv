@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -49,6 +50,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private Account currentAccount;
     private Channel currentChannel;
     private int retryCount = 0;
+    private final AtomicBoolean isRetrying = new AtomicBoolean(false);
 
     // UI Components
     private Slider timeSlider;
@@ -341,13 +343,20 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     }
 
     private void handleRepeat() {
+        if (!isRetrying.get()) {
+            return;
+        }
         if (retryCount < 5) {
             retryCount++;
             if (retryCount == 1) {
                 refreshAndPlay();
             } else {
                 PauseTransition delay = new PauseTransition(Duration.seconds(10));
-                delay.setOnFinished(e -> refreshAndPlay());
+                delay.setOnFinished(e -> {
+                    if (isRetrying.get()) {
+                        refreshAndPlay();
+                    }
+                });
                 delay.play();
             }
         } else {
@@ -373,7 +382,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         loadingSpinner.setVisible(false);
                         errorLabel.setText("Could not refresh stream.");
                         errorLabel.setVisible(true);
-                        if (isRepeating) {
+                        if (isRepeating && isRetrying.get()) {
                             handleRepeat();
                         }
                     });
@@ -557,6 +566,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private void play(PlayerResponse response, boolean isInternalRetry) {
         if (!isInternalRetry) {
             retryCount = 0;
+            isRetrying.set(true);
         }
 
         String uri = null;
@@ -627,7 +637,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                                 errorLabel.setText("Could not play video.\nUnsupported format or network error.");
                                 errorLabel.setVisible(true);
                                 loadingSpinner.setVisible(false);
-                                if (isRepeating) {
+                                if (isRepeating && isRetrying.get()) {
                                     handleRepeat();
                                 }
                             });
@@ -645,7 +655,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
                         mediaPlayer.statusProperty().addListener(statusListener);
                         mediaPlayer.currentTimeProperty().addListener(progressListener);
                         mediaPlayer.setOnEndOfMedia(() -> {
-                            if (isRepeating) {
+                            if (isRepeating && isRetrying.get()) {
                                 handleRepeat(); // Reload the stream
                             } else {
                                 btnPlayPause.setGraphic(playIcon);
@@ -690,6 +700,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     @Override
     public void stop() {
         retryCount = 0;
+        isRetrying.set(false);
         if (mediaPlayer != null) {
             mediaPlayer.stop();
             mediaPlayer.dispose();
