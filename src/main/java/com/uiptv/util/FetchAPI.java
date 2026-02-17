@@ -2,6 +2,7 @@ package com.uiptv.util;
 
 import com.uiptv.model.Account;
 import com.uiptv.ui.LogDisplayUI;
+import javafx.application.Platform;
 import org.json.JSONObject;
 
 import java.net.HttpURLConnection;
@@ -40,7 +41,7 @@ public class FetchAPI {
                 return response.body();
             }
         } catch (Exception ex) {
-            LogDisplayUI.addLog("Network Error: " + ex.getMessage());
+            Platform.runLater(() -> LogDisplayUI.addLog("Network Error: " + ex.getMessage()));
         }
         return StringUtils.EMPTY;
     }

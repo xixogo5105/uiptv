@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
@@ -49,14 +50,14 @@ public class LogDisplayUI extends VBox {
     public static void addLog(String log) {
         System.out.println(log);
         if (isLoggingEnabled) {
-            logArea.appendText(log + "\n");
+            Platform.runLater(() -> logArea.appendText(log + "\n"));
         }
     }
 
     public static void setLoggingEnabled(boolean enabled) {
         isLoggingEnabled = enabled;
         if (!enabled) {
-            logArea.clear();
+            Platform.runLater(() -> logArea.clear());
         }
     }
 }
