@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.util.UiptUtils.getNameFromUrl;
-import static com.uiptv.util.UiptUtils.getUniqueNameFromUrl;
 
 /**
  * Handles parsing of Stalker Portal accounts.
@@ -158,11 +157,12 @@ public class StalkerPortalParser implements AccountParser {
                     }
                 }
             } else {
-                String baseName = getUniqueNameFromUrl(currentAccount.getUrl());
-                String uniqueName = baseName;
+                String baseName = getNameFromUrl(currentAccount.getUrl());
                 int counter = 1;
+                String uniqueName = baseName + "(" + counter + ")";
                 while (accountProvider.apply(uniqueName) != null || processedNames.contains(uniqueName)) {
-                    uniqueName = baseName + "(" + counter++ + ")";
+                    counter++;
+                    uniqueName = baseName + "(" + counter + ")";
                 }
                 currentAccount.setAccountName(uniqueName);
                 currentAccount.setMacAddressList(currentAccount.getMacAddress());
