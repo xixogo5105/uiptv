@@ -74,11 +74,6 @@ public class CategoryService {
         if (cachedCategories.isEmpty() || account.getAction() != itv) {
             hardReloadCategories(account);
             cachedCategories.addAll(CategoryDb.get().getCategories(account));
-        } else {
-            if (account.getType() == STALKER_PORTAL) {
-                HandshakeService.getInstance().hardTokenRefresh(account);
-            }
-
         }
         return censor ? censor(cachedCategories) : cachedCategories;
     }

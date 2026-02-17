@@ -116,9 +116,10 @@ public class ChannelService {
             List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false);
             if (!fetchedChannels.isEmpty()) {
                 ChannelDb.get().saveAll(fetchedChannels, dbId, account);
+                channels.addAll(fetchedChannels);
             }
         }
-        List<Channel> censoredChannels = censor(ChannelDb.get().getChannels(dbId));
+        List<Channel> censoredChannels = censor(channels);
         if (callback != null) callback.accept(censoredChannels);
         return censoredChannels;
     }

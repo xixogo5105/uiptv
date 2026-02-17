@@ -270,9 +270,6 @@ public class AccountListUI extends HBox {
                 final List<Category> list = CategoryService.getInstance().get(account);
 
                 Platform.runLater(() -> {
-                    if (account.isNotConnected()) {
-                        return;
-                    }
                     categoryListUI.setItems(list);
                 });
             } catch (IOException e) {

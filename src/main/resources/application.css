@@ -118,3 +118,9 @@
 .video-player-slider {
     -fx-base: white;
 }
+
+.table-row-cell.playing {
+    -fx-background-color: #F44336;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}

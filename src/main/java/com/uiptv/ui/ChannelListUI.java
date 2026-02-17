@@ -51,7 +51,7 @@ public class ChannelListUI extends HBox {
     private final String categoryTitle;
     private final BookmarkChannelListUI bookmarkChannelListUI;
     private final String categoryId;
-    private final SearchableTableView table = new SearchableTableView();
+    private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>("Channels");
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
@@ -386,6 +386,7 @@ public class ChannelListUI extends HBox {
     }
 
     private void play(ChannelItem item, String playerPath) {
+        table.setPlayingItem(item);
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {

@@ -42,7 +42,7 @@ public class EpisodesListUI extends HBox {
     private final String categoryTitle;
     private final BookmarkChannelListUI bookmarkChannelListUI;
     private final EpisodeList channelList;
-    SearchableTableView table = new SearchableTableView();
+    SearchableTableView<EpisodeItem> table = new SearchableTableView<>();
     TableColumn<EpisodeItem, String> channelName = new TableColumn<>("Episodes");
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
 
@@ -265,6 +265,9 @@ public class EpisodesListUI extends HBox {
     private void play(EpisodeItem item, String playerPath) {
         // Stop any existing playback immediately
         runLater(() -> getPlayer().stopForReload());
+        
+        // Set playing item
+        table.setPlayingItem(item);
 
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
