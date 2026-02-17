@@ -138,6 +138,10 @@ public class ChannelService {
         return channels.stream().toList();
     }
 
+    public void reloadCache(Account account, LoggerCallback logger) throws IOException {
+        cacheService.reloadCache(account, logger);
+    }
+
     public int getChannelCountForAccount(String accountId) {
         return cacheService.getChannelCountForAccount(accountId);
     }

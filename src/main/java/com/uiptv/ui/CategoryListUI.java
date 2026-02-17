@@ -178,7 +178,19 @@ public class CategoryListUI extends HBox {
 
             try {
                 boolean cachingNeeded = !noCachingNeeded;
+                if (cachingNeeded && logger != null) {
+                    try {
+                        ChannelService.getInstance().reloadCache(account, logger);
+                    } catch (IOException e) {
+                        Platform.runLater(() -> showErrorAlert("Error loading channels: " + e.getMessage()));
+                        return;
+                    }
+                }
+
                 if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
+                    if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
+                        return;
+                    }
                     if (allItems.size() == 1 && "All".equalsIgnoreCase(allItems.get(0).getCategoryTitle())) {
                          ChannelService.getInstance().get(
                                 account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),
@@ -217,7 +229,7 @@ public class CategoryListUI extends HBox {
         }
     }
 
-    public class CategoryItem {
+    public static class CategoryItem {
 
         private final SimpleStringProperty categoryTitle;
         private final SimpleStringProperty categoryId;
