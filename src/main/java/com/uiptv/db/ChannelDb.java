@@ -17,6 +17,7 @@ import static com.uiptv.db.SQLConnection.connect;
 
 public class ChannelDb extends BaseDb {
     private static ChannelDb instance;
+    private static final int BATCH_SIZE = 1000;
 
 
     public ChannelDb() {
@@ -112,7 +113,44 @@ public class ChannelDb extends BaseDb {
     public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
         Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
         deleteAll(category.getDbId());
-        channels.forEach(c -> insert(c, category));
+        try (Connection conn = connect()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement statement = conn.prepareStatement(insertTableSql(CHANNEL_TABLE))) {
+                int count = 0;
+                for (Channel channel : channels) {
+                    statement.setString(1, channel.getChannelId());
+                    statement.setString(2, category.getDbId());
+                    statement.setString(3, channel.getName());
+                    statement.setString(4, channel.getNumber());
+                    statement.setString(5, channel.getCmd());
+                    statement.setString(6, channel.getCmd_1());
+                    statement.setString(7, channel.getCmd_2());
+                    statement.setString(8, channel.getCmd_3());
+                    statement.setString(9, channel.getLogo());
+                    statement.setInt(10, channel.getCensored());
+                    statement.setInt(11, channel.getStatus());
+                    statement.setInt(12, channel.getHd());
+                    statement.setString(13, channel.getDrmType());
+                    statement.setString(14, channel.getDrmLicenseUrl());
+                    statement.setString(15, channel.getClearKeysJson());
+                    statement.setString(16, channel.getInputstreamaddon());
+                    statement.setString(17, channel.getManifestType());
+                    statement.addBatch();
+                    if (++count % BATCH_SIZE == 0) {
+                        statement.executeBatch();
+                    }
+                }
+                statement.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw new RuntimeException("Unable to execute saveAll query", e);
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to connect to database", e);
+        }
     }
 
     public void deleteByAccount(String accountId) {

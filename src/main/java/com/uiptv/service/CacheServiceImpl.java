@@ -98,6 +98,9 @@ public class CacheServiceImpl implements CacheService {
         logger.log("Fetching official categories for: " + account.getAccountName());
         String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
         List<Category> officialCategories = CategoryService.getInstance().parseCategories(jsonCategories, false);
+        officialCategories = officialCategories.stream()
+                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .collect(Collectors.toList());
         Map<String, Category> officialCategoryMap = officialCategories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
 
@@ -202,6 +205,9 @@ public class CacheServiceImpl implements CacheService {
         int totalChannels = 0;
 
         for (Category category : categories) {
+            if (account.getType() == XTREME_API && "All".equalsIgnoreCase(category.getTitle())) {
+                continue;
+            }
             String categoryId = account.getType() == XTREME_API ? category.getCategoryId() : category.getTitle();
             List<Channel> channels = fetchChannelsForCategory(categoryId, account, logger);
             if (!channels.isEmpty()) {
