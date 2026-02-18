@@ -223,7 +223,7 @@
 }
 
 .table-row-cell.playing {
-        -fx-background-color: #F44336;
-        -fx-text-fill: white;
-        -fx-font-weight: bold;
+    -fx-background-color: #1c96c5;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
 }
