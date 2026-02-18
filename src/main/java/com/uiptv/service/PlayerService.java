@@ -36,15 +36,7 @@ public class PlayerService {
     }
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
-        String urlPrefix = channel.getCmd();
-        String finalUrl;
-
-        if (PRE_DEFINED_URLS.contains(account.getType())) {
-            finalUrl = resolveAndProcessUrl(urlPrefix);
-        } else {
-            finalUrl = resolveAndProcessUrl(fetchStalkerPortalUrl(account, series, urlPrefix));
-        }
-
+        String finalUrl = resolveAndProcessUrl(PRE_DEFINED_URLS.contains(account.getType()) ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd()));
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;
