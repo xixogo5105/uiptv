@@ -5,10 +5,9 @@ import com.uiptv.ui.LogDisplayUI;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.uiptv.util.FetchAPI.ServerType.PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -47,17 +46,11 @@ public class PingStalkerPortal {
         // If probing fails, we try to download and parse the xpcom.common.js configuration file.
         try {
             String pingUrl = !url.endsWith("/") ? url + "/" + "xpcom.common.js" : url + "xpcom.common.js";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(pingUrl))
-                    .header("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3")
-                    .GET().build();
-
-            HttpResponse<String> response = HttpClient.newBuilder()
-                    .followRedirects(HttpClient.Redirect.ALWAYS)
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .build()
-                    .send(request, HttpResponse.BodyHandlers.ofString());
+            
+            Map<String, String> headers = new HashMap<>();
+            headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
+            
+            HttpResponse<String> response = HttpUtil.sendRequest(pingUrl, headers, "GET");
 
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
@@ -103,21 +96,14 @@ public class PingStalkerPortal {
     private static boolean checkHandshake(String apiUrl, String macAddress) {
         try {
             LogDisplayUI.addLog("Checking handshake for : " + apiUrl);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(apiUrl + HANDSHAKE_QUERY))
-                    // Using a set-top box User-Agent often helps avoid blocking
-                    .header("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3")
-                    .header("X-User-Agent", "Model: MAG250; Link: WiFi")
-                    .header("Referer", apiUrl)
-                    .header("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=GMT")
+            
+            Map<String, String> headers = new HashMap<>();
+            headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
+            headers.put("X-User-Agent", "Model: MAG250; Link: WiFi");
+            headers.put("Referer", apiUrl);
+            headers.put("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=GMT");
 
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10)) // Fast timeout for probing
-                    .build()
-                    .send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HttpUtil.sendRequest(apiUrl + HANDSHAKE_QUERY, headers, "GET");
 
             if (response.statusCode() == 200) {
                 String body = response.body();

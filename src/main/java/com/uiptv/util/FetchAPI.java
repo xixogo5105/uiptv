@@ -6,20 +6,14 @@ import javafx.application.Platform;
 import org.json.JSONObject;
 
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.LogUtil.httpLog;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class FetchAPI {
     public static String fetch(Map<String, String> params, final Account account) {
@@ -28,15 +22,11 @@ public class FetchAPI {
             if (params != null && !params.isEmpty()) {
                 urlWithParams += "?" + mapToString(params);
             }
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(urlWithParams))
-                    .headers(headers(account.getUrl(), account))
-                    .GET().version(HttpClient.Version.HTTP_1_1).build();
-            HttpResponse<String> response = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).version(HttpClient.Version.HTTP_1_1)
-                    .followRedirects(HttpClient.Redirect.ALWAYS)
-                    .build()
-                    .send(request, HttpResponse.BodyHandlers.ofString());
-            httpLog(account.getServerPortalUrl(), request, response, params);
+            
+            Map<String, String> headers = headers(account.getUrl(), account);
+            HttpResponse<String> response = HttpUtil.sendRequest(urlWithParams, headers, "GET");
+            
+            httpLog(account.getServerPortalUrl(), response.request(), response, params);
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return response.body();
             }
@@ -46,23 +36,16 @@ public class FetchAPI {
         return StringUtils.EMPTY;
     }
 
-    private static String[] headers(String url, Account account) {
-        List<String> headers = new ArrayList<>();
-        addHeader(headers, "User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
-        addHeader(headers, "X-User-Agent", "Model: MAG250; Link: WiFi");
-        addHeader(headers, "Referer", url);
-        addHeader(headers, "Accept", "*/*");
-        addHeader(headers, "Pragma", "no-cache");
-        if (account.isConnected()) addHeader(headers, "Authorization", "Bearer " + account.getToken());
-        addHeader(headers, "Cookie", "mac=" + account.getMacAddress() + "; stb_lang=en; timezone=GMT;");
-//        addHeader(headers, "Expect", "100-continue");
-//        addHeader(headers, "Accept-Encoding", "gzip, deflate");
-        return headers.toArray(new String[0]);
-    }
-
-    private static void addHeader(List<String> headers, String name, String value) {
-        headers.add(name);
-        headers.add(value);
+    private static Map<String, String> headers(String url, Account account) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
+        headers.put("X-User-Agent", "Model: MAG250; Link: WiFi");
+        headers.put("Referer", url);
+        headers.put("Accept", "*/*");
+        headers.put("Pragma", "no-cache");
+        if (account.isConnected()) headers.put("Authorization", "Bearer " + account.getToken());
+        headers.put("Cookie", "mac=" + account.getMacAddress() + "; stb_lang=en; timezone=GMT;");
+        return headers;
     }
 
     private static String mapToString(Map<String, String> parameters) {
