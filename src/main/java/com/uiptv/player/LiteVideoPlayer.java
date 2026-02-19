@@ -5,9 +5,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.PlayerService;
-import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
-import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
@@ -22,6 +20,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.media.*;
 import javafx.scene.paint.Color;
@@ -46,7 +45,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
 
     private MediaPlayer mediaPlayer;
     private final MediaView mediaView = new MediaView();
-    private Timeline inactivityTimer;
+    private PauseTransition idleTimer;
     private Account currentAccount;
     private Channel currentChannel;
     private int retryCount = 0;
@@ -283,12 +282,24 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             }
         });
 
-        timeSlider.setOnMousePressed(e -> isUserSeeking = true);
+        // Add mouse listeners to volumeSlider to control idleTimer
+        volumeSlider.setOnMousePressed(e -> {
+            if (fullscreenStage != null) idleTimer.stop();
+        });
+        volumeSlider.setOnMouseReleased(e -> {
+            if (fullscreenStage != null) idleTimer.playFromStart();
+        });
+
+        timeSlider.setOnMousePressed(e -> {
+            isUserSeeking = true;
+            if (fullscreenStage != null) idleTimer.stop();
+        });
         timeSlider.setOnMouseReleased(e -> {
             if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
                 mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(timeSlider.getValue()));
             }
             isUserSeeking = false;
+            if (fullscreenStage != null) idleTimer.playFromStart();
         });
 
         playerContainer.setOnMouseClicked(e -> {
@@ -387,7 +398,7 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
             // Restart inactivity timer to ensure controls hide after a delay if in fullscreen
             if (fullscreenStage != null) {
-                inactivityTimer.playFromStart();
+                idleTimer.playFromStart();
             }
         }
     }
@@ -585,44 +596,47 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
     private void setupFadeAndIdleLogic() {
         controlsContainer.setVisible(false);
 
-        inactivityTimer = new Timeline(new KeyFrame(Duration.seconds(5), event -> {
-            if (mediaPlayer != null && (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING || mediaPlayer.getStatus() == MediaPlayer.Status.PAUSED)) {
+        idleTimer = new PauseTransition(Duration.seconds(5));
+        idleTimer.setOnFinished(e -> {
+            if (fullscreenStage != null) {
                 controlsContainer.setVisible(false);
-                if (fullscreenStage != null) {
-                    playerContainer.setCursor(Cursor.NONE);
-                }
+                playerContainer.setCursor(Cursor.NONE);
             }
-        }));
-        inactivityTimer.setCycleCount(1);
-
-        playerContainer.setOnMouseMoved(event -> {
-            if (isControlBarHiddenByUser) return;
-
-            controlsContainer.setVisible(true);
-            if (playerContainer.getCursor() != Cursor.DEFAULT) {
-                playerContainer.setCursor(Cursor.DEFAULT);
-            }
-            inactivityTimer.playFromStart();
         });
 
-        playerContainer.setOnMouseEntered(event -> {
-            if (isControlBarHiddenByUser) return;
+        playerContainer.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
+            playerContainer.setCursor(Cursor.DEFAULT);
 
-            controlsContainer.setVisible(true);
-            if (playerContainer.getCursor() != Cursor.DEFAULT) {
-                playerContainer.setCursor(Cursor.DEFAULT);
+            if (fullscreenStage != null) {
+                idleTimer.playFromStart();
             }
-            inactivityTimer.playFromStart();
+
+            if (!isControlBarHiddenByUser) {
+                controlsContainer.setVisible(true);
+            }
         });
 
-        playerContainer.setOnMouseExited(event -> {
-            if (fullscreenStage == null) {
+        playerContainer.setOnMouseExited(e -> {
+            if (fullscreenStage != null) {
+                idleTimer.playFromStart();
+            } else {
                 controlsContainer.setVisible(false);
-                inactivityTimer.stop();
             }
         });
 
-        controlsContainer.setVisible(false);
+        controlsContainer.setOnMouseEntered(e -> {
+            if (fullscreenStage != null) {
+                idleTimer.stop();
+            }
+        });
+
+        controlsContainer.setOnMouseExited(e -> {
+            if (fullscreenStage != null) {
+                idleTimer.playFromStart();
+            }
+        });
+        
+        controlsContainer.setOnMouseMoved(e -> e.consume());
     }
 
     private String getFinalUrl(String url) throws Exception {
@@ -850,10 +864,8 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             if (!isControlBarHiddenByUser) {
                 controlsContainer.setVisible(true);
             }
-            if (playerContainer.getScene() != null) {
-                playerContainer.getScene().setCursor(Cursor.DEFAULT); // Show cursor initially
-            }
-            inactivityTimer.playFromStart(); // Start idle timer
+            playerContainer.setCursor(Cursor.DEFAULT); // Show cursor initially
+            idleTimer.playFromStart(); // Start idle timer
         });
     }
 
@@ -876,6 +888,9 @@ public class LiteVideoPlayer implements VideoPlayerInterface {
             btnStop.setVisible(true);
             btnStop.setManaged(true);
             playerContainer.setCursor(Cursor.DEFAULT);
+            
+            idleTimer.stop(); // Stop idle timer
+            controlsContainer.setVisible(false); // Hide controls on exit
         });
     }
 

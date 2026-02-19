@@ -18,6 +18,7 @@ import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
@@ -601,26 +602,19 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         idleTimer.setOnFinished(e -> {
             if (isFullscreen) {
                 controlsContainer.setVisible(false);
-                if (playerContainer.getScene() != null) {
-                    playerContainer.getScene().setCursor(Cursor.NONE);
-                }
+                playerContainer.setCursor(Cursor.NONE);
             }
         });
 
-        playerContainer.setOnMouseMoved(e -> {
-            if (isControlBarHiddenByUser) return;
+        playerContainer.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
+            playerContainer.setCursor(Cursor.DEFAULT);
 
             if (isFullscreen) {
-                controlsContainer.setVisible(true);
-                if (playerContainer.getScene() != null) {
-                    playerContainer.getScene().setCursor(Cursor.DEFAULT);
-                }
                 idleTimer.playFromStart();
-            } else {
+            }
+
+            if (!isControlBarHiddenByUser) {
                 controlsContainer.setVisible(true);
-                if (playerContainer.getScene() != null) {
-                    playerContainer.getScene().setCursor(Cursor.DEFAULT);
-                }
             }
         });
 
@@ -642,6 +636,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 idleTimer.playFromStart(); // Start timer to hide controls/cursor
             }
         });
+        
+        controlsContainer.setOnMouseMoved(e -> e.consume());
     }
 
     @Override
@@ -791,9 +787,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             if (!isControlBarHiddenByUser) {
                 controlsContainer.setVisible(true);
             }
-            if (playerContainer.getScene() != null) {
-                playerContainer.getScene().setCursor(Cursor.DEFAULT); // Show cursor initially
-            }
+            playerContainer.setCursor(Cursor.DEFAULT); // Show cursor initially
             idleTimer.playFromStart(); // Start idle timer (for cursor and eventual controls if not hidden by user)
         });
     }
@@ -825,10 +819,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             isFullscreen = false;
             idleTimer.stop(); // Stop idle timer
             controlsContainer.setVisible(false); // Hide controls on exit
-            if (playerContainer.getScene() != null) {
-                playerContainer.getScene().setCursor(Cursor.DEFAULT); // Restore default cursor
-            }
-            playerContainer.setCursor(Cursor.DEFAULT);
+            playerContainer.setCursor(Cursor.DEFAULT); // Restore default cursor
         });
     }
 
