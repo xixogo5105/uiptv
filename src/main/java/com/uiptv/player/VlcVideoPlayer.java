@@ -76,7 +76,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private Button btnPip; // New PiP button
     private Button btnStop; // Declared as a class member
     private Button btnAspectRatio; // Changed from MenuButton to Button
-    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioStretchIcon; // New PiP icons
+    private Button btnHideBar;
+    private ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioStretchIcon, hideBarIcon; // New PiP icons
 
     private boolean isUserSeeking = false;
     private PauseTransition idleTimer; // Re-introducing idleTimer for fullscreen mouse/overlay hide
@@ -108,6 +109,11 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private WritablePixelFormat<ByteBuffer> pixelFormat;
     private int aspectRatioMode = 0; // 0=Fit (Default), 1=Stretch
     private int videoSourceWidth, videoSourceHeight, videoSarNum, videoSarDen;
+
+    private boolean isControlBarHiddenByUser = false;
+    private HBox hiddenBarMessage;
+    private PauseTransition hiddenBarMessageHideTimer;
+    private static boolean hasShownHiddenBarMessage = false;
 
 
     public VlcVideoPlayer() {
@@ -149,6 +155,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btnAspectRatio = createIconButton(aspectRatioIcon); // Initialize aspect ratio button
         btnAspectRatio.setTooltip(new Tooltip("Fit"));
 
+        btnHideBar = createIconButton(hideBarIcon);
+        btnHideBar.setTooltip(new Tooltip("Hide this bar"));
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -158,9 +167,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         volumeSlider.setPrefWidth(100);
         volumeSlider.getStyleClass().add("video-player-slider");
 
-        HBox buttonRow = new HBox(8);
+        HBox buttonRow = new HBox(4);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio); // Added btnPip
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio, btnHideBar); // Added btnPip
 
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");
@@ -205,7 +214,32 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         errorLabel.setVisible(false);
         StackPane.setAlignment(errorLabel, Pos.CENTER);
 
-        playerContainer.getChildren().addAll(videoImageView, overlayWrapper, loadingSpinner, errorLabel);
+        // Create hiddenBarMessage
+        hiddenBarMessage = new HBox(10);
+        hiddenBarMessage.setAlignment(Pos.CENTER);
+        hiddenBarMessage.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-background-radius: 5; -fx-padding: 10;");
+        hiddenBarMessage.setMaxWidth(450);
+        hiddenBarMessage.setMaxHeight(80);
+        hiddenBarMessage.setVisible(false);
+        hiddenBarMessage.setManaged(false);
+
+        Label msgLabel = new Label("Control bar is hidden. Right click mouse button or press 'B' on your keyboard to show it again");
+        msgLabel.setWrapText(true);
+        msgLabel.setTextFill(Color.WHITE);
+        msgLabel.setStyle("-fx-font-size: 14px;");
+
+        Button msgCloseBtn = new Button("X");
+        msgCloseBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-font-size: 14px;");
+        msgCloseBtn.setPadding(new Insets(0, 5, 0, 5));
+        msgCloseBtn.setOnAction(e -> {
+            hiddenBarMessage.setVisible(false);
+            hiddenBarMessage.setManaged(false);
+        });
+
+        hiddenBarMessage.getChildren().addAll(msgLabel, msgCloseBtn);
+        StackPane.setAlignment(hiddenBarMessage, Pos.CENTER);
+
+        playerContainer.getChildren().addAll(videoImageView, overlayWrapper, loadingSpinner, errorLabel, hiddenBarMessage);
 
         // --- 4. EVENT LOGIC ---
         btnPlayPause.setOnAction(e -> {
@@ -235,6 +269,25 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         btnPip.setOnAction(e -> togglePip()); // PiP button action
 
         btnAspectRatio.setOnAction(e -> toggleAspectRatio());
+
+        btnHideBar.setOnAction(e -> {
+            isControlBarHiddenByUser = true;
+            controlsContainer.setVisible(false);
+
+            if (!hasShownHiddenBarMessage) {
+                hiddenBarMessage.setVisible(true);
+                hiddenBarMessage.setManaged(true);
+                hasShownHiddenBarMessage = true;
+
+                if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
+                hiddenBarMessageHideTimer = new PauseTransition(Duration.seconds(10));
+                hiddenBarMessageHideTimer.setOnFinished(ev -> {
+                    hiddenBarMessage.setVisible(false);
+                    hiddenBarMessage.setManaged(false);
+                });
+                hiddenBarMessageHideTimer.play();
+            }
+        });
 
         btnMute.setOnAction(e -> {
             isMuted = !isMuted;
@@ -266,6 +319,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             if (e.getButton() == MouseButton.PRIMARY) {
                 if (e.getClickCount() == 1) playerContainer.requestFocus();
                 else if (e.getClickCount() == 2) toggleFullscreen();
+            } else if (e.getButton() == MouseButton.SECONDARY) {
+                showControlBar();
             }
         });
 
@@ -273,6 +328,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             if (e.getCode() == KeyCode.F) toggleFullscreen();
             else if (e.getCode() == KeyCode.M) btnMute.fire();
             else if (e.getCode() == KeyCode.ESCAPE && fullscreenStage != null) toggleFullscreen();
+            else if (e.getCode() == KeyCode.B) showControlBar();
         });
 
         playerContainer.setOnScroll(e -> {
@@ -347,6 +403,20 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
 
         // --- 5. FADE / HIDE LOGIC ---
         setupFadeAndIdleLogic();
+    }
+
+    private void showControlBar() {
+        if (isControlBarHiddenByUser) {
+            isControlBarHiddenByUser = false;
+            controlsContainer.setVisible(true);
+            hiddenBarMessage.setVisible(false);
+            hiddenBarMessage.setManaged(false);
+            if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
+            // Restart idle timer to ensure controls hide after a delay if in fullscreen
+            if (isFullscreen) {
+                idleTimer.playFromStart();
+            }
+        }
     }
 
     private void handleRepeat() {
@@ -479,6 +549,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         pipExitIcon = createIconView("picture-in-picture-exit.png", false); // Load without ColorAdjust
         aspectRatioIcon = createIconView("aspect-ratio.png", true);
         aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
+        hideBarIcon = createIconView("arrow-down.png", true);
     }
 
     private ImageView createIconView(String iconName, boolean applyColorAdjust) {
@@ -516,7 +587,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
     private Button createIconButton(ImageView icon) {
         Button btn = new Button();
         btn.setGraphic(icon);
-        btn.setPadding(new Insets(6));
+        btn.setPadding(new Insets(4));
         btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
         btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
         btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
@@ -537,6 +608,8 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         });
 
         playerContainer.setOnMouseMoved(e -> {
+            if (isControlBarHiddenByUser) return;
+
             if (isFullscreen) {
                 controlsContainer.setVisible(true);
                 if (playerContainer.getScene() != null) {
@@ -545,6 +618,9 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
                 idleTimer.playFromStart();
             } else {
                 controlsContainer.setVisible(true);
+                if (playerContainer.getScene() != null) {
+                    playerContainer.getScene().setCursor(Cursor.DEFAULT);
+                }
             }
         });
 
@@ -711,11 +787,14 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             btnStop.setManaged(false);
 
             isFullscreen = true;
-            controlsContainer.setVisible(true); // Show controls initially
+            // Only show controls initially if they were not hidden by the user
+            if (!isControlBarHiddenByUser) {
+                controlsContainer.setVisible(true);
+            }
             if (playerContainer.getScene() != null) {
                 playerContainer.getScene().setCursor(Cursor.DEFAULT); // Show cursor initially
             }
-            idleTimer.playFromStart(); // Start idle timer
+            idleTimer.playFromStart(); // Start idle timer (for cursor and eventual controls if not hidden by user)
         });
     }
 
@@ -724,7 +803,13 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
         Platform.runLater(() -> {
             if (fullscreenStage != null) fullscreenStage.close();
             fullscreenStage = null;
-            if (originalParent != null) originalParent.getChildren().add(originalIndex, playerContainer);
+            if (originalParent != null) {
+                originalParent.getChildren().add(originalIndex, playerContainer);
+                // Ensure cursor is visible on the main scene
+                if (originalParent.getScene() != null) {
+                    originalParent.getScene().setCursor(Cursor.DEFAULT);
+                }
+            }
             playerContainer.applyCss();
             playerContainer.layout();
             playerContainer.requestLayout();
@@ -743,6 +828,7 @@ public class VlcVideoPlayer implements VideoPlayerInterface {
             if (playerContainer.getScene() != null) {
                 playerContainer.getScene().setCursor(Cursor.DEFAULT); // Restore default cursor
             }
+            playerContainer.setCursor(Cursor.DEFAULT);
         });
     }
 
