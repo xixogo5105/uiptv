@@ -23,6 +23,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Screen;
@@ -80,7 +81,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected int originalIndex = -1;
     protected PauseTransition idleTimer;
     protected boolean isControlBarHiddenByUser = false;
-    protected HBox hiddenBarMessage;
+    protected StackPane hiddenBarMessage; // Changed from HBox to StackPane
     protected PauseTransition hiddenBarMessageHideTimer;
     protected static boolean hasShownHiddenBarMessage = false;
 
@@ -103,25 +104,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     // --- Abstract Methods ---
     protected abstract Node getVideoView();
-
     protected abstract void playMedia(String uri);
-
     protected abstract void stopMedia();
-
     protected abstract void disposeMedia();
-
     protected abstract void setVolume(double volume);
-
     protected abstract void setMute(boolean mute);
-
     protected abstract void seek(float position); // 0.0 to 1.0
-
     protected abstract void updateVideoSize();
-
     protected abstract void pauseMedia();
-
     protected abstract void resumeMedia();
-
     protected abstract boolean isPlaying();
 
     // --- UI Construction ---
@@ -199,28 +190,56 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         errorLabel.setVisible(false);
         StackPane.setAlignment(errorLabel, Pos.CENTER);
 
-        hiddenBarMessage = new HBox(10);
-        hiddenBarMessage.setAlignment(Pos.CENTER);
-        hiddenBarMessage.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-background-radius: 5; -fx-padding: 10;");
-        hiddenBarMessage.setMaxWidth(450);
-        hiddenBarMessage.setMaxHeight(80);
+        // --- Hidden Bar Message Construction ---
+        hiddenBarMessage = new StackPane();
+        hiddenBarMessage.setMaxHeight(Region.USE_PREF_SIZE);
+        hiddenBarMessage.setMaxWidth(Region.USE_PREF_SIZE);
         hiddenBarMessage.setVisible(false);
         hiddenBarMessage.setManaged(false);
+        
+        // Bind width to 80% of player container
+        hiddenBarMessage.maxWidthProperty().bind(playerContainer.widthProperty().multiply(0.92));
+
+        // Inner box for text with background
+        HBox messageBox = new HBox(10);
+        messageBox.setAlignment(Pos.CENTER);
+        messageBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-background-radius: 15; -fx-padding: 20;"); // Rounded corners, more padding
+        messageBox.setMinHeight(90); // Minimum height
 
         Label msgLabel = new Label("Control bar is hidden. Right click mouse button or press 'B' on your keyboard to show it again");
         msgLabel.setWrapText(true);
         msgLabel.setTextFill(Color.WHITE);
-        msgLabel.setStyle("-fx-font-size: 14px;");
+        msgLabel.setStyle("-fx-font-size: 18px;"); // Increased font size
+        
+        messageBox.getChildren().add(msgLabel);
 
-        Button msgCloseBtn = new Button("X");
-        msgCloseBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-font-size: 14px;");
-        msgCloseBtn.setPadding(new Insets(0, 5, 0, 5));
+        // Close Button
+        Button msgCloseBtn = new Button();
+        SVGPath closeIcon = new SVGPath();
+        closeIcon.setContent("M 4 4 L 12 12 M 4 12 L 12 4"); // Simple X shape
+        closeIcon.setStroke(Color.WHITE);
+        closeIcon.setStrokeWidth(2);
+        msgCloseBtn.setGraphic(closeIcon);
+        msgCloseBtn.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-background-radius: 50%; -fx-cursor: hand;"); // Circular background
+        msgCloseBtn.setPadding(new Insets(8)); // Bigger hit area
+        
+        // Action
         msgCloseBtn.setOnAction(e -> {
             hiddenBarMessage.setVisible(false);
             hiddenBarMessage.setManaged(false);
         });
 
-        hiddenBarMessage.getChildren().addAll(msgLabel, msgCloseBtn);
+        // Add components to StackPane
+        hiddenBarMessage.getChildren().addAll(messageBox, msgCloseBtn);
+        
+        // Positioning
+        StackPane.setAlignment(messageBox, Pos.CENTER);
+        StackPane.setAlignment(msgCloseBtn, Pos.TOP_RIGHT);
+        
+        // "Half-in, Half-out" effect
+        msgCloseBtn.setTranslateX(10); 
+        msgCloseBtn.setTranslateY(-10);
+
         StackPane.setAlignment(hiddenBarMessage, Pos.CENTER);
 
         // Subclasses must provide the video view
