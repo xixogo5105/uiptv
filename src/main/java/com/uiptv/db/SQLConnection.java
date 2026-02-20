@@ -14,14 +14,18 @@ import static com.uiptv.util.Platform.getUserHomeDirPath;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class SQLConnection {
-    private static final String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
-    private static final String DB_PATH = isNotBlank(databasePathFromConfigFile) ? databasePathFromConfigFile : getUserHomeDirPath() + File.separator + "uiptv.db";
+    private static String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
+    private static String dbPath = isNotBlank(databasePathFromConfigFile) ? databasePathFromConfigFile : getUserHomeDirPath() + File.separator + "uiptv.db";
 
     static {
+        init();
+    }
+
+    public static void init() {
         try {
-            FileUtils.touch(new File(DB_PATH));
+            FileUtils.touch(new File(dbPath));
             for (DatabaseUtils.DbTable t : DatabaseUtils.DbTable.values()) {
-                try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH); Statement statement = conn.createStatement()) {
+                try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath); Statement statement = conn.createStatement()) {
                     String sql = DatabaseUtils.createTableSql(t);
                     statement.execute(sql);
                 } catch (Exception ex) {
@@ -29,7 +33,7 @@ public class SQLConnection {
                 }
             }
 
-            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH)) {
+            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
                 DatabasePatchesUtils.applyPatches(conn);
             } catch (Exception ignored) {
             }
@@ -39,9 +43,14 @@ public class SQLConnection {
         }
     }
 
+    public static void setDatabasePath(String path) {
+        dbPath = path;
+        init();
+    }
+
     public static Connection connect() {
         try {
-            return DriverManager.getConnection("jdbc:sqlite:" + DB_PATH);
+            return DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
