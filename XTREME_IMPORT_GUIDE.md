@@ -1,7 +1,3 @@
-# Test Data Example: xtreme_codes.txt
-
-This file demonstrates the format for bulk importing multiple Xtreme accounts.
-
 ## Format Overview
 
 Each account should be separated by one or more blank lines. Each account block should contain:
