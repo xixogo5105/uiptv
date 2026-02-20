@@ -25,6 +25,8 @@ Optional parameters that can enhance Stalker accounts:
 - **Device ID 1**: Primary device identifier
 - **Device ID 2**: Secondary device identifier
 - **Signature**: Device signature/authentication
+- **HTTP Method**: HTTP method for API requests (GET or POST) - *defaults to GET*
+- **Timezone**: Timezone identifier for the device - *defaults to Europe/London*
 - **Supported Labels**: `Serial`, `SERIALCUT`, `DeviceId1`, `DeviceId2`, `Signature` (case-insensitive)
 
 ## Example 1: Basic Stalker Portal Accounts
@@ -89,6 +91,34 @@ Serial: SN-DOLOR-2024-003
 - MAC address: Set for each account
 - Serial number: Extracted and stored
 - Can be used for device identification
+
+## Example 3a: Stalker Portal with HTTP Method and Timezone
+
+```
+http://lorem.example.com:8080/stalker/
+AA:BB:CC:DD:EE:01
+POST
+Europe/London
+
+http://ipsum.example.com:8080/stalker/
+BB:CC:DD:EE:FF:02
+GET
+America/New_York
+
+http://dolor.example.com:8080/stalker/
+CC:DD:EE:FF:AA:03
+POST
+Asia/Tokyo
+```
+
+**Result**: 3 Stalker Portal accounts with HTTP method and timezone
+- HTTP Method: Set to POST or GET (case-insensitive, defaults to GET)
+- Timezone: Automatically detected from line content (case-insensitive)
+- Timezone detection uses contains matching: works with various formats:
+  - `Europe/London` (exact)
+  - `timezone: Europe/London` (with label)
+  - `Set Europe/London timezone` (embedded)
+- Both parameters are optional and independent
 
 ## Example 4: Stalker Portal with All Device Parameters
 
@@ -212,6 +242,49 @@ DD:EE:FF:AA:BB:04
 - Parser handles optional parameters gracefully
 - Missing parameters left as null
 
+## Example 9: Complete Stalker Portal with All Features
+
+```
+http://lorem.example.com:8080/stalker_portal/
+AA:BB:CC:DD:EE:01
+Serial: SN-LOREM-001
+DeviceId1: DEVICE-LOREM-001
+DeviceId2: SECONDARY-LOREM-001
+Signature: sig_lorem_2024_01
+POST
+Europe/London
+
+http://ipsum.example.com:8080/stalker_portal/
+BBCC.DDEE.FFAA
+Serial: SN-IPSUM-002
+DeviceId1: DEVICE-IPSUM-002
+POST
+America/New_York
+
+http://dolor.example.com:8080/stalker_portal/
+CC:DD:EE:FF:AA:03
+DeviceId1: DEVICE-DOLOR-003
+DeviceId2: SECONDARY-DOLOR-003
+GET
+Asia/Tokyo
+
+http://amet.example.com:8080/stalker_portal/
+DD:EE:FF:AA:BB:04
+Europe/Paris
+```
+
+**Result**: 4 Stalker Portal accounts with complete configuration
+- MAC address: Always required, supports both formats
+- Device parameters: Optional (Serial, DeviceId1/2, Signature)
+- HTTP Method: Optional, defaults to GET
+  - Set to POST if line contains "POST" (case-insensitive)
+  - Otherwise defaults to GET
+- Timezone: Optional, defaults to Europe/London
+  - Automatically detected using case-insensitive contains matching
+  - Works with any valid Java ZoneId identifier
+  - Can appear anywhere in the line
+- All features can be combined flexibly
+
 ## How to Use
 
 1. Open the application
@@ -274,6 +347,17 @@ The parser recognizes various label formats (case-insensitive):
 - **Check**: Parameter label is recognized (Serial, DeviceId1, etc.)
 - **Check**: Parameter is on separate line or clearly separated
 - **Check**: No special characters in parameter values
+
+**Issue**: HTTP method not set correctly
+- **Check**: Line contains only "POST" (case-insensitive) to set POST
+- **Check**: Without POST keyword, defaults to GET
+- **Check**: HTTP method line should be separate from other parameters
+
+**Issue**: Timezone not detected
+- **Check**: Valid Java ZoneId identifier (e.g., Europe/London, America/New_York)
+- **Check**: Timezone can appear anywhere in the line due to contains matching
+- **Check**: Case-insensitive (europe/london works same as Europe/London)
+- **Check**: Use valid ZoneId format (Region/City, not abbreviations like EST)
 
 **Issue**: Portal not connecting
 - **Check**: Portal URL is correct and online

@@ -7,6 +7,8 @@ import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.*;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.concurrent.Task;
@@ -17,6 +19,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,6 +55,8 @@ public class ManageAccountUI extends VBox {
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "Device ID 2", 5);
     private final UIptvText signature = new UIptvText("signature", "Signature", 5);
     private final CheckBox pinToTopCheckBox = new CheckBox("Pin Account on Top");
+    private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "HTTP Method", 150);
+    private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "Timezone", 250);
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final DangerousButton deleteAllButton = new DangerousButton("Delete All");
     private final DangerousButton deleteButton = new DangerousButton("Delete");
@@ -109,13 +114,22 @@ public class ManageAccountUI extends VBox {
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, deleteButton, deleteAllButton);
-        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, refreshChannelsButton, saveButton, buttonWrapper2);
+        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, httpMethodCombo, timezoneCombo, refreshChannelsButton, saveButton, buttonWrapper2);
         addSubmitButtonClickHandler();
         addDeleteAllButtonClickHandler();
         addDeleteButtonClickHandler();
         addClearButtonClickHandler();
         addRefreshChannelsButtonClickHandler();
         addBrowserButton1ClickHandler();
+
+        // Initialize HTTP Method combo
+        httpMethodCombo.getItems().addAll("GET", "POST");
+        httpMethodCombo.setValue("GET");
+
+        // Initialize Timezone combo with all available timezones
+        timezoneCombo.getItems().addAll(java.time.ZoneId.getAvailableZoneIds().stream().sorted().toList());
+        timezoneCombo.setValue("Europe/London");
+
         accountType.getItems().addAll(Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList());
         accountType.setValue(STALKER_PORTAL.getDisplay());
         accountType.valueProperty().addListener((ChangeListener<String>) (observable, oldValue, newValue) -> {
@@ -127,7 +141,7 @@ public class ManageAccountUI extends VBox {
                     
                     switch (type) {
                         case STALKER_PORTAL:
-                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox);
+                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, httpMethodCombo, timezoneCombo);
                             break;
                         case M3U8_LOCAL:
                             getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
@@ -369,7 +383,19 @@ public class ManageAccountUI extends VBox {
         macAddress.setPromptText(PRIMARY_MAC_ADDRESS_HINT);
         accountType.setValue(STALKER_PORTAL.getDisplay());
         pinToTopCheckBox.setSelected(false);
+        httpMethodCombo.setValue("GET");
+        timezoneCombo.setValue("Europe/London");
         verifyMacsLink.setVisible(false);
+        accountId = null;
+        updateButtonState();
+    }
+
+    private void updateButtonState() {
+        // Disable cache and delete buttons when no account is loaded
+        boolean accountLoaded = isNotBlank(accountId);
+        clearButton.setDisable(!accountLoaded);
+        deleteButton.setDisable(!accountLoaded);
+        refreshChannelsButton.setDisable(!accountLoaded);
     }
 
     private Account getAccountFromForm() {
@@ -379,6 +405,8 @@ public class ManageAccountUI extends VBox {
         if (accountId != null) {
             account.setDbId(accountId);
         }
+        account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue().toString() : "GET");
+        account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue().toString() : "Europe/London");
         return account;
     }
 
@@ -388,17 +416,47 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert("Name cannot be empty");
                 return;
             }
-            Account account = getAccountFromForm();
-            service.save(account);
 
-            if (isFullSave) {
-                clearAll();
-                onSaveCallback.call(null);
-                showMessageAlert("Your Account details have been successfully saved!");
+            // Prevent multiple rapid save clicks
+            if (!saveButton.isDisable()) {
+                saveButton.setDisable(true);
+
+                Account account = getAccountFromForm();
+                service.save(account);
+
+                if (isFullSave) {
+                    // Keep the current account displayed instead of clearing
+                    // Refresh the account data to show updated values
+                    Account refreshedAccount = service.getByName(account.getAccountName());
+                    if (refreshedAccount != null) {
+                        editAccount(refreshedAccount);
+                    }
+                    onSaveCallback.call(null);
+
+                    // Show success animation on button
+                    showSaveSuccessAnimation();
+                }
             }
         } catch (Exception e) {
             showErrorAlert("Failed to save successfully saved!");
+            saveButton.setDisable(false);
         }
+    }
+
+    private void showSaveSuccessAnimation() {
+        String originalText = saveButton.getText();
+        saveButton.setText("✅");
+
+        // Reset button after 10 seconds (10000 milliseconds)
+        Timeline timeline = new Timeline(new KeyFrame(
+            Duration.seconds(10),
+            event -> {
+                saveButton.setText(originalText);
+                saveButton.setDisable(false);
+            }
+        ));
+        timeline.setCycleCount(1);
+        timeline.play();
     }
 
     private void addSubmitButtonClickHandler() {
@@ -478,6 +536,9 @@ public class ManageAccountUI extends VBox {
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
+        httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
+        timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : "Europe/London");
         accountType.setValue(account.getType().getDisplay());
+        updateButtonState();
     }
 }

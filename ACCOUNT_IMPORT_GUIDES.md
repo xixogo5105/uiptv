@@ -92,12 +92,14 @@ URL: http://cdn.lorem.com:8080/get.php
 
 ### STALKER_IMPORT_GUIDE.md
 
-**Format:** Portal URL + MAC Address (+ optional device parameters)  
-**Examples:** 8 detailed scenarios  
+**Format:** Portal URL + MAC Address (+ optional device parameters + optional HTTP method + optional timezone)  
+**Examples:** 9 detailed scenarios  
 **Key Features:**
 - Portal URL + MAC address authentication
 - Multiple MAC address formats supported
 - Optional device parameters (Serial, DeviceId1/2, Signature)
+- **NEW:** Optional HTTP method (GET/POST)
+- **NEW:** Optional timezone detection (case-insensitive contains matching)
 - Multiple accounts per portal (different MACs)
 - Mixed MAC formats in single import
 - HTTPS/custom port support
@@ -108,11 +110,14 @@ URL: http://cdn.lorem.com:8080/get.php
 http://lorem.example.com/stalker_portal/
 AA:BB:CC:DD:EE:01
 Serial: SN-LOREM-001
-DeviceId1: DEVICE-LOREM-001
+POST
+Europe/London
 
 http://ipsum.example.com/stalker_portal/
 BBCC.DDEE.FFAA
 Serial: SN-IPSUM-002
+GET
+America/New_York
 ```
 
 ---
@@ -123,12 +128,14 @@ Serial: SN-IPSUM-002
 |--------|--------|-----|---------|
 | **Primary Identifier** | Username | URL | MAC Address |
 | **Authentication** | Username/Password | URL (optional creds) | MAC Address |
-| **Optional Parameters** | None | Query params | Serial, Device IDs |
+| **Optional Parameters** | None | Query params | Serial, Device IDs, HTTP Method, Timezone |
 | **Supports HTTPS** | ✅ | ✅ | ✅ |
 | **Multiple Servers** | ✅ | ✅ | ✅ |
 | **Multiple Per Server** | ✅ (auto-numbered) | ✅ | ✅ (per MAC) |
 | **Conversion Feature** | N/A | M3U→Xtreme | N/A |
 | **Device Tracking** | No | Limited | Yes (via DeviceId) |
+| **HTTP Method Control** | No | No | ✅ (GET/POST) |
+| **Timezone Support** | No | No | ✅ (Configurable) |
 | **Legacy Support** | Modern API | Playlists | Portal Servers |
 
 ---
@@ -298,6 +305,12 @@ For detailed help, refer to specific guide:
 ---
 
 ## 📈 Version History
+
+**February 20, 2026** - Added HTTP Method & Timezone Support
+- HTTP Method selection (GET/POST) for Stalker Portal accounts
+- Timezone detection with case-insensitive contains matching
+- Updated all guides with new examples and documentation
+- Enhanced Examples 3a and 9 with complete feature set
 
 **February 20, 2026** - Initial Release
 - Complete guides for all three account types

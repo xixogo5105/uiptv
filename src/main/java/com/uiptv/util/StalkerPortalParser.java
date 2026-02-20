@@ -72,6 +72,18 @@ public class StalkerPortalParser implements AccountParser {
                 }
             }
 
+            // Check for HTTP method (POST/GET)
+            String trimmedLine = line.trim();
+            if ("POST".equalsIgnoreCase(trimmedLine)) {
+                account.setHttpMethod("POST");
+            }
+
+            // Check for timezone
+            String detectedTimezone = detectTimezone(trimmedLine);
+            if (detectedTimezone != null) {
+                account.setTimezone(detectedTimezone);
+            }
+
             for (StalkerAttributeParser parser : attributeParsers) {
                 String value = parser.parse(line);
                 if (value != null) {
@@ -173,5 +185,29 @@ public class StalkerPortalParser implements AccountParser {
 
         individualAccounts.forEach(accountSaver);
         groupedAccounts.values().forEach(accountSaver);
+    }
+
+    /**
+     * Detects if the given line contains a valid timezone identifier.
+     * Performs case-insensitive matching against all available ZoneIds.
+     *
+     * @param line The line to check for timezone
+     * @return The matched timezone string, or null if no timezone is found
+     */
+    private String detectTimezone(String line) {
+        if (line == null || line.trim().isEmpty()) {
+            return null;
+        }
+
+        String lowerLine = line.toLowerCase();
+
+        // Get all available zone IDs and perform case-insensitive contains matching
+        for (String zoneId : java.time.ZoneId.getAvailableZoneIds()) {
+            if (lowerLine.contains(zoneId.toLowerCase())) {
+                return zoneId;
+            }
+        }
+
+        return null;
     }
 }

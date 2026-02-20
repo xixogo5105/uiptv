@@ -24,8 +24,9 @@ public class FetchAPI {
             }
             
             Map<String, String> headers = headers(account.getUrl(), account);
-            HttpResponse<String> response = HttpUtil.sendRequest(urlWithParams, headers, "GET");
-            
+            String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
+            HttpResponse<String> response = HttpUtil.sendRequest(urlWithParams, headers, httpMethod);
+
             httpLog(account.getServerPortalUrl(), response.request(), response, params);
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return response.body();
@@ -44,7 +45,8 @@ public class FetchAPI {
         headers.put("Accept", "*/*");
         headers.put("Pragma", "no-cache");
         if (account.isConnected()) headers.put("Authorization", "Bearer " + account.getToken());
-        headers.put("Cookie", "mac=" + account.getMacAddress() + "; stb_lang=en; timezone=GMT;");
+        String timezone = account.getTimezone() != null ? account.getTimezone() : "Europe/London";
+        headers.put("Cookie", "mac=" + account.getMacAddress() + "; stb_lang=en; timezone=" + timezone + ";");
         return headers;
     }
 

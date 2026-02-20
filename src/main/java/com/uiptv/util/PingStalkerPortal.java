@@ -34,9 +34,11 @@ public class PingStalkerPortal {
 
     public static String ping(Account account) {
         final String url = account.getUrl();
+        final String timezone = account.getTimezone() != null ? account.getTimezone() : "Europe/London";
+        final String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
         // 1. PHASE ONE: Direct Probing (Hit and Try)
         // We attempt to hit common API endpoints directly with a handshake request.
-        String verifiedApi = probeKnownPaths(url, account.getMacAddress());
+        String verifiedApi = probeKnownPaths(url, account.getMacAddress(), timezone, httpMethod);
         if (verifiedApi != null) {
             System.out.println("Found Stalker API via direct probe: " + verifiedApi);
             return verifiedApi;
@@ -50,7 +52,7 @@ public class PingStalkerPortal {
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
             
-            HttpResponse<String> response = HttpUtil.sendRequest(pingUrl, headers, "GET");
+            HttpResponse<String> response = HttpUtil.sendRequest(pingUrl, headers, httpMethod);
 
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
@@ -69,10 +71,12 @@ public class PingStalkerPortal {
      * Iterates through known Stalker paths and attempts a handshake.
      *
      * @param baseUrl    The base URL provided by the user.
-     * @param macAddress
+     * @param macAddress The MAC address for the device
+     * @param timezone   The timezone from Account
+     * @param httpMethod The HTTP method from Account (GET or POST)
      * @return The valid API URL if found, otherwise null.
      */
-    private static String probeKnownPaths(String baseUrl, String macAddress) {
+    private static String probeKnownPaths(String baseUrl, String macAddress, String timezone, String httpMethod) {
         String cleanBase = ensureAbsoluteUrl(baseUrl);
 
         // Remove trailing slash for cleaner appending
@@ -82,7 +86,7 @@ public class PingStalkerPortal {
 
         for (String path : PROBE_PATHS) {
             String targetUrl = cleanBase + path;
-            if (checkHandshake(targetUrl, macAddress)) {
+            if (checkHandshake(targetUrl, macAddress, timezone, httpMethod)) {
                 return targetUrl;
             }
         }
@@ -92,8 +96,13 @@ public class PingStalkerPortal {
     /**
      * Sends a Stalker handshake request to the given URL.
      * Checks if the response contains the expected JSON token structure.
+     *
+     * @param apiUrl The API endpoint URL
+     * @param macAddress The MAC address for the device
+     * @param timezone The timezone setting
+     * @param httpMethod The HTTP method to use (GET or POST)
      */
-    private static boolean checkHandshake(String apiUrl, String macAddress) {
+    private static boolean checkHandshake(String apiUrl, String macAddress, String timezone, String httpMethod) {
         try {
             LogDisplayUI.addLog("Checking handshake for : " + apiUrl);
             
@@ -101,9 +110,9 @@ public class PingStalkerPortal {
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
             headers.put("X-User-Agent", "Model: MAG250; Link: WiFi");
             headers.put("Referer", apiUrl);
-            headers.put("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=GMT");
+            headers.put("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=" + timezone);
 
-            HttpResponse<String> response = HttpUtil.sendRequest(apiUrl + HANDSHAKE_QUERY, headers, "GET");
+            HttpResponse<String> response = HttpUtil.sendRequest(apiUrl + HANDSHAKE_QUERY, headers, httpMethod);
 
             if (response.statusCode() == 200) {
                 String body = response.body();

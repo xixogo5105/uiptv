@@ -35,6 +35,8 @@ public class DatabasePatchesUtils {
         dbPatches.put("144", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN channelJson TEXT");
         dbPatches.put("145", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN vodJson TEXT");
         dbPatches.put("146", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN seriesJson TEXT");
+        dbPatches.put("147", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN httpMethod TEXT default 'GET'");
+        dbPatches.put("148", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN timezone TEXT default 'Europe/London'");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

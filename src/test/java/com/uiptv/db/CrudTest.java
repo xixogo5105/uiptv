@@ -49,22 +49,49 @@ public class CrudTest {
 
         // Create
         Account account = new Account("TestAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
+        account.setHttpMethod("POST");
+        account.setTimezone("America/New_York");
         accountService.save(account);
 
         Account fetchedAccount = accountService.getByName("TestAccount");
         assertNotNull(fetchedAccount, "Account should be saved");
         assertEquals("http://test.com", fetchedAccount.getUrl());
+        assertEquals("POST", fetchedAccount.getHttpMethod(), "HTTP method should be POST");
+        assertEquals("America/New_York", fetchedAccount.getTimezone(), "Timezone should be America/New_York");
 
         // Update
         fetchedAccount.setUsername("newUser");
+        fetchedAccount.setHttpMethod("GET");
+        fetchedAccount.setTimezone("Europe/London");
         accountService.save(fetchedAccount);
         Account updatedAccount = accountService.getByName("TestAccount");
         assertEquals("newUser", updatedAccount.getUsername());
+        assertEquals("GET", updatedAccount.getHttpMethod(), "HTTP method should be updated to GET");
+        assertEquals("Europe/London", updatedAccount.getTimezone(), "Timezone should be updated to Europe/London");
 
         // Delete
         accountService.delete(updatedAccount.getDbId());
         Account deletedAccount = accountService.getByName("TestAccount");
         assertNull(deletedAccount, "Account should be deleted");
+    }
+
+    @Test
+    public void testAccountDefaultValues() {
+        System.out.println("Testing Account Default Values...");
+        AccountService accountService = AccountService.getInstance();
+
+        // Create account without setting httpMethod and timezone
+        Account account = new Account("DefaultValueAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.STALKER_PORTAL, null, null, false);
+        accountService.save(account);
+
+        Account fetchedAccount = accountService.getByName("DefaultValueAccount");
+        assertNotNull(fetchedAccount, "Account should be saved");
+        // Check that defaults are applied
+        assertEquals("GET", fetchedAccount.getHttpMethod(), "HTTP method should default to GET");
+        assertEquals("Europe/London", fetchedAccount.getTimezone(), "Timezone should default to Europe/London");
+
+        // Cleanup
+        accountService.delete(fetchedAccount.getDbId());
     }
 
     @Test

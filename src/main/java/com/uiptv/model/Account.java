@@ -40,6 +40,8 @@ public class Account extends BaseJson {
     private String dbId, token;
     private boolean pinToTop;
     private AccountType type = STALKER_PORTAL;
+    private String httpMethod = "GET";
+    private String timezone = "Europe/London";
 
     public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pinToTop) {
         this.accountName = accountName;
