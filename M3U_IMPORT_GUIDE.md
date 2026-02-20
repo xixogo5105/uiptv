@@ -1,7 +1,3 @@
-# M3U Playlist Import Guide
-
-This file demonstrates the format for bulk importing M3U playlist links and converting them to Xtreme accounts when desired.
-
 ## Format Overview
 
 Each M3U playlist URL should be on its own line or separated by spaces. The parser supports:
