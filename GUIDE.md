@@ -16,6 +16,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Filtering Content](#filtering-content)
    - [Appearance & Styling](#appearance--styling)
    - [Cache Management](#cache-management)
+   - [Updates & About](#updates--about)
 4. [Managing Accounts](#4-managing-accounts)
    - [Stalker Portal](#stalker-portal)
    - [Xtream Codes](#xtream-codes)
@@ -33,6 +34,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Headless Mode](#headless-mode)
 7. [Advanced Features & Tips](#7-advanced-features--tips)
    - [External Player Integration](#external-player-integration)
+   - [Kodi Integration](#kodi-integration)
    - [YouTube Integration](#youtube-integration)
    - [Database Synchronization](#database-synchronization)
    - [Troubleshooting](#troubleshooting)
@@ -127,6 +129,7 @@ Keep your channel list clean and safe:
 - **Category Filter**: Enter keywords (comma-separated) to hide entire categories (e.g., `adult, xxx, shopping`).
 - **Channel Filter**: Enter specific channel names to exclude them from your list.
 - **Pause Filtering**: Toggle this option to temporarily show all hidden content without deleting your filter lists.
+- **Web Server Impact**: Note that these filters also apply to the content served via the web server. If you filter out a category here, it will not be visible on your remote devices.
 
 ### Appearance & Styling
 Make UIPTV look the way you want:
@@ -136,7 +139,11 @@ Make UIPTV look the way you want:
 ### Cache Management
 UIPTV uses a local SQLite database to cache channel lists and EPG data for faster loading.
 - **Clear Cache**: If you experience missing channels or outdated data, click this to reset the local database.
-- **Pause Caching**: Enable this if you prefer to fetch fresh data every time you load an account (may slow down startup).
+- **Pause Caching**: Enable this if you prefer to fetch fresh data every time you load an account (may slow down startup). This can be set globally or on a per-account basis.
+
+### Updates & About
+- **About Page**: Provides version information and credits.
+- **Check for Updates**: You can manually check for new versions of UIPTV from the About page. The application will notify you if a newer release is available on GitHub.
 
 ---
 
@@ -290,6 +297,40 @@ For the best quality, you might prefer **MPV** or **MPC-HC**.
     #!/bin/sh
     /usr/bin/mpv --fs --hwdec=auto "$@"
     ```
+
+### Kodi Integration
+You can use a shell script to play streams on **Kodi** as an external player. This script acts as a bridge, sending the stream URL to Kodi's JSON-RPC interface.
+
+**Mac OSX / Linux Script Example:**
+```bash
+#!/bin/bash
+
+STREAM_URL="$1"
+KODI_HOST="localhost"
+KODI_PORT="8080"
+KODI_USER=""
+KODI_PASS=""
+
+if [ -z "$STREAM_URL" ]; then
+    exit 1
+fi
+
+# Send commands to Kodi via curl
+if [ -z "$KODI_USER" ] || [ -z "$KODI_PASS" ]; then
+    # Stop current player
+    curl -s -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "2.0", "method": "Player.Stop", "params": {"playerid": 1}, "id": 1}' "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+    # Open new stream
+    curl -s -X POST -H 'Content-Type: application/json' -d "{\"jsonrpc\": \"2.0\", \"method\": \"Player.Open\", \"params\": {\"item\": {\"file\": \"$STREAM_URL\"}}, \"id\": 2}" "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+else
+    # Authenticated requests
+    curl -s -X POST -H 'Content-Type: application/json' -u "$KODI_USER:$KODI_PASS" -d '{"jsonrpc": "2.0", "method": "Player.Stop", "params": {"playerid": 1}, "id": 1}' "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+    curl -s -X POST -H 'Content-Type: application/json' -u "$KODI_USER:$KODI_PASS" -d "{\"jsonrpc\": \"2.0\", \"method\": \"Player.Open\", \"params\": {\"item\": {\"file\": \"$STREAM_URL\"}}, \"id\": 2}" "http://$KODI_HOST:$KODI_PORT/jsonrpc"
+fi
+
+# Optional: Bring Kodi to front (macOS)
+# open -a Kodi --args "$STREAM_URL"
+```
+Save this as `kodi.sh`, make it executable (`chmod +x kodi.sh`), and set it as an external player in UIPTV.
 
 ### YouTube Integration
 To watch YouTube videos seamlessly:

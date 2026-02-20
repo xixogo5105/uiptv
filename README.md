@@ -7,12 +7,6 @@ Native installers and packages are available for Windows (x86_64, aarch64), Linu
 
 A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
 
-For account import format guides with examples, see:
-- [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md) - Master index with quick decision guide
-- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtreme API accounts
-- [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) - M3U playlists with conversion
-- [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) - Stalker Portal accounts
-
 Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/latest).
 
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
@@ -33,6 +27,8 @@ Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/
   - **M3U Playlists**: Supports local and remote M3U files (EPG is not yet supported).
   - **Xtreme Codes**: Live Channels, Video On Demand, and Series.
   - **RSS Feeds**: Add and watch content from RSS feeds. This includes support for YouTube channels by using their RSS feed URL (e.g., `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`). For YouTube videos to play, **yt-dlp** must be installed and accessible in the system's PATH.
+- **Bulk Account Import**: Add multiple accounts at once for Stalker, Xtreme, and M3U.
+- **Database Synchronization**: Synchronize your configuration and accounts between two database files, perfect for backups or multi-device setups.
 - **Tab-Based Interface**: The user interface has been updated from expandable panels to a more intuitive tab-based layout for managing accounts and settings.
 - **About Page & Update Checks**: An "About" page has been added, which includes a mechanism to check for new application updates.
 - **Cache Management**: UIPTV uses an SQLite database to cache data, reducing repeated calls to servers. You can "Clear Cache" or "Pause Caching" globally or on a per-account basis to manage performance.
