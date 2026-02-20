@@ -144,20 +144,26 @@ UIPTV uses a local SQLite database to cache channel lists and EPG data for faste
 
 Go to the **Manage Account** tab to add your IPTV sources. You can add multiple accounts and switch between them easily.
 
+**Import Format Guides**: For detailed account format documentation with examples, see [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
+
 ### Stalker Portal
-Used by many IPTV providers.
+Used by many IPTV providers. See [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) for bulk import examples.
+
 1. Select **Stalker Portal** from the dropdown.
 2. Enter the **Portal URL** provided by your service.
 3. Enter your **MAC Address** (usually linked to your subscription).
 4. Click **Add Account**.
 
 ### Xtream Codes
-A popular API-based method.
+A popular API-based method. See [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) for bulk import examples.
+
 1. Select **Xtream Codes API**.
 2. Enter the **Host URL**, **Username**, and **Password**.
 3. Click **Add Account**.
 
 ### M3U Playlists (Remote & Local)
+See [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) for bulk import examples and M3U to Xtreme conversion guide.
+
 - **Remote URL**: Paste the http/https link to your M3U playlist.
 - **Local File**: Browse your computer to select a downloaded `.m3u` or `.m3u8` file.
 
@@ -172,6 +178,11 @@ Turn UIPTV into a news or video feed reader.
 
 ### Bulk Account Import
 The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
+
+**Format References:**
+- [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) - Stalker Portal format with 8 examples
+- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtreme Codes format with 7 examples
+- [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) - M3U format with 7 examples and conversion feature
 
 1. **Select Mode**: Choose between `Stalker Portal`, `Xtream Codes`, or `M3U`.
 2. **Enter Data**: Paste your account details in the text area.

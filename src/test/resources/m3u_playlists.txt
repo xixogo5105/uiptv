@@ -1,0 +1,18 @@
+# Simple M3U Playlists (without credentials)
+http://cdn.lorem.example.com:8080/playlist.m3u8
+http://cdn.ipsum.example.com:8080/playlist.m3u8
+http://cdn.dolor.example.com:8080/playlist.m3u8
+
+# M3U URLs with embedded Xtreme credentials
+http://cdn.lorem.com:8080/get.php?username=loremuser&password=lorempass&type=m3u_plus&output=ts
+http://cdn.ipsum.com:8080/get.php?username=ipsumuser&password=ipsumpass&type=m3u_plus&output=ts
+http://cdn.dolor.com:8080/get.php?username=doloruser&password=dolorpass&type=m3u_plus&output=ts
+
+# M3U URLs with different parameter orders
+http://cdn.amet.com:8080/get.php?type=m3u_plus&username=ametuser&password=ametpass
+http://cdn.consectetur.com:8080/get.php?output=ts&username=consectetur&password=consecpass
+
+# HTTPS M3U URLs with custom ports
+https://cdn.adipiscing.com:9090/get.php?username=adipiscing&password=adipispass
+https://cdn.elituser.com:3000/playlist.m3u8
+

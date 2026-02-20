@@ -107,8 +107,7 @@ public class CategoryListUI extends HBox {
     private void doRetrieveChannels(CategoryItem item) {
         // Check if channels are already loaded for this account
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
-        boolean channelsAlreadyLoaded = noCachingNeeded || ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) > 0;
-
+        
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
         }
@@ -127,31 +126,16 @@ public class CategoryListUI extends HBox {
         currentRequestCancelled = new AtomicBoolean(false);
         AtomicBoolean isCancelled = currentRequestCancelled;
 
-        if (!channelsAlreadyLoaded) { // If no channels are loaded, show popup and reload
-            LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
-            logPopup.show();
-            primaryStage.getScene().setCursor(Cursor.WAIT);
-
-            currentLoadingThread = new Thread(() -> {
-                try {
-                    retrieveChannels(item, logPopup.getLogger(), noCachingNeeded, isCancelled::get);
-                } finally {
-                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                    logPopup.closeGracefully();
-                }
-            });
-            currentLoadingThread.start();
-        } else { // Channels are already loaded (even if count is 0), just display them
-            primaryStage.getScene().setCursor(Cursor.WAIT);
-            currentLoadingThread = new Thread(() -> {
-                try {
-                    retrieveChannels(item, null, noCachingNeeded, isCancelled::get);
-                } finally {
-                    Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
-                }
-            });
-            currentLoadingThread.start();
-        }
+        // Always retrieve channels without triggering a cache reload popup
+        primaryStage.getScene().setCursor(Cursor.WAIT);
+        currentLoadingThread = new Thread(() -> {
+            try {
+                retrieveChannels(item, null, noCachingNeeded, isCancelled::get);
+            } finally {
+                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
+            }
+        });
+        currentLoadingThread.start();
     }
 
     private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded, Supplier<Boolean> isCancelled) {

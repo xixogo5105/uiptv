@@ -1,0 +1,36 @@
+http://192.168.1.100:2095
+User : LoremUser01
+Pass : IpsumPass01
+
+http://192.168.1.100:2095
+User : DolorUser02
+Pass : SitPass02
+
+http://192.168.1.100:2095
+User : AmetUser03
+Pass : ConsPass03
+
+http://192.168.2.50:2095
+User : ConsecUser04
+Pass : Tetur04
+
+http://192.168.2.50:2095
+User : AdipiscingUser05
+Pass : ElitPass05
+
+http://192.168.3.200:8080
+User : ElitrUser06
+Pass : SedPass06
+
+http://192.168.3.200:8080
+User : SedUser07
+Pass : DiamPass07
+
+http://192.168.3.200:8080
+User : DiamUser08
+Pass : VoluptPass08
+
+http://192.168.4.75:3000
+User : VoluptUser09
+Pass : AtumPass09
+

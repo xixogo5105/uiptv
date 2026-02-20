@@ -7,6 +7,12 @@ Native installers and packages are available for Windows (x86_64, aarch64), Linu
 
 A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
 
+For account import format guides with examples, see:
+- [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md) - Master index with quick decision guide
+- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtreme API accounts
+- [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) - M3U playlists with conversion
+- [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) - Stalker Portal accounts
+
 Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/latest).
 
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />

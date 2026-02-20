@@ -10,7 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static com.uiptv.util.UiptUtils.getNameFromUrl;
+import static com.uiptv.util.UiptUtils.getUniqueNameFromUrl;
 import static com.uiptv.util.UiptUtils.replaceAllNonPrintableChars;
 
 /**
@@ -69,7 +69,7 @@ public class XtremeParser implements AccountParser {
         }
 
         if (url != null && username != null && password != null) {
-            String name = getNameFromUrl(url);
+            String name = getUniqueNameFromUrl(url);
             AccountService.getInstance().save(new Account(name, username, password, url, null, null, null, null, null, null,
                     AccountType.XTREME_API, null, url, false));
         }

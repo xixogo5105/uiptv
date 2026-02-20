@@ -1,0 +1,20 @@
+# M3U URLs that CAN be converted to Xtreme (have username and password)
+http://cdn.lorem.com:8080/get.php?username=loremuser&password=lorempass&type=m3u_plus&output=ts
+http://cdn.ipsum.com:8080/get.php?username=ipsumuser&password=ipsumpass&type=m3u_plus&output=ts
+
+# M3U URLs that CANNOT be converted to Xtreme (no credentials)
+http://simple.example.com:8080/playlist.m3u8
+http://another.example.com:8080/video.m3u8
+
+# M3U URLs with various parameter configurations
+http://cdn.dolor.com:8080/get.php?username=doloruser&password=dolorpass&type=m3u_plus
+http://cdn.amet.com:9090/get.php?type=m3u_plus&username=ametuser&password=ametpass&output=ts
+
+# HTTPS M3U URLs
+https://cdn.consectetur.com:8080/get.php?username=consectetur&password=consecpass&type=m3u_plus
+https://cdn.adipiscing.com:3000/playlist.m3u8
+
+# M3U URLs with special characters in credentials
+http://cdn.elituser.com:8080/get.php?username=user.123&password=pass%40123&type=m3u_plus
+http://cdn.seduser.com:8080/get.php?username=sed_user_456&password=pass%23456&type=m3u_plus
+
