@@ -78,12 +78,12 @@ public class ManageAccountUI extends VBox {
     private void initWidgets() {
         setPadding(new Insets(5));
         setSpacing(5);
-        saveButton.setMinWidth(440);
-        saveButton.setPrefWidth(440);
+        saveButton.setMinWidth(430);
+        saveButton.setPrefWidth(430);
         saveButton.setMinHeight(50);
         saveButton.setPrefHeight(50);
-        refreshChannelsButton.setMinWidth(440);
-        refreshChannelsButton.setPrefWidth(440);
+        refreshChannelsButton.setMinWidth(430);
+        refreshChannelsButton.setPrefWidth(430);
         refreshChannelsButton.setMinHeight(50);
         refreshChannelsButton.setPrefHeight(50);
         m3u8Path.setMinWidth(180);
@@ -113,7 +113,7 @@ public class ManageAccountUI extends VBox {
         HBox macAddressContainer = new HBox(5, macAddress, verifyMacsLink, pipeLabel, manageMacsLink);
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
-        HBox buttonWrapper2 = new HBox(10, clearButton, deleteButton, deleteAllButton);
+        HBox buttonWrapper2 = new HBox(5, clearButton, deleteButton, deleteAllButton);
         getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, httpMethodCombo, timezoneCombo, refreshChannelsButton, saveButton, buttonWrapper2);
         addSubmitButtonClickHandler();
         addDeleteAllButtonClickHandler();
