@@ -1,61 +1,29 @@
 package com.uiptv.service;
 
-import com.uiptv.db.DatabasePatchesUtils;
-import com.uiptv.db.DatabaseUtils;
-import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
+import com.uiptv.test.DbBackedTest;
 import com.uiptv.util.AccountType;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.io.File;
 import java.io.FileWriter;
-import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.HashSet;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class M3U8PublicationServiceTest {
+public class M3U8PublicationServiceTest extends DbBackedTest {
 
-    @TempDir
-    Path tempDir;
-
-    private File testDbFile;
-    private File m3u8File;
+    private java.io.File m3u8File;
 
     @BeforeEach
     public void setUp() throws Exception {
-        testDbFile = tempDir.resolve("test_uiptv_m3u8.db").toFile();
-        SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
-
-        // Initialize DB
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + testDbFile.getAbsolutePath());
-             Statement stmt = conn.createStatement()) {
-            for (DatabaseUtils.DbTable table : DatabaseUtils.DbTable.values()) {
-                stmt.execute(DatabaseUtils.createTableSql(table));
-            }
-            DatabasePatchesUtils.applyPatches(conn);
-        }
-
         // Create a dummy M3U8 file
         m3u8File = tempDir.resolve("test.m3u8").toFile();
         try (FileWriter writer = new FileWriter(m3u8File)) {
             writer.write("#EXTM3U\n");
             writer.write("#EXTINF:-1,Test Channel\n");
             writer.write("http://test.com/stream.ts\n");
-        }
-    }
-
-    @AfterEach
-    public void tearDown() {
-        if (testDbFile != null && testDbFile.exists()) {
-            testDbFile.delete();
         }
     }
 

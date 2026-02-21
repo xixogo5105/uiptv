@@ -2,45 +2,17 @@ package com.uiptv.db;
 
 import com.uiptv.model.*;
 import com.uiptv.service.*;
+import com.uiptv.test.DbBackedTest;
 import com.uiptv.util.AccountType;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class CrudTest {
-
-    @TempDir
-    Path tempDir;
-
-    private File testDbFile;
-
-    @BeforeEach
-    public void setUp() throws Exception {
-        // Use the temporary directory provided by JUnit
-        testDbFile = tempDir.resolve("test_uiptv.db").toFile();
-        
-        // Set the database path directly using the new method in SQLConnection
-        // This avoids file system hacks and ensures the test uses the correct DB.
-        SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
-    }
-
-    @AfterEach
-    public void tearDown() {
-        // Explicitly delete the database file to ensure test isolation.
-        // The @TempDir annotation will handle the cleanup of the parent directory.
-        if (testDbFile != null && testDbFile.exists()) {
-            testDbFile.delete();
-        }
-    }
+public class CrudTest extends DbBackedTest {
 
     @Test
     public void testAccountCrud() {

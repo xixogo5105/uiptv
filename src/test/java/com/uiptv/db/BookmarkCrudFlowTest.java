@@ -5,14 +5,10 @@ import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Channel;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.test.DbBackedTest;
 import com.uiptv.util.AccountType;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.io.File;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -23,25 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class BookmarkCrudFlowTest {
-
-    @TempDir
-    Path tempDir;
-
-    private File testDbFile;
-
-    @BeforeEach
-    public void setUp() {
-        testDbFile = tempDir.resolve("test_uiptv_bookmark_flow.db").toFile();
-        SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
-    }
-
-    @AfterEach
-    public void tearDown() {
-        if (testDbFile != null && testDbFile.exists()) {
-            testDbFile.delete();
-        }
-    }
+public class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     public void testBookmarkServiceCrudAndJsonFlow() {

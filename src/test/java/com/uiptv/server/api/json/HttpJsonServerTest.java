@@ -6,19 +6,14 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
-import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
+import com.uiptv.test.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.json.JSONArray;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -26,36 +21,13 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class HttpJsonServerTest {
-
-    static {
-        // Ensure SQLConnection static initialization points to a writable area.
-        System.setProperty("user.home", System.getProperty("java.io.tmpdir"));
-    }
-
-    @TempDir
-    Path tempDir;
-    private File testDbFile;
-
-    @BeforeEach
-    void setUpDb() {
-        testDbFile = tempDir.resolve("http-json-test.db").toFile();
-        SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
-    }
-
-    @AfterEach
-    void tearDownDb() {
-        if (testDbFile != null && testDbFile.exists()) {
-            testDbFile.delete();
-        }
-    }
+class HttpJsonServerTest extends DbBackedTest {
 
     @Test
     void categoryServer_returnsCategoriesForAccount() throws Exception {
