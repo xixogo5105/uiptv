@@ -2,18 +2,16 @@ package com.uiptv.util;
 
 import com.uiptv.ui.LogDisplayUI;
 
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Map;
 
 import static com.uiptv.util.StringUtils.EMPTY;
 
 public class LogUtil {
-    public static void httpLog(String url, HttpRequest request, HttpResponse<String> response, Map<String, String> params) {
+    public static void httpLog(String url, HttpUtil.HttpResult response, Map<String, String> params) {
         LogDisplayUI.addLog("URL: " + url);
         LogDisplayUI.addLog("==========================================Request Headers==========================================");
         LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog(String.valueOf(request.headers()));
+        LogDisplayUI.addLog(String.valueOf(response.requestHeaders()));
         LogDisplayUI.addLog(EMPTY);
         LogDisplayUI.addLog("==========================================End Request Headers==========================================");
         LogDisplayUI.addLog(EMPTY);
@@ -25,7 +23,7 @@ public class LogUtil {
         LogDisplayUI.addLog(EMPTY);
         LogDisplayUI.addLog("==========================================Response Headers==========================================");
         LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog(String.valueOf(response.headers()));
+        LogDisplayUI.addLog(String.valueOf(response.responseHeaders()));
         LogDisplayUI.addLog(EMPTY);
         LogDisplayUI.addLog("==========================================End Response Headers==========================================");
         LogDisplayUI.addLog(EMPTY);

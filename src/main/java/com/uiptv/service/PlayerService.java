@@ -39,14 +39,22 @@ public class PlayerService {
     }
 
     public PlayerResponse get(Account account, Channel channel) throws IOException {
-        return get(account, channel, "");
+        return get(account, channel, "", false);
+    }
+
+    public PlayerResponse get(Account account, Channel channel, boolean resolveRedirectForEmbeddedPlayer) throws IOException {
+        return get(account, channel, "", resolveRedirectForEmbeddedPlayer);
     }
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
+        return get(account, channel, series, false);
+    }
+
+    public PlayerResponse get(Account account, Channel channel, String series, boolean resolveRedirectForEmbeddedPlayer) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
         String rawUrl = predefined ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd());
         String finalUrl = resolveAndProcessUrl(rawUrl);
-        if (!predefined) {
+        if (resolveRedirectForEmbeddedPlayer) {
             finalUrl = resolveRedirectIfNeeded(finalUrl);
         }
         PlayerResponse response = new PlayerResponse(finalUrl);
@@ -80,17 +88,6 @@ public class PlayerService {
         return mergedCmd;
     }
 
-    private String resolveRedirectIfNeeded(String url) {
-        if (isBlank(url) || !(url.startsWith("http://") || url.startsWith("https://"))) {
-            return url;
-        }
-        String finalUrl = HttpUtil.resolveFinalUrl(url, null);
-        if (!url.equals(finalUrl)) {
-            LogDisplayUI.addLog("Resolved playback redirect URL: " + finalUrl);
-        }
-        return finalUrl;
-    }
-
     private String resolveCreateLink(Account account, String series, String cmd) {
         String json = FetchAPI.fetch(getParams(account, cmd, series), account);
         String resolved = parseUrl(json);
@@ -98,6 +95,17 @@ public class PlayerService {
             LogDisplayUI.addLog("create_link unresolved for provided cmd.");
         }
         return resolved;
+    }
+
+    private String resolveRedirectIfNeeded(String url) {
+        if (isBlank(url) || !(url.startsWith("http://") || url.startsWith("https://"))) {
+            return url;
+        }
+        String finalUrl = HttpUtil.resolveFinalUrl(url, null);
+        if (!url.equals(finalUrl)) {
+            LogDisplayUI.addLog("Resolved embedded playback redirect URL: " + finalUrl);
+        }
+        return finalUrl;
     }
 
     private String parseUrl(String json) {

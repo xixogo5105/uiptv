@@ -7,8 +7,6 @@ import javafx.scene.media.*;
 import javafx.util.Duration;
 
 import java.io.File;
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -18,7 +16,6 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private MediaView mediaView; // Removed final and initializer
     private final ChangeListener<Duration> progressListener;
     private final ChangeListener<MediaPlayer.Status> statusListener;
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36";
 
     public LiteVideoPlayer() {
         super(); // Calls buildUI -> getVideoView
@@ -108,9 +105,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         new Thread(() -> {
             try {
                 String sourceUrl = currentMediaUri.trim();
-                if (sourceUrl.startsWith("http")) {
-                    sourceUrl = getFinalUrl(sourceUrl);
-                } else if (!sourceUrl.startsWith("file:")) {
+                if (!sourceUrl.startsWith("http") && !sourceUrl.startsWith("file:")) {
                     File f = new File(sourceUrl);
                     if (f.exists()) sourceUrl = f.toURI().toString();
                 }
@@ -284,14 +279,6 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             errorLabel.setText("Could not load video.\nInvalid path or network issue.");
             errorLabel.setVisible(true);
         });
-    }
-
-    private String getFinalUrl(String url) throws Exception {
-        HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-        con.setInstanceFollowRedirects(true);
-        con.setRequestProperty("User-Agent", USER_AGENT);
-        con.connect();
-        return con.getURL().toString();
     }
 
     @Override

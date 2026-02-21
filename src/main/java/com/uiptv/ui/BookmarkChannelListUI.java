@@ -439,6 +439,10 @@ public class BookmarkChannelListUI extends HBox {
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
+                boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+                boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+                boolean shouldResolveForEmbedded = useEmbeddedPlayerConfig && (playerPathIsEmbedded || isBlank(playerPath));
+
                 Account account = AccountService.getInstance().getAll().get(item.getAccountName());
                 account.setServerPortalUrl(item.getServerPortalUrl());
                 account.setAction(item.getAccountAction());
@@ -473,15 +477,12 @@ public class BookmarkChannelListUI extends HBox {
                     channel.setManifestType(item.getManifestType());
                 }
 
-                PlayerResponse response = PlayerService.getInstance().get(account, channel, item.getChannelId());
+                PlayerResponse response = PlayerService.getInstance().get(account, channel, item.getChannelId(), shouldResolveForEmbedded);
                 response.setFromChannel(channel, account);
 
                 String evaluatedStreamUrl = response.getUrl();
 
                 runLater(() -> {
-                    boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-                    boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-
                     if (playerPathIsEmbedded) {
                         if (useEmbeddedPlayerConfig) {
                             getPlayer().stopForReload();

@@ -7,7 +7,6 @@ import org.json.JSONObject;
 
 import java.net.HttpURLConnection;
 import java.net.URLEncoder;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,9 +29,9 @@ public class FetchAPI {
             }
 
             Map<String, String> headers = headers(account, isPost);
-            HttpResponse<String> response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null);
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null);
 
-            httpLog(requestUrl, response.request(), response, params);
+            httpLog(requestUrl, response, params);
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return response.body();
             }

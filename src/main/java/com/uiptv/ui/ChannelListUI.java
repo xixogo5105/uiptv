@@ -389,6 +389,10 @@ public class ChannelListUI extends HBox {
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
+                boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+                boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+                boolean shouldResolveForEmbedded = useEmbeddedPlayerConfig && (playerPathIsEmbedded || isBlank(playerPath));
+
                 PlayerResponse response;
                 Channel channel = channelList.stream()
                         .filter(c -> c.getChannelId().equals(item.getChannelId()))
@@ -403,16 +407,13 @@ public class ChannelListUI extends HBox {
                     channel.setLogo(item.getLogo());
                 }
 
-                response = PlayerService.getInstance().get(account, channel, item.getChannelId());
+                response = PlayerService.getInstance().get(account, channel, item.getChannelId(), shouldResolveForEmbedded);
                 response.setFromChannel(channel, account); // Ensure response has channel and account
 
                 final String evaluatedStreamUrl = response.getUrl();
                 final PlayerResponse finalResponse = response;
 
                 runLater(() -> {
-                    boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-                    boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-
                     if (playerPathIsEmbedded) {
                         if (useEmbeddedPlayerConfig) {
                             getPlayer().stopForReload();

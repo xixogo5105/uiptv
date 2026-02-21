@@ -6,7 +6,6 @@ import org.json.JSONObject;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,7 +49,7 @@ public class PingStalkerPortal {
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
             
-            HttpResponse<String> response = HttpUtil.sendRequest(pingUrl, headers, httpMethod);
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(pingUrl, headers, httpMethod);
 
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
@@ -111,7 +110,7 @@ public class PingStalkerPortal {
             headers.put("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=" + timezone);
 
             String handshakeQuery = "?type=stb&action=handshake&JsHttpRequest=" + System.currentTimeMillis() + "-xml";
-            HttpResponse<String> response = HttpUtil.sendRequest(apiUrl + handshakeQuery, headers, httpMethod);
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(apiUrl + handshakeQuery, headers, httpMethod);
 
             if (response.statusCode() == 200) {
                 String body = response.body();

@@ -5,7 +5,8 @@ module com.uiptv {
     requires org.kordamp.bootstrapfx.core;
     requires org.json;
     requires org.apache.commons.io;
-    requires java.net.http;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
     requires jdk.httpserver;
     requires net.bjoernpetersen.m3u;
     requires java.sql;

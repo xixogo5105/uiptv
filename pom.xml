@@ -103,6 +103,11 @@
             <version>2.1.0</version>
         </dependency>
         <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.5.1</version>
+        </dependency>
+        <dependency>
             <groupId>uk.co.caprica</groupId>
             <artifactId>vlcj</artifactId>
             <version>${vlcj.version}</version>
@@ -692,4 +697,3 @@
         </profile>
     </profiles>
 </project>
-
