@@ -6,13 +6,20 @@ import com.uiptv.model.PlayerResponse;
 import com.uiptv.player.YoutubeDL;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
+import com.uiptv.util.HttpUtil;
+import com.uiptv.ui.LogDisplayUI;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -36,24 +43,79 @@ public class PlayerService {
     }
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
-        String finalUrl = resolveAndProcessUrl(PRE_DEFINED_URLS.contains(account.getType()) ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd()));
+        boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
+        String rawUrl = predefined ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd());
+        String finalUrl = resolveAndProcessUrl(rawUrl);
+        if (!predefined) {
+            finalUrl = resolveRedirectIfNeeded(finalUrl);
+        }
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;
     }
 
-    private String fetchStalkerPortalUrl(final Account account, final String series, final String origUrl) {
-        String freshUrl = parseUrl(FetchAPI.fetch(getParams(account, origUrl, series), account));
-        if (isBlank(freshUrl)) {
-            HandshakeService.getInstance().hardTokenRefresh(account);
-            freshUrl = parseUrl(FetchAPI.fetch(getParams(account, origUrl, series), account));
+    private String fetchStalkerPortalUrl(final Account account, final String series, final String originalCmd) {
+        if (isBlank(originalCmd)) {
+            return originalCmd;
         }
-        return isBlank(freshUrl) ? origUrl : freshUrl;
+
+        LogDisplayUI.addLog("create_link start");
+        String resolvedCmd = resolveCreateLink(account, series, originalCmd);
+        if (isBlank(resolvedCmd)) {
+            LogDisplayUI.addLog("create_link returned empty cmd. Refreshing token and retrying once.");
+            HandshakeService.getInstance().hardTokenRefresh(account);
+            resolvedCmd = resolveCreateLink(account, series, originalCmd);
+        }
+
+        if (isBlank(resolvedCmd)) {
+            LogDisplayUI.addLog("create_link failed after retry. Using original channel cmd.");
+            return originalCmd;
+        }
+
+        String mergedCmd = mergeMissingQueryParams(resolvedCmd, originalCmd);
+        if (!mergedCmd.equals(resolvedCmd)) {
+            LogDisplayUI.addLog("create_link had missing query params. Merged missing values from original channel cmd.");
+        }
+        LogDisplayUI.addLog("create_link resolved URL: " + mergedCmd);
+        return mergedCmd;
+    }
+
+    private String resolveRedirectIfNeeded(String url) {
+        if (isBlank(url) || !(url.startsWith("http://") || url.startsWith("https://"))) {
+            return url;
+        }
+        String finalUrl = HttpUtil.resolveFinalUrl(url, null);
+        if (!url.equals(finalUrl)) {
+            LogDisplayUI.addLog("Resolved playback redirect URL: " + finalUrl);
+        }
+        return finalUrl;
+    }
+
+    private String resolveCreateLink(Account account, String series, String cmd) {
+        String json = FetchAPI.fetch(getParams(account, cmd, series), account);
+        String resolved = parseUrl(json);
+        if (isBlank(resolved)) {
+            LogDisplayUI.addLog("create_link unresolved for provided cmd.");
+        }
+        return resolved;
     }
 
     private String parseUrl(String json) {
         try {
-            return new JSONObject(json).getJSONObject("js").getString("cmd");
+            JSONObject root = new JSONObject(json);
+            JSONObject js = root.optJSONObject("js");
+            if (js != null) {
+                String cmd = js.optString("cmd", null);
+                if (!isBlank(cmd)) {
+                    return cmd;
+                }
+                String url = js.optString("url", null);
+                if (!isBlank(url)) {
+                    return url;
+                }
+            }
+            String cmd = root.optString("cmd", null);
+            return isBlank(cmd) ? null : cmd;
         } catch (Exception ignored) {
         }
         return null;
@@ -65,11 +127,87 @@ public class PlayerService {
         params.put("action", "create_link");
         params.put("cmd", urlPrefix);
         params.put("series", Account.AccountAction.series.name().equalsIgnoreCase(account.getAction().name()) ? series : "");
-        params.put("forced_storage", "0");
+        params.put("forced_storage", "undefined");
         params.put("disable_ad", "0");
         params.put("download", "0");
         params.put("JsHttpRequest", new Date().getTime() + "-xml");
         return params;
+    }
+
+    static String mergeMissingQueryParams(String resolvedCmd, String originalCmd) {
+        if (isBlank(resolvedCmd) || isBlank(originalCmd)) {
+            return resolvedCmd;
+        }
+
+        String resolvedPrefix = extractCmdPrefix(resolvedCmd);
+        String originalPrefix = extractCmdPrefix(originalCmd);
+        String resolvedUrl = extractCmdUrl(resolvedCmd);
+        String originalUrl = extractCmdUrl(originalCmd);
+
+        int resolvedQueryIndex = resolvedUrl.indexOf('?');
+        int originalQueryIndex = originalUrl.indexOf('?');
+        if (resolvedQueryIndex < 0 || originalQueryIndex < 0) {
+            return resolvedCmd;
+        }
+
+        String resolvedBase = resolvedUrl.substring(0, resolvedQueryIndex);
+        Map<String, String> resolvedParams = parseQueryParams(resolvedUrl.substring(resolvedQueryIndex + 1));
+        Map<String, String> originalParams = parseQueryParams(originalUrl.substring(originalQueryIndex + 1));
+
+        originalParams.forEach((key, value) -> {
+            String existing = resolvedParams.get(key);
+            if ((existing == null || existing.isBlank()) && value != null && !value.isBlank()) {
+                resolvedParams.put(key, value);
+            }
+        });
+
+        String mergedUrl = resolvedBase + "?" + toQueryString(resolvedParams);
+        String prefix = !isBlank(resolvedPrefix) ? resolvedPrefix : originalPrefix;
+        return isBlank(prefix) ? mergedUrl : prefix + " " + mergedUrl;
+    }
+
+    private static String extractCmdPrefix(String cmd) {
+        if (isBlank(cmd)) {
+            return "";
+        }
+        String trimmed = cmd.trim();
+        if (trimmed.startsWith("ffmpeg ")) {
+            return "ffmpeg";
+        }
+        return "";
+    }
+
+    private static String extractCmdUrl(String cmd) {
+        if (isBlank(cmd)) {
+            return "";
+        }
+        String trimmed = cmd.trim();
+        if (trimmed.startsWith("ffmpeg ")) {
+            return trimmed.substring("ffmpeg ".length()).trim();
+        }
+        return trimmed;
+    }
+
+    private static Map<String, String> parseQueryParams(String query) {
+        Map<String, String> params = new LinkedHashMap<>();
+        if (isBlank(query)) {
+            return params;
+        }
+        for (String pair : query.split("&")) {
+            if (pair.isBlank()) continue;
+            String[] kv = pair.split("=", 2);
+            String key = URLDecoder.decode(kv[0], StandardCharsets.UTF_8);
+            String value = kv.length > 1 ? URLDecoder.decode(kv[1], StandardCharsets.UTF_8) : "";
+            params.put(key, value);
+        }
+        return params;
+    }
+
+    private static String toQueryString(Map<String, String> params) {
+        return params.entrySet().stream()
+                .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "="
+                        + URLEncoder.encode(e.getValue() == null ? "" : e.getValue(), StandardCharsets.UTF_8))
+                .collect(Collectors.joining("&"));
     }
 
     /**

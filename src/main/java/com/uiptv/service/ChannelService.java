@@ -151,26 +151,44 @@ public class ChannelService {
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor) {
-        List<Channel> channelList = new ArrayList<>();
-        int pageNumber = 1;
-        String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
-        Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
-        if (pagination == null) return channelList;
-        List<Channel> page1Channels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json, censor) : ChannelService.getInstance().parseVodChannels(account, json, censor);
-        if (page1Channels != null) {
-            channelList.addAll(page1Channels);
-            if (callback != null) callback.accept(page1Channels);
+        // Different portals are inconsistent on first page index (0 vs 1); try both.
+        List<Channel> channelsFromPageZero = fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 0);
+        if (!channelsFromPageZero.isEmpty()) {
+            return channelsFromPageZero;
         }
-        for (pageNumber = 2; pageNumber <= pagination.getPageCount(); pageNumber++) {
+        return fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1);
+    }
+
+    private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage) {
+        List<Channel> channelList = new ArrayList<>();
+        String json = FetchAPI.fetch(getChannelOrSeriesParams(category, startPage, account.getAction(), movieId, seriesId), account);
+        Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
+        List<Channel> firstPage = account.getAction() == itv
+                ? ChannelService.getInstance().parseItvChannels(json, censor)
+                : ChannelService.getInstance().parseVodChannels(account, json, censor);
+
+        if (firstPage == null || firstPage.isEmpty()) {
+            return channelList;
+        }
+
+        channelList.addAll(firstPage);
+        if (callback != null) callback.accept(firstPage);
+
+        int maxAdditionalPages = pagination == null ? 2 : Math.max(pagination.getPageCount() + 1, 2);
+        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
             if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
                 break;
             }
+
             json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
-            List<Channel> pagedChannels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json, censor) : ChannelService.getInstance().parseVodChannels(account, json, censor);
-            if (pagedChannels != null) {
-                channelList.addAll(pagedChannels);
-                if (callback != null) callback.accept(pagedChannels);
+            List<Channel> pagedChannels = account.getAction() == itv
+                    ? ChannelService.getInstance().parseItvChannels(json, censor)
+                    : ChannelService.getInstance().parseVodChannels(account, json, censor);
+            if (pagedChannels == null || pagedChannels.isEmpty()) {
+                break;
             }
+            channelList.addAll(pagedChannels);
+            if (callback != null) callback.accept(pagedChannels);
         }
         return channelList;
     }

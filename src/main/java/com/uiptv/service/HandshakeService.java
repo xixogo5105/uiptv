@@ -3,12 +3,10 @@ package com.uiptv.service;
 import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
 import com.uiptv.ui.LogDisplayUI;
-import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.StringUtils;
 import javafx.application.Platform;
 import org.json.JSONObject;
 
-import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,7 +61,7 @@ public class HandshakeService {
         params.put("hw_version_2", generateRandom());
         params.put("api_signature", "262");
         params.put("prehash", "");
-        params.put("JsHttpRequest", Instant.now() + "-xml");
+        params.put("JsHttpRequest", new Date().getTime() + "-xml");
 
 
         return params;
@@ -87,9 +85,9 @@ public class HandshakeService {
 
     public void connect(Account account) {
         account.setToken(null);
-        if (isBlank(account.getServerPortalUrl())) {
-            account.setServerPortalUrl(PingStalkerPortal.ping(account));
-            AccountDb.get().saveServerPortalUrl(account);
+        if (isBlank(AccountDb.get().ensureServerPortalUrl(account))) {
+            Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            return;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));
@@ -106,9 +104,9 @@ public class HandshakeService {
 
     public void hardTokenRefresh(Account account) {
         account.setToken(null);
-        if (isBlank(account.getServerPortalUrl())) {
-            account.setServerPortalUrl(PingStalkerPortal.ping(account));
-            AccountDb.get().saveServerPortalUrl(account);
+        if (isBlank(AccountDb.get().ensureServerPortalUrl(account))) {
+            Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            return;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));

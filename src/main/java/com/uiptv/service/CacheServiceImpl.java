@@ -37,12 +37,16 @@ public class CacheServiceImpl implements CacheService {
         return params;
     }
 
-    private static Map<String, String> getAllChannelsParams() {
+    private static Map<String, String> getAllChannelsParams(Integer page, Integer perPage) {
         final Map<String, String> params = new HashMap<>();
         params.put("type", "itv");
         params.put("action", "get_all_channels");
-        params.put("p", "1");
-        params.put("per_page", "99999");
+        if (page != null) {
+            params.put("p", String.valueOf(page));
+        }
+        if (perPage != null) {
+            params.put("per_page", String.valueOf(perPage));
+        }
         params.put("JsHttpRequest", new Date().getTime() + "-xml");
         return params;
     }
@@ -106,7 +110,7 @@ public class CacheServiceImpl implements CacheService {
 
         // 2. Fetch all channels
         logger.log("Fetching all channels for: " + account.getAccountName());
-        String jsonChannels = FetchAPI.fetch(getAllChannelsParams(), account);
+        String jsonChannels = fetchAllStalkerChannelsJson(account, logger);
 
         if (isNotBlank(jsonChannels)) {
             try {
@@ -189,6 +193,32 @@ public class CacheServiceImpl implements CacheService {
         } else {
             logger.log("No response or empty response from server for channels");
         }
+    }
+
+    private String fetchAllStalkerChannelsJson(Account account, LoggerCallback logger) {
+        List<Map<String, String>> attempts = List.of(
+                getAllChannelsParams(null, null),
+                getAllChannelsParams(0, 99999),
+                getAllChannelsParams(1, 99999)
+        );
+
+        for (int i = 0; i < attempts.size(); i++) {
+            String json = FetchAPI.fetch(attempts.get(i), account);
+            if (isBlank(json)) {
+                continue;
+            }
+            try {
+                List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, false);
+                if (!channels.isEmpty()) {
+                    if (i > 0) {
+                        logger.log("get_all_channels succeeded with fallback strategy #" + (i + 1));
+                    }
+                    return json;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return "";
     }
 
     private void reloadChannelsForOtherTypes(Account account, LoggerCallback logger) throws IOException {

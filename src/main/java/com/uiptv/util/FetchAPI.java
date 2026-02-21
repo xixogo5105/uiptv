@@ -14,20 +14,25 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.LogUtil.httpLog;
+import static com.uiptv.util.StringUtils.isBlank;
 
 public class FetchAPI {
     public static String fetch(Map<String, String> params, final Account account) {
         try {
-            String urlWithParams = account.getServerPortalUrl();
-            if (params != null && !params.isEmpty()) {
-                urlWithParams += "?" + mapToString(params);
-            }
-            
-            Map<String, String> headers = headers(account.getUrl(), account);
+            String baseUrl = account.getServerPortalUrl();
+            String payload = params == null || params.isEmpty() ? "" : mapToString(params);
             String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
-            HttpResponse<String> response = HttpUtil.sendRequest(urlWithParams, headers, httpMethod);
+            boolean isPost = "POST".equalsIgnoreCase(httpMethod);
 
-            httpLog(account.getServerPortalUrl(), response.request(), response, params);
+            String requestUrl = baseUrl;
+            if (!isPost && !payload.isEmpty()) {
+                requestUrl += "?" + payload;
+            }
+
+            Map<String, String> headers = headers(account, isPost);
+            HttpResponse<String> response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null);
+
+            httpLog(requestUrl, response.request(), response, params);
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 return response.body();
             }
@@ -37,23 +42,27 @@ public class FetchAPI {
         return StringUtils.EMPTY;
     }
 
-    private static Map<String, String> headers(String url, Account account) {
+    private static Map<String, String> headers(Account account, boolean isPost) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
         headers.put("X-User-Agent", "Model: MAG250; Link: WiFi");
-        headers.put("Referer", url);
+        String referer = isBlank(account.getServerPortalUrl()) ? account.getUrl() : account.getServerPortalUrl();
+        headers.put("Referer", referer);
         headers.put("Accept", "*/*");
         headers.put("Pragma", "no-cache");
         if (account.isConnected()) headers.put("Authorization", "Bearer " + account.getToken());
         String timezone = account.getTimezone() != null ? account.getTimezone() : "Europe/London";
         headers.put("Cookie", "mac=" + account.getMacAddress() + "; stb_lang=en; timezone=" + timezone + ";");
+        if (isPost) {
+            headers.put("Content-Type", "application/x-www-form-urlencoded");
+        }
         return headers;
     }
 
     private static String mapToString(Map<String, String> parameters) {
         return parameters.entrySet()
                 .stream()
-                .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue() == null ? "" : e.getValue(), StandardCharsets.UTF_8))
                 .collect(Collectors.joining("&"));
     }
 

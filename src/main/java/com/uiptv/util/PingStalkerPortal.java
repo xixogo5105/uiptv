@@ -2,6 +2,7 @@ package com.uiptv.util;
 
 import com.uiptv.model.Account;
 import com.uiptv.ui.LogDisplayUI;
+import org.json.JSONObject;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -28,9 +29,6 @@ public class PingStalkerPortal {
             "/server/portal.php",
             "/mag/c/portal.php"
     };
-
-    // The handshake query string
-    private static final String HANDSHAKE_QUERY = "?type=stb&action=handshake&JsHttpRequest=1-xml";
 
     public static String ping(Account account) {
         final String url = account.getUrl();
@@ -64,7 +62,7 @@ public class PingStalkerPortal {
 
         // 3. PHASE THREE: Hard Fallback
         // Return standard endpoint if all else fails
-        return ensureAbsoluteUrl(url) + PORTAL.getLoader();
+        return getDefaultApiEndpoint(url);
     }
 
     /**
@@ -112,12 +110,12 @@ public class PingStalkerPortal {
             headers.put("Referer", apiUrl);
             headers.put("Cookie", "mac=" + macAddress + "; stb_lang=en; timezone=" + timezone);
 
-            HttpResponse<String> response = HttpUtil.sendRequest(apiUrl + HANDSHAKE_QUERY, headers, httpMethod);
+            String handshakeQuery = "?type=stb&action=handshake&JsHttpRequest=" + System.currentTimeMillis() + "-xml";
+            HttpResponse<String> response = HttpUtil.sendRequest(apiUrl + handshakeQuery, headers, httpMethod);
 
             if (response.statusCode() == 200) {
                 String body = response.body();
-                // Valid Stalker handshake response contains "js":{ "token":... } or just "token"
-                if (body != null && (body.contains("\"token\"") || body.contains("\"js\""))) {
+                if (hasHandshakeToken(body)) {
                     return true;
                 }
             }
@@ -164,10 +162,36 @@ public class PingStalkerPortal {
         }
 
         if (isBlank(portal_api_server)) {
-            String baseUrl = ensureAbsoluteUrl(url);
-            portal_api_server = baseUrl + PORTAL.getLoader();
+            portal_api_server = getDefaultApiEndpoint(url);
         }
         return portal_api_server;
+    }
+
+    private static String getDefaultApiEndpoint(String url) {
+        String baseUrl = ensureAbsoluteUrl(url);
+        String lowered = baseUrl.toLowerCase();
+        if (lowered.contains("/c/") && !lowered.endsWith(".php/") && !lowered.endsWith(".php")) {
+            int cIndex = lowered.indexOf("/c/");
+            String root = baseUrl.substring(0, cIndex + 1);
+            return root + "server/load.php";
+        }
+        return baseUrl + PORTAL.getLoader();
+    }
+
+    private static boolean hasHandshakeToken(String body) {
+        if (isBlank(body)) {
+            return false;
+        }
+        try {
+            JSONObject root = new JSONObject(body);
+            JSONObject js = root.optJSONObject("js");
+            if (js != null && isNotBlank(js.optString("token"))) {
+                return true;
+            }
+            return isNotBlank(root.optString("token"));
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     // ... [Rest of your existing private methods: prepareServerUrl, getPattern, etc. remain exactly as they were] ...
