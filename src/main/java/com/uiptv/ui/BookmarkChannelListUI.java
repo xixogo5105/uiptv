@@ -436,13 +436,26 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void play(BookmarkItem item, String playerPath) {
+        boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+        boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+        boolean shouldResolveForEmbedded = useEmbeddedPlayerConfig && (playerPathIsEmbedded || isBlank(playerPath));
+
+        if (shouldResolveForEmbedded) {
+            Channel previewChannel = new Channel();
+            previewChannel.setChannelId(item.getChannelId());
+            previewChannel.setName(item.getChannelName());
+            previewChannel.setCmd(item.getCmd());
+            PlayerResponse loadingPreview = new PlayerResponse(null);
+            loadingPreview.setFromChannel(previewChannel, null);
+            runLater(() -> {
+                getPlayer().stopForReload();
+                getPlayer().showLoading(loadingPreview);
+            });
+        }
+
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
-                boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-                boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-                boolean shouldResolveForEmbedded = useEmbeddedPlayerConfig && (playerPathIsEmbedded || isBlank(playerPath));
-
                 Account account = AccountService.getInstance().getAll().get(item.getAccountName());
                 account.setServerPortalUrl(item.getServerPortalUrl());
                 account.setAction(item.getAccountAction());
@@ -485,14 +498,12 @@ public class BookmarkChannelListUI extends HBox {
                 runLater(() -> {
                     if (playerPathIsEmbedded) {
                         if (useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
                             getPlayer().play(response);
                         } else {
                             showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
                         }
                     } else {
                         if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
                             getPlayer().play(response);
                         } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
                             showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");

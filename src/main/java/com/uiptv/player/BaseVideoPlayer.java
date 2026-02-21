@@ -390,6 +390,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         play(response, false);
     }
 
+    @Override
+    public void showLoading(PlayerResponse response) {
+        if (response != null) {
+            this.currentAccount = response.getAccount();
+            this.currentChannel = response.getChannel();
+        }
+        preparePlayerUiForPlayback();
+    }
+
     protected void play(PlayerResponse response, boolean isInternalRetry) {
         if (!isInternalRetry) {
             retryCount = 0;
@@ -407,26 +416,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         if (isNotBlank(uri)) {
             this.currentMediaUri = uri;
-            playerContainer.setVisible(true);
-            playerContainer.setManaged(true);
-            playerContainer.setMinHeight(275);
-            loadingSpinner.setVisible(true);
-            errorLabel.setVisible(false);
-            controlsContainer.setVisible(false);
-
-            nowShowingFlow.getChildren().clear();
-            if (currentChannel != null && isNotBlank(currentChannel.getName())) {
-                Text channelNameText = new Text(currentChannel.getName());
-                channelNameText.setFill(Color.YELLOW);
-                channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-                streamInfoText.setText("");
-                nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
-                nowShowingFlow.setVisible(true);
-                nowShowingFlow.setManaged(true);
-            } else {
-                nowShowingFlow.setVisible(false);
-                nowShowingFlow.setManaged(false);
-            }
+            preparePlayerUiForPlayback();
 
             setMute(isMuted);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
@@ -434,6 +424,29 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             updateVideoSize();
 
             playMedia(uri);
+        }
+    }
+
+    private void preparePlayerUiForPlayback() {
+        playerContainer.setVisible(true);
+        playerContainer.setManaged(true);
+        playerContainer.setMinHeight(275);
+        loadingSpinner.setVisible(true);
+        errorLabel.setVisible(false);
+        controlsContainer.setVisible(false);
+
+        nowShowingFlow.getChildren().clear();
+        if (currentChannel != null && isNotBlank(currentChannel.getName())) {
+            Text channelNameText = new Text(currentChannel.getName());
+            channelNameText.setFill(Color.YELLOW);
+            channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+            streamInfoText.setText("");
+            nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
+            nowShowingFlow.setVisible(true);
+            nowShowingFlow.setManaged(true);
+        } else {
+            nowShowingFlow.setVisible(false);
+            nowShowingFlow.setManaged(false);
         }
     }
 
