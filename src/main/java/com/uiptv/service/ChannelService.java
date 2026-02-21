@@ -5,7 +5,6 @@ import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
-import com.uiptv.model.Configuration;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
@@ -22,9 +21,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
@@ -41,9 +38,11 @@ import static com.uiptv.widget.UIptvAlert.showError;
 public class ChannelService {
     private static ChannelService instance;
     private final CacheService cacheService;
+    private final ContentFilterService contentFilterService;
 
     private ChannelService() {
         this.cacheService = new CacheServiceImpl();
+        this.contentFilterService = ContentFilterService.getInstance();
     }
 
     public static Map<String, String> getChannelOrSeriesParams(String category, int pageNumber, Account.AccountAction accountAction, String movieId, String seriesId) {
@@ -100,7 +99,7 @@ public class ChannelService {
         }
         //no caching
         if (account.getType() == AccountType.RSS_FEED) {
-            List<Channel> channels = censor(rssChannels(categoryId, account));
+            List<Channel> channels = maybeFilterChannels(rssChannels(categoryId, account), true);
             if (callback != null) callback.accept(channels);
             return channels;
         }
@@ -119,14 +118,14 @@ public class ChannelService {
                 channels.addAll(fetchedChannels);
             }
         }
-        List<Channel> censoredChannels = censor(channels);
+        List<Channel> censoredChannels = maybeFilterChannels(channels, true);
         if (callback != null) callback.accept(censoredChannels);
         return censoredChannels;
     }
 
     private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
         List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled));
-        return censor(cachedChannels);
+        return maybeFilterChannels(cachedChannels, true);
     }
 
     private List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
@@ -160,7 +159,7 @@ public class ChannelService {
         List<Channel> page1Channels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json, censor) : ChannelService.getInstance().parseVodChannels(account, json, censor);
         if (page1Channels != null) {
             channelList.addAll(page1Channels);
-            if (callback != null) callback.accept(censor ? censor(page1Channels) : page1Channels);
+            if (callback != null) callback.accept(page1Channels);
         }
         for (pageNumber = 2; pageNumber <= pagination.getPageCount(); pageNumber++) {
             if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
@@ -170,7 +169,7 @@ public class ChannelService {
             List<Channel> pagedChannels = account.getAction() == itv ? ChannelService.getInstance().parseItvChannels(json, censor) : ChannelService.getInstance().parseVodChannels(account, json, censor);
             if (pagedChannels != null) {
                 channelList.addAll(pagedChannels);
-                if (callback != null) callback.accept(censor ? censor(pagedChannels) : pagedChannels);
+                if (callback != null) callback.accept(pagedChannels);
             }
         }
         return channelList;
@@ -179,7 +178,7 @@ public class ChannelService {
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         // This method does not seem to be part of the caching logic, so it can stay here.
         // If it needs to be cached, it should be moved to CacheServiceImpl.
-        return censor(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled));
+        return maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled), true);
     }
 
     public String readToJson(Category category, Account account) throws IOException {
@@ -224,7 +223,7 @@ public class ChannelService {
                 channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
                 channelList.add(channel);
             }
-            return censor ? censor(channelList) : channelList;
+            return maybeFilterChannels(channelList, censor);
 
         } catch (Exception ignored) {
             showError("Error while processing itv response data");
@@ -263,7 +262,7 @@ public class ChannelService {
                     channelList.add(channel);
                 }
             }
-            List<Channel> censoredChannelList = censor ? censor(channelList) : channelList;
+            List<Channel> censoredChannelList = maybeFilterChannels(channelList, censor);
             Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
             return censoredChannelList;
         } catch (Exception ignored) {
@@ -273,20 +272,11 @@ public class ChannelService {
     }
 
     public List<Channel> censor(List<Channel> channelList) {
-        Configuration configuration = ConfigurationService.getInstance().read();
-        String commaSeparatedList = configuration.getFilterChannelsList();
-        if (isBlank(commaSeparatedList) || configuration.isPauseFiltering()) return channelList;
+        return contentFilterService.filterChannels(channelList);
+    }
 
-        List<String> censoredChannels = new ArrayList<>(List.of(commaSeparatedList.split(",")));
-        censoredChannels.replaceAll(String::trim);
-
-        Predicate<Channel> hasCensoredWord = channel -> {
-            String safeName = StringUtils.safeUtf(channel.getName()).toLowerCase();
-            boolean containsBanned = censoredChannels.stream().anyMatch(word -> safeName.contains(word.toLowerCase()));
-            return !containsBanned && channel.getCensored() != 1;
-        };
-
-        return channelList.stream().filter(hasCensoredWord).collect(Collectors.toList());
+    private List<Channel> maybeFilterChannels(List<Channel> channels, boolean applyFilter) {
+        return applyFilter ? contentFilterService.filterChannels(channels) : channels;
     }
 
 }

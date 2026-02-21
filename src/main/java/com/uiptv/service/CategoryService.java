@@ -3,7 +3,6 @@ package com.uiptv.service;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
-import com.uiptv.model.Configuration;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.ui.RssParser;
@@ -17,8 +16,6 @@ import org.json.JSONObject;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
@@ -27,13 +24,14 @@ import static com.uiptv.util.FetchAPI.nullSafeBoolean;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.M3U8Parser.parsePathCategory;
 import static com.uiptv.util.M3U8Parser.parseUrlCategory;
-import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class CategoryService {
     private static CategoryService instance;
+    private final ContentFilterService contentFilterService;
 
     private CategoryService() {
+        this.contentFilterService = ContentFilterService.getInstance();
     }
 
     public static synchronized CategoryService getInstance() {
@@ -59,7 +57,7 @@ public class CategoryService {
         if (account.getType() == RSS_FEED) {
             hardReloadCategories(account);
             List<Category> cats = CategoryDb.get().getCategories(account);
-            return censor ? censor(cats) : cats;
+            return maybeFilterCategories(cats, censor);
         }
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             if (account.getType() == STALKER_PORTAL) {
@@ -67,7 +65,7 @@ public class CategoryService {
             }
             hardReloadCategories(account);
             List<Category> cats = CategoryDb.get().getCategories(account);
-            return censor ? censor(cats) : cats;
+            return maybeFilterCategories(cats, censor);
         }
 
         List<Category> cachedCategories = CategoryDb.get().getCategories(account);
@@ -75,7 +73,7 @@ public class CategoryService {
             hardReloadCategories(account);
             cachedCategories.addAll(CategoryDb.get().getCategories(account));
         }
-        return censor ? censor(cachedCategories) : cachedCategories;
+        return maybeFilterCategories(cachedCategories, censor);
     }
 
     private void hardReloadCategories(Account account) {
@@ -143,17 +141,11 @@ public class CategoryService {
         } catch (Exception e) {
             showError("Error while processing response data" + e.getMessage());
         }
-        return censor ? censor(categoryList) : categoryList;
+        return maybeFilterCategories(categoryList, censor);
     }
 
-    public List<Category> censor(List<Category> categoryList) {
-        Configuration configuration = ConfigurationService.getInstance().read();
-        String commaSeparatedList = configuration.getFilterCategoriesList();
-        if (isBlank(commaSeparatedList) || configuration.isPauseFiltering()) return categoryList;
-        List<String> censoredCategories = new ArrayList<>(List.of(ConfigurationService.getInstance().read().getFilterCategoriesList().split(",")));
-        censoredCategories.replaceAll(String::trim);
-        Predicate<Category> hasCensoredWord = category -> censoredCategories.stream().noneMatch(word -> category.getTitle().toLowerCase().contains(word.toLowerCase()) || category.getCensored() == 1);
-        return categoryList.stream().filter(hasCensoredWord).collect(Collectors.toList());
+    private List<Category> maybeFilterCategories(List<Category> categories, boolean applyFilter) {
+        return applyFilter ? contentFilterService.filterCategories(categories) : categories;
     }
 
 }

@@ -1,0 +1,48 @@
+{
+  "js": {
+    "data": [
+      {
+        "id": "1001",
+        "name": "Sports Live",
+        "number": "1",
+        "cmd": "ffmpeg http://example/sports",
+        "cmd_1": "",
+        "cmd_2": "",
+        "cmd_3": "",
+        "logo": "sports.png",
+        "censored": 0,
+        "status": 1,
+        "hd": 1,
+        "tv_genre_id": "10"
+      },
+      {
+        "id": "1002",
+        "name": "Premium Plus",
+        "number": "2",
+        "cmd": "ffmpeg http://example/premium",
+        "cmd_1": "",
+        "cmd_2": "",
+        "cmd_3": "",
+        "logo": "premium.png",
+        "censored": 0,
+        "status": 1,
+        "hd": 1,
+        "tv_genre_id": "10"
+      },
+      {
+        "id": "1003",
+        "name": "Kids Plus",
+        "number": "3",
+        "cmd": "ffmpeg http://example/kids",
+        "cmd_1": "",
+        "cmd_2": "",
+        "cmd_3": "",
+        "logo": "kids.png",
+        "censored": 1,
+        "status": 1,
+        "hd": 1,
+        "tv_genre_id": "10"
+      }
+    ]
+  }
+}
