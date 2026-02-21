@@ -425,6 +425,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
         controlsContainer.setVisible(false);
+        timeSlider.setDisable(false);
+        timeSlider.setValue(0);
+        timeLabel.setText("00:00 / 00:00");
 
         nowShowingFlow.getChildren().clear();
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
@@ -560,6 +563,45 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (millis < 0) return "00:00";
         long seconds = millis / 1000, s = seconds % 60, m = (seconds / 60) % 60, h = (seconds / 3600) % 24;
         return h > 0 ? String.format("%02d:%02d:%02d", h, m, s) : String.format("%02d:%02d", m, s);
+    }
+
+    protected void updatePlaybackTimeUi(long currentTimeMs, long totalTimeMs, boolean seekable) {
+        long safeCurrent = Math.max(0, currentTimeMs);
+        boolean hasKnownTotal = totalTimeMs > 0;
+        boolean isLiveLike = !hasKnownTotal || !seekable;
+
+        if (!isLiveLike) {
+            long safeTotal = Math.max(0, totalTimeMs);
+            timeLabel.setText(formatTime(safeCurrent) + " / " + formatTime(safeTotal));
+            timeSlider.setDisable(false);
+            if (!isUserSeeking && safeTotal > 0) {
+                timeSlider.setValue(clamp01((double) safeCurrent / safeTotal));
+            }
+            return;
+        }
+
+        if (seekable && hasKnownTotal) {
+            long safeTotal = Math.max(0, totalTimeMs);
+            long behindLive = Math.max(0, safeTotal - safeCurrent);
+            timeLabel.setText(formatTime(safeCurrent) + " / LIVE -" + formatTime(behindLive));
+            timeSlider.setDisable(false);
+            if (!isUserSeeking && safeTotal > 0) {
+                timeSlider.setValue(clamp01((double) safeCurrent / safeTotal));
+            }
+            return;
+        }
+
+        timeLabel.setText(formatTime(safeCurrent) + " / LIVE");
+        timeSlider.setDisable(true);
+        if (!isUserSeeking) {
+            timeSlider.setValue(1.0);
+        }
+    }
+
+    private double clamp01(double value) {
+        if (value < 0) return 0;
+        if (value > 1) return 1;
+        return value;
     }
 
     // --- Fullscreen Logic ---

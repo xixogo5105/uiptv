@@ -68,12 +68,6 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         progressListener = (obs, oldTime, newTime) -> {
             if (!isUserSeeking) {
                 Platform.runLater(() -> {
-                    if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
-                        Duration total = mediaPlayer.getTotalDuration();
-                        if (total != null && total.greaterThan(Duration.ZERO) && !total.isIndefinite()) {
-                            timeSlider.setValue(newTime.toMillis() / total.toMillis());
-                        }
-                    }
                     updateTimeLabel();
                 });
             }
@@ -194,7 +188,10 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void seek(float position) {
         if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
-            mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(position));
+            Duration total = mediaPlayer.getTotalDuration();
+            if (total != null && total.greaterThan(Duration.ZERO) && !total.isIndefinite()) {
+                mediaPlayer.seek(total.multiply(position));
+            }
         }
     }
 
@@ -260,14 +257,17 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         if (mediaPlayer != null && mediaPlayer.getCurrentTime() != null && mediaPlayer.getTotalDuration() != null) {
             Duration currentTime = mediaPlayer.getCurrentTime();
             Duration totalDuration = mediaPlayer.getTotalDuration();
-
-            if (totalDuration.isIndefinite()) {
-                timeLabel.setText(formatTime((long) currentTime.toMillis()) + " / Live");
-            } else {
-                timeLabel.setText(formatTime((long) currentTime.toMillis()) + " / " + formatTime((long) totalDuration.toMillis()));
-            }
+            boolean hasKnownTotal = totalDuration != null && totalDuration.greaterThan(Duration.ZERO) && !totalDuration.isIndefinite();
+            long totalMs = hasKnownTotal ? (long) totalDuration.toMillis() : -1L;
+            // JavaFX media API does not expose seekable() directly; indefinite total is treated as live-like.
+            boolean seekable = hasKnownTotal;
+            updatePlaybackTimeUi((long) currentTime.toMillis(), totalMs, seekable);
         } else {
             timeLabel.setText("00:00 / 00:00");
+            timeSlider.setDisable(false);
+            if (!isUserSeeking) {
+                timeSlider.setValue(0);
+            }
         }
     }
 

@@ -74,14 +74,21 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
             @Override
             public void positionChanged(MediaPlayer mp, float newPosition) {
-                if (!isUserSeeking) Platform.runLater(() -> timeSlider.setValue(newPosition));
+                if (!isUserSeeking) {
+                    Platform.runLater(() -> {
+                        if (!timeSlider.isDisable()) {
+                            timeSlider.setValue(newPosition);
+                        }
+                    });
+                }
             }
 
             @Override
             public void timeChanged(MediaPlayer mp, long newTime) {
                 Platform.runLater(() -> {
                     long totalTime = mp.status().length();
-                    timeLabel.setText(formatTime(newTime) + " / " + formatTime(totalTime));
+                    boolean seekable = mp.status().isSeekable();
+                    updatePlaybackTimeUi(newTime, totalTime, seekable);
                 });
             }
 
@@ -100,6 +107,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 Platform.runLater(() -> {
                     btnPlayPause.setGraphic(playIcon);
                     timeSlider.setValue(0);
+                    timeSlider.setDisable(false);
+                    timeLabel.setText("00:00 / 00:00");
                     loadingSpinner.setVisible(false);
                 });
             }

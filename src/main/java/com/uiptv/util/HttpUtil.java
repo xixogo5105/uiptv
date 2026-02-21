@@ -21,7 +21,7 @@ import java.util.Map;
 public class HttpUtil {
 
     private static final int TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.timeout.seconds", 5);
-    private static final int MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 8);
+    private static final int MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 3);
     private static final CloseableHttpClient HTTP_CLIENT = HttpClients.custom()
             .setRedirectStrategy(new LaxRedirectStrategy())
             .setDefaultRequestConfig(RequestConfig.custom()
