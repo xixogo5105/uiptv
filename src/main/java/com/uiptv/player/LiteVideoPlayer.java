@@ -105,7 +105,6 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         new Thread(() -> {
             try {
                 String sourceUrl = currentMediaUri.trim();
-                sourceUrl = resolveFinalUrlForEmbeddedIfNeeded(sourceUrl);
                 if (!sourceUrl.startsWith("http") && !sourceUrl.startsWith("file:")) {
                     File f = new File(sourceUrl);
                     if (f.exists()) sourceUrl = f.toURI().toString();

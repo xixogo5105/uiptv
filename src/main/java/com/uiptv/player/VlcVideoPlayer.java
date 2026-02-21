@@ -130,10 +130,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
-        new Thread(() -> {
-            String sourceUrl = resolveFinalUrlForEmbeddedIfNeeded(uri);
-            mediaPlayer.media().play(sourceUrl);
-        }).start();
+        new Thread(() -> mediaPlayer.media().play(uri)).start();
     }
 
     @Override

@@ -6,14 +6,12 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.LaxRedirectStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.util.Timeout;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,11 +21,15 @@ import java.util.Map;
 public class HttpUtil {
 
     private static final int TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.timeout.seconds", 5);
+    private static final int MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 8);
     private static final CloseableHttpClient HTTP_CLIENT = HttpClients.custom()
             .setRedirectStrategy(new LaxRedirectStrategy())
             .setDefaultRequestConfig(RequestConfig.custom()
                     .setConnectTimeout(Timeout.ofSeconds(TIMEOUT_SECONDS))
+                    .setConnectionRequestTimeout(Timeout.ofSeconds(TIMEOUT_SECONDS))
                     .setResponseTimeout(Timeout.ofSeconds(TIMEOUT_SECONDS))
+                    .setRedirectsEnabled(true)
+                    .setMaxRedirects(MAX_REDIRECTS)
                     .build())
             .build();
 
@@ -38,10 +40,7 @@ public class HttpUtil {
     public static HttpResult sendRequest(String url, Map<String, String> headers, String method, String body) throws Exception {
         boolean isPost = "POST".equalsIgnoreCase(method);
         var request = isPost ? new HttpPost(url) : new HttpGet(url);
-        request.setConfig(RequestConfig.custom()
-                .setConnectionRequestTimeout(Timeout.of(Duration.ofSeconds(TIMEOUT_SECONDS)))
-                .setResponseTimeout(Timeout.of(Duration.ofSeconds(TIMEOUT_SECONDS)))
-                .build());
+        request.setConfig(buildRequestConfig());
 
         if (headers != null) {
             headers.forEach(request::setHeader);
@@ -66,37 +65,15 @@ public class HttpUtil {
         });
     }
 
-    /**
-     * Resolve the final URL after HTTP redirects.
-     */
-    public static String resolveFinalUrl(String url, Map<String, String> headers) {
-        try {
-            HttpGet request = new HttpGet(url);
-            request.setConfig(RequestConfig.custom()
-                    .setConnectionRequestTimeout(Timeout.of(Duration.ofSeconds(TIMEOUT_SECONDS)))
-                    .setResponseTimeout(Timeout.of(Duration.ofSeconds(TIMEOUT_SECONDS)))
-                    .build());
-
-            if (headers != null) {
-                headers.forEach(request::setHeader);
-            }
-
-            HttpClientContext context = HttpClientContext.create();
-            HTTP_CLIENT.execute(request, context, response -> {
-                EntityUtils.consumeQuietly(response.getEntity());
-                return null;
-            });
-
-            URI finalUri = null;
-            if (context.getRedirectLocations() != null && context.getRedirectLocations().size() > 0) {
-                finalUri = context.getRedirectLocations().get(context.getRedirectLocations().size() - 1);
-            } else if (context.getRequest() != null) {
-                finalUri = context.getRequest().getUri();
-            }
-            return finalUri == null ? url : finalUri.toString();
-        } catch (Exception ignored) {
-            return url;
-        }
+    private static RequestConfig buildRequestConfig() {
+        Timeout timeout = Timeout.of(Duration.ofSeconds(TIMEOUT_SECONDS));
+        return RequestConfig.custom()
+                .setConnectTimeout(timeout)
+                .setConnectionRequestTimeout(timeout)
+                .setResponseTimeout(timeout)
+                .setRedirectsEnabled(true)
+                .setMaxRedirects(MAX_REDIRECTS)
+                .build();
     }
 
     private static Map<String, List<String>> headersToMap(Header[] headers) {
