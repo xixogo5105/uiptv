@@ -6,7 +6,6 @@ import com.uiptv.model.PlayerResponse;
 import com.uiptv.player.YoutubeDL;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
-import com.uiptv.util.HttpUtil;
 import com.uiptv.ui.LogDisplayUI;
 import org.json.JSONObject;
 
@@ -39,24 +38,13 @@ public class PlayerService {
     }
 
     public PlayerResponse get(Account account, Channel channel) throws IOException {
-        return get(account, channel, "", false);
-    }
-
-    public PlayerResponse get(Account account, Channel channel, boolean resolveRedirectForEmbeddedPlayer) throws IOException {
-        return get(account, channel, "", resolveRedirectForEmbeddedPlayer);
+        return get(account, channel, "");
     }
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
-        return get(account, channel, series, false);
-    }
-
-    public PlayerResponse get(Account account, Channel channel, String series, boolean resolveRedirectForEmbeddedPlayer) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
         String rawUrl = predefined ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd());
         String finalUrl = resolveAndProcessUrl(rawUrl);
-        if (resolveRedirectForEmbeddedPlayer) {
-            finalUrl = resolveRedirectIfNeeded(finalUrl);
-        }
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;
@@ -95,17 +83,6 @@ public class PlayerService {
             LogDisplayUI.addLog("create_link unresolved for provided cmd.");
         }
         return resolved;
-    }
-
-    private String resolveRedirectIfNeeded(String url) {
-        if (isBlank(url) || !(url.startsWith("http://") || url.startsWith("https://"))) {
-            return url;
-        }
-        String finalUrl = HttpUtil.resolveFinalUrl(url, null);
-        if (!url.equals(finalUrl)) {
-            LogDisplayUI.addLog("Resolved embedded playback redirect URL: " + finalUrl);
-        }
-        return finalUrl;
     }
 
     private String parseUrl(String json) {

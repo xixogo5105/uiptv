@@ -5,6 +5,8 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.PlayerService;
+import com.uiptv.ui.LogDisplayUI;
+import com.uiptv.util.HttpUtil;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -35,6 +37,8 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.uiptv.util.AccountType.STALKER_PORTAL;
+import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
@@ -390,15 +394,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         play(response, false);
     }
 
-    @Override
-    public void showLoading(PlayerResponse response) {
-        if (response != null) {
-            this.currentAccount = response.getAccount();
-            this.currentChannel = response.getChannel();
-        }
-        preparePlayerUiForPlayback();
-    }
-
     protected void play(PlayerResponse response, boolean isInternalRetry) {
         if (!isInternalRetry) {
             retryCount = 0;
@@ -448,6 +443,20 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             nowShowingFlow.setVisible(false);
             nowShowingFlow.setManaged(false);
         }
+    }
+
+    protected String resolveFinalUrlForEmbeddedIfNeeded(String uri) {
+        if (isBlank(uri) || currentAccount == null || currentAccount.getType() != STALKER_PORTAL) {
+            return uri;
+        }
+        if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
+            return uri;
+        }
+        String resolved = HttpUtil.resolveFinalUrl(uri, null);
+        if (!uri.equals(resolved)) {
+            LogDisplayUI.addLog("Resolved embedded playback redirect URL: " + resolved);
+        }
+        return resolved;
     }
 
     @Override

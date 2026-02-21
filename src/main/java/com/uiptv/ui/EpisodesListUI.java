@@ -263,29 +263,22 @@ public class EpisodesListUI extends HBox {
     }
 
     private void play(EpisodeItem item, String playerPath) {
+        // Stop any existing playback immediately
+        runLater(() -> getPlayer().stopForReload());
+
         boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
         boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-        boolean shouldResolveForEmbedded = useEmbeddedPlayerConfig && (playerPathIsEmbedded || isBlank(playerPath));
 
         Channel channel = new Channel();
         channel.setChannelId(item.getEpisodeId());
         channel.setName(item.getEpisodeName());
         channel.setCmd(item.getCmd());
 
-        if (shouldResolveForEmbedded) {
-            PlayerResponse loadingPreview = new PlayerResponse(null);
-            loadingPreview.setFromChannel(channel, account);
-            runLater(() -> {
-                getPlayer().stopForReload();
-                getPlayer().showLoading(loadingPreview);
-            });
-        }
-
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
                 PlayerResponse response;
-                response = PlayerService.getInstance().get(account, channel, shouldResolveForEmbedded);
+                response = PlayerService.getInstance().get(account, channel);
 
                 final String evaluatedStreamUrl = response.getUrl();
                 final PlayerResponse finalResponse = response;

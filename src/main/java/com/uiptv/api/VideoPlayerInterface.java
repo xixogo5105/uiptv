@@ -12,7 +12,6 @@ public interface VideoPlayerInterface {
     }
     
     void play(PlayerResponse response);
-    default void showLoading(PlayerResponse response) {}
     void stop();
     void stopForReload();
     void toggleFullscreen();
