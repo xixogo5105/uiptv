@@ -4,8 +4,13 @@ import com.uiptv.model.Account;
 import com.uiptv.ui.LogDisplayUI;
 import org.json.JSONObject;
 
+import javax.net.ssl.SSLException;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,16 +20,21 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class PingStalkerPortal {
+    private enum ProbeStatus {
+        SUCCESS,
+        NO_MATCH,
+        NETWORK_ERROR
+    }
 
     public static final String SPLIT_FUNCTION_SERVER_PARAMS = "this.get_server_params=function()";
 
-    // Common Stalker API paths to probe
+    // Ordered by commonly seen Stalker/Ministra deployments.
     private static final String[] PROBE_PATHS = {
-            "/server/load.php",
-            "/portal.php",
             "/c/portal.php",
-            "/stalker_portal/server/load.php",
             "/stalker_portal/c/portal.php",
+            "/portal.php",
+            "/server/load.php",
+            "/stalker_portal/server/load.php",
             "/server/portal.php",
             "/mag/c/portal.php"
     };
@@ -33,34 +43,45 @@ public class PingStalkerPortal {
         final String url = account.getUrl();
         final String timezone = account.getTimezone() != null ? account.getTimezone() : "Europe/London";
         final String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
-        // 1. PHASE ONE: Direct Probing (Hit and Try)
-        // We attempt to hit common API endpoints directly with a handshake request.
-        String verifiedApi = probeKnownPaths(url, account.getMacAddress(), timezone, httpMethod);
-        if (verifiedApi != null) {
-            System.out.println("Found Stalker API via direct probe: " + verifiedApi);
-            return verifiedApi;
-        }
-
-        // 2. PHASE TWO: XPCOM Parsing (Your Original Logic)
-        // If probing fails, we try to download and parse the xpcom.common.js configuration file.
+        // Try reading and parsing xpcom.common.js first.
+        LogDisplayUI.addLog("Attempting to download xpcom.common.js from portal base URL: " + url);
         try {
             String pingUrl = !url.endsWith("/") ? url + "/" + "xpcom.common.js" : url + "xpcom.common.js";
-            
+
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
-            
+
             HttpUtil.HttpResult response = HttpUtil.sendRequest(pingUrl, headers, httpMethod);
 
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-                return parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
+                String discoveredApi = parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
+                String defaultApi = getDefaultApiEndpoint(url);
+                if (isNotBlank(discoveredApi) && !discoveredApi.equalsIgnoreCase(defaultApi)) {
+                    LogDisplayUI.addLog("Successfully parsed xpcom.common.js and resolved a specific API endpoint: " + discoveredApi);
+                    return discoveredApi;
+                }
+                LogDisplayUI.addLog("xpcom.common.js was accessible, but did not yield a specific API endpoint. Trying known API paths next.");
+            } else {
+                LogDisplayUI.addLog("Unable to access xpcom.common.js (HTTP " + response.statusCode() + "). Trying known API paths next.");
             }
         } catch (Exception ex) {
-            // Log but don't stop; we have one final fallback
-            LogDisplayUI.addLog("XPCOM Network Error: " + ex.getMessage());
+            if (isNetworkFailure(ex)) {
+                LogDisplayUI.addLog("Network/connection issue while requesting xpcom.common.js: " + rootCauseMessage(ex) + ". Skipping endpoint probing.");
+                return getDefaultApiEndpoint(url);
+            }
+            LogDisplayUI.addLog("Error while requesting xpcom.common.js: " + ex.getMessage() + ". Trying known API paths next.");
         }
 
-        // 3. PHASE THREE: Hard Fallback
-        // Return standard endpoint if all else fails
+        // If xpcom.common.js parsing does not resolve an endpoint, probe known API paths.
+        LogDisplayUI.addLog("Probing known Stalker API endpoints.");
+        String verifiedApi = probeKnownPaths(url, account.getMacAddress(), timezone, httpMethod);
+        if (verifiedApi != null) {
+            LogDisplayUI.addLog("Successfully discovered working API endpoint via direct handshake probing: " + verifiedApi);
+            return verifiedApi;
+        }
+
+        // Return standard endpoint if all discovery attempts fail.
+        LogDisplayUI.addLog("No working endpoint discovered from xpcom.common.js or probing. Falling back to default API endpoint.");
         return getDefaultApiEndpoint(url);
     }
 
@@ -83,8 +104,13 @@ public class PingStalkerPortal {
 
         for (String path : PROBE_PATHS) {
             String targetUrl = cleanBase + path;
-            if (checkHandshake(targetUrl, macAddress, timezone, httpMethod)) {
+            ProbeStatus result = checkHandshake(targetUrl, macAddress, timezone, httpMethod);
+            if (result == ProbeStatus.SUCCESS) {
                 return targetUrl;
+            }
+            if (result == ProbeStatus.NETWORK_ERROR) {
+                LogDisplayUI.addLog("Stopping endpoint probing after connection-level failure at: " + targetUrl);
+                return null;
             }
         }
         return null;
@@ -99,7 +125,7 @@ public class PingStalkerPortal {
      * @param timezone The timezone setting
      * @param httpMethod The HTTP method to use (GET or POST)
      */
-    private static boolean checkHandshake(String apiUrl, String macAddress, String timezone, String httpMethod) {
+    private static ProbeStatus checkHandshake(String apiUrl, String macAddress, String timezone, String httpMethod) {
         try {
             LogDisplayUI.addLog("Checking handshake for : " + apiUrl);
             
@@ -115,13 +141,44 @@ public class PingStalkerPortal {
             if (response.statusCode() == 200) {
                 String body = response.body();
                 if (hasHandshakeToken(body)) {
-                    return true;
+                    return ProbeStatus.SUCCESS;
                 }
             }
         } catch (Exception e) {
-            // Ignore errors during probing (timeouts, 404s are expected)
+            if (isNetworkFailure(e)) {
+                LogDisplayUI.addLog("Network/connection issue while checking " + apiUrl + ": " + rootCauseMessage(e));
+                return ProbeStatus.NETWORK_ERROR;
+            }
+        }
+        return ProbeStatus.NO_MATCH;
+    }
+
+    private static boolean isNetworkFailure(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof UnknownHostException
+                    || current instanceof ConnectException
+                    || current instanceof NoRouteToHostException
+                    || current instanceof SocketTimeoutException
+                    || current instanceof SSLException) {
+                return true;
+            }
+            String className = current.getClass().getName();
+            if (className.contains("ConnectTimeoutException")
+                    || className.contains("ConnectionRequestTimeoutException")) {
+                return true;
+            }
+            current = current.getCause();
         }
         return false;
+    }
+
+    private static String rootCauseMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current.getClass().getSimpleName() + (isNotBlank(current.getMessage()) ? (": " + current.getMessage()) : "");
     }
 
     public static String parsePortalApiServer(String jsFileContents, String url) {

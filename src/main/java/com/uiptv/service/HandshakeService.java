@@ -1,6 +1,5 @@
 package com.uiptv.service;
 
-import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
 import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.util.StringUtils;
@@ -85,7 +84,7 @@ public class HandshakeService {
 
     public void connect(Account account) {
         account.setToken(null);
-        if (isBlank(AccountDb.get().ensureServerPortalUrl(account))) {
+        if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
             Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
             return;
         }
@@ -104,7 +103,7 @@ public class HandshakeService {
 
     public void hardTokenRefresh(Account account) {
         account.setToken(null);
-        if (isBlank(AccountDb.get().ensureServerPortalUrl(account))) {
+        if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
             Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
             return;
         }

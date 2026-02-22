@@ -2,7 +2,6 @@ package com.uiptv.db;
 
 import com.uiptv.model.Account;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.PingStalkerPortal;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -92,24 +91,5 @@ public class AccountDb extends BaseDb {
             return;
         }
         save(account);
-    }
-
-    /**
-     * Resolve and persist serverPortalUrl once, so subsequent calls can reuse it.
-     * Returns the current/resolved endpoint (possibly blank if resolution failed).
-     */
-    public String ensureServerPortalUrl(Account account) {
-        if (account == null) {
-            return "";
-        }
-        if (isNotBlank(account.getServerPortalUrl())) {
-            return account.getServerPortalUrl();
-        }
-        String resolved = PingStalkerPortal.ping(account);
-        if (isNotBlank(resolved)) {
-            account.setServerPortalUrl(resolved);
-            saveServerPortalUrl(account);
-        }
-        return account.getServerPortalUrl();
     }
 }

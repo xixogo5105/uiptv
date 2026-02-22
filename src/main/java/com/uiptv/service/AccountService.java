@@ -5,12 +5,14 @@ import com.uiptv.db.BookmarkDb;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
+import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.ServerUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class AccountService {
     private static AccountService instance;
@@ -62,5 +64,24 @@ public class AccountService {
 
     public String readToJson() {
         return ServerUtils.objectToJson(new ArrayList<>(getAll().values()));
+    }
+
+    /**
+     * Resolve and persist serverPortalUrl once, so subsequent calls can reuse it.
+     * Returns the current/resolved endpoint (possibly blank if resolution failed).
+     */
+    public String ensureServerPortalUrl(Account account) {
+        if (account == null) {
+            return "";
+        }
+        if (isNotBlank(account.getServerPortalUrl())) {
+            return account.getServerPortalUrl();
+        }
+        String resolved = PingStalkerPortal.ping(account);
+        if (isNotBlank(resolved)) {
+            account.setServerPortalUrl(resolved);
+            AccountDb.get().saveServerPortalUrl(account);
+        }
+        return account.getServerPortalUrl();
     }
 }
