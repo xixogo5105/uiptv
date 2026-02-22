@@ -39,10 +39,12 @@ public class ChannelService {
     private static ChannelService instance;
     private final CacheService cacheService;
     private final ContentFilterService contentFilterService;
+    private final LogoResolverService logoResolverService;
 
     private ChannelService() {
         this.cacheService = new CacheServiceImpl();
         this.contentFilterService = ContentFilterService.getInstance();
+        this.logoResolverService = LogoResolverService.getInstance();
     }
 
     public static Map<String, String> getChannelOrSeriesParams(String category, int pageNumber, Account.AccountAction accountAction, String movieId, String seriesId) {
@@ -90,9 +92,10 @@ public class ChannelService {
         //no caching
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             if (account.getType() == AccountType.XTREME_API) {
-                List<Channel> channels = XtremeParser.parseChannels(categoryId, account);
-                if (callback != null) callback.accept(channels);
-                return channels;
+            List<Channel> channels = dedupeChannels(XtremeParser.parseChannels(categoryId, account));
+            channels.forEach(this::resolveLogoIfNeeded);
+            if (callback != null) callback.accept(channels);
+            return channels;
             } else {
                 return getVodOrSeries(categoryId, account, callback, isCancelled);
             }
@@ -109,7 +112,8 @@ public class ChannelService {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
         }
 
-        List<Channel> channels = ChannelDb.get().getChannels(dbId);
+        List<Channel> channels = dedupeChannels(ChannelDb.get().getChannels(dbId));
+        channels.forEach(this::resolveLogoIfNeeded);
         if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
             //if live TV channels for a category is empty then make a direct call to stream server for fetching the contents
             List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false);
@@ -118,7 +122,7 @@ public class ChannelService {
                 channels.addAll(fetchedChannels);
             }
         }
-        List<Channel> censoredChannels = maybeFilterChannels(channels, true);
+        List<Channel> censoredChannels = maybeFilterChannels(dedupeChannels(channels), true);
         if (callback != null) callback.accept(censoredChannels);
         return censoredChannels;
     }
@@ -133,6 +137,7 @@ public class ChannelService {
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
         rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
             Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
+            resolveLogoIfNeeded(c);
             channels.add(c);
         });
         return channels.stream().toList();
@@ -156,7 +161,7 @@ public class ChannelService {
         if (!channelsFromPageZero.isEmpty()) {
             return channelsFromPageZero;
         }
-        return fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1);
+        return dedupeChannels(fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1));
     }
 
     private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage) {
@@ -190,7 +195,7 @@ public class ChannelService {
             channelList.addAll(pagedChannels);
             if (callback != null) callback.accept(pagedChannels);
         }
-        return channelList;
+        return dedupeChannels(channelList);
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
@@ -239,9 +244,10 @@ public class ChannelService {
                 JSONObject jsonChannel = list.getJSONObject(i);
                 Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                 channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
+                resolveLogoIfNeeded(channel);
                 channelList.add(channel);
             }
-            return maybeFilterChannels(channelList, censor);
+            return maybeFilterChannels(dedupeChannels(channelList), censor);
 
         } catch (Exception ignored) {
             showError("Error while processing itv response data");
@@ -271,16 +277,18 @@ public class ChannelService {
                         for (int j = 0; j < seriesArray.length(); j++) {
                             Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                             channel.setCategoryId(categoryId);
+                            resolveLogoIfNeeded(channel);
                             channelList.add(channel);
                         }
                     }
                 } else {
                     Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                     channel.setCategoryId(categoryId);
+                    resolveLogoIfNeeded(channel);
                     channelList.add(channel);
                 }
             }
-            List<Channel> censoredChannelList = maybeFilterChannels(channelList, censor);
+            List<Channel> censoredChannelList = maybeFilterChannels(dedupeChannels(channelList), censor);
             Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
             return censoredChannelList;
         } catch (Exception ignored) {
@@ -295,6 +303,39 @@ public class ChannelService {
 
     private List<Channel> maybeFilterChannels(List<Channel> channels, boolean applyFilter) {
         return applyFilter ? contentFilterService.filterChannels(channels) : channels;
+    }
+
+    private List<Channel> dedupeChannels(List<Channel> channels) {
+        if (channels == null || channels.isEmpty()) {
+            return channels == null ? Collections.emptyList() : channels;
+        }
+        LinkedHashMap<String, Channel> unique = new LinkedHashMap<>();
+        for (Channel c : channels) {
+            if (c == null) continue;
+            String key = String.join("|",
+                    StringUtils.isBlank(c.getChannelId()) ? "" : c.getChannelId().trim(),
+                    StringUtils.isBlank(c.getCmd()) ? "" : c.getCmd().trim(),
+                    StringUtils.isBlank(c.getName()) ? "" : c.getName().trim().toLowerCase()
+            );
+            unique.putIfAbsent(key, c);
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private void resolveLogoIfNeeded(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        String currentLogo = channel.getLogo();
+        boolean hasAbsoluteLogo = isNotBlank(currentLogo)
+                && (currentLogo.startsWith("http://") || currentLogo.startsWith("https://"));
+        if (hasAbsoluteLogo) {
+            return;
+        }
+        String resolved = logoResolverService.resolve(channel.getName(), currentLogo, null);
+        if (isNotBlank(resolved)) {
+            channel.setLogo(resolved);
+        }
     }
 
 }

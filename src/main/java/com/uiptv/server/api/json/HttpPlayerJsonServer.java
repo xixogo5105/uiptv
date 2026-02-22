@@ -14,6 +14,7 @@ import java.io.IOException;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
+import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpPlayerJsonServer implements HttpHandler {
@@ -23,12 +24,17 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String accountId = getParam(ex, "accountId");
         String categoryId = getParam(ex, "categoryId");
         String channelId = getParam(ex, "channelId");
+        String mode = getParam(ex, "mode");
 
         PlayerResponse response;
 
         if (isNotBlank(bookmarkId)) {
             Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
             Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
+            applyMode(account, mode);
+            if (bookmark.getAccountAction() != null) {
+                account.setAction(bookmark.getAccountAction());
+            }
             
             Channel channel = null;
             if (isNotBlank(bookmark.getSeriesJson())) {
@@ -62,8 +68,23 @@ public class HttpPlayerJsonServer implements HttpHandler {
             response = PlayerService.getInstance().get(account, channel, bookmark.getChannelId());
         } else {
             Account account = AccountService.getInstance().getById(accountId);
+            applyMode(account, mode);
             Channel channel = ChannelDb.get().getChannelById(channelId, categoryId);
-            response = PlayerService.getInstance().get(account, channel);
+
+            if (channel == null) {
+                channel = new Channel();
+                channel.setChannelId(channelId);
+                channel.setName(getParam(ex, "name"));
+                channel.setLogo(getParam(ex, "logo"));
+                channel.setCmd(getParam(ex, "cmd"));
+                channel.setDrmType(getParam(ex, "drmType"));
+                channel.setDrmLicenseUrl(getParam(ex, "drmLicenseUrl"));
+                channel.setClearKeysJson(getParam(ex, "clearKeysJson"));
+                channel.setInputstreamaddon(getParam(ex, "inputstreamaddon"));
+                channel.setManifestType(getParam(ex, "manifestType"));
+            }
+            String seriesId = getParam(ex, "seriesId");
+            response = PlayerService.getInstance().get(account, channel, seriesId);
         }
 
         // Check if transmuxing is needed and enabled
@@ -108,5 +129,16 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
         json.append("}");
         return json.toString();
+    }
+
+    private void applyMode(Account account, String mode) {
+        if (account == null || isBlank(mode)) {
+            return;
+        }
+        try {
+            account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
+        } catch (Exception ignored) {
+            account.setAction(Account.AccountAction.itv);
+        }
     }
 }

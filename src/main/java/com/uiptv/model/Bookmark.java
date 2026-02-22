@@ -12,6 +12,7 @@ public class Bookmark extends BaseJson {
     private String categoryTitle;
     private String channelId;
     private String channelName;
+    private String logo;
     private String cmd;
     private String serverPortalUrl;
     private String categoryId;
@@ -37,6 +38,7 @@ public class Bookmark extends BaseJson {
     }
 
     public void setFromChannel(Channel channel) {
+        this.setLogo(channel.getLogo());
         this.setDrmType(channel.getDrmType());
         this.setDrmLicenseUrl(channel.getDrmLicenseUrl());
         this.setClearKeysJson(channel.getClearKeysJson());

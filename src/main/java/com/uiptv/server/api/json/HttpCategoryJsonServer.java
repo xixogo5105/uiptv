@@ -12,15 +12,28 @@ import java.io.IOException;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpCategoryJsonServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
+        applyMode(account, getParam(ex, "mode"));
         if (account.isNotConnected()) {
             HandshakeService.getInstance().connect(account);
         }
         String response = StringUtils.EMPTY + CategoryService.getInstance().readToJson(account);
         generateJsonResponse(ex, response);
+    }
+
+    private void applyMode(Account account, String mode) {
+        if (account == null || !isNotBlank(mode)) {
+            return;
+        }
+        try {
+            account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
+        } catch (Exception ignored) {
+            account.setAction(Account.AccountAction.itv);
+        }
     }
 }

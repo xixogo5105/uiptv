@@ -33,7 +33,9 @@ import javafx.util.Callback;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,6 +57,7 @@ public class ChannelListUI extends HBox {
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>("Channels");
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
+    private final Set<String> seenChannelKeys = new HashSet<>();
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
@@ -78,9 +81,16 @@ public class ChannelListUI extends HBox {
     public void addItems(List<Channel> newChannels) {
         if (newChannels != null && !newChannels.isEmpty()) {
             itemsLoaded.set(true);
-            channelList.addAll(newChannels);
             List<ChannelItem> newItems = new ArrayList<>();
             newChannels.forEach(i -> {
+                if (i == null) {
+                    return;
+                }
+                String key = buildChannelKey(i);
+                if (!seenChannelKeys.add(key)) {
+                    return;
+                }
+                channelList.add(i);
                 Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
                 b.setAccountAction(account.getAction());
                 boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
@@ -92,6 +102,13 @@ public class ChannelListUI extends HBox {
                 table.setPlaceholder(null);
             });
         }
+    }
+
+    private String buildChannelKey(Channel channel) {
+        String id = channel.getChannelId() == null ? "" : channel.getChannelId().trim();
+        String cmd = channel.getCmd() == null ? "" : channel.getCmd().trim();
+        String name = channel.getName() == null ? "" : channel.getName().trim().toLowerCase();
+        return id + "|" + cmd + "|" + name;
     }
     
     public void setLoadingComplete() {

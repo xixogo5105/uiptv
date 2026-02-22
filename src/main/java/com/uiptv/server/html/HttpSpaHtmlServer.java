@@ -15,9 +15,18 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class HttpSpaHtmlServer implements HttpHandler {
     public static final String SPA_HTML_TEMPLATE = getWebServerRootPath() + File.separator + "index.html";
+    private final String templatePath;
+
+    public HttpSpaHtmlServer() {
+        this("index.html");
+    }
+
+    public HttpSpaHtmlServer(String htmlFileName) {
+        this.templatePath = getWebServerRootPath() + File.separator + htmlFileName;
+    }
 
     @Override
     public void handle(HttpExchange httpExchange) throws IOException {
-        generateHtmlResponse(httpExchange, StringUtils.EMPTY + IOUtils.toString(new FileInputStream(SPA_HTML_TEMPLATE), UTF_8));
+        generateHtmlResponse(httpExchange, StringUtils.EMPTY + IOUtils.toString(new FileInputStream(templatePath), UTF_8));
     }
 }

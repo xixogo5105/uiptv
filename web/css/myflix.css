@@ -1,0 +1,848 @@
+:root {
+    --bg: #080b10;
+    --surface: #0b0b0b;
+    --surface-soft: #1a1a1a;
+    --text: #f5f5f1;
+    --muted: #b3b3b3;
+    --brand: #e50914;
+    --line: rgba(255, 255, 255, 0.12);
+    --card: #202020;
+    --card-hover: #2a2a2a;
+    --chip: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-soft: #f1f3f5;
+    --text: #171a1f;
+    --muted: #5f6874;
+    --brand: #c11119;
+    --line: rgba(0, 0, 0, 0.12);
+    --card: #ffffff;
+    --card-hover: #f5f7fa;
+    --chip: rgba(0, 0, 0, 0.06);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+}
+
+body {
+    font-family: "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+    background:
+            linear-gradient(180deg, rgba(12, 14, 20, 0.7), rgba(7, 8, 12, 0.95)),
+            radial-gradient(1200px 700px at 20% -20%, rgba(229, 9, 20, 0.22), transparent 60%),
+            var(--bg);
+    color: var(--text);
+}
+
+.myflix-app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.nf-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(8, 8, 8, 0.95);
+    backdrop-filter: blur(8px);
+}
+
+[data-theme="light"] .nf-topbar {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.78));
+}
+
+.nf-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.nf-brand img {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+}
+
+.nf-brand span {
+    color: var(--brand);
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.nf-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nf-search-top {
+    width: 260px;
+    margin-bottom: 0;
+    margin-right: 6px;
+}
+
+.nf-action-btn {
+    color: var(--text);
+    background: var(--chip);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: 0.2s ease;
+}
+
+.nf-action-btn:hover {
+    color: var(--text);
+    background: rgba(229, 9, 20, 0.2);
+    border-color: rgba(229, 9, 20, 0.4);
+}
+
+.nf-main {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    display: block;
+}
+
+.nf-player-area,
+.nf-library {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+#player-wrapper {
+    width: 100%;
+    height: clamp(260px, 44vw, 560px);
+    overflow: hidden;
+    position: relative;
+    background:
+            linear-gradient(to bottom, rgba(4, 4, 4, 0.2), rgba(4, 4, 4, 0.95)),
+            linear-gradient(to right, rgba(229, 9, 20, 0.25), transparent 55%);
+}
+
+#player-placeholder {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: var(--muted);
+    gap: 8px;
+}
+
+#player-placeholder i {
+    font-size: 4rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="light"] #player-placeholder i {
+    color: rgba(0, 0, 0, 0.2);
+}
+
+#player {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background: #000;
+}
+
+.nf-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+#player-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 14px 16px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0));
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+
+#player-overlay button,
+#player-overlay .dropdown {
+    pointer-events: auto;
+}
+
+#headerTitle {
+    margin: 0;
+    color: #fff;
+    font-weight: 700;
+}
+
+.nf-library {
+    padding: 10px 0 28px;
+    overflow: visible;
+}
+
+.nf-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 10, 14, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.nf-loading-box {
+    min-width: 220px;
+    padding: 18px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.72);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.nf-loading-text {
+    color: #f1f5f9;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.nf-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface-soft);
+    border-radius: 10px;
+    padding: 9px 11px;
+    margin-bottom: 16px;
+}
+
+.nf-search i {
+    color: var(--muted);
+}
+
+#searchInput {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    outline: none;
+    font-size: 0.92rem;
+}
+
+#searchInput::placeholder {
+    color: var(--muted);
+}
+
+.nf-row {
+    margin-bottom: 16px;
+}
+
+.nf-row h5 {
+    margin: 0;
+    padding: 0 20px;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.nf-row-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.nf-title-with-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nf-title-back {
+    border: 0;
+    background: transparent;
+    color: #d5d8df;
+    padding: 0;
+    line-height: 1;
+    font-size: 1.4rem;
+}
+
+.nf-title-back:hover {
+    color: #ffffff;
+}
+
+.nf-row-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 20px;
+}
+
+.nf-mode-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 16px;
+}
+
+.nf-mode-btn {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.nf-mode-btn.active {
+    background: rgba(229, 9, 20, 0.3);
+    border-color: rgba(229, 9, 20, 0.65);
+}
+
+.nf-link-btn {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.nf-link-btn:hover {
+    color: var(--text);
+}
+
+.nf-strip {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 40px 8px;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+}
+
+.nf-strip::-webkit-scrollbar {
+    display: none;
+}
+
+.nf-track-wrap {
+    position: relative;
+}
+
+.nf-edge-btn {
+    position: absolute;
+    top: 0;
+    bottom: 8px;
+    width: 36px;
+    z-index: 4;
+    border: 0;
+    background: rgba(0, 0, 0, 0.58);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.nf-track-wrap:hover .nf-edge-btn {
+    opacity: 1;
+}
+
+.nf-edge-btn:hover {
+    background: rgba(0, 0, 0, 0.76);
+}
+
+.nf-edge-btn.left {
+    left: 0;
+}
+
+.nf-edge-btn.right {
+    right: 0;
+}
+
+.nf-card {
+    text-align: left;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 12px;
+    text-decoration: none;
+    min-height: 172px;
+    min-width: 210px;
+    max-width: 210px;
+    flex: 0 0 210px;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.nf-card:hover {
+    background: var(--card-hover);
+    transform: scale(1.07);
+    color: var(--text);
+    z-index: 3;
+}
+
+.nf-card-media {
+    position: relative;
+    padding: 0;
+    overflow: hidden;
+    justify-content: flex-end;
+    background: #0f1116;
+    text-align: center;
+    align-items: center;
+}
+
+.nf-media-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nf-media-fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+    background: linear-gradient(160deg, #1f2530, #11151c);
+    color: #f3f4f6;
+}
+
+.nf-media-fallback.show {
+    display: flex;
+}
+
+.nf-media-fallback.show ~ .nf-media-gradient,
+.nf-media-fallback.show ~ .nf-media-title,
+.nf-media-fallback.show ~ .nf-media-subtitle {
+    display: none;
+}
+
+.nf-media-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.2) 45%, rgba(0, 0, 0, 0));
+}
+
+.nf-media-title {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 10px;
+    font-size: 0.86rem;
+    padding-bottom: 2px;
+    width: 100%;
+    text-align: center;
+}
+
+.nf-media-subtitle {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0 10px 10px;
+    color: rgba(245, 245, 245, 0.9);
+    width: 100%;
+    text-align: center;
+}
+
+.nf-card-icon {
+    font-size: 1.45rem;
+    color: #d2d2d2;
+}
+
+[data-theme="light"] .nf-card-icon {
+    color: #636b77;
+}
+
+.nf-card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.25;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.nf-card-subtitle {
+    font-size: 0.78rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nf-logo-wrap {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+}
+
+.nf-logo-wrap img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.nf-empty-card {
+    min-height: 172px;
+    min-width: 260px;
+    max-width: 260px;
+    flex: 0 0 260px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    padding: 12px;
+}
+
+.nf-series-page {
+    padding: 8px 18px 0;
+}
+
+.nf-series-player-area {
+    margin-bottom: 16px;
+}
+
+.series-detail-mode .nf-library {
+    padding-top: 20px;
+}
+
+.series-detail-mode .nf-row h5 {
+    font-size: 2.2rem;
+}
+
+.nf-series-hero {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 18px;
+    align-items: start;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.nf-series-poster-wrap {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #151922;
+}
+
+.nf-series-poster {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nf-series-poster-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+}
+
+.nf-series-meta h3 {
+    margin: 2px 0 10px;
+    font-size: 1.6rem;
+    font-weight: 800;
+}
+
+.nf-series-meta p {
+    margin: 0 0 12px;
+    color: #d3d7df;
+    line-height: 1.5;
+}
+
+.nf-imdb-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 197, 24, 0.55);
+    background: rgba(245, 197, 24, 0.12);
+    color: #f8d65a;
+    text-decoration: none;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.nf-imdb-link:hover {
+    color: #ffe487;
+    background: rgba(245, 197, 24, 0.18);
+}
+
+.nf-imdb-logo {
+    height: 18px;
+    width: auto;
+    display: block;
+}
+
+.nf-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    font-size: 0.9rem;
+    color: #d8dde6;
+}
+
+.nf-episodes-title {
+    margin: 0;
+    padding-left: 4px;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.nf-season-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.nf-season-tab {
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.nf-season-tab.active {
+    border-color: rgba(229, 9, 20, 0.7);
+    background: rgba(229, 9, 20, 0.25);
+}
+
+.nf-episode-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.nf-episode-row {
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    border-radius: 10px;
+    width: 100%;
+    min-height: 98px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 32px 142px 1fr 30px;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+}
+
+.nf-episode-row:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.nf-episode-index {
+    color: var(--muted);
+    font-weight: 700;
+    text-align: center;
+}
+
+.nf-episode-thumb-wrap {
+    width: 142px;
+    height: 80px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    background: #131722;
+}
+
+.nf-episode-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nf-episode-thumb-fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 8px;
+    color: #eef2f7;
+    background: linear-gradient(160deg, #1f2530, #11151c);
+}
+
+.nf-episode-thumb-fallback.show {
+    display: flex;
+}
+
+.nf-episode-main {
+    min-width: 0;
+}
+
+.nf-episode-title {
+    font-size: 1rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nf-episode-sub {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.84rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.35;
+}
+
+.nf-episode-play {
+    color: #d2d6de;
+    font-size: 1.2rem;
+    text-align: right;
+}
+
+.nf-download {
+    justify-content: center;
+}
+
+.modal-content {
+    border-radius: 12px;
+}
+
+::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.26);
+    border-radius: 10px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 640px) {
+    .nf-topbar {
+        padding: 12px;
+    }
+
+    #player-wrapper,
+    #player,
+    #player-placeholder {
+        height: clamp(200px, 52vw, 300px);
+    }
+
+    .nf-search-top {
+        width: 160px;
+    }
+
+    .nf-card {
+        min-width: 150px;
+        max-width: 150px;
+        min-height: 140px;
+        flex-basis: 150px;
+    }
+
+    .nf-row h5 {
+        font-size: 1.4rem;
+        padding: 0 12px;
+    }
+
+    .nf-strip {
+        padding: 0 30px 8px;
+        gap: 8px;
+    }
+
+    .nf-edge-btn {
+        width: 26px;
+    }
+
+    .nf-series-page {
+        padding: 6px 10px 0;
+    }
+
+    .nf-series-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .nf-series-poster-wrap {
+        width: min(220px, 70%);
+        margin: 0 auto;
+    }
+
+    .nf-meta-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .nf-episode-row {
+        grid-template-columns: 26px 106px 1fr 24px;
+        min-height: 88px;
+        gap: 8px;
+        padding: 8px;
+    }
+
+    .nf-episode-thumb-wrap {
+        width: 106px;
+        height: 60px;
+    }
+}

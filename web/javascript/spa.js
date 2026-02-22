@@ -6,14 +6,16 @@ createApp({
         const activeTab = ref('bookmarks');
         const viewState = ref('accounts'); // accounts, categories, channels
         const searchQuery = ref('');
+        const contentMode = ref('itv'); // itv, vod, series
 
         const accounts = ref([]);
         const categories = ref([]);
         const channels = ref([]);
+        const episodes = ref([]);
         const bookmarks = ref([]);
         const favorites = ref([]);
 
-        const currentContext = ref({ accountId: null, categoryId: null });
+        const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
         const currentChannel = ref(null);
         const isPlaying = ref(false);
         const showOverlay = ref(false);
@@ -58,11 +60,17 @@ createApp({
             return channels.value.filter(c => c.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
         });
 
+        const filteredEpisodes = computed(() => {
+            if (!searchQuery.value) return episodes.value;
+            return episodes.value.filter(c => c.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
+        });
+
         const filteredBookmarks = computed(() => {
             if (!searchQuery.value) return bookmarks.value;
+            const q = searchQuery.value.toLowerCase();
             return bookmarks.value.filter(b =>
-                b.channelName.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-                b.accountName.toLowerCase().includes(searchQuery.value.toLowerCase())
+                (b.channelName || '').toLowerCase().includes(q) ||
+                (b.accountName || '').toLowerCase().includes(q)
             );
         });
 
@@ -73,9 +81,18 @@ createApp({
 
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
 
+        const favoriteKey = (item) => {
+            if (!item) return '';
+            const id = String(item.id ?? item.dbId ?? '');
+            const name = String(item.name ?? item.channelName ?? '').trim().toLowerCase();
+            const type = item.type ?? (item.accountId && item.categoryId ? 'channel' : 'bookmark');
+            return `${type}::${id}::${name}`;
+        };
+
         const isCurrentFavorite = computed(() => {
             if (!currentChannel.value) return false;
-            return favorites.value.some(f => f.id === currentChannel.value.id && f.name === currentChannel.value.name);
+            const key = favoriteKey(currentChannel.value);
+            return favorites.value.some(f => favoriteKey(f) === key);
         });
 
         const themeIcon = computed(() => {
@@ -96,10 +113,18 @@ createApp({
         };
 
         const loadCategories = async (accountId) => {
-            currentContext.value.accountId = accountId;
+            const selected = typeof accountId === 'object'
+                ? accountId
+                : accounts.value.find(a => a.dbId === accountId);
+            currentContext.value.accountId = selected?.dbId || accountId;
+            currentContext.value.accountType = selected?.type || null;
             try {
-                const response = await fetch(window.location.origin + "/categories?accountId=" + accountId);
+                const response = await fetch(
+                    window.location.origin + "/categories?accountId=" + currentContext.value.accountId + "&mode=" + contentMode.value
+                );
                 categories.value = await response.json();
+                channels.value = [];
+                episodes.value = [];
                 viewState.value = 'categories';
                 searchQuery.value = '';
             } catch (e) {
@@ -110,8 +135,11 @@ createApp({
         const loadChannels = async (categoryId) => {
             currentContext.value.categoryId = categoryId;
             try {
-                const response = await fetch(window.location.origin + "/channels?categoryId=" + categoryId + "&accountId=" + currentContext.value.accountId);
+                const response = await fetch(
+                    window.location.origin + "/channels?categoryId=" + categoryId + "&accountId=" + currentContext.value.accountId + "&mode=" + contentMode.value
+                );
                 channels.value = await response.json();
+                episodes.value = [];
                 viewState.value = 'channels';
                 searchQuery.value = '';
             } catch (e) {
@@ -119,10 +147,24 @@ createApp({
             }
         };
 
+        const loadSeriesEpisodes = async (seriesId) => {
+            try {
+                const response = await fetch(
+                    window.location.origin + "/seriesEpisodes?seriesId=" + encodeURIComponent(seriesId) + "&accountId=" + currentContext.value.accountId
+                );
+                episodes.value = await response.json();
+                viewState.value = 'episodes';
+                searchQuery.value = '';
+            } catch (e) {
+                console.error("Failed to load series episodes", e);
+            }
+        };
+
         const loadBookmarks = async () => {
             try {
                 const response = await fetch(window.location.origin + "/bookmarks");
                 bookmarks.value = await response.json();
+                enrichFavoritesFromBookmarks();
             } catch (e) {
                 console.error("Failed to load bookmarks", e);
             }
@@ -132,11 +174,34 @@ createApp({
             const stored = localStorage.getItem('uiptv_favorites');
             if (stored) {
                 favorites.value = JSON.parse(stored);
+                enrichFavoritesFromBookmarks();
             }
         };
 
         const saveFavorites = () => {
             localStorage.setItem('uiptv_favorites', JSON.stringify(favorites.value));
+        };
+
+        const enrichFavoritesFromBookmarks = () => {
+            if (!favorites.value.length || !bookmarks.value.length) return;
+
+            const bookmarkById = new Map(bookmarks.value.map(b => [String(b.dbId), b]));
+            let changed = false;
+
+            favorites.value = favorites.value.map(f => {
+                if (f.logo || f.type !== 'bookmark') return f;
+                const bookmark = bookmarkById.get(String(f.id));
+                if (!bookmark || !bookmark.logo) return f;
+                changed = true;
+                return {
+                    ...f,
+                    logo: bookmark.logo,
+                    accountName: f.accountName || bookmark.accountName,
+                    name: f.name || bookmark.channelName
+                };
+            });
+
+            if (changed) saveFavorites();
         };
 
         const switchTab = (tab) => {
@@ -149,34 +214,92 @@ createApp({
             }
         };
 
+        const setContentMode = (mode) => {
+            if (!['itv', 'vod', 'series'].includes(mode)) return;
+            if (contentMode.value === mode) return;
+            contentMode.value = mode;
+            if (activeTab.value !== 'accounts') {
+                activeTab.value = 'accounts';
+            }
+            viewState.value = 'accounts';
+            categories.value = [];
+            channels.value = [];
+            episodes.value = [];
+            currentContext.value.categoryId = null;
+            searchQuery.value = '';
+        };
+
         const goBackToAccounts = () => {
             viewState.value = 'accounts';
             searchQuery.value = '';
         };
 
         const goBackToCategories = () => {
-            viewState.value = 'categories';
+            viewState.value = viewState.value === 'episodes' ? 'channels' : 'categories';
             searchQuery.value = '';
         };
 
+        const buildPlayerUrlForChannel = (channel, modeOverride = null) => {
+            const modeToUse = modeOverride || contentMode.value;
+            const channelDbId = channel.dbId || '';
+            const channelIdentifier = channel.channelId || channel.id || '';
+            const query = new URLSearchParams();
+            query.set('accountId', currentContext.value.accountId || '');
+            query.set('categoryId', currentContext.value.categoryId || '');
+            query.set('mode', modeToUse);
+
+            if (channelDbId) {
+                query.set('channelId', channelDbId);
+                if (modeToUse === 'series') {
+                    query.set('seriesId', channelIdentifier);
+                }
+            } else {
+                query.set('channelId', channelIdentifier);
+                query.set('name', channel.name || '');
+                query.set('logo', channel.logo || '');
+                query.set('cmd', channel.cmd || '');
+                query.set('drmType', channel.drmType || '');
+                query.set('drmLicenseUrl', channel.drmLicenseUrl || '');
+                query.set('clearKeysJson', channel.clearKeysJson || '');
+                query.set('inputstreamaddon', channel.inputstreamaddon || '');
+                query.set('manifestType', channel.manifestType || '');
+                if (modeToUse === 'series') {
+                    query.set('seriesId', channelIdentifier);
+                }
+            }
+            return window.location.origin + "/player?" + query.toString();
+        };
+
         const playChannel = (channel) => {
+            scrollToTop();
+            const channelIdentifier = channel.dbId || channel.channelId || channel.id;
             currentChannel.value = {
-                id: channel.dbId,
+                id: channelIdentifier,
+                dbId: channel.dbId || '',
+                channelId: channel.channelId || channelIdentifier,
                 name: channel.name,
                 logo: channel.logo,
+                cmd: channel.cmd,
+                drmType: channel.drmType,
+                drmLicenseUrl: channel.drmLicenseUrl,
+                clearKeysJson: channel.clearKeysJson,
+                inputstreamaddon: channel.inputstreamaddon,
+                manifestType: channel.manifestType,
                 accountId: currentContext.value.accountId,
                 categoryId: currentContext.value.categoryId,
                 type: 'channel',
-                drmType: channel.drmType,
+                mode: contentMode.value,
                 clearKeys: channel.clearKeys
             };
-            startPlayback(window.location.origin + "/player?channelId=" + channel.dbId + "&categoryId=" + currentContext.value.categoryId + "&accountId=" + currentContext.value.accountId);
+            startPlayback(buildPlayerUrlForChannel(channel));
         };
 
         const playBookmark = (bookmark) => {
+            scrollToTop();
             currentChannel.value = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
+                logo: bookmark.logo,
                 accountName: bookmark.accountName,
                 type: 'bookmark'
             };
@@ -184,18 +307,60 @@ createApp({
         };
 
         const playFavorite = (fav) => {
-            currentChannel.value = fav;
-            if (fav.type === 'channel') {
-                startPlayback(window.location.origin + "/player?channelId=" + fav.id + "&categoryId=" + fav.categoryId + "&accountId=" + fav.accountId);
+            scrollToTop();
+            const favoriteType = fav.type || (fav.accountId && fav.categoryId ? 'channel' : 'bookmark');
+            currentChannel.value = {
+                ...fav,
+                type: favoriteType,
+                name: fav.name || fav.channelName || ''
+            };
+
+            if (favoriteType === 'channel') {
+                const modeToUse = fav.mode || 'itv';
+                const query = new URLSearchParams();
+                query.set('accountId', fav.accountId || '');
+                query.set('categoryId', fav.categoryId || '');
+                query.set('mode', modeToUse);
+                if (fav.dbId) {
+                    query.set('channelId', fav.dbId);
+                    if (modeToUse === 'series') {
+                        query.set('seriesId', fav.channelId || fav.id || '');
+                    }
+                } else {
+                    query.set('channelId', fav.channelId || fav.id || '');
+                    query.set('name', fav.name || '');
+                    query.set('logo', fav.logo || '');
+                    query.set('cmd', fav.cmd || '');
+                    query.set('drmType', fav.drmType || '');
+                    query.set('drmLicenseUrl', fav.drmLicenseUrl || '');
+                    query.set('clearKeysJson', fav.clearKeysJson || '');
+                    query.set('inputstreamaddon', fav.inputstreamaddon || '');
+                    query.set('manifestType', fav.manifestType || '');
+                    if (modeToUse === 'series') {
+                        query.set('seriesId', fav.channelId || fav.id || '');
+                    }
+                }
+                startPlayback(window.location.origin + "/player?" + query.toString());
             } else {
                 startPlayback(window.location.origin + "/player?bookmarkId=" + fav.id);
             }
         };
 
+        const handleChannelSelection = async (channel) => {
+            if (contentMode.value === 'series' &&
+                currentContext.value.accountType === 'XTREME_API' &&
+                viewState.value === 'channels') {
+                const seriesId = channel.channelId || channel.id || channel.dbId;
+                await loadSeriesEpisodes(seriesId);
+                return;
+            }
+            playChannel(channel);
+        };
+
         // --- NEW PLAYER LOGIC ---
 
         const startPlayback = async (url) => {
-            await stopPlayback(); // Stop any current playback
+            await stopPlayback(true); // Stop current playback without collapsing UI
 
             playerKey.value++;
             isPlaying.value = true;
@@ -210,7 +375,7 @@ createApp({
             }
         };
 
-        const stopPlayback = async () => {
+        const stopPlayback = async (preserveUi = false) => {
             if (playerInstance.value) {
                 try {
                     await playerInstance.value.destroy();
@@ -225,8 +390,10 @@ createApp({
                 videoPlayer.value.removeAttribute('src'); // Good practice
                 videoPlayer.value.load();
             }
-            isPlaying.value = false;
-            currentChannel.value = null;
+            if (!preserveUi) {
+                isPlaying.value = false;
+                currentChannel.value = null;
+            }
             isYoutube.value = false;
             youtubeSrc.value = '';
             videoTracks.value = [];
@@ -342,10 +509,19 @@ createApp({
         const toggleFavorite = () => {
             if (!currentChannel.value) return;
 
-            const index = favorites.value.findIndex(f => f.id === currentChannel.value.id && f.name === currentChannel.value.name);
+            const favoriteItem = {
+                ...currentChannel.value,
+                id: currentChannel.value.id ?? currentChannel.value.dbId,
+                name: currentChannel.value.name || currentChannel.value.channelName || '',
+                type: currentChannel.value.type || (currentChannel.value.accountId && currentChannel.value.categoryId ? 'channel' : 'bookmark'),
+                mode: currentChannel.value.mode || contentMode.value
+            };
+
+            const currentKey = favoriteKey(favoriteItem);
+            const index = favorites.value.findIndex(f => favoriteKey(f) === currentKey);
 
             if (index === -1) {
-                favorites.value.push(currentChannel.value);
+                favorites.value.push(favoriteItem);
             } else {
                 favorites.value.splice(index, 1);
             }
@@ -358,6 +534,20 @@ createApp({
             if (icon && icon.classList.contains('icon-placeholder')) {
                 icon.style.display = 'block';
             }
+        };
+
+        const mediaImageError = (e) => {
+            e.target.onerror = null;
+            e.target.removeAttribute('src');
+            e.target.style.display = 'none';
+            const fallback = e.target.parentElement?.querySelector('.nf-media-fallback');
+            if (fallback) {
+                fallback.classList.add('show');
+            }
+        };
+
+        const scrollToTop = () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         const toggleTheme = () => {
@@ -384,6 +574,7 @@ createApp({
             stopPlayback();
             activeTab.value = 'bookmarks';
             viewState.value = 'accounts'; // Or any default view
+            contentMode.value = 'itv';
             searchQuery.value = '';
         };
 
@@ -409,6 +600,7 @@ createApp({
             filteredAccounts,
             filteredCategories,
             filteredChannels,
+            filteredEpisodes,
             filteredBookmarks,
             filteredFavorites,
             currentChannelName,
@@ -423,18 +615,23 @@ createApp({
             videoTracks,
             theme,
             themeIcon,
+            contentMode,
 
             switchTab,
+            setContentMode,
             loadCategories,
             loadChannels,
+            loadSeriesEpisodes,
             goBackToAccounts,
             goBackToCategories,
             playChannel,
+            handleChannelSelection,
             playBookmark,
             playFavorite,
             stopPlayback,
             toggleFavorite,
             imageError,
+            mediaImageError,
             toggleTheme,
             resetApp,
             switchVideoTrack

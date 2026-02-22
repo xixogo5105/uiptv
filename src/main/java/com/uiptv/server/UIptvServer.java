@@ -36,6 +36,7 @@ public class UIptvServer {
         // SPA routes
         server.createContext("/", new HttpSpaHtmlServer());
         server.createContext("/index.html", new HttpSpaHtmlServer());
+        server.createContext("/myflix.html", new HttpSpaHtmlServer("myflix.html"));
         
         // PWA routes
         server.createContext("/manifest.json", new HttpManifestServer());
@@ -57,6 +58,8 @@ public class UIptvServer {
         server.createContext("/accounts", new HttpAccountJsonServer());
         server.createContext("/categories", new HttpCategoryJsonServer());
         server.createContext("/channels", new HttpChannelJsonServer());
+        server.createContext("/seriesEpisodes", new HttpSeriesEpisodesJsonServer());
+        server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
         server.createContext("/player", new HttpPlayerJsonServer());
         server.createContext("/bookmarks", new HttpBookmarksJsonServer());
         server.createContext("/playlist.m3u8", new HttpM3u8PlayListServer());
