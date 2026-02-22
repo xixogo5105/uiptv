@@ -34,7 +34,8 @@ createApp({
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
         const playerInstance = ref(null);
-        const videoPlayer = ref(null);
+        const videoPlayerHome = ref(null);
+        const videoPlayerSeries = ref(null);
         const videoTracks = ref([]);
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
@@ -627,12 +628,8 @@ createApp({
                 }
                 playerInstance.value = null;
             }
-            if (videoPlayer.value) {
-                videoPlayer.value.pause();
-                videoPlayer.value.src = '';
-                videoPlayer.value.removeAttribute('src');
-                videoPlayer.value.load();
-            }
+            clearVideoElement(videoPlayerHome.value);
+            clearVideoElement(videoPlayerSeries.value);
             if (!preserveUi) {
                 isPlaying.value = false;
                 currentChannel.value = null;
@@ -657,9 +654,7 @@ createApp({
             }
 
             isYoutube.value = false;
-            await nextTick();
-
-            const video = videoPlayer.value;
+            const video = await resolveActiveVideoElement();
             if (!video) return;
 
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
@@ -678,8 +673,7 @@ createApp({
         };
 
         const loadNative = async (channel) => {
-            await nextTick();
-            const video = videoPlayer.value;
+            const video = await resolveActiveVideoElement();
             if (video) {
                 video.src = channel.url;
                 try {
@@ -691,8 +685,7 @@ createApp({
         };
 
         const loadShaka = async (channel) => {
-            await nextTick();
-            const video = videoPlayer.value;
+            const video = await resolveActiveVideoElement();
             if (!video) return;
 
             shaka.polyfill.installAll();
@@ -715,6 +708,7 @@ createApp({
             try {
                 await player.load(channel.url);
                 videoTracks.value = player.getVariantTracks();
+                autoSelectBestTrack(player);
             } catch (e) {
                 console.error('Shaka: Error loading video:', e);
             }
@@ -751,6 +745,71 @@ createApp({
                 e.target.parentElement?.querySelector('.nf-media-fallback') ||
                 e.target.parentElement?.querySelector('.nf-episode-thumb-fallback');
             if (fallback) fallback.classList.add('show');
+        };
+
+        const clearVideoElement = (video) => {
+            if (!video) return;
+            video.pause();
+            video.src = '';
+            video.removeAttribute('src');
+            video.load();
+        };
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        const resolveActiveVideoElement = async () => {
+            for (let i = 0; i < 6; i++) {
+                await nextTick();
+                const prefersSeries = isSeriesDetailOpen.value && currentChannel.value?.mode === 'series';
+                const video = prefersSeries
+                    ? (videoPlayerSeries.value || videoPlayerHome.value)
+                    : (videoPlayerHome.value || videoPlayerSeries.value);
+                if (video) return video;
+                await sleep(25);
+            }
+            return null;
+        };
+
+        const canDecodeHevc = () => {
+            if (!window.MediaSource || typeof window.MediaSource.isTypeSupported !== 'function') return false;
+            return window.MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"')
+                || window.MediaSource.isTypeSupported('video/mp4; codecs="hev1.1.6.L93.B0"')
+                || window.MediaSource.isTypeSupported('video/mp4; codecs="hvc1"');
+        };
+
+        const canDecodeAvc = () => {
+            if (!window.MediaSource || typeof window.MediaSource.isTypeSupported !== 'function') return true;
+            return window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f"')
+                || window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.640028"');
+        };
+
+        const autoSelectBestTrack = (player) => {
+            if (!player) return;
+            const tracks = (player.getVariantTracks() || []).filter(t => !t.audioOnly);
+            if (!tracks.length) return;
+
+            const hevcSupported = canDecodeHevc();
+            const avcSupported = canDecodeAvc();
+
+            let candidates = tracks;
+            if (hevcSupported) {
+                const hevcTracks = tracks.filter(t => /hev1|hvc1|hevc/i.test(String(t.codecs || '')));
+                if (hevcTracks.length) candidates = hevcTracks;
+            } else if (avcSupported) {
+                const avcTracks = tracks.filter(t => /avc1|h264|avc/i.test(String(t.codecs || '')));
+                if (avcTracks.length) candidates = avcTracks;
+            }
+
+            candidates.sort((a, b) => {
+                const hDiff = (b.height || 0) - (a.height || 0);
+                if (hDiff !== 0) return hDiff;
+                return (b.bandwidth || 0) - (a.bandwidth || 0);
+            });
+
+            const chosen = candidates[0];
+            if (chosen) {
+                player.selectVariantTrack(chosen, true);
+            }
         };
 
         const getImdbUrl = () => {
@@ -822,7 +881,8 @@ createApp({
             playerKey,
             isYoutube,
             youtubeSrc,
-            videoPlayer,
+            videoPlayerHome,
+            videoPlayerSeries,
             videoTracks,
             isBusy,
             busyMessage,
