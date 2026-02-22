@@ -39,79 +39,29 @@
             <a href="https://github.com/xixogo5105/uiptv" target="_blank" class="nf-action-btn" title="Help">
                 <i class="bi bi-question-circle"></i>
             </a>
+            <a href="/bookmarks.m3u8" class="nf-action-btn" title="Download Favorites Playlist" download>
+                <i class="bi bi-download"></i>
+            </a>
+            <a href="/iptv.m3u8" class="nf-action-btn" title="Download Published Playlist" download>
+                <i class="bi bi-cloud-arrow-down"></i>
+            </a>
             <a href="/index.html" class="nf-action-btn" title="Switch to Classic View">
                 <i class="bi bi-grid-3x3-gap-fill"></i>
             </a>
         </div>
     </header>
 
-    <main class="nf-main" :class="{ 'series-detail-mode': isSeriesDetailOpen }">
-        <section class="nf-player-area" v-if="!isSeriesDetailOpen">
-            <div id="player-wrapper">
-                <div v-if="!isPlaying" id="player-placeholder">
-                    <i class="bi bi-play-circle"></i>
-                    <h2>Choose something to watch</h2>
-                    <p>Browse channels, bookmarks, and favorites below.</p>
-                </div>
-
-                <div v-else :key="playerKey" id="player" @mouseenter="showOverlay = true" @mouseleave="showOverlay = false">
-                    <div id="player-overlay" :style="{ opacity: showOverlay ? 1 : 0 }">
-                        <div class="d-flex justify-content-between align-items-center w-100">
-                            <h4 id="headerTitle">{{ currentChannelName }}</h4>
-                            <div>
-                                <button class="btn btn-link text-white me-2" @click="toggleFavorite" title="Favorite">
-                                    <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
-                                </button>
-                                <div class="dropdown d-inline-block">
-                                    <button class="btn btn-link text-white me-2" type="button" id="resolutionMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Resolutions">
-                                        <i class="bi bi-gear-fill"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="resolutionMenuButton">
-                                        <li v-for="track in videoTracks" :key="track.id">
-                                            <a class="dropdown-item" href="#" @click.prevent="switchVideoTrack(track.id)">
-                                                {{ track.height }}p
-                                                <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </div>
-                                <button class="btn btn-link text-white" @click="stopPlayback" title="Stop">
-                                    <i class="bi bi-stop-circle-fill fs-4"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <video
-                            v-if="!isYoutube"
-                            ref="videoPlayerHome"
-                            class="nf-video"
-                            controls
-                            autoplay
-                    ></video>
-
-                    <iframe
-                            v-if="isYoutube"
-                            :src="youtubeSrc"
-                            frameborder="0"
-                            allowfullscreen
-                            allow="autoplay; encrypted-media"
-                            class="nf-video"
-                    ></iframe>
-                </div>
-            </div>
-        </section>
-
+    <main class="nf-main" :class="{ 'detail-mode': isDetailPageOpen, 'series-detail-mode': isSeriesDetailOpen }">
         <section class="nf-library">
-            <template v-if="!isSeriesDetailOpen">
-            <div class="nf-row">
+            <template v-if="!isDetailPageOpen">
+            <div class="nf-row nf-row-pinned">
                 <div class="nf-row-title">
-                    <h5>Bookmarks</h5>
+                    <h5 class="nf-section-title"><i class="bi bi-bookmark-heart"></i><span>Favorites</span></h5>
                 </div>
                 <div class="nf-track-wrap">
-                    <button class="nf-edge-btn left" onclick="scrollRow('row-bookmarks', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
-                    <div class="nf-strip" id="row-bookmarks">
-                        <button v-for="bookmark in filteredBookmarks" :key="bookmark.dbId" class="nf-card nf-card-media" @click="playBookmark(bookmark)">
+                    <button class="nf-edge-btn left" onclick="scrollRow('row-saved', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
+                    <div class="nf-strip" id="row-saved">
+                        <button v-for="bookmark in filteredBookmarks" :key="'saved-server-' + bookmark.dbId" class="nf-card nf-card-media" @click="playBookmark(bookmark)">
                             <img v-if="bookmark.logo" class="nf-media-image" :src="bookmark.logo" @error="mediaImageError" alt="bookmark image">
                             <div class="nf-media-fallback" :class="{ show: !bookmark.logo }">
                                 {{ bookmark.channelName }}
@@ -120,19 +70,19 @@
                             <div class="nf-card-title nf-media-title">{{ bookmark.channelName }}</div>
                             <div class="nf-card-subtitle nf-media-subtitle"><small>{{ bookmark.accountName }}</small></div>
                         </button>
-                        <div v-if="filteredBookmarks.length === 0" class="nf-empty-card">No bookmarks found.</div>
+                        <div v-if="filteredBookmarks.length === 0" class="nf-empty-card">No favorites found.</div>
                     </div>
-                    <button class="nf-edge-btn right" onclick="scrollRow('row-bookmarks', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
+                    <button class="nf-edge-btn right" onclick="scrollRow('row-saved', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>
 
             <div class="nf-row">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
-                        <button v-if="!isModeState('itv', 'accounts')" class="nf-title-back" @click="goBackMode('itv')" title="Back">
+                        <button class="nf-title-back" :class="{ ghost: isModeState('itv', 'accounts') }" @click="!isModeState('itv', 'accounts') && goBackMode('itv')" title="Back" :aria-disabled="isModeState('itv', 'accounts') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5>Live Channels</h5>
+                        <h5 class="nf-section-title"><i class="bi bi-broadcast-pin"></i><span>Live TV</span></h5>
                     </div>
                 </div>
                 <div class="nf-track-wrap">
@@ -163,10 +113,10 @@
             <div class="nf-row">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
-                        <button v-if="!isModeState('vod', 'accounts')" class="nf-title-back" @click="goBackMode('vod')" title="Back">
+                        <button class="nf-title-back" :class="{ ghost: isModeState('vod', 'accounts') }" @click="!isModeState('vod', 'accounts') && goBackMode('vod')" title="Back" :aria-disabled="isModeState('vod', 'accounts') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5>Video ON Demand</h5>
+                        <h5 class="nf-section-title"><i class="bi bi-film"></i><span>Movies</span></h5>
                     </div>
                 </div>
                 <div class="nf-track-wrap">
@@ -198,10 +148,10 @@
             <div class="nf-row">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
-                        <button v-if="!isModeState('series', 'accounts')" class="nf-title-back" @click="goBackMode('series')" title="Back">
+                        <button class="nf-title-back" :class="{ ghost: isModeState('series', 'accounts') }" @click="!isModeState('series', 'accounts') && goBackMode('series')" title="Back" :aria-disabled="isModeState('series', 'accounts') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5>Series</h5>
+                        <h5 class="nf-section-title"><i class="bi bi-collection-play"></i><span>Series</span></h5>
                     </div>
                 </div>
                 <div class="nf-track-wrap">
@@ -237,50 +187,50 @@
                 </div>
             </div>
 
-            <div class="nf-row">
-                <div class="nf-row-title">
-                    <h5>Favorites</h5>
-                </div>
-                <div class="nf-track-wrap">
-                    <button class="nf-edge-btn left" onclick="scrollRow('row-favorites', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
-                    <div class="nf-strip" id="row-favorites">
-                        <button v-for="fav in filteredFavorites" :key="fav.id + fav.name" class="nf-card nf-card-media" @click="playFavorite(fav)">
-                            <img v-if="fav.logo" class="nf-media-image" :src="fav.logo" @error="mediaImageError" alt="favorite image">
-                            <div class="nf-media-fallback" :class="{ show: !fav.logo }">
-                                {{ fav.name }}
-                            </div>
-                            <div class="nf-media-gradient"></div>
-                            <div class="nf-card-title nf-media-title">
-                                {{ fav.name }}
-                                <span v-if="fav.drmType" class="badge bg-primary ms-2">DRM</span>
-                            </div>
-                            <div class="nf-card-subtitle nf-media-subtitle"><small>{{ fav.accountName || 'Favorite' }}</small></div>
-                        </button>
-                        <div v-if="filteredFavorites.length === 0" class="nf-empty-card">No favorites found.</div>
-                    </div>
-                    <button class="nf-edge-btn right" onclick="scrollRow('row-favorites', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
-                </div>
-            </div>
+            </template>
 
+            <template v-if="isVodDetailOpen">
             <div class="nf-row">
                 <div class="nf-row-title">
-                    <h5>Downloads</h5>
-                </div>
-                <div class="nf-track-wrap">
-                    <button class="nf-edge-btn left" onclick="scrollRow('row-downloads', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
-                    <div class="nf-strip" id="row-downloads">
-                        <a href="/bookmarks.m3u8" class="nf-card nf-download" download>
-                            <div class="nf-card-icon"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
-                            <div class="nf-card-title">Bookmarks Playlist</div>
-                            <div class="nf-card-subtitle">M3U8</div>
-                        </a>
-                        <a href="/iptv.m3u8" class="nf-card nf-download" download>
-                            <div class="nf-card-icon"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
-                            <div class="nf-card-title">Published Playlist</div>
-                            <div class="nf-card-subtitle">M3U8</div>
-                        </a>
+                    <div class="nf-title-with-back">
+                        <button class="nf-title-back" @click="goBackMode('vod')" title="Back">
+                            <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                        <h5 class="nf-section-title"><i class="bi bi-film"></i><span>{{ getVodDetail() ? (getVodDetail().name || 'Movies') : 'Movies' }}</span></h5>
                     </div>
-                    <button class="nf-edge-btn right" onclick="scrollRow('row-downloads', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
+                </div>
+                <div class="nf-series-page">
+                    <div class="nf-series-hero">
+                        <div class="nf-series-poster-wrap">
+                            <img v-if="getVodDetail() && getVodDetail().cover" class="nf-series-poster" :src="getVodDetail().cover" @error="mediaImageError" alt="vod poster">
+                            <div v-else class="nf-series-poster-fallback">No Poster</div>
+                        </div>
+                        <div class="nf-series-meta">
+                            <p v-if="getVodDetail() && getVodDetail().plot">{{ getVodDetail().plot }}</p>
+                            <a
+                                    v-if="getImdbUrl('vod')"
+                                    class="nf-imdb-link"
+                                    :href="getImdbUrl('vod')"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Open on IMDb">
+                                <img class="nf-imdb-logo" src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg" alt="IMDb">
+                                <span>Open on IMDb</span>
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                            <div class="nf-meta-grid">
+                                <div><strong>Rating:</strong> {{ getVodDetail() ? (getVodDetail().rating || 'N/A') : 'N/A' }}</div>
+                                <div><strong>Genre:</strong> {{ getVodDetail() ? (getVodDetail().genre || 'N/A') : 'N/A' }}</div>
+                                <div><strong>Release:</strong> {{ getVodDetail() ? (getVodDetail().releaseDate || 'N/A') : 'N/A' }}</div>
+                                <div><strong>Director:</strong> {{ getVodDetail() ? (getVodDetail().director || 'N/A') : 'N/A' }}</div>
+                                <div><strong>Cast:</strong> {{ getVodDetail() ? (getVodDetail().cast || 'N/A') : 'N/A' }}</div>
+                            </div>
+                            <button class="nf-vod-play-btn" @click="playVodFromDetail">
+                                <i class="bi bi-play-circle-fill"></i>
+                                Play Video
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             </template>
@@ -292,67 +242,16 @@
                         <button class="nf-title-back" @click="goBackMode('series')" title="Back">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5>Series</h5>
+                        <h5 class="nf-section-title"><i class="bi bi-collection-play"></i><span>{{ getSeriesDetail() ? (getSeriesDetail().name || 'Series') : 'Series' }}</span></h5>
                     </div>
                 </div>
                 <div class="nf-series-page">
-                    <section class="nf-player-area nf-series-player-area" v-if="isPlaying && currentChannel && currentChannel.mode === 'series'">
-                        <div id="player-wrapper">
-                            <div :key="playerKey" id="player" @mouseenter="showOverlay = true" @mouseleave="showOverlay = false">
-                                <div id="player-overlay" :style="{ opacity: showOverlay ? 1 : 0 }">
-                                    <div class="d-flex justify-content-between align-items-center w-100">
-                                        <h4 id="headerTitle">{{ currentChannelName }}</h4>
-                                        <div>
-                                            <button class="btn btn-link text-white me-2" @click="toggleFavorite" title="Favorite">
-                                                <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
-                                            </button>
-                                            <div class="dropdown d-inline-block">
-                                                <button class="btn btn-link text-white me-2" type="button" id="resolutionMenuButtonSeries" data-bs-toggle="dropdown" aria-expanded="false" title="Resolutions">
-                                                    <i class="bi bi-gear-fill"></i>
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="resolutionMenuButtonSeries">
-                                                    <li v-for="track in videoTracks" :key="track.id">
-                                                        <a class="dropdown-item" href="#" @click.prevent="switchVideoTrack(track.id)">
-                                                            {{ track.height }}p
-                                                            <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
-                                                        </a>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                            <button class="btn btn-link text-white" @click="stopPlayback" title="Stop">
-                                                <i class="bi bi-stop-circle-fill fs-4"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <video
-                                        v-if="!isYoutube"
-                                        ref="videoPlayerSeries"
-                                        class="nf-video"
-                                        controls
-                                        autoplay
-                                ></video>
-
-                                <iframe
-                                        v-if="isYoutube"
-                                        :src="youtubeSrc"
-                                        frameborder="0"
-                                        allowfullscreen
-                                        allow="autoplay; encrypted-media"
-                                        class="nf-video"
-                                ></iframe>
-                            </div>
-                        </div>
-                    </section>
-
                     <div class="nf-series-hero">
                         <div class="nf-series-poster-wrap">
                             <img v-if="getSeriesDetail() && getSeriesDetail().cover" class="nf-series-poster" :src="getSeriesDetail().cover" @error="mediaImageError" alt="series poster">
                             <div v-else class="nf-series-poster-fallback">No Poster</div>
                         </div>
                         <div class="nf-series-meta">
-                            <h3>{{ getSeriesDetail() ? (getSeriesDetail().name || 'Series') : 'Series' }}</h3>
                             <p v-if="getSeriesDetail() && getSeriesDetail().plot">{{ getSeriesDetail().plot }}</p>
                             <a
                                     v-if="getImdbUrl()"
@@ -421,6 +320,72 @@
         <div class="nf-loading-box">
             <div class="spinner-border text-light" role="status"></div>
             <div class="nf-loading-text">{{ busyMessage }}</div>
+        </div>
+    </div>
+
+    <div v-if="isPlaying" class="nf-player-popup" @click.self="closePlayerPopup">
+        <div class="nf-player-popup-frame" ref="playerModalFrame" @mouseenter="showOverlay = true" @mouseleave="showOverlay = false">
+            <button class="nf-player-close" @click="closePlayerPopup" title="Close">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            <div class="nf-player-top" :style="{ opacity: showOverlay ? 1 : 0 }">
+                <div class="d-flex justify-content-between align-items-center w-100">
+                    <h4 class="nf-player-title">{{ currentChannelName || 'Now Playing' }}</h4>
+                    <div class="d-flex align-items-center nf-player-controls">
+                        <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, toggleFavorite)" title="Favorite">
+                            <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
+                        </button>
+                        <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, reloadPlayback)" title="Reload">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, toggleRepeat)" title="Repeat playback">
+                            <i class="bi" :class="repeatEnabled ? 'bi-repeat-1 text-warning' : 'bi-repeat'"></i>
+                        </button>
+                        <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, togglePictureInPicture)" title="Picture in Picture">
+                            <i class="bi bi-pip"></i>
+                        </button>
+                        <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, requestFullscreenPlayer)" title="Fullscreen">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
+                        <div class="dropdown d-inline-block" v-if="videoTracks && videoTracks.length">
+                            <button class="btn btn-link text-white me-2" type="button" id="resolutionMenuButtonPopup" data-bs-toggle="dropdown" aria-expanded="false" title="Resolutions">
+                                <i class="bi bi-gear-fill"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="resolutionMenuButtonPopup">
+                                <li v-for="track in videoTracks" :key="track.id">
+                                    <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchVideoTrack, track.id)">
+                                        {{ track.height }}p
+                                        <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-link text-white" @click="stopPlayback" title="Stop">
+                            <i class="bi bi-stop-circle-fill fs-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nf-player-media">
+                <video
+                        v-if="!isYoutube"
+                        :key="playerKey"
+                        ref="videoPlayerModal"
+                        class="nf-video"
+                        controls
+                        autoplay
+                ></video>
+
+                <iframe
+                        v-if="isYoutube"
+                        :src="youtubeSrc"
+                        frameborder="0"
+                        allowfullscreen
+                        allow="autoplay; encrypted-media"
+                        class="nf-video"
+                ></iframe>
+            </div>
         </div>
     </div>
 

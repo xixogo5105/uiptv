@@ -16,7 +16,7 @@ public abstract class DbBackedTest {
     }
 
     @TempDir
-    protected Path tempDir;
+    public Path tempDir;
 
     protected File testDbFile;
 

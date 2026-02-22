@@ -7,13 +7,18 @@ import com.uiptv.service.ConfigurationService;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showMessage;
 
 public class UIptvServer {
+    private static final int MIN_HTTP_WORKERS = 20;
     private static HttpServer httpServer;
+    private static ExecutorService httpExecutor;
 
     private static void initialiseServer() throws IOException {
         try {
@@ -25,8 +30,10 @@ public class UIptvServer {
             httpServer = HttpServer.create(httpAddress, 0);
             configureServer(httpServer);
 
-            // Use a thread pool to handle multiple connections (essential for FFmpeg upload + Player requests)
-            httpServer.setExecutor(Executors.newCachedThreadPool());
+            // Ensure at least 20 concurrent worker threads for web/API traffic.
+            int workerThreads = Math.max(MIN_HTTP_WORKERS, Runtime.getRuntime().availableProcessors() * 4);
+            httpExecutor = Executors.newFixedThreadPool(workerThreads, namedThreadFactory("uiptv-http-"));
+            httpServer.setExecutor(httpExecutor);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -60,6 +67,7 @@ public class UIptvServer {
         server.createContext("/channels", new HttpChannelJsonServer());
         server.createContext("/seriesEpisodes", new HttpSeriesEpisodesJsonServer());
         server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
+        server.createContext("/vodDetails", new HttpVodDetailsJsonServer());
         server.createContext("/player", new HttpPlayerJsonServer());
         server.createContext("/bookmarks", new HttpBookmarksJsonServer());
         server.createContext("/playlist.m3u8", new HttpM3u8PlayListServer());
@@ -81,6 +89,19 @@ public class UIptvServer {
 
     public static void stop() throws IOException {
         if (httpServer != null) httpServer.stop(1);
+        if (httpExecutor != null) {
+            httpExecutor.shutdownNow();
+            httpExecutor = null;
+        }
         showMessage("Server Stopped");
+    }
+
+    private static ThreadFactory namedThreadFactory(String prefix) {
+        AtomicInteger sequence = new AtomicInteger(1);
+        return runnable -> {
+            Thread thread = new Thread(runnable, prefix + sequence.getAndIncrement());
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 }

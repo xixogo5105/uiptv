@@ -43,6 +43,13 @@ body {
     color: var(--text);
 }
 
+[data-theme="light"] body {
+    background:
+            linear-gradient(180deg, rgba(249, 251, 255, 0.96), rgba(240, 245, 251, 0.98)),
+            radial-gradient(1000px 560px at 8% -14%, rgba(193, 17, 25, 0.1), transparent 60%),
+            var(--bg);
+}
+
 .myflix-app {
     min-height: 100vh;
     display: flex;
@@ -124,6 +131,10 @@ body {
     margin: 0;
     padding: 0;
     display: block;
+}
+
+.detail-mode .nf-library {
+    padding-top: 20px;
 }
 
 .nf-player-area,
@@ -267,6 +278,52 @@ body {
     margin-bottom: 16px;
 }
 
+.nf-row-pinned {
+    margin: 10px 12px 18px;
+    padding: 12px 0 10px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+}
+
+[data-theme="light"] .nf-row-pinned {
+    border-color: rgba(15, 23, 42, 0.11);
+    background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.97)),
+            radial-gradient(420px 170px at 12% 0%, rgba(193, 17, 25, 0.08), transparent 72%);
+    box-shadow: 0 8px 24px rgba(30, 41, 59, 0.08);
+}
+
+[data-theme="light"] .nf-row-pinned .nf-card {
+    border-color: rgba(15, 23, 42, 0.12);
+    background: rgba(255, 255, 255, 0.96);
+}
+
+[data-theme="light"] .nf-row-pinned .nf-card:hover {
+    background: #ffffff;
+}
+
+[data-theme="light"] .nf-row-pinned .nf-media-gradient {
+    background: linear-gradient(to top, rgba(15, 23, 42, 0.62), rgba(15, 23, 42, 0.14) 45%, rgba(15, 23, 42, 0));
+}
+
+[data-theme="light"] .nf-row-pinned .nf-media-fallback {
+    background: linear-gradient(160deg, #e8eef9, #dce6f4);
+    color: #1b2431;
+}
+
+[data-theme="light"] .nf-row-pinned .nf-media-subtitle {
+    color: rgba(17, 24, 39, 0.88);
+}
+
+.nf-row-pinned .nf-row-title {
+    margin-bottom: 10px;
+}
+
+.nf-row-pinned h5 {
+    padding: 0 16px;
+}
+
 .nf-row h5 {
     margin: 0;
     padding: 0 20px;
@@ -286,19 +343,52 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    padding-left: 16px;
+}
+
+.nf-title-with-back h5 {
+    padding: 0;
+}
+
+.nf-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nf-section-title i {
+    font-size: 1.1rem;
+    opacity: 0.92;
 }
 
 .nf-title-back {
     border: 0;
     background: transparent;
     color: #d5d8df;
-    padding: 0;
+    padding: 2px;
+    min-width: 26px;
     line-height: 1;
     font-size: 1.4rem;
+    border-radius: 999px;
+}
+
+.nf-title-back.ghost {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .nf-title-back:hover {
     color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .nf-title-back {
+    color: #334155;
+}
+
+[data-theme="light"] .nf-title-back:hover {
+    color: #0f172a;
+    background: rgba(15, 23, 42, 0.08);
 }
 
 .nf-row-nav {
@@ -384,6 +474,18 @@ body {
     background: rgba(0, 0, 0, 0.76);
 }
 
+[data-theme="light"] .nf-edge-btn {
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f172a;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+}
+
+[data-theme="light"] .nf-edge-btn:hover {
+    background: rgba(241, 245, 249, 0.98);
+    color: #020617;
+    border-color: rgba(15, 23, 42, 0.22);
+}
+
 .nf-edge-btn.left {
     left: 0;
 }
@@ -427,12 +529,23 @@ body {
     align-items: center;
 }
 
+[data-theme="light"] .nf-card-media {
+    background: #f8fafc;
+}
+
 .nf-media-image {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    object-position: center;
+    padding: 8px;
+    background: linear-gradient(180deg, rgba(16, 18, 24, 0.72), rgba(10, 12, 18, 0.72));
+}
+
+[data-theme="light"] .nf-media-image {
+    background: linear-gradient(180deg, rgba(245, 248, 252, 0.95), rgba(236, 242, 248, 0.92));
 }
 
 .nf-media-fallback {
@@ -466,6 +579,10 @@ body {
     background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.2) 45%, rgba(0, 0, 0, 0));
 }
 
+[data-theme="light"] .nf-media-gradient {
+    background: linear-gradient(to top, rgba(15, 23, 42, 0.56), rgba(15, 23, 42, 0.12) 45%, rgba(15, 23, 42, 0));
+}
+
 .nf-media-title {
     position: relative;
     z-index: 2;
@@ -485,6 +602,14 @@ body {
     color: rgba(245, 245, 245, 0.9);
     width: 100%;
     text-align: center;
+}
+
+[data-theme="light"] .nf-media-title {
+    color: #f8fafc;
+}
+
+[data-theme="light"] .nf-media-subtitle {
+    color: rgba(241, 245, 249, 0.95);
 }
 
 .nf-card-icon {
@@ -603,6 +728,32 @@ body {
     line-height: 1.5;
 }
 
+[data-theme="light"] .nf-series-meta h3 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .nf-series-meta p {
+    color: #334155;
+}
+
+.nf-vod-play-btn {
+    margin-top: 14px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 10px 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nf-vod-play-btn:hover {
+    filter: brightness(1.08);
+}
+
 .nf-imdb-link {
     display: inline-flex;
     align-items: center;
@@ -623,6 +774,17 @@ body {
     background: rgba(245, 197, 24, 0.18);
 }
 
+[data-theme="light"] .nf-imdb-link {
+    color: #7a5b00;
+    border-color: rgba(160, 120, 0, 0.45);
+    background: rgba(245, 197, 24, 0.2);
+}
+
+[data-theme="light"] .nf-imdb-link:hover {
+    color: #5f4600;
+    background: rgba(245, 197, 24, 0.28);
+}
+
 .nf-imdb-logo {
     height: 18px;
     width: auto;
@@ -635,6 +797,10 @@ body {
     gap: 8px 12px;
     font-size: 0.9rem;
     color: #d8dde6;
+}
+
+[data-theme="light"] .nf-meta-grid {
+    color: #1e293b;
 }
 
 .nf-episodes-title {
@@ -763,6 +929,75 @@ body {
     justify-content: center;
 }
 
+.nf-player-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    background: rgba(2, 4, 8, 0.84);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.nf-player-popup-frame {
+    position: relative;
+    width: min(96vw, 1500px);
+    height: min(88vh, 900px);
+    border-radius: 14px;
+    overflow: visible;
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.6);
+}
+
+.nf-player-close {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    z-index: 3;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    background: #e50914;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+
+.nf-player-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    padding: 14px 88px 14px 16px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0));
+    transition: opacity 0.25s ease;
+}
+
+.nf-player-title {
+    margin: 0;
+    color: #fff;
+    font-weight: 700;
+}
+
+.nf-player-controls {
+    margin-right: 24px;
+}
+
+.nf-player-media {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+}
+
 .modal-content {
     border-radius: 12px;
 }
@@ -808,9 +1043,27 @@ body {
         padding: 0 12px;
     }
 
+    .nf-title-with-back {
+        padding-left: 10px;
+        gap: 8px;
+    }
+
+    .nf-section-title {
+        gap: 8px;
+    }
+
+    .nf-section-title i {
+        font-size: 1rem;
+    }
+
     .nf-strip {
         padding: 0 30px 8px;
         gap: 8px;
+    }
+
+    .nf-row-pinned {
+        margin: 8px 8px 16px;
+        border-radius: 12px;
     }
 
     .nf-edge-btn {
@@ -844,5 +1097,26 @@ body {
     .nf-episode-thumb-wrap {
         width: 106px;
         height: 60px;
+    }
+
+    .nf-player-popup {
+        padding: 8px;
+    }
+
+    .nf-player-popup-frame {
+        width: 100%;
+        height: 72vh;
+        border-radius: 10px;
+    }
+
+    .nf-player-media {
+        border-radius: 10px;
+    }
+
+    .nf-player-close {
+        width: 48px;
+        height: 48px;
+        top: -10px;
+        right: -10px;
     }
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v2';
+const CACHE_NAME = 'uiptv-cache-v4';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -25,6 +25,10 @@ self.addEventListener('install', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') {
+    return;
+  }
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname.startsWith('/hls/')) {
     return;
   }
   event.respondWith(

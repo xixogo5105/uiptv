@@ -1,21 +1,20 @@
-const { createApp, ref, computed, onMounted, nextTick } = Vue;
+const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
 
 createApp({
     setup() {
         const searchQuery = ref('');
         const accounts = ref([]);
         const bookmarks = ref([]);
-        const favorites = ref([]);
 
         const createBrowserState = () => ({
-            viewState: ref('accounts'), // accounts, categories, channels, episodes, seriesDetail
+            viewState: ref('accounts'), // accounts, categories, channels, episodes, seriesDetail, vodDetail
             accountId: ref(null),
             accountType: ref(null),
             categoryId: ref(null),
             categories: ref([]),
             channels: ref([]),
             episodes: ref([]),
-            seriesDetail: ref(null),
+            detail: ref(null),
             navigationStack: ref([])
         });
 
@@ -29,19 +28,24 @@ createApp({
         const isPlaying = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
+        const repeatEnabled = ref(false);
+        const lastPlaybackUrl = ref('');
+        const repeatInFlight = ref(false);
 
         const playerKey = ref(0);
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
         const playerInstance = ref(null);
-        const videoPlayerHome = ref(null);
-        const videoPlayerSeries = ref(null);
+        const videoPlayerModal = ref(null);
+        const playerModalFrame = ref(null);
         const videoTracks = ref([]);
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
 
         const theme = ref('system');
         const selectedSeriesSeason = ref('');
+        const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        let unbindSystemThemeListener = null;
 
         const isSupportedAccount = (account) => !!account && (account.type === 'STALKER_PORTAL' || account.type === 'XTREME_API');
 
@@ -59,12 +63,6 @@ createApp({
                 (b.channelName || '').toLowerCase().includes(q) ||
                 (b.accountName || '').toLowerCase().includes(q)
             );
-        });
-
-        const filteredFavorites = computed(() => {
-            if (!searchQuery.value) return favorites.value;
-            const q = searchQuery.value.toLowerCase();
-            return favorites.value.filter(f => (f.name || '').toLowerCase().includes(q));
         });
 
         const filterBySearch = (arr, field) => {
@@ -201,24 +199,43 @@ createApp({
         };
 
         const isModeState = (mode, state) => browsers[mode].viewState.value === state;
-        const getSeriesDetail = () => browsers.series.seriesDetail.value || null;
+        const getSeriesDetail = () => browsers.series.detail.value || null;
+        const getVodDetail = () => browsers.vod.detail.value || null;
         const isSeriesDetailOpen = computed(() => isModeState('series', 'seriesDetail'));
+        const isVodDetailOpen = computed(() => isModeState('vod', 'vodDetail'));
+        const isDetailPageOpen = computed(() => isSeriesDetailOpen.value || isVodDetailOpen.value);
 
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
 
-        const favoriteKey = (item) => {
-            if (!item) return '';
-            const id = String(item.id ?? item.dbId ?? item.channelId ?? '');
-            const name = String(item.name ?? item.channelName ?? '').trim().toLowerCase();
-            const type = item.type ?? (item.accountId && item.categoryId ? 'channel' : 'bookmark');
-            const mode = item.mode || 'itv';
-            return `${type}::${mode}::${id}::${name}`;
+        const resolveAccountName = (accountId) => {
+            const account = accounts.value.find(a => String(a.dbId) === String(accountId));
+            return account?.accountName || '';
+        };
+
+        const resolveAccountId = (accountName) => {
+            const account = accounts.value.find(a => String(a.accountName || '') === String(accountName || ''));
+            return account?.dbId || '';
+        };
+
+        const findBookmarkForChannel = (channel) => {
+            if (!channel) return null;
+            if (channel.bookmarkId || channel.type === 'bookmark') {
+                const byId = bookmarks.value.find(b => String(b.dbId) === String(channel.bookmarkId || channel.id));
+                if (byId) return byId;
+            }
+            const accountName = channel.accountName || resolveAccountName(channel.accountId);
+            const channelId = String(channel.channelId || channel.id || '');
+            const channelName = String(channel.name || channel.channelName || '').trim().toLowerCase();
+            return bookmarks.value.find(b =>
+                String(b.accountName || '') === String(accountName || '') &&
+                String(b.channelId || '') === channelId &&
+                String(b.channelName || '').trim().toLowerCase() === channelName
+            ) || null;
         };
 
         const isCurrentFavorite = computed(() => {
             if (!currentChannel.value) return false;
-            const key = favoriteKey(currentChannel.value);
-            return favorites.value.some(f => favoriteKey(f) === key);
+            return !!findBookmarkForChannel(currentChannel.value);
         });
 
         const themeIcon = computed(() => {
@@ -245,7 +262,7 @@ createApp({
             b.categories.value = [];
             b.channels.value = [];
             b.episodes.value = [];
-            b.seriesDetail.value = null;
+            b.detail.value = null;
             b.navigationStack.value = [];
             b.viewState.value = 'accounts';
             if (mode === 'series') {
@@ -260,7 +277,7 @@ createApp({
             b.categoryId.value = null;
             b.channels.value = [];
             b.episodes.value = [];
-            b.seriesDetail.value = null;
+            b.detail.value = null;
             b.navigationStack.value = [];
 
             try {
@@ -283,7 +300,7 @@ createApp({
             const b = browsers[mode];
             b.categoryId.value = categoryId;
             b.episodes.value = [];
-            b.seriesDetail.value = null;
+            b.detail.value = null;
             b.navigationStack.value = [];
 
             try {
@@ -346,7 +363,7 @@ createApp({
                 state: b.viewState.value,
                 channels: b.channels.value,
                 episodes: b.episodes.value,
-                detail: b.seriesDetail.value
+                detail: b.detail.value
             });
 
             const detail = {
@@ -396,11 +413,75 @@ createApp({
 
             b.episodes.value = enrichEpisodesFromMeta(b.episodes.value, detail);
 
-            b.seriesDetail.value = detail;
+            b.detail.value = detail;
             setDefaultSeriesSeason();
             b.viewState.value = 'seriesDetail';
             searchQuery.value = '';
-            scrollToTop();
+        };
+
+        const openVodDetails = async (vodItem) => {
+            const b = browsers.vod;
+            const channelIdentifier = vodItem.channelId || vodItem.id || vodItem.dbId;
+
+            b.navigationStack.value.push({
+                state: b.viewState.value,
+                channels: b.channels.value,
+                episodes: b.episodes.value,
+                detail: b.detail.value
+            });
+
+            const detail = {
+                name: vodItem.name || 'VOD',
+                cover: vodItem.logo || '',
+                plot: vodItem.description || '',
+                cast: '',
+                director: '',
+                genre: '',
+                releaseDate: vodItem.releaseDate || '',
+                rating: vodItem.rating || '',
+                tmdb: '',
+                imdbUrl: '',
+                duration: vodItem.duration || '',
+                playItem: vodItem
+            };
+            const mergeDetailIfBlank = (target, source, key) => {
+                const current = String(target?.[key] || '').trim();
+                const incoming = String(source?.[key] || '').trim();
+                if (!current && incoming) {
+                    target[key] = incoming;
+                }
+            };
+
+            try {
+                isBusy.value = true;
+                busyMessage.value = 'Loading VOD details...';
+                const response = await fetch(
+                    `${window.location.origin}/vodDetails?accountId=${b.accountId.value}&categoryId=${encodeURIComponent(b.categoryId.value || '')}&channelId=${encodeURIComponent(channelIdentifier || '')}&vodName=${encodeURIComponent(vodItem.name || '')}`
+                );
+                const data = await response.json();
+                if (data?.vodInfo) {
+                    const serverDetail = data.vodInfo;
+                    mergeDetailIfBlank(detail, serverDetail, 'name');
+                    mergeDetailIfBlank(detail, serverDetail, 'cover');
+                    mergeDetailIfBlank(detail, serverDetail, 'plot');
+                    mergeDetailIfBlank(detail, serverDetail, 'cast');
+                    mergeDetailIfBlank(detail, serverDetail, 'director');
+                    mergeDetailIfBlank(detail, serverDetail, 'genre');
+                    mergeDetailIfBlank(detail, serverDetail, 'releaseDate');
+                    mergeDetailIfBlank(detail, serverDetail, 'rating');
+                    mergeDetailIfBlank(detail, serverDetail, 'tmdb');
+                    mergeDetailIfBlank(detail, serverDetail, 'imdbUrl');
+                    mergeDetailIfBlank(detail, serverDetail, 'duration');
+                }
+            } catch (e) {
+                console.error('Failed to load VOD details', e);
+            } finally {
+                isBusy.value = false;
+            }
+
+            b.detail.value = detail;
+            b.viewState.value = 'vodDetail';
+            searchQuery.value = '';
         };
 
         const goBackMode = (mode) => {
@@ -411,14 +492,14 @@ createApp({
                     b.viewState.value = previous.state || 'channels';
                     b.channels.value = previous.channels || b.channels.value;
                     b.episodes.value = previous.episodes || [];
-                    b.seriesDetail.value = previous.detail || null;
+                    b.detail.value = previous.detail || null;
                     searchQuery.value = '';
                     return;
                 }
             }
-            if (b.viewState.value === 'seriesDetail' || b.viewState.value === 'episodes') {
+            if (b.viewState.value === 'seriesDetail' || b.viewState.value === 'vodDetail' || b.viewState.value === 'episodes') {
                 b.viewState.value = 'channels';
-                b.seriesDetail.value = null;
+                b.detail.value = null;
                 if (mode === 'series') {
                     selectedSeriesSeason.value = '';
                 }
@@ -464,9 +545,6 @@ createApp({
 
         const playChannel = (channel, mode = 'itv') => {
             const b = browsers[mode];
-            if (!(mode === 'series' && b.viewState.value === 'seriesDetail')) {
-                scrollToTop();
-            }
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
             currentChannel.value = {
                 id: channelIdentifier,
@@ -481,16 +559,23 @@ createApp({
                 inputstreamaddon: channel.inputstreamaddon,
                 manifestType: channel.manifestType,
                 accountId: b.accountId.value,
+                accountName: resolveAccountName(b.accountId.value),
                 categoryId: b.categoryId.value,
                 type: 'channel',
                 mode,
-                clearKeys: channel.clearKeys
+                clearKeys: channel.clearKeys,
+                playRequestUrl: ''
             };
-            if (mode === 'series' && b.seriesDetail.value) {
+            const playbackUrl = buildPlayerUrlForChannel(channel, mode, b);
+            currentChannel.value.playRequestUrl = playbackUrl;
+            if (mode === 'series' && b.detail.value) {
                 // Keep user on the dedicated series page while episodes are playing.
                 b.viewState.value = 'seriesDetail';
             }
-            startPlayback(buildPlayerUrlForChannel(channel, mode, b));
+            if (mode === 'vod' && b.detail.value) {
+                b.viewState.value = 'vodDetail';
+            }
+            startPlayback(playbackUrl);
         };
 
         const handleModeSelection = async (mode, channel) => {
@@ -500,109 +585,65 @@ createApp({
                     await openSeriesDetails(channel);
                     return;
                 }
-                if (b.seriesDetail.value) {
+                if (b.detail.value) {
                     b.viewState.value = 'seriesDetail';
                 }
             }
+            if (mode === 'vod') {
+                const b = browsers.vod;
+                if (b.viewState.value === 'channels') {
+                    await openVodDetails(channel);
+                    return;
+                }
+                if (b.detail.value) {
+                    b.viewState.value = 'vodDetail';
+                }
+            }
             playChannel(channel, mode);
+        };
+
+        const playVodFromDetail = () => {
+            const b = browsers.vod;
+            const detail = b.detail.value;
+            if (!detail?.playItem) return;
+            playChannel(detail.playItem, 'vod');
         };
 
         const loadBookmarks = async () => {
             try {
                 const response = await fetch(`${window.location.origin}/bookmarks`);
                 bookmarks.value = await response.json();
-                enrichFavoritesFromBookmarks();
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
             }
         };
 
-        const loadFavorites = () => {
-            const stored = localStorage.getItem('uiptv_favorites');
-            if (stored) {
-                favorites.value = JSON.parse(stored);
-                enrichFavoritesFromBookmarks();
-            }
-        };
-
-        const saveFavorites = () => {
-            localStorage.setItem('uiptv_favorites', JSON.stringify(favorites.value));
-        };
-
-        const enrichFavoritesFromBookmarks = () => {
-            if (!favorites.value.length || !bookmarks.value.length) return;
-            const bookmarkById = new Map(bookmarks.value.map(b => [String(b.dbId), b]));
-            let changed = false;
-
-            favorites.value = favorites.value.map(f => {
-                if (f.logo || f.type !== 'bookmark') return f;
-                const bookmark = bookmarkById.get(String(f.id));
-                if (!bookmark || !bookmark.logo) return f;
-                changed = true;
-                return {
-                    ...f,
-                    logo: bookmark.logo,
-                    accountName: f.accountName || bookmark.accountName,
-                    name: f.name || bookmark.channelName
-                };
-            });
-
-            if (changed) saveFavorites();
-        };
-
         const playBookmark = (bookmark) => {
-            scrollToTop();
+            const playbackUrl = `${window.location.origin}/player?bookmarkId=${bookmark.dbId}`;
+            const bookmarkMode = String(bookmark.accountAction || 'itv').toLowerCase();
             currentChannel.value = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
                 logo: bookmark.logo,
                 accountName: bookmark.accountName,
+                accountId: resolveAccountId(bookmark.accountName),
+                categoryId: bookmark.categoryId || '',
+                channelId: bookmark.channelId || '',
+                cmd: bookmark.cmd || '',
+                bookmarkId: bookmark.dbId,
                 type: 'bookmark',
-                mode: 'itv'
+                mode: bookmarkMode,
+                playRequestUrl: playbackUrl
             };
-            startPlayback(`${window.location.origin}/player?bookmarkId=${bookmark.dbId}`);
-        };
-
-        const playFavorite = (fav) => {
-            scrollToTop();
-            const favoriteType = fav.type || (fav.accountId && fav.categoryId ? 'channel' : 'bookmark');
-            currentChannel.value = {
-                ...fav,
-                type: favoriteType,
-                name: fav.name || fav.channelName || ''
-            };
-
-            if (favoriteType === 'channel') {
-                const modeToUse = fav.mode || 'itv';
-                const query = new URLSearchParams();
-                query.set('accountId', fav.accountId || '');
-                query.set('categoryId', fav.categoryId || '');
-                query.set('mode', modeToUse);
-                if (fav.dbId) {
-                    query.set('channelId', fav.dbId);
-                    if (modeToUse === 'series') query.set('seriesId', fav.channelId || fav.id || '');
-                } else {
-                    query.set('channelId', fav.channelId || fav.id || '');
-                    query.set('name', fav.name || '');
-                    query.set('logo', fav.logo || '');
-                    query.set('cmd', fav.cmd || '');
-                    query.set('drmType', fav.drmType || '');
-                    query.set('drmLicenseUrl', fav.drmLicenseUrl || '');
-                    query.set('clearKeysJson', fav.clearKeysJson || '');
-                    query.set('inputstreamaddon', fav.inputstreamaddon || '');
-                    query.set('manifestType', fav.manifestType || '');
-                    if (modeToUse === 'series') query.set('seriesId', fav.channelId || fav.id || '');
-                }
-                startPlayback(`${window.location.origin}/player?${query.toString()}`);
-            } else {
-                startPlayback(`${window.location.origin}/player?bookmarkId=${fav.id}`);
-            }
+            startPlayback(playbackUrl);
         };
 
         const startPlayback = async (url) => {
             await stopPlayback(true);
             playerKey.value++;
             isPlaying.value = true;
+            lastPlaybackUrl.value = url || '';
+            repeatInFlight.value = false;
 
             try {
                 const response = await fetch(url);
@@ -620,6 +661,7 @@ createApp({
         };
 
         const stopPlayback = async (preserveUi = false) => {
+            repeatInFlight.value = false;
             if (playerInstance.value) {
                 try {
                     await playerInstance.value.destroy();
@@ -628,15 +670,76 @@ createApp({
                 }
                 playerInstance.value = null;
             }
-            clearVideoElement(videoPlayerHome.value);
-            clearVideoElement(videoPlayerSeries.value);
+            clearVideoElement(videoPlayerModal.value);
             if (!preserveUi) {
                 isPlaying.value = false;
                 currentChannel.value = null;
+                lastPlaybackUrl.value = '';
             }
             isYoutube.value = false;
             youtubeSrc.value = '';
             videoTracks.value = [];
+        };
+
+        const closePlayerPopup = () => {
+            stopPlayback();
+        };
+
+        const toggleRepeat = () => {
+            repeatEnabled.value = !repeatEnabled.value;
+        };
+
+        const reloadPlayback = async () => {
+            if (!lastPlaybackUrl.value) return;
+            await startPlayback(lastPlaybackUrl.value);
+        };
+
+        const requestFullscreenPlayer = async () => {
+            const node = playerModalFrame.value;
+            if (!node || !document.fullscreenEnabled) return;
+            try {
+                if (document.fullscreenElement) await document.exitFullscreen();
+                else await node.requestFullscreen();
+            } catch (e) {
+                console.warn('Fullscreen request failed', e);
+            }
+        };
+
+        const togglePictureInPicture = async () => {
+            if (isYoutube.value) return;
+            const video = videoPlayerModal.value;
+            if (!video || typeof document.pictureInPictureEnabled === 'undefined') return;
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled) {
+                    await video.requestPictureInPicture();
+                }
+            } catch (e) {
+                console.warn('Picture-in-Picture failed', e);
+            }
+        };
+
+        const tryAutoRepeat = async () => {
+            if (!repeatEnabled.value || !lastPlaybackUrl.value || repeatInFlight.value) return;
+            repeatInFlight.value = true;
+            await sleep(700);
+            try {
+                await startPlayback(lastPlaybackUrl.value);
+            } finally {
+                repeatInFlight.value = false;
+            }
+        };
+
+        const bindPlaybackEvents = (video) => {
+            if (!video || video.dataset.uiptvBound === '1') return;
+            video.addEventListener('ended', () => {
+                tryAutoRepeat();
+            });
+            video.addEventListener('error', () => {
+                tryAutoRepeat();
+            });
+            video.dataset.uiptvBound = '1';
         };
 
         const initPlayer = async (channel) => {
@@ -656,19 +759,32 @@ createApp({
             isYoutube.value = false;
             const video = await resolveActiveVideoElement();
             if (!video) return;
+            bindPlaybackEvents(video);
 
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
             const canNative = video.canPlayType('application/vnd.apple.mpegurl');
             const hasDRM = channel.drm != null;
+            const normalizedUri = String(uri || '').toLowerCase();
+            const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
+            const isHls = manifestType === 'hls' || normalizedUri.includes('.m3u8');
+            const isDash = manifestType === 'mpd' || normalizedUri.includes('.mpd');
+            const isLikelyProgressive =
+                /\.(mkv|mp4|mov|avi|ts|m2ts|webm)(\?|$)/i.test(uri) ||
+                normalizedUri.includes('/live/play/') ||
+                normalizedUri.includes('/play/movie.php');
 
             if (hasDRM) {
                 await loadShaka(channel);
-            } else if (isApple && canNative) {
+            } else if (isLikelyProgressive) {
                 await loadNative(channel);
-            } else if (canNative && uri.endsWith('.m3u8')) {
-                await loadNative(channel);
-            } else {
+            } else if (isDash) {
                 await loadShaka(channel);
+            } else if (isHls) {
+                if (isApple && canNative) await loadNative(channel);
+                else await loadShaka(channel);
+            } else {
+                // Unknown URLs (often redirected Stalker series links) work better with native first.
+                await loadNative(channel);
             }
         };
 
@@ -687,6 +803,7 @@ createApp({
         const loadShaka = async (channel) => {
             const video = await resolveActiveVideoElement();
             if (!video) return;
+            bindPlaybackEvents(video);
 
             shaka.polyfill.installAll();
             if (!shaka.Player.isBrowserSupported()) return;
@@ -720,21 +837,38 @@ createApp({
             if (track) playerInstance.value.selectVariantTrack(track, true);
         };
 
-        const toggleFavorite = () => {
+        const toggleFavorite = async () => {
             if (!currentChannel.value) return;
-            const favoriteItem = {
-                ...currentChannel.value,
-                id: currentChannel.value.id ?? currentChannel.value.dbId,
-                name: currentChannel.value.name || currentChannel.value.channelName || '',
-                type: currentChannel.value.type || (currentChannel.value.accountId && currentChannel.value.categoryId ? 'channel' : 'bookmark'),
-                mode: currentChannel.value.mode || 'itv'
-            };
-
-            const currentKey = favoriteKey(favoriteItem);
-            const index = favorites.value.findIndex(f => favoriteKey(f) === currentKey);
-            if (index === -1) favorites.value.push(favoriteItem);
-            else favorites.value.splice(index, 1);
-            saveFavorites();
+            const existing = findBookmarkForChannel(currentChannel.value);
+            try {
+                if (existing?.dbId) {
+                    await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
+                        method: 'DELETE'
+                    });
+                } else {
+                    await fetch(`${window.location.origin}/bookmarks`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            accountId: currentChannel.value.accountId || '',
+                            categoryId: currentChannel.value.categoryId || '',
+                            mode: currentChannel.value.mode || 'itv',
+                            channelId: currentChannel.value.channelId || currentChannel.value.id || '',
+                            name: currentChannel.value.name || currentChannel.value.channelName || '',
+                            logo: currentChannel.value.logo || '',
+                            cmd: currentChannel.value.cmd || '',
+                            drmType: currentChannel.value.drmType || '',
+                            drmLicenseUrl: currentChannel.value.drmLicenseUrl || '',
+                            clearKeysJson: currentChannel.value.clearKeysJson || '',
+                            inputstreamaddon: currentChannel.value.inputstreamaddon || '',
+                            manifestType: currentChannel.value.manifestType || ''
+                        })
+                    });
+                }
+                await loadBookmarks();
+            } catch (e) {
+                console.error('Failed to update bookmark', e);
+            }
         };
 
         const mediaImageError = (e) => {
@@ -755,15 +889,36 @@ createApp({
             video.load();
         };
 
+        const ensurePlaybackNotPaused = async () => {
+            if (!isPlaying.value || isYoutube.value) return;
+            const video = videoPlayerModal.value;
+            if (!video) return;
+            if (video.paused && !video.ended) {
+                try {
+                    await video.play();
+                } catch (e) {
+                    // Ignore autoplay/focus-related resume issues.
+                }
+            }
+        };
+
+        const onPlayerControlClick = async (event, action, ...args) => {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            if (typeof action === 'function') {
+                await action(...args);
+            }
+            await ensurePlaybackNotPaused();
+        };
+
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         const resolveActiveVideoElement = async () => {
             for (let i = 0; i < 6; i++) {
                 await nextTick();
-                const prefersSeries = isSeriesDetailOpen.value && currentChannel.value?.mode === 'series';
-                const video = prefersSeries
-                    ? (videoPlayerSeries.value || videoPlayerHome.value)
-                    : (videoPlayerHome.value || videoPlayerSeries.value);
+                const video = videoPlayerModal.value;
                 if (video) return video;
                 await sleep(25);
             }
@@ -812,8 +967,8 @@ createApp({
             }
         };
 
-        const getImdbUrl = () => {
-            const detail = getSeriesDetail();
+        const getImdbUrl = (mode = 'series') => {
+            const detail = mode === 'vod' ? getVodDetail() : getSeriesDetail();
             if (!detail) return '';
             if (detail.imdbUrl) return detail.imdbUrl;
             const imdbId = detail.tmdb || '';
@@ -823,8 +978,6 @@ createApp({
             return '';
         };
 
-        const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
-
         const toggleTheme = () => {
             if (theme.value === 'system') theme.value = 'dark';
             else if (theme.value === 'dark') theme.value = 'light';
@@ -833,9 +986,15 @@ createApp({
             applyTheme();
         };
 
+        const getResolvedTheme = () => {
+            if (theme.value === 'system') {
+                return systemThemeQuery?.matches ? 'dark' : 'light';
+            }
+            return theme.value;
+        };
+
         const applyTheme = () => {
-            if (theme.value === 'system') document.documentElement.removeAttribute('data-theme');
-            else document.documentElement.setAttribute('data-theme', theme.value);
+            document.documentElement.setAttribute('data-theme', getResolvedTheme());
         };
 
         const resetApp = () => {
@@ -850,11 +1009,32 @@ createApp({
         onMounted(() => {
             loadAccounts();
             loadBookmarks();
-            loadFavorites();
 
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) theme.value = storedTheme;
             applyTheme();
+
+            if (systemThemeQuery) {
+                const onSystemThemeChange = () => {
+                    if (theme.value === 'system') {
+                        applyTheme();
+                    }
+                };
+                if (typeof systemThemeQuery.addEventListener === 'function') {
+                    systemThemeQuery.addEventListener('change', onSystemThemeChange);
+                    unbindSystemThemeListener = () => systemThemeQuery.removeEventListener('change', onSystemThemeChange);
+                } else if (typeof systemThemeQuery.addListener === 'function') {
+                    systemThemeQuery.addListener(onSystemThemeChange);
+                    unbindSystemThemeListener = () => systemThemeQuery.removeListener(onSystemThemeChange);
+                }
+            }
+        });
+
+        onUnmounted(() => {
+            if (typeof unbindSystemThemeListener === 'function') {
+                unbindSystemThemeListener();
+                unbindSystemThemeListener = null;
+            }
         });
 
         return {
@@ -865,12 +1045,14 @@ createApp({
             filteredModeEpisodes,
             isModeState,
             getSeriesDetail,
+            getVodDetail,
             isSeriesDetailOpen,
+            isVodDetailOpen,
+            isDetailPageOpen,
             seriesSeasonTabs,
             selectedSeriesSeason,
             filteredSeriesDetailEpisodes,
             filteredBookmarks,
-            filteredFavorites,
             getEpisodeDisplayTitle,
             currentChannel,
             currentChannelName,
@@ -881,21 +1063,28 @@ createApp({
             playerKey,
             isYoutube,
             youtubeSrc,
-            videoPlayerHome,
-            videoPlayerSeries,
+            videoPlayerModal,
+            playerModalFrame,
             videoTracks,
             isBusy,
             busyMessage,
             theme,
             themeIcon,
+            repeatEnabled,
 
             loadModeCategories,
             loadModeChannels,
             goBackMode,
             handleModeSelection,
+            playVodFromDetail,
             playBookmark,
-            playFavorite,
             stopPlayback,
+            closePlayerPopup,
+            reloadPlayback,
+            toggleRepeat,
+            togglePictureInPicture,
+            requestFullscreenPlayer,
+            onPlayerControlClick,
             toggleFavorite,
             mediaImageError,
             selectSeriesSeason,

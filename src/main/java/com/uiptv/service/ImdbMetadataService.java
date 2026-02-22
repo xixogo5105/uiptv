@@ -25,6 +25,14 @@ public class ImdbMetadataService {
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId) {
+        return findBestEffortInternal(rawTitle, preferredImdbId, false);
+    }
+
+    public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId) {
+        return findBestEffortInternal(rawTitle, preferredImdbId, true);
+    }
+
+    private JSONObject findBestEffortInternal(String rawTitle, String preferredImdbId, boolean moviePreferred) {
         JSONObject details = new JSONObject();
         if (isBlank(rawTitle) && isBlank(preferredImdbId)) {
             return details;
@@ -56,18 +64,32 @@ public class ImdbMetadataService {
         mergeIfPresent(details, pageDetails, "releaseDate");
         mergeIfPresent(details, pageDetails, "rating");
 
-        JSONObject cinemeta = fetchCinemetaDetails(imdbId);
-        mergeMissing(details, cinemeta, "name");
-        mergeMissing(details, cinemeta, "cover");
-        mergeMissing(details, cinemeta, "plot");
-        mergeMissing(details, cinemeta, "cast");
-        mergeMissing(details, cinemeta, "director");
-        mergeMissing(details, cinemeta, "genre");
-        mergeMissing(details, cinemeta, "releaseDate");
-        mergeMissing(details, cinemeta, "rating");
-        mergeMissing(details, cinemeta, "imdbUrl");
-        if (cinemeta.has("episodesMeta")) {
-            details.put("episodesMeta", cinemeta.getJSONArray("episodesMeta"));
+        JSONObject primaryMeta = moviePreferred ? fetchCinemetaMovieDetails(imdbId) : fetchCinemetaSeriesDetails(imdbId);
+        JSONObject secondaryMeta = moviePreferred ? fetchCinemetaSeriesDetails(imdbId) : fetchCinemetaMovieDetails(imdbId);
+        mergeMissing(details, primaryMeta, "name");
+        mergeMissing(details, primaryMeta, "cover");
+        mergeMissing(details, primaryMeta, "plot");
+        mergeMissing(details, primaryMeta, "cast");
+        mergeMissing(details, primaryMeta, "director");
+        mergeMissing(details, primaryMeta, "genre");
+        mergeMissing(details, primaryMeta, "releaseDate");
+        mergeMissing(details, primaryMeta, "rating");
+        mergeMissing(details, primaryMeta, "imdbUrl");
+        if (primaryMeta.has("episodesMeta")) {
+            details.put("episodesMeta", primaryMeta.getJSONArray("episodesMeta"));
+        }
+
+        mergeMissing(details, secondaryMeta, "name");
+        mergeMissing(details, secondaryMeta, "cover");
+        mergeMissing(details, secondaryMeta, "plot");
+        mergeMissing(details, secondaryMeta, "cast");
+        mergeMissing(details, secondaryMeta, "director");
+        mergeMissing(details, secondaryMeta, "genre");
+        mergeMissing(details, secondaryMeta, "releaseDate");
+        mergeMissing(details, secondaryMeta, "rating");
+        mergeMissing(details, secondaryMeta, "imdbUrl");
+        if (!details.has("episodesMeta") && secondaryMeta.has("episodesMeta")) {
+            details.put("episodesMeta", secondaryMeta.getJSONArray("episodesMeta"));
         }
         return details;
     }
@@ -206,7 +228,7 @@ public class ImdbMetadataService {
         return result;
     }
 
-    private JSONObject fetchCinemetaDetails(String imdbId) {
+    private JSONObject fetchCinemetaSeriesDetails(String imdbId) {
         JSONObject result = new JSONObject();
         try {
             String json = httpGet("https://v3-cinemeta.strem.io/meta/series/" + imdbId + ".json");
@@ -219,40 +241,7 @@ public class ImdbMetadataService {
                 return result;
             }
 
-            result.put("name", meta.optString("name", ""));
-            result.put("cover", meta.optString("poster", ""));
-            result.put("plot", meta.optString("description", ""));
-            result.put("imdbUrl", isNotBlank(meta.optString("imdb_id", "")) ? "https://www.imdb.com/title/" + meta.optString("imdb_id", "") + "/" : "");
-
-            JSONArray genres = meta.optJSONArray("genres");
-            if (genres != null) {
-                result.put("genre", joinStringArray(genres, 6));
-            } else {
-                result.put("genre", meta.optString("genre", ""));
-            }
-
-            JSONArray cast = meta.optJSONArray("cast");
-            if (cast != null) {
-                result.put("cast", joinStringArray(cast, 8));
-            } else {
-                result.put("cast", meta.optString("cast", ""));
-            }
-
-            JSONArray director = meta.optJSONArray("director");
-            if (director != null) {
-                result.put("director", joinStringArray(director, 4));
-            } else {
-                result.put("director", meta.optString("director", ""));
-            }
-
-            String releaseInfo = meta.optString("releaseInfo", "");
-            String released = meta.optString("released", "");
-            if (isNotBlank(releaseInfo)) {
-                result.put("releaseDate", releaseInfo);
-            } else if (isNotBlank(released)) {
-                result.put("releaseDate", released.substring(0, Math.min(10, released.length())));
-            }
-            result.put("rating", meta.optString("imdbRating", ""));
+            applyCinemetaMeta(result, meta);
 
             JSONArray videos = meta.optJSONArray("videos");
             if (videos != null && !videos.isEmpty()) {
@@ -275,6 +264,62 @@ public class ImdbMetadataService {
             // best effort
         }
         return result;
+    }
+
+    private JSONObject fetchCinemetaMovieDetails(String imdbId) {
+        JSONObject result = new JSONObject();
+        try {
+            String json = httpGet("https://v3-cinemeta.strem.io/meta/movie/" + imdbId + ".json");
+            if (isBlank(json)) {
+                return result;
+            }
+            JSONObject root = new JSONObject(json);
+            JSONObject meta = root.optJSONObject("meta");
+            if (meta == null) {
+                return result;
+            }
+            applyCinemetaMeta(result, meta);
+        } catch (Exception ignored) {
+            // best effort
+        }
+        return result;
+    }
+
+    private void applyCinemetaMeta(JSONObject result, JSONObject meta) {
+        result.put("name", meta.optString("name", ""));
+        result.put("cover", meta.optString("poster", ""));
+        result.put("plot", meta.optString("description", ""));
+        result.put("imdbUrl", isNotBlank(meta.optString("imdb_id", "")) ? "https://www.imdb.com/title/" + meta.optString("imdb_id", "") + "/" : "");
+
+        JSONArray genres = meta.optJSONArray("genres");
+        if (genres != null) {
+            result.put("genre", joinStringArray(genres, 6));
+        } else {
+            result.put("genre", meta.optString("genre", ""));
+        }
+
+        JSONArray cast = meta.optJSONArray("cast");
+        if (cast != null) {
+            result.put("cast", joinStringArray(cast, 8));
+        } else {
+            result.put("cast", meta.optString("cast", ""));
+        }
+
+        JSONArray director = meta.optJSONArray("director");
+        if (director != null) {
+            result.put("director", joinStringArray(director, 4));
+        } else {
+            result.put("director", meta.optString("director", ""));
+        }
+
+        String releaseInfo = meta.optString("releaseInfo", "");
+        String released = meta.optString("released", "");
+        if (isNotBlank(releaseInfo)) {
+            result.put("releaseDate", releaseInfo);
+        } else if (isNotBlank(released)) {
+            result.put("releaseDate", released.substring(0, Math.min(10, released.length())));
+        }
+        result.put("rating", meta.optString("imdbRating", ""));
     }
 
     private String joinPersonNames(JSONArray people) {
