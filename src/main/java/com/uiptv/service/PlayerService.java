@@ -19,6 +19,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.AccountType.*;
@@ -44,7 +46,15 @@ public class PlayerService {
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
-        String rawUrl = predefined ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd());
+        String rawUrl;
+        if (predefined) {
+            rawUrl = resolveBestChannelCmd(account, channel);
+        } else if (shouldTryLiveCmdFallback(account, channel)) {
+            rawUrl = fetchStalkerLiveUrlWithFallback(account, channel, series);
+        } else {
+            String originalCmd = resolveBestChannelCmd(account, channel);
+            rawUrl = fetchStalkerPortalUrl(account, series, originalCmd);
+        }
         String finalUrl = normalizeStreamUrl(account, resolveAndProcessUrl(rawUrl));
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
@@ -137,6 +147,8 @@ public class PlayerService {
         }
 
         String resolvedBase = resolvedUrl.substring(0, resolvedQueryIndex);
+        String originalBase = originalUrl.substring(0, originalQueryIndex);
+        String normalizedResolvedBase = normalizeResolvedBase(resolvedBase, originalBase);
         Map<String, String> resolvedParams = parseQueryParams(resolvedUrl.substring(resolvedQueryIndex + 1));
         Map<String, String> originalParams = parseQueryParams(originalUrl.substring(originalQueryIndex + 1));
 
@@ -147,9 +159,40 @@ public class PlayerService {
             }
         });
 
-        String mergedUrl = resolvedBase + "?" + toQueryString(resolvedParams);
+        String mergedUrl = normalizedResolvedBase + "?" + toQueryString(resolvedParams);
         String prefix = !isBlank(resolvedPrefix) ? resolvedPrefix : originalPrefix;
         return isBlank(prefix) ? mergedUrl : prefix + " " + mergedUrl;
+    }
+
+    private static String normalizeResolvedBase(String resolvedBase, String originalBase) {
+        if (isBlank(resolvedBase)) {
+            return resolvedBase;
+        }
+        String trimmed = resolvedBase.trim();
+        if (trimmed.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*") || trimmed.startsWith("//")) {
+            return trimmed;
+        }
+        if (isBlank(originalBase)) {
+            return trimmed;
+        }
+        try {
+            URI originalUri = URI.create(originalBase.trim());
+            URI normalizedOriginal = originalUri;
+            if (originalUri.getScheme() == null || originalUri.getHost() == null) {
+                return trimmed;
+            }
+            if (!normalizedOriginal.getPath().endsWith("/")) {
+                String path = normalizedOriginal.getPath();
+                int idx = path.lastIndexOf('/');
+                String dirPath = idx >= 0 ? path.substring(0, idx + 1) : "/";
+                normalizedOriginal = new URI(normalizedOriginal.getScheme(), normalizedOriginal.getUserInfo(),
+                        normalizedOriginal.getHost(), normalizedOriginal.getPort(), dirPath, null, null);
+            }
+            URI resolvedUri = normalizedOriginal.resolve(trimmed);
+            return resolvedUri.toString();
+        } catch (Exception ignored) {
+            return trimmed;
+        }
     }
 
     private static String extractCmdPrefix(String cmd) {
@@ -207,11 +250,7 @@ public class PlayerService {
     private static String resolveAndProcessUrl(String url) {
         if (isBlank(url)) return url;
 
-        String processedUrl = url;
-        String[] uriParts = url.split(" ");
-        if (uriParts.length > 1) {
-            processedUrl = uriParts[1]; // Original logic to extract the actual URL part
-        }
+        String processedUrl = extractPlayableUrl(url);
 
         // Check if the link is a YouTube video URL
         if (processedUrl != null && (processedUrl.contains("youtube.com/watch?v=") || processedUrl.contains("youtu.be/"))) {
@@ -221,6 +260,31 @@ public class PlayerService {
             }
         }
         return processedUrl;
+    }
+
+    private static String extractPlayableUrl(String raw) {
+        if (isBlank(raw)) {
+            return raw;
+        }
+        String value = raw.trim();
+        String lower = value.toLowerCase();
+
+        if (lower.startsWith("ffmpeg ")) {
+            return value.substring("ffmpeg ".length()).trim();
+        }
+        if (lower.startsWith("ffmpeg+")) {
+            return value.substring("ffmpeg+".length()).trim();
+        }
+        if (lower.startsWith("ffmpeg%20")) {
+            return value.substring("ffmpeg%20".length()).trim();
+        }
+
+        String[] uriParts = value.split(" ");
+        if (uriParts.length > 1) {
+            return uriParts[uriParts.length - 1];
+        }
+
+        return value;
     }
 
     private static String normalizeStreamUrl(Account account, String url) {
@@ -279,6 +343,102 @@ public class PlayerService {
         }
 
         return value;
+    }
+
+    private static String resolveBestChannelCmd(Account account, Channel channel) {
+        if (channel == null) return "";
+        String primary = channel.getCmd();
+        if (account == null) return primary;
+
+        // For Stalker live channels, some portals expose multiple cmd variants and
+        // the first one can contain an empty stream id (stream=), causing 405.
+        if (account.getType() == STALKER_PORTAL && account.getAction() == Account.AccountAction.itv) {
+            String[] candidates = new String[]{channel.getCmd(), channel.getCmd_1(), channel.getCmd_2(), channel.getCmd_3()};
+            for (String c : candidates) {
+                if (isUsableLiveCmd(c)) return c;
+            }
+            return primary;
+        }
+        return primary;
+    }
+
+    private static boolean shouldTryLiveCmdFallback(Account account, Channel channel) {
+        return account != null
+                && account.getType() == STALKER_PORTAL
+                && account.getAction() == Account.AccountAction.itv
+                && channel != null;
+    }
+
+    private String fetchStalkerLiveUrlWithFallback(Account account, Channel channel, String series) {
+        List<String> candidates = getLiveCmdCandidates(channel);
+        String fallbackCmd = resolveBestChannelCmd(account, channel);
+        if (candidates.isEmpty() && !isBlank(fallbackCmd)) {
+            candidates.add(fallbackCmd);
+        }
+
+        LogDisplayUI.addLog("live create_link candidates: " + candidates.size());
+        for (String cmd : candidates) {
+            String resolved = fetchStalkerPortalUrl(account, series, cmd);
+            if (isUsableResolvedLiveUrl(resolved)) {
+                LogDisplayUI.addLog("live create_link selected usable URL");
+                return resolved;
+            }
+            String rescued = rescueResolvedLiveUrlWithCandidates(resolved, candidates);
+            if (isUsableResolvedLiveUrl(rescued)) {
+                LogDisplayUI.addLog("live create_link recovered URL by merging stream param from alternate cmd");
+                return rescued;
+            }
+        }
+
+        LogDisplayUI.addLog("live create_link fallback to original cmd");
+        return isBlank(fallbackCmd) ? channel.getCmd() : fallbackCmd;
+    }
+
+    private static List<String> getLiveCmdCandidates(Channel channel) {
+        List<String> candidates = new ArrayList<>();
+        String[] values = new String[]{channel.getCmd(), channel.getCmd_1(), channel.getCmd_2(), channel.getCmd_3()};
+        for (String value : values) {
+            if (!isBlank(value) && !candidates.contains(value)) {
+                candidates.add(value);
+            }
+        }
+        return candidates;
+    }
+
+    private static boolean isUsableResolvedLiveUrl(String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        String normalized = url.trim().toLowerCase();
+        if (normalized.startsWith("ffmpeg ")) {
+            normalized = normalized.substring("ffmpeg ".length()).trim();
+        }
+        return !normalized.contains("stream=&");
+    }
+
+    private static String rescueResolvedLiveUrlWithCandidates(String resolvedUrl, List<String> candidates) {
+        if (isBlank(resolvedUrl) || candidates == null || candidates.isEmpty()) {
+            return resolvedUrl;
+        }
+        String fixed = resolvedUrl;
+        for (String candidate : candidates) {
+            fixed = mergeMissingQueryParams(fixed, candidate);
+            if (isUsableResolvedLiveUrl(fixed)) {
+                return fixed;
+            }
+        }
+        return fixed;
+    }
+
+    private static boolean isUsableLiveCmd(String cmd) {
+        if (isBlank(cmd)) return false;
+        String normalized = cmd.trim().toLowerCase();
+        if (normalized.startsWith("ffmpeg ")) {
+            normalized = normalized.substring("ffmpeg ".length()).trim();
+        }
+        // Reject known broken pattern with empty stream parameter.
+        if (normalized.contains("stream=&")) return false;
+        return true;
     }
 
 }

@@ -668,6 +668,9 @@ createApp({
                 query.set('name', channel.name || '');
                 query.set('logo', channel.logo || '');
                 query.set('cmd', channel.cmd || '');
+                query.set('cmd_1', channel.cmd_1 || '');
+                query.set('cmd_2', channel.cmd_2 || '');
+                query.set('cmd_3', channel.cmd_3 || '');
                 query.set('drmType', channel.drmType || '');
                 query.set('drmLicenseUrl', channel.drmLicenseUrl || '');
                 query.set('clearKeysJson', channel.clearKeysJson || '');
@@ -785,6 +788,7 @@ createApp({
             await stopPlayback(true);
             playerKey.value++;
             isPlaying.value = true;
+            isBusy.value = false;
             playerLoading.value = true;
             lastPlaybackUrl.value = url || '';
             repeatInFlight.value = false;

@@ -324,7 +324,7 @@
         </section>
     </main>
 
-    <div v-if="isBusy" class="nf-loading-overlay" role="status" aria-live="polite" aria-label="Loading">
+    <div v-if="isBusy && !isPlaying" class="nf-loading-overlay" role="status" aria-live="polite" aria-label="Loading">
         <div class="nf-loading-box">
             <div class="spinner-border text-light" role="status"></div>
             <div class="nf-loading-text">{{ busyMessage }}</div>
@@ -373,9 +373,6 @@
             </div>
 
             <div class="nf-player-media">
-                <div v-if="playerLoading" class="nf-player-loading">
-                    <div class="spinner-border text-light" role="status" aria-label="Loading player"></div>
-                </div>
                 <video
                         v-if="!isYoutube"
                         :key="playerKey"

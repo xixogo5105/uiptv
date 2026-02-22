@@ -5,8 +5,10 @@ import com.uiptv.api.JsonCompliant;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,16 +29,17 @@ public class ServerUtils {
 
     private static Map<String, String> queryToMap(String query) {
         if (query == null) {
-            return null;
+            return Collections.emptyMap();
         }
         Map<String, String> result = new HashMap<>();
         for (String param : query.split("&")) {
-            String[] entry = param.split("=");
-            if (entry.length > 1) {
-                result.put(entry[0], entry[1]);
-            } else {
-                result.put(entry[0], "");
-            }
+            if (param == null || param.isEmpty()) continue;
+            String[] entry = param.split("=", 2);
+            String rawKey = entry[0];
+            String rawValue = entry.length > 1 ? entry[1] : "";
+            String key = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
+            String value = URLDecoder.decode(rawValue, StandardCharsets.UTF_8);
+            result.put(key, value);
         }
         return result;
     }
@@ -52,7 +55,7 @@ public class ServerUtils {
     }
 
     public static String getParam(HttpExchange httpExchange, String key) {
-        Map<String, String> params = queryToMap(httpExchange.getRequestURI().getQuery());
+        Map<String, String> params = queryToMap(httpExchange.getRequestURI().getRawQuery());
         return params.get(key);
     }
 

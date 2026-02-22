@@ -83,6 +83,9 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 channel.setName(getParam(ex, "name"));
                 channel.setLogo(getParam(ex, "logo"));
                 channel.setCmd(getParam(ex, "cmd"));
+                channel.setCmd_1(getParam(ex, "cmd_1"));
+                channel.setCmd_2(getParam(ex, "cmd_2"));
+                channel.setCmd_3(getParam(ex, "cmd_3"));
                 channel.setDrmType(getParam(ex, "drmType"));
                 channel.setDrmLicenseUrl(getParam(ex, "drmLicenseUrl"));
                 channel.setClearKeysJson(getParam(ex, "clearKeysJson"));
