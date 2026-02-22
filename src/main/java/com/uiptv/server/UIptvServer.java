@@ -60,11 +60,13 @@ public class UIptvServer {
         // HLS Stream Server (Memory-based)
         server.createContext("/hls", new HttpHlsFileServer());
         server.createContext("/hls-upload", new HttpHlsUploadServer());
+        server.createContext("/proxy-stream", new HttpProxyStreamServer());
         
         // API JSON servers
         server.createContext("/accounts", new HttpAccountJsonServer());
         server.createContext("/categories", new HttpCategoryJsonServer());
         server.createContext("/channels", new HttpChannelJsonServer());
+        server.createContext("/web/channels", new HttpWebChannelJsonServer());
         server.createContext("/seriesEpisodes", new HttpSeriesEpisodesJsonServer());
         server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
         server.createContext("/vodDetails", new HttpVodDetailsJsonServer());

@@ -10,6 +10,7 @@ import com.uiptv.ui.LogDisplayUI;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -44,7 +45,7 @@ public class PlayerService {
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
         String rawUrl = predefined ? channel.getCmd() : fetchStalkerPortalUrl(account, series, channel.getCmd());
-        String finalUrl = resolveAndProcessUrl(rawUrl);
+        String finalUrl = normalizeStreamUrl(account, resolveAndProcessUrl(rawUrl));
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;
@@ -220,6 +221,64 @@ public class PlayerService {
             }
         }
         return processedUrl;
+    }
+
+    private static String normalizeStreamUrl(Account account, String url) {
+        if (isBlank(url)) {
+            return url;
+        }
+
+        String value = url.trim();
+
+        String scheme = "http";
+        try {
+            String portal = account == null ? null : account.getServerPortalUrl();
+            if (!isBlank(portal)) {
+                URI portalUri = URI.create(portal.trim());
+                if (!isBlank(portalUri.getScheme())) {
+                    scheme = portalUri.getScheme();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+            // Some Stalker providers return https links that are actually served over http.
+            // Align transport with the portal scheme for known playback paths.
+            if (account != null && account.getType() == STALKER_PORTAL
+                    && "http".equalsIgnoreCase(scheme)
+                    && value.toLowerCase().startsWith("https://")
+                    && (value.toLowerCase().contains("/live/play/") || value.toLowerCase().contains("/play/movie.php"))) {
+                return "http://" + value.substring("https://".length());
+            }
+            return value;
+        }
+
+        if (value.startsWith("//")) {
+            return scheme + ":" + value;
+        }
+
+        if (value.startsWith("/")) {
+            try {
+                String portal = account == null ? null : account.getServerPortalUrl();
+                if (!isBlank(portal)) {
+                    URI portalUri = URI.create(portal.trim());
+                    String host = portalUri.getHost();
+                    int port = portalUri.getPort();
+                    if (!isBlank(host)) {
+                        return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            return value;
+        }
+
+        if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
+            return scheme + "://" + value;
+        }
+
+        return value;
     }
 
 }

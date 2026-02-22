@@ -11,6 +11,11 @@ import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -25,6 +30,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String categoryId = getParam(ex, "categoryId");
         String channelId = getParam(ex, "channelId");
         String mode = getParam(ex, "mode");
+        String hvec = getParam(ex, "hvec");
 
         PlayerResponse response;
 
@@ -87,12 +93,39 @@ public class HttpPlayerJsonServer implements HttpHandler {
             response = PlayerService.getInstance().get(account, channel, seriesId);
         }
 
+        String originalUrl = response.getUrl();
+        response.setUrl(resolveWebPlaybackRedirects(mode, normalizeWebPlaybackUrl(mode, originalUrl)));
+
         // Check if transmuxing is needed and enabled
         boolean isFfmpegEnabled = ConfigurationService.getInstance().read().isEnableFfmpegTranscoding();
-        if (isFfmpegEnabled && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl())) {
-            FfmpegService.getInstance().startTransmuxing(response.getUrl());
-            response.setUrl("/hls/stream.m3u8");
-            response.setManifestType("hls");
+        boolean forceWebHls = shouldForceWebHls(mode, response)
+                || shouldForceWebHlsForUrl(mode, originalUrl);
+        if ((isFfmpegEnabled && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl())) || forceWebHls) {
+            boolean hlsReady = false;
+            String sourceUrl = response.getUrl();
+            String transmuxInput = forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl;
+            try {
+                hlsReady = FfmpegService.getInstance().startTransmuxing(transmuxInput, forceWebHls);
+            } catch (Exception ignored) {
+                hlsReady = false;
+            }
+            if (!hlsReady && forceWebHls) {
+                String downgraded = downgradeHttpsToHttp(sourceUrl);
+                if (!downgraded.equals(sourceUrl)) {
+                    try {
+                        hlsReady = FfmpegService.getInstance().startTransmuxing(buildLocalProxyUrl(downgraded), true);
+                        sourceUrl = downgraded;
+                    } catch (Exception ignored) {
+                        hlsReady = false;
+                    }
+                }
+            }
+            if (hlsReady) {
+                response.setUrl(isHvecEnabled(hvec) ? "/hls/stream.m3u8?hvec=1" : "/hls/stream.m3u8");
+                response.setManifestType("hls");
+            } else {
+                response.setUrl(forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl);
+            }
         }
 
         generateJsonResponse(ex, buildJsonResponse(response));
@@ -140,5 +173,151 @@ public class HttpPlayerJsonServer implements HttpHandler {
         } catch (Exception ignored) {
             account.setAction(Account.AccountAction.itv);
         }
+    }
+
+    private boolean isHvecEnabled(String value) {
+        if (isBlank(value)) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase();
+        return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
+    }
+
+    private boolean shouldForceWebHls(String mode, PlayerResponse response) {
+        if (response == null || isBlank(response.getUrl())) {
+            return false;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+            return false;
+        }
+        String url = response.getUrl().toLowerCase();
+        boolean forcedPath = isForcedWebPath(url);
+        if (forcedPath) {
+            return true;
+        }
+        // Skip DRM-only flows for non-forced URLs; keep those in direct player path.
+        if (isNotBlank(response.getDrmType()) || isNotBlank(response.getInputstreamaddon())) {
+            return false;
+        }
+        return false;
+    }
+
+    private String normalizeWebPlaybackUrl(String mode, String url) {
+        if (isBlank(url)) {
+            return url;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+            return url;
+        }
+        String lower = url.toLowerCase();
+        if (lower.startsWith("https://") && (lower.contains("/live/play/") || lower.contains("/play/movie.php"))) {
+            return "http://" + url.substring("https://".length());
+        }
+        return url;
+    }
+
+    private String downgradeHttpsToHttp(String url) {
+        if (isBlank(url)) {
+            return url;
+        }
+        String lower = url.toLowerCase();
+        if (lower.startsWith("https://") && (lower.contains("/live/play/") || lower.contains("/play/movie.php"))) {
+            return "http://" + url.substring("https://".length());
+        }
+        return url;
+    }
+
+    private String buildLocalProxyUrl(String sourceUrl) {
+        String port = ConfigurationService.getInstance().read().getServerPort();
+        if (isBlank(port)) {
+            port = "8888";
+        }
+        return "http://127.0.0.1:" + port + "/proxy-stream?src=" + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
+    }
+
+    private String resolveWebPlaybackRedirects(String mode, String inputUrl) {
+        if (isBlank(inputUrl)) {
+            return inputUrl;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+            return inputUrl;
+        }
+
+        String current = inputUrl;
+        String lower = current.toLowerCase();
+        boolean forceHttpChain = lower.contains("/live/play/") || lower.contains("/play/movie.php");
+        if (!forceHttpChain) {
+            return current;
+        }
+
+        for (int i = 0; i < 5; i++) {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(current);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("User-Agent", "UIPTV/1.0");
+                conn.connect();
+
+                int status = conn.getResponseCode();
+                if (status < 300 || status > 399) {
+                    return current;
+                }
+
+                String location = conn.getHeaderField("Location");
+                if (isBlank(location)) {
+                    return forceHttpChain && current.toLowerCase().startsWith("https://")
+                            ? "http://" + current.substring("https://".length())
+                            : current;
+                }
+
+                URI base = URI.create(current);
+                URI resolved = base.resolve(location);
+                current = resolved.toString();
+                if (forceHttpChain && current.toLowerCase().startsWith("https://")) {
+                    current = "http://" + current.substring("https://".length());
+                } else {
+                    current = downgradeHttpsToHttp(current);
+                }
+            } catch (Exception ignored) {
+                return current;
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        }
+        return current;
+    }
+
+    private boolean shouldForceWebHlsForUrl(String mode, String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+            return false;
+        }
+        return isForcedWebPath(url.toLowerCase());
+    }
+
+    private boolean isForcedWebPath(String url) {
+        if (isBlank(url)) return false;
+        return url.contains("/play/movie.php")
+                || url.contains("/live/play/")
+                || url.contains("type=movie")
+                || url.contains("type=series")
+                || url.contains("extension=mp4")
+                || url.contains("extension=mkv")
+                || url.contains("extension=mpg")
+                || url.contains("extension=mpeg")
+                || url.matches(".*\\.(mpg|mpeg|mkv|avi|wmv)(\\?.*)?$")
+                || url.matches(".*/\\d+(\\?.*)?$");
     }
 }

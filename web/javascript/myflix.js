@@ -2,6 +2,10 @@ const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
 
 createApp({
     setup() {
+        const CHANNEL_BATCH_SIZE = 80;
+        const EPISODE_BATCH_SIZE = 60;
+        const DETAIL_EPISODE_BATCH_SIZE = 30;
+
         const searchQuery = ref('');
         const accounts = ref([]);
         const bookmarks = ref([]);
@@ -15,7 +19,11 @@ createApp({
             channels: ref([]),
             episodes: ref([]),
             detail: ref(null),
-            navigationStack: ref([])
+            navigationStack: ref([]),
+            channelsNextPage: ref(0),
+            channelsHasMore: ref(false),
+            channelsApiOffset: ref(0),
+            channelsLoading: ref(false)
         });
 
         const browsers = {
@@ -26,6 +34,7 @@ createApp({
 
         const currentChannel = ref(null);
         const isPlaying = ref(false);
+        const playerLoading = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
         const repeatEnabled = ref(false);
@@ -74,6 +83,47 @@ createApp({
         const filteredModeCategories = (mode) => filterBySearch(browsers[mode].categories.value, 'title');
         const filteredModeChannels = (mode) => filterBySearch(browsers[mode].channels.value, 'name');
         const filteredModeEpisodes = (mode) => filterBySearch(browsers[mode].episodes.value, 'name');
+        const visibleChannelsByMode = ref({ itv: CHANNEL_BATCH_SIZE, vod: CHANNEL_BATCH_SIZE, series: CHANNEL_BATCH_SIZE });
+        const visibleEpisodesByMode = ref({ itv: EPISODE_BATCH_SIZE, vod: EPISODE_BATCH_SIZE, series: EPISODE_BATCH_SIZE });
+        const visibleSeriesDetailEpisodesCount = ref(DETAIL_EPISODE_BATCH_SIZE);
+
+        const visibleModeChannels = (mode) => {
+            const items = filteredModeChannels(mode);
+            const limit = visibleChannelsByMode.value[mode] || CHANNEL_BATCH_SIZE;
+            return items.slice(0, limit);
+        };
+
+        const visibleModeEpisodes = (mode) => {
+            const items = filteredModeEpisodes(mode);
+            const limit = visibleEpisodesByMode.value[mode] || EPISODE_BATCH_SIZE;
+            return items.slice(0, limit);
+        };
+
+        const hasMoreModeChannels = (mode) => {
+            const localMore = filteredModeChannels(mode).length > (visibleChannelsByMode.value[mode] || CHANNEL_BATCH_SIZE);
+            return localMore || !!browsers[mode]?.channelsHasMore?.value;
+        };
+
+        const hasMoreModeEpisodes = (mode) => {
+            return filteredModeEpisodes(mode).length > (visibleEpisodesByMode.value[mode] || EPISODE_BATCH_SIZE);
+        };
+
+        const loadMoreModeChannels = async (mode) => {
+            const visible = visibleChannelsByMode.value[mode] || CHANNEL_BATCH_SIZE;
+            const loaded = filteredModeChannels(mode).length;
+            if (visible < loaded) {
+                visibleChannelsByMode.value[mode] = visible + CHANNEL_BATCH_SIZE;
+                return;
+            }
+            if (browsers[mode]?.channelsHasMore?.value) {
+                await fetchModeChannelPage(mode, 1);
+                visibleChannelsByMode.value[mode] = visible + CHANNEL_BATCH_SIZE;
+            }
+        };
+
+        const loadMoreModeEpisodes = (mode) => {
+            visibleEpisodesByMode.value[mode] = (visibleEpisodesByMode.value[mode] || EPISODE_BATCH_SIZE) + EPISODE_BATCH_SIZE;
+        };
 
         const resolveEpisodeSeason = (episode) => {
             if (!episode) return '';
@@ -107,14 +157,25 @@ createApp({
             if (!selectedSeriesSeason.value) return episodes;
             return episodes.filter(ep => resolveEpisodeSeason(ep) === selectedSeriesSeason.value);
         });
+        const visibleSeriesDetailEpisodes = computed(() => {
+            return filteredSeriesDetailEpisodes.value.slice(0, visibleSeriesDetailEpisodesCount.value);
+        });
+        const hasMoreSeriesDetailEpisodes = computed(() => {
+            return filteredSeriesDetailEpisodes.value.length > visibleSeriesDetailEpisodesCount.value;
+        });
+        const loadMoreSeriesDetailEpisodes = () => {
+            visibleSeriesDetailEpisodesCount.value += DETAIL_EPISODE_BATCH_SIZE;
+        };
 
         const setDefaultSeriesSeason = () => {
             const tabs = seriesSeasonTabs.value;
             selectedSeriesSeason.value = tabs.length > 0 ? tabs[0].value : '';
+            visibleSeriesDetailEpisodesCount.value = DETAIL_EPISODE_BATCH_SIZE;
         };
 
         const selectSeriesSeason = (season) => {
             selectedSeriesSeason.value = season;
+            visibleSeriesDetailEpisodesCount.value = DETAIL_EPISODE_BATCH_SIZE;
         };
 
         const normalizeTitle = (value) => (value || '')
@@ -254,6 +315,63 @@ createApp({
             }
         };
 
+        const channelIdentityKey = (channel) => {
+            if (!channel) return '';
+            return [
+                String(channel.channelId || ''),
+                String(channel.cmd || ''),
+                String(channel.name || '').trim().toLowerCase()
+            ].join('|');
+        };
+
+        const appendUniqueChannels = (target, incoming) => {
+            const list = Array.isArray(target) ? target : [];
+            const items = Array.isArray(incoming) ? incoming : [];
+            if (!items.length) return list;
+            const seen = new Set(list.map(channelIdentityKey));
+            for (const item of items) {
+                const key = channelIdentityKey(item);
+                if (!seen.has(key)) {
+                    list.push(item);
+                    seen.add(key);
+                }
+            }
+            return list;
+        };
+
+        const fetchModeChannelPage = async (mode, prefetchPages = 1) => {
+            const b = browsers[mode];
+            if (b.channelsLoading.value) return;
+            if (!b.categoryId.value || !b.accountId.value) return;
+
+            b.channelsLoading.value = true;
+            try {
+                const query = new URLSearchParams();
+                query.set('categoryId', b.categoryId.value);
+                query.set('accountId', b.accountId.value);
+                query.set('mode', mode);
+                query.set('page', String(b.channelsNextPage.value || 0));
+                query.set('pageSize', String(CHANNEL_BATCH_SIZE));
+                query.set('prefetchPages', String(prefetchPages));
+                query.set('apiOffset', String(b.channelsApiOffset.value || 0));
+                const response = await fetch(`${window.location.origin}/web/channels?${query.toString()}`);
+                const data = await response.json();
+                const incoming = Array.isArray(data?.items) ? data.items : [];
+                b.channels.value = appendUniqueChannels([...(b.channels.value || [])], incoming);
+                b.channelsNextPage.value = Number.isFinite(Number(data?.nextPage))
+                    ? Number(data.nextPage)
+                    : (b.channelsNextPage.value + Math.max(prefetchPages, 1));
+                b.channelsHasMore.value = !!data?.hasMore;
+                b.channelsApiOffset.value = Number.isFinite(Number(data?.apiOffset))
+                    ? Number(data.apiOffset)
+                    : b.channelsApiOffset.value;
+            } catch (e) {
+                console.error('Failed to load paged channels', e);
+            } finally {
+                b.channelsLoading.value = false;
+            }
+        };
+
         const resetModeState = (mode) => {
             const b = browsers[mode];
             b.accountId.value = null;
@@ -265,8 +383,15 @@ createApp({
             b.detail.value = null;
             b.navigationStack.value = [];
             b.viewState.value = 'accounts';
+            b.channelsNextPage.value = 0;
+            b.channelsHasMore.value = false;
+            b.channelsApiOffset.value = 0;
+            b.channelsLoading.value = false;
+            visibleChannelsByMode.value[mode] = CHANNEL_BATCH_SIZE;
+            visibleEpisodesByMode.value[mode] = EPISODE_BATCH_SIZE;
             if (mode === 'series') {
                 selectedSeriesSeason.value = '';
+                visibleSeriesDetailEpisodesCount.value = DETAIL_EPISODE_BATCH_SIZE;
             }
         };
 
@@ -302,14 +427,17 @@ createApp({
             b.episodes.value = [];
             b.detail.value = null;
             b.navigationStack.value = [];
+            b.channelsNextPage.value = 0;
+            b.channelsHasMore.value = false;
+            b.channelsApiOffset.value = 0;
+            b.channelsLoading.value = false;
 
             try {
                 isBusy.value = true;
                 busyMessage.value = 'Loading channels...';
-                const response = await fetch(
-                    `${window.location.origin}/channels?categoryId=${categoryId}&accountId=${b.accountId.value}&mode=${mode}`
-                );
-                b.channels.value = await response.json();
+                b.channels.value = [];
+                await fetchModeChannelPage(mode, 3);
+                visibleChannelsByMode.value[mode] = CHANNEL_BATCH_SIZE;
                 b.viewState.value = 'channels';
                 searchQuery.value = '';
             } catch (e) {
@@ -328,6 +456,7 @@ createApp({
                     `${window.location.origin}/seriesEpisodes?seriesId=${encodeURIComponent(seriesId)}&accountId=${b.accountId.value}`
                 );
                 b.episodes.value = await response.json();
+                visibleEpisodesByMode.value[mode] = EPISODE_BATCH_SIZE;
                 b.viewState.value = 'episodes';
                 searchQuery.value = '';
             } catch (e) {
@@ -346,6 +475,7 @@ createApp({
                     `${window.location.origin}/channels?categoryId=${b.categoryId.value}&accountId=${b.accountId.value}&mode=${mode}&movieId=${encodeURIComponent(movieId)}`
                 );
                 b.episodes.value = await response.json();
+                visibleEpisodesByMode.value[mode] = EPISODE_BATCH_SIZE;
                 b.viewState.value = 'episodes';
                 searchQuery.value = '';
             } catch (e) {
@@ -493,6 +623,8 @@ createApp({
                     b.channels.value = previous.channels || b.channels.value;
                     b.episodes.value = previous.episodes || [];
                     b.detail.value = previous.detail || null;
+                    visibleChannelsByMode.value[mode] = CHANNEL_BATCH_SIZE;
+                    visibleEpisodesByMode.value[mode] = EPISODE_BATCH_SIZE;
                     searchQuery.value = '';
                     return;
                 }
@@ -509,6 +641,12 @@ createApp({
                 b.viewState.value = 'accounts';
             }
             searchQuery.value = '';
+        };
+
+        const appendPlaybackCompatParams = (query, mode) => {
+            if (!query) return;
+            if (mode !== 'itv' && mode !== 'vod' && mode !== 'series') return;
+            query.set('hvec', canDecodeHevc() ? '1' : '0');
         };
 
         const buildPlayerUrlForChannel = (channel, mode, browserState) => {
@@ -540,6 +678,7 @@ createApp({
                 }
             }
 
+            appendPlaybackCompatParams(query, mode);
             return `${window.location.origin}/player?${query.toString()}`;
         };
 
@@ -619,8 +758,12 @@ createApp({
         };
 
         const playBookmark = (bookmark) => {
-            const playbackUrl = `${window.location.origin}/player?bookmarkId=${bookmark.dbId}`;
             const bookmarkMode = String(bookmark.accountAction || 'itv').toLowerCase();
+            const query = new URLSearchParams();
+            query.set('bookmarkId', bookmark.dbId);
+            query.set('mode', bookmarkMode);
+            appendPlaybackCompatParams(query, bookmarkMode);
+            const playbackUrl = `${window.location.origin}/player?${query.toString()}`;
             currentChannel.value = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
@@ -642,6 +785,7 @@ createApp({
             await stopPlayback(true);
             playerKey.value++;
             isPlaying.value = true;
+            playerLoading.value = true;
             lastPlaybackUrl.value = url || '';
             repeatInFlight.value = false;
 
@@ -649,14 +793,16 @@ createApp({
                 const response = await fetch(url);
                 const channelData = await response.json();
                 if (!channelData?.url && currentChannel.value?.cmd) {
-                    const fallbackUrl = String(currentChannel.value.cmd).trim().replace(/^ffmpeg\s+/i, '');
+                    const fallbackUrl = normalizeWebPlaybackUrl(String(currentChannel.value.cmd).trim().replace(/^ffmpeg\s+/i, ''));
                     await initPlayer({ url: fallbackUrl });
                 } else {
-                    await initPlayer(channelData);
+                    await initPlayer({ ...(channelData || {}), url: normalizeWebPlaybackUrl(channelData?.url) });
                 }
             } catch (e) {
                 console.error('Failed to start playback', e);
                 isPlaying.value = false;
+            } finally {
+                playerLoading.value = false;
             }
         };
 
@@ -676,6 +822,7 @@ createApp({
                 currentChannel.value = null;
                 lastPlaybackUrl.value = '';
             }
+            playerLoading.value = false;
             isYoutube.value = false;
             youtubeSrc.value = '';
             videoTracks.value = [];
@@ -743,7 +890,7 @@ createApp({
         };
 
         const initPlayer = async (channel) => {
-            const uri = channel.url;
+            const uri = normalizeWebPlaybackUrl(channel.url);
             if (!uri) {
                 isPlaying.value = false;
                 return;
@@ -774,27 +921,51 @@ createApp({
                 normalizedUri.includes('/play/movie.php');
 
             if (hasDRM) {
-                await loadShaka(channel);
+                await loadShaka({ ...channel, url: uri });
             } else if (isLikelyProgressive) {
-                await loadNative(channel);
+                await loadNative({ ...channel, url: uri });
             } else if (isDash) {
-                await loadShaka(channel);
+                await loadShaka({ ...channel, url: uri });
             } else if (isHls) {
-                if (isApple && canNative) await loadNative(channel);
-                else await loadShaka(channel);
+                if (isApple && canNative) await loadNative({ ...channel, url: uri });
+                else await loadShaka({ ...channel, url: uri });
             } else {
                 // Unknown URLs (often redirected Stalker series links) work better with native first.
-                await loadNative(channel);
+                await loadNative({ ...channel, url: uri });
             }
+        };
+
+        const normalizeWebPlaybackUrl = (rawUrl) => {
+            const value = String(rawUrl || '').trim();
+            if (!value) return value;
+            const lower = value.toLowerCase();
+            if (lower.startsWith('https://') && (lower.includes('/live/play/') || lower.includes('/play/movie.php'))) {
+                return `http://${value.slice('https://'.length)}`;
+            }
+            return value;
         };
 
         const loadNative = async (channel) => {
             const video = await resolveActiveVideoElement();
             if (video) {
-                video.src = channel.url;
+                let sourceUrl = normalizeWebPlaybackUrl(channel.url);
+                video.src = sourceUrl;
                 try {
                     await video.play();
                 } catch (e) {
+                    const lower = String(sourceUrl || '').toLowerCase();
+                    const canRetryAsHttp = lower.startsWith('https://') &&
+                        (lower.includes('/live/play/') || lower.includes('/play/movie.php'));
+                    if (canRetryAsHttp) {
+                        try {
+                            sourceUrl = `http://${sourceUrl.slice('https://'.length)}`;
+                            video.src = sourceUrl;
+                            await video.play();
+                            return;
+                        } catch (retryErr) {
+                            console.warn('Native playback retry failed.', retryErr);
+                        }
+                    }
                     console.warn('Autoplay was prevented.', e);
                 }
             }
@@ -808,7 +979,7 @@ createApp({
             shaka.polyfill.installAll();
             if (!shaka.Player.isBrowserSupported()) return;
 
-            const player = new shaka.Player(video);
+            const player = new shaka.Player();
             playerInstance.value = player;
 
             player.addEventListener('error', (event) => {
@@ -823,6 +994,7 @@ createApp({
             }
 
             try {
+                await player.attach(video);
                 await player.load(channel.url);
                 videoTracks.value = player.getVariantTracks();
                 autoSelectBestTrack(player);
@@ -1043,6 +1215,12 @@ createApp({
             filteredModeCategories,
             filteredModeChannels,
             filteredModeEpisodes,
+            visibleModeChannels,
+            visibleModeEpisodes,
+            hasMoreModeChannels,
+            hasMoreModeEpisodes,
+            loadMoreModeChannels,
+            loadMoreModeEpisodes,
             isModeState,
             getSeriesDetail,
             getVodDetail,
@@ -1052,12 +1230,15 @@ createApp({
             seriesSeasonTabs,
             selectedSeriesSeason,
             filteredSeriesDetailEpisodes,
+            visibleSeriesDetailEpisodes,
+            hasMoreSeriesDetailEpisodes,
             filteredBookmarks,
             getEpisodeDisplayTitle,
             currentChannel,
             currentChannelName,
             isCurrentFavorite,
             isPlaying,
+            playerLoading,
             showOverlay,
             showBookmarkModal,
             playerKey,
@@ -1088,6 +1269,7 @@ createApp({
             toggleFavorite,
             mediaImageError,
             selectSeriesSeason,
+            loadMoreSeriesDetailEpisodes,
             getImdbUrl,
             toggleTheme,
             resetApp,

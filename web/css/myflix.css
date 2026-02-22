@@ -639,6 +639,17 @@ body {
     white-space: nowrap;
 }
 
+.nf-card-title-only {
+    justify-content: center;
+    text-align: center;
+    padding: 16px 14px;
+}
+
+.nf-card-title-only .nf-card-title {
+    width: 100%;
+    margin-top: 0;
+}
+
 .nf-logo-wrap {
     min-height: 30px;
     display: flex;
@@ -791,6 +802,30 @@ body {
     display: block;
 }
 
+.nf-imdb-rating-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 197, 24, 0.7);
+    background: #f5c518;
+    color: #1b1b1b;
+    text-decoration: none;
+    font-weight: 800;
+    margin-bottom: 12px;
+}
+
+.nf-imdb-rating-pill:hover {
+    color: #111111;
+    background: #ffd64a;
+}
+
+.nf-imdb-rating-value {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
 .nf-meta-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -925,6 +960,30 @@ body {
     text-align: right;
 }
 
+.nf-load-more-card {
+    justify-content: center;
+    min-width: 180px;
+    border-style: dashed;
+}
+
+.nf-load-more-card .nf-card-title {
+    font-weight: 700;
+}
+
+.nf-episode-load-more {
+    border: 1px dashed var(--line);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.nf-episode-load-more:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
 .nf-download {
     justify-content: center;
 }
@@ -987,7 +1046,7 @@ body {
 }
 
 .nf-player-controls {
-    margin-right: 24px;
+    margin-right: 8px;
 }
 
 .nf-player-media {
@@ -996,6 +1055,16 @@ body {
     border-radius: 14px;
     overflow: hidden;
     background: #000;
+}
+
+.nf-player-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
 }
 
 .modal-content {

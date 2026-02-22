@@ -1,6 +1,5 @@
 package com.uiptv.service;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -25,7 +24,11 @@ public class FfmpegService {
         return url != null && url.contains("extension=ts");
     }
 
-    public synchronized void startTransmuxing(String inputUrl) throws IOException {
+    public synchronized boolean startTransmuxing(String inputUrl) throws IOException {
+        return startTransmuxing(inputUrl, false);
+    }
+
+    public synchronized boolean startTransmuxing(String inputUrl, boolean vodStylePlaylist) throws IOException {
         stopTransmuxing();
         InMemoryHlsService.getInstance().clear();
 
@@ -35,17 +38,33 @@ public class FfmpegService {
         String outputUrl = "http://127.0.0.1:" + port + "/hls-upload/" + STREAM_FILENAME;
 
         // Ensure ffmpeg is in PATH
-        ProcessBuilder pb = new ProcessBuilder(
-                "ffmpeg",
-                "-i", inputUrl,
-                "-c", "copy",
-                "-f", "hls",
-                "-hls_time", "2",
-                "-hls_list_size", "5",
-                "-hls_flags", "delete_segments",
-                "-method", "PUT", // Use HTTP PUT method
-                outputUrl
-        );
+        ProcessBuilder pb;
+        if (vodStylePlaylist) {
+            pb = new ProcessBuilder(
+                    "ffmpeg",
+                    "-fflags", "+genpts",
+                    "-i", inputUrl,
+                    "-c", "copy",
+                    "-f", "hls",
+                    "-hls_time", "4",
+                    "-hls_list_size", "0",
+                    "-hls_playlist_type", "vod",
+                    "-hls_flags", "independent_segments",
+                    "-method", "PUT",
+                    outputUrl
+            );
+        } else {
+            pb = new ProcessBuilder(
+                    "ffmpeg",
+                    "-i", inputUrl,
+                    "-c", "copy",
+                    "-f", "hls",
+                    "-hls_time", "2",
+                    "-hls_list_size", "20",
+                    "-method", "PUT",
+                    outputUrl
+            );
+        }
 
         pb.redirectErrorStream(true);
         // We can redirect to a log file in temp if needed, or just discard for now to avoid disk I/O
@@ -55,9 +74,14 @@ public class FfmpegService {
 
         currentProcess = pb.start();
         
-        // Wait for the playlist to appear in memory
+        // Wait for the playlist to appear in memory.
+        // VOD/series startup can be slow on some portals, so allow a longer warm-up.
         int attempts = 0;
-        while (!InMemoryHlsService.getInstance().exists(STREAM_FILENAME) && attempts < 50) { // Wait up to 5 seconds
+        final int maxAttempts = 150; // up to ~15 seconds
+        while (!InMemoryHlsService.getInstance().exists(STREAM_FILENAME) && attempts < maxAttempts) {
+            if (currentProcess == null || !currentProcess.isAlive()) {
+                break;
+            }
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -66,6 +90,8 @@ public class FfmpegService {
             }
             attempts++;
         }
+
+        return InMemoryHlsService.getInstance().exists(STREAM_FILENAME);
     }
 
     public synchronized void stopTransmuxing() {
