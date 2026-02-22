@@ -82,7 +82,7 @@
                         <button class="nf-title-back" :class="{ ghost: isModeState('itv', 'accounts') }" @click="!isModeState('itv', 'accounts') && goBackMode('itv')" title="Back" :aria-disabled="isModeState('itv', 'accounts') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5 class="nf-section-title"><i class="bi bi-broadcast-pin"></i><span>Live TV</span></h5>
+                        <h5 class="nf-section-title"><span>Live TV</span></h5>
                     </div>
                 </div>
                 <div class="nf-track-wrap">
@@ -118,7 +118,7 @@
                         <button class="nf-title-back" :class="{ ghost: isModeState('vod', 'accounts') }" @click="!isModeState('vod', 'accounts') && goBackMode('vod')" title="Back" :aria-disabled="isModeState('vod', 'accounts') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5 class="nf-section-title"><i class="bi bi-film"></i><span>Movies</span></h5>
+                        <h5 class="nf-section-title"><span>Movies</span></h5>
                     </div>
                 </div>
                 <div class="nf-track-wrap">
@@ -155,7 +155,7 @@
                         <button class="nf-title-back" :class="{ ghost: isModeState('series', 'accounts') }" @click="!isModeState('series', 'accounts') && goBackMode('series')" title="Back" :aria-disabled="isModeState('series', 'accounts') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5 class="nf-section-title"><i class="bi bi-collection-play"></i><span>Series</span></h5>
+                        <h5 class="nf-section-title"><span>Series</span></h5>
                     </div>
                 </div>
                 <div class="nf-track-wrap">
@@ -206,7 +206,7 @@
                         <button class="nf-title-back" @click="goBackMode('vod')" title="Back">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5 class="nf-section-title"><i class="bi bi-film"></i><span>{{ getVodDetail() ? (getVodDetail().name || 'Movies') : 'Movies' }}</span></h5>
+                        <h5 class="nf-section-title"><span>{{ getVodDetail() ? (getVodDetail().name || 'Movies') : 'Movies' }}</span></h5>
                     </div>
                 </div>
                 <div class="nf-series-page">
@@ -250,7 +250,7 @@
                         <button class="nf-title-back" @click="goBackMode('series')" title="Back">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
-                        <h5 class="nf-section-title"><i class="bi bi-collection-play"></i><span>{{ getSeriesDetail() ? (getSeriesDetail().name || 'Series') : 'Series' }}</span></h5>
+                        <h5 class="nf-section-title"><span>{{ getSeriesDetail() ? (getSeriesDetail().name || 'Series') : 'Series' }}</span></h5>
                     </div>
                 </div>
                 <div class="nf-series-page">
