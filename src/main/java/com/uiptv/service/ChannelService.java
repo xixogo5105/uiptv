@@ -270,19 +270,20 @@ public class ChannelService {
                 String number = nullSafeString(jsonChannel, "id");
                 String cmd = nullSafeString(jsonChannel, "cmd");
                 String categoryId = nullSafeString(jsonChannel, "tv_genre_id");
+                String preferredLogo = preferredVodLogo(jsonChannel);
 
                 if (account.getAction() == series && isNotBlank(cmd)) {
                     JSONArray seriesArray = jsonChannel.getJSONArray("series");
                     if (seriesArray != null) {
                         for (int j = 0; j < seriesArray.length(); j++) {
-                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, preferredLogo, nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                             channel.setCategoryId(categoryId);
                             resolveLogoIfNeeded(channel);
                             channelList.add(channel);
                         }
                     }
                 } else {
-                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, nullSafeString(jsonChannel, "screenshot_uri"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, preferredLogo, nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                     channel.setCategoryId(categoryId);
                     resolveLogoIfNeeded(channel);
                     channelList.add(channel);
@@ -295,6 +296,17 @@ public class ChannelService {
             showError("Error while processing vod response data");
         }
         return Collections.emptyList();
+    }
+
+    private String preferredVodLogo(JSONObject jsonChannel) {
+        if (jsonChannel == null) {
+            return "";
+        }
+        String logo = nullSafeString(jsonChannel, "screenshot_uri");
+        if (isBlank(logo)) logo = nullSafeString(jsonChannel, "stream_icon");
+        if (isBlank(logo)) logo = nullSafeString(jsonChannel, "cover");
+        if (isBlank(logo)) logo = nullSafeString(jsonChannel, "movie_image");
+        return logo;
     }
 
     public List<Channel> censor(List<Channel> channelList) {

@@ -514,30 +514,53 @@ public class ChannelListUI extends HBox {
         if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
             return value;
         }
+        URI base = resolveBaseUri();
+        String scheme = "https";
+        String host = "";
+        int port = -1;
+        if (base != null) {
+            if (!isBlank(base.getScheme())) scheme = base.getScheme();
+            if (!isBlank(base.getHost())) host = base.getHost();
+            port = base.getPort();
+        }
         if (value.startsWith("//")) {
-            String scheme = "https";
-            try {
-                URI portal = URI.create(account.getServerPortalUrl());
-                if (!isBlank(portal.getScheme())) {
-                    scheme = portal.getScheme();
-                }
-            } catch (Exception ignored) {
-            }
             return scheme + ":" + value;
         }
         if (value.startsWith("/")) {
+            if (!isBlank(host)) {
+                return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+            }
+            return value;
+        }
+        if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
+            return scheme + "://" + value;
+        }
+        if (!isBlank(host)) {
+            String normalized = value.startsWith("./") ? value.substring(2) : value;
+            return scheme + "://" + host + (port > 0 ? ":" + port : "") + "/" + normalized;
+        }
+        return value;
+    }
+
+    private URI resolveBaseUri() {
+        List<String> candidates = List.of(account.getServerPortalUrl(), account.getUrl());
+        for (String candidate : candidates) {
+            if (isBlank(candidate)) continue;
             try {
-                URI portal = URI.create(account.getServerPortalUrl());
-                String scheme = isBlank(portal.getScheme()) ? "https" : portal.getScheme();
-                String host = portal.getHost();
-                int port = portal.getPort();
-                if (!isBlank(host)) {
-                    return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+                URI uri = URI.create(candidate.trim());
+                if (!isBlank(uri.getHost())) {
+                    return uri;
+                }
+                if (isBlank(uri.getScheme())) {
+                    URI withScheme = URI.create("http://" + candidate.trim());
+                    if (!isBlank(withScheme.getHost())) {
+                        return withScheme;
+                    }
                 }
             } catch (Exception ignored) {
             }
         }
-        return value;
+        return null;
     }
 
     private String extractSeason(String title) {
