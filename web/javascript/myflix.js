@@ -50,6 +50,7 @@ createApp({
         const videoTracks = ref([]);
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
+        const modeLoadingCount = ref({ itv: 0, vod: 0, series: 0, bookmarks: 0 });
 
         const theme = ref('system');
         const selectedSeriesSeason = ref('');
@@ -267,6 +268,18 @@ createApp({
         const isDetailPageOpen = computed(() => isSeriesDetailOpen.value || isVodDetailOpen.value);
 
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
+        const isModeLoading = (mode) => Number(modeLoadingCount.value?.[mode] || 0) > 0;
+        const startModeLoading = (mode) => {
+            if (!modeLoadingCount.value[mode]) modeLoadingCount.value[mode] = 0;
+            modeLoadingCount.value[mode] += 1;
+        };
+        const stopModeLoading = (mode) => {
+            if (!modeLoadingCount.value[mode]) {
+                modeLoadingCount.value[mode] = 0;
+                return;
+            }
+            modeLoadingCount.value[mode] = Math.max(0, modeLoadingCount.value[mode] - 1);
+        };
 
         const resolveAccountName = (accountId) => {
             const account = accounts.value.find(a => String(a.dbId) === String(accountId));
@@ -406,6 +419,7 @@ createApp({
             b.navigationStack.value = [];
 
             try {
+                startModeLoading(mode);
                 isBusy.value = true;
                 busyMessage.value = 'Loading categories...';
                 const response = await fetch(
@@ -417,6 +431,7 @@ createApp({
             } catch (e) {
                 console.error('Failed to load categories', e);
             } finally {
+                stopModeLoading(mode);
                 isBusy.value = false;
             }
         };
@@ -433,6 +448,7 @@ createApp({
             b.channelsLoading.value = false;
 
             try {
+                startModeLoading(mode);
                 isBusy.value = true;
                 busyMessage.value = 'Loading channels...';
                 b.channels.value = [];
@@ -443,6 +459,7 @@ createApp({
             } catch (e) {
                 console.error('Failed to load channels', e);
             } finally {
+                stopModeLoading(mode);
                 isBusy.value = false;
             }
         };
@@ -450,6 +467,7 @@ createApp({
         const loadModeEpisodes = async (mode, seriesId) => {
             const b = browsers[mode];
             try {
+                startModeLoading(mode);
                 isBusy.value = true;
                 busyMessage.value = 'Loading episodes...';
                 const response = await fetch(
@@ -462,6 +480,7 @@ createApp({
             } catch (e) {
                 console.error('Failed to load episodes', e);
             } finally {
+                stopModeLoading(mode);
                 isBusy.value = false;
             }
         };
@@ -469,6 +488,7 @@ createApp({
         const loadModeSeriesChildren = async (mode, movieId) => {
             const b = browsers[mode];
             try {
+                startModeLoading(mode);
                 isBusy.value = true;
                 busyMessage.value = 'Loading series...';
                 const response = await fetch(
@@ -481,6 +501,7 @@ createApp({
             } catch (e) {
                 console.error('Failed to load series children', e);
             } finally {
+                stopModeLoading(mode);
                 isBusy.value = false;
             }
         };
@@ -510,43 +531,61 @@ createApp({
                 episodesMeta: []
             };
 
-            try {
-                isBusy.value = true;
-                busyMessage.value = 'Loading series details...';
-                const response = await fetch(
-                    `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${b.accountId.value}&seriesName=${encodeURIComponent(seriesItem.name || '')}`
-                );
-                const data = await response.json();
-                if (data?.seasonInfo) {
-                    Object.assign(detail, data.seasonInfo);
-                    detail.name = data.seasonInfo.name || detail.name;
-                    detail.cover = data.seasonInfo.cover || detail.cover;
-                }
-                if (Array.isArray(data?.episodesMeta)) {
-                    detail.episodesMeta = data.episodesMeta;
-                }
-                if (Array.isArray(data?.episodes) && data.episodes.length > 0) {
-                    b.episodes.value = data.episodes;
-                } else {
-                    b.episodes.value = [];
-                }
-            } catch (e) {
-                console.error('Failed to load series details', e);
-                b.episodes.value = [];
-            } finally {
-                isBusy.value = false;
-            }
-
-            if (b.accountType.value !== 'XTREME_API') {
-                await loadModeSeriesChildren('series', seriesId);
-            }
-
-            b.episodes.value = enrichEpisodesFromMeta(b.episodes.value, detail);
-
             b.detail.value = detail;
-            setDefaultSeriesSeason();
+            b.episodes.value = [];
             b.viewState.value = 'seriesDetail';
             searchQuery.value = '';
+            startModeLoading('series');
+
+            try {
+                if (b.accountType.value === 'XTREME_API') {
+                    const response = await fetch(
+                        `${window.location.origin}/seriesEpisodes?seriesId=${encodeURIComponent(seriesId)}&accountId=${b.accountId.value}`
+                    );
+                    b.episodes.value = await response.json();
+                } else {
+                    const response = await fetch(
+                        `${window.location.origin}/channels?categoryId=${b.categoryId.value}&accountId=${b.accountId.value}&mode=series&movieId=${encodeURIComponent(seriesId)}`
+                    );
+                    b.episodes.value = await response.json();
+                }
+            } catch (e) {
+                console.error('Failed to load series episodes', e);
+                b.episodes.value = [];
+            } finally {
+                stopModeLoading('series');
+            }
+
+            // Fetch heavy metadata in background so episodes become visible ASAP.
+            (async () => {
+                startModeLoading('series');
+                try {
+                    const response = await fetch(
+                        `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${b.accountId.value}&seriesName=${encodeURIComponent(seriesItem.name || '')}`
+                    );
+                    const data = await response.json();
+                    if (data?.seasonInfo) {
+                        Object.assign(detail, data.seasonInfo);
+                        detail.name = data.seasonInfo.name || detail.name;
+                        detail.cover = data.seasonInfo.cover || detail.cover;
+                    }
+                    if (Array.isArray(data?.episodesMeta)) {
+                        detail.episodesMeta = data.episodesMeta;
+                    }
+                    if (Array.isArray(data?.episodes) && data.episodes.length > 0 && (!b.episodes.value || b.episodes.value.length === 0)) {
+                        b.episodes.value = data.episodes;
+                    }
+                    b.episodes.value = enrichEpisodesFromMeta(b.episodes.value, detail);
+                    b.detail.value = { ...detail };
+                    setDefaultSeriesSeason();
+                } catch (e) {
+                    console.error('Failed to load series details', e);
+                } finally {
+                    stopModeLoading('series');
+                }
+            })();
+
+            setDefaultSeriesSeason();
         };
 
         const openVodDetails = async (vodItem) => {
@@ -753,10 +792,13 @@ createApp({
 
         const loadBookmarks = async () => {
             try {
+                startModeLoading('bookmarks');
                 const response = await fetch(`${window.location.origin}/bookmarks`);
                 bookmarks.value = await response.json();
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
+            } finally {
+                stopModeLoading('bookmarks');
             }
         };
 
@@ -1253,6 +1295,7 @@ createApp({
             videoTracks,
             isBusy,
             busyMessage,
+            isModeLoading,
             theme,
             themeIcon,
             repeatEnabled,

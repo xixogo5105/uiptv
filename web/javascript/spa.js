@@ -1,10 +1,9 @@
-const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
 createApp({
     setup() {
-        // State
         const activeTab = ref('bookmarks');
-        const viewState = ref('accounts'); // accounts, categories, channels
+        const viewState = ref('accounts'); // accounts, categories, channels, episodes
         const searchQuery = ref('');
         const contentMode = ref('itv'); // itv, vod, series
 
@@ -13,56 +12,298 @@ createApp({
         const channels = ref([]);
         const episodes = ref([]);
         const bookmarks = ref([]);
-        const favorites = ref([]);
+        const selectedAccountId = ref(null);
 
         const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
         const currentChannel = ref(null);
         const isPlaying = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
+        const listLoading = ref(false);
+        const listLoadingMessage = ref('Loading...');
 
-        // Player State
         const playerKey = ref(0);
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
-        const playerInstance = ref(null); // Will hold Shaka player instance
-        const videoPlayer = ref(null); // Ref to the <video> element
-        const videoTracks = ref([]); // For resolution switching
+        const playerInstance = ref(null);
+        const videoPlayer = ref(null);
+        const videoTracks = ref([]);
+        const repeatEnabled = ref(false);
 
-        // Theme State: 'system', 'dark', 'light'
         const theme = ref('system');
 
-        // Computed
+        const contentModeLabels = {
+            itv: 'Channels',
+            vod: 'Movies',
+            series: 'Series'
+        };
+        const SUPPORTED_MULTI_MODE_TYPES = new Set(['STALKER_PORTAL', 'XTREME_API']);
+
+        const createModeState = () => ({
+            viewState: 'accounts',
+            categoryId: null,
+            categories: [],
+            channels: [],
+            episodes: [],
+            selectedSeason: '',
+            selectedSeriesId: '',
+            detail: null
+        });
+
+        const createStickyStates = () => ({
+            itv: createModeState(),
+            vod: createModeState(),
+            series: createModeState()
+        });
+
+        const stickyStates = ref(createStickyStates());
+
+        const getModeState = (mode = contentMode.value) => stickyStates.value[mode];
+        const selectedSeriesSeason = ref('');
+        const seriesDetail = ref(null);
+        const vodDetail = ref(null);
+        const seriesDetailLoading = ref(false);
+        const vodDetailLoading = ref(false);
+
+        const resolveEpisodeSeason = (episode) => {
+            if (!episode) return '';
+            const rawSeason = String(episode.season || '').trim();
+            if (rawSeason) {
+                const numeric = rawSeason.replace(/[^0-9]/g, '');
+                if (numeric) return String(parseInt(numeric, 10));
+            }
+            const name = String(episode.name || '');
+            const sMatch = name.match(/(?:season|s)\s*([0-9]{1,2})/i);
+            if (sMatch?.[1]) return String(parseInt(sMatch[1], 10));
+            const sxe = name.match(/[sS]\s*([0-9]{1,2})\s*[eE]\s*[0-9]{1,3}/);
+            if (sxe?.[1]) return String(parseInt(sxe[1], 10));
+            const xMatch = name.match(/([0-9]{1,2})\s*x\s*[0-9]{1,3}/i);
+            if (xMatch?.[1]) return String(parseInt(xMatch[1], 10));
+            return '';
+        };
+
+        const normalizeTitle = (value) => (value || '')
+            .toString()
+            .toLowerCase()
+            .replace(/[^a-z0-9 ]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const resolveEpisodeNumber = (episode) => {
+            if (!episode) return '';
+            const raw = String(episode.episodeNum || '').trim();
+            if (raw) {
+                const numeric = raw.replace(/[^0-9]/g, '');
+                if (numeric) return String(parseInt(numeric, 10));
+            }
+            const name = String(episode.name || '');
+            const sxe = name.match(/[sS]\s*([0-9]{1,2})\s*[eE]\s*([0-9]{1,3})/);
+            if (sxe?.[2]) return String(parseInt(sxe[2], 10));
+            const xStyle = name.match(/[0-9]{1,2}\s*x\s*([0-9]{1,3})/i);
+            if (xStyle?.[1]) return String(parseInt(xStyle[1], 10));
+            const ep = name.match(/(?:episode|ep)\s*([0-9]{1,3})/i);
+            if (ep?.[1]) return String(parseInt(ep[1], 10));
+            return '';
+        };
+
+        const cleanEpisodeTitle = (value) => {
+            if (!value) return '';
+            return value
+                .replace(/^\s*season\s*\d+\s*[-:]\s*/i, '')
+                .replace(/^\s*s\d+\s*[-:]\s*/i, '')
+                .replace(/^\s*s\d+\s*e\d+\s*[-:]\s*/i, '')
+                .replace(/^\s*\d+\s*x\s*\d+\s*[-:]\s*/i, '')
+                .trim();
+        };
+
+        const getEpisodeDisplayTitle = (episode, idx = 0) => {
+            const cleaned = cleanEpisodeTitle(String(episode?.name || ''));
+            return cleaned || `Episode ${idx + 1}`;
+        };
+
+        const seriesSeasonTabs = computed(() => {
+            if (contentMode.value !== 'series' || viewState.value !== 'episodes') return [];
+            const unique = new Set();
+            for (const episode of (episodes.value || [])) {
+                const season = resolveEpisodeSeason(episode);
+                if (season) unique.add(season);
+            }
+            return Array.from(unique)
+                .sort((a, b) => Number(a) - Number(b))
+                .map(s => ({ value: s, label: `Season ${s}` }));
+        });
+
+        const ensureSeriesSeasonSelected = () => {
+            if (contentMode.value !== 'series' || viewState.value !== 'episodes') return;
+            const tabs = seriesSeasonTabs.value;
+            if (!tabs.length) {
+                selectedSeriesSeason.value = '';
+                const modeState = getModeState('series');
+                modeState.selectedSeason = '';
+                return;
+            }
+            const exists = tabs.some(t => t.value === selectedSeriesSeason.value);
+            if (!exists) {
+                selectedSeriesSeason.value = tabs[0].value;
+            }
+            const modeState = getModeState('series');
+            modeState.selectedSeason = selectedSeriesSeason.value;
+        };
+
+        const selectSeriesSeason = (season) => {
+            selectedSeriesSeason.value = String(season || '');
+            const modeState = getModeState('series');
+            modeState.selectedSeason = selectedSeriesSeason.value;
+        };
+
+        const getEpisodeSubtitle = (episode) => {
+            const parts = [];
+            const season = resolveEpisodeSeason(episode);
+            const epNum = resolveEpisodeNumber(episode);
+            if (season || epNum) {
+                const s = season ? `S${String(season).padStart(2, '0')}` : '';
+                const e = epNum ? `E${String(epNum).padStart(2, '0')}` : '';
+                parts.push([s, e].filter(Boolean).join(' · '));
+            }
+            if (episode?.releaseDate) parts.push(`Release: ${formatShortDate(episode.releaseDate)}`);
+            if (episode?.duration) parts.push(`Duration: ${episode.duration}`);
+            if (episode?.description) parts.push(episode.description);
+            return parts.join('\n');
+        };
+
+        const formatShortDate = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            const d = new Date(raw);
+            if (!Number.isNaN(d.getTime())) {
+                const day = new Intl.DateTimeFormat('en', { day: 'numeric', timeZone: 'UTC' }).format(d);
+                const month = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(d);
+                const year = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'UTC' }).format(d);
+                return `${day} ${month} ${year}`;
+            }
+            const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) {
+                const tmp = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
+                if (!Number.isNaN(tmp.getTime())) {
+                    const day = new Intl.DateTimeFormat('en', { day: 'numeric', timeZone: 'UTC' }).format(tmp);
+                    const month = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(tmp);
+                    return `${day} ${month} ${m[1]}`;
+                }
+            }
+            return raw;
+        };
+
+        const enrichEpisodesFromMeta = (items, detail) => {
+            const episodesList = Array.isArray(items) ? items : [];
+            const metaList = Array.isArray(detail?.episodesMeta) ? detail.episodesMeta : [];
+            if (!episodesList.length || !metaList.length) return episodesList;
+
+            const bySeasonEpisode = new Map();
+            const byTitle = new Map();
+            for (const row of metaList) {
+                const season = String(row?.season || '').replace(/[^0-9]/g, '');
+                const episodeNum = String(row?.episodeNum || '').replace(/[^0-9]/g, '');
+                if (season && episodeNum) {
+                    bySeasonEpisode.set(`${parseInt(season, 10)}:${parseInt(episodeNum, 10)}`, row);
+                }
+                const titleKey = normalizeTitle(row?.title || '');
+                if (titleKey) byTitle.set(titleKey, row);
+            }
+
+            return episodesList.map((episode) => {
+                const season = resolveEpisodeSeason(episode);
+                const epNum = resolveEpisodeNumber(episode);
+                let meta = null;
+                if (season && epNum) {
+                    meta = bySeasonEpisode.get(`${season}:${epNum}`) || null;
+                }
+                if (!meta) {
+                    meta = byTitle.get(normalizeTitle(cleanEpisodeTitle(episode?.name || ''))) || null;
+                }
+                if (!meta) return episode;
+                return {
+                    ...episode,
+                    logo: resolveLogoUrl(meta.logo || episode.logo),
+                    description: episode.description || meta.plot || '',
+                    releaseDate: episode.releaseDate || meta.releaseDate || '',
+                    season: episode.season || meta.season || '',
+                    episodeNum: episode.episodeNum || meta.episodeNum || ''
+                };
+            });
+        };
+
+        const mergeDetailIfBlank = (target, source, key) => {
+            const current = String(target?.[key] || '').trim();
+            const incoming = String(source?.[key] || '').trim();
+            if (!current && incoming) target[key] = incoming;
+        };
+
+        const getImdbUrl = () => {
+            const detail = contentMode.value === 'vod' ? vodDetail.value : seriesDetail.value;
+            if (!detail) return '';
+            if (detail.imdbUrl) return detail.imdbUrl;
+            const imdbId = detail.tmdb || '';
+            if (/^tt\d+$/i.test(imdbId)) return `https://www.imdb.com/title/${imdbId}/`;
+            return '';
+        };
+
+        const applyModeState = (mode = contentMode.value) => {
+            const state = getModeState(mode);
+            categories.value = [...(state.categories || [])];
+            channels.value = [...(state.channels || [])];
+            episodes.value = [...(state.episodes || [])];
+            currentContext.value.categoryId = state.categoryId || null;
+            viewState.value = state.viewState === 'accounts' ? 'categories' : state.viewState;
+            if (mode === 'series') {
+                selectedSeriesSeason.value = state.selectedSeason || '';
+                seriesDetail.value = state.detail || null;
+                ensureSeriesSeasonSelected();
+            } else if (mode === 'vod') {
+                vodDetail.value = state.detail || null;
+            }
+        };
+
         const searchPlaceholder = computed(() => {
             if (activeTab.value === 'accounts') {
                 if (viewState.value === 'accounts') return 'Search accounts...';
                 if (viewState.value === 'categories') return 'Search categories...';
-                if (viewState.value === 'channels') return 'Search channels...';
+                if (viewState.value === 'channels') return `Search ${contentModeLabels[contentMode.value].toLowerCase()}...`;
+                if (viewState.value === 'episodes') return 'Search episodes...';
             }
             if (activeTab.value === 'bookmarks') return 'Search bookmarks...';
-            if (activeTab.value === 'favorites') return 'Search favorites...';
-            if (activeTab.value === 'downloads') return 'Search downloads...';
             return 'Search...';
+        });
+
+        const supportsVodSeriesForSelectedAccount = computed(() => {
+            const accountType = String(currentContext.value.accountType || '').toUpperCase();
+            return SUPPORTED_MULTI_MODE_TYPES.has(accountType);
         });
 
         const filteredAccounts = computed(() => {
             if (!searchQuery.value) return accounts.value;
-            return accounts.value.filter(a => a.accountName.toLowerCase().includes(searchQuery.value.toLowerCase()));
+            return accounts.value.filter(a => (a.accountName || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
         });
 
         const filteredCategories = computed(() => {
             if (!searchQuery.value) return categories.value;
-            return categories.value.filter(c => c.title.toLowerCase().includes(searchQuery.value.toLowerCase()));
+            return categories.value.filter(c => (c.title || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
         });
 
         const filteredChannels = computed(() => {
             if (!searchQuery.value) return channels.value;
-            return channels.value.filter(c => c.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
+            return channels.value.filter(c => (c.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
         });
 
         const filteredEpisodes = computed(() => {
             if (!searchQuery.value) return episodes.value;
-            return episodes.value.filter(c => c.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
+            return episodes.value.filter(c => (c.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
+        });
+
+        const filteredSeriesEpisodes = computed(() => {
+            if (contentMode.value !== 'series' || viewState.value !== 'episodes') return filteredEpisodes.value;
+            const list = filteredEpisodes.value || [];
+            if (!selectedSeriesSeason.value) return list;
+            return list.filter(ep => resolveEpisodeSeason(ep) === selectedSeriesSeason.value);
         });
 
         const filteredBookmarks = computed(() => {
@@ -74,25 +315,56 @@ createApp({
             );
         });
 
-        const filteredFavorites = computed(() => {
-            if (!searchQuery.value) return favorites.value;
-            return favorites.value.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
-        });
-
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
 
-        const favoriteKey = (item) => {
-            if (!item) return '';
-            const id = String(item.id ?? item.dbId ?? '');
-            const name = String(item.name ?? item.channelName ?? '').trim().toLowerCase();
-            const type = item.type ?? (item.accountId && item.categoryId ? 'channel' : 'bookmark');
-            return `${type}::${id}::${name}`;
+        const resolveAccountName = (accountId) => {
+            const account = accounts.value.find(a => String(a.dbId) === String(accountId));
+            return account?.accountName || '';
+        };
+
+        const resolveAccountId = (accountName) => {
+            const account = accounts.value.find(a => String(a.accountName || '') === String(accountName || ''));
+            return account?.dbId || '';
+        };
+
+        const resolveLogoUrl = (logo) => {
+            const raw = String(logo || '').trim();
+            if (!raw) return '';
+            if (/^(data:|blob:|https?:\/\/|file:)/i.test(raw)) return raw;
+            if (raw.startsWith('//')) return `${window.location.protocol}${raw}`;
+            if (raw.startsWith('/')) return `${window.location.origin}${raw}`;
+            return `${window.location.origin}/${raw.replace(/^\.?\//, '')}`;
+        };
+
+        const normalizeChannel = (channel = {}) => ({
+            ...channel,
+            logo: resolveLogoUrl(channel.logo)
+        });
+
+        const normalizeBookmark = (bookmark = {}) => ({
+            ...bookmark,
+            logo: resolveLogoUrl(bookmark.logo)
+        });
+
+        const findBookmarkForChannel = (channel) => {
+            if (!channel) return null;
+            if (channel.bookmarkId || channel.type === 'bookmark') {
+                const byId = bookmarks.value.find(b => String(b.dbId) === String(channel.bookmarkId || channel.id));
+                if (byId) return byId;
+            }
+            const accountName = channel.accountName || resolveAccountName(channel.accountId);
+            const channelId = String(channel.channelId || channel.id || '');
+            const channelName = String(channel.name || channel.channelName || '').trim().toLowerCase();
+            return bookmarks.value.find(b =>
+                String(b.accountName || '') === String(accountName || '') &&
+                String(b.channelId || '') === channelId &&
+                String(b.channelName || '').trim().toLowerCase() === channelName
+            ) || null;
         };
 
         const isCurrentFavorite = computed(() => {
             if (!currentChannel.value) return false;
-            const key = favoriteKey(currentChannel.value);
-            return favorites.value.some(f => favoriteKey(f) === key);
+            return !!findBookmarkForChannel(currentChannel.value);
         });
 
         const themeIcon = computed(() => {
@@ -102,131 +374,276 @@ createApp({
             return 'bi-display';
         });
 
-        // Methods
         const loadAccounts = async () => {
             try {
-                const response = await fetch(window.location.origin + "/accounts");
+                const response = await fetch(window.location.origin + '/accounts');
                 accounts.value = await response.json();
             } catch (e) {
-                console.error("Failed to load accounts", e);
+                console.error('Failed to load accounts', e);
             }
         };
 
-        const loadCategories = async (accountId) => {
-            const selected = typeof accountId === 'object'
-                ? accountId
-                : accounts.value.find(a => a.dbId === accountId);
-            currentContext.value.accountId = selected?.dbId || accountId;
+        const loadCategories = async (accountIdOrObj, forceReload = false) => {
+            const selected = typeof accountIdOrObj === 'object'
+                ? accountIdOrObj
+                : accounts.value.find(a => String(a.dbId) === String(accountIdOrObj));
+
+            currentContext.value.accountId = selected?.dbId || accountIdOrObj;
             currentContext.value.accountType = selected?.type || null;
+            const modeState = getModeState(contentMode.value);
+
+            if (!forceReload && modeState.categories.length > 0) {
+                applyModeState(contentMode.value);
+                searchQuery.value = '';
+                return;
+            }
+
             try {
+                listLoading.value = true;
+                listLoadingMessage.value = 'Loading categories...';
                 const response = await fetch(
-                    window.location.origin + "/categories?accountId=" + currentContext.value.accountId + "&mode=" + contentMode.value
+                    `${window.location.origin}/categories?accountId=${currentContext.value.accountId}&mode=${contentMode.value}`
                 );
                 categories.value = await response.json();
                 channels.value = [];
                 episodes.value = [];
                 viewState.value = 'categories';
+                modeState.categories = [...categories.value];
+                modeState.channels = [];
+                modeState.episodes = [];
+                modeState.categoryId = null;
+                modeState.viewState = 'categories';
+                modeState.selectedSeason = '';
+                modeState.selectedSeriesId = '';
+                modeState.detail = null;
+                if (contentMode.value === 'series') {
+                    selectedSeriesSeason.value = '';
+                    seriesDetail.value = null;
+                    seriesDetailLoading.value = false;
+                } else if (contentMode.value === 'vod') {
+                    vodDetail.value = null;
+                    vodDetailLoading.value = false;
+                }
                 searchQuery.value = '';
             } catch (e) {
-                console.error("Failed to load categories", e);
+                console.error('Failed to load categories', e);
+            } finally {
+                listLoading.value = false;
             }
         };
 
-        const loadChannels = async (categoryId) => {
+        const loadChannels = async (categoryId, forceReload = false) => {
             currentContext.value.categoryId = categoryId;
-            try {
-                const response = await fetch(
-                    window.location.origin + "/channels?categoryId=" + categoryId + "&accountId=" + currentContext.value.accountId + "&mode=" + contentMode.value
-                );
-                channels.value = await response.json();
+            const modeState = getModeState(contentMode.value);
+            if (!forceReload &&
+                String(modeState.categoryId || '') === String(categoryId || '') &&
+                modeState.channels.length > 0) {
+                channels.value = [...modeState.channels];
                 episodes.value = [];
                 viewState.value = 'channels';
+                modeState.viewState = 'channels';
+                searchQuery.value = '';
+                return;
+            }
+            try {
+                listLoading.value = true;
+                listLoadingMessage.value = 'Loading channels...';
+                const response = await fetch(
+                    `${window.location.origin}/channels?categoryId=${categoryId}&accountId=${currentContext.value.accountId}&mode=${contentMode.value}`
+                );
+                channels.value = (await response.json()).map(normalizeChannel);
+                episodes.value = [];
+                viewState.value = 'channels';
+                modeState.categoryId = categoryId;
+                modeState.channels = [...channels.value];
+                modeState.episodes = [];
+                modeState.viewState = 'channels';
+                modeState.selectedSeason = '';
+                modeState.selectedSeriesId = '';
+                modeState.detail = null;
+                if (contentMode.value === 'series') {
+                    selectedSeriesSeason.value = '';
+                    seriesDetail.value = null;
+                    seriesDetailLoading.value = false;
+                } else if (contentMode.value === 'vod') {
+                    vodDetail.value = null;
+                    vodDetailLoading.value = false;
+                }
                 searchQuery.value = '';
             } catch (e) {
-                console.error("Failed to load channels", e);
+                console.error('Failed to load channels', e);
+            } finally {
+                listLoading.value = false;
             }
         };
 
         const loadSeriesEpisodes = async (seriesId) => {
+            viewState.value = 'episodes';
+            episodes.value = [];
+            const modeState = getModeState('series');
             try {
+                listLoading.value = true;
+                listLoadingMessage.value = 'Loading episodes...';
                 const response = await fetch(
-                    window.location.origin + "/seriesEpisodes?seriesId=" + encodeURIComponent(seriesId) + "&accountId=" + currentContext.value.accountId
+                    `${window.location.origin}/seriesEpisodes?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}`
                 );
-                episodes.value = await response.json();
+                episodes.value = (await response.json()).map(normalizeChannel);
                 viewState.value = 'episodes';
+                episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
+                modeState.episodes = [...episodes.value];
+                modeState.viewState = 'episodes';
                 searchQuery.value = '';
+                selectedSeriesSeason.value = modeState.selectedSeason || '';
+                ensureSeriesSeasonSelected();
             } catch (e) {
-                console.error("Failed to load series episodes", e);
+                console.error('Failed to load series episodes', e);
+            } finally {
+                listLoading.value = false;
             }
+        };
+
+        const loadSeriesChildren = async (movieId) => {
+            viewState.value = 'episodes';
+            episodes.value = [];
+            const modeState = getModeState('series');
+            try {
+                listLoading.value = true;
+                listLoadingMessage.value = 'Loading episodes...';
+                const response = await fetch(
+                    `${window.location.origin}/channels?categoryId=${currentContext.value.categoryId}&accountId=${currentContext.value.accountId}&mode=series&movieId=${encodeURIComponent(movieId)}`
+                );
+                episodes.value = (await response.json()).map(normalizeChannel);
+                viewState.value = 'episodes';
+                episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
+                modeState.episodes = [...episodes.value];
+                modeState.viewState = 'episodes';
+                searchQuery.value = '';
+                selectedSeriesSeason.value = modeState.selectedSeason || '';
+                ensureSeriesSeasonSelected();
+            } catch (e) {
+                console.error('Failed to load series children', e);
+            } finally {
+                listLoading.value = false;
+            }
+        };
+
+        const openVodDetails = async (vodItem) => {
+            const modeState = getModeState('vod');
+            const channelIdentifier = vodItem.channelId || vodItem.id || vodItem.dbId;
+            const detail = {
+                name: vodItem.name || 'VOD',
+                cover: resolveLogoUrl(vodItem.logo || ''),
+                plot: vodItem.description || '',
+                cast: '',
+                director: '',
+                genre: '',
+                releaseDate: vodItem.releaseDate || '',
+                rating: vodItem.rating || '',
+                tmdb: '',
+                imdbUrl: '',
+                duration: vodItem.duration || '',
+                playItem: vodItem
+            };
+
+            modeState.detail = detail;
+            modeState.selectedSeriesId = String(channelIdentifier || '');
+            modeState.viewState = 'vodDetail';
+            vodDetail.value = detail;
+            viewState.value = 'vodDetail';
+            searchQuery.value = '';
+            vodDetailLoading.value = true;
+
+            // Lazy-load heavy metadata in background.
+            (async () => {
+                try {
+                    const response = await fetch(
+                        `${window.location.origin}/vodDetails?accountId=${currentContext.value.accountId}&categoryId=${encodeURIComponent(currentContext.value.categoryId || '')}&channelId=${encodeURIComponent(channelIdentifier || '')}&vodName=${encodeURIComponent(vodItem.name || '')}`
+                    );
+                    const data = await response.json();
+                    if (String(modeState.selectedSeriesId || '') !== String(channelIdentifier || '')) return;
+                    if (data?.vodInfo) {
+                        const serverDetail = data.vodInfo;
+                        mergeDetailIfBlank(detail, serverDetail, 'name');
+                        mergeDetailIfBlank(detail, serverDetail, 'cover');
+                        mergeDetailIfBlank(detail, serverDetail, 'plot');
+                        mergeDetailIfBlank(detail, serverDetail, 'cast');
+                        mergeDetailIfBlank(detail, serverDetail, 'director');
+                        mergeDetailIfBlank(detail, serverDetail, 'genre');
+                        mergeDetailIfBlank(detail, serverDetail, 'releaseDate');
+                        mergeDetailIfBlank(detail, serverDetail, 'rating');
+                        mergeDetailIfBlank(detail, serverDetail, 'tmdb');
+                        mergeDetailIfBlank(detail, serverDetail, 'imdbUrl');
+                        mergeDetailIfBlank(detail, serverDetail, 'duration');
+                    }
+                    modeState.detail = { ...detail };
+                    vodDetail.value = modeState.detail;
+                } catch (e) {
+                    console.error('Failed to load VOD details', e);
+                } finally {
+                    vodDetailLoading.value = false;
+                }
+            })();
+        };
+
+        const playVodFromDetail = () => {
+            const detail = vodDetail.value;
+            if (!detail?.playItem) return;
+            playChannel(detail.playItem);
         };
 
         const loadBookmarks = async () => {
             try {
-                const response = await fetch(window.location.origin + "/bookmarks");
-                bookmarks.value = await response.json();
-                enrichFavoritesFromBookmarks();
+                const response = await fetch(`${window.location.origin}/bookmarks`);
+                bookmarks.value = (await response.json()).map(normalizeBookmark);
             } catch (e) {
-                console.error("Failed to load bookmarks", e);
+                console.error('Failed to load bookmarks', e);
             }
-        };
-
-        const loadFavorites = () => {
-            const stored = localStorage.getItem('uiptv_favorites');
-            if (stored) {
-                favorites.value = JSON.parse(stored);
-                enrichFavoritesFromBookmarks();
-            }
-        };
-
-        const saveFavorites = () => {
-            localStorage.setItem('uiptv_favorites', JSON.stringify(favorites.value));
-        };
-
-        const enrichFavoritesFromBookmarks = () => {
-            if (!favorites.value.length || !bookmarks.value.length) return;
-
-            const bookmarkById = new Map(bookmarks.value.map(b => [String(b.dbId), b]));
-            let changed = false;
-
-            favorites.value = favorites.value.map(f => {
-                if (f.logo || f.type !== 'bookmark') return f;
-                const bookmark = bookmarkById.get(String(f.id));
-                if (!bookmark || !bookmark.logo) return f;
-                changed = true;
-                return {
-                    ...f,
-                    logo: bookmark.logo,
-                    accountName: f.accountName || bookmark.accountName,
-                    name: f.name || bookmark.channelName
-                };
-            });
-
-            if (changed) saveFavorites();
         };
 
         const switchTab = (tab) => {
             if (activeTab.value === tab && tab === 'accounts') {
                 viewState.value = 'accounts';
-                searchQuery.value = '';
             } else {
                 activeTab.value = tab;
-                searchQuery.value = '';
             }
+            searchQuery.value = '';
         };
 
-        const setContentMode = (mode) => {
+        const selectAccount = async (account) => {
+            const nextAccountId = String(account?.dbId || '');
+            const accountChanged = String(selectedAccountId.value || '') !== nextAccountId;
+            if (accountChanged) {
+                stickyStates.value = createStickyStates();
+                seriesDetailLoading.value = false;
+                vodDetailLoading.value = false;
+            }
+            selectedAccountId.value = nextAccountId;
+            contentMode.value = 'itv';
+            if (!accountChanged && getModeState('itv').categories.length > 0) {
+                currentContext.value.accountId = account.dbId;
+                currentContext.value.accountType = account.type;
+                applyModeState('itv');
+                searchQuery.value = '';
+                return;
+            }
+            await loadCategories(account, true);
+        };
+
+        const setContentMode = async (mode) => {
             if (!['itv', 'vod', 'series'].includes(mode)) return;
+            if (mode !== 'itv' && !supportsVodSeriesForSelectedAccount.value) return;
             if (contentMode.value === mode) return;
             contentMode.value = mode;
-            if (activeTab.value !== 'accounts') {
-                activeTab.value = 'accounts';
-            }
-            viewState.value = 'accounts';
-            categories.value = [];
-            channels.value = [];
-            episodes.value = [];
-            currentContext.value.categoryId = null;
             searchQuery.value = '';
+
+            if (currentContext.value.accountId && viewState.value !== 'accounts') {
+                const modeState = getModeState(mode);
+                if (modeState.categories.length > 0) {
+                    applyModeState(mode);
+                    return;
+                }
+                await loadCategories(currentContext.value.accountId, true);
+            }
         };
 
         const goBackToAccounts = () => {
@@ -235,12 +652,38 @@ createApp({
         };
 
         const goBackToCategories = () => {
-            viewState.value = viewState.value === 'episodes' ? 'channels' : 'categories';
+            const modeState = getModeState(contentMode.value);
+            if (viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                viewState.value = 'channels';
+            } else {
+                viewState.value = 'categories';
+            }
+            modeState.viewState = viewState.value;
+            if (viewState.value === 'categories') {
+                episodes.value = [];
+                modeState.episodes = [];
+                modeState.selectedSeason = '';
+                modeState.selectedSeriesId = '';
+                modeState.detail = null;
+                selectedSeriesSeason.value = '';
+                seriesDetail.value = null;
+                seriesDetailLoading.value = false;
+                vodDetail.value = null;
+                vodDetailLoading.value = false;
+            }
             searchQuery.value = '';
         };
 
+        const appendPlaybackCompatParams = (query, mode) => {
+            const resolvedMode = String(mode || '').toLowerCase();
+            if (resolvedMode !== 'itv' && resolvedMode !== 'vod' && resolvedMode !== 'series') return;
+            query.set('mode', resolvedMode);
+            query.set('streamType', resolvedMode === 'itv' ? 'live' : 'video');
+            query.set('action', resolvedMode);
+        };
+
         const buildPlayerUrlForChannel = (channel, modeOverride = null) => {
-            const modeToUse = modeOverride || contentMode.value;
+            const modeToUse = String(modeOverride || contentMode.value || 'itv').toLowerCase();
             const channelDbId = channel.dbId || '';
             const channelIdentifier = channel.channelId || channel.id || '';
             const query = new URLSearchParams();
@@ -267,18 +710,22 @@ createApp({
                     query.set('seriesId', channelIdentifier);
                 }
             }
-            return window.location.origin + "/player?" + query.toString();
+
+            appendPlaybackCompatParams(query, modeToUse);
+            return `${window.location.origin}/player?${query.toString()}`;
         };
 
         const playChannel = (channel) => {
             scrollToTop();
+            const modeToUse = String(contentMode.value || 'itv').toLowerCase();
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
+            const playbackUrl = buildPlayerUrlForChannel(channel, modeToUse);
             currentChannel.value = {
                 id: channelIdentifier,
                 dbId: channel.dbId || '',
                 channelId: channel.channelId || channelIdentifier,
                 name: channel.name,
-                logo: channel.logo,
+                logo: resolveLogoUrl(channel.logo),
                 cmd: channel.cmd,
                 drmType: channel.drmType,
                 drmLicenseUrl: channel.drmLicenseUrl,
@@ -288,79 +735,129 @@ createApp({
                 accountId: currentContext.value.accountId,
                 categoryId: currentContext.value.categoryId,
                 type: 'channel',
-                mode: contentMode.value,
-                clearKeys: channel.clearKeys
+                mode: modeToUse,
+                playRequestUrl: playbackUrl
             };
-            startPlayback(buildPlayerUrlForChannel(channel));
+            startPlayback(playbackUrl);
         };
 
         const playBookmark = (bookmark) => {
             scrollToTop();
+            const bookmarkMode = String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase();
+            const query = new URLSearchParams();
+            query.set('bookmarkId', bookmark.dbId);
+            appendPlaybackCompatParams(query, bookmarkMode);
+            const playbackUrl = `${window.location.origin}/player?${query.toString()}`;
+
             currentChannel.value = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
-                logo: bookmark.logo,
+                logo: resolveLogoUrl(bookmark.logo),
                 accountName: bookmark.accountName,
-                type: 'bookmark'
+                accountId: resolveAccountId(bookmark.accountName),
+                categoryId: bookmark.categoryId || '',
+                channelId: bookmark.channelId || '',
+                cmd: bookmark.cmd || '',
+                bookmarkId: bookmark.dbId,
+                type: 'bookmark',
+                mode: bookmarkMode,
+                playRequestUrl: playbackUrl
             };
-            startPlayback(window.location.origin + "/player?bookmarkId=" + bookmark.dbId);
-        };
-
-        const playFavorite = (fav) => {
-            scrollToTop();
-            const favoriteType = fav.type || (fav.accountId && fav.categoryId ? 'channel' : 'bookmark');
-            currentChannel.value = {
-                ...fav,
-                type: favoriteType,
-                name: fav.name || fav.channelName || ''
-            };
-
-            if (favoriteType === 'channel') {
-                const modeToUse = fav.mode || 'itv';
-                const query = new URLSearchParams();
-                query.set('accountId', fav.accountId || '');
-                query.set('categoryId', fav.categoryId || '');
-                query.set('mode', modeToUse);
-                if (fav.dbId) {
-                    query.set('channelId', fav.dbId);
-                    if (modeToUse === 'series') {
-                        query.set('seriesId', fav.channelId || fav.id || '');
-                    }
-                } else {
-                    query.set('channelId', fav.channelId || fav.id || '');
-                    query.set('name', fav.name || '');
-                    query.set('logo', fav.logo || '');
-                    query.set('cmd', fav.cmd || '');
-                    query.set('drmType', fav.drmType || '');
-                    query.set('drmLicenseUrl', fav.drmLicenseUrl || '');
-                    query.set('clearKeysJson', fav.clearKeysJson || '');
-                    query.set('inputstreamaddon', fav.inputstreamaddon || '');
-                    query.set('manifestType', fav.manifestType || '');
-                    if (modeToUse === 'series') {
-                        query.set('seriesId', fav.channelId || fav.id || '');
-                    }
-                }
-                startPlayback(window.location.origin + "/player?" + query.toString());
-            } else {
-                startPlayback(window.location.origin + "/player?bookmarkId=" + fav.id);
-            }
+            startPlayback(playbackUrl);
         };
 
         const handleChannelSelection = async (channel) => {
-            if (contentMode.value === 'series' &&
-                currentContext.value.accountType === 'XTREME_API' &&
-                viewState.value === 'channels') {
+            if (contentMode.value === 'series' && viewState.value === 'channels') {
                 const seriesId = channel.channelId || channel.id || channel.dbId;
-                await loadSeriesEpisodes(seriesId);
+                const modeState = getModeState('series');
+                modeState.selectedSeriesId = String(seriesId || '');
+                modeState.detail = {
+                    name: channel.name || 'Series',
+                    cover: resolveLogoUrl(channel.logo),
+                    plot: '',
+                    cast: '',
+                    director: '',
+                    genre: '',
+                    releaseDate: '',
+                    rating: '',
+                    tmdb: '',
+                    imdbUrl: '',
+                    episodesMeta: []
+                };
+                seriesDetail.value = modeState.detail;
+                seriesDetailLoading.value = true;
+                if (String(currentContext.value.accountType || '').toUpperCase() === 'XTREME_API') {
+                    await loadSeriesEpisodes(seriesId);
+                } else {
+                    await loadSeriesChildren(seriesId);
+                }
+                (async () => {
+                    try {
+                        const response = await fetch(
+                            `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}&seriesName=${encodeURIComponent(channel.name || '')}`
+                        );
+                        const data = await response.json();
+                        if (String(modeState.selectedSeriesId || '') !== String(seriesId || '')) return;
+
+                        const detail = { ...(modeState.detail || {}) };
+                        if (data?.seasonInfo) {
+                            const info = data.seasonInfo;
+                            mergeDetailIfBlank(detail, info, 'name');
+                            mergeDetailIfBlank(detail, info, 'cover');
+                            mergeDetailIfBlank(detail, info, 'plot');
+                            mergeDetailIfBlank(detail, info, 'cast');
+                            mergeDetailIfBlank(detail, info, 'director');
+                            mergeDetailIfBlank(detail, info, 'genre');
+                            mergeDetailIfBlank(detail, info, 'releaseDate');
+                            mergeDetailIfBlank(detail, info, 'rating');
+                            mergeDetailIfBlank(detail, info, 'tmdb');
+                            mergeDetailIfBlank(detail, info, 'imdbUrl');
+                        }
+                        if (Array.isArray(data?.episodesMeta)) {
+                            detail.episodesMeta = data.episodesMeta;
+                        }
+                        if (Array.isArray(data?.episodes) && data.episodes.length > 0 && (!episodes.value || episodes.value.length === 0)) {
+                            episodes.value = data.episodes.map(normalizeChannel);
+                        }
+                        episodes.value = enrichEpisodesFromMeta(episodes.value, detail);
+                        modeState.episodes = [...episodes.value];
+                        modeState.detail = detail;
+                        seriesDetail.value = detail;
+                        ensureSeriesSeasonSelected();
+                    } catch (e) {
+                        console.error('Failed to load series details', e);
+                    } finally {
+                        seriesDetailLoading.value = false;
+                    }
+                })();
+                return;
+            }
+            if (contentMode.value === 'vod' && viewState.value === 'channels') {
+                await openVodDetails(channel);
                 return;
             }
             playChannel(channel);
         };
 
-        // --- NEW PLAYER LOGIC ---
+        const bindPlaybackEvents = (video) => {
+            if (!video) return;
+            video.onended = async () => {
+                if (!repeatEnabled.value || !currentChannel.value?.playRequestUrl) return;
+                await startPlayback(currentChannel.value.playRequestUrl);
+            };
+        };
+
+        const clearVideoElement = (video) => {
+            if (!video) return;
+            video.onended = null;
+            video.pause();
+            video.src = '';
+            video.removeAttribute('src');
+            video.load();
+        };
 
         const startPlayback = async (url) => {
-            await stopPlayback(true); // Stop current playback without collapsing UI
+            await stopPlayback(true);
 
             playerKey.value++;
             isPlaying.value = true;
@@ -370,7 +867,7 @@ createApp({
                 const channelData = await response.json();
                 await initPlayer(channelData);
             } catch (e) {
-                console.error("Failed to start playback", e);
+                console.error('Failed to start playback', e);
                 isPlaying.value = false;
             }
         };
@@ -380,16 +877,13 @@ createApp({
                 try {
                     await playerInstance.value.destroy();
                 } catch (e) {
-                    console.warn("Error destroying Shaka player", e);
+                    console.warn('Error destroying Shaka player', e);
                 }
                 playerInstance.value = null;
             }
-            if (videoPlayer.value) {
-                videoPlayer.value.pause();
-                videoPlayer.value.src = '';
-                videoPlayer.value.removeAttribute('src'); // Good practice
-                videoPlayer.value.load();
-            }
+
+            clearVideoElement(videoPlayer.value);
+
             if (!preserveUi) {
                 isPlaying.value = false;
                 currentChannel.value = null;
@@ -402,15 +896,20 @@ createApp({
         const initPlayer = async (channel) => {
             const uri = channel.url;
             if (!uri) {
-                console.error("No URL provided for playback.");
+                console.error('No URL provided for playback.');
                 isPlaying.value = false;
                 return;
             }
 
-            if (uri.includes("youtube.com") || uri.includes("youtu.be")) {
+            const youtubeId = extractYoutubeIdFromAny([
+                uri,
+                currentChannel.value?.cmd || '',
+                currentChannel.value?.playRequestUrl || ''
+            ]);
+
+            if (youtubeId) {
                 isYoutube.value = true;
-                const videoId = uri.split('v=')[1] ? uri.split('v=')[1].split('&')[0] : uri.split('/').pop();
-                youtubeSrc.value = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                youtubeSrc.value = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
                 return;
             }
 
@@ -419,25 +918,23 @@ createApp({
 
             const video = videoPlayer.value;
             if (!video) {
-                console.error("Video element not found.");
+                console.error('Video element not found.');
                 return;
             }
+
+            bindPlaybackEvents(video);
 
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
             const canNative = video.canPlayType('application/vnd.apple.mpegurl');
             const hasDRM = channel.drm != null;
 
             if (hasDRM) {
-                console.log("Player choice: Shaka (DRM)");
                 await loadShaka(channel);
             } else if (isApple && canNative) {
-                console.log("Player choice: Native (Apple HLS)");
                 await loadNative(channel);
-            } else if (canNative && uri.endsWith('.m3u8')) { // Be more specific for native
-                 console.log("Player choice: Native (HLS)");
-                 await loadNative(channel);
+            } else if (canNative && uri.endsWith('.m3u8')) {
+                await loadNative(channel);
             } else {
-                console.log("Player choice: Shaka (Fallback)");
                 await loadShaka(channel);
             }
         };
@@ -445,14 +942,126 @@ createApp({
         const loadNative = async (channel) => {
             await nextTick();
             const video = videoPlayer.value;
-            if (video) {
-                video.src = channel.url;
+            if (!video) return;
+
+            bindPlaybackEvents(video);
+            let sourceUrl = normalizeWebPlaybackUrl(channel.url);
+            video.src = sourceUrl;
+            try {
+                await video.play();
+            } catch (e) {
+                // If backend proxy fails (e.g. 502), retry direct source URL from src query param.
+                const proxiedSource = extractProxySourceUrl(sourceUrl);
+                if (proxiedSource) {
+                    try {
+                        sourceUrl = normalizeWebPlaybackUrl(proxiedSource);
+                        video.src = sourceUrl;
+                        await video.play();
+                        return;
+                    } catch (proxyErr) {
+                        console.warn('Proxy source fallback failed.', proxyErr);
+                    }
+                }
+
+                // Retry with explicit HTTP downgrade for known Stalker playback paths.
+                const downgraded = downgradeHttpsToHttpForKnownPaths(sourceUrl);
+                if (downgraded !== sourceUrl) {
+                    try {
+                        sourceUrl = downgraded;
+                        video.src = sourceUrl;
+                        await video.play();
+                        return;
+                    } catch (retryErr) {
+                        console.warn('HTTP fallback failed.', retryErr);
+                    }
+                }
+
+                // Last fallback: try Shaka for browsers that reject native source MIME sniffing.
                 try {
-                    await video.play();
-                } catch (e) {
-                    console.warn("Autoplay was prevented.", e);
+                    await loadShaka({ ...(channel || {}), url: sourceUrl });
+                    return;
+                } catch (shakaErr) {
+                    console.warn('Shaka fallback failed.', shakaErr);
+                }
+
+                console.warn('Native playback failed.', e);
+            }
+        };
+
+        const normalizeWebPlaybackUrl = (rawUrl) => {
+            const value = String(rawUrl || '').trim();
+            if (!value) return value;
+            return downgradeHttpsToHttpForKnownPaths(value);
+        };
+
+        const downgradeHttpsToHttpForKnownPaths = (url) => {
+            const value = String(url || '').trim();
+            const lower = value.toLowerCase();
+            if (lower.startsWith('https://') && (lower.includes('/live/play/') || lower.includes('/play/movie.php'))) {
+                return `http://${value.slice('https://'.length)}`;
+            }
+            return value;
+        };
+
+        const extractProxySourceUrl = (url) => {
+            const value = String(url || '').trim();
+            if (!value) return '';
+            try {
+                const parsed = new URL(value, window.location.origin);
+                if (!parsed.pathname.includes('/proxy-stream')) return '';
+                const src = parsed.searchParams.get('src');
+                return src ? decodeURIComponent(src) : '';
+            } catch (_) {
+                return '';
+            }
+        };
+
+        const extractYoutubeId = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+
+            const decoded = (() => {
+                try { return decodeURIComponent(raw); } catch (_) { return raw; }
+            })();
+
+            // Handle ffmpeg prefix if present.
+            const cleaned = decoded.replace(/^ffmpeg\s+/i, '').trim();
+
+            const directPatterns = [
+                /(?:youtube\.com\/watch\?[^#\s]*v=)([A-Za-z0-9_-]{11})/i,
+                /(?:youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/i,
+                /(?:youtu\.be\/)([A-Za-z0-9_-]{11})/i,
+                /(?:youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/i,
+                /(?:youtube-nocookie\.com\/embed\/)([A-Za-z0-9_-]{11})/i
+            ];
+
+            for (const re of directPatterns) {
+                const m = cleaned.match(re);
+                if (m?.[1]) return m[1];
+            }
+
+            // Some sources pass nested URL values like url=https://youtube...
+            const nested = cleaned.match(/(?:^|[?&])url=([^&]+)/i);
+            if (nested?.[1]) {
+                const nestedDecoded = (() => {
+                    try { return decodeURIComponent(nested[1]); } catch (_) { return nested[1]; }
+                })();
+                for (const re of directPatterns) {
+                    const m = nestedDecoded.match(re);
+                    if (m?.[1]) return m[1];
                 }
             }
+
+            return '';
+        };
+
+        const extractYoutubeIdFromAny = (values) => {
+            const list = Array.isArray(values) ? values : [values];
+            for (const value of list) {
+                const id = extractYoutubeId(value);
+                if (id) return id;
+            }
+            return '';
         };
 
         const loadShaka = async (channel) => {
@@ -460,26 +1069,23 @@ createApp({
             const video = videoPlayer.value;
             if (!video) return;
 
-            // Install polyfills
+            bindPlaybackEvents(video);
             shaka.polyfill.installAll();
 
-            // Check browser support
             if (!shaka.Player.isBrowserSupported()) {
-                console.error("Shaka Player is not supported by this browser.");
+                console.error('Shaka Player is not supported by this browser.');
                 return;
             }
 
             const player = new shaka.Player(video);
             playerInstance.value = player;
 
-            // Listen for errors
             player.addEventListener('error', (event) => {
                 console.error('Shaka Player Error:', event.detail);
             });
 
-            // Configure DRM if present
             if (channel.drm) {
-                let drmConfig = {};
+                const drmConfig = {};
                 if (channel.drm.licenseUrl) {
                     drmConfig.servers = { [channel.drm.type]: channel.drm.licenseUrl };
                 }
@@ -491,7 +1097,6 @@ createApp({
 
             try {
                 await player.load(channel.url);
-                console.log('Shaka: Video loaded successfully.');
                 videoTracks.value = player.getVariantTracks();
             } catch (e) {
                 console.error('Shaka: Error loading video:', e);
@@ -499,33 +1104,92 @@ createApp({
         };
 
         const switchVideoTrack = (trackId) => {
-            if (playerInstance.value) {
-                playerInstance.value.selectVariantTrack(playerInstance.value.getVariantTracks().find(t => t.id === trackId), true);
+            if (!playerInstance.value) return;
+            const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
+            if (track) {
+                playerInstance.value.selectVariantTrack(track, true);
             }
         };
 
-        // --- END NEW PLAYER LOGIC ---
-
-        const toggleFavorite = () => {
+        const toggleFavorite = async () => {
             if (!currentChannel.value) return;
-
-            const favoriteItem = {
-                ...currentChannel.value,
-                id: currentChannel.value.id ?? currentChannel.value.dbId,
-                name: currentChannel.value.name || currentChannel.value.channelName || '',
-                type: currentChannel.value.type || (currentChannel.value.accountId && currentChannel.value.categoryId ? 'channel' : 'bookmark'),
-                mode: currentChannel.value.mode || contentMode.value
-            };
-
-            const currentKey = favoriteKey(favoriteItem);
-            const index = favorites.value.findIndex(f => favoriteKey(f) === currentKey);
-
-            if (index === -1) {
-                favorites.value.push(favoriteItem);
-            } else {
-                favorites.value.splice(index, 1);
+            const existing = findBookmarkForChannel(currentChannel.value);
+            try {
+                if (existing?.dbId) {
+                    await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
+                        method: 'DELETE'
+                    });
+                } else {
+                    await fetch(`${window.location.origin}/bookmarks`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            accountId: currentChannel.value.accountId || '',
+                            categoryId: currentChannel.value.categoryId || '',
+                            mode: currentChannel.value.mode || 'itv',
+                            channelId: currentChannel.value.channelId || currentChannel.value.id || '',
+                            name: currentChannel.value.name || currentChannel.value.channelName || '',
+                            logo: currentChannel.value.logo || '',
+                            cmd: currentChannel.value.cmd || '',
+                            drmType: currentChannel.value.drmType || '',
+                            drmLicenseUrl: currentChannel.value.drmLicenseUrl || '',
+                            clearKeysJson: currentChannel.value.clearKeysJson || '',
+                            inputstreamaddon: currentChannel.value.inputstreamaddon || '',
+                            manifestType: currentChannel.value.manifestType || ''
+                        })
+                    });
+                }
+                await loadBookmarks();
+            } catch (e) {
+                console.error('Failed to update bookmark', e);
             }
-            saveFavorites();
+        };
+
+        const reloadPlayback = async () => {
+            if (!currentChannel.value?.playRequestUrl) return;
+            await startPlayback(currentChannel.value.playRequestUrl);
+        };
+
+        const toggleRepeat = () => {
+            repeatEnabled.value = !repeatEnabled.value;
+        };
+
+        const togglePictureInPicture = async () => {
+            const video = videoPlayer.value;
+            if (!video || isYoutube.value || !document.pictureInPictureEnabled) return;
+            try {
+                if (document.pictureInPictureElement === video) {
+                    await document.exitPictureInPicture();
+                } else {
+                    await video.requestPictureInPicture();
+                }
+            } catch (e) {
+                console.warn('Picture in Picture unavailable', e);
+            }
+        };
+
+        const ensurePlaybackNotPaused = async () => {
+            if (!isPlaying.value || isYoutube.value) return;
+            const video = videoPlayer.value;
+            if (!video) return;
+            if (video.paused && !video.ended) {
+                try {
+                    await video.play();
+                } catch (_) {
+                    // Ignore autoplay/focus related resume issues.
+                }
+            }
+        };
+
+        const onPlayerControlClick = async (event, action, ...args) => {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            if (typeof action === 'function') {
+                await action(...args);
+            }
+            await ensurePlaybackNotPaused();
         };
 
         const imageError = (e) => {
@@ -573,18 +1237,28 @@ createApp({
         const resetApp = () => {
             stopPlayback();
             activeTab.value = 'bookmarks';
-            viewState.value = 'accounts'; // Or any default view
+            viewState.value = 'accounts';
             contentMode.value = 'itv';
+            categories.value = [];
+            channels.value = [];
+            episodes.value = [];
+            stickyStates.value = createStickyStates();
+            selectedAccountId.value = null;
+            currentContext.value = { accountId: null, categoryId: null, accountType: null };
             searchQuery.value = '';
+            repeatEnabled.value = false;
+            listLoading.value = false;
+            selectedSeriesSeason.value = '';
+            seriesDetail.value = null;
+            vodDetail.value = null;
+            seriesDetailLoading.value = false;
+            vodDetailLoading.value = false;
         };
 
-        // Lifecycle
         onMounted(() => {
             loadAccounts();
             loadBookmarks();
-            loadFavorites();
 
-            // Load theme
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) {
                 theme.value = storedTheme;
@@ -601,35 +1275,56 @@ createApp({
             filteredCategories,
             filteredChannels,
             filteredEpisodes,
+            filteredSeriesEpisodes,
             filteredBookmarks,
-            filteredFavorites,
+            seriesSeasonTabs,
+            selectedSeriesSeason,
+            seriesDetail,
+            vodDetail,
+            seriesDetailLoading,
+            vodDetailLoading,
             currentChannelName,
             isCurrentFavorite,
             isPlaying,
             showOverlay,
             showBookmarkModal,
+            listLoading,
+            listLoadingMessage,
             playerKey,
             isYoutube,
             youtubeSrc,
             videoPlayer,
             videoTracks,
+            repeatEnabled,
             theme,
             themeIcon,
             contentMode,
+            contentModeLabels,
+            supportsVodSeriesForSelectedAccount,
 
             switchTab,
             setContentMode,
+            selectAccount,
             loadCategories,
             loadChannels,
             loadSeriesEpisodes,
             goBackToAccounts,
             goBackToCategories,
+            selectSeriesSeason,
+            getEpisodeDisplayTitle,
+            getEpisodeSubtitle,
+            getImdbUrl,
+            formatShortDate,
+            playVodFromDetail,
             playChannel,
             handleChannelSelection,
             playBookmark,
-            playFavorite,
             stopPlayback,
             toggleFavorite,
+            reloadPlayback,
+            toggleRepeat,
+            togglePictureInPicture,
+            onPlayerControlClick,
             imageError,
             mediaImageError,
             toggleTheme,

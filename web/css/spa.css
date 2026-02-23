@@ -432,6 +432,91 @@ body {
     text-overflow: ellipsis;
 }
 
+.card-item .subtitle.episode-subtitle {
+    white-space: pre-line;
+    overflow: visible;
+    text-overflow: initial;
+    line-height: 1.25;
+}
+
+.series-header-card {
+    align-items: stretch;
+    min-height: 180px;
+}
+
+.series-header-poster {
+    width: 112px !important;
+    height: auto !important;
+    object-fit: cover !important;
+    align-self: stretch;
+    border-radius: 4px;
+}
+
+.vod-detail-wrap .series-header-card {
+    min-height: 260px;
+}
+
+.vod-detail-wrap .series-header-poster {
+    width: 160px !important;
+}
+
+.vod-detail-wrap .content-wrapper {
+    overflow: visible;
+}
+
+.vod-detail-wrap .title,
+.vod-detail-wrap .subtitle {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: initial !important;
+    word-break: break-word;
+}
+
+.episode-row-card {
+    align-items: stretch;
+    min-height: 112px;
+}
+
+.episode-row-thumb {
+    width: 72px !important;
+    height: auto !important;
+    object-fit: cover !important;
+    align-self: stretch;
+    border-radius: 4px;
+}
+
+.nf-imdb-logo {
+    height: 18px;
+    width: auto;
+    display: block;
+}
+
+.nf-imdb-rating-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    align-self: flex-start;
+    width: fit-content;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 197, 24, 0.7);
+    background: #f5c518;
+    color: #1b1b1b;
+    text-decoration: none;
+    font-weight: 800;
+    margin-bottom: 12px;
+}
+
+.nf-imdb-rating-pill:hover {
+    color: #111111;
+    background: #ffd64a;
+}
+
+.nf-imdb-rating-value {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
 .card-item .icon-placeholder {
     font-size: 1.2rem;
     color: var(--icon-color);

@@ -70,7 +70,11 @@
                             <div class="nf-card-title nf-media-title">{{ bookmark.channelName }}</div>
                             <div class="nf-card-subtitle nf-media-subtitle"><small>{{ bookmark.accountName }}</small></div>
                         </button>
-                        <div v-if="filteredBookmarks.length === 0" class="nf-empty-card">No favorites found.</div>
+                        <div v-if="isModeLoading('bookmarks')" class="nf-empty-card">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading favorites...
+                        </div>
+                        <div v-else-if="filteredBookmarks.length === 0" class="nf-empty-card">No favorites found.</div>
                     </div>
                     <button class="nf-edge-btn right" onclick="scrollRow('row-saved', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
@@ -105,9 +109,13 @@
                             <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
-                        <div v-if="isModeState('itv','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
-                        <div v-if="isModeState('itv','categories') && filteredModeCategories('itv').length === 0" class="nf-empty-card">No categories found.</div>
-                        <div v-if="isModeState('itv','channels') && filteredModeChannels('itv').length === 0" class="nf-empty-card">No channels found.</div>
+                        <div v-if="isModeLoading('itv')" class="nf-empty-card">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading...
+                        </div>
+                        <div v-else-if="isModeState('itv','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
+                        <div v-else-if="isModeState('itv','categories') && filteredModeCategories('itv').length === 0" class="nf-empty-card">No categories found.</div>
+                        <div v-else-if="isModeState('itv','channels') && filteredModeChannels('itv').length === 0" class="nf-empty-card">No channels found.</div>
                     </div>
                     <button class="nf-edge-btn right" onclick="scrollRow('row-live', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
@@ -141,9 +149,13 @@
                             <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
-                        <div v-if="isModeState('vod','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
-                        <div v-if="isModeState('vod','categories') && filteredModeCategories('vod').length === 0" class="nf-empty-card">No categories found.</div>
-                        <div v-if="isModeState('vod','channels') && filteredModeChannels('vod').length === 0" class="nf-empty-card">No VOD items found.</div>
+                        <div v-if="isModeLoading('vod')" class="nf-empty-card">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading...
+                        </div>
+                        <div v-else-if="isModeState('vod','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
+                        <div v-else-if="isModeState('vod','categories') && filteredModeCategories('vod').length === 0" class="nf-empty-card">No categories found.</div>
+                        <div v-else-if="isModeState('vod','channels') && filteredModeChannels('vod').length === 0" class="nf-empty-card">No VOD items found.</div>
                     </div>
                     <button class="nf-edge-btn right" onclick="scrollRow('row-vod', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
@@ -188,10 +200,14 @@
                             <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
-                        <div v-if="isModeState('series','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
-                        <div v-if="isModeState('series','categories') && filteredModeCategories('series').length === 0" class="nf-empty-card">No categories found.</div>
-                        <div v-if="isModeState('series','channels') && filteredModeChannels('series').length === 0" class="nf-empty-card">No series found.</div>
-                        <div v-if="isModeState('series','episodes') && filteredModeEpisodes('series').length === 0" class="nf-empty-card">No episodes found.</div>
+                        <div v-if="isModeLoading('series')" class="nf-empty-card">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading...
+                        </div>
+                        <div v-else-if="isModeState('series','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
+                        <div v-else-if="isModeState('series','categories') && filteredModeCategories('series').length === 0" class="nf-empty-card">No categories found.</div>
+                        <div v-else-if="isModeState('series','channels') && filteredModeChannels('series').length === 0" class="nf-empty-card">No series found.</div>
+                        <div v-else-if="isModeState('series','episodes') && filteredModeEpisodes('series').length === 0" class="nf-empty-card">No episodes found.</div>
                     </div>
                     <button class="nf-edge-btn right" onclick="scrollRow('row-series', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
@@ -293,6 +309,10 @@
                         </button>
                     </div>
                     <div class="nf-episode-list">
+                        <div v-if="isModeLoading('series')" class="nf-empty-card">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading episodes...
+                        </div>
                         <button
                                 v-for="(episode, idx) in visibleSeriesDetailEpisodes"
                                 :key="'series-detail-ep-' + (episode.channelId || episode.id)"

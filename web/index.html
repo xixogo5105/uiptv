@@ -35,6 +35,12 @@
             <a href="#" class="text-muted text-decoration-none me-2 top-bar-icon" @click.prevent="showBookmarkModal = true" title="Bookmark this app">
                 <i class="bi bi-bookmark-plus"></i>
             </a>
+            <a href="/bookmarks.m3u8" class="text-muted text-decoration-none me-2 top-bar-icon" title="Download Favorites Playlist" download>
+                <i class="bi bi-download"></i>
+            </a>
+            <a href="/iptv.m3u8" class="text-muted text-decoration-none me-2 top-bar-icon" title="Download Published Playlist" download>
+                <i class="bi bi-cloud-arrow-down"></i>
+            </a>
             <a href="/myflix.html" class="text-muted text-decoration-none me-2 top-bar-icon" title="Switch to MyFlix View">
                 <i class="bi bi-film"></i>
             </a>
@@ -59,16 +65,6 @@
                         <i class="bi bi-person-lines-fill"></i>
                     </button>
                 </li>
-                <li class="nav-item">
-                    <button class="nav-link" :class="{ active: activeTab === 'favorites' }" @click="switchTab('favorites')" title="Favorites">
-                        <i class="bi bi-heart-fill"></i>
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" :class="{ active: activeTab === 'downloads' }" @click="switchTab('downloads')" title="Downloads">
-                        <i class="bi bi-download"></i>
-                    </button>
-                </li>
             </ul>
 
             <!-- Search Bar (Under Tabs) -->
@@ -84,8 +80,15 @@
                 <!-- Bookmarks Tab -->
                 <div v-if="activeTab === 'bookmarks'">
                     <div class="grid-container">
-                        <div v-for="bookmark in filteredBookmarks" :key="bookmark.dbId" class="card-item" @click="playBookmark(bookmark)">
-                            <div class="icon-placeholder"><i class="bi bi-bookmark-fill"></i></div>
+                        <div v-if="listLoading" class="card-item">
+                            <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ listLoadingMessage }}</div>
+                            </div>
+                        </div>
+                        <div v-if="!listLoading" v-for="bookmark in filteredBookmarks" :key="bookmark.dbId" class="card-item" @click="playBookmark(bookmark)">
+                            <img v-if="bookmark.logo" :src="bookmark.logo" @error="imageError" alt="logo">
+                            <div v-else class="icon-placeholder"><i class="bi bi-bookmark-fill"></i></div>
                             <div class="content-wrapper">
                                 <div class="title">{{ bookmark.channelName }}</div>
                                 <div class="subtitle">{{ bookmark.accountName }}</div>
@@ -96,9 +99,40 @@
 
                 <!-- Accounts Tab -->
                 <div v-if="activeTab === 'accounts'">
+                    <div v-if="viewState !== 'accounts'" class="d-flex align-items-center justify-content-between p-2 border-bottom border-secondary mb-2 gap-2">
+                        <button class="btn btn-sm btn-secondary" @click="viewState === 'categories' ? goBackToAccounts() : goBackToCategories()">
+                            <i class="bi bi-arrow-left"></i>
+                        </button>
+                        <div v-if="supportsVodSeriesForSelectedAccount" class="btn-group btn-group-sm" role="group" aria-label="Content Mode">
+                            <button
+                                    class="btn"
+                                    :class="contentMode === 'itv' ? 'btn-primary' : 'btn-outline-secondary'"
+                                    @click="setContentMode('itv')">Channels
+                            </button>
+                            <button
+                                    v-if="supportsVodSeriesForSelectedAccount"
+                                    class="btn"
+                                    :class="contentMode === 'vod' ? 'btn-primary' : 'btn-outline-secondary'"
+                                    @click="setContentMode('vod')">Movies
+                            </button>
+                            <button
+                                    v-if="supportsVodSeriesForSelectedAccount"
+                                    class="btn"
+                                    :class="contentMode === 'series' ? 'btn-primary' : 'btn-outline-secondary'"
+                                    @click="setContentMode('series')">Series
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Accounts List -->
                     <div v-if="viewState === 'accounts'" class="grid-container">
-                        <div v-for="account in filteredAccounts" :key="account.dbId" class="card-item" @click="loadCategories(account.dbId)">
+                        <div v-if="listLoading" class="card-item">
+                            <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ listLoadingMessage }}</div>
+                            </div>
+                        </div>
+                        <div v-if="!listLoading" v-for="account in filteredAccounts" :key="account.dbId" class="card-item" @click="selectAccount(account)">
                             <div class="icon-placeholder"><i class="bi bi-person-circle"></i></div>
                             <div class="content-wrapper">
                                 <div class="title">{{ account.accountName }}</div>
@@ -109,12 +143,14 @@
 
                     <!-- Categories List -->
                     <div v-if="viewState === 'categories'">
-                        <div class="d-flex align-items-center p-2 border-bottom border-secondary mb-2">
-                            <button class="btn btn-sm btn-secondary me-2" @click="goBackToAccounts"><i class="bi bi-arrow-left"></i></button>
-                            <span class="text-white">Categories</span>
-                        </div>
                         <div class="grid-container">
-                            <div v-for="category in filteredCategories" :key="category.dbId" class="card-item" @click="loadChannels(category.dbId)">
+                            <div v-if="listLoading" class="card-item">
+                                <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ listLoadingMessage }}</div>
+                                </div>
+                            </div>
+                            <div v-if="!listLoading" v-for="category in filteredCategories" :key="category.dbId" class="card-item" @click="loadChannels(category.dbId)">
                                 <div class="icon-placeholder"><i class="bi bi-folder-fill"></i></div>
                                 <div class="content-wrapper">
                                     <div class="title">{{ category.title }}</div>
@@ -125,12 +161,15 @@
 
                     <!-- Channels List -->
                     <div v-if="viewState === 'channels'">
-                        <div class="d-flex align-items-center p-2 border-bottom border-secondary mb-2">
-                            <button class="btn btn-sm btn-secondary me-2" @click="goBackToCategories"><i class="bi bi-arrow-left"></i></button>
-                            <span class="text-white">Channels</span>
-                        </div>
+                        <div class="px-2 pb-2 text-muted small">{{ contentModeLabels[contentMode] }}</div>
                         <div class="grid-container">
-                            <div v-for="channel in filteredChannels" :key="channel.dbId" class="card-item" @click="playChannel(channel)">
+                            <div v-if="listLoading" class="card-item">
+                                <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ listLoadingMessage }}</div>
+                                </div>
+                            </div>
+                            <div v-if="!listLoading" v-for="channel in filteredChannels" :key="channel.dbId || channel.channelId || channel.id" class="card-item" @click="handleChannelSelection(channel)">
                                 <img v-if="channel.logo" :src="channel.logo" @error="imageError" alt="logo">
                                 <div v-else class="icon-placeholder"><i class="bi bi-tv"></i></div>
                                 <div class="content-wrapper">
@@ -142,43 +181,104 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Favorites Tab -->
-                <div v-if="activeTab === 'favorites'">
-                    <div v-if="filteredFavorites.length === 0" class="text-center text-muted mt-4">No favorites found.</div>
-                    <div class="grid-container">
-                        <div v-for="fav in filteredFavorites" :key="fav.id + fav.name" class="card-item" @click="playFavorite(fav)">
-                            <img v-if="fav.logo" :src="fav.logo" @error="imageError" alt="logo">
-                            <div v-else class="icon-placeholder"><i class="bi bi-heart-fill"></i></div>
+                    <!-- VOD Detail -->
+                    <div v-if="viewState === 'vodDetail' && contentMode === 'vod' && vodDetail" class="vod-detail-wrap">
+                        <div class="card-item mb-2 series-header-card">
+                            <img v-if="vodDetail.cover" :src="vodDetail.cover" @error="imageError" alt="vod poster" class="series-header-poster">
+                            <div v-else class="icon-placeholder"><i class="bi bi-film"></i></div>
                             <div class="content-wrapper">
-                                <div class="title">
-                                    {{ fav.name }}
-                                    <span v-if="fav.drmType" class="badge bg-primary ms-2">DRM</span>
+                                <div class="title">{{ vodDetail.name || 'Movie' }}</div>
+                                <div v-if="vodDetailLoading" class="subtitle">
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Loading movie details...
                                 </div>
-                                <div class="subtitle">{{ fav.accountName || 'Favorite' }}</div>
+                                <div v-if="vodDetail.plot" class="subtitle episode-subtitle">{{ vodDetail.plot }}</div>
+                                <a
+                                        v-if="getImdbUrl()"
+                                        class="nf-imdb-rating-pill"
+                                        :href="getImdbUrl()"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Open on IMDb">
+                                    <img class="nf-imdb-logo" src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg" alt="IMDb">
+                                    <span class="nf-imdb-rating-value">{{ vodDetail.rating || 'N/A' }}</span>
+                                </a>
+                                <div class="subtitle episode-subtitle">
+                                    <span v-if="vodDetail.genre">Genre: {{ vodDetail.genre }}</span>
+                                    <span v-if="vodDetail.releaseDate"><br>Release: {{ formatShortDate(vodDetail.releaseDate) }}</span>
+                                    <span v-if="vodDetail.duration"><br>Duration: {{ vodDetail.duration }}</span>
+                                    <span v-if="vodDetail.director"><br>Director: {{ vodDetail.director }}</span>
+                                    <span v-if="vodDetail.cast"><br>Cast: {{ vodDetail.cast }}</span>
+                                </div>
+                                <button class="btn btn-sm btn-primary mt-2 align-self-start" @click="playVodFromDetail">
+                                    <i class="bi bi-play-circle-fill me-1"></i>
+                                    Play Movie
+                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Downloads Tab -->
-                <div v-if="activeTab === 'downloads'">
-                    <div class="grid-container">
-                        <a href="/bookmarks.m3u8" class="card-item text-decoration-none text-light" download>
-                            <div class="icon-placeholder"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
+                    <!-- Episodes List -->
+                    <div v-if="viewState === 'episodes'">
+                        <div class="px-2 pb-2 text-muted small">Episodes</div>
+                        <div v-if="contentMode === 'series' && seriesDetail" class="card-item mb-2 series-header-card">
+                            <img v-if="seriesDetail.cover" :src="seriesDetail.cover" @error="imageError" alt="series poster" class="series-header-poster">
+                            <div v-else class="icon-placeholder"><i class="bi bi-film"></i></div>
                             <div class="content-wrapper">
-                                <div class="title">Download Bookmarks Playlist</div>
-                                <div class="subtitle">M3U8 Format</div>
+                                <div class="title">{{ seriesDetail.name || 'Series' }}</div>
+                                <div v-if="seriesDetailLoading" class="subtitle">
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Loading series details...
+                                </div>
+                                <div v-if="seriesDetail.plot" class="subtitle episode-subtitle">{{ seriesDetail.plot }}</div>
+                                <div class="subtitle episode-subtitle">
+                                    <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
+                                    <span v-if="seriesDetail.releaseDate"><br>Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
+                                    <span v-if="seriesDetail.rating"><br>Rating: {{ seriesDetail.rating }}</span>
+                                    <span v-if="seriesDetail.director"><br>Director: {{ seriesDetail.director }}</span>
+                                    <span v-if="seriesDetail.cast"><br>Cast: {{ seriesDetail.cast }}</span>
+                                </div>
+                                <a
+                                        v-if="getImdbUrl()"
+                                        class="nf-imdb-rating-pill"
+                                        :href="getImdbUrl()"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Open on IMDb">
+                                    <img class="nf-imdb-logo" src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg" alt="IMDb">
+                                    <span class="nf-imdb-rating-value">{{ seriesDetail.rating || 'N/A' }}</span>
+                                </a>
                             </div>
-                        </a>
-                        <a href="/iptv.m3u8" class="card-item text-decoration-none text-light" download>
-                            <div class="icon-placeholder"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
-                            <div class="content-wrapper">
-                                <div class="title">Download Published Playlist</div>
-                                <div class="subtitle">M3U8 Format</div>
+                        </div>
+                        <div v-if="contentMode === 'series' && seriesSeasonTabs.length > 0" class="px-2 pb-2">
+                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Seasons">
+                                <button
+                                        v-for="tab in seriesSeasonTabs"
+                                        :key="'legacy-season-' + tab.value"
+                                        class="btn"
+                                        :class="selectedSeriesSeason === tab.value ? 'btn-primary' : 'btn-outline-secondary'"
+                                        @click="selectSeriesSeason(tab.value)">
+                                    {{ tab.label }}
+                                </button>
                             </div>
-                        </a>
+                        </div>
+                        <div class="grid-container">
+                            <div v-if="listLoading" class="card-item">
+                                <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ listLoadingMessage }}</div>
+                                </div>
+                            </div>
+                            <div v-if="!listLoading" v-for="(episode, idx) in filteredSeriesEpisodes" :key="episode.dbId || episode.channelId || episode.id" class="card-item episode-row-card" @click="playChannel(episode)">
+                                <img v-if="episode.logo" :src="episode.logo" @error="imageError" alt="logo" class="episode-row-thumb">
+                                <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ getEpisodeDisplayTitle(episode, idx) }}</div>
+                                    <div class="subtitle episode-subtitle">{{ getEpisodeSubtitle(episode) }}</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -198,16 +298,25 @@
                         <div class="d-flex justify-content-between align-items-center w-100">
                             <h4 id="headerTitle">{{ currentChannelName }}</h4>
                             <div>
-                                <button class="btn btn-link text-white me-2" @click="toggleFavorite" title="Favorite">
+                                <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, toggleFavorite)" title="Favorite">
                                     <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
                                 </button>
-                                <div class="dropdown d-inline-block">
+                                <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, reloadPlayback)" title="Reload">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, toggleRepeat)" title="Repeat playback">
+                                    <i class="bi" :class="repeatEnabled ? 'bi-repeat-1 text-warning' : 'bi-repeat'"></i>
+                                </button>
+                                <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, togglePictureInPicture)" title="Picture in Picture">
+                                    <i class="bi bi-pip"></i>
+                                </button>
+                                <div class="dropdown d-inline-block" v-if="videoTracks && videoTracks.length">
                                     <button class="btn btn-link text-white me-2" type="button" id="resolutionMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Resolutions">
                                         <i class="bi bi-gear-fill"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="resolutionMenuButton">
                                         <li v-for="track in videoTracks" :key="track.id">
-                                            <a class="dropdown-item" href="#" @click.prevent="switchVideoTrack(track.id)">
+                                            <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchVideoTrack, track.id)">
                                                 {{ track.height }}p
                                                 <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
                                             </a>
