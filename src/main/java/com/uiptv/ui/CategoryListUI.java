@@ -5,8 +5,8 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.ChannelService;
+import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
@@ -14,21 +14,27 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.scene.Cursor;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
+import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -42,6 +48,13 @@ public class CategoryListUI extends HBox {
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
+    private final VBox leftPane = new VBox(5);
+    private final TabPane modeTabs = new TabPane();
+    private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
+    private final Tab itvTab = new Tab("Channels");
+    private final Tab vodTab = new Tab("VOD");
+    private final Tab seriesTab = new Tab("Series");
+    private Account.AccountAction activeMode;
 
     public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
         this(account, bookmarkChannelListUI);
@@ -51,8 +64,9 @@ public class CategoryListUI extends HBox {
     public CategoryListUI(Account account, BookmarkChannelListUI bookmarkChannelListUI) {
         this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
+        this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;
         initWidgets();
-        categoryTitle.setText(account.getAccountName());
+        refreshCategoryColumnTitle();
         table.setPlaceholder(new Label("Loading categories..."));
     }
 
@@ -63,9 +77,12 @@ public class CategoryListUI extends HBox {
             catList.add(new CategoryItem(new SimpleStringProperty("all"), new SimpleStringProperty("All"), new SimpleStringProperty("all")));
         }
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
+        ModeState state = modeStates.computeIfAbsent(activeMode, k -> new ModeState());
+        state.categories = new ArrayList<>(list);
         table.setItems(FXCollections.observableArrayList(catList));
         table.addTextFilter();
         table.setPlaceholder(null);
+        maybeShowCachedChannelPane(state);
         if (catList.size() == 1) {
             doRetrieveChannels(catList.get(0));
         }
@@ -81,8 +98,123 @@ public class CategoryListUI extends HBox {
         categoryId.setCellValueFactory(cellData -> cellData.getValue().categoryIdProperty());
         categoryTitle.setSortType(TableColumn.SortType.ASCENDING);
         categoryTitle.setSortable(true);
-        getChildren().addAll(new AutoGrowVBox(5, table.getSearchTextField(), table));
+        setupModeTabs();
+        table.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        leftPane.getChildren().addAll(modeTabs, table.getSearchTextField(), table);
+        getChildren().addAll(leftPane);
         addChannelClickHandler();
+    }
+
+    private void setupModeTabs() {
+        boolean supportsVodSeries = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
+        modeTabs.setVisible(supportsVodSeries);
+        modeTabs.setManaged(supportsVodSeries);
+        if (!supportsVodSeries) {
+            return;
+        }
+        modeTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        modeTabs.setPrefHeight(36);
+        modeTabs.setMinHeight(36);
+        modeTabs.setMaxHeight(36);
+        modeTabs.setTabMinHeight(28);
+        modeTabs.setTabMaxHeight(28);
+        configureModeTab(itvTab, Account.AccountAction.itv);
+        configureModeTab(vodTab, Account.AccountAction.vod);
+        configureModeTab(seriesTab, Account.AccountAction.series);
+        modeTabs.getTabs().setAll(itvTab, vodTab, seriesTab);
+        modeTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (newTab == null) {
+                return;
+            }
+            Account.AccountAction mode = (Account.AccountAction) newTab.getUserData();
+            if (mode != null && mode != activeMode) {
+                switchMode(mode);
+            }
+        });
+        selectActiveModeTab();
+    }
+
+    private void configureModeTab(Tab tab, Account.AccountAction mode) {
+        tab.setClosable(false);
+        tab.setUserData(mode);
+    }
+
+    private void switchMode(Account.AccountAction mode) {
+        if (mode == null || mode == activeMode) {
+            return;
+        }
+        activeMode = mode;
+        account.setAction(mode);
+        refreshCategoryColumnTitle();
+        selectActiveModeTab();
+
+        ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
+        if (!state.categories.isEmpty()) {
+            setItems(state.categories);
+            return;
+        }
+
+        table.setItems(FXCollections.observableArrayList());
+        table.setPlaceholder(new Label("Loading categories..."));
+        removeChannelPane();
+
+        new Thread(() -> {
+            try {
+                account.setAction(mode);
+                List<Category> categories = CategoryService.getInstance().get(account);
+                Platform.runLater(() -> {
+                    modeStates.computeIfAbsent(mode, k -> new ModeState()).categories = new ArrayList<>(categories);
+                    if (activeMode == mode) {
+                        setItems(categories);
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> showErrorAlert("Failed to load categories: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    private void selectActiveModeTab() {
+        Tab target = itvTab;
+        if (activeMode == Account.AccountAction.vod) {
+            target = vodTab;
+        } else if (activeMode == Account.AccountAction.series) {
+            target = seriesTab;
+        }
+        if (modeTabs.getSelectionModel().getSelectedItem() != target) {
+            modeTabs.getSelectionModel().select(target);
+        }
+    }
+
+    private void refreshCategoryColumnTitle() {
+        categoryTitle.setText(account.getAccountName() + " - " + modeLabel(activeMode));
+    }
+
+    private String modeLabel(Account.AccountAction mode) {
+        if (mode == Account.AccountAction.vod) return "VOD";
+        if (mode == Account.AccountAction.series) return "Series";
+        return "Channels";
+    }
+
+    private void maybeShowCachedChannelPane(ModeState state) {
+        if (state == null || state.channelListUI == null) {
+            removeChannelPane();
+            return;
+        }
+        showChannelPane(state.channelListUI);
+    }
+
+    private void showChannelPane(ChannelListUI ui) {
+        if (ui == null) return;
+        removeChannelPane();
+        getChildren().add(ui);
+    }
+
+    private void removeChannelPane() {
+        if (getChildren().size() > 1) {
+            getChildren().remove(1, getChildren().size());
+        }
     }
 
     private void addChannelClickHandler() {
@@ -105,8 +237,17 @@ public class CategoryListUI extends HBox {
     }
 
     private void doRetrieveChannels(CategoryItem item) {
+        final Account.AccountAction mode = activeMode;
+        account.setAction(mode);
+        final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
+        if (state.selectedCategory != null
+                && state.channelListUI != null
+                && state.selectedCategory.getId().equals(item.getId())) {
+            showChannelPane(state.channelListUI);
+            return;
+        }
         // Check if channels are already loaded for this account
-        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
+        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(mode) || account.getType() == AccountType.RSS_FEED;
         
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
@@ -130,7 +271,7 @@ public class CategoryListUI extends HBox {
         primaryStage.getScene().setCursor(Cursor.WAIT);
         currentLoadingThread = new Thread(() -> {
             try {
-                retrieveChannels(item, null, noCachingNeeded, isCancelled::get);
+                retrieveChannels(item, null, noCachingNeeded, isCancelled::get, mode);
             } finally {
                 Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
             }
@@ -138,7 +279,9 @@ public class CategoryListUI extends HBox {
         currentLoadingThread.start();
     }
 
-    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded, Supplier<Boolean> isCancelled) {
+    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {
+        account.setAction(mode);
+        final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         final String categoryId = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
         final ChannelListUI[] channelListUIHolder = new ChannelListUI[1];
         final List<CategoryItem> allItems = new ArrayList<>();
@@ -146,10 +289,12 @@ public class CategoryListUI extends HBox {
         CountDownLatch latch = new CountDownLatch(1);
 
         Platform.runLater(() -> {
-            this.getChildren().clear();
+            removeChannelPane();
             ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), bookmarkChannelListUI, categoryId);
             channelListUIHolder[0] = ui;
-            getChildren().addAll(new VBox(5, table.getSearchTextField(), table), ui);
+            state.channelListUI = ui;
+            state.selectedCategory = item;
+            getChildren().add(ui);
             if ("All".equalsIgnoreCase(item.getCategoryTitle())) {
                  allItems.addAll(table.getItems());
             }
@@ -211,6 +356,12 @@ public class CategoryListUI extends HBox {
         } catch (Exception e) {
             Platform.runLater(() -> showErrorAlert("Error loading channels: " + e.getMessage()));
         }
+    }
+
+    private static class ModeState {
+        private List<Category> categories = new ArrayList<>();
+        private CategoryItem selectedCategory;
+        private ChannelListUI channelListUI;
     }
 
     public static class CategoryItem {

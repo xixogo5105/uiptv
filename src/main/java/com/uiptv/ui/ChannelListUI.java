@@ -5,6 +5,8 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.shared.Episode;
+import com.uiptv.shared.EpisodeInfo;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
@@ -38,6 +40,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.model.Account.AccountAction.vod;
@@ -61,6 +65,8 @@ public class ChannelListUI extends HBox {
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
+    private static final Pattern SERIES_SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
+    private static final Pattern SERIES_EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
         this(account, categoryTitle, bookmarkChannelListUI, categoryId);
@@ -240,6 +246,7 @@ public class ChannelListUI extends HBox {
                             }
                             EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), bookmarkChannelListUI);
                             episodesListUIHolder[0] = ui;
+                            HBox.setHgrow(ui, Priority.ALWAYS);
                             this.getChildren().add(ui);
                             latch.countDown();
                         });
@@ -254,18 +261,28 @@ public class ChannelListUI extends HBox {
                         }
                     } else if (account.getType() == STALKER_PORTAL) {
                         if (isBlank(item.getCmd())) {
-                            // Immediately show the ChannelListUI in loading state
-                            ChannelListUI channelListUI = new ChannelListUI(account, item.getChannelName(), bookmarkChannelListUI, categoryId);
+                            final EpisodesListUI[] episodesListUIHolder = new EpisodesListUI[1];
+                            CountDownLatch latch = new CountDownLatch(1);
                             runLater(() -> {
-                                this.getChildren().clear();
-                                getChildren().addAll(new VBox(5, table.getSearchTextField(), table), channelListUI);
+                                if (this.getChildren().size() > 1) {
+                                    this.getChildren().remove(1);
+                                }
+                                EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), bookmarkChannelListUI);
+                                episodesListUIHolder[0] = ui;
+                                HBox.setHgrow(ui, Priority.ALWAYS);
+                                this.getChildren().add(ui);
+                                latch.countDown();
                             });
-                            
-                            // Fetch series channels
+
+                            latch.await();
+                            if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
+
                             try {
-                                ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, channelListUI::addItems, isCancelled::get);
+                                List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, null, isCancelled::get);
+                                EpisodeList episodeList = toEpisodeList(seriesChannels);
+                                episodesListUIHolder[0].setItems(episodeList);
                             } finally {
-                                channelListUI.setLoadingComplete();
+                                episodesListUIHolder[0].setLoadingComplete();
                             }
                         } else {
                             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
@@ -456,6 +473,57 @@ public class ChannelListUI extends HBox {
                 runLater(() -> getScene().setCursor(Cursor.DEFAULT));
             }
         }).start();
+    }
+
+    private EpisodeList toEpisodeList(List<Channel> channels) {
+        EpisodeList list = new EpisodeList();
+        if (channels == null || channels.isEmpty()) {
+            return list;
+        }
+        for (Channel channel : channels) {
+            if (channel == null) {
+                continue;
+            }
+            Episode episode = new Episode();
+            episode.setId(channel.getChannelId());
+            episode.setTitle(channel.getName());
+            episode.setCmd(channel.getCmd());
+            episode.setSeason(extractSeason(channel.getName()));
+            episode.setEpisodeNum(extractEpisode(channel.getName()));
+            EpisodeInfo info = new EpisodeInfo();
+            info.setMovieImage(channel.getLogo());
+            episode.setInfo(info);
+            list.episodes.add(episode);
+        }
+        return list;
+    }
+
+    private String extractSeason(String title) {
+        if (isBlank(title)) return "1";
+        Matcher matcher = SERIES_SEASON_PATTERN.matcher(title);
+        if (matcher.find()) {
+            String v1 = matcher.group(1);
+            if (!isBlank(v1)) return v1;
+            String v2 = matcher.group(2);
+            if (!isBlank(v2)) return v2;
+            String v3 = matcher.group(3);
+            if (!isBlank(v3)) return v3;
+        }
+        return "1";
+    }
+
+    private String extractEpisode(String title) {
+        if (isBlank(title)) return "";
+        Matcher matcher = SERIES_EPISODE_PATTERN.matcher(title);
+        if (matcher.find()) {
+            String v1 = matcher.group(1);
+            if (!isBlank(v1)) return v1;
+            String v2 = matcher.group(2);
+            if (!isBlank(v2)) return v2;
+            String v3 = matcher.group(3);
+            if (!isBlank(v3)) return v3;
+        }
+        return "";
     }
 
     public static class ChannelItem {

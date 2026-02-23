@@ -12,27 +12,32 @@ import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
-import com.uiptv.widget.AutoGrowVBox;
-import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.util.Callback;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
+import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
@@ -42,9 +47,14 @@ public class EpisodesListUI extends HBox {
     private final String categoryTitle;
     private final BookmarkChannelListUI bookmarkChannelListUI;
     private final EpisodeList channelList;
-    SearchableTableView table = new SearchableTableView();
+    TableView<EpisodeItem> table = new TableView<>();
     TableColumn<EpisodeItem, String> channelName = new TableColumn<>("Episodes");
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private final TabPane seasonTabPane = new TabPane();
+    private final ObservableList<EpisodeItem> allEpisodeItems = FXCollections.observableArrayList(EpisodeItem.extractor());
+    private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
+    private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)");
+    private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b");
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI) {
         this(account, categoryTitle, bookmarkChannelListUI);
@@ -66,6 +76,7 @@ public class EpisodesListUI extends HBox {
         
         if (newChannelList.episodes != null && !newChannelList.episodes.isEmpty()) {
             itemsLoaded.set(true);
+            this.channelList.episodes.clear();
             this.channelList.episodes.addAll(newChannelList.episodes);
             this.channelList.seasonInfo = newChannelList.seasonInfo;
             
@@ -76,19 +87,26 @@ public class EpisodesListUI extends HBox {
                 boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
                 String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
                 String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
+                String season = inferSeason(i);
+                String episodeNo = inferEpisodeNumber(i);
+                String displayTitle = isBlank(episodeNo) ? "Episode" : "Episode " + episodeNo;
                 catList.add(new EpisodeItem(
-                        new SimpleStringProperty(i.getTitle()),
+                        new SimpleStringProperty(displayTitle),
                         new SimpleStringProperty(i.getId()),
                         new SimpleStringProperty(i.getCmd()),
                         isBookmarked,
                         new SimpleStringProperty(logo),
                         new SimpleStringProperty(tmdbId),
+                        new SimpleStringProperty(season),
+                        new SimpleStringProperty(episodeNo),
                         i
                 ));
             });
             
             runLater(() -> {
-                table.setItems(FXCollections.observableArrayList(catList));
+                allEpisodeItems.setAll(catList);
+                refreshSeasonTabs();
+                applySeasonFilter();
                 table.setPlaceholder(null);
             });
         }
@@ -104,7 +122,12 @@ public class EpisodesListUI extends HBox {
 
     private void initWidgets() {
         setSpacing(5);
+        setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
+        setMaxWidth(Double.MAX_VALUE);
         table.setEditable(true);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        table.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
+        table.setMaxWidth(Double.MAX_VALUE);
         table.getColumns().add(channelName);
         channelName.setText("Episodes of " + categoryTitle);
         channelName.setVisible(true);
@@ -140,9 +163,109 @@ public class EpisodesListUI extends HBox {
             }
         });
         channelName.setSortType(TableColumn.SortType.ASCENDING);
-        getChildren().addAll(new AutoGrowVBox(5, table.getSearchTextField(), table));
+        seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        seasonTabPane.setMaxWidth(Double.MAX_VALUE);
+        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> applySeasonFilter());
+        VBox container = new VBox(5, seasonTabPane, table);
+        container.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(container, Priority.ALWAYS);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        getChildren().add(container);
         addChannelClickHandler();
-        table.addTextFilter();
+    }
+
+    private void refreshSeasonTabs() {
+        String current = selectedSeason();
+        List<String> seasons = allEpisodeItems.stream()
+                .map(EpisodeItem::getSeason)
+                .filter(s -> !isBlank(s))
+                .distinct()
+                .sorted(Comparator.comparingInt(Integer::parseInt))
+                .toList();
+        if (seasons.isEmpty()) {
+            seasons = List.of("1");
+        }
+
+        seasonTabPane.getTabs().clear();
+        for (String season : seasons) {
+            Tab tab = new Tab("Season " + season);
+            tab.setClosable(false);
+            tab.setUserData(season);
+            seasonTabPane.getTabs().add(tab);
+        }
+
+        Tab defaultTab = seasonTabPane.getTabs().stream()
+                .filter(t -> "1".equals(String.valueOf(t.getUserData())))
+                .findFirst()
+                .orElse(seasonTabPane.getTabs().get(0));
+        if (!isBlank(current)) {
+            defaultTab = seasonTabPane.getTabs().stream()
+                    .filter(t -> current.equals(String.valueOf(t.getUserData())))
+                    .findFirst()
+                    .orElse(defaultTab);
+        }
+        seasonTabPane.getSelectionModel().select(defaultTab);
+    }
+
+    private void applySeasonFilter() {
+        if (allEpisodeItems.isEmpty()) {
+            table.setItems(FXCollections.observableArrayList());
+            return;
+        }
+        String season = selectedSeason();
+        if (isBlank(season)) {
+            table.setItems(FXCollections.observableArrayList(allEpisodeItems));
+            return;
+        }
+        List<EpisodeItem> filtered = allEpisodeItems.stream()
+                .filter(i -> season.equals(i.getSeason()))
+                .toList();
+        table.setItems(FXCollections.observableArrayList(filtered));
+    }
+
+    private String selectedSeason() {
+        Tab selected = seasonTabPane.getSelectionModel().getSelectedItem();
+        return selected != null ? String.valueOf(selected.getUserData()) : "";
+    }
+
+    private String inferSeason(Episode episode) {
+        if (episode == null) return "1";
+        String season = onlyDigits(episode.getSeason());
+        if (!isBlank(season)) return season;
+        String title = String.valueOf(episode.getTitle());
+        Matcher sxey = SXXEYY_PATTERN.matcher(title);
+        if (sxey.find() && !isBlank(sxey.group(1))) {
+            return sxey.group(1);
+        }
+        Matcher matcher = SEASON_PATTERN.matcher(title);
+        if (matcher.find()) {
+            String parsed = !isBlank(matcher.group(1)) ? matcher.group(1) : matcher.group(2);
+            if (!isBlank(parsed)) return parsed;
+        }
+        return "1";
+    }
+
+    private String inferEpisodeNumber(Episode episode) {
+        if (episode == null) return "";
+        String num = onlyDigits(episode.getEpisodeNum());
+        if (!isBlank(num)) return num;
+        String title = String.valueOf(episode.getTitle());
+        Matcher sxey = SXXEYY_PATTERN.matcher(title);
+        if (sxey.find() && !isBlank(sxey.group(2))) {
+            return sxey.group(2);
+        }
+        Matcher matcher = EPISODE_PATTERN.matcher(title);
+        if (matcher.find()) {
+            String parsed = !isBlank(matcher.group(1)) ? matcher.group(1) : matcher.group(2);
+            if (!isBlank(parsed)) return parsed;
+        }
+        return "";
+    }
+
+    private String onlyDigits(String value) {
+        if (isBlank(value)) return "";
+        String parsed = value.replaceAll("[^0-9]", "");
+        return isBlank(parsed) ? "" : parsed;
     }
 
     private void addChannelClickHandler() {
@@ -316,15 +439,19 @@ public class EpisodesListUI extends HBox {
         private final SimpleBooleanProperty bookmarked;
         private final SimpleStringProperty logo;
         private final SimpleStringProperty tmdbId;
+        private final SimpleStringProperty season;
+        private final SimpleStringProperty episodeNumber;
         private final Episode episode;
 
-        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, SimpleStringProperty tmdbId, Episode episode) {
+        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, SimpleStringProperty tmdbId, SimpleStringProperty season, SimpleStringProperty episodeNumber, Episode episode) {
             this.episodeName = episodeName;
             this.episodeId = episodeId;
             this.cmd = cmd;
             this.bookmarked = new SimpleBooleanProperty(isBookmarked);
             this.logo = logo;
             this.tmdbId = tmdbId;
+            this.season = season;
+            this.episodeNumber = episodeNumber;
             this.episode = episode;
         }
 
@@ -394,6 +521,22 @@ public class EpisodesListUI extends HBox {
 
         public SimpleStringProperty tmdbIdProperty() {
             return tmdbId;
+        }
+
+        public String getSeason() {
+            return season.get();
+        }
+
+        public SimpleStringProperty seasonProperty() {
+            return season;
+        }
+
+        public String getEpisodeNumber() {
+            return episodeNumber.get();
+        }
+
+        public SimpleStringProperty episodeNumberProperty() {
+            return episodeNumber;
         }
 
         public Episode getEpisode() {
