@@ -32,6 +32,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Callback;
+import java.net.URI;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -100,7 +101,8 @@ public class ChannelListUI extends HBox {
                 Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
                 b.setAccountAction(account.getAction());
                 boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
-                newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(i.getLogo()), i));
+                String normalizedLogo = normalizeImageUrl(i.getLogo());
+                newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(normalizedLogo), i));
             });
             
             runLater(() -> {
@@ -491,11 +493,51 @@ public class ChannelListUI extends HBox {
             episode.setSeason(extractSeason(channel.getName()));
             episode.setEpisodeNum(extractEpisode(channel.getName()));
             EpisodeInfo info = new EpisodeInfo();
-            info.setMovieImage(channel.getLogo());
+            info.setMovieImage(normalizeImageUrl(channel.getLogo()));
             episode.setInfo(info);
             list.episodes.add(episode);
         }
         return list;
+    }
+
+    private String normalizeImageUrl(String imageUrl) {
+        if (isBlank(imageUrl)) {
+            return "";
+        }
+        String value = imageUrl.trim().replace("\\/", "/");
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1).trim();
+        }
+        if (isBlank(value)) {
+            return "";
+        }
+        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+            return value;
+        }
+        if (value.startsWith("//")) {
+            String scheme = "https";
+            try {
+                URI portal = URI.create(account.getServerPortalUrl());
+                if (!isBlank(portal.getScheme())) {
+                    scheme = portal.getScheme();
+                }
+            } catch (Exception ignored) {
+            }
+            return scheme + ":" + value;
+        }
+        if (value.startsWith("/")) {
+            try {
+                URI portal = URI.create(account.getServerPortalUrl());
+                String scheme = isBlank(portal.getScheme()) ? "https" : portal.getScheme();
+                String host = portal.getHost();
+                int port = portal.getPort();
+                if (!isBlank(host)) {
+                    return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return value;
     }
 
     private String extractSeason(String title) {

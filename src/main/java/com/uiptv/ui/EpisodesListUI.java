@@ -33,10 +33,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.net.URI;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
+import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -85,7 +87,7 @@ public class EpisodesListUI extends HBox {
                 Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
                 b.setAccountAction(account.getAction());
                 boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
-                String logo = i.getInfo() != null ? i.getInfo().getMovieImage() : "";
+                String logo = i.getInfo() != null ? normalizeImageUrl(i.getInfo().getMovieImage()) : "";
                 String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
                 String season = inferSeason(i);
                 String episodeNo = inferEpisodeNumber(i);
@@ -149,7 +151,9 @@ public class EpisodesListUI extends HBox {
                     setGraphic(null);
                     setStyle("");
                 } else {
-                    EpisodeItem episodeItem = getTableRow().getItem();
+                    EpisodeItem episodeItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
+                            ? getTableView().getItems().get(getIndex())
+                            : null;
                     if (episodeItem != null) {
                         nameLabel.setText(item);
                         setStyle(episodeItem.isBookmarked() ? "-fx-font-weight: bold; -fx-font-size: 125%;" : "");
@@ -266,6 +270,46 @@ public class EpisodesListUI extends HBox {
         if (isBlank(value)) return "";
         String parsed = value.replaceAll("[^0-9]", "");
         return isBlank(parsed) ? "" : parsed;
+    }
+
+    private String normalizeImageUrl(String imageUrl) {
+        if (isBlank(imageUrl)) {
+            return "";
+        }
+        String value = imageUrl.trim().replace("\\/", "/");
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1).trim();
+        }
+        if (isBlank(value)) {
+            return "";
+        }
+        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+            return value;
+        }
+        if (value.startsWith("//")) {
+            String scheme = "https";
+            try {
+                URI portal = URI.create(account.getServerPortalUrl());
+                if (!isBlank(portal.getScheme())) {
+                    scheme = portal.getScheme();
+                }
+            } catch (Exception ignored) {
+            }
+            return scheme + ":" + value;
+        }
+        if (value.startsWith("/")) {
+            try {
+                URI portal = URI.create(account.getServerPortalUrl());
+                String scheme = isBlank(portal.getScheme()) ? "https" : portal.getScheme();
+                String host = portal.getHost();
+                int port = portal.getPort();
+                if (!isBlank(host)) {
+                    return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return value;
     }
 
     private void addChannelClickHandler() {
@@ -401,7 +445,11 @@ public class EpisodesListUI extends HBox {
         new Thread(() -> {
             try {
                 PlayerResponse response;
-                response = PlayerService.getInstance().get(account, channel);
+                if (account.getType() == com.uiptv.util.AccountType.STALKER_PORTAL && account.getAction() == series) {
+                    response = PlayerService.getInstance().get(account, channel, item.getEpisodeId());
+                } else {
+                    response = PlayerService.getInstance().get(account, channel);
+                }
 
                 final String evaluatedStreamUrl = response.getUrl();
                 final PlayerResponse finalResponse = response;
