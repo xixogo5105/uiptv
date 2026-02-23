@@ -514,6 +514,9 @@ public class ChannelListUI extends HBox {
         if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
             return value;
         }
+        if (value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:")) {
+            return value;
+        }
         URI base = resolveBaseUri();
         String scheme = "https";
         String host = "";
@@ -539,7 +542,7 @@ public class ChannelListUI extends HBox {
             String normalized = value.startsWith("./") ? value.substring(2) : value;
             return scheme + "://" + host + (port > 0 ? ":" + port : "") + "/" + normalized;
         }
-        return value;
+        return localServerOrigin() + "/" + value.replaceFirst("^\\./", "");
     }
 
     private URI resolveBaseUri() {
@@ -561,6 +564,18 @@ public class ChannelListUI extends HBox {
             }
         }
         return null;
+    }
+
+    private String localServerOrigin() {
+        String port = "8888";
+        try {
+            String configured = ConfigurationService.getInstance().read().getServerPort();
+            if (!isBlank(configured)) {
+                port = configured.trim();
+            }
+        } catch (Exception ignored) {
+        }
+        return "http://127.0.0.1:" + port;
     }
 
     private String extractSeason(String title) {
