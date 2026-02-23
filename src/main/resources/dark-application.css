@@ -23,6 +23,10 @@
     -fx-border-radius: 3;
 }
 
+.text-area {
+    -fx-prompt-text-fill: #989898;
+}
+
 .titulo {
     -fx-font-weight: bold;
     -fx-font-size: 18px;
