@@ -123,12 +123,15 @@ public class EpisodesListUI extends HBox {
     }
 
     private void initWidgets() {
+        setPadding(new javafx.geometry.Insets(5));
         setSpacing(5);
-        setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
+        setMinWidth(0);
+        setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         setMaxWidth(Double.MAX_VALUE);
         table.setEditable(true);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        table.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
+        table.setMinWidth(0);
+        table.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         table.setMaxWidth(Double.MAX_VALUE);
         table.getColumns().add(channelName);
         channelName.setText("Episodes of " + categoryTitle);

@@ -28,6 +28,7 @@ public class Episode extends BaseJson {
         this.season = safeGetString(map, "season");
         this.direct_source = safeGetString(map, "direct_source");
         this.info = new EpisodeInfo((Map) map.get("info"));
+        mergeEpisodeLevelArtwork(map);
         this.cmd = getXtremeStreamUrl(account, id, containerExtension);
     }
 
@@ -47,9 +48,51 @@ public class Episode extends BaseJson {
             if (jsonObj.has("info")) {
                 episode.setInfo(new EpisodeInfo(jsonObj.getJSONObject("info").toMap()));
             }
+            episode.mergeEpisodeLevelArtwork(jsonObj.toMap());
             return episode;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private void mergeEpisodeLevelArtwork(Map map) {
+        if (map == null) return;
+        if (this.info == null) {
+            this.info = new EpisodeInfo();
+        }
+        String current = this.info.getMovieImage();
+        if (!isBlankLike(current)) {
+            return;
+        }
+        String rootEpisodeImage = firstNonBlank(
+                map,
+                "movie_image",
+                "thumbnail",
+                "still_path",
+                "cover_big",
+                "cover",
+                "screenshot_uri",
+                "stream_icon",
+                "image",
+                "poster"
+        );
+        if (!isBlankLike(rootEpisodeImage)) {
+            this.info.setMovieImage(rootEpisodeImage);
+        }
+    }
+
+    private String firstNonBlank(Map map, String... keys) {
+        if (map == null || keys == null) return "";
+        for (String key : keys) {
+            String value = safeGetString(map, key);
+            if (!isBlankLike(value)) return value.trim();
+        }
+        return "";
+    }
+
+    private boolean isBlankLike(String value) {
+        if (value == null) return true;
+        String v = value.trim();
+        return v.isEmpty() || "null".equalsIgnoreCase(v) || "n/a".equalsIgnoreCase(v);
     }
 }
