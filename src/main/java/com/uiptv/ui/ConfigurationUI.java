@@ -12,13 +12,19 @@ import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,6 +34,7 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ConfigurationUI extends VBox {
     private String dbId;
+    private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("Browse...");
     final Button browserButtonPlayerPath2 = new Button("Browse...");
@@ -68,8 +75,19 @@ public class ConfigurationUI extends VBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(5));
-        setSpacing(5);
+        setPadding(Insets.EMPTY);
+        setSpacing(0);
+        contentContainer.setPadding(new Insets(5));
+        contentContainer.setSpacing(10);
+
+        ScrollPane scrollPane = new ScrollPane(contentContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setPannable(true);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        getChildren().setAll(scrollPane);
+
         Configuration configuration = service.read();
         defaultPlayer1.setToggleGroup(group);
         defaultPlayer2.setToggleGroup(group);
@@ -107,9 +125,12 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
         }
-        playerPath1.setMinWidth(315);
-        playerPath2.setMinWidth(315);
-        playerPath3.setMinWidth(315);
+        playerPath1.setMinWidth(285);
+        playerPath2.setMinWidth(285);
+        playerPath3.setMinWidth(285);
+        playerPath1.setPrefWidth(285);
+        playerPath2.setPrefWidth(285);
+        playerPath3.setPrefWidth(285);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
 
@@ -137,12 +158,26 @@ public class ConfigurationUI extends VBox {
         HBox box2 = new HBox(10, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(10, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
         HBox box4 = new HBox(10, defaultEmbedPlayer);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4);
+
+        VBox filtersGroup = new VBox(10, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains);
+
+        VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox);
+
+        HBox cacheButtons = new HBox(10, clearCacheButton, reloadCacheButton);
+        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheButtons);
+
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton, publishM3u8Button);
-        getChildren().addAll(box1, box2, box3, box4, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains,
-                fontFamily, fontSize, fontWeight, darkThemeCheckBox, filterPausedCheckBox,
-                new HBox(10, clearCacheButton, reloadCacheButton),
-                enableFfmpegCheckBox,
-                serverButtonWrapper, saveButton);
+        VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper);
+
+        contentContainer.getChildren().addAll(
+                createGroupPane("Players", "Add player paths and select the matching radio button to set the default player.", playersGroup),
+                createGroupPane("Filters", filtersGroup),
+                createGroupPane("Font & Theme", fontGroup),
+                createGroupPane("Cache & Filtering", cacheGroup),
+                createGroupPane("FFmpeg & Web Server", serverGroup),
+                saveButton
+        );
         addSaveButtonClickHandler();
         addBrowserButton1ClickHandler();
         addBrowserButton2ClickHandler();
@@ -152,6 +187,35 @@ public class ConfigurationUI extends VBox {
         addClearCacheButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
         addReloadCacheButtonClickHandler();
+    }
+
+    private BorderPane createGroupPane(String title, Node content) {
+        BorderPane pane = new BorderPane(content);
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-weight: bold;");
+        BorderPane.setMargin(titleLabel, new Insets(0, 0, 8, 0));
+        pane.setTop(titleLabel);
+        pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: -fx-control-inner-background-alt;"
+                + "-fx-border-color: -fx-box-border;"
+                + "-fx-background-radius: 8;"
+                + "-fx-border-radius: 8;");
+        return pane;
+    }
+
+    private BorderPane createGroupPane(String title, String description, Node content) {
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-weight: bold;");
+
+        Label descriptionLabel = new Label(description);
+        descriptionLabel.setWrapText(true);
+        descriptionLabel.setStyle("-fx-opacity: 0.85;");
+
+        VBox header = new VBox(4, titleLabel, descriptionLabel);
+        BorderPane pane = createGroupPane("", content);
+        pane.setTop(header);
+        BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
+        return pane;
     }
 
     private void addReloadCacheButtonClickHandler() {
@@ -169,9 +233,9 @@ public class ConfigurationUI extends VBox {
         VideoPlayerInterface.PlayerType playerType = MediaPlayerFactory.getPlayerType();
         String title = "Embedded Player";
         if (playerType == VideoPlayerInterface.PlayerType.VLC) {
-            title = "Embedded Player (Vlc)";
+            title = "Embedded Player (Using VLC)";
         } else if (playerType == VideoPlayerInterface.PlayerType.LITE) {
-            title = "Embedded Player (Limited Lite Player)";
+            title = "Embedded Player (Using Lite)";
         }
         defaultEmbedPlayer.setText(title);
     }
@@ -229,8 +293,10 @@ public class ConfigurationUI extends VBox {
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(actionEvent -> {
             try {
-                Configuration oldConfiguration = service.read();
-                boolean oldUseEmbeddedPlayer = oldConfiguration != null && oldConfiguration.isEmbeddedPlayer();
+                if (saveButton.isDisable()) {
+                    return;
+                }
+                saveButton.setDisable(true);
 
                 String defaultPlayer = defaultEmbedPlayer.getText();
                 if (defaultPlayer1.isSelected()) {
@@ -253,16 +319,31 @@ public class ConfigurationUI extends VBox {
                 newConfiguration.setDbId(dbId);
                 service.save(newConfiguration);
                 onSaveCallback.call(null);
+                showSaveSuccessAnimation();
 
                 if (newConfiguration.isEmbeddedPlayer() && MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.DUMMY) {
-                    showMessageAlert("Configurations saved! Please restart the application for the embedded player to be initialized.");
-                } else {
-                    showMessageAlert("Configurations saved!");
+                    showMessageAlert("Please restart the application for the embedded player to be initialized.");
                 }
             } catch (Exception e) {
                 showErrorAlert("Failed to save configuration. Please try again!");
+                saveButton.setDisable(false);
             }
         });
+    }
+
+    private void showSaveSuccessAnimation() {
+        String originalText = saveButton.getText();
+        saveButton.setText("✅");
+
+        Timeline timeline = new Timeline(new KeyFrame(
+                Duration.seconds(10),
+                event -> {
+                    saveButton.setText(originalText);
+                    saveButton.setDisable(false);
+                }
+        ));
+        timeline.setCycleCount(1);
+        timeline.play();
     }
 
     private void addBrowserButton1ClickHandler() {
