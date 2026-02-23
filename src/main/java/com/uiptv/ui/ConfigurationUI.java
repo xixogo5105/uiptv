@@ -125,12 +125,12 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
         }
-        playerPath1.setMinWidth(285);
-        playerPath2.setMinWidth(285);
-        playerPath3.setMinWidth(285);
-        playerPath1.setPrefWidth(285);
-        playerPath2.setPrefWidth(285);
-        playerPath3.setPrefWidth(285);
+        playerPath1.setMinWidth(275);
+        playerPath2.setMinWidth(275);
+        playerPath3.setMinWidth(275);
+        playerPath1.setPrefWidth(275);
+        playerPath2.setPrefWidth(275);
+        playerPath3.setPrefWidth(275);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
 
@@ -154,10 +154,10 @@ public class ConfigurationUI extends VBox {
         saveButton.setMinHeight(50);
         saveButton.setPrefHeight(50);
         fileChooser.setTitle("Select your favorite streaming player");
-        HBox box1 = new HBox(10, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
-        HBox box2 = new HBox(10, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
-        HBox box3 = new HBox(10, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
-        HBox box4 = new HBox(10, defaultEmbedPlayer);
+        HBox box1 = new HBox(6, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
+        HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
+        HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
+        HBox box4 = new HBox(6, defaultEmbedPlayer);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4);
 
         VBox filtersGroup = new VBox(10, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains);

@@ -27,7 +27,9 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
@@ -54,8 +56,10 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
         new Thread(() -> {
             List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            Map<String, Account> accountByName = AccountService.getInstance().getAll();
+            Map<String, String> logoByAccountAndChannel = new HashMap<>();
             List<BookmarkItem> items = bookmarks.stream()
-                    .map(this::createBookmarkItem)
+                    .map(bookmark -> createBookmarkItem(bookmark, accountByName, logoByAccountAndChannel))
                     .collect(Collectors.toList());
 
             runLater(() -> {
@@ -213,11 +217,24 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkTable.getTableView().setItems(FXCollections.observableArrayList(filteredList));
     }
 
-    private BookmarkItem createBookmarkItem(Bookmark bookmark) {
-        Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
-        Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
-        String logo = channel != null ? channel.getLogo() : "";
-        Account.AccountAction accountAction = bookmark.getAccountAction() != null ? bookmark.getAccountAction() : account.getAction();
+    private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, String> logoByAccountAndChannel) {
+        Account account = accountByName.get(bookmark.getAccountName());
+        String logo = "";
+
+        if (account != null) {
+            String key = account.getDbId() + "|" + bookmark.getChannelId();
+            if (logoByAccountAndChannel.containsKey(key)) {
+                logo = logoByAccountAndChannel.get(key);
+            } else {
+                Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+                logo = channel != null ? channel.getLogo() : "";
+                logoByAccountAndChannel.put(key, logo);
+            }
+        }
+
+        Account.AccountAction accountAction = bookmark.getAccountAction() != null
+                ? bookmark.getAccountAction()
+                : (account != null ? account.getAction() : Account.AccountAction.itv);
         return new BookmarkItem(
                 new SimpleStringProperty(bookmark.getDbId()),
                 new SimpleStringProperty(bookmark.getChannelName()),

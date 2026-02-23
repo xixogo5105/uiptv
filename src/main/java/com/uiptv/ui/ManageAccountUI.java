@@ -15,6 +15,7 @@ import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -58,7 +59,6 @@ public class ManageAccountUI extends VBox {
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "HTTP Method", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "Timezone", 250);
     private final ProminentButton saveButton = new ProminentButton("Save");
-    private final DangerousButton deleteAllButton = new DangerousButton("Delete All");
     private final DangerousButton deleteButton = new DangerousButton("Delete");
     private final Button clearButton = new Button("Clear Data");
     private final Button refreshChannelsButton = new Button("Reload Cache");
@@ -82,20 +82,16 @@ public class ManageAccountUI extends VBox {
         saveButton.setPrefWidth(430);
         saveButton.setMinHeight(50);
         saveButton.setPrefHeight(50);
-        refreshChannelsButton.setMinWidth(430);
-        refreshChannelsButton.setPrefWidth(430);
-        refreshChannelsButton.setMinHeight(50);
-        refreshChannelsButton.setPrefHeight(50);
+        refreshChannelsButton.setMinWidth(130);
+        refreshChannelsButton.setPrefWidth(130);
         m3u8Path.setMinWidth(180);
         accountType.setMinWidth(250);
         macAddress.setPrefWidth(280); // Reduced by 20% from 350
 
-        clearButton.setMinWidth(140);
-        clearButton.setPrefWidth(140);
-        deleteButton.setMinWidth(140);
-        deleteButton.setPrefWidth(140);
-        deleteAllButton.setMinWidth(140);
-        deleteAllButton.setPrefWidth(140);
+        clearButton.setMinWidth(130);
+        clearButton.setPrefWidth(130);
+        deleteButton.setMinWidth(130);
+        deleteButton.setPrefWidth(130);
 
         macAddressList.textProperty().addListener((observable, oldVal, newVal) -> {
             setupMacAddressByList(newVal);
@@ -113,10 +109,12 @@ public class ManageAccountUI extends VBox {
         HBox macAddressContainer = new HBox(5, macAddress, verifyMacsLink, pipeLabel, manageMacsLink);
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
-        HBox buttonWrapper2 = new HBox(5, clearButton, deleteButton, deleteAllButton);
-        getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, httpMethodCombo, timezoneCombo, refreshChannelsButton, saveButton, buttonWrapper2);
+        HBox actionButtonRow = new HBox(5, refreshChannelsButton, clearButton, deleteButton);
+        BorderPane actionButtonPane = createActionButtonPane(actionButtonRow);
+        VBox actionSection = new VBox(12, saveButton, actionButtonPane);
+
+        populateForm(STALKER_PORTAL, macAddressContainer, actionSection);
         addSubmitButtonClickHandler();
-        addDeleteAllButtonClickHandler();
         addDeleteButtonClickHandler();
         addClearButtonClickHandler();
         addRefreshChannelsButtonClickHandler();
@@ -135,33 +133,45 @@ public class ManageAccountUI extends VBox {
         accountType.valueProperty().addListener((ChangeListener<String>) (observable, oldValue, newValue) -> {
             if (newValue != null) {
                 Platform.runLater(() -> {
-                    getChildren().clear();
                     AccountType type = getAccountTypeByDisplay(newValue);
-                    boolean cacheSupported = CACHE_SUPPORTED.contains(type);
-                    
-                    switch (type) {
-                        case STALKER_PORTAL:
-                            getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, pinToTopCheckBox, httpMethodCombo, timezoneCombo);
-                            break;
-                        case M3U8_LOCAL:
-                            getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
-                            break;
-                        case M3U8_URL:
-                        case RSS_FEED:
-                            getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
-                            break;
-                        case XTREME_API:
-                            getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox);
-                            break;
-                    }
-                    
-                    if (cacheSupported) {
-                        getChildren().add(refreshChannelsButton);
-                    }
-                    getChildren().addAll(saveButton, buttonWrapper2);
+                    populateForm(type, macAddressContainer, actionSection);
                 });
             }
         });
+    }
+
+    private BorderPane createActionButtonPane(HBox actionButtonRow) {
+        BorderPane pane = new BorderPane(actionButtonRow);
+        pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: -fx-control-inner-background-alt;"
+                + "-fx-border-color: -fx-box-border;"
+                + "-fx-background-radius: 8;"
+                + "-fx-border-radius: 8;");
+        return pane;
+    }
+
+    private void populateForm(AccountType type, HBox macAddressContainer, VBox actionSection) {
+        getChildren().clear();
+        switch (type) {
+            case STALKER_PORTAL:
+                getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox);
+                break;
+            case M3U8_LOCAL:
+                getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
+                break;
+            case M3U8_URL:
+            case RSS_FEED:
+                getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
+                break;
+            case XTREME_API:
+                getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox);
+                break;
+        }
+
+        boolean cacheSupported = CACHE_SUPPORTED.contains(type);
+        refreshChannelsButton.setManaged(cacheSupported);
+        refreshChannelsButton.setVisible(cacheSupported);
+        getChildren().add(actionSection);
     }
 
     private void openManageMacsPopup() {
@@ -461,24 +471,6 @@ public class ManageAccountUI extends VBox {
 
     private void addSubmitButtonClickHandler() {
         saveButton.setOnAction(actionEvent -> saveAccount(true));
-    }
-
-    private void addDeleteAllButtonClickHandler() {
-        deleteAllButton.setOnAction(actionEvent -> {
-            Alert confirmDialogue1 = showDialog("Delete All accounts?");
-            if (confirmDialogue1.getResult() == ButtonType.YES) {
-                Alert confirmDialogueFinal = showDialog("Final Chance to abort. Press Yes button to delete all accounts?");
-                if (confirmDialogueFinal.getResult() == ButtonType.YES) {
-                    try {
-                        service.deleteAll();
-                        onSaveCallback.call(null);
-                        clearAll();
-                    } catch (Exception e) {
-                        showErrorAlert("Failed!");
-                    }
-                }
-            }
-        });
     }
 
     private void addDeleteButtonClickHandler() {
