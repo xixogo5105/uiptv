@@ -109,6 +109,24 @@ public class RootApplication extends Application {
         return hostServices;
     }
 
+    public static boolean ensureServerForWebPlayback() {
+        try {
+            UIptvServer.ensureStarted();
+            return true;
+        } catch (Exception e) {
+            UIptvAlert.showError("Unable to start local web server for playback.", e);
+            return false;
+        }
+    }
+
+    public static void openInBrowser(String url) {
+        if (isNotBlank(url) && hostServices != null) {
+            hostServices.showDocument(url);
+            return;
+        }
+        UIptvAlert.showError("Unable to open browser for DRM playback.");
+    }
+
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;

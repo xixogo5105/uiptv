@@ -1,0 +1,188 @@
+(function () {
+    const statusEl = document.getElementById('status');
+    const videoEl = document.getElementById('video');
+    let shakaPlayer = null;
+
+    const setStatus = (message) => {
+        if (!statusEl) return;
+        statusEl.textContent = message || '';
+        statusEl.style.display = message ? 'block' : 'none';
+    };
+
+    const decodeBase64Url = (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        let normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+        while (normalized.length % 4 !== 0) {
+            normalized += '=';
+        }
+        try {
+            return atob(normalized);
+        } catch (_) {
+            return '';
+        }
+    };
+
+    const parseLaunchPayload = () => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const encoded = params.get('drmLaunch');
+            if (!encoded) return null;
+            const decoded = decodeBase64Url(encoded);
+            if (!decoded) return null;
+            return JSON.parse(decoded);
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const appendPlaybackCompatParams = (query, mode) => {
+        const normalizedMode = String(mode || 'itv').toLowerCase();
+        query.set('mode', normalizedMode);
+        query.set('streamType', normalizedMode === 'itv' ? 'live' : 'video');
+        query.set('action', normalizedMode);
+    };
+
+    const cleanValue = (value) => {
+        const normalized = String(value ?? '').trim();
+        if (!normalized || normalized.toLowerCase() === 'null' || normalized.toLowerCase() === 'undefined') {
+            return '';
+        }
+        return normalized;
+    };
+
+    const buildPlayerRequestUrl = (payload) => {
+        const channel = payload?.channel || {};
+        const mode = String(payload?.mode || 'itv').toLowerCase();
+
+        const query = new URLSearchParams();
+        query.set('accountId', cleanValue(payload?.accountId));
+        query.set('categoryId', cleanValue(payload?.categoryId));
+        query.set('mode', mode);
+
+        const channelDbId = cleanValue(channel.dbId);
+        const channelIdentifier = cleanValue(channel.channelId || channel.id);
+        if (channelDbId) {
+            query.set('channelId', channelDbId);
+        } else {
+            query.set('channelId', channelIdentifier);
+        }
+        query.set('name', cleanValue(channel.name));
+        query.set('logo', cleanValue(channel.logo));
+        query.set('cmd', cleanValue(channel.cmd));
+        query.set('cmd_1', cleanValue(channel.cmd_1));
+        query.set('cmd_2', cleanValue(channel.cmd_2));
+        query.set('cmd_3', cleanValue(channel.cmd_3));
+        query.set('drmType', cleanValue(channel.drmType));
+        query.set('drmLicenseUrl', cleanValue(channel.drmLicenseUrl));
+        query.set('clearKeysJson', cleanValue(channel.clearKeysJson));
+        query.set('inputstreamaddon', cleanValue(channel.inputstreamaddon));
+        query.set('manifestType', cleanValue(channel.manifestType));
+        if (mode === 'series') {
+            query.set('seriesId', channelIdentifier);
+        }
+
+        appendPlaybackCompatParams(query, mode);
+        return `${window.location.origin}/player?${query.toString()}`;
+    };
+
+    const loadNative = async (url) => {
+        videoEl.src = url;
+        await ensurePlaying();
+    };
+
+    const ensurePlaying = async () => {
+        try {
+            await videoEl.play();
+            return;
+        } catch (e) {
+            // Browser may block autoplay with audio; retry muted for instant start.
+            try {
+                videoEl.muted = true;
+                await videoEl.play();
+            } catch (_) {
+                throw e;
+            }
+        }
+    };
+
+    const loadShaka = async (responseData) => {
+        if (!window.shaka || !window.shaka.Player) {
+            throw new Error('Shaka Player is not available.');
+        }
+        shaka.polyfill.installAll();
+        if (!shaka.Player.isBrowserSupported()) {
+            throw new Error('Browser does not support Shaka playback.');
+        }
+        shakaPlayer = new shaka.Player();
+        await shakaPlayer.attach(videoEl);
+        shakaPlayer.addEventListener('error', (event) => {
+            const detail = event?.detail?.message || 'Unknown Shaka error';
+            setStatus('Playback error: ' + detail);
+        });
+
+        if (responseData?.drm) {
+            const drmConfig = {};
+            if (responseData.drm.licenseUrl && responseData.drm.type) {
+                drmConfig.servers = { [responseData.drm.type]: responseData.drm.licenseUrl };
+            }
+            if (responseData.drm.clearKeys) {
+                drmConfig.clearKeys = responseData.drm.clearKeys;
+            }
+            shakaPlayer.configure({ drm: drmConfig });
+        }
+
+        await shakaPlayer.load(responseData.url);
+        await ensurePlaying();
+    };
+
+    const start = async () => {
+        const payload = parseLaunchPayload();
+        if (!payload || !payload.channel) {
+            setStatus('Invalid DRM launch payload.');
+            return;
+        }
+        videoEl.controls = true;
+
+        try {
+            setStatus('Requesting playback URL...');
+            const response = await fetch(buildPlayerRequestUrl(payload));
+            const responseData = await response.json();
+            const playbackUrl = cleanValue(responseData?.url);
+            if (!playbackUrl) {
+                throw new Error('Player response did not return a URL.');
+            }
+            responseData.url = playbackUrl;
+
+            setStatus('Starting playback...');
+            const hasDrm = !!responseData.drm;
+            const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
+            const isHlsUrl = String(responseData.url).toLowerCase().includes('.m3u8');
+
+            if (hasDrm) {
+                await loadShaka(responseData);
+            } else if (canNativeHls && isHlsUrl) {
+                await loadNative(responseData.url);
+            } else {
+                await loadShaka(responseData);
+            }
+
+            setStatus('');
+        } catch (e) {
+            setStatus('Unable to play channel: ' + (e?.message || String(e)));
+        }
+    };
+
+    window.addEventListener('beforeunload', async () => {
+        if (shakaPlayer) {
+            try {
+                await shakaPlayer.destroy();
+            } catch (_) {
+                // Ignore cleanup errors.
+            }
+            shakaPlayer = null;
+        }
+    });
+
+    start();
+})();

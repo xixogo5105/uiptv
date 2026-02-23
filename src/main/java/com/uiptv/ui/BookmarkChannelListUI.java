@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -103,13 +104,17 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setCellFactory(column -> new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
+            private final Label drmBadge = new Label("DRM");
             private final Pane spacer = new Pane();
             private final AsyncImageView imageView = new AsyncImageView();
 
             {
                 HBox.setHgrow(spacer, Priority.ALWAYS);
+                drmBadge.getStyleClass().add("drm-badge");
+                drmBadge.setVisible(false);
+                drmBadge.setManaged(false);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, nameLabel, spacer);
+                graphic.getChildren().addAll(imageView, nameLabel, drmBadge, spacer);
             }
 
             @Override
@@ -130,6 +135,13 @@ public class BookmarkChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
+                boolean drmProtected = isNotBlank(bookmarkItem.getDrmType())
+                        || isNotBlank(bookmarkItem.getDrmLicenseUrl())
+                        || isNotBlank(bookmarkItem.getClearKeysJson())
+                        || isNotBlank(bookmarkItem.getInputstreamaddon())
+                        || isNotBlank(bookmarkItem.getManifestType());
+                drmBadge.setVisible(drmProtected);
+                drmBadge.setManaged(drmProtected);
                 imageView.loadImage(bookmarkItem.getLogo(), "bookmark");
                 setGraphic(graphic);
             }
@@ -220,16 +232,48 @@ public class BookmarkChannelListUI extends HBox {
     private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, String> logoByAccountAndChannel) {
         Account account = accountByName.get(bookmark.getAccountName());
         String logo = "";
+        Channel channel = null;
 
         if (account != null) {
             String key = account.getDbId() + "|" + bookmark.getChannelId();
             if (logoByAccountAndChannel.containsKey(key)) {
                 logo = logoByAccountAndChannel.get(key);
             } else {
-                Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+                channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
                 logo = channel != null ? channel.getLogo() : "";
                 logoByAccountAndChannel.put(key, logo);
             }
+            if (channel == null) {
+                channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+            }
+        }
+
+        String drmType = bookmark.getDrmType();
+        String drmLicenseUrl = bookmark.getDrmLicenseUrl();
+        String clearKeysJson = bookmark.getClearKeysJson();
+        String inputstreamaddon = bookmark.getInputstreamaddon();
+        String manifestType = bookmark.getManifestType();
+
+        if (channel != null) {
+            if (isBlank(drmType)) drmType = channel.getDrmType();
+            if (isBlank(drmLicenseUrl)) drmLicenseUrl = channel.getDrmLicenseUrl();
+            if (isBlank(clearKeysJson)) clearKeysJson = channel.getClearKeysJson();
+            if (isBlank(inputstreamaddon)) inputstreamaddon = channel.getInputstreamaddon();
+            if (isBlank(manifestType)) manifestType = channel.getManifestType();
+        }
+
+        Channel jsonChannel = null;
+        if (isBlank(drmType) && isNotBlank(bookmark.getChannelJson())) {
+            jsonChannel = Channel.fromJson(bookmark.getChannelJson());
+        } else if (isBlank(drmType) && isNotBlank(bookmark.getVodJson())) {
+            jsonChannel = Channel.fromJson(bookmark.getVodJson());
+        }
+        if (jsonChannel != null) {
+            if (isBlank(drmType)) drmType = jsonChannel.getDrmType();
+            if (isBlank(drmLicenseUrl)) drmLicenseUrl = jsonChannel.getDrmLicenseUrl();
+            if (isBlank(clearKeysJson)) clearKeysJson = jsonChannel.getClearKeysJson();
+            if (isBlank(inputstreamaddon)) inputstreamaddon = jsonChannel.getInputstreamaddon();
+            if (isBlank(manifestType)) manifestType = jsonChannel.getManifestType();
         }
 
         Account.AccountAction accountAction = bookmark.getAccountAction() != null
@@ -250,7 +294,12 @@ public class BookmarkChannelListUI extends HBox {
                 new SimpleStringProperty(bookmark.getCategoryJson()),
                 new SimpleStringProperty(bookmark.getChannelJson()),
                 new SimpleStringProperty(bookmark.getVodJson()),
-                new SimpleStringProperty(bookmark.getSeriesJson())
+                new SimpleStringProperty(bookmark.getSeriesJson()),
+                drmType,
+                drmLicenseUrl,
+                clearKeysJson,
+                inputstreamaddon,
+                manifestType
         );
     }
 
@@ -453,48 +502,48 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void play(BookmarkItem item, String playerPath) {
+        if (item == null) {
+            return;
+        }
         boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
         boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
+        PlaybackContext playbackContext;
+        try {
+            playbackContext = resolvePlaybackContext(item);
+        } catch (Exception e) {
+            showErrorAlert("Error preparing bookmark: " + e.getMessage());
+            return;
+        }
+        if (playbackContext == null || playbackContext.account == null || playbackContext.channel == null) {
+            showErrorAlert("Unable to load account/channel for this bookmark.");
+            return;
+        }
+        if (PlayerService.getInstance().isDrmProtected(playbackContext.channel)) {
+            String serverPort = resolveDrmPlaybackServerPort();
+            boolean confirmed = showConfirmationAlert("This channel has drm protected contents and will only run in the browser. It requires the local server to run on port " + serverPort + ". Do you want me to open a browser and try running this channel?");
+            if (!confirmed) {
+                return;
+            }
+            if (!RootApplication.ensureServerForWebPlayback()) {
+                showErrorAlert("Unable to start local web server for DRM playback.");
+                return;
+            }
+            String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(
+                    playbackContext.account,
+                    playbackContext.channel,
+                    item.getCategoryId(),
+                    playbackContext.account.getAction() == null ? "itv" : playbackContext.account.getAction().name()
+            );
+            RootApplication.openInBrowser(browserUrl);
+            return;
+        }
 
         getScene().setCursor(Cursor.WAIT);
+        final PlaybackContext resolvedContext = playbackContext;
         new Thread(() -> {
             try {
-                Account account = AccountService.getInstance().getAll().get(item.getAccountName());
-                account.setServerPortalUrl(item.getServerPortalUrl());
-                account.setAction(item.getAccountAction());
-
-                Channel channel = null;
-                if (isNotBlank(item.getSeriesJson())) {
-                    Episode episode = Episode.fromJson(item.getSeriesJson());
-                    if (episode != null) {
-                        channel = new Channel();
-                        channel.setCmd(episode.getCmd());
-                        channel.setName(episode.getTitle());
-                        channel.setChannelId(episode.getId());
-                        if (episode.getInfo() != null) {
-                            channel.setLogo(episode.getInfo().getMovieImage());
-                        }
-                    }
-                } else if (isNotBlank(item.getChannelJson())) {
-                    channel = Channel.fromJson(item.getChannelJson());
-                } else if (isNotBlank(item.getVodJson())) {
-                    channel = Channel.fromJson(item.getVodJson());
-                }
-
-                if (channel == null) {
-                    channel = new Channel();
-                    channel.setCmd(item.getCmd());
-                    channel.setChannelId(item.getChannelId());
-                    channel.setName(item.getChannelName());
-                    channel.setDrmType(item.getDrmType());
-                    channel.setDrmLicenseUrl(item.getDrmLicenseUrl());
-                    channel.setClearKeysJson(item.getClearKeysJson());
-                    channel.setInputstreamaddon(item.getInputstreamaddon());
-                    channel.setManifestType(item.getManifestType());
-                }
-
-                PlayerResponse response = PlayerService.getInstance().get(account, channel, item.getChannelId());
-                response.setFromChannel(channel, account);
+                PlayerResponse response = PlayerService.getInstance().get(resolvedContext.account, resolvedContext.channel, item.getChannelId());
+                response.setFromChannel(resolvedContext.channel, resolvedContext.account);
 
                 String evaluatedStreamUrl = response.getUrl();
 
@@ -525,6 +574,62 @@ public class BookmarkChannelListUI extends HBox {
         }).start();
     }
 
+    private String resolveDrmPlaybackServerPort() {
+        String configured = ConfigurationService.getInstance().read().getServerPort();
+        return isBlank(configured) ? "8888" : configured.trim();
+    }
+
+    private PlaybackContext resolvePlaybackContext(BookmarkItem item) {
+        Account account = AccountService.getInstance().getAll().get(item.getAccountName());
+        if (account == null) {
+            return null;
+        }
+        account.setServerPortalUrl(item.getServerPortalUrl());
+        account.setAction(item.getAccountAction());
+
+        Channel channel = null;
+        if (isNotBlank(item.getSeriesJson())) {
+            Episode episode = Episode.fromJson(item.getSeriesJson());
+            if (episode != null) {
+                channel = new Channel();
+                channel.setCmd(episode.getCmd());
+                channel.setName(episode.getTitle());
+                channel.setChannelId(episode.getId());
+                if (episode.getInfo() != null) {
+                    channel.setLogo(episode.getInfo().getMovieImage());
+                }
+            }
+        } else if (isNotBlank(item.getChannelJson())) {
+            channel = Channel.fromJson(item.getChannelJson());
+        } else if (isNotBlank(item.getVodJson())) {
+            channel = Channel.fromJson(item.getVodJson());
+        }
+
+        if (channel == null) {
+            channel = new Channel();
+            channel.setCmd(item.getCmd());
+            channel.setChannelId(item.getChannelId());
+            channel.setName(item.getChannelName());
+            channel.setDrmType(item.getDrmType());
+            channel.setDrmLicenseUrl(item.getDrmLicenseUrl());
+            channel.setClearKeysJson(item.getClearKeysJson());
+            channel.setInputstreamaddon(item.getInputstreamaddon());
+            channel.setManifestType(item.getManifestType());
+        }
+
+        return new PlaybackContext(account, channel);
+    }
+
+    private static final class PlaybackContext {
+        private final Account account;
+        private final Channel channel;
+
+        private PlaybackContext(Account account, Channel channel) {
+            this.account = account;
+            this.channel = channel;
+        }
+    }
+
     public static class BookmarkItem {
         private final SimpleStringProperty bookmarkId;
         private final SimpleStringProperty channelName;
@@ -548,7 +653,7 @@ public class BookmarkChannelListUI extends HBox {
         private final String manifestType;
 
 
-        public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId, SimpleStringProperty logo, Account.AccountAction accountAction, SimpleStringProperty categoryJson, SimpleStringProperty channelJson, SimpleStringProperty vodJson, SimpleStringProperty seriesJson) {
+        public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId, SimpleStringProperty logo, Account.AccountAction accountAction, SimpleStringProperty categoryJson, SimpleStringProperty channelJson, SimpleStringProperty vodJson, SimpleStringProperty seriesJson, String drmType, String drmLicenseUrl, String clearKeysJson, String inputstreamaddon, String manifestType) {
             this.bookmarkId = bookmarkId;
             this.channelName = channelName;
             this.channelId = channelId;
@@ -564,11 +669,11 @@ public class BookmarkChannelListUI extends HBox {
             this.channelJson = channelJson;
             this.vodJson = vodJson;
             this.seriesJson = seriesJson;
-            this.drmType = null;
-            this.drmLicenseUrl = null;
-            this.clearKeysJson = null;
-            this.inputstreamaddon = null;
-            this.manifestType = null;
+            this.drmType = drmType;
+            this.drmLicenseUrl = drmLicenseUrl;
+            this.clearKeysJson = clearKeysJson;
+            this.inputstreamaddon = inputstreamaddon;
+            this.manifestType = manifestType;
         }
 
         public String getBookmarkId() {

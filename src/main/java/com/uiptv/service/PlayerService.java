@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -59,6 +60,45 @@ public class PlayerService {
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;
+    }
+
+    public boolean isDrmProtected(Channel channel) {
+        if (channel == null) {
+            return false;
+        }
+        return !isBlank(channel.getDrmType())
+                || !isBlank(channel.getDrmLicenseUrl())
+                || !isBlank(channel.getClearKeysJson())
+                || !isBlank(channel.getInputstreamaddon())
+                || !isBlank(channel.getManifestType());
+    }
+
+    public String buildDrmBrowserPlaybackUrl(Account account, Channel channel, String categoryId, String mode) {
+        JSONObject payload = new JSONObject();
+        payload.put("mode", normalizeMode(mode, account));
+        payload.put("accountId", account == null ? "" : safe(account.getDbId()));
+        payload.put("categoryId", safe(categoryId));
+
+        JSONObject channelJson = new JSONObject();
+        channelJson.put("dbId", channel == null ? "" : safe(channel.getDbId()));
+        channelJson.put("channelId", channel == null ? "" : safe(channel.getChannelId()));
+        channelJson.put("name", channel == null ? "" : safe(channel.getName()));
+        channelJson.put("logo", channel == null ? "" : safe(channel.getLogo()));
+        channelJson.put("cmd", channel == null ? "" : safe(channel.getCmd()));
+        channelJson.put("cmd_1", channel == null ? "" : safe(channel.getCmd_1()));
+        channelJson.put("cmd_2", channel == null ? "" : safe(channel.getCmd_2()));
+        channelJson.put("cmd_3", channel == null ? "" : safe(channel.getCmd_3()));
+        channelJson.put("drmType", channel == null ? "" : safe(channel.getDrmType()));
+        channelJson.put("drmLicenseUrl", channel == null ? "" : safe(channel.getDrmLicenseUrl()));
+        channelJson.put("clearKeysJson", channel == null ? "" : safe(channel.getClearKeysJson()));
+        channelJson.put("inputstreamaddon", channel == null ? "" : safe(channel.getInputstreamaddon()));
+        channelJson.put("manifestType", channel == null ? "" : safe(channel.getManifestType()));
+        payload.put("channel", channelJson);
+
+        String encoded = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
+        return localServerOrigin() + "/drm.html?drmLaunch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260223b";
     }
 
     private String fetchStalkerPortalUrl(final Account account, final String series, final String originalCmd) {
@@ -343,6 +383,39 @@ public class PlayerService {
         }
 
         return value;
+    }
+
+    private static String localServerOrigin() {
+        String port = ConfigurationService.getInstance().read().getServerPort();
+        if (isBlank(port)) {
+            port = "8888";
+        }
+        return "http://127.0.0.1:" + port.trim();
+    }
+
+    private static String normalizeMode(String mode, Account account) {
+        String m = safe(mode).toLowerCase();
+        if ("itv".equals(m) || "vod".equals(m) || "series".equals(m)) {
+            return m;
+        }
+        if (account != null && account.getAction() != null) {
+            String derived = safe(account.getAction().name()).toLowerCase();
+            if ("itv".equals(derived) || "vod".equals(derived) || "series".equals(derived)) {
+                return derived;
+            }
+        }
+        return "itv";
+    }
+
+    private static String safe(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim();
+        if ("null".equalsIgnoreCase(normalized) || "undefined".equalsIgnoreCase(normalized)) {
+            return "";
+        }
+        return normalized;
     }
 
     private static String resolveBestChannelCmd(Account account, Channel channel) {

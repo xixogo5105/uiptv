@@ -44,6 +44,7 @@ public class UIptvServer {
         server.createContext("/", new HttpSpaHtmlServer());
         server.createContext("/index.html", new HttpSpaHtmlServer());
         server.createContext("/myflix.html", new HttpSpaHtmlServer("myflix.html"));
+        server.createContext("/drm.html", new HttpSpaHtmlServer("drm.html"));
         
         // PWA routes
         server.createContext("/manifest.json", new HttpManifestServer());
@@ -83,19 +84,41 @@ public class UIptvServer {
         return isBlank(ConfigurationService.getInstance().read().getServerPort()) ? "8888" : ConfigurationService.getInstance().read().getServerPort();
     }
 
-    public static void start() throws IOException {
+    public static synchronized void start() throws IOException {
         initialiseServer();
-        if (httpServer != null) httpServer.start();
+        if (httpServer != null) {
+            httpServer.start();
+        }
         showMessage("Server Started on port " + getHttpPort());
     }
 
-    public static void stop() throws IOException {
-        if (httpServer != null) httpServer.stop(1);
+    public static synchronized boolean ensureStarted() throws IOException {
+        if (isRunning()) {
+            return false;
+        }
+        initialiseServer();
+        if (httpServer != null) {
+            httpServer.start();
+            showMessage("Server Started on port " + getHttpPort());
+            return true;
+        }
+        return false;
+    }
+
+    public static synchronized void stop() throws IOException {
+        if (httpServer != null) {
+            httpServer.stop(1);
+            httpServer = null;
+        }
         if (httpExecutor != null) {
             httpExecutor.shutdownNow();
             httpExecutor = null;
         }
         showMessage("Server Stopped");
+    }
+
+    public static synchronized boolean isRunning() {
+        return httpServer != null;
     }
 
     private static ThreadFactory namedThreadFactory(String prefix) {

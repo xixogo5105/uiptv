@@ -715,6 +715,116 @@ createApp({
             return `${window.location.origin}/player?${query.toString()}`;
         };
 
+        const decodeBase64Url = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            let normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+            while (normalized.length % 4 !== 0) {
+                normalized += '=';
+            }
+            try {
+                return atob(normalized);
+            } catch (_) {
+                return '';
+            }
+        };
+
+        const cleanLaunchValue = (value) => {
+            const normalized = String(value ?? '').trim();
+            if (!normalized || normalized.toLowerCase() === 'null' || normalized.toLowerCase() === 'undefined') {
+                return '';
+            }
+            return normalized;
+        };
+
+        const parseDrmLaunchPayload = () => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const encoded = params.get('drmLaunch');
+                if (!encoded) return null;
+                const decoded = decodeBase64Url(encoded);
+                if (!decoded) return null;
+                return JSON.parse(decoded);
+            } catch (_) {
+                return null;
+            }
+        };
+
+        const buildPlayerUrlFromLaunchPayload = (payload) => {
+            const mode = String(payload?.mode || 'itv').toLowerCase();
+            const channel = payload?.channel || {};
+            const query = new URLSearchParams();
+            query.set('accountId', cleanLaunchValue(payload?.accountId));
+            query.set('categoryId', cleanLaunchValue(payload?.categoryId));
+            query.set('mode', mode);
+
+            const channelDbId = cleanLaunchValue(channel.dbId);
+            const channelIdentifier = cleanLaunchValue(channel.channelId || channel.id);
+            if (channelDbId) {
+                query.set('channelId', channelDbId);
+            } else {
+                query.set('channelId', channelIdentifier);
+            }
+            query.set('name', cleanLaunchValue(channel.name));
+            query.set('logo', cleanLaunchValue(channel.logo));
+            query.set('cmd', cleanLaunchValue(channel.cmd));
+            query.set('cmd_1', cleanLaunchValue(channel.cmd_1));
+            query.set('cmd_2', cleanLaunchValue(channel.cmd_2));
+            query.set('cmd_3', cleanLaunchValue(channel.cmd_3));
+            query.set('drmType', cleanLaunchValue(channel.drmType));
+            query.set('drmLicenseUrl', cleanLaunchValue(channel.drmLicenseUrl));
+            query.set('clearKeysJson', cleanLaunchValue(channel.clearKeysJson));
+            query.set('inputstreamaddon', cleanLaunchValue(channel.inputstreamaddon));
+            query.set('manifestType', cleanLaunchValue(channel.manifestType));
+            if (mode === 'series') {
+                query.set('seriesId', channelIdentifier);
+            }
+
+            appendPlaybackCompatParams(query, mode);
+            return `${window.location.origin}/player?${query.toString()}`;
+        };
+
+        const launchDrmPlaybackFromPayload = async (payload) => {
+            if (!payload?.channel) return;
+
+            const mode = String(payload.mode || 'itv').toLowerCase();
+            contentMode.value = ['itv', 'vod', 'series'].includes(mode) ? mode : 'itv';
+            activeTab.value = 'accounts';
+            viewState.value = 'channels';
+            currentContext.value.accountId = payload.accountId || '';
+            currentContext.value.categoryId = payload.categoryId || '';
+
+            const selectedAccount = accounts.value.find(a => String(a.dbId) === String(currentContext.value.accountId || ''));
+            currentContext.value.accountType = selectedAccount?.type || null;
+
+            const channel = normalizeChannel(payload.channel || {});
+            const playbackUrl = buildPlayerUrlFromLaunchPayload(payload);
+            const channelIdentifier = channel.dbId || channel.channelId || channel.id || '';
+
+            currentChannel.value = {
+                id: channelIdentifier,
+                dbId: channel.dbId || '',
+                channelId: channel.channelId || channelIdentifier,
+                name: channel.name || 'DRM Channel',
+                logo: resolveLogoUrl(channel.logo),
+                cmd: channel.cmd || '',
+                drmType: channel.drmType || '',
+                drmLicenseUrl: channel.drmLicenseUrl || '',
+                clearKeysJson: channel.clearKeysJson || '',
+                inputstreamaddon: channel.inputstreamaddon || '',
+                manifestType: channel.manifestType || '',
+                accountId: currentContext.value.accountId,
+                categoryId: currentContext.value.categoryId,
+                type: 'channel',
+                mode: contentMode.value,
+                playRequestUrl: playbackUrl
+            };
+            await startPlayback(playbackUrl);
+
+            const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+            window.history.replaceState({}, document.title, cleanUrl);
+        };
+
         const playChannel = (channel) => {
             scrollToTop();
             const modeToUse = String(contentMode.value || 'itv').toLowerCase();
@@ -1077,7 +1187,7 @@ createApp({
                 return;
             }
 
-            const player = new shaka.Player(video);
+            const player = new shaka.Player();
             playerInstance.value = player;
 
             player.addEventListener('error', (event) => {
@@ -1096,6 +1206,7 @@ createApp({
             }
 
             try {
+                await player.attach(video);
                 await player.load(channel.url);
                 videoTracks.value = player.getVariantTracks();
             } catch (e) {
@@ -1255,15 +1366,20 @@ createApp({
             vodDetailLoading.value = false;
         };
 
-        onMounted(() => {
-            loadAccounts();
-            loadBookmarks();
+        onMounted(async () => {
+            await loadAccounts();
+            await loadBookmarks();
 
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) {
                 theme.value = storedTheme;
             }
             applyTheme();
+
+            const launchPayload = parseDrmLaunchPayload();
+            if (launchPayload?.channel) {
+                await launchDrmPlaybackFromPayload(launchPayload);
+            }
         });
 
         return {

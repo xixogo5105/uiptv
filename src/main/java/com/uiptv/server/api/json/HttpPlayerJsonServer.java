@@ -76,21 +76,44 @@ public class HttpPlayerJsonServer implements HttpHandler {
             Account account = AccountService.getInstance().getById(accountId);
             applyMode(account, mode);
             Channel channel = ChannelDb.get().getChannelById(channelId, categoryId);
+            String reqName = sanitizeParam(getParam(ex, "name"));
+            String reqLogo = sanitizeParam(getParam(ex, "logo"));
+            String reqCmd = sanitizeParam(getParam(ex, "cmd"));
+            String reqCmd1 = sanitizeParam(getParam(ex, "cmd_1"));
+            String reqCmd2 = sanitizeParam(getParam(ex, "cmd_2"));
+            String reqCmd3 = sanitizeParam(getParam(ex, "cmd_3"));
+            String reqDrmType = sanitizeParam(getParam(ex, "drmType"));
+            String reqDrmLicenseUrl = sanitizeParam(getParam(ex, "drmLicenseUrl"));
+            String reqClearKeys = sanitizeParam(getParam(ex, "clearKeysJson"));
+            String reqInputstreamAddon = sanitizeParam(getParam(ex, "inputstreamaddon"));
+            String reqManifestType = sanitizeParam(getParam(ex, "manifestType"));
 
             if (channel == null) {
                 channel = new Channel();
                 channel.setChannelId(channelId);
-                channel.setName(getParam(ex, "name"));
-                channel.setLogo(getParam(ex, "logo"));
-                channel.setCmd(getParam(ex, "cmd"));
-                channel.setCmd_1(getParam(ex, "cmd_1"));
-                channel.setCmd_2(getParam(ex, "cmd_2"));
-                channel.setCmd_3(getParam(ex, "cmd_3"));
-                channel.setDrmType(getParam(ex, "drmType"));
-                channel.setDrmLicenseUrl(getParam(ex, "drmLicenseUrl"));
-                channel.setClearKeysJson(getParam(ex, "clearKeysJson"));
-                channel.setInputstreamaddon(getParam(ex, "inputstreamaddon"));
-                channel.setManifestType(getParam(ex, "manifestType"));
+                channel.setName(reqName);
+                channel.setLogo(reqLogo);
+                channel.setCmd(reqCmd);
+                channel.setCmd_1(reqCmd1);
+                channel.setCmd_2(reqCmd2);
+                channel.setCmd_3(reqCmd3);
+                channel.setDrmType(reqDrmType);
+                channel.setDrmLicenseUrl(reqDrmLicenseUrl);
+                channel.setClearKeysJson(reqClearKeys);
+                channel.setInputstreamaddon(reqInputstreamAddon);
+                channel.setManifestType(reqManifestType);
+            } else {
+                if (isBlank(channel.getName()) && isNotBlank(reqName)) channel.setName(reqName);
+                if (isBlank(channel.getLogo()) && isNotBlank(reqLogo)) channel.setLogo(reqLogo);
+                if (isBlank(channel.getCmd()) && isNotBlank(reqCmd)) channel.setCmd(reqCmd);
+                if (isBlank(channel.getCmd_1()) && isNotBlank(reqCmd1)) channel.setCmd_1(reqCmd1);
+                if (isBlank(channel.getCmd_2()) && isNotBlank(reqCmd2)) channel.setCmd_2(reqCmd2);
+                if (isBlank(channel.getCmd_3()) && isNotBlank(reqCmd3)) channel.setCmd_3(reqCmd3);
+                if (isBlank(channel.getDrmType()) && isNotBlank(reqDrmType)) channel.setDrmType(reqDrmType);
+                if (isBlank(channel.getDrmLicenseUrl()) && isNotBlank(reqDrmLicenseUrl)) channel.setDrmLicenseUrl(reqDrmLicenseUrl);
+                if (isBlank(channel.getClearKeysJson()) && isNotBlank(reqClearKeys)) channel.setClearKeysJson(reqClearKeys);
+                if (isBlank(channel.getInputstreamaddon()) && isNotBlank(reqInputstreamAddon)) channel.setInputstreamaddon(reqInputstreamAddon);
+                if (isBlank(channel.getManifestType()) && isNotBlank(reqManifestType)) channel.setManifestType(reqManifestType);
             }
             String seriesId = getParam(ex, "seriesId");
             response = PlayerService.getInstance().get(account, channel, seriesId);
@@ -308,6 +331,17 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         return isForcedWebPath(url.toLowerCase());
+    }
+
+    private String sanitizeParam(String value) {
+        if (isBlank(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        if ("null".equalsIgnoreCase(normalized) || "undefined".equalsIgnoreCase(normalized)) {
+            return "";
+        }
+        return normalized;
     }
 
     private boolean isForcedWebPath(String url) {

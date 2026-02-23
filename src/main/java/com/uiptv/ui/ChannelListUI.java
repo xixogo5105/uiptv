@@ -50,6 +50,7 @@ import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -152,6 +153,7 @@ public class ChannelListUI extends HBox {
 
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
+            private final Label drmBadge = new Label("DRM");
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = new SVGPath();
             private final AsyncImageView imageView = new AsyncImageView();
@@ -159,10 +161,13 @@ public class ChannelListUI extends HBox {
             {
                 bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
                 bookmarkIcon.setFill(Color.BLACK);
+                drmBadge.getStyleClass().add("drm-badge");
+                drmBadge.setVisible(false);
+                drmBadge.setManaged(false);
 
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, nameLabel, spacer, bookmarkIcon);
+                graphic.getChildren().addAll(imageView, nameLabel, drmBadge, spacer, bookmarkIcon);
             }
 
             @Override
@@ -184,6 +189,9 @@ public class ChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
+                boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
+                drmBadge.setVisible(drmProtected);
+                drmBadge.setManaged(drmProtected);
                 bookmarkIcon.setVisible(channelItem.isBookmarked());
                 imageView.loadImage(channelItem.getLogo(), "channel");
                 setGraphic(graphic);
@@ -422,21 +430,27 @@ public class ChannelListUI extends HBox {
     }
 
     private void play(ChannelItem item, String playerPath) {
+        if (item == null) {
+            return;
+        }
         boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
         boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
 
-        Channel resolvedChannel = channelList.stream()
-                .filter(c -> c.getChannelId().equals(item.getChannelId()))
-                .findFirst()
-                .orElse(null);
-        if (resolvedChannel == null) {
-            resolvedChannel = new Channel();
-            resolvedChannel.setChannelId(item.getChannelId());
-            resolvedChannel.setName(item.getChannelName());
-            resolvedChannel.setCmd(item.getCmd());
-            resolvedChannel.setLogo(item.getLogo());
+        Channel channelForPlayback = resolveChannelForPlayback(item);
+        if (PlayerService.getInstance().isDrmProtected(channelForPlayback)) {
+            String serverPort = resolveDrmPlaybackServerPort();
+            boolean confirmed = showConfirmationAlert("This channel has drm protected contents and will only run in the browser. It requires the local server to run on port " + serverPort + ". Do you want me to open a browser and try running this channel?");
+            if (!confirmed) {
+                return;
+            }
+            if (!RootApplication.ensureServerForWebPlayback()) {
+                showErrorAlert("Unable to start local web server for DRM playback.");
+                return;
+            }
+            String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(account, channelForPlayback, categoryId, account.getAction().name());
+            RootApplication.openInBrowser(browserUrl);
+            return;
         }
-        final Channel channelForPlayback = resolvedChannel;
 
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
@@ -475,6 +489,35 @@ public class ChannelListUI extends HBox {
                 runLater(() -> getScene().setCursor(Cursor.DEFAULT));
             }
         }).start();
+    }
+
+    private String resolveDrmPlaybackServerPort() {
+        String configured = ConfigurationService.getInstance().read().getServerPort();
+        return isBlank(configured) ? "8888" : configured.trim();
+    }
+
+    private Channel resolveChannelForPlayback(ChannelItem item) {
+        Channel resolvedChannel = channelList.stream()
+                .filter(c -> c.getChannelId().equals(item.getChannelId()))
+                .findFirst()
+                .orElse(null);
+        if (resolvedChannel != null) {
+            return resolvedChannel;
+        }
+
+        Channel fallback = new Channel();
+        fallback.setChannelId(item.getChannelId());
+        fallback.setName(item.getChannelName());
+        fallback.setCmd(item.getCmd());
+        fallback.setLogo(item.getLogo());
+        if (item.getChannel() != null) {
+            fallback.setDrmType(item.getChannel().getDrmType());
+            fallback.setDrmLicenseUrl(item.getChannel().getDrmLicenseUrl());
+            fallback.setClearKeysJson(item.getChannel().getClearKeysJson());
+            fallback.setInputstreamaddon(item.getChannel().getInputstreamaddon());
+            fallback.setManifestType(item.getChannel().getManifestType());
+        }
+        return fallback;
     }
 
     private EpisodeList toEpisodeList(List<Channel> channels) {

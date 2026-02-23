@@ -118,3 +118,12 @@
 .video-player-slider {
     -fx-base: white;
 }
+
+.drm-badge {
+    -fx-background-color: #0d6efd;
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 6;
+}

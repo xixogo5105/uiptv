@@ -113,8 +113,14 @@ public class M3U8Parser {
     private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
+            List<String> lines = new ArrayList<>();
             String line;
             while ((line = reader.readLine()) != null) {
+                lines.add(line);
+            }
+
+            for (int index = 0; index < lines.size(); index++) {
+                line = lines.get(index);
                 if (!line.startsWith(EXTINF)) {
                     continue;
                 }
@@ -130,9 +136,13 @@ public class M3U8Parser {
                 String inputstreamaddon = null;
                 String manifestType = null;
                 String url = null;
-                String nextLine;
-
-                while ((nextLine = reader.readLine()) != null) {
+                for (index = index + 1; index < lines.size(); index++) {
+                    String nextLine = lines.get(index);
+                    String trimmed = nextLine == null ? EMPTY : nextLine.trim();
+                    if (trimmed.startsWith(EXTINF)) {
+                        index--;
+                        break;
+                    }
                     if (nextLine.startsWith(EXT_X_KEY)) {
                         drmType = parseDrmType(nextLine);
                         drmLicenseUrl = parseItem(nextLine, "URI=\"");
@@ -144,7 +154,9 @@ public class M3U8Parser {
                         String type = nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim();
                         if ("com.widevine.alpha".equalsIgnoreCase(type)) {
                             drmType = "com.widevine.alpha";
-                        } else if ("clearkey".equalsIgnoreCase(type) || "org.w3.clearkey".equalsIgnoreCase(type)) {
+                        } else if ("clearkey".equalsIgnoreCase(type)
+                                || "org.w3.clearkey".equalsIgnoreCase(type)
+                                || "com.clearkey.alpha".equalsIgnoreCase(type)) {
                             drmType = "org.w3.clearkey";
                         }
                     } else if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
@@ -155,13 +167,16 @@ public class M3U8Parser {
                         } else {
                             drmLicenseUrl = key;
                         }
-                    } else if (isNotBlank(nextLine) && !nextLine.startsWith(COMMENT_PREFIX)) {
-                        url = nextLine;
-                        break;
+                    } else if (isNotBlank(trimmed) && !trimmed.startsWith(COMMENT_PREFIX)) {
+                        String normalizedCandidate = normalizePotentialUrl(trimmed);
+                        if (isLikelyStreamUrl(normalizedCandidate)) {
+                            url = normalizedCandidate;
+                            break;
+                        }
                     }
                 }
 
-                if (url != null) {
+                if (isNotBlank(url)) {
                     playlistEntries.add(new PlaylistEntry(tvgId, groupTitle, title, url, logo, drmType, drmLicenseUrl, clearKeys, inputstreamaddon, manifestType));
                 }
             }
@@ -208,5 +223,43 @@ public class M3U8Parser {
             }
         }
         return keys;
+    }
+
+    private static String normalizePotentialUrl(String value) {
+        if (!isNotBlank(value)) {
+            return value;
+        }
+        String normalized = value.trim();
+        normalized = normalized.replace("\\/", "/");
+        normalized = normalized.replaceAll("(?i)\\\\u002f", "/");
+        normalized = normalized.replaceAll("(?i)\\\\u003a", ":");
+        normalized = normalized.replaceAll("(?i)\\\\u003f", "?");
+        normalized = normalized.replaceAll("(?i)\\\\u003d", "=");
+        normalized = normalized.replaceAll("(?i)\\\\u0026", "&");
+        return normalized;
+    }
+
+    private static boolean isLikelyStreamUrl(String value) {
+        if (!isNotBlank(value)) {
+            return false;
+        }
+        String candidate = value.trim();
+        if (candidate.startsWith(COMMENT_PREFIX)) {
+            return false;
+        }
+        if (candidate.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+            return true;
+        }
+        if (candidate.startsWith("//")
+                || candidate.startsWith("/")
+                || candidate.startsWith("./")
+                || candidate.startsWith("../")
+                || candidate.matches("^[a-zA-Z]:\\\\\\\\.*")) {
+            return true;
+        }
+        if (candidate.contains("/")) {
+            return true;
+        }
+        return candidate.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
     }
 }
