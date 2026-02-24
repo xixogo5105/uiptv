@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.*;
+import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,7 +59,6 @@ import static javafx.application.Platform.runLater;
 public class ChannelListUI extends HBox {
     private final Account account;
     private final String categoryTitle;
-    private final BookmarkChannelListUI bookmarkChannelListUI;
     private final String categoryId;
     private final SearchableTableView table = new SearchableTableView();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>("Channels");
@@ -65,24 +66,26 @@ public class ChannelListUI extends HBox {
     private ObservableList<ChannelItem> channelItems;
     private final Set<String> seenChannelKeys = new HashSet<>();
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private boolean bookmarkListenerRegistered = false;
+    private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
     private static final Pattern SERIES_SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern SERIES_EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
 
-    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
-        this(account, categoryTitle, bookmarkChannelListUI, categoryId);
+    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
+        this(account, categoryTitle, categoryId);
         addItems(channelList);
     }
 
-    public ChannelListUI(Account account, String categoryTitle, BookmarkChannelListUI bookmarkChannelListUI, String categoryId) {
+    public ChannelListUI(Account account, String categoryTitle, String categoryId) {
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
-        this.bookmarkChannelListUI = bookmarkChannelListUI;
         this.account = account;
         this.categoryTitle = categoryTitle;
         ImageCacheManager.clearCache("channel");
         initWidgets();
+        registerBookmarkListener();
         table.setPlaceholder(new Label("Loading channels for '" + categoryTitle + "'..."));
     }
 
@@ -204,6 +207,55 @@ public class ChannelListUI extends HBox {
         addChannelClickHandler();
     }
 
+    private void registerBookmarkListener() {
+        if (bookmarkListenerRegistered) {
+            return;
+        }
+        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+        bookmarkListenerRegistered = true;
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                unregisterBookmarkListener();
+            } else if (!bookmarkListenerRegistered) {
+                BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+                bookmarkListenerRegistered = true;
+                refreshBookmarkStatesAsync();
+            }
+        });
+    }
+
+    private void unregisterBookmarkListener() {
+        if (!bookmarkListenerRegistered) {
+            return;
+        }
+        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+        bookmarkListenerRegistered = false;
+    }
+
+    private void refreshBookmarkStatesAsync() {
+        if (channelItems == null || channelItems.isEmpty()) {
+            return;
+        }
+        new Thread(() -> {
+            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            Set<String> bookmarkKeys = bookmarks.stream()
+                    .filter(b -> account.getAccountName().equals(b.getAccountName()))
+                    .map(b -> bookmarkIdentityKey(b.getChannelId(), b.getChannelName()))
+                    .collect(Collectors.toSet());
+            runLater(() -> {
+                for (ChannelItem item : channelItems) {
+                    boolean isBookmarked = bookmarkKeys.contains(bookmarkIdentityKey(item.getChannelId(), item.getChannelName()));
+                    item.setBookmarked(isBookmarked);
+                }
+                table.refresh();
+            });
+        }).start();
+    }
+
+    private String bookmarkIdentityKey(String channelId, String channelName) {
+        return (channelId == null ? "" : channelId.trim()) + "|" + (channelName == null ? "" : channelName.trim().toLowerCase());
+    }
+
     private void addChannelClickHandler() {
         table.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER) {
@@ -254,7 +306,7 @@ public class ChannelListUI extends HBox {
                             if (this.getChildren().size() > 1) {
                                 this.getChildren().remove(1);
                             }
-                            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), bookmarkChannelListUI);
+                            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName());
                             episodesListUIHolder[0] = ui;
                             HBox.setHgrow(ui, Priority.ALWAYS);
                             this.getChildren().add(ui);
@@ -277,7 +329,7 @@ public class ChannelListUI extends HBox {
                                 if (this.getChildren().size() > 1) {
                                     this.getChildren().remove(1);
                                 }
-                                EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), bookmarkChannelListUI);
+                                EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName());
                                 episodesListUIHolder[0] = ui;
                                 HBox.setHgrow(ui, Priority.ALWAYS);
                                 this.getChildren().add(ui);
@@ -354,7 +406,6 @@ public class ChannelListUI extends HBox {
                                 BookmarkService.getInstance().remove(existingBookmark.getDbId());
                                 Platform.runLater(() -> {
                                     item.setBookmarked(false);
-                                    bookmarkChannelListUI.forceReload();
                                     table.refresh();
                                 });
                             }).start();
@@ -423,7 +474,6 @@ public class ChannelListUI extends HBox {
             BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {
                 item.setBookmarked(true);
-                bookmarkChannelListUI.forceReload();
                 table.refresh();
             });
         }).start();

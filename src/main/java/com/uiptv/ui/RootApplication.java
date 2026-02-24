@@ -136,7 +136,7 @@ public class RootApplication extends Application {
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
-        AccountListUI accountListUI = new AccountListUI(bookmarkChannelListUI);
+        AccountListUI accountListUI = new AccountListUI();
         configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI);
         LogDisplayUI logDisplayUI = new LogDisplayUI();
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {

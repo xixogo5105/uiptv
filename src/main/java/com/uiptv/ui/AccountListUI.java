@@ -40,7 +40,6 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>("Account List");
-    private final BookmarkChannelListUI bookmarkChannelListUI;
     private final CacheService cacheService = new CacheServiceImpl();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
@@ -48,8 +47,7 @@ public class AccountListUI extends HBox {
     private Callback onDeleteCallback;
     private boolean isPromptShowing = false;
 
-    public AccountListUI(BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
-        this.bookmarkChannelListUI = bookmarkChannelListUI;
+    public AccountListUI() { // Removed MediaPlayer argument
         initWidgets();
         refresh();
     }
@@ -241,7 +239,7 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, bookmarkChannelListUI);
+        CategoryListUI categoryListUI = new CategoryListUI(account);
         AccountListUI.this.getChildren().clear();
         HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton());
         sceneBox.setMaxHeight(25);

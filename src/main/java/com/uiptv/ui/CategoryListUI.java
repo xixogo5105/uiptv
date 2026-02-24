@@ -42,7 +42,6 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class CategoryListUI extends HBox {
     private final Account account;
-    private final BookmarkChannelListUI bookmarkChannelListUI;
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
@@ -56,13 +55,12 @@ public class CategoryListUI extends HBox {
     private final Tab seriesTab = new Tab("Series");
     private Account.AccountAction activeMode;
 
-    public CategoryListUI(List<Category> list, Account account, BookmarkChannelListUI bookmarkChannelListUI) { // Removed MediaPlayer argument
-        this(account, bookmarkChannelListUI);
+    public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
+        this(account);
         setItems(list);
     }
 
-    public CategoryListUI(Account account, BookmarkChannelListUI bookmarkChannelListUI) {
-        this.bookmarkChannelListUI = bookmarkChannelListUI;
+    public CategoryListUI(Account account) {
         this.account = account;
         this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;
         initWidgets();
@@ -290,7 +288,7 @@ public class CategoryListUI extends HBox {
 
         Platform.runLater(() -> {
             removeChannelPane();
-            ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), bookmarkChannelListUI, categoryId);
+            ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), categoryId);
             channelListUIHolder[0] = ui;
             state.channelListUI = ui;
             state.selectedCategory = item;

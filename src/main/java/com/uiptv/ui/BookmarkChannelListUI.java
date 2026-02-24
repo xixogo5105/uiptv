@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.*;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
@@ -46,35 +47,80 @@ public class BookmarkChannelListUI extends HBox {
     private final TabPane categoryTabPane = new TabPane();
     private boolean isPromptShowing = false;
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
+    private volatile long lastKnownBookmarkRevision = 0;
+    private volatile boolean reloadInProgress = false;
+    private boolean changeListenerRegistered = false;
+    private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
+        if (!changeListenerRegistered || reloadInProgress) {
+            return;
+        }
+        if (revision != lastKnownBookmarkRevision) {
+            forceReload();
+        }
+    });
 
     public BookmarkChannelListUI() {
         ImageCacheManager.clearCache("bookmark");
         initWidgets();
+        registerBookmarkChangeListener();
         forceReload();
     }
 
     public void forceReload() {
+        reloadInProgress = true;
         bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
         new Thread(() -> {
-            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
-            Map<String, Account> accountByName = AccountService.getInstance().getAll();
-            Map<String, String> logoByAccountAndChannel = new HashMap<>();
-            List<BookmarkItem> items = bookmarks.stream()
-                    .map(bookmark -> createBookmarkItem(bookmark, accountByName, logoByAccountAndChannel))
-                    .collect(Collectors.toList());
+            try {
+                List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+                Map<String, Account> accountByName = AccountService.getInstance().getAll();
+                Map<String, String> logoByAccountAndChannel = new HashMap<>();
+                List<BookmarkItem> items = bookmarks.stream()
+                        .map(bookmark -> createBookmarkItem(bookmark, accountByName, logoByAccountAndChannel))
+                        .collect(Collectors.toList());
 
-            runLater(() -> {
-                allBookmarkItems.clear();
-                allBookmarkItems.addAll(items);
-                populateCategoryTabPane();
-                filterView();
-                if (allBookmarkItems.isEmpty()) {
-                    bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
-                } else {
-                    bookmarkTable.getTableView().setPlaceholder(null);
-                }
-            });
+                runLater(() -> {
+                    allBookmarkItems.clear();
+                    allBookmarkItems.addAll(items);
+                    populateCategoryTabPane();
+                    filterView();
+                    if (allBookmarkItems.isEmpty()) {
+                        bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
+                    } else {
+                        bookmarkTable.getTableView().setPlaceholder(null);
+                    }
+                    lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
+                    reloadInProgress = false;
+                });
+            } catch (Exception ignored) {
+                runLater(() -> reloadInProgress = false);
+            }
         }).start();
+    }
+
+    private void registerBookmarkChangeListener() {
+        if (changeListenerRegistered) {
+            return;
+        }
+        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+        changeListenerRegistered = true;
+        sceneProperty().addListener((observable, oldScene, newScene) -> {
+            if (newScene == null) {
+                unregisterBookmarkChangeListener();
+            } else {
+                if (!changeListenerRegistered) {
+                    BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+                    changeListenerRegistered = true;
+                }
+            }
+        });
+    }
+
+    private void unregisterBookmarkChangeListener() {
+        if (!changeListenerRegistered) {
+            return;
+        }
+        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+        changeListenerRegistered = false;
     }
 
     private void initWidgets() {
@@ -161,6 +207,7 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void setupManageCategoriesButton() {
+        bookmarkTable.getManageCategoriesButton().setText("Manage Tabs");
         bookmarkTable.getManageCategoriesButton().setOnAction(event -> openCategoryManagementPopup());
     }
 

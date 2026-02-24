@@ -10,6 +10,9 @@ import com.uiptv.util.ServerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -18,6 +21,9 @@ import static com.uiptv.widget.UIptvAlert.showError;
 public class BookmarkService {
     private static BookmarkService instance;
     private final LogoResolverService logoResolverService;
+    private final AtomicLong changeRevision = new AtomicLong(1);
+    private volatile long lastUpdatedEpochMs = System.currentTimeMillis();
+    private final Set<BookmarkChangeListener> changeListeners = new CopyOnWriteArraySet<>();
 
     private BookmarkService() {
         this.logoResolverService = LogoResolverService.getInstance();
@@ -47,12 +53,13 @@ public class BookmarkService {
         if (dbBookmark != null) {
             remove(dbBookmark.getDbId());
         } else {
-            BookmarkDb.get().save(bookmark);
+            save(bookmark);
         }
     }
 
     public void save(Bookmark bookmark) {
         BookmarkDb.get().save(bookmark);
+        touchChange();
     }
 
     public List<Bookmark> read() {
@@ -66,6 +73,7 @@ public class BookmarkService {
     public void remove(String id) {
         try {
             BookmarkDb.get().delete(id);
+            touchChange();
         } catch (Exception ignored) {
             showError("Error while removing the bookmark");
         }
@@ -118,14 +126,49 @@ public class BookmarkService {
 
     public void addCategory(BookmarkCategory category) {
         BookmarkDb.get().saveCategory(category);
+        touchChange();
     }
 
     public void removeCategory(BookmarkCategory category) {
         BookmarkDb.get().deleteCategory(category);
+        touchChange();
     }
 
     // Order operations
     public void saveBookmarkOrder(String categoryId, List<String> orderedBookmarkDbIds) {
         BookmarkDb.get().updateBookmarkOrders(categoryId, orderedBookmarkDbIds);
+        touchChange();
+    }
+
+    public long getChangeRevision() {
+        return changeRevision.get();
+    }
+
+    public long getLastUpdatedEpochMs() {
+        return lastUpdatedEpochMs;
+    }
+
+    public void addChangeListener(BookmarkChangeListener listener) {
+        if (listener != null) {
+            changeListeners.add(listener);
+        }
+    }
+
+    public void removeChangeListener(BookmarkChangeListener listener) {
+        if (listener != null) {
+            changeListeners.remove(listener);
+        }
+    }
+
+    private void touchChange() {
+        lastUpdatedEpochMs = System.currentTimeMillis();
+        long revision = changeRevision.incrementAndGet();
+        for (BookmarkChangeListener listener : changeListeners) {
+            try {
+                listener.onBookmarksChanged(revision, lastUpdatedEpochMs);
+            } catch (Exception ignored) {
+                // Listener failures must never break bookmark mutation flow.
+            }
+        }
     }
 }

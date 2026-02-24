@@ -119,6 +119,41 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
+    public void testBookmarkChangeRevisionIncrementsOnMutations() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        long revisionStart = bookmarkService.getChangeRevision();
+
+        Bookmark bookmark = new Bookmark("acc-rev", "Fav", "ch-rev-1", "Revision One", "cmd://rev-1", "http://portal", "cat-rev");
+        bookmarkService.save(bookmark);
+        long afterSave = bookmarkService.getChangeRevision();
+        assertTrue(afterSave > revisionStart);
+
+        Bookmark saved = bookmarkService.getBookmark(bookmark);
+        assertNotNull(saved);
+        bookmarkService.saveBookmarkOrder("cat-rev", List.of(saved.getDbId()));
+        long afterReorder = bookmarkService.getChangeRevision();
+        assertTrue(afterReorder > afterSave);
+
+        BookmarkCategory category = new BookmarkCategory(null, "Rev Category");
+        bookmarkService.addCategory(category);
+        long afterAddCategory = bookmarkService.getChangeRevision();
+        assertTrue(afterAddCategory > afterReorder);
+
+        BookmarkCategory savedCategory = bookmarkService.getAllCategories().stream()
+                .filter(c -> "Rev Category".equals(c.getName()))
+                .findFirst()
+                .orElseThrow();
+        bookmarkService.removeCategory(savedCategory);
+        long afterRemoveCategory = bookmarkService.getChangeRevision();
+        assertTrue(afterRemoveCategory > afterAddCategory);
+
+        bookmarkService.remove(saved.getDbId());
+        long afterRemove = bookmarkService.getChangeRevision();
+        assertTrue(afterRemove > afterRemoveCategory);
+    }
+
+    @Test
     public void testBookmarkDbDeleteAndUpdateFlow() {
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
@@ -167,5 +202,21 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
 
         bookmarkDb.deleteByAccountName("acc-other");
         assertTrue(bookmarkDb.getBookmarks().isEmpty());
+    }
+
+    @Test
+    public void testBookmarkIdentityLookupSupportsAllCategoryViews() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        Bookmark sportsBookmark = new Bookmark("acc-all", "Sports", "ch-42", "The Channel", "cmd://42", "http://portal", "cat-sports");
+        bookmarkService.save(sportsBookmark);
+
+        assertTrue(bookmarkService.isChannelBookmarked(sportsBookmark));
+        assertNotNull(bookmarkService.getBookmark(sportsBookmark));
+
+        Bookmark allCategoryViewBookmark = new Bookmark("acc-all", "All", "ch-42", "The Channel", "cmd://42", "http://portal", "all");
+        bookmarkService.toggleBookmark(allCategoryViewBookmark);
+        assertTrue(bookmarkService.isChannelBookmarked(sportsBookmark));
+        assertNotNull(bookmarkService.getBookmark(allCategoryViewBookmark));
     }
 }
