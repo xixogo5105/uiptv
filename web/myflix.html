@@ -95,8 +95,37 @@
 
             <div class="nf-row nf-row-shell">
                 <div class="nf-row-title">
+                    <div class="nf-bookmark-tabs nf-account-type-tabs" role="tablist" aria-label="Account types">
+                        <button class="nf-bookmark-tab" :class="{ active: selectedAccountTypeFilter === 'all' }" @click="selectAccountTypeFilter('all')">All</button>
+                        <button class="nf-bookmark-tab" :class="{ active: selectedAccountTypeFilter === 'stalker' }" @click="selectAccountTypeFilter('stalker')">Stalker Portal</button>
+                        <button class="nf-bookmark-tab" :class="{ active: selectedAccountTypeFilter === 'xtreme' }" @click="selectAccountTypeFilter('xtreme')">Xtreme</button>
+                        <button class="nf-bookmark-tab" :class="{ active: selectedAccountTypeFilter === 'm3u' }" @click="selectAccountTypeFilter('m3u')">M3u</button>
+                        <button class="nf-bookmark-tab" :class="{ active: selectedAccountTypeFilter === 'rss' }" @click="selectAccountTypeFilter('rss')">RSS</button>
+                    </div>
+                </div>
+                <div class="nf-track-wrap">
+                    <button class="nf-edge-btn left" onclick="scrollRow('row-accounts', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
+                    <div class="nf-strip" id="row-accounts">
+                        <button
+                                v-for="account in filteredAccounts"
+                                :key="'myflix-account-' + account.dbId"
+                                class="nf-card nf-card-title-only"
+                                :class="{ active: String(selectedAccountId || '') === String(account.dbId || '') }"
+                                @click="selectAccount(account)">
+                            <div class="nf-card-icon"><i class="bi bi-person-circle"></i></div>
+                            <div class="nf-card-title">{{ account.accountName }}</div>
+                            <div class="nf-card-subtitle">{{ account.type }}</div>
+                        </button>
+                        <div v-if="filteredAccounts.length === 0" class="nf-empty-card">No accounts for this filter.</div>
+                    </div>
+                    <button class="nf-edge-btn right" onclick="scrollRow('row-accounts', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
+                </div>
+            </div>
+
+            <div v-if="selectedAccount" class="nf-row nf-row-shell">
+                <div class="nf-row-title">
                     <div class="nf-title-with-back">
-                        <button class="nf-title-back" :class="{ ghost: isModeState('itv', 'accounts') }" @click="!isModeState('itv', 'accounts') && goBackMode('itv')" title="Back" :aria-disabled="isModeState('itv', 'accounts') ? 'true' : 'false'">
+                        <button class="nf-title-back" :class="{ ghost: isModeState('itv', 'categories') }" @click="!isModeState('itv', 'categories') && goBackMode('itv')" title="Back" :aria-disabled="isModeState('itv', 'categories') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
                         <h5 class="nf-section-title"><span>Live TV</span></h5>
@@ -105,9 +134,6 @@
                 <div class="nf-track-wrap">
                     <button class="nf-edge-btn left" onclick="scrollRow('row-live', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
                     <div class="nf-strip" id="row-live">
-                        <button v-if="isModeState('itv','accounts')" v-for="account in filteredSupportedAccounts" :key="'itv-' + account.dbId" class="nf-card nf-card-title-only" @click="loadModeCategories('itv', account)">
-                            <div class="nf-card-title">{{ account.accountName }}</div>
-                        </button>
                         <button v-if="isModeState('itv','categories')" v-for="category in filteredModeCategories('itv')" :key="'itv-cat-' + category.dbId" class="nf-card" @click="loadModeChannels('itv', category.dbId)">
                             <div class="nf-card-icon"><i class="bi bi-folder-fill"></i></div>
                             <div class="nf-card-title">{{ category.title }}</div>
@@ -119,24 +145,24 @@
                             <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
                         </button>
                         <button v-if="isModeState('itv','channels') && hasMoreModeChannels('itv')" class="nf-card nf-load-more-card" @click="loadMoreModeChannels('itv')">
-                            <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
+                            <div class="nf-card-icon"><i class="bi bi-chevron-down"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
                         <div v-if="isModeLoading('itv')" class="nf-empty-card">
                             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                             Loading...
                         </div>
-                        <div v-else-if="isModeState('itv','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
                         <div v-else-if="isModeState('itv','categories') && filteredModeCategories('itv').length === 0" class="nf-empty-card">No categories found.</div>
                         <div v-else-if="isModeState('itv','channels') && filteredModeChannels('itv').length === 0" class="nf-empty-card">No channels found.</div>
                     </div>
                     <button class="nf-edge-btn right" onclick="scrollRow('row-live', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>
-            <div class="nf-row nf-row-shell">
+
+            <div v-if="showVodSeriesSections" class="nf-row nf-row-shell">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
-                        <button class="nf-title-back" :class="{ ghost: isModeState('vod', 'accounts') }" @click="!isModeState('vod', 'accounts') && goBackMode('vod')" title="Back" :aria-disabled="isModeState('vod', 'accounts') ? 'true' : 'false'">
+                        <button class="nf-title-back" :class="{ ghost: isModeState('vod', 'categories') }" @click="!isModeState('vod', 'categories') && goBackMode('vod')" title="Back" :aria-disabled="isModeState('vod', 'categories') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
                         <h5 class="nf-section-title"><span>Movies</span></h5>
@@ -145,9 +171,6 @@
                 <div class="nf-track-wrap">
                     <button class="nf-edge-btn left" onclick="scrollRow('row-vod', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
                     <div class="nf-strip" id="row-vod">
-                        <button v-if="isModeState('vod','accounts')" v-for="account in filteredSupportedAccounts" :key="'vod-' + account.dbId" class="nf-card nf-card-title-only" @click="loadModeCategories('vod', account)">
-                            <div class="nf-card-title">{{ account.accountName }}</div>
-                        </button>
                         <button v-if="isModeState('vod','categories')" v-for="category in filteredModeCategories('vod')" :key="'vod-cat-' + category.dbId" class="nf-card" @click="loadModeChannels('vod', category.dbId)">
                             <div class="nf-card-icon"><i class="bi bi-folder-fill"></i></div>
                             <div class="nf-card-title">{{ category.title }}</div>
@@ -159,14 +182,13 @@
                             <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
                         </button>
                         <button v-if="isModeState('vod','channels') && hasMoreModeChannels('vod')" class="nf-card nf-load-more-card" @click="loadMoreModeChannels('vod')">
-                            <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
+                            <div class="nf-card-icon"><i class="bi bi-chevron-down"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
                         <div v-if="isModeLoading('vod')" class="nf-empty-card">
                             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                             Loading...
                         </div>
-                        <div v-else-if="isModeState('vod','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
                         <div v-else-if="isModeState('vod','categories') && filteredModeCategories('vod').length === 0" class="nf-empty-card">No categories found.</div>
                         <div v-else-if="isModeState('vod','channels') && filteredModeChannels('vod').length === 0" class="nf-empty-card">No VOD items found.</div>
                     </div>
@@ -174,10 +196,10 @@
                 </div>
             </div>
 
-            <div class="nf-row nf-row-shell">
+            <div v-if="showVodSeriesSections" class="nf-row nf-row-shell">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
-                        <button class="nf-title-back" :class="{ ghost: isModeState('series', 'accounts') }" @click="!isModeState('series', 'accounts') && goBackMode('series')" title="Back" :aria-disabled="isModeState('series', 'accounts') ? 'true' : 'false'">
+                        <button class="nf-title-back" :class="{ ghost: isModeState('series', 'categories') }" @click="!isModeState('series', 'categories') && goBackMode('series')" title="Back" :aria-disabled="isModeState('series', 'categories') ? 'true' : 'false'">
                             <i class="bi bi-arrow-left-circle"></i>
                         </button>
                         <h5 class="nf-section-title"><span>Series</span></h5>
@@ -186,9 +208,6 @@
                 <div class="nf-track-wrap">
                     <button class="nf-edge-btn left" onclick="scrollRow('row-series', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
                     <div class="nf-strip" id="row-series">
-                        <button v-if="isModeState('series','accounts')" v-for="account in filteredSupportedAccounts" :key="'series-' + account.dbId" class="nf-card nf-card-title-only" @click="loadModeCategories('series', account)">
-                            <div class="nf-card-title">{{ account.accountName }}</div>
-                        </button>
                         <button v-if="isModeState('series','categories')" v-for="category in filteredModeCategories('series')" :key="'series-cat-' + category.dbId" class="nf-card" @click="loadModeChannels('series', category.dbId)">
                             <div class="nf-card-icon"><i class="bi bi-folder-fill"></i></div>
                             <div class="nf-card-title">{{ category.title }}</div>
@@ -200,7 +219,7 @@
                             <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
                         </button>
                         <button v-if="isModeState('series','channels') && hasMoreModeChannels('series')" class="nf-card nf-load-more-card" @click="loadMoreModeChannels('series')">
-                            <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
+                            <div class="nf-card-icon"><i class="bi bi-chevron-down"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
                         <button v-if="isModeState('series','episodes')" v-for="episode in visibleModeEpisodes('series')" :key="'series-ep-' + (episode.channelId || episode.id)" class="nf-card nf-card-media" @click="handleModeSelection('series', episode)">
@@ -210,14 +229,13 @@
                             <div class="nf-card-title nf-media-title">{{ episode.name }}</div>
                         </button>
                         <button v-if="isModeState('series','episodes') && hasMoreModeEpisodes('series')" class="nf-card nf-load-more-card" @click="loadMoreModeEpisodes('series')">
-                            <div class="nf-card-icon"><i class="bi bi-plus-circle"></i></div>
+                            <div class="nf-card-icon"><i class="bi bi-chevron-down"></i></div>
                             <div class="nf-card-title">Load More</div>
                         </button>
                         <div v-if="isModeLoading('series')" class="nf-empty-card">
                             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                             Loading...
                         </div>
-                        <div v-else-if="isModeState('series','accounts') && filteredSupportedAccounts.length === 0" class="nf-empty-card">No supported accounts found.</div>
                         <div v-else-if="isModeState('series','categories') && filteredModeCategories('series').length === 0" class="nf-empty-card">No categories found.</div>
                         <div v-else-if="isModeState('series','channels') && filteredModeChannels('series').length === 0" class="nf-empty-card">No series found.</div>
                         <div v-else-if="isModeState('series','episodes') && filteredModeEpisodes('series').length === 0" class="nf-empty-card">No episodes found.</div>

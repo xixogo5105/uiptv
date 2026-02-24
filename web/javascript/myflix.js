@@ -8,12 +8,14 @@ createApp({
 
         const searchQuery = ref('');
         const accounts = ref([]);
+        const selectedAccountId = ref('');
+        const selectedAccountTypeFilter = ref('all');
         const bookmarks = ref([]);
         const bookmarkCategories = ref([]);
         const selectedBookmarkCategoryId = ref('');
 
         const createBrowserState = () => ({
-            viewState: ref('accounts'), // accounts, categories, channels, episodes, seriesDetail, vodDetail
+            viewState: ref('categories'), // categories, channels, episodes, seriesDetail, vodDetail
             accountId: ref(null),
             accountType: ref(null),
             categoryId: ref(null),
@@ -59,14 +61,54 @@ createApp({
         const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
         let unbindSystemThemeListener = null;
 
-        const isSupportedAccount = (account) => !!account && (account.type === 'STALKER_PORTAL' || account.type === 'XTREME_API');
+        const isVodSeriesSupportedAccount = (account) => !!account && (account.type === 'STALKER_PORTAL' || account.type === 'XTREME_API');
+        const isPinnedAccount = (account) => {
+            const raw = account?.pinToTop;
+            if (raw === true || raw === 1) return true;
+            if (raw === false || raw === 0 || raw == null) return false;
+            const s = String(raw).trim().toLowerCase();
+            return s === 'true' || s === '1' || s === 'yes' || s === 'y';
+        };
+        const numericDbId = (account) => {
+            const value = Number.parseInt(String(account?.dbId || ''), 10);
+            return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+        };
 
-        const filteredSupportedAccounts = computed(() => {
+        const sortedAccounts = computed(() => {
+            const list = Array.isArray(accounts.value) ? [...accounts.value] : [];
+            list.sort((a, b) => {
+                const aPinned = isPinnedAccount(a);
+                const bPinned = isPinnedAccount(b);
+                if (aPinned !== bPinned) return aPinned ? -1 : 1;
+                const byId = numericDbId(a) - numericDbId(b);
+                if (byId !== 0) return byId;
+                return String(a?.accountName || '').localeCompare(String(b?.accountName || ''), undefined, { sensitivity: 'base' });
+            });
+            return list;
+        });
+
+        const matchesAccountTypeFilter = (account, filter) => {
+            const type = String(account?.type || '').toUpperCase();
+            if (filter === 'stalker') return type === 'STALKER_PORTAL';
+            if (filter === 'xtreme') return type === 'XTREME_API';
+            if (filter === 'm3u') return type === 'M3U8_LOCAL' || type === 'M3U8_URL';
+            if (filter === 'rss') return type === 'RSS_FEED';
+            return true;
+        };
+
+        const filteredAccounts = computed(() => {
             const q = searchQuery.value.toLowerCase();
-            const list = accounts.value.filter(isSupportedAccount);
+            const list = sortedAccounts.value.filter(account => matchesAccountTypeFilter(account, selectedAccountTypeFilter.value));
             if (!q) return list;
             return list.filter(a => (a.accountName || '').toLowerCase().includes(q));
         });
+
+        const selectedAccount = computed(() => {
+            const selectedId = String(selectedAccountId.value || '');
+            if (!selectedId) return null;
+            return accounts.value.find(a => String(a?.dbId || '') === selectedId) || null;
+        });
+        const showVodSeriesSections = computed(() => isVodSeriesSupportedAccount(selectedAccount.value));
 
         const filteredBookmarks = computed(() => {
             const selectedCategoryId = String(selectedBookmarkCategoryId.value || '');
@@ -373,6 +415,7 @@ createApp({
             const b = browsers[mode];
             if (b.channelsLoading.value) return;
             if (!b.categoryId.value || !b.accountId.value) return;
+            if ((b.channelsNextPage.value || 0) > 0 && !b.channelsHasMore.value) return;
 
             b.channelsLoading.value = true;
             try {
@@ -380,23 +423,15 @@ createApp({
                 query.set('categoryId', b.categoryId.value);
                 query.set('accountId', b.accountId.value);
                 query.set('mode', mode);
-                query.set('page', String(b.channelsNextPage.value || 0));
-                query.set('pageSize', String(CHANNEL_BATCH_SIZE));
-                query.set('prefetchPages', String(prefetchPages));
-                query.set('apiOffset', String(b.channelsApiOffset.value || 0));
-                const response = await fetch(`${window.location.origin}/web/channels?${query.toString()}`);
+                const response = await fetch(`${window.location.origin}/channels?${query.toString()}`);
                 const data = await response.json();
-                const incoming = Array.isArray(data?.items) ? data.items : [];
+                const incoming = Array.isArray(data) ? data : [];
                 b.channels.value = appendUniqueChannels([...(b.channels.value || [])], incoming);
-                b.channelsNextPage.value = Number.isFinite(Number(data?.nextPage))
-                    ? Number(data.nextPage)
-                    : (b.channelsNextPage.value + Math.max(prefetchPages, 1));
-                b.channelsHasMore.value = !!data?.hasMore;
-                b.channelsApiOffset.value = Number.isFinite(Number(data?.apiOffset))
-                    ? Number(data.apiOffset)
-                    : b.channelsApiOffset.value;
+                b.channelsNextPage.value = 1;
+                b.channelsHasMore.value = false;
+                b.channelsApiOffset.value = 0;
             } catch (e) {
-                console.error('Failed to load paged channels', e);
+                console.error('Failed to load channels', e);
             } finally {
                 b.channelsLoading.value = false;
             }
@@ -412,7 +447,7 @@ createApp({
             b.episodes.value = [];
             b.detail.value = null;
             b.navigationStack.value = [];
-            b.viewState.value = 'accounts';
+            b.viewState.value = 'categories';
             b.channelsNextPage.value = 0;
             b.channelsHasMore.value = false;
             b.channelsApiOffset.value = 0;
@@ -423,6 +458,27 @@ createApp({
                 selectedSeriesSeason.value = '';
                 visibleSeriesDetailEpisodesCount.value = DETAIL_EPISODE_BATCH_SIZE;
             }
+        };
+
+        const selectAccount = async (account) => {
+            if (!account || !account.dbId) return;
+            selectedAccountId.value = String(account.dbId);
+            searchQuery.value = '';
+
+            resetModeState('itv');
+            resetModeState('vod');
+            resetModeState('series');
+
+            const jobs = [loadModeCategories('itv', account)];
+            if (isVodSeriesSupportedAccount(account)) {
+                jobs.push(loadModeCategories('vod', account));
+                jobs.push(loadModeCategories('series', account));
+            }
+            await Promise.all(jobs);
+        };
+
+        const selectAccountTypeFilter = (filter) => {
+            selectedAccountTypeFilter.value = String(filter || 'all');
         };
 
         const loadModeCategories = async (mode, account) => {
@@ -693,8 +749,6 @@ createApp({
                 }
             } else if (b.viewState.value === 'channels') {
                 b.viewState.value = 'categories';
-            } else if (b.viewState.value === 'categories') {
-                b.viewState.value = 'accounts';
             }
             searchQuery.value = '';
         };
@@ -1311,6 +1365,7 @@ createApp({
 
         const resetApp = () => {
             stopPlayback();
+            selectedAccountId.value = '';
             resetModeState('itv');
             resetModeState('vod');
             resetModeState('series');
@@ -1353,7 +1408,12 @@ createApp({
 
         return {
             searchQuery,
-            filteredSupportedAccounts,
+            filteredAccounts,
+            selectedAccountTypeFilter,
+            selectedAccountId,
+            selectedAccount,
+            selectAccountTypeFilter,
+            showVodSeriesSections,
             filteredModeCategories,
             filteredModeChannels,
             filteredModeEpisodes,
@@ -1398,6 +1458,7 @@ createApp({
             themeIcon,
             repeatEnabled,
 
+            selectAccount,
             loadModeCategories,
             loadModeChannels,
             goBackMode,

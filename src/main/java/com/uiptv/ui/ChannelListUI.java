@@ -61,6 +61,7 @@ public class ChannelListUI extends HBox {
     private volatile Map<String, String> categoryTitleByNormalizedTitle = Map.of();
     private volatile Map<String, BookmarkContext> m3uAllSourceContextByChannelKey = Map.of();
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private final Map<String, EpisodeList> seriesEpisodesCache = new HashMap<>();
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private volatile Thread currentLoadingThread;
@@ -408,6 +409,13 @@ public class ChannelListUI extends HBox {
 
     private void PlayOrShowSeries(ChannelItem item) {
         if (item == null) return;
+        if (account.getAction() == series) {
+            EpisodeList cachedEpisodes = seriesEpisodesCache.get(seriesEpisodeCacheKey(item));
+            if (cachedEpisodes != null) {
+                showEpisodesListUI(item, cachedEpisodes);
+                return;
+            }
+        }
 
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
@@ -449,6 +457,7 @@ public class ChannelListUI extends HBox {
                         if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
                         try {
                             EpisodeList episodes = XtremeParser.parseEpisodes(item.getChannelId(), account);
+                            seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
                             episodesListUIHolder[0].setItems(episodes);
                         } finally {
                             episodesListUIHolder[0].setLoadingComplete();
@@ -474,6 +483,7 @@ public class ChannelListUI extends HBox {
                             try {
                                 List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, null, isCancelled::get);
                                 EpisodeList episodeList = toEpisodeList(seriesChannels);
+                                seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodeList);
                                 episodesListUIHolder[0].setItems(episodeList);
                             } finally {
                                 episodesListUIHolder[0].setLoadingComplete();
@@ -494,6 +504,28 @@ public class ChannelListUI extends HBox {
         } else {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
         }
+    }
+
+    private String seriesEpisodeCacheKey(ChannelItem item) {
+        if (item == null) {
+            return "";
+        }
+        String id = item.getChannelId() == null ? "" : item.getChannelId().trim();
+        String name = item.getChannelName() == null ? "" : item.getChannelName().trim().toLowerCase();
+        return id + "|" + name;
+    }
+
+    private void showEpisodesListUI(ChannelItem item, EpisodeList episodes) {
+        runLater(() -> {
+            if (this.getChildren().size() > 1) {
+                this.getChildren().remove(1);
+            }
+            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName());
+            HBox.setHgrow(ui, Priority.ALWAYS);
+            this.getChildren().add(ui);
+            ui.setItems(episodes);
+            ui.setLoadingComplete();
+        });
     }
 
     private void addRightClickContextMenu(TableRow<ChannelItem> row) {
@@ -683,8 +715,11 @@ public class ChannelListUI extends HBox {
     }
 
     private Channel resolveChannelForPlayback(ChannelItem item) {
+        if (item == null) {
+            return null;
+        }
         Channel resolvedChannel = channelList.stream()
-                .filter(c -> c.getChannelId().equals(item.getChannelId()))
+                .filter(c -> Objects.equals(c.getChannelId(), item.getChannelId()))
                 .findFirst()
                 .orElse(null);
         if (resolvedChannel != null) {

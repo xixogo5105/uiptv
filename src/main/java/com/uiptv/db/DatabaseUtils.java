@@ -11,6 +11,10 @@ public class DatabaseUtils {
         BOOKMARK_TABLE("Bookmark"),
         CATEGORY_TABLE("Category"),
         CHANNEL_TABLE("Channel"),
+        VOD_CATEGORY_TABLE("VodCategory"),
+        VOD_CHANNEL_TABLE("VodChannel"),
+        SERIES_CATEGORY_TABLE("SeriesCategory"),
+        SERIES_CHANNEL_TABLE("SeriesChannel"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
         BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
 
@@ -26,7 +30,14 @@ public class DatabaseUtils {
 
     }
 
-    public static final EnumSet<DbTable> Cacheable = EnumSet.of(DbTable.CATEGORY_TABLE, DbTable.CHANNEL_TABLE);
+    public static final EnumSet<DbTable> Cacheable = EnumSet.of(
+            DbTable.CATEGORY_TABLE,
+            DbTable.CHANNEL_TABLE,
+            DbTable.VOD_CATEGORY_TABLE,
+            DbTable.VOD_CHANNEL_TABLE,
+            DbTable.SERIES_CATEGORY_TABLE,
+            DbTable.SERIES_CHANNEL_TABLE
+    );
     public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE, DbTable.BOOKMARK_CATEGORY_TABLE, DbTable.BOOKMARK_ORDER_TABLE);
 
     static {
@@ -117,6 +128,78 @@ public class DatabaseUtils {
                 new DataColumn("clearKeysJson", "TEXT"),
                 new DataColumn("inputstreamaddon", "TEXT"),
                 new DataColumn("manifestType", "TEXT")
+        )));
+        dbStructure.put(DbTable.VOD_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("categoryId", "TEXT NOT NULL"),
+                new DataColumn("accountId", "TEXT"),
+                new DataColumn("accountType", "TEXT"),
+                new DataColumn("title", "TEXT"),
+                new DataColumn("alias", "TEXT"),
+                new DataColumn("url", "TEXT"),
+                new DataColumn("activeSub", "INTEGER"),
+                new DataColumn("censored", "INTEGER"),
+                new DataColumn("extraJson", "TEXT"),
+                new DataColumn("cachedAt", "INTEGER")
+        )));
+        dbStructure.put(DbTable.VOD_CHANNEL_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("channelId", "TEXT NOT NULL"),
+                new DataColumn("categoryId", "TEXT"),
+                new DataColumn("accountId", "TEXT"),
+                new DataColumn("name", "TEXT"),
+                new DataColumn("number", "TEXT"),
+                new DataColumn("cmd", "TEXT"),
+                new DataColumn("cmd_1", "TEXT"),
+                new DataColumn("cmd_2", "TEXT"),
+                new DataColumn("cmd_3", "TEXT"),
+                new DataColumn("logo", "TEXT"),
+                new DataColumn("censored", "INTEGER"),
+                new DataColumn("status", "INTEGER"),
+                new DataColumn("hd", "INTEGER"),
+                new DataColumn("drmType", "TEXT"),
+                new DataColumn("drmLicenseUrl", "TEXT"),
+                new DataColumn("clearKeysJson", "TEXT"),
+                new DataColumn("inputstreamaddon", "TEXT"),
+                new DataColumn("manifestType", "TEXT"),
+                new DataColumn("extraJson", "TEXT"),
+                new DataColumn("cachedAt", "INTEGER")
+        )));
+        dbStructure.put(DbTable.SERIES_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("categoryId", "TEXT NOT NULL"),
+                new DataColumn("accountId", "TEXT"),
+                new DataColumn("accountType", "TEXT"),
+                new DataColumn("title", "TEXT"),
+                new DataColumn("alias", "TEXT"),
+                new DataColumn("url", "TEXT"),
+                new DataColumn("activeSub", "INTEGER"),
+                new DataColumn("censored", "INTEGER"),
+                new DataColumn("extraJson", "TEXT"),
+                new DataColumn("cachedAt", "INTEGER")
+        )));
+        dbStructure.put(DbTable.SERIES_CHANNEL_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("channelId", "TEXT NOT NULL"),
+                new DataColumn("categoryId", "TEXT"),
+                new DataColumn("accountId", "TEXT"),
+                new DataColumn("name", "TEXT"),
+                new DataColumn("number", "TEXT"),
+                new DataColumn("cmd", "TEXT"),
+                new DataColumn("cmd_1", "TEXT"),
+                new DataColumn("cmd_2", "TEXT"),
+                new DataColumn("cmd_3", "TEXT"),
+                new DataColumn("logo", "TEXT"),
+                new DataColumn("censored", "INTEGER"),
+                new DataColumn("status", "INTEGER"),
+                new DataColumn("hd", "INTEGER"),
+                new DataColumn("drmType", "TEXT"),
+                new DataColumn("drmLicenseUrl", "TEXT"),
+                new DataColumn("clearKeysJson", "TEXT"),
+                new DataColumn("inputstreamaddon", "TEXT"),
+                new DataColumn("manifestType", "TEXT"),
+                new DataColumn("extraJson", "TEXT"),
+                new DataColumn("cachedAt", "INTEGER")
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

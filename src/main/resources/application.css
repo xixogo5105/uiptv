@@ -127,3 +127,7 @@
     -fx-padding: 2 6 2 6;
     -fx-background-radius: 6;
 }
+
+.no-dim-disabled:disabled {
+    -fx-opacity: 1.0;
+}

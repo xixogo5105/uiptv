@@ -11,6 +11,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @NoArgsConstructor
 public class Category extends BaseJson {
     private String dbId, accountId, accountType, categoryId, title, alias;
+    private String extraJson;
     private boolean activeSub;
     private int censored;
 
@@ -32,6 +33,7 @@ public class Category extends BaseJson {
             category.setCategoryId(safeGetString(jsonObj, "categoryId"));
             category.setTitle(safeGetString(jsonObj, "title"));
             category.setAlias(safeGetString(jsonObj, "alias"));
+            category.setExtraJson(safeGetString(jsonObj, "extraJson"));
             category.setActiveSub(jsonObj.optBoolean("activeSub"));
             category.setCensored(jsonObj.optInt("censored"));
             return category;

@@ -2,6 +2,8 @@ package com.uiptv.service;
 
 import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -19,12 +21,14 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -36,6 +40,8 @@ import static com.uiptv.widget.UIptvAlert.showError;
 
 @Slf4j
 public class ChannelService {
+    private static final int MAX_PAGES_WITHOUT_PAGINATION = 200;
+    private static final long VOD_SERIES_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
     private static ChannelService instance;
     private final CacheService cacheService;
     private final ContentFilterService contentFilterService;
@@ -89,16 +95,31 @@ public class ChannelService {
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
-        //no caching
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
-            if (account.getType() == AccountType.XTREME_API) {
-            List<Channel> channels = dedupeChannels(XtremeParser.parseChannels(categoryId, account));
-            channels.forEach(this::resolveLogoIfNeeded);
-            if (callback != null) callback.accept(channels);
-            return channels;
-            } else {
-                return getVodOrSeries(categoryId, account, callback, isCancelled);
+            if (shouldUseVodSeriesDbCache(account)) {
+                List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
+                if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
+                    log(logger, "Loaded channels from local cache for category " + categoryId + ".");
+                    List<Channel> result = maybeFilterChannels(dedupeChannels(cachedChannels), true);
+                    if (callback != null) callback.accept(result);
+                    return result;
+                }
+
+                log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
+                List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger);
+                boolean cancelled = Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
+                if (!fetchedChannels.isEmpty() && !cancelled) {
+                    saveVodSeriesToDbCache(account, dbId, fetchedChannels);
+                    log(logger, "Saved " + fetchedChannels.size() + " channels to local cache.");
+                }
+                List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
+                List<Channel> result = maybeFilterChannels(dedupeChannels(resolved), true);
+                if (callback != null) callback.accept(result);
+                return result;
             }
+
+            // Existing behavior for non Stalker/Xtreme VOD/Series sources.
+            return getVodOrSeries(categoryId, account, callback, isCancelled, logger);
         }
         //no caching
         if (account.getType() == AccountType.RSS_FEED) {
@@ -116,10 +137,12 @@ public class ChannelService {
         channels.forEach(this::resolveLogoIfNeeded);
         if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
             //if live TV channels for a category is empty then make a direct call to stream server for fetching the contents
-            List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false);
+            log(logger, "No cached live channels for category " + categoryId + ". Fetching from portal...");
+            List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false, logger);
             if (!fetchedChannels.isEmpty()) {
                 ChannelDb.get().saveAll(fetchedChannels, dbId, account);
                 channels.addAll(fetchedChannels);
+                log(logger, "Saved " + fetchedChannels.size() + " live channels to local cache.");
             }
         }
         List<Channel> censoredChannels = maybeFilterChannels(dedupeChannels(channels), true);
@@ -127,9 +150,66 @@ public class ChannelService {
         return censoredChannels;
     }
 
-    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
-        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled));
+    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) throws IOException {
+        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger));
         return maybeFilterChannels(cachedChannels, true);
+    }
+
+    private boolean shouldUseVodSeriesDbCache(Account account) {
+        return (account.getAction() == vod || account.getAction() == series)
+                && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
+    }
+
+    private List<Channel> getVodSeriesFromDbCache(Account account, String dbCategoryId) {
+        List<Channel> channels;
+        if (account.getAction() == vod) {
+            channels = VodChannelDb.get().getChannels(account, dbCategoryId);
+        } else if (account.getAction() == series) {
+            channels = SeriesChannelDb.get().getChannels(account, dbCategoryId);
+        } else {
+            channels = Collections.emptyList();
+        }
+        channels = dedupeChannels(channels);
+        channels.forEach(channel -> {
+            channel.setLogo(normalizeLogoUrl(account, channel.getLogo()));
+            if (isBlank(channel.getLogo())) {
+                channel.setLogo(normalizeLogoUrl(account, extractLogoFromExtraJson(channel.getExtraJson())));
+            }
+        });
+        channels.forEach(this::resolveLogoIfNeeded);
+        return channels;
+    }
+
+    private boolean isVodSeriesChannelsFresh(Account account, String dbCategoryId) {
+        if (account.getAction() == vod) {
+            return VodChannelDb.get().isFresh(account, dbCategoryId, VOD_SERIES_CACHE_TTL_MS);
+        }
+        if (account.getAction() == series) {
+            return SeriesChannelDb.get().isFresh(account, dbCategoryId, VOD_SERIES_CACHE_TTL_MS);
+        }
+        return false;
+    }
+
+    private void saveVodSeriesToDbCache(Account account, String dbCategoryId, List<Channel> channels) {
+        if (account.getAction() == vod) {
+            VodChannelDb.get().saveAll(channels, dbCategoryId, account);
+            return;
+        }
+        if (account.getAction() == series) {
+            SeriesChannelDb.get().saveAll(channels, dbCategoryId, account);
+        }
+    }
+
+    private List<Channel> fetchVodSeriesFromProviderAllPages(String categoryId, Account account, Supplier<Boolean> isCancelled, LoggerCallback logger) throws IOException {
+        List<Channel> channels;
+        if (account.getType() == XTREME_API) {
+            channels = dedupeChannels(XtremeParser.parseChannels(categoryId, account));
+        } else {
+            // Callback is intentionally null: UI callback is fired once after all pages are fetched.
+            channels = getStalkerPortalChOrSeries(categoryId, account, null, "0", null, isCancelled, true, logger);
+        }
+        channels.forEach(this::resolveLogoIfNeeded);
+        return channels;
     }
 
     private List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
@@ -155,17 +235,31 @@ public class ChannelService {
         return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true);
     }
 
-    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor) {
-        // Different portals are inconsistent on first page index (0 vs 1); try both.
-        List<Channel> channelsFromPageZero = fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 0);
-        if (!channelsFromPageZero.isEmpty()) {
-            return channelsFromPageZero;
-        }
-        return dedupeChannels(fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1));
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) {
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true, logger);
     }
 
-    private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage) {
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor) {
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, censor, null);
+    }
+
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, LoggerCallback logger) {
+        log(logger, "Starting portal fetch for category " + category + ".");
+        // Different portals are inconsistent on first page index (0 vs 1); try both.
+        List<Channel> channelsFromPageZero = fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 0, logger);
+        if (!channelsFromPageZero.isEmpty()) {
+            log(logger, "Portal fetch finished with " + channelsFromPageZero.size() + " channels.");
+            return channelsFromPageZero;
+        }
+        log(logger, "No channels on page 0. Retrying from page 1...");
+        List<Channel> fallback = dedupeChannels(fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1, logger));
+        log(logger, "Portal fetch finished with " + fallback.size() + " channels.");
+        return fallback;
+    }
+
+    private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage, LoggerCallback logger) {
         List<Channel> channelList = new ArrayList<>();
+        log(logger, "Fetching page " + startPage + " for category " + category + "...");
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, startPage, account.getAction(), movieId, seriesId), account);
         Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
         List<Channel> firstPage = account.getAction() == itv
@@ -173,29 +267,41 @@ public class ChannelService {
                 : ChannelService.getInstance().parseVodChannels(account, json, censor);
 
         if (firstPage == null || firstPage.isEmpty()) {
+            log(logger, "Page " + startPage + " returned no channels.");
             return channelList;
         }
 
         channelList.addAll(firstPage);
+        log(logger, "Fetched " + firstPage.size() + " channels from page " + startPage + ".");
         if (callback != null) callback.accept(firstPage);
 
-        int maxAdditionalPages = pagination == null ? 2 : Math.max(pagination.getPageCount() + 1, 2);
+        int maxAdditionalPages = pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(pagination.getPageCount() + 1, 2);
         for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
             if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
+                log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
                 break;
             }
 
+            log(logger, "Fetching page " + pageNumber + " for category " + category + "...");
             json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
             List<Channel> pagedChannels = account.getAction() == itv
                     ? ChannelService.getInstance().parseItvChannels(json, censor)
                     : ChannelService.getInstance().parseVodChannels(account, json, censor);
             if (pagedChannels == null || pagedChannels.isEmpty()) {
+                log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
                 break;
             }
             channelList.addAll(pagedChannels);
+            log(logger, "Fetched " + pagedChannels.size() + " channels from page " + pageNumber + ".");
             if (callback != null) callback.accept(pagedChannels);
         }
         return dedupeChannels(channelList);
+    }
+
+    private void log(LoggerCallback logger, String message) {
+        if (logger != null) {
+            logger.log(message);
+        }
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
@@ -242,8 +348,9 @@ public class ChannelService {
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
-                Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), jsonChannel.getString("logo"), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                 channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
+                channel.setExtraJson(jsonChannel.toString());
                 resolveLogoIfNeeded(channel);
                 channelList.add(channel);
             }
@@ -276,15 +383,17 @@ public class ChannelService {
                     JSONArray seriesArray = jsonChannel.getJSONArray("series");
                     if (seriesArray != null) {
                         for (int j = 0; j < seriesArray.length(); j++) {
-                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, preferredLogo, nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                             channel.setCategoryId(categoryId);
+                            channel.setExtraJson(jsonChannel.toString());
                             resolveLogoIfNeeded(channel);
                             channelList.add(channel);
                         }
                     }
                 } else {
-                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, preferredLogo, nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                     channel.setCategoryId(categoryId);
+                    channel.setExtraJson(jsonChannel.toString());
                     resolveLogoIfNeeded(channel);
                     channelList.add(channel);
                 }
@@ -307,6 +416,58 @@ public class ChannelService {
         if (isBlank(logo)) logo = nullSafeString(jsonChannel, "cover");
         if (isBlank(logo)) logo = nullSafeString(jsonChannel, "movie_image");
         return logo;
+    }
+
+    private String extractLogoFromExtraJson(String extraJson) {
+        if (isBlank(extraJson)) {
+            return "";
+        }
+        try {
+            JSONObject json = new JSONObject(extraJson);
+            String logo = nullSafeString(json, "screenshot_uri");
+            if (isBlank(logo)) logo = nullSafeString(json, "stream_icon");
+            if (isBlank(logo)) logo = nullSafeString(json, "cover");
+            if (isBlank(logo)) logo = nullSafeString(json, "movie_image");
+            return logo == null ? "" : logo;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String normalizeLogoUrl(Account account, String logo) {
+        if (isBlank(logo)) {
+            return "";
+        }
+        String value = logo.trim().replace("\\/", "/");
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1).trim();
+        }
+        if (isBlank(value)) {
+            return "";
+        }
+        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+            return value;
+        }
+        String portal = account != null ? account.getServerPortalUrl() : "";
+        String scheme = "https";
+        String host = "";
+        int port = -1;
+        try {
+            if (!isBlank(portal)) {
+                URI uri = URI.create(portal.trim());
+                if (!isBlank(uri.getScheme())) scheme = uri.getScheme();
+                if (!isBlank(uri.getHost())) host = uri.getHost();
+                port = uri.getPort();
+            }
+        } catch (Exception ignored) {
+        }
+        if (value.startsWith("//")) {
+            return scheme + ":" + value;
+        }
+        if (value.startsWith("/") && !isBlank(host)) {
+            return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+        }
+        return value;
     }
 
     public List<Channel> censor(List<Channel> channelList) {

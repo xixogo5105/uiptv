@@ -285,9 +285,35 @@ createApp({
             return SUPPORTED_MULTI_MODE_TYPES.has(accountType);
         });
 
+        const isPinnedAccount = (account) => {
+            const raw = account?.pinToTop;
+            if (raw === true || raw === 1) return true;
+            if (raw === false || raw === 0 || raw == null) return false;
+            const s = String(raw).trim().toLowerCase();
+            return s === 'true' || s === '1' || s === 'yes' || s === 'y';
+        };
+
+        const numericDbId = (account) => {
+            const value = Number.parseInt(String(account?.dbId || ''), 10);
+            return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+        };
+
+        const sortedAccounts = computed(() => {
+            const list = Array.isArray(accounts.value) ? [...accounts.value] : [];
+            list.sort((a, b) => {
+                const aPinned = isPinnedAccount(a);
+                const bPinned = isPinnedAccount(b);
+                if (aPinned !== bPinned) return aPinned ? -1 : 1;
+                const byId = numericDbId(a) - numericDbId(b);
+                if (byId !== 0) return byId;
+                return String(a?.accountName || '').localeCompare(String(b?.accountName || ''), undefined, { sensitivity: 'base' });
+            });
+            return list;
+        });
+
         const filteredAccounts = computed(() => {
-            if (!searchQuery.value) return accounts.value;
-            return accounts.value.filter(a => (a.accountName || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
+            if (!searchQuery.value) return sortedAccounts.value;
+            return sortedAccounts.value.filter(a => (a.accountName || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
         });
 
         const filteredCategories = computed(() => {

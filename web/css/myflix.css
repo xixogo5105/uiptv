@@ -361,6 +361,16 @@ body {
     display: none;
 }
 
+.nf-account-type-tabs {
+    width: 100%;
+    padding: 0 12px;
+}
+
+.nf-strip .nf-card.active {
+    border-color: rgba(229, 9, 20, 0.7);
+    box-shadow: 0 0 0 1px rgba(229, 9, 20, 0.55);
+}
+
 .nf-bookmark-tab {
     border: 1px solid var(--line);
     background: var(--chip);

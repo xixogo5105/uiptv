@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -156,11 +157,13 @@ public class CategoryListUI extends HBox {
         table.setItems(FXCollections.observableArrayList());
         table.setPlaceholder(new Label("Loading categories..."));
         removeChannelPane();
+        LogPopupUI categoryLogPopup = createCategoryFetchPopupIfNeeded(mode);
+        LoggerCallback categoryLogger = categoryLogPopup != null ? categoryLogPopup.getLogger() : null;
 
         new Thread(() -> {
             try {
                 account.setAction(mode);
-                List<Category> categories = CategoryService.getInstance().get(account);
+                List<Category> categories = CategoryService.getInstance().get(account, true, categoryLogger);
                 Platform.runLater(() -> {
                     modeStates.computeIfAbsent(mode, k -> new ModeState()).categories = new ArrayList<>(categories);
                     if (activeMode == mode) {
@@ -169,6 +172,10 @@ public class CategoryListUI extends HBox {
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert("Failed to load categories: " + e.getMessage()));
+            } finally {
+                if (categoryLogPopup != null) {
+                    categoryLogPopup.closeGracefully();
+                }
             }
         }).start();
     }
@@ -235,12 +242,15 @@ public class CategoryListUI extends HBox {
     }
 
     private void doRetrieveChannels(CategoryItem item) {
+        if (item == null) {
+            return;
+        }
         final Account.AccountAction mode = activeMode;
         account.setAction(mode);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         if (state.selectedCategory != null
                 && state.channelListUI != null
-                && state.selectedCategory.getId().equals(item.getId())) {
+                && sameCategorySelection(state.selectedCategory, item)) {
             showChannelPane(state.channelListUI);
             return;
         }
@@ -264,20 +274,56 @@ public class CategoryListUI extends HBox {
 
         currentRequestCancelled = new AtomicBoolean(false);
         AtomicBoolean isCancelled = currentRequestCancelled;
+        LogPopupUI portalLogPopup = createPortalFetchPopupIfNeeded(noCachingNeeded, item, mode);
+        LoggerCallback portalLogger = portalLogPopup != null ? portalLogPopup.getLogger() : null;
 
         // Always retrieve channels without triggering a cache reload popup
         primaryStage.getScene().setCursor(Cursor.WAIT);
         currentLoadingThread = new Thread(() -> {
             try {
-                retrieveChannels(item, null, noCachingNeeded, isCancelled::get, mode);
+                retrieveChannels(item, portalLogger, false, noCachingNeeded, isCancelled::get, mode);
             } finally {
-                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
+                Platform.runLater(() -> {
+                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
+                    if (portalLogPopup != null) {
+                        portalLogPopup.closeGracefully();
+                    }
+                });
             }
         });
         currentLoadingThread.start();
     }
 
-    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {
+    private LogPopupUI createPortalFetchPopupIfNeeded(boolean noCachingNeeded, CategoryItem item, Account.AccountAction mode) {
+        if (mode == Account.AccountAction.vod || mode == Account.AccountAction.series) {
+            return null;
+        }
+        if (!noCachingNeeded || account.getType() != STALKER_PORTAL || !NOT_LIVE_TV_CHANNELS.contains(mode)) {
+            return null;
+        }
+        LogPopupUI logPopup = new LogPopupUI("Loading channels from portal...");
+        logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
+        logPopup.show();
+        return logPopup;
+    }
+
+    private LogPopupUI createCategoryFetchPopupIfNeeded(Account.AccountAction mode) {
+        if (mode == Account.AccountAction.vod || mode == Account.AccountAction.series) {
+            return null;
+        }
+        if (account.getType() != STALKER_PORTAL || !NOT_LIVE_TV_CHANNELS.contains(mode)) {
+            return null;
+        }
+        LogPopupUI logPopup = new LogPopupUI("Loading categories from portal...");
+        logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
+        logPopup.show();
+        return logPopup;
+    }
+
+    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean triggerCacheReload, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {
+        if (item == null) {
+            return;
+        }
         account.setAction(mode);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         final String categoryId = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
@@ -305,7 +351,7 @@ public class CategoryListUI extends HBox {
 
             try {
                 boolean cachingNeeded = !noCachingNeeded;
-                if (cachingNeeded && logger != null) {
+                if (cachingNeeded && triggerCacheReload && logger != null) {
                     try {
                         ChannelService.getInstance().reloadCache(account, logger);
                     } catch (IOException e) {
@@ -360,6 +406,23 @@ public class CategoryListUI extends HBox {
         private List<Category> categories = new ArrayList<>();
         private CategoryItem selectedCategory;
         private ChannelListUI channelListUI;
+    }
+
+    private boolean sameCategorySelection(CategoryItem left, CategoryItem right) {
+        return Objects.equals(stableCategorySelectionKey(left), stableCategorySelectionKey(right));
+    }
+
+    private String stableCategorySelectionKey(CategoryItem item) {
+        if (item == null) {
+            return "";
+        }
+        if (item.getId() != null && !item.getId().trim().isEmpty()) {
+            return "id:" + item.getId().trim();
+        }
+        if (item.getCategoryId() != null && !item.getCategoryId().trim().isEmpty()) {
+            return "categoryId:" + item.getCategoryId().trim();
+        }
+        return "title:" + (item.getCategoryTitle() == null ? "" : item.getCategoryTitle().trim().toLowerCase());
     }
 
     public static class CategoryItem {

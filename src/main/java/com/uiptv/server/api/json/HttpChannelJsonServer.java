@@ -3,6 +3,8 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.CategoryDb;
+import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
@@ -37,13 +39,13 @@ public class HttpChannelJsonServer implements HttpHandler {
                 && account.getType() == AccountType.STALKER_PORTAL
                 && isNotBlank(movieId)
                 && !"All".equalsIgnoreCase(categoryId)) {
-            Category category = CategoryDb.get().getCategoryByDbId(categoryId, account);
+            Category category = resolveCategoryByDbId(account, categoryId);
             String categoryApiId = category != null ? category.getCategoryId() : categoryId;
             response = StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(
                     ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null)
             );
         } else if ("All".equalsIgnoreCase(categoryId)) {
-            List<Category> categories = CategoryDb.get().getCategories(account);
+            List<Category> categories = resolveCategoriesForAccount(account);
             JSONArray allChannels = new JSONArray();
             for (Category cat : categories) {
                 if (!"All".equalsIgnoreCase(cat.getTitle())) {
@@ -58,7 +60,7 @@ public class HttpChannelJsonServer implements HttpHandler {
             }
             response = allChannels.toString();
         } else {
-            Category category = CategoryDb.get().getCategoryByDbId(categoryId, account);
+            Category category = resolveCategoryByDbId(account, categoryId);
             response = StringUtils.EMPTY + ChannelService.getInstance().readToJson(category, account);
         }
 
@@ -95,5 +97,25 @@ public class HttpChannelJsonServer implements HttpHandler {
         } catch (Exception ignored) {
             return response;
         }
+    }
+
+    private Category resolveCategoryByDbId(Account account, String categoryId) {
+        if (account.getAction() == Account.AccountAction.vod) {
+            return VodCategoryDb.get().getById(categoryId);
+        }
+        if (account.getAction() == Account.AccountAction.series) {
+            return SeriesCategoryDb.get().getById(categoryId);
+        }
+        return CategoryDb.get().getCategoryByDbId(categoryId, account);
+    }
+
+    private List<Category> resolveCategoriesForAccount(Account account) {
+        if (account.getAction() == Account.AccountAction.vod) {
+            return VodCategoryDb.get().getCategories(account);
+        }
+        if (account.getAction() == Account.AccountAction.series) {
+            return SeriesCategoryDb.get().getCategories(account);
+        }
+        return CategoryDb.get().getCategories(account);
     }
 }

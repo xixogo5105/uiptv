@@ -72,7 +72,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>3.9.0</version>
+        <version>3.10.0</version>
         <executions>
           <execution>
             <id>copy-dependencies</id>
@@ -91,9 +91,50 @@
       </plugin>
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.0.0-M7</version>
+        <version>3.5.5</version>
         <configuration>
           <useModulePath>false</useModulePath>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <version>${frontend-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>install-node-and-npm</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>install-node-and-npm</goal>
+            </goals>
+            <configuration>
+              <nodeVersion>v22.18.0</nodeVersion>
+              <npmVersion>10.9.3</npmVersion>
+            </configuration>
+          </execution>
+          <execution>
+            <id>npm-install-web-build-tools</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>install --no-audit --no-fund</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>build-minified-obfuscated-web-assets</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run build:web</arguments>
+            </configuration>
+          </execution>
+        </executions>
+        <configuration>
+          <workingDirectory>${basedir}/web</workingDirectory>
         </configuration>
       </plugin>
       <plugin>
@@ -111,7 +152,7 @@
               <resources>
                 <resource>
                   <targetPath>${basedir}/target/web</targetPath>
-                  <directory>${basedir}/web</directory>
+                  <directory>${basedir}/web/dist</directory>
                   <filtering>false</filtering>
                 </resource>
               </resources>
@@ -128,7 +169,7 @@
               <outputDirectory>${project.build.directory}/jpackage-app/web</outputDirectory>
               <resources>
                 <resource>
-                  <directory>${basedir}/web</directory>
+                  <directory>${basedir}/web/dist</directory>
                 </resource>
               </resources>
             </configuration>
@@ -547,7 +588,7 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <version>6.0.2</version>
+      <version>6.0.3</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>
@@ -571,7 +612,7 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>6.0.2</version>
+      <version>6.0.3</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>
@@ -588,6 +629,32 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>5.21.0</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>byte-buddy</artifactId>
+          <groupId>net.bytebuddy</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>byte-buddy-agent</artifactId>
+          <groupId>net.bytebuddy</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>objenesis</artifactId>
+          <groupId>org.objenesis</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-inline</artifactId>
+      <version>5.2.0</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
@@ -597,8 +664,9 @@
     <vlcj.version>4.12.1</vlcj.version>
     <maven.compiler.source>25</maven.compiler.source>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <javafx.version>26-ea+21</javafx.version>
+    <javafx.version>25.0.2</javafx.version>
     <sqlite.arch>x86_64</sqlite.arch>
+    <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
 </project>

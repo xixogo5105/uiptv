@@ -53,12 +53,10 @@ public abstract class BaseDb {
     }
 
     public <T extends JsonCompliant> T getById(String id) {
-        return getById(id, "");
-    }
-
-    public <T extends JsonCompliant> T getById(String id, String extendedSql) {
         T t = null;
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(selectByIdSql(table, id) + extendedSql)) {
+        String sql = "SELECT * FROM " + table.getTableName() + " WHERE id=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, id);
             ResultSet resultSet = statement.executeQuery();
             if (resultSet.next()) {
                 t = populate(resultSet);

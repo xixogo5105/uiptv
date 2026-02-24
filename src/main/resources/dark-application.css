@@ -234,3 +234,7 @@
     -fx-base: white;
     -fx-control-inner-background: white;
 }
+
+.no-dim-disabled:disabled {
+    -fx-opacity: 1.0;
+}

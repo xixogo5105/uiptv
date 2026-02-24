@@ -78,6 +78,7 @@ public class ConfigurationUI extends VBox {
     private void initWidgets() {
         setPadding(Insets.EMPTY);
         setSpacing(0);
+        startServerButton.getStyleClass().add("no-dim-disabled");
         contentContainer.setPadding(new Insets(5));
         contentContainer.setSpacing(10);
 

@@ -4,7 +4,9 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 
 import java.sql.*;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.CONFIGURATION_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
@@ -33,13 +35,10 @@ public class ConfigurationDb extends BaseDb {
     }
 
     public void clearAllCache() {
-        for (DatabaseUtils.DbTable t : DatabaseUtils.Cacheable) {
-            try (Connection conn = connect(); Statement statement = conn.createStatement()) {
-                statement.execute("DELETE FROM " + t.getTableName());
-            } catch (Exception ignored) {
-            }
-        }
         try (Connection conn = connect(); Statement statement = conn.createStatement()) {
+            for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
+                statement.execute("DELETE FROM " + table.getTableName());
+            }
             statement.execute("UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl=''");
         } catch (Exception ignored) {
         }
@@ -50,24 +49,48 @@ public class ConfigurationDb extends BaseDb {
             return;
         }
 
-        // Delete channels for this account
-        ChannelDb.get().deleteByAccount(account.getDbId());
-
         try (Connection conn = connect()) {
-            // Delete categories for this account
-            String deleteCategoriesSql = "DELETE FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName() + " WHERE accountId = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteCategoriesSql)) {
-                pstmt.setString(1, account.getDbId());
-                pstmt.executeUpdate();
+            Set<String> clearedTables = new HashSet<>();
+            for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
+                deleteAccountCacheForTable(conn, table, account.getDbId());
+                clearedTables.add(table.getTableName());
             }
 
-            // Clear serverPortalUrl for this account
-            String updateAccountSql = "UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl='' WHERE id = ?";
+            // Live channels are tied to live categories, so clear them once via explicit join if not already covered.
+            if (!clearedTables.contains(DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName())) {
+                deleteAccountLiveChannels(conn, account.getDbId());
+            }
+
+            String updateAccountSql = "UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName()
+                    + " SET serverPortalUrl='' WHERE id = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updateAccountSql)) {
                 pstmt.setString(1, account.getDbId());
                 pstmt.executeUpdate();
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    private void deleteAccountCacheForTable(Connection conn, DatabaseUtils.DbTable table, String accountId) throws SQLException {
+        if (table == DatabaseUtils.DbTable.CHANNEL_TABLE) {
+            deleteAccountLiveChannels(conn, accountId);
+            return;
+        }
+
+        String sql = "DELETE FROM " + table.getTableName() + " WHERE accountId=?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, accountId);
+            pstmt.executeUpdate();
+        }
+    }
+
+    private void deleteAccountLiveChannels(Connection conn, String accountId) throws SQLException {
+        String sql = "DELETE FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
+                + " WHERE categoryId IN (SELECT id FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName()
+                + " WHERE accountId=?)";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, accountId);
+            pstmt.executeUpdate();
         }
     }
 

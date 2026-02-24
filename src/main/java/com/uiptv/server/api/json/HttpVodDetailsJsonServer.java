@@ -3,6 +3,7 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
@@ -43,7 +44,10 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
 
         Channel providerChannel = null;
         if (account != null && !isBlank(channelId)) {
-            providerChannel = ChannelDb.get().getChannelById(channelId, categoryId);
+            providerChannel = VodChannelDb.get().getChannelByChannelId(channelId, categoryId, account.getDbId());
+            if (providerChannel == null) {
+                providerChannel = ChannelDb.get().getChannelById(channelId, categoryId);
+            }
         }
 
         if (providerChannel != null) {

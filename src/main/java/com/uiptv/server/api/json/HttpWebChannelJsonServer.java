@@ -3,6 +3,8 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.CategoryDb;
+import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -119,7 +121,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         }
         if ("All".equalsIgnoreCase(categoryId)) {
             JSONArray allChannels = new JSONArray();
-            List<Category> categories = CategoryDb.get().getCategories(account);
+            List<Category> categories = resolveCategoriesForAccount(account);
             for (Category cat : categories) {
                 if ("All".equalsIgnoreCase(cat.getTitle())) continue;
                 String channelsJson = ChannelService.getInstance().readToJson(cat, account);
@@ -131,7 +133,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
             }
             return allChannels.toString();
         }
-        Category category = CategoryDb.get().getCategoryByDbId(categoryId, account);
+        Category category = resolveCategoryByDbId(account, categoryId);
         return StringUtils.EMPTY + ChannelService.getInstance().readToJson(category, account);
     }
 
@@ -187,8 +189,28 @@ public class HttpWebChannelJsonServer implements HttpHandler {
     }
 
     private String resolveCategoryApiId(Account account, String categoryId) {
-        Category category = CategoryDb.get().getCategoryByDbId(categoryId, account);
+        Category category = resolveCategoryByDbId(account, categoryId);
         return category != null ? category.getCategoryId() : categoryId;
+    }
+
+    private Category resolveCategoryByDbId(Account account, String categoryId) {
+        if (account.getAction() == Account.AccountAction.vod) {
+            return VodCategoryDb.get().getById(categoryId);
+        }
+        if (account.getAction() == Account.AccountAction.series) {
+            return SeriesCategoryDb.get().getById(categoryId);
+        }
+        return CategoryDb.get().getCategoryByDbId(categoryId, account);
+    }
+
+    private List<Category> resolveCategoriesForAccount(Account account) {
+        if (account.getAction() == Account.AccountAction.vod) {
+            return VodCategoryDb.get().getCategories(account);
+        }
+        if (account.getAction() == Account.AccountAction.series) {
+            return SeriesCategoryDb.get().getCategories(account);
+        }
+        return CategoryDb.get().getCategories(account);
     }
 
     private void applyMode(Account account, String mode) {

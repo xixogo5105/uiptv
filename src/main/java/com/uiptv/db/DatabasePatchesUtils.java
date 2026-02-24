@@ -37,6 +37,10 @@ public class DatabasePatchesUtils {
         dbPatches.put("146", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN seriesJson TEXT");
         dbPatches.put("147", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN httpMethod TEXT default 'GET'");
         dbPatches.put("148", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN timezone TEXT default 'Europe/London'");
+        dbPatches.put("149", "CREATE TABLE IF NOT EXISTS " + VOD_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, categoryId TEXT NOT NULL, accountId TEXT, accountType TEXT, title TEXT, alias TEXT, url TEXT, activeSub INTEGER, censored INTEGER, extraJson TEXT, cachedAt INTEGER)");
+        dbPatches.put("150", "CREATE TABLE IF NOT EXISTS " + VOD_CHANNEL_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, channelId TEXT NOT NULL, categoryId TEXT, accountId TEXT, name TEXT, number TEXT, cmd TEXT, cmd_1 TEXT, cmd_2 TEXT, cmd_3 TEXT, logo TEXT, censored INTEGER, status INTEGER, hd INTEGER, drmType TEXT, drmLicenseUrl TEXT, clearKeysJson TEXT, inputstreamaddon TEXT, manifestType TEXT, extraJson TEXT, cachedAt INTEGER)");
+        dbPatches.put("151", "CREATE TABLE IF NOT EXISTS " + SERIES_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, categoryId TEXT NOT NULL, accountId TEXT, accountType TEXT, title TEXT, alias TEXT, url TEXT, activeSub INTEGER, censored INTEGER, extraJson TEXT, cachedAt INTEGER)");
+        dbPatches.put("152", "CREATE TABLE IF NOT EXISTS " + SERIES_CHANNEL_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, channelId TEXT NOT NULL, categoryId TEXT, accountId TEXT, name TEXT, number TEXT, cmd TEXT, cmd_1 TEXT, cmd_2 TEXT, cmd_3 TEXT, logo TEXT, censored INTEGER, status INTEGER, hd INTEGER, drmType TEXT, drmLicenseUrl TEXT, clearKeysJson TEXT, inputstreamaddon TEXT, manifestType TEXT, extraJson TEXT, cachedAt INTEGER)");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

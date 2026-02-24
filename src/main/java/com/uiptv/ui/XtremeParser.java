@@ -94,7 +94,9 @@ public class XtremeParser {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonCategory = list.getJSONObject(i);
-                categoryList.add(new Category(jsonCategory.getString("category_id"), jsonCategory.getString("category_name"), jsonCategory.getString("category_name"), true, 0));
+                Category category = new Category(jsonCategory.getString("category_id"), jsonCategory.getString("category_name"), jsonCategory.getString("category_name"), true, 0);
+                category.setExtraJson(jsonCategory.toString());
+                categoryList.add(category);
             }
         } catch (Exception e) {
             showError("Error while processing response data" + e.getMessage());
@@ -108,7 +110,7 @@ public class XtremeParser {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonCategory = list.getJSONObject(i);
-                categoryList.add(new Channel(
+                Channel channel = new Channel(
                         safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
                         safeGetString(jsonCategory, "name"),
                         null,
@@ -125,7 +127,9 @@ public class XtremeParser {
                         null,
                         null,
                         null
-                ));
+                );
+                channel.setExtraJson(jsonCategory.toString());
+                categoryList.add(channel);
             }
         } catch (Exception e) {
             showError("Error while processing response data" + e.getMessage());
