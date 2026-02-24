@@ -9,6 +9,8 @@ createApp({
         const searchQuery = ref('');
         const accounts = ref([]);
         const bookmarks = ref([]);
+        const bookmarkCategories = ref([]);
+        const selectedBookmarkCategoryId = ref('');
 
         const createBrowserState = () => ({
             viewState: ref('accounts'), // accounts, categories, channels, episodes, seriesDetail, vodDetail
@@ -67,12 +69,27 @@ createApp({
         });
 
         const filteredBookmarks = computed(() => {
-            if (!searchQuery.value) return bookmarks.value;
+            const selectedCategoryId = String(selectedBookmarkCategoryId.value || '');
+            const byCategory = selectedCategoryId
+                ? bookmarks.value.filter(b => String(b?.categoryId || '') === selectedCategoryId)
+                : bookmarks.value;
+            if (!searchQuery.value) return byCategory;
             const q = searchQuery.value.toLowerCase();
-            return bookmarks.value.filter(b =>
+            return byCategory.filter(b =>
                 (b.channelName || '').toLowerCase().includes(q) ||
                 (b.accountName || '').toLowerCase().includes(q)
             );
+        });
+
+        const bookmarkCategoryTabs = computed(() => {
+            const tabs = [{ id: '', name: 'All' }];
+            for (const category of (bookmarkCategories.value || [])) {
+                const id = String(category?.id || '').trim();
+                const name = String(category?.name || '').trim();
+                if (!id || !name) continue;
+                tabs.push({ id, name });
+            }
+            return tabs;
         });
 
         const filterBySearch = (arr, field) => {
@@ -795,11 +812,34 @@ createApp({
                 startModeLoading('bookmarks');
                 const response = await fetch(`${window.location.origin}/bookmarks`);
                 bookmarks.value = await response.json();
+                ensureSelectedBookmarkCategory();
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
             } finally {
                 stopModeLoading('bookmarks');
             }
+        };
+
+        const loadBookmarkCategories = async () => {
+            try {
+                const response = await fetch(`${window.location.origin}/bookmarks?view=categories`);
+                bookmarkCategories.value = await response.json();
+                ensureSelectedBookmarkCategory();
+            } catch (e) {
+                console.error('Failed to load bookmark categories', e);
+            }
+        };
+
+        const ensureSelectedBookmarkCategory = () => {
+            const selectedId = String(selectedBookmarkCategoryId.value || '');
+            const exists = bookmarkCategoryTabs.value.some(tab => String(tab.id || '') === selectedId);
+            if (!exists) {
+                selectedBookmarkCategoryId.value = '';
+            }
+        };
+
+        const selectBookmarkCategory = (categoryId) => {
+            selectedBookmarkCategoryId.value = String(categoryId || '');
         };
 
         const playBookmark = (bookmark) => {
@@ -1215,6 +1255,63 @@ createApp({
             document.documentElement.setAttribute('data-theme', getResolvedTheme());
         };
 
+        const clearWebCacheAndReload = async () => {
+            const confirmed = window.confirm('Clear local web cache/storage and reload now?');
+            if (!confirmed) return;
+
+            try {
+                await stopPlayback(true);
+            } catch (_) {
+                // Ignore playback cleanup errors.
+            }
+
+            try {
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(registration => registration.unregister()));
+                }
+            } catch (_) {
+                // Ignore service worker cleanup errors.
+            }
+
+            try {
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                }
+            } catch (_) {
+                // Ignore Cache Storage cleanup errors.
+            }
+
+            try {
+                localStorage.clear();
+            } catch (_) {}
+            try {
+                sessionStorage.clear();
+            } catch (_) {}
+
+            try {
+                if (window.indexedDB && typeof indexedDB.databases === 'function') {
+                    const dbs = await indexedDB.databases();
+                    await Promise.all((dbs || []).map(db => new Promise(resolve => {
+                        if (!db?.name) {
+                            resolve();
+                            return;
+                        }
+                        const request = indexedDB.deleteDatabase(db.name);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => resolve();
+                        request.onblocked = () => resolve();
+                    })));
+                }
+            } catch (_) {
+                // Ignore IndexedDB cleanup errors.
+            }
+
+            const target = `${window.location.origin}${window.location.pathname}?cacheReset=${Date.now()}`;
+            window.location.replace(target);
+        };
+
         const resetApp = () => {
             stopPlayback();
             resetModeState('itv');
@@ -1222,10 +1319,12 @@ createApp({
             resetModeState('series');
             selectedSeriesSeason.value = '';
             searchQuery.value = '';
+            selectedBookmarkCategoryId.value = '';
         };
 
         onMounted(() => {
             loadAccounts();
+            loadBookmarkCategories();
             loadBookmarks();
 
             const storedTheme = localStorage.getItem('uiptv_theme');
@@ -1279,6 +1378,8 @@ createApp({
             visibleSeriesDetailEpisodes,
             hasMoreSeriesDetailEpisodes,
             filteredBookmarks,
+            bookmarkCategoryTabs,
+            selectedBookmarkCategoryId,
             getEpisodeDisplayTitle,
             currentChannel,
             currentChannelName,
@@ -1306,6 +1407,7 @@ createApp({
             handleModeSelection,
             playVodFromDetail,
             playBookmark,
+            selectBookmarkCategory,
             stopPlayback,
             closePlayerPopup,
             reloadPlayback,
@@ -1319,6 +1421,7 @@ createApp({
             loadMoreSeriesDetailEpisodes,
             getImdbUrl,
             toggleTheme,
+            clearWebCacheAndReload,
             resetApp,
             switchVideoTrack
         };

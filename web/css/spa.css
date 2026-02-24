@@ -373,34 +373,31 @@ body {
 
 .bookmark-category-tabs-wrap {
     border-bottom: 1px solid var(--sidebar-border);
+    padding-top: 6px;
 }
 
 .bookmark-category-tabs {
     display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding-top: 8px;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    padding: 0 0 4px;
 }
 
-.bookmark-category-tab {
-    border: 1px solid var(--sidebar-border);
-    background: var(--tab-bg);
-    color: var(--tab-inactive-text);
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 0.75rem;
+.bookmark-category-btn-group .btn {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.45rem;
     white-space: nowrap;
 }
 
-.bookmark-category-tab:hover {
-    background: var(--tab-hover-bg);
-    color: var(--tab-hover-text);
+.bookmark-category-tabs .dropdown .btn {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.45rem;
 }
 
-.bookmark-category-tab.active {
-    color: var(--tab-active-text);
-    background: var(--tab-active-bg);
-    border-color: #0d6efd;
+.bookmark-category-tabs .dropdown-menu {
+    max-height: 280px;
+    overflow-y: auto;
 }
 
 .card-item {

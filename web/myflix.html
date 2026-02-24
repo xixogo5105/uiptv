@@ -33,6 +33,9 @@
             <button class="nf-action-btn" @click="toggleTheme" :title="'Theme: ' + theme">
                 <i class="bi" :class="themeIcon"></i>
             </button>
+            <button class="nf-action-btn" @click="clearWebCacheAndReload" title="Clear cache and reload">
+                <i class="bi bi-arrow-repeat"></i>
+            </button>
             <button class="nf-action-btn" @click="showBookmarkModal = true" title="Bookmark this app">
                 <i class="bi bi-bookmark-plus"></i>
             </button>
@@ -56,7 +59,17 @@
             <template v-if="!isDetailPageOpen">
             <div class="nf-row nf-row-pinned">
                 <div class="nf-row-title">
-                    <h5 class="nf-section-title"><i class="bi bi-bookmark-heart"></i><span>Favorites</span></h5>
+                    <h5 class="nf-section-title"><span>Favorites</span></h5>
+                    <div class="nf-bookmark-tabs" role="tablist" aria-label="Favorite categories">
+                        <button
+                                v-for="category in bookmarkCategoryTabs"
+                                :key="'myflix-bookmark-category-' + (category.id || 'all')"
+                                class="nf-bookmark-tab"
+                                :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
+                                @click="selectBookmarkCategory(category.id)">
+                            {{ category.name }}
+                        </button>
+                    </div>
                 </div>
                 <div class="nf-track-wrap">
                     <button class="nf-edge-btn left" onclick="scrollRow('row-saved', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
@@ -80,7 +93,7 @@
                 </div>
             </div>
 
-            <div class="nf-row">
+            <div class="nf-row nf-row-shell">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
                         <button class="nf-title-back" :class="{ ghost: isModeState('itv', 'accounts') }" @click="!isModeState('itv', 'accounts') && goBackMode('itv')" title="Back" :aria-disabled="isModeState('itv', 'accounts') ? 'true' : 'false'">
@@ -120,7 +133,7 @@
                     <button class="nf-edge-btn right" onclick="scrollRow('row-live', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>
-            <div class="nf-row">
+            <div class="nf-row nf-row-shell">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
                         <button class="nf-title-back" :class="{ ghost: isModeState('vod', 'accounts') }" @click="!isModeState('vod', 'accounts') && goBackMode('vod')" title="Back" :aria-disabled="isModeState('vod', 'accounts') ? 'true' : 'false'">
@@ -161,7 +174,7 @@
                 </div>
             </div>
 
-            <div class="nf-row">
+            <div class="nf-row nf-row-shell">
                 <div class="nf-row-title">
                     <div class="nf-title-with-back">
                         <button class="nf-title-back" :class="{ ghost: isModeState('series', 'accounts') }" @click="!isModeState('series', 'accounts') && goBackMode('series')" title="Back" :aria-disabled="isModeState('series', 'accounts') ? 'true' : 'false'">

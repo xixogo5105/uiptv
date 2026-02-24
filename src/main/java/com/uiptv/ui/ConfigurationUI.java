@@ -68,6 +68,7 @@ public class ConfigurationUI extends VBox {
     private final Callback onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
+    private Timeline serverStatusTimeline;
 
     public ConfigurationUI(Callback onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
@@ -167,8 +168,10 @@ public class ConfigurationUI extends VBox {
         HBox cacheButtons = new HBox(10, clearCacheButton, reloadCacheButton);
         VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheButtons);
 
-        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton, publishM3u8Button);
-        VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper);
+        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton);
+        publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
+        publishM3u8Button.setPrefWidth(440);
+        VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
 
         contentContainer.getChildren().addAll(
                 createGroupPane("Players", "Add player paths and select the matching radio button to set the default player.", playersGroup),
@@ -187,6 +190,7 @@ public class ConfigurationUI extends VBox {
         addClearCacheButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
         addReloadCacheButtonClickHandler();
+        installServerStatusMonitor();
     }
 
     private BorderPane createGroupPane(String title, Node content) {
@@ -244,7 +248,7 @@ public class ConfigurationUI extends VBox {
         stopServerButton.setOnAction(event -> {
             try {
                 UIptvServer.stop();
-                startServerButton.getStyleClass().remove("dangerous");
+                refreshServerStatusUI();
                 // showMessageAlert("Server stopped"); // Removed alert
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -270,7 +274,7 @@ public class ConfigurationUI extends VBox {
         startServerButton.setOnAction(event -> {
             try {
                 UIptvServer.start();
-                startServerButton.getStyleClass().add("dangerous");
+                refreshServerStatusUI();
                 // showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort()); // Removed alert
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -288,6 +292,37 @@ public class ConfigurationUI extends VBox {
             popupStage.setScene(scene);
             popupStage.showAndWait();
         });
+    }
+
+    private void installServerStatusMonitor() {
+        refreshServerStatusUI();
+        serverStatusTimeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> refreshServerStatusUI()));
+        serverStatusTimeline.setCycleCount(Timeline.INDEFINITE);
+        serverStatusTimeline.play();
+
+        sceneProperty().addListener((observable, oldScene, newScene) -> {
+            if (newScene == null) {
+                if (serverStatusTimeline != null) {
+                    serverStatusTimeline.stop();
+                }
+            } else if (serverStatusTimeline != null) {
+                serverStatusTimeline.play();
+                refreshServerStatusUI();
+            }
+        });
+    }
+
+    private void refreshServerStatusUI() {
+        boolean running = UIptvServer.isRunning();
+        if (running) {
+            if (!startServerButton.getStyleClass().contains("dangerous")) {
+                startServerButton.getStyleClass().add("dangerous");
+            }
+        } else {
+            startServerButton.getStyleClass().remove("dangerous");
+        }
+        startServerButton.setDisable(running);
+        stopServerButton.setDisable(!running);
     }
 
     private void addSaveButtonClickHandler() {

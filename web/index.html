@@ -32,6 +32,9 @@
             <button class="btn btn-link text-muted me-2 p-0 top-bar-icon" @click="toggleTheme" :title="'Theme: ' + theme">
                 <i class="bi" :class="themeIcon"></i>
             </button>
+            <button class="btn btn-link text-muted me-2 p-0 top-bar-icon" @click="clearWebCacheAndReload" title="Clear cache and reload">
+                <i class="bi bi-arrow-repeat"></i>
+            </button>
             <a href="#" class="text-muted text-decoration-none me-2 top-bar-icon" @click.prevent="showBookmarkModal = true" title="Bookmark this app">
                 <i class="bi bi-bookmark-plus"></i>
             </a>
@@ -81,14 +84,39 @@
                 <div v-if="activeTab === 'bookmarks'">
                     <div class="bookmark-category-tabs-wrap px-2 pb-2">
                         <div class="bookmark-category-tabs" role="tablist" aria-label="Bookmark categories">
-                            <button
-                                    v-for="category in bookmarkCategoryTabs"
-                                    :key="'bookmark-category-' + (category.id || 'all')"
-                                    class="bookmark-category-tab"
-                                    :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
-                                    @click="selectBookmarkCategory(category.id)">
-                                {{ category.name }}
-                            </button>
+                            <div class="btn-group btn-group-sm bookmark-category-btn-group" role="group" aria-label="Bookmark categories">
+                                <button
+                                        v-for="category in bookmarkPrimaryTabs"
+                                        :key="'bookmark-category-primary-' + (category.id || 'all')"
+                                        class="btn"
+                                        :class="String(selectedBookmarkCategoryId || '') === String(category.id || '') ? 'btn-primary' : 'btn-outline-secondary'"
+                                        @click="selectBookmarkCategory(category.id)">
+                                    {{ category.name }}
+                                </button>
+                            </div>
+                            <div v-if="bookmarkOverflowTabs.length > 0" class="dropdown d-inline-block ms-1">
+                                <button
+                                        ref="bookmarkOverflowToggleRef"
+                                        class="btn btn-sm"
+                                        :class="isSelectedBookmarkInOverflow ? 'btn-primary' : 'btn-outline-secondary'"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false"
+                                        title="More categories">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li v-for="category in bookmarkOverflowTabs" :key="'bookmark-category-overflow-' + (category.id || 'all')">
+                                        <button
+                                                type="button"
+                                                class="dropdown-item"
+                                                :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
+                                                @click="onBookmarkOverflowSelect(category.id)">
+                                            {{ category.name }}
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                     <div class="grid-container">

@@ -26,6 +26,7 @@ createApp({
         const draggedBookmarkId = ref('');
         const dragOverBookmarkId = ref('');
         const suppressNextBookmarkClick = ref(false);
+        const bookmarkOverflowToggleRef = ref(null);
 
         const playerKey = ref(0);
         const isYoutube = ref(false);
@@ -313,23 +314,19 @@ createApp({
 
         const bookmarkCategoryTabs = computed(() => {
             const tabs = [{ id: '', name: 'All' }];
-            const map = new Map();
             for (const category of (bookmarkCategories.value || [])) {
                 const id = String(category?.id || '').trim();
                 const name = String(category?.name || '').trim();
                 if (!id || !name) continue;
-                if (!map.has(id)) map.set(id, name);
-            }
-            for (const bookmark of (bookmarks.value || [])) {
-                const id = String(bookmark?.categoryId || '').trim();
-                const name = String(bookmark?.categoryTitle || '').trim();
-                if (!id || !name) continue;
-                if (!map.has(id)) map.set(id, name);
-            }
-            for (const [id, name] of map.entries()) {
                 tabs.push({ id, name });
             }
             return tabs;
+        });
+        const bookmarkPrimaryTabs = computed(() => bookmarkCategoryTabs.value.slice(0, 7));
+        const bookmarkOverflowTabs = computed(() => bookmarkCategoryTabs.value.slice(7));
+        const isSelectedBookmarkInOverflow = computed(() => {
+            const selected = String(selectedBookmarkCategoryId.value || '');
+            return bookmarkOverflowTabs.value.some(tab => String(tab?.id || '') === selected);
         });
 
         const canReorderBookmarks = computed(() => {
@@ -656,6 +653,18 @@ createApp({
         const selectBookmarkCategory = (categoryId) => {
             selectedBookmarkCategoryId.value = String(categoryId || '');
             searchQuery.value = '';
+        };
+
+        const hideBookmarkOverflowDropdown = () => {
+            const toggle = bookmarkOverflowToggleRef.value;
+            if (!toggle || typeof bootstrap === 'undefined' || !bootstrap?.Dropdown) return;
+            const instance = bootstrap.Dropdown.getOrCreateInstance(toggle);
+            instance.hide();
+        };
+
+        const onBookmarkOverflowSelect = (categoryId) => {
+            selectBookmarkCategory(categoryId);
+            hideBookmarkOverflowDropdown();
         };
 
         const onBookmarkCardClick = (bookmark) => {
@@ -1502,6 +1511,63 @@ createApp({
             }
         };
 
+        const clearWebCacheAndReload = async () => {
+            const confirmed = window.confirm('Clear local web cache/storage and reload now?');
+            if (!confirmed) return;
+
+            try {
+                await stopPlayback(true);
+            } catch (_) {
+                // Ignore playback cleanup errors.
+            }
+
+            try {
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(registration => registration.unregister()));
+                }
+            } catch (_) {
+                // Ignore service worker cleanup errors.
+            }
+
+            try {
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                }
+            } catch (_) {
+                // Ignore Cache Storage cleanup errors.
+            }
+
+            try {
+                localStorage.clear();
+            } catch (_) {}
+            try {
+                sessionStorage.clear();
+            } catch (_) {}
+
+            try {
+                if (window.indexedDB && typeof indexedDB.databases === 'function') {
+                    const dbs = await indexedDB.databases();
+                    await Promise.all((dbs || []).map(db => new Promise(resolve => {
+                        if (!db?.name) {
+                            resolve();
+                            return;
+                        }
+                        const request = indexedDB.deleteDatabase(db.name);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => resolve();
+                        request.onblocked = () => resolve();
+                    })));
+                }
+            } catch (_) {
+                // Ignore IndexedDB cleanup errors.
+            }
+
+            const target = `${window.location.origin}${window.location.pathname}?cacheReset=${Date.now()}`;
+            window.location.replace(target);
+        };
+
         const resetApp = () => {
             stopPlayback();
             activeTab.value = 'bookmarks';
@@ -1556,6 +1622,10 @@ createApp({
             filteredSeriesEpisodes,
             filteredBookmarks,
             bookmarkCategoryTabs,
+            bookmarkPrimaryTabs,
+            bookmarkOverflowTabs,
+            isSelectedBookmarkInOverflow,
+            bookmarkOverflowToggleRef,
             seriesSeasonTabs,
             selectedSeriesSeason,
             selectedBookmarkCategoryId,
@@ -1600,6 +1670,7 @@ createApp({
             formatShortDate,
             playVodFromDetail,
             selectBookmarkCategory,
+            onBookmarkOverflowSelect,
             playChannel,
             handleChannelSelection,
             playBookmark,
@@ -1617,6 +1688,7 @@ createApp({
             imageError,
             mediaImageError,
             toggleTheme,
+            clearWebCacheAndReload,
             resetApp,
             switchVideoTrack
         };

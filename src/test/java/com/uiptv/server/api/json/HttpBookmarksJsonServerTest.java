@@ -6,8 +6,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.BookmarkService;
 import com.uiptv.test.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.json.JSONArray;
@@ -73,6 +75,67 @@ class HttpBookmarksJsonServerTest extends DbBackedTest {
         assertEquals(200, getAfterDelete.getResponseCode());
         JSONArray afterDelete = new JSONArray(getAfterDelete.getResponseBodyText());
         assertEquals(0, afterDelete.length());
+    }
+
+    @Test
+    void bookmarksServer_getCategories_andPutOrder_updatesBookmarkOrder() throws Exception {
+        Account account = createAccount("bookmark-api-order");
+        CategoryDb.get().saveAll(List.of(new Category("10", "Sports", "sports", false, 0)), account);
+        Category sports = CategoryDb.get().getCategories(account).get(0);
+
+        BookmarkService.getInstance().addCategory(new BookmarkCategory(null, "Favorites A"));
+        BookmarkService.getInstance().addCategory(new BookmarkCategory(null, "Favorites B"));
+
+        HttpBookmarksJsonServer handler = new HttpBookmarksJsonServer();
+
+        StubHttpExchange categoriesExchange = new StubHttpExchange("/bookmarks?view=categories", "GET", null);
+        handler.handle(categoriesExchange);
+        assertEquals(200, categoriesExchange.getResponseCode());
+        JSONArray categories = new JSONArray(categoriesExchange.getResponseBodyText());
+        assertEquals(2, categories.length());
+
+        String[] channelNames = {"Sports One", "Sports Two", "Sports Three"};
+        for (int i = 0; i < channelNames.length; i++) {
+            JSONObject payload = new JSONObject();
+            payload.put("accountId", account.getDbId());
+            payload.put("categoryId", sports.getDbId());
+            payload.put("mode", "itv");
+            payload.put("channelId", "ch-" + (200 + i));
+            payload.put("name", channelNames[i]);
+            payload.put("cmd", "ffmpeg http://stream/" + (200 + i) + ".ts");
+
+            StubHttpExchange postExchange = new StubHttpExchange("/bookmarks", "POST", payload.toString());
+            handler.handle(postExchange);
+            assertEquals(200, postExchange.getResponseCode());
+        }
+
+        StubHttpExchange getBeforeReorder = new StubHttpExchange("/bookmarks", "GET", null);
+        handler.handle(getBeforeReorder);
+        JSONArray before = new JSONArray(getBeforeReorder.getResponseBodyText());
+        assertEquals(3, before.length());
+
+        JSONArray orderedIds = new JSONArray();
+        orderedIds.put(before.getJSONObject(2).getString("dbId"));
+        orderedIds.put(before.getJSONObject(1).getString("dbId"));
+        orderedIds.put(before.getJSONObject(0).getString("dbId"));
+
+        JSONObject reorderPayload = new JSONObject();
+        reorderPayload.put("categoryId", sports.getDbId());
+        reorderPayload.put("orderedBookmarkDbIds", orderedIds);
+
+        StubHttpExchange putExchange = new StubHttpExchange("/bookmarks", "PUT", reorderPayload.toString());
+        handler.handle(putExchange);
+        assertEquals(200, putExchange.getResponseCode());
+        assertEquals("reordered", new JSONObject(putExchange.getResponseBodyText()).optString("action"));
+
+        StubHttpExchange getAfterReorder = new StubHttpExchange("/bookmarks", "GET", null);
+        handler.handle(getAfterReorder);
+        JSONArray after = new JSONArray(getAfterReorder.getResponseBodyText());
+        assertEquals(List.of("Sports Three", "Sports Two", "Sports One"), List.of(
+                after.getJSONObject(0).optString("channelName", ""),
+                after.getJSONObject(1).optString("channelName", ""),
+                after.getJSONObject(2).optString("channelName", "")
+        ));
     }
 
     private Account createAccount(String name) {
