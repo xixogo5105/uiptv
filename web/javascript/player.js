@@ -1,6 +1,7 @@
 (function () {
     const statusEl = document.getElementById('status');
     const videoEl = document.getElementById('video');
+    const reloadBtn = document.getElementById('reload-btn');
     let shakaPlayer = null;
 
     const setStatus = (message) => {
@@ -172,6 +173,62 @@
             setStatus('Unable to play channel: ' + (e?.message || String(e)));
         }
     };
+
+    const clearWebCacheAndReload = async () => {
+        try {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registrations.map(registration => registration.unregister()));
+            }
+        } catch (_) {
+            // Ignore service worker cleanup errors.
+        }
+
+        try {
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(key => caches.delete(key)));
+            }
+        } catch (_) {
+            // Ignore cache cleanup errors.
+        }
+
+        try {
+            localStorage.clear();
+        } catch (_) {}
+        try {
+            sessionStorage.clear();
+        } catch (_) {}
+
+        try {
+            if (window.indexedDB && typeof indexedDB.databases === 'function') {
+                const dbs = await indexedDB.databases();
+                await Promise.all((dbs || []).map(db => new Promise(resolve => {
+                    if (!db?.name) {
+                        resolve();
+                        return;
+                    }
+                    const request = indexedDB.deleteDatabase(db.name);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => resolve();
+                    request.onblocked = () => resolve();
+                })));
+            }
+        } catch (_) {
+            // Ignore IndexedDB cleanup errors.
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        params.set('cacheReset', String(Date.now()));
+        const target = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+        window.location.replace(target);
+    };
+
+    if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => {
+            clearWebCacheAndReload();
+        });
+    }
 
     window.addEventListener('beforeunload', async () => {
         if (shakaPlayer) {

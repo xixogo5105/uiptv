@@ -44,7 +44,8 @@ public class UIptvServer {
         server.createContext("/", new HttpSpaHtmlServer());
         server.createContext("/index.html", new HttpSpaHtmlServer());
         server.createContext("/myflix.html", new HttpSpaHtmlServer("myflix.html"));
-        server.createContext("/drm.html", new HttpSpaHtmlServer("drm.html"));
+        server.createContext("/player.html", new HttpSpaHtmlServer("player.html"));
+        server.createContext("/drm.html", new HttpSpaHtmlServer("player.html"));
         
         // PWA routes
         server.createContext("/manifest.json", new HttpManifestServer());

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>UIPTV DRM Player</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/player.css?v=20260224a">
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
+</head>
+<body>
+<div id="app">
+    <div id="topbar">
+        <a class="brand" href="/index.html">
+            <img src="/icon.ico" alt="UIPTV">
+            <span>UIPTV DRM</span>
+        </a>
+        <div class="top-actions">
+            <a class="top-action" href="/index.html" title="Home">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+                <span>Home</span>
+            </a>
+            <a class="top-action" href="/myflix.html" title="MyFlix">
+                <i class="bi bi-film"></i>
+                <span>MyFlix</span>
+            </a>
+            <button id="reload-btn" class="top-action" type="button" title="Hard reload">
+                <i class="bi bi-arrow-repeat"></i>
+                <span>Reload</span>
+            </button>
+        </div>
+    </div>
+    <video id="video" controls autoplay playsinline></video>
+    <div id="status">Preparing DRM playback...</div>
+</div>
+<script src="/javascript/player.js?v=20260224a"></script>
+</body>
+</html>

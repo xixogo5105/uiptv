@@ -1,10 +1,6 @@
 package com.uiptv.ui;
 
-import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
-import com.uiptv.model.BookmarkCategory;
-import com.uiptv.model.Channel;
-import com.uiptv.model.PlayerResponse;
+import com.uiptv.model.*;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
@@ -30,18 +26,18 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Callback;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.net.URI;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
-import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -79,18 +75,17 @@ public class EpisodesListUI extends HBox {
 
     public void setItems(EpisodeList newChannelList) {
         if (newChannelList == null) return;
-        
+
         if (newChannelList.episodes != null && !newChannelList.episodes.isEmpty()) {
             itemsLoaded.set(true);
             this.channelList.episodes.clear();
             this.channelList.episodes.addAll(newChannelList.episodes);
             this.channelList.seasonInfo = newChannelList.seasonInfo;
+            Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
             
             List<EpisodeItem> catList = new ArrayList<>();
             newChannelList.episodes.forEach(i -> {
-                Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getId(), i.getTitle(), i.getCmd(), account.getServerPortalUrl(), null);
-                b.setAccountAction(account.getAction());
-                boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
+                boolean isBookmarked = bookmarkKeys.contains(bookmarkKey(categoryTitle, i.getId(), i.getTitle()));
                 String logo = i.getInfo() != null ? normalizeImageUrl(i.getInfo().getMovieImage()) : "";
                 String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
                 String season = inferSeason(i);
@@ -108,7 +103,7 @@ public class EpisodesListUI extends HBox {
                         i
                 ));
             });
-            
+
             runLater(() -> {
                 allEpisodeItems.setAll(catList);
                 refreshSeasonTabs();
@@ -117,7 +112,7 @@ public class EpisodesListUI extends HBox {
             });
         }
     }
-    
+
     public void setLoadingComplete() {
         runLater(() -> {
             if (!itemsLoaded.get()) {
@@ -232,6 +227,20 @@ public class EpisodesListUI extends HBox {
 
     private String bookmarkIdentityKey(String channelId, String channelName) {
         return (channelId == null ? "" : channelId.trim()) + "|" + (channelName == null ? "" : channelName.trim().toLowerCase());
+    }
+
+    private String bookmarkKey(String categoryTitleValue, String channelId, String channelName) {
+        String category = categoryTitleValue == null ? "" : categoryTitleValue.trim().toLowerCase();
+        String id = channelId == null ? "" : channelId.trim();
+        String name = channelName == null ? "" : channelName.trim().toLowerCase();
+        return category + "|" + id + "|" + name;
+    }
+
+    private Set<String> loadBookmarkKeysForAccount() {
+        return BookmarkService.getInstance().read().stream()
+                .filter(b -> account.getAccountName().equals(b.getAccountName()))
+                .map(b -> bookmarkKey(b.getCategoryTitle(), b.getChannelId(), b.getChannelName()))
+                .collect(Collectors.toSet());
     }
 
     private void refreshSeasonTabs() {
@@ -467,6 +476,7 @@ public class EpisodesListUI extends HBox {
                                 Platform.runLater(() -> {
                                     item.setBookmarked(false);
                                     table.refresh();
+                                    refreshBookmarkStatesAsync();
                                 });
                             }).start();
                         });
@@ -517,6 +527,7 @@ public class EpisodesListUI extends HBox {
             Platform.runLater(() -> {
                 item.setBookmarked(true);
                 table.refresh();
+                refreshBookmarkStatesAsync();
             });
         }).start();
     }

@@ -1,11 +1,9 @@
 package com.uiptv.ui;
 
+import com.uiptv.db.CategoryDb;
+import com.uiptv.db.ChannelDb;
 import com.uiptv.model.*;
-import com.uiptv.service.BookmarkChangeListener;
-import com.uiptv.service.BookmarkService;
-import com.uiptv.service.ChannelService;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.PlayerService;
+import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
 import com.uiptv.shared.EpisodeList;
@@ -29,28 +27,22 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Callback;
-import java.net.URI;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.net.URI;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
-import static com.uiptv.util.AccountType.STALKER_PORTAL;
-import static com.uiptv.util.AccountType.XTREME_API;
+import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -65,6 +57,9 @@ public class ChannelListUI extends HBox {
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
     private final Set<String> seenChannelKeys = new HashSet<>();
+    private volatile Map<String, String> categoryTitleByCategoryId = Map.of();
+    private volatile Map<String, String> categoryTitleByNormalizedTitle = Map.of();
+    private volatile Map<String, BookmarkContext> m3uAllSourceContextByChannelKey = Map.of();
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
@@ -83,6 +78,7 @@ public class ChannelListUI extends HBox {
         this.channelList = new ArrayList<>();
         this.account = account;
         this.categoryTitle = categoryTitle;
+        preloadAllCategoryContextAsync();
         ImageCacheManager.clearCache("channel");
         initWidgets();
         registerBookmarkListener();
@@ -92,6 +88,7 @@ public class ChannelListUI extends HBox {
     public void addItems(List<Channel> newChannels) {
         if (newChannels != null && !newChannels.isEmpty()) {
             itemsLoaded.set(true);
+            Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
             List<ChannelItem> newItems = new ArrayList<>();
             newChannels.forEach(i -> {
                 if (i == null) {
@@ -102,13 +99,12 @@ public class ChannelListUI extends HBox {
                     return;
                 }
                 channelList.add(i);
-                Bookmark b = new Bookmark(account.getAccountName(), categoryTitle, i.getChannelId(), i.getName(), i.getCmd(), account.getServerPortalUrl(), categoryId);
-                b.setAccountAction(account.getAction());
-                boolean isBookmarked = BookmarkService.getInstance().isChannelBookmarked(b);
+                BookmarkContext ctx = resolveBookmarkContext(i);
+                boolean isBookmarked = bookmarkKeys.contains(bookmarkKey(ctx.categoryTitle, i.getChannelId(), i.getName()));
                 String normalizedLogo = normalizeImageUrl(i.getLogo());
                 newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(normalizedLogo), i));
             });
-            
+
             runLater(() -> {
                 channelItems.addAll(newItems);
                 table.setPlaceholder(null);
@@ -122,7 +118,7 @@ public class ChannelListUI extends HBox {
         String name = channel.getName() == null ? "" : channel.getName().trim().toLowerCase();
         return id + "|" + cmd + "|" + name;
     }
-    
+
     public void setLoadingComplete() {
         runLater(() -> {
             if (!itemsLoaded.get()) {
@@ -256,6 +252,142 @@ public class ChannelListUI extends HBox {
         return (channelId == null ? "" : channelId.trim()) + "|" + (channelName == null ? "" : channelName.trim().toLowerCase());
     }
 
+    private boolean isAllCategoryView() {
+        return "all".equalsIgnoreCase(categoryTitle == null ? "" : categoryTitle.trim());
+    }
+
+    private String bookmarkKey(String categoryTitleValue, String channelId, String channelName) {
+        String category = categoryTitleValue == null ? "" : categoryTitleValue.trim().toLowerCase();
+        String id = channelId == null ? "" : channelId.trim();
+        String name = channelName == null ? "" : channelName.trim().toLowerCase();
+        return category + "|" + id + "|" + name;
+    }
+
+    private Set<String> loadBookmarkKeysForAccount() {
+        return BookmarkService.getInstance().read().stream()
+                .filter(b -> account.getAccountName().equals(b.getAccountName()))
+                .map(b -> bookmarkKey(b.getCategoryTitle(), b.getChannelId(), b.getChannelName()))
+                .collect(Collectors.toSet());
+    }
+
+    private void preloadAllCategoryContextAsync() {
+        if (!isAllCategoryView()) {
+            return;
+        }
+        new Thread(() -> {
+            try {
+                List<Category> categories = CategoryDb.get().getCategories(account);
+
+                categoryTitleByCategoryId = categories.stream()
+                        .filter(c -> c != null && c.getCategoryId() != null)
+                        .collect(Collectors.toMap(
+                                c -> c.getCategoryId(),
+                                Category::getTitle,
+                                (left, right) -> left));
+
+                categoryTitleByNormalizedTitle = categories.stream()
+                        .filter(c -> c != null && !isBlank(c.getTitle()))
+                        .collect(Collectors.toMap(
+                                c -> normalizeCategoryKey(c.getTitle()),
+                                Category::getTitle,
+                                (left, right) -> left));
+
+                if (isM3uAccount()) {
+                    m3uAllSourceContextByChannelKey = loadM3uAllSourceContextMap(categories);
+                }
+            } catch (Exception ignored) {
+                categoryTitleByCategoryId = Map.of();
+                categoryTitleByNormalizedTitle = Map.of();
+                m3uAllSourceContextByChannelKey = Map.of();
+            } finally {
+                runLater(this::refreshBookmarkStatesAsync);
+            }
+        }, "bookmark-all-context-loader").start();
+    }
+
+    private String normalizeCategoryKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private boolean isM3uAccount() {
+        return account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL;
+    }
+
+    private String channelIdentityKey(Channel channel) {
+        if (channel == null) {
+            return "";
+        }
+        String id = channel.getChannelId() == null ? "" : channel.getChannelId().trim();
+        String cmd = channel.getCmd() == null ? "" : channel.getCmd().trim();
+        String name = channel.getName() == null ? "" : channel.getName().trim().toLowerCase();
+        return id + "|" + cmd + "|" + name;
+    }
+
+    private Map<String, BookmarkContext> loadM3uAllSourceContextMap(List<Category> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            Map<String, BookmarkContext> contextByKey = new java.util.HashMap<>();
+            for (Category category : categories) {
+                if (category == null || isBlank(category.getDbId()) || isBlank(category.getTitle())) {
+                    continue;
+                }
+                if ("all".equalsIgnoreCase(category.getTitle().trim())) {
+                    continue;
+                }
+                List<Channel> channels = ChannelDb.get().getChannels(category.getDbId());
+                for (Channel channel : channels) {
+                    String key = channelIdentityKey(channel);
+                    if (isBlank(key)) {
+                        continue;
+                    }
+                    contextByKey.putIfAbsent(key, new BookmarkContext(category.getDbId(), category.getTitle()));
+                }
+            }
+            return contextByKey;
+        } catch (Exception ignored) {
+            return Map.of();
+        }
+    }
+
+    private BookmarkContext resolveBookmarkContext(Channel channel) {
+        String effectiveCategoryId = categoryId;
+        String effectiveCategoryTitle = categoryTitle;
+        if (isAllCategoryView() && channel != null) {
+            if (isM3uAccount()) {
+                BookmarkContext sourceContext = m3uAllSourceContextByChannelKey.get(channelIdentityKey(channel));
+                if (sourceContext != null) {
+                    return sourceContext;
+                }
+            }
+        }
+        if (isAllCategoryView() && channel != null && !isBlank(channel.getCategoryId())) {
+            effectiveCategoryId = channel.getCategoryId();
+            String mappedTitle = categoryTitleByCategoryId.get(channel.getCategoryId());
+            if (isBlank(mappedTitle)) {
+                mappedTitle = categoryTitleByNormalizedTitle.get(normalizeCategoryKey(channel.getCategoryId()));
+            }
+            if (isBlank(mappedTitle) && isM3uAccount()) {
+                mappedTitle = channel.getCategoryId();
+            }
+            if (!isBlank(mappedTitle)) {
+                effectiveCategoryTitle = mappedTitle;
+            }
+        }
+        return new BookmarkContext(effectiveCategoryId, effectiveCategoryTitle);
+    }
+
+    private static final class BookmarkContext {
+        private final String categoryId;
+        private final String categoryTitle;
+
+        private BookmarkContext(String categoryId, String categoryTitle) {
+            this.categoryId = categoryId;
+            this.categoryTitle = categoryTitle;
+        }
+    }
+
     private void addChannelClickHandler() {
         table.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER) {
@@ -301,7 +433,7 @@ public class ChannelListUI extends HBox {
                     if (account.getType() == XTREME_API) {
                         final EpisodesListUI[] episodesListUIHolder = new EpisodesListUI[1];
                         CountDownLatch latch = new CountDownLatch(1);
-                        
+
                         runLater(() -> {
                             if (this.getChildren().size() > 1) {
                                 this.getChildren().remove(1);
@@ -312,7 +444,7 @@ public class ChannelListUI extends HBox {
                             this.getChildren().add(ui);
                             latch.countDown();
                         });
-                        
+
                         latch.await();
                         if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
                         try {
@@ -378,7 +510,8 @@ public class ChannelListUI extends HBox {
             if (item == null) return;
 
             new Thread(() -> {
-                Bookmark existingBookmark = BookmarkService.getInstance().getBookmark(new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId));
+                BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+                Bookmark existingBookmark = BookmarkService.getInstance().getBookmark(new Bookmark(account.getAccountName(), ctx.categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), ctx.categoryId));
                 List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
 
                 Platform.runLater(() -> {
@@ -407,6 +540,7 @@ public class ChannelListUI extends HBox {
                                 Platform.runLater(() -> {
                                     item.setBookmarked(false);
                                     table.refresh();
+                                    refreshBookmarkStatesAsync();
                                 });
                             }).start();
                         });
@@ -440,28 +574,29 @@ public class ChannelListUI extends HBox {
         rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item);
 
         row.contextMenuProperty().bind(
-            Bindings.when(
-                row.emptyProperty().or(
-                    Bindings.createBooleanBinding(() ->
-                        account.getAction() == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
-                        row.itemProperty()
-                    )
-                )
-            )
-            .then((ContextMenu) null)
-            .otherwise(rowMenu)
+                Bindings.when(
+                                row.emptyProperty().or(
+                                        Bindings.createBooleanBinding(() ->
+                                                        account.getAction() == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
+                                                row.itemProperty()
+                                        )
+                                )
+                        )
+                        .then((ContextMenu) null)
+                        .otherwise(rowMenu)
         );
     }
 
     private void saveBookmark(ChannelItem item, String bookmarkCategoryId) {
         new Thread(() -> {
-            Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), categoryId);
+            BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+            Bookmark bookmark = new Bookmark(account.getAccountName(), ctx.categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), ctx.categoryId);
             bookmark.setAccountAction(account.getAction());
             bookmark.setCategoryId(bookmarkCategoryId);
-            
+
             Category cat = new Category();
-            cat.setCategoryId(categoryId);
-            cat.setTitle(categoryTitle);
+            cat.setCategoryId(ctx.categoryId);
+            cat.setTitle(ctx.categoryTitle);
             bookmark.setCategoryJson(cat.toJson());
 
             if (item.getChannel() != null) {
@@ -475,6 +610,7 @@ public class ChannelListUI extends HBox {
             Platform.runLater(() -> {
                 item.setBookmarked(true);
                 table.refresh();
+                refreshBookmarkStatesAsync();
             });
         }).start();
     }

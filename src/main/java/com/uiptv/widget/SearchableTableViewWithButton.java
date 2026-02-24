@@ -7,6 +7,7 @@ import javafx.collections.transformation.SortedList;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
@@ -23,13 +24,15 @@ public class SearchableTableViewWithButton<T> extends VBox { // Made generic
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         searchTextField.setPromptText("Search");
-        searchTextField.setPrefWidth((double) (GUIDED_MAX_WIDTH_PIXELS / 3) * 0.85);
+        searchTextField.setMaxWidth(Double.MAX_VALUE);
         searchTextField.setOnMousePressed(event -> searchTextField.clear());
 
 
-        manageCategoriesButton.setPrefWidth((double) (GUIDED_MAX_WIDTH_PIXELS / 3) * 0.15);
+        manageCategoriesButton.setMinWidth(Region.USE_PREF_SIZE);
+        manageCategoriesButton.setMaxWidth(Region.USE_PREF_SIZE);
         VBox.setVgrow(tableView, Priority.ALWAYS);
         HBox hBox = new HBox(5, searchTextField, manageCategoriesButton);
+        HBox.setHgrow(searchTextField, Priority.ALWAYS);
         hBox.setMaxHeight(25);
 
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);

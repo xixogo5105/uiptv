@@ -1,0 +1,75 @@
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    color: #e5e5e5;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+#app {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+#topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    background: rgba(0, 0, 0, 0.72);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    z-index: 12;
+}
+.brand {
+    display: flex;
+    align-items: center;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    gap: 8px;
+}
+.brand img {
+    width: 20px;
+    height: 20px;
+}
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.top-action {
+    border: 0;
+    background: transparent;
+    color: #e5e5e5;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+}
+.top-action:hover {
+    color: #fff;
+}
+#video {
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+#status {
+    position: absolute;
+    top: 60px;
+    left: 12px;
+    right: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    font-size: 14px;
+    z-index: 10;
+}

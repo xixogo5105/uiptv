@@ -98,7 +98,7 @@ public class PlayerService {
         String encoded = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
-        return localServerOrigin() + "/drm.html?drmLaunch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260223b";
+        return localServerOrigin() + "/player.html?drmLaunch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260224a";
     }
 
     private String fetchStalkerPortalUrl(final Account account, final String series, final String originalCmd) {

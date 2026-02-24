@@ -1512,9 +1512,6 @@ createApp({
         };
 
         const clearWebCacheAndReload = async () => {
-            const confirmed = window.confirm('Clear local web cache/storage and reload now?');
-            if (!confirmed) return;
-
             try {
                 await stopPlayback(true);
             } catch (_) {

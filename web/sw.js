@@ -1,14 +1,15 @@
-const CACHE_NAME = 'uiptv-cache-v9';
+const CACHE_NAME = 'uiptv-cache-v10';
 const urlsToCache = [
   '/',
   '/index.html',
   '/myflix.html',
-  '/drm.html',
+  '/player.html',
+  '/css/player.css',
   '/css/spa.css',
   '/css/myflix.css',
   '/javascript/spa.js',
   '/javascript/myflix.js',
-  '/javascript/drm-player.js',
+  '/javascript/player.js',
   'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js',
@@ -30,7 +31,12 @@ self.addEventListener('fetch', event => {
     return;
   }
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.pathname === '/drm.html' || requestUrl.pathname === '/javascript/drm-player.js') {
+  if (
+    requestUrl.pathname === '/player.html'
+    || requestUrl.pathname === '/drm.html'
+    || requestUrl.pathname === '/javascript/player.js'
+    || requestUrl.pathname === '/javascript/drm-player.js'
+  ) {
     event.respondWith(fetch(event.request));
     return;
   }
