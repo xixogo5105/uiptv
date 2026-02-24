@@ -79,6 +79,18 @@
             <div class="sidebar-content flex-grow-1">
                 <!-- Bookmarks Tab -->
                 <div v-if="activeTab === 'bookmarks'">
+                    <div class="bookmark-category-tabs-wrap px-2 pb-2">
+                        <div class="bookmark-category-tabs" role="tablist" aria-label="Bookmark categories">
+                            <button
+                                    v-for="category in bookmarkCategoryTabs"
+                                    :key="'bookmark-category-' + (category.id || 'all')"
+                                    class="bookmark-category-tab"
+                                    :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
+                                    @click="selectBookmarkCategory(category.id)">
+                                {{ category.name }}
+                            </button>
+                        </div>
+                    </div>
                     <div class="grid-container">
                         <div v-if="listLoading" class="card-item">
                             <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
@@ -86,7 +98,23 @@
                                 <div class="title">{{ listLoadingMessage }}</div>
                             </div>
                         </div>
-                        <div v-if="!listLoading" v-for="bookmark in filteredBookmarks" :key="bookmark.dbId" class="card-item" @click="playBookmark(bookmark)">
+                        <div
+                                v-if="!listLoading"
+                                v-for="bookmark in filteredBookmarks"
+                                :key="bookmark.dbId"
+                                class="card-item"
+                                :class="{
+                                    'bookmark-draggable': canReorderBookmarks,
+                                    'bookmark-drag-source': String(draggedBookmarkId || '') === String(bookmark.dbId || ''),
+                                    'bookmark-drag-target': String(dragOverBookmarkId || '') === String(bookmark.dbId || '')
+                                }"
+                                :draggable="canReorderBookmarks"
+                                :title="canReorderBookmarks ? 'Drag to reorder' : 'Clear search to reorder bookmarks'"
+                                @click="onBookmarkCardClick(bookmark)"
+                                @dragstart="onBookmarkDragStart($event, bookmark)"
+                                @dragover.prevent="onBookmarkDragOver($event, bookmark)"
+                                @drop.prevent="onBookmarkDrop($event, bookmark)"
+                                @dragend="onBookmarkDragEnd">
                             <img v-if="bookmark.logo" :src="bookmark.logo" @error="imageError" alt="logo">
                             <div v-else class="icon-placeholder"><i class="bi bi-bookmark-fill"></i></div>
                             <div class="content-wrapper">

@@ -12,6 +12,8 @@ createApp({
         const channels = ref([]);
         const episodes = ref([]);
         const bookmarks = ref([]);
+        const bookmarkCategories = ref([]);
+        const selectedBookmarkCategoryId = ref('');
         const selectedAccountId = ref(null);
 
         const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
@@ -21,6 +23,9 @@ createApp({
         const showBookmarkModal = ref(false);
         const listLoading = ref(false);
         const listLoadingMessage = ref('Loading...');
+        const draggedBookmarkId = ref('');
+        const dragOverBookmarkId = ref('');
+        const suppressNextBookmarkClick = ref(false);
 
         const playerKey = ref(0);
         const isYoutube = ref(false);
@@ -306,10 +311,39 @@ createApp({
             return list.filter(ep => resolveEpisodeSeason(ep) === selectedSeriesSeason.value);
         });
 
+        const bookmarkCategoryTabs = computed(() => {
+            const tabs = [{ id: '', name: 'All' }];
+            const map = new Map();
+            for (const category of (bookmarkCategories.value || [])) {
+                const id = String(category?.id || '').trim();
+                const name = String(category?.name || '').trim();
+                if (!id || !name) continue;
+                if (!map.has(id)) map.set(id, name);
+            }
+            for (const bookmark of (bookmarks.value || [])) {
+                const id = String(bookmark?.categoryId || '').trim();
+                const name = String(bookmark?.categoryTitle || '').trim();
+                if (!id || !name) continue;
+                if (!map.has(id)) map.set(id, name);
+            }
+            for (const [id, name] of map.entries()) {
+                tabs.push({ id, name });
+            }
+            return tabs;
+        });
+
+        const canReorderBookmarks = computed(() => {
+            return activeTab.value === 'bookmarks' && !String(searchQuery.value || '').trim();
+        });
+
         const filteredBookmarks = computed(() => {
-            if (!searchQuery.value) return bookmarks.value;
+            const selectedCategoryId = String(selectedBookmarkCategoryId.value || '');
+            const byCategory = selectedCategoryId
+                ? bookmarks.value.filter(b => String(b?.categoryId || '') === selectedCategoryId)
+                : bookmarks.value;
+            if (!searchQuery.value) return byCategory;
             const q = searchQuery.value.toLowerCase();
-            return bookmarks.value.filter(b =>
+            return byCategory.filter(b =>
                 (b.channelName || '').toLowerCase().includes(q) ||
                 (b.accountName || '').toLowerCase().includes(q)
             );
@@ -595,9 +629,132 @@ createApp({
             try {
                 const response = await fetch(`${window.location.origin}/bookmarks`);
                 bookmarks.value = (await response.json()).map(normalizeBookmark);
+                ensureSelectedBookmarkCategory();
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
             }
+        };
+
+        const loadBookmarkCategories = async () => {
+            try {
+                const response = await fetch(`${window.location.origin}/bookmarks?view=categories`);
+                bookmarkCategories.value = await response.json();
+                ensureSelectedBookmarkCategory();
+            } catch (e) {
+                console.error('Failed to load bookmark categories', e);
+            }
+        };
+
+        const ensureSelectedBookmarkCategory = () => {
+            const selectedId = String(selectedBookmarkCategoryId.value || '');
+            const exists = bookmarkCategoryTabs.value.some(tab => String(tab.id || '') === selectedId);
+            if (!exists) {
+                selectedBookmarkCategoryId.value = '';
+            }
+        };
+
+        const selectBookmarkCategory = (categoryId) => {
+            selectedBookmarkCategoryId.value = String(categoryId || '');
+            searchQuery.value = '';
+        };
+
+        const onBookmarkCardClick = (bookmark) => {
+            if (suppressNextBookmarkClick.value) {
+                suppressNextBookmarkClick.value = false;
+                return;
+            }
+            playBookmark(bookmark);
+        };
+
+        const onBookmarkDragStart = (event, bookmark) => {
+            if (!canReorderBookmarks.value) {
+                if (event?.preventDefault) event.preventDefault();
+                return;
+            }
+            draggedBookmarkId.value = String(bookmark?.dbId || '');
+            dragOverBookmarkId.value = '';
+            if (event?.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', draggedBookmarkId.value);
+            }
+        };
+
+        const onBookmarkDragOver = (event, bookmark) => {
+            if (!canReorderBookmarks.value) return;
+            if (event?.dataTransfer) event.dataTransfer.dropEffect = 'move';
+            dragOverBookmarkId.value = String(bookmark?.dbId || '');
+        };
+
+        const persistBookmarkOrder = async () => {
+            try {
+                const categoryId = String(selectedBookmarkCategoryId.value || '');
+                const orderedBookmarkDbIds = filteredBookmarks.value
+                    .map(b => String(b?.dbId || '').trim())
+                    .filter(Boolean);
+                await fetch(`${window.location.origin}/bookmarks`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        categoryId,
+                        orderedBookmarkDbIds
+                    })
+                });
+            } catch (e) {
+                console.error('Failed to persist bookmark order', e);
+            }
+        };
+
+        const onBookmarkDrop = async (event, targetBookmark) => {
+            if (!canReorderBookmarks.value) return;
+            const sourceId = String(draggedBookmarkId.value || '');
+            const targetId = String(targetBookmark?.dbId || '');
+            if (!sourceId || !targetId || sourceId === targetId) {
+                draggedBookmarkId.value = '';
+                dragOverBookmarkId.value = '';
+                return;
+            }
+
+            const visible = [...filteredBookmarks.value];
+            const fromIndex = visible.findIndex(b => String(b?.dbId || '') === sourceId);
+            const toIndex = visible.findIndex(b => String(b?.dbId || '') === targetId);
+            if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+                draggedBookmarkId.value = '';
+                dragOverBookmarkId.value = '';
+                return;
+            }
+
+            const [moved] = visible.splice(fromIndex, 1);
+            visible.splice(toIndex, 0, moved);
+
+            const selectedCategoryId = String(selectedBookmarkCategoryId.value || '');
+            if (!selectedCategoryId) {
+                bookmarks.value = visible;
+            } else {
+                const full = [...bookmarks.value];
+                const categoryIndexes = [];
+                for (let i = 0; i < full.length; i++) {
+                    if (String(full[i]?.categoryId || '') === selectedCategoryId) {
+                        categoryIndexes.push(i);
+                    }
+                }
+                for (let i = 0; i < categoryIndexes.length && i < visible.length; i++) {
+                    full[categoryIndexes[i]] = visible[i];
+                }
+                bookmarks.value = full;
+            }
+
+            suppressNextBookmarkClick.value = true;
+            draggedBookmarkId.value = '';
+            dragOverBookmarkId.value = '';
+            await persistBookmarkOrder();
+        };
+
+        const onBookmarkDragEnd = () => {
+            draggedBookmarkId.value = '';
+            dragOverBookmarkId.value = '';
+            setTimeout(() => {
+                suppressNextBookmarkClick.value = false;
+            }, 0);
         };
 
         const switchTab = (tab) => {
@@ -1357,6 +1514,7 @@ createApp({
             selectedAccountId.value = null;
             currentContext.value = { accountId: null, categoryId: null, accountType: null };
             searchQuery.value = '';
+            selectedBookmarkCategoryId.value = '';
             repeatEnabled.value = false;
             listLoading.value = false;
             selectedSeriesSeason.value = '';
@@ -1364,10 +1522,14 @@ createApp({
             vodDetail.value = null;
             seriesDetailLoading.value = false;
             vodDetailLoading.value = false;
+            draggedBookmarkId.value = '';
+            dragOverBookmarkId.value = '';
+            suppressNextBookmarkClick.value = false;
         };
 
         onMounted(async () => {
             await loadAccounts();
+            await loadBookmarkCategories();
             await loadBookmarks();
 
             const storedTheme = localStorage.getItem('uiptv_theme');
@@ -1393,8 +1555,10 @@ createApp({
             filteredEpisodes,
             filteredSeriesEpisodes,
             filteredBookmarks,
+            bookmarkCategoryTabs,
             seriesSeasonTabs,
             selectedSeriesSeason,
+            selectedBookmarkCategoryId,
             seriesDetail,
             vodDetail,
             seriesDetailLoading,
@@ -1406,6 +1570,9 @@ createApp({
             showBookmarkModal,
             listLoading,
             listLoadingMessage,
+            canReorderBookmarks,
+            draggedBookmarkId,
+            dragOverBookmarkId,
             playerKey,
             isYoutube,
             youtubeSrc,
@@ -1432,9 +1599,15 @@ createApp({
             getImdbUrl,
             formatShortDate,
             playVodFromDetail,
+            selectBookmarkCategory,
             playChannel,
             handleChannelSelection,
             playBookmark,
+            onBookmarkCardClick,
+            onBookmarkDragStart,
+            onBookmarkDragOver,
+            onBookmarkDrop,
+            onBookmarkDragEnd,
             stopPlayback,
             toggleFavorite,
             reloadPlayback,

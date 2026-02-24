@@ -10,14 +10,18 @@ import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
+import static com.uiptv.util.ServerUtils.objectToJson;
 
 public class HttpBookmarksJsonServer implements HttpHandler {
     @Override
@@ -25,12 +29,16 @@ public class HttpBookmarksJsonServer implements HttpHandler {
         String method = ex.getRequestMethod();
         if ("OPTIONS".equalsIgnoreCase(method)) {
             ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-            ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+            ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
             ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type,*");
             ex.sendResponseHeaders(204, -1);
             return;
         }
         if ("GET".equalsIgnoreCase(method)) {
+            if ("categories".equalsIgnoreCase(queryParam(ex, "view"))) {
+                generateJsonResponse(ex, objectToJson(BookmarkService.getInstance().getAllCategories()));
+                return;
+            }
             generateJsonResponse(ex, BookmarkService.getInstance().readToJson());
             return;
         }
@@ -38,12 +46,42 @@ public class HttpBookmarksJsonServer implements HttpHandler {
             upsertBookmark(ex);
             return;
         }
+        if ("PUT".equalsIgnoreCase(method)) {
+            updateBookmarkOrder(ex);
+            return;
+        }
         if ("DELETE".equalsIgnoreCase(method)) {
             deleteBookmark(ex);
             return;
         }
-        ex.getResponseHeaders().set("Allow", "GET,POST,DELETE,OPTIONS");
+        ex.getResponseHeaders().set("Allow", "GET,POST,PUT,DELETE,OPTIONS");
         ex.sendResponseHeaders(405, -1);
+    }
+
+    private void updateBookmarkOrder(HttpExchange ex) throws IOException {
+        JSONObject body = readBodyJson(ex);
+        String categoryId = opt(body, "categoryId", queryParam(ex, "categoryId"));
+        String normalizedCategoryId = isBlank(categoryId) ? null : categoryId;
+
+        List<String> orderedDbIds = new ArrayList<>();
+        JSONArray idsArray = null;
+        if (body != null && body.has("orderedBookmarkDbIds") && !body.isNull("orderedBookmarkDbIds")) {
+            idsArray = body.optJSONArray("orderedBookmarkDbIds");
+        }
+        if (idsArray == null && body != null && body.has("bookmarkIds") && !body.isNull("bookmarkIds")) {
+            idsArray = body.optJSONArray("bookmarkIds");
+        }
+        if (idsArray != null) {
+            for (int i = 0; i < idsArray.length(); i++) {
+                String id = String.valueOf(idsArray.opt(i));
+                if (!isBlank(id) && !"null".equalsIgnoreCase(id)) {
+                    orderedDbIds.add(id);
+                }
+            }
+        }
+
+        BookmarkService.getInstance().saveBookmarkOrder(normalizedCategoryId, orderedDbIds);
+        writeJson(ex, 200, "{\"status\":\"ok\",\"action\":\"reordered\"}");
     }
 
     private void upsertBookmark(HttpExchange ex) throws IOException {
@@ -151,7 +189,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
     private void writeJson(HttpExchange ex, int status, String body) throws IOException {
         byte[] responseBytes = body.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-        ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+        ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
         ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type,*");
         ex.getResponseHeaders().add("Content-Type", "application/json");
         ex.sendResponseHeaders(status, responseBytes.length);
