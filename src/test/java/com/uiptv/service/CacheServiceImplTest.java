@@ -8,13 +8,18 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.test.DbBackedTest;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.FetchAPI;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -55,6 +60,47 @@ class CacheServiceImplTest extends DbBackedTest {
         assertTrue(cachedCategories.stream().anyMatch(c -> "Live".equalsIgnoreCase(c.getTitle())));
     }
 
+    @Test
+    void reloadCache_stalkerPortal_usesGetAllChannels_whenResponseHasData() throws IOException {
+        Account account = createStalkerAccount("acc-stalker-getall");
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
+                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertEquals(0, orderedListCalls.get(), "Fallback API should not be called when get_all_channels has data");
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertTrue(logs.stream().noneMatch(m -> m.contains("Trying last-resort category-by-category fetch")));
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_usesCategoryFallback_whenGetAllChannelsIsBlank() throws IOException {
+        Account account = createStalkerAccount("acc-stalker-fallback");
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
+                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), true, orderedListCalls));
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertTrue(orderedListCalls.get() > 0, "Fallback API should be used when get_all_channels is blank");
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Trying last-resort category-by-category fetch")));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Last-resort fetch succeeded")));
+    }
+
     private List<Channel> getAllCachedChannels(Account account) {
         assertTrue(ChannelDb.get().getChannelCountForAccount(account.getDbId()) > 0);
         List<Category> categories = CategoryDb.get().getCategories(account);
@@ -87,6 +133,110 @@ class CacheServiceImplTest extends DbBackedTest {
         account.setDbId(accountId);
         account.setAction(Account.AccountAction.itv);
         return account;
+    }
+
+    private Account createStalkerAccount(String accountId) {
+        Account account = new Account(
+                "test-account-" + accountId,
+                "user",
+                "pass",
+                "http://stalker.example/portal.php",
+                "00:11:22:33:44:55",
+                null,
+                null,
+                null,
+                null,
+                null,
+                AccountType.STALKER_PORTAL,
+                null,
+                null,
+                false
+        );
+        account.setDbId(accountId);
+        account.setAction(Account.AccountAction.itv);
+        account.setServerPortalUrl("http://stalker.example/portal.php");
+        return account;
+    }
+
+    private void mockSuccessfulHandshake(MockedStatic<HandshakeService> handshakeMock) {
+        HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
+        handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
+        Mockito.doAnswer(invocation -> {
+            Account handshakeAccount = invocation.getArgument(0);
+            handshakeAccount.setToken("mock-token");
+            return null;
+        }).when(handshakeService).connect(Mockito.any(Account.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private String mockStalkerApiResponse(Map<String, String> params, boolean blankGetAllChannels, AtomicInteger orderedListCalls) {
+        String action = params.get("action");
+        if ("get_genres".equals(action)) {
+            return """
+                    {
+                      "js": [
+                        {"id":"10","title":"News","alias":"news","active_sub":true,"censored":0},
+                        {"id":"20","title":"Sports","alias":"sports","active_sub":true,"censored":0}
+                      ]
+                    }
+                    """;
+        }
+        if ("get_all_channels".equals(action)) {
+            if (blankGetAllChannels) {
+                return "";
+            }
+            return """
+                    {
+                      "js": {
+                        "data": [
+                          {"id":"101","name":"News 1","number":"1","cmd":"ffmpeg http://stream/news1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"n1","censored":0,"status":1,"hd":1,"tv_genre_id":"10"},
+                          {"id":"201","name":"Sports 1","number":"2","cmd":"ffmpeg http://stream/sports1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"s1","censored":0,"status":1,"hd":1,"tv_genre_id":"20"}
+                        ]
+                      }
+                    }
+                    """;
+        }
+        if ("get_ordered_list".equals(action)) {
+            orderedListCalls.incrementAndGet();
+            String genre = params.get("genre");
+            String page = params.get("p");
+            if ("10".equals(genre) && "0".equals(page)) {
+                return """
+                        {
+                          "js": {
+                            "total_items": 1,
+                            "max_page_items": 999,
+                            "data": [
+                              {"id":"101","name":"News 1","number":"1","cmd":"ffmpeg http://stream/news1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"n1","censored":0,"status":1,"hd":1,"tv_genre_id":"10"}
+                            ]
+                          }
+                        }
+                        """;
+            }
+            if ("20".equals(genre) && "0".equals(page)) {
+                return """
+                        {
+                          "js": {
+                            "total_items": 1,
+                            "max_page_items": 999,
+                            "data": [
+                              {"id":"201","name":"Sports 1","number":"2","cmd":"ffmpeg http://stream/sports1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"s1","censored":0,"status":1,"hd":1,"tv_genre_id":"20"}
+                            ]
+                          }
+                        }
+                        """;
+            }
+            return """
+                    {
+                      "js": {
+                        "total_items": 0,
+                        "max_page_items": 999,
+                        "data": []
+                      }
+                    }
+                    """;
+        }
+        return "";
     }
 
     private void saveConfiguration(String categoryFilter, String channelFilter, boolean pauseFiltering) {

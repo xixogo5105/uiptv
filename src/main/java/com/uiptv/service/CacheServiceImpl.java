@@ -6,6 +6,7 @@ import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
@@ -111,88 +112,93 @@ public class CacheServiceImpl implements CacheService {
         // 2. Fetch all channels
         logger.log("Fetching all channels for: " + account.getAccountName());
         String jsonChannels = fetchAllStalkerChannelsJson(account, logger);
+        List<Channel> allChannels = Collections.emptyList();
 
         if (isNotBlank(jsonChannels)) {
             try {
                 logger.log("Received response for channels.");
-                List<Channel> allChannels = ChannelService.getInstance().parseItvChannels(jsonChannels, false);
+                allChannels = ChannelService.getInstance().parseItvChannels(jsonChannels, false);
                 logger.log("Fetched " + allChannels.size() + " channels.");
-
-                if (allChannels.isEmpty()) {
-                    logger.log("No channels found. Keeping existing cache.");
-                    return;
-                }
-
-                // Clear cache only after successful fetch
-                logger.log("Clearing cache for account: " + account.getAccountName());
-                clearCache(account);
-                logger.log("Cache cleared for account: " + account.getAccountName());
-
-                // 3. Partition and group channels in a single pass
-                List<Channel> unmatchedChannels = new ArrayList<>();
-                Map<String, List<Channel>> matchedChannelsByCatId = new HashMap<>();
-                for (Channel channel : allChannels) {
-                    if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
-                        matchedChannelsByCatId.computeIfAbsent(channel.getCategoryId(), k -> new ArrayList<>()).add(channel);
-                    } else {
-                        unmatchedChannels.add(channel);
-                    }
-                }
-
-                List<Category> categoriesToSave = new ArrayList<>(officialCategories);
-
-                // 4. Handle unmatched channels
-                final String UNCATEGORIZED_ID = "uncategorized";
-                final String UNCATEGORIZED_NAME = "Uncategorized";
-                boolean hasUnmatched = !unmatchedChannels.isEmpty();
-
-                if (hasUnmatched) {
-                    logger.log("Found " + unmatchedChannels.size() + " channels with no matching category.");
-                    boolean uncategorizedExists = officialCategories.stream()
-                            .anyMatch(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()));
-                    if (!uncategorizedExists) {
-                        categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
-                    }
-                }
-
-                // 5. Save all categories
-                CategoryDb.get().saveAll(categoriesToSave, account);
-
-                // 6. Re-fetch to get all dbIds
-                List<Category> finalSavedCategories = CategoryDb.get().getCategories(account);
-                Map<String, Category> finalCategoryMap = finalSavedCategories.stream()
-                        .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
-
-                // 7. Save matched channels
-                for (Map.Entry<String, List<Channel>> entry : matchedChannelsByCatId.entrySet()) {
-                    Category category = finalCategoryMap.get(entry.getKey());
-                    if (category != null && category.getDbId() != null) {
-                        ChannelDb.get().saveAll(entry.getValue(), category.getDbId(), account);
-                    }
-                }
-
-                // 8. Save unmatched channels
-                if (hasUnmatched) {
-                    Category uncategorizedCategory = finalCategoryMap.values().stream()
-                            .filter(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()))
-                            .findFirst().orElse(null);
-
-                    if (uncategorizedCategory != null && uncategorizedCategory.getDbId() != null) {
-                        ChannelDb.get().saveAll(unmatchedChannels, uncategorizedCategory.getDbId(), account);
-                        logger.log("Saved " + unmatchedChannels.size() + " channels to '" + UNCATEGORIZED_NAME + "' category.");
-                    } else {
-                        logger.log("Error: Could not save unmatched channels because '" + UNCATEGORIZED_NAME + "' category was not found after saving.");
-                    }
-                }
-
-                logger.log("Parsing complete. Found " + finalSavedCategories.size() + " categories and " + allChannels.size() + " channels saved.");
-
             } catch (Exception e) {
                 logger.log("Error processing channel data: " + e.getMessage());
             }
         } else {
             logger.log("No response or empty response from server for channels");
         }
+
+        if (allChannels.isEmpty()) {
+            logger.log("No channels returned by get_all_channels. Trying last-resort category-by-category fetch.");
+            allChannels = fetchAllChannelsByCategoryLastResort(account, officialCategories, logger);
+            if (allChannels.isEmpty()) {
+                logger.log("Last-resort fetch also returned zero channels. Keeping existing cache.");
+                return;
+            }
+            logger.log("Last-resort fetch succeeded. Collected " + allChannels.size() + " channels.");
+        }
+
+        // Clear cache only after successful fetch
+        logger.log("Clearing cache for account: " + account.getAccountName());
+        clearCache(account);
+        logger.log("Cache cleared for account: " + account.getAccountName());
+
+        // 3. Partition and group channels in a single pass
+        List<Channel> unmatchedChannels = new ArrayList<>();
+        Map<String, List<Channel>> matchedChannelsByCatId = new HashMap<>();
+        for (Channel channel : allChannels) {
+            if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
+                matchedChannelsByCatId.computeIfAbsent(channel.getCategoryId(), k -> new ArrayList<>()).add(channel);
+            } else {
+                unmatchedChannels.add(channel);
+            }
+        }
+
+        List<Category> categoriesToSave = new ArrayList<>(officialCategories);
+
+        // 4. Handle unmatched channels
+        final String UNCATEGORIZED_ID = "uncategorized";
+        final String UNCATEGORIZED_NAME = "Uncategorized";
+        boolean hasUnmatched = !unmatchedChannels.isEmpty();
+
+        if (hasUnmatched) {
+            logger.log("Found " + unmatchedChannels.size() + " channels with no matching category.");
+            boolean uncategorizedExists = officialCategories.stream()
+                    .anyMatch(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()));
+            if (!uncategorizedExists) {
+                categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
+            }
+        }
+
+        // 5. Save all categories
+        CategoryDb.get().saveAll(categoriesToSave, account);
+
+        // 6. Re-fetch to get all dbIds
+        List<Category> finalSavedCategories = CategoryDb.get().getCategories(account);
+        Map<String, Category> finalCategoryMap = finalSavedCategories.stream()
+                .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
+
+        // 7. Save matched channels
+        for (Map.Entry<String, List<Channel>> entry : matchedChannelsByCatId.entrySet()) {
+            Category category = finalCategoryMap.get(entry.getKey());
+            if (category != null && category.getDbId() != null) {
+                ChannelDb.get().saveAll(entry.getValue(), category.getDbId(), account);
+            }
+        }
+
+        // 8. Save unmatched channels
+        if (hasUnmatched) {
+            Category uncategorizedCategory = finalCategoryMap.values().stream()
+                    .filter(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()))
+                    .findFirst().orElse(null);
+
+            if (uncategorizedCategory != null && uncategorizedCategory.getDbId() != null) {
+                ChannelDb.get().saveAll(unmatchedChannels, uncategorizedCategory.getDbId(), account);
+                logger.log("Saved " + unmatchedChannels.size() + " channels to '" + UNCATEGORIZED_NAME + "' category.");
+            } else {
+                logger.log("Error: Could not save unmatched channels because '" + UNCATEGORIZED_NAME + "' category was not found after saving.");
+            }
+        }
+
+        logger.log("Parsing complete. Found " + finalSavedCategories.size() + " categories and " + allChannels.size() + " channels saved.");
     }
 
     private String fetchAllStalkerChannelsJson(Account account, LoggerCallback logger) {
@@ -219,6 +225,84 @@ public class CacheServiceImpl implements CacheService {
             }
         }
         return "";
+    }
+
+    private List<Channel> fetchAllChannelsByCategoryLastResort(Account account, List<Category> categories, LoggerCallback logger) {
+        Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
+
+        for (Category category : categories) {
+            if (category == null || isBlank(category.getCategoryId())) {
+                continue;
+            }
+
+            String categoryId = category.getCategoryId();
+            logger.log("Last-resort fetch for category: " + category.getTitle() + " (id=" + categoryId + ")");
+            List<Channel> channelsForCategory = fetchStalkerCategoryChannelsLastResort(account, categoryId, logger);
+
+            for (Channel channel : channelsForCategory) {
+                if (channel == null || isBlank(channel.getChannelId())) {
+                    continue;
+                }
+                if (isBlank(channel.getCategoryId())) {
+                    channel.setCategoryId(categoryId);
+                }
+                uniqueChannels.putIfAbsent(channel.getChannelId(), channel);
+            }
+
+            logger.log("Last-resort fetched " + channelsForCategory.size() + " channels for category id=" + categoryId);
+        }
+
+        return new ArrayList<>(uniqueChannels.values());
+    }
+
+    private List<Channel> fetchStalkerCategoryChannelsLastResort(Account account, String categoryId, LoggerCallback logger) {
+        List<Channel> channels = fetchStalkerCategoryChannelsFromPage(account, categoryId, 0, logger);
+        if (!channels.isEmpty()) {
+            return channels;
+        }
+        return fetchStalkerCategoryChannelsFromPage(account, categoryId, 1, logger);
+    }
+
+    private List<Channel> fetchStalkerCategoryChannelsFromPage(Account account, String categoryId, int startPage, LoggerCallback logger) {
+        List<Channel> aggregated = new ArrayList<>();
+        int maxAdditionalPages = 2;
+
+        for (int page = startPage; page <= startPage + maxAdditionalPages; page++) {
+            String json = FetchAPI.fetch(ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account);
+            if (isBlank(json)) {
+                if (page == startPage) {
+                    logger.log("Last-resort category fetch returned empty response for category " + categoryId + " at page " + page);
+                }
+                break;
+            }
+
+            try {
+                if (page == startPage) {
+                    Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
+                    if (pagination != null) {
+                        maxAdditionalPages = Math.max(pagination.getPageCount() + 1, 2);
+                    }
+                }
+
+                List<Channel> pageChannels = ChannelService.getInstance().parseItvChannels(json, false);
+                if (pageChannels.isEmpty()) {
+                    break;
+                }
+                aggregated.addAll(pageChannels);
+            } catch (Exception e) {
+                logger.log("Last-resort category fetch parse error for category " + categoryId + " at page " + page + ": " + e.getMessage());
+                break;
+            }
+        }
+
+        Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
+        for (Channel channel : aggregated) {
+            if (channel == null || isBlank(channel.getChannelId())) {
+                continue;
+            }
+            uniqueChannels.putIfAbsent(channel.getChannelId(), channel);
+        }
+        return new ArrayList<>(uniqueChannels.values());
     }
 
     private void reloadChannelsForOtherTypes(Account account, LoggerCallback logger) throws IOException {
