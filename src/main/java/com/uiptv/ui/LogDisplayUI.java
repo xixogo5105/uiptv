@@ -14,7 +14,7 @@ import static com.uiptv.ui.RootApplication.GUIDED_MAX_HEIGHT_PIXELS;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 
 public class LogDisplayUI extends VBox {
-    private static TextArea logArea = new TextArea();
+    private static TextArea logArea;
     private final Button clearLogButton= new Button("Clear");
     private final Button copyLogButton = new Button("Copy");
     private static boolean isLoggingEnabled = false;
@@ -22,6 +22,9 @@ public class LogDisplayUI extends VBox {
     public LogDisplayUI() {
         setPadding(new Insets(5));
         setSpacing(5);
+        if (logArea == null) {
+            logArea = new TextArea();
+        }
         logArea.setEditable(false);
         logArea.setWrapText(true);
         logArea.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
@@ -56,7 +59,7 @@ public class LogDisplayUI extends VBox {
 
     public static void setLoggingEnabled(boolean enabled) {
         isLoggingEnabled = enabled;
-        if (!enabled) {
+        if (!enabled && logArea != null) {
             Platform.runLater(() -> logArea.clear());
         }
     }

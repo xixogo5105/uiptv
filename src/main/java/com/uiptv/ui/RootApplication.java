@@ -5,7 +5,6 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
-import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
@@ -74,15 +73,18 @@ public class RootApplication extends Application {
         String firstDB = args[1].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         String secondDB = args[2].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         try {
-            for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
-                if (DatabaseUtils.Syncable.contains(tableName)) {
-                    syncTables(firstDB, secondDB, tableName.getTableName());
-                }
-            }
-            new CacheServiceImpl().clearAllCache();
+            syncDatabases(firstDB, secondDB);
             System.out.println("Sync complete!");
         } catch (SQLException e) {
             System.err.println("Error syncing tables: " + e.getMessage());
+        }
+    }
+
+    public static void syncDatabases(String firstDB, String secondDB) throws SQLException {
+        for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
+            if (DatabaseUtils.Syncable.contains(tableName)) {
+                syncTables(firstDB, secondDB, tableName.getTableName());
+            }
         }
     }
 

@@ -3,8 +3,9 @@ package com.uiptv.service;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.uiptv.db.*;
-import javafx.application.Platform;
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
@@ -12,10 +13,13 @@ import com.uiptv.model.PlayerResponse;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.LogUtil;
 import com.uiptv.util.TextParserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,9 +30,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class EndToEndIntegrationFlowTest extends DbBackedTest {
 
-    private static volatile boolean javafxStarted = false;
     private HttpServer mockServer;
     private String baseUrl;
     private String stalkerPortalUrl;
@@ -48,7 +53,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
     @BeforeEach
     void startMockServer() throws IOException {
-        ensureJavaFxToolkit();
         mockServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         mockServer.createContext("/portal.php", this::handleStalker);
         mockServer.createContext("/xtreme/player_api.php", this::handleXtreme);
@@ -61,18 +65,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         stalkerPortalUrl = baseUrl + "/portal.php";
         xtremeBaseUrl = baseUrl + "/xtreme/";
         rssFeedUrl = baseUrl + "/rss/feed.xml";
-    }
-
-    private static synchronized void ensureJavaFxToolkit() {
-        if (javafxStarted) {
-            return;
-        }
-        try {
-            Platform.startup(() -> {
-            });
-        } catch (IllegalStateException ignored) {
-        }
-        javafxStarted = true;
     }
 
     @AfterEach
@@ -141,6 +133,13 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *    - Stalker live create_link path where provider returns missing query values:
      *      assert merged stream/play_token in resulting playback URL.
      *    - Xtreme predefined URL playback path assertion.
+     *    - Bookmark flow including play-from-bookmark assertion.
+     *
+     * 6.2) DB synchronize flow
+     *    - Create two isolated sqlite databases.
+     *    - Seed syncable tables with different rows in each database.
+     *    - Execute RootApplication.syncDatabases (same logic as CLI sync mode).
+     *    - Assert both databases converge for all syncable tables.
      *
      * 7) Account-level cache clear and partial deletion
      *    - Select one account from each type bucket.
@@ -160,80 +159,84 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      * - Uses an embedded mock HttpServer to emulate:
      *   Stalker portal endpoints, Xtreme player_api.php endpoints, RSS feed, M3U files.
      * - Uses DbBackedTest temp SQLite path for isolated DB per test run.
-     * - Includes JavaFX toolkit bootstrap required by logging path used in FetchAPI.
+     * - Mocks LogUtil.httpLog to avoid JavaFX LogDisplayUI initialization in headless CI.
      */
     void endToEnd_allAccountTypes_configurationParseCachePlayAndClear() throws Exception {
         ConfigurationService configurationService = ConfigurationService.getInstance();
         AccountService accountService = AccountService.getInstance();
         CacheService cacheService = new CacheServiceImpl();
+        BookmarkService bookmarkService = BookmarkService.getInstance();
 
-        // 1) Configuration create + update
-        Configuration firstConfig = new Configuration(
-                "player-a",
-                "player-b",
-                "player-c",
-                "player-a",
-                "skip-me",
-                "skip-channel",
-                false,
-                "JetBrains Mono",
-                "13",
-                "Medium",
-                false,
-                "9999",
-                false,
-                false
-        );
-        configurationService.save(firstConfig);
+        try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class)) {
+            logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(invocation -> null);
 
-        Configuration updated = configurationService.read();
-        updated.setServerPort("10001");
-        updated.setDarkTheme(true);
-        updated.setEnableFfmpegTranscoding(true);
-        configurationService.save(updated);
+            // 1) Configuration create + update
+            Configuration firstConfig = new Configuration(
+                    "player-a",
+                    "player-b",
+                    "player-c",
+                    "player-a",
+                    "skip-me",
+                    "skip-channel",
+                    false,
+                    "JetBrains Mono",
+                    "13",
+                    "Medium",
+                    false,
+                    "9999",
+                    false,
+                    false
+            );
+            configurationService.save(firstConfig);
 
-        Configuration persisted = configurationService.read();
-        assertEquals("10001", persisted.getServerPort());
-        assertTrue(persisted.isDarkTheme());
-        assertTrue(persisted.isEnableFfmpegTranscoding());
+            Configuration updated = configurationService.read();
+            updated.setServerPort("10001");
+            updated.setDarkTheme(true);
+            updated.setEnableFfmpegTranscoding(true);
+            configurationService.save(updated);
 
-        // 2) create one account for each type
-        String drmLocalPlaylist = writeM3uPlaylist("m3u-drm-local.m3u", true);
-        saveStalker("stalker-seed-1", "00:11:22:33:44:51");
-        saveXtreme("xtreme-seed-1", "xtuser1", "xtpass1");
-        saveM3uLocal("m3u-seed-1", drmLocalPlaylist);
-        saveRss("rss-seed-1", rssFeedUrl);
+            Configuration persisted = configurationService.read();
+            assertEquals("10001", persisted.getServerPort());
+            assertTrue(persisted.isDarkTheme());
+            assertTrue(persisted.isEnableFfmpegTranscoding());
 
-        assertTypeCounts(1, 1, 1, 1);
+            // 2) create one account for each type
+            String drmLocalPlaylist = writeM3uPlaylist("m3u-drm-local.m3u", true);
+            saveStalker("stalker-seed-1", "00:11:22:33:44:51");
+            saveXtreme("xtreme-seed-1", "xtuser1", "xtpass1");
+            saveM3uLocal("m3u-seed-1", drmLocalPlaylist);
+            saveRss("rss-seed-1", rssFeedUrl);
 
-        // 3) parse/import accounts (2 more for stalker/xtreme/m3u), plus rss => total 3 each
-        TextParserService.saveBulkAccounts(stalkerBulkText(), TextParserService.MODE_STALKER, false, false);
-        TextParserService.saveBulkAccounts(xtremeBulkText(), TextParserService.MODE_XTREME, false, false);
-        TextParserService.saveBulkAccounts(m3uBulkText(), TextParserService.MODE_M3U, false, false);
-        saveRss("rss-seed-2", rssFeedUrl + "?r=2");
-        saveRss("rss-seed-3", rssFeedUrl + "?r=3");
+            assertTypeCounts(1, 1, 1, 1);
 
-        assertTypeCounts(3, 3, 3, 3);
+            // 3) parse/import accounts (2 more for stalker/xtreme/m3u), plus rss => total 3 each
+            TextParserService.saveBulkAccounts(stalkerBulkText(), TextParserService.MODE_STALKER, false, false);
+            TextParserService.saveBulkAccounts(xtremeBulkText(), TextParserService.MODE_XTREME, false, false);
+            TextParserService.saveBulkAccounts(m3uBulkText(), TextParserService.MODE_M3U, false, false);
+            saveRss("rss-seed-2", rssFeedUrl + "?r=2");
+            saveRss("rss-seed-3", rssFeedUrl + "?r=3");
 
-        // 4) update accounts and assert
-        List<Account> allAccounts = new ArrayList<>(accountService.getAll().values());
-        for (Account account : allAccounts) {
-            account.setTimezone("America/New_York");
-            account.setHttpMethod("GET");
-            if (account.getType() == AccountType.STALKER_PORTAL) {
-                account.setServerPortalUrl(stalkerPortalUrl);
-                account.setUrl(stalkerPortalUrl);
+            assertTypeCounts(3, 3, 3, 3);
+
+            // 4) update accounts and assert
+            List<Account> allAccounts = new ArrayList<>(accountService.getAll().values());
+            for (Account account : allAccounts) {
+                account.setTimezone("America/New_York");
+                account.setHttpMethod("GET");
+                if (account.getType() == AccountType.STALKER_PORTAL) {
+                    account.setServerPortalUrl(stalkerPortalUrl);
+                    account.setUrl(stalkerPortalUrl);
+                }
+                if (account.getType() == AccountType.XTREME_API) {
+                    account.setM3u8Path(xtremeBaseUrl);
+                    account.setUrl(xtremeBaseUrl);
+                }
+                if (account.getType() == AccountType.RSS_FEED) {
+                    account.setM3u8Path(rssFeedUrl);
+                    account.setUrl(rssFeedUrl);
+                }
+                accountService.save(account);
             }
-            if (account.getType() == AccountType.XTREME_API) {
-                account.setM3u8Path(xtremeBaseUrl);
-                account.setUrl(xtremeBaseUrl);
-            }
-            if (account.getType() == AccountType.RSS_FEED) {
-                account.setM3u8Path(rssFeedUrl);
-                account.setUrl(rssFeedUrl);
-            }
-            accountService.save(account);
-        }
 
         Account updatedStalker = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         Account updatedXtreme = getAccountsByType(AccountType.XTREME_API).get(0);
@@ -245,93 +248,152 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertNotNull(updatedM3u.getM3u8Path());
         assertTrue(updatedRss.getM3u8Path().contains("/rss/feed.xml"));
 
-        // 5) cache all accounts (live for all, vod/series where applicable)
-        for (Account stalker : getAccountsByType(AccountType.STALKER_PORTAL)) {
-            if ("00:11:22:33:44:53".equalsIgnoreCase(stalker.getMacAddress())) {
-                cacheLiveWithFallbackAssertion(stalker, cacheService);
-            } else {
-                cacheLive(stalker, cacheService);
+            // 5) cache all accounts (live for all, vod/series where applicable)
+            for (Account stalker : getAccountsByType(AccountType.STALKER_PORTAL)) {
+                if ("00:11:22:33:44:53".equalsIgnoreCase(stalker.getMacAddress())) {
+                    cacheLiveWithFallbackAssertion(stalker, cacheService);
+                } else {
+                    cacheLive(stalker, cacheService);
+                }
+                cacheVod(stalker);
+                cacheSeries(stalker);
             }
-            cacheVod(stalker);
-            cacheSeries(stalker);
+
+            for (Account xtreme : getAccountsByType(AccountType.XTREME_API)) {
+                cacheLive(xtreme, cacheService);
+                cacheVod(xtreme);
+                cacheSeries(xtreme);
+
+                // Explicit episodes flow for xtreme (5 episodes)
+                xtreme.setAction(series);
+                List<Category> seriesCategories = SeriesCategoryDb.get().getCategories(xtreme);
+                assertFalse(seriesCategories.isEmpty());
+                List<Channel> seriesChannels = SeriesChannelDb.get().getChannels(xtreme, seriesCategories.get(0).getDbId());
+                assertFalse(seriesChannels.isEmpty());
+                EpisodeList episodes = XtremeParser.parseEpisodes(seriesChannels.get(0).getChannelId(), xtreme);
+                assertEquals(5, episodes.getEpisodes().size());
+            }
+
+            for (Account m3u : getM3uAccounts()) {
+                cacheLive(m3u, cacheService);
+            }
+
+            for (Account rss : getAccountsByType(AccountType.RSS_FEED)) {
+                cacheLive(rss, cacheService);
+            }
+
+            // DRM checks against m3u cached content
+            Account drmAccount = accountService.getByName("m3u-seed-1");
+            drmAccount.setAction(itv);
+            List<Channel> m3uChannels = allLiveChannels(drmAccount);
+            Channel drmChannel = m3uChannels.stream().filter(ch -> PlayerService.getInstance().isDrmProtected(ch)).findFirst().orElse(null);
+            assertNotNull(drmChannel, "Expected at least one DRM-protected M3U channel");
+            assertEquals("org.w3.clearkey", drmChannel.getDrmType());
+            assertNotNull(drmChannel.getClearKeysJson());
+
+            // 6) play service scenarios
+            PlayerResponse drmPlay = PlayerService.getInstance().get(drmAccount, drmChannel);
+            assertNotNull(drmPlay.getUrl());
+            assertTrue(PlayerService.getInstance().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("drmLaunch="));
+
+            Account stalkerPlayAccount = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
+            stalkerPlayAccount.setAction(itv);
+            Channel stalkerLiveChannel = allLiveChannels(stalkerPlayAccount).get(0);
+            PlayerResponse stalkerPlay = PlayerService.getInstance().get(stalkerPlayAccount, stalkerLiveChannel);
+            assertTrue(stalkerPlay.getUrl().contains("stream=1001") || stalkerPlay.getUrl().contains("stream=2001"));
+            assertTrue(stalkerPlay.getUrl().contains("play_token="));
+
+            Account xtremePlayAccount = getAccountsByType(AccountType.XTREME_API).get(0);
+            xtremePlayAccount.setAction(itv);
+            Channel xtremeChannel = allLiveChannels(xtremePlayAccount).get(0);
+            PlayerResponse xtremePlay = PlayerService.getInstance().get(xtremePlayAccount, xtremeChannel);
+            assertTrue(xtremePlay.getUrl().contains("/xtreme/"));
+
+            // 6.1) bookmark end-to-end + play from bookmark assertion
+            bookmarkService.addCategory(new BookmarkCategory(null, "E2E Favorites"));
+            BookmarkCategory bookmarkCategory = bookmarkService.getAllCategories().stream()
+                    .filter(c -> "E2E Favorites".equals(c.getName()))
+                    .findFirst()
+                    .orElseThrow();
+
+            Bookmark playBookmark = new Bookmark(
+                    stalkerPlayAccount.getAccountName(),
+                    "Sports",
+                    stalkerLiveChannel.getChannelId(),
+                    stalkerLiveChannel.getName(),
+                    stalkerLiveChannel.getCmd(),
+                    stalkerPlayAccount.getServerPortalUrl(),
+                    "cat-e2e"
+            );
+            playBookmark.setAccountAction(itv);
+            playBookmark.setFromChannel(stalkerLiveChannel);
+            playBookmark.setChannelJson(stalkerLiveChannel.toJson());
+            bookmarkService.save(playBookmark);
+            assertTrue(bookmarkService.isChannelBookmarked(playBookmark));
+            assertTrue(bookmarkService.readToJson().contains(stalkerLiveChannel.getName()));
+
+            Bookmark persistedBookmark = bookmarkService.getBookmark(playBookmark);
+            assertNotNull(persistedBookmark);
+
+            PlayerResponse bookmarkPlay = PlayerService.getInstance().get(
+                    stalkerPlayAccount,
+                    Channel.fromJson(persistedBookmark.getChannelJson()),
+                    persistedBookmark.getChannelId()
+            );
+            assertNotNull(bookmarkPlay.getUrl());
+            assertTrue(bookmarkPlay.getUrl().contains("play_token="));
+
+            // reorder and toggle coverage
+            Bookmark secondBookmark = new Bookmark(
+                    xtremePlayAccount.getAccountName(),
+                    "X Live",
+                    xtremeChannel.getChannelId(),
+                    xtremeChannel.getName(),
+                    xtremeChannel.getCmd(),
+                    xtremePlayAccount.getServerPortalUrl(),
+                    "cat-e2e"
+            );
+            secondBookmark.setAccountAction(itv);
+            bookmarkService.save(secondBookmark);
+            List<Bookmark> beforeOrder = bookmarkService.getBookmarksByCategory("cat-e2e");
+            assertEquals(2, beforeOrder.size());
+            bookmarkService.saveBookmarkOrder("cat-e2e", List.of(beforeOrder.get(1).getDbId(), beforeOrder.get(0).getDbId()));
+            List<Bookmark> afterOrder = bookmarkService.getBookmarksByCategory("cat-e2e");
+            assertEquals(2, afterOrder.size());
+            bookmarkService.toggleBookmark(secondBookmark);
+            assertFalse(bookmarkService.isChannelBookmarked(secondBookmark));
+            bookmarkService.removeCategory(bookmarkCategory);
+
+            // 6.2) DB synchronize functionality (RootApplication sync flow)
+            runDbSyncFlow();
+
+            // 7) clear cache + delete one account from each type; remaining should be 2 each
+            List<Account> removeSet = List.of(
+                    getAccountsByType(AccountType.STALKER_PORTAL).get(0),
+                    getAccountsByType(AccountType.XTREME_API).get(0),
+                    getM3uAccounts().get(0),
+                    getAccountsByType(AccountType.RSS_FEED).get(0)
+            );
+
+            for (Account account : removeSet) {
+                cacheService.clearCache(account);
+                assertAccountCacheTablesCleared(account.getDbId());
+                accountService.delete(account.getDbId());
+                assertNull(accountService.getById(account.getDbId()));
+            }
+
+            assertTypeCounts(2, 2, 2, 2);
+
+            // 8) global cache clear + delete all remaining
+            cacheService.clearAllCache();
+            assertAllCacheTablesEmpty();
+
+            for (Account account : new ArrayList<>(accountService.getAll().values())) {
+                accountService.delete(account.getDbId());
+            }
+            assertEquals(0, accountService.getAll().size());
+            assertAllCacheTablesEmpty();
         }
-
-        for (Account xtreme : getAccountsByType(AccountType.XTREME_API)) {
-            cacheLive(xtreme, cacheService);
-            cacheVod(xtreme);
-            cacheSeries(xtreme);
-
-            // Explicit episodes flow for xtreme (5 episodes)
-            xtreme.setAction(series);
-            List<Category> seriesCategories = SeriesCategoryDb.get().getCategories(xtreme);
-            assertFalse(seriesCategories.isEmpty());
-            List<Channel> seriesChannels = SeriesChannelDb.get().getChannels(xtreme, seriesCategories.get(0).getDbId());
-            assertFalse(seriesChannels.isEmpty());
-            EpisodeList episodes = XtremeParser.parseEpisodes(seriesChannels.get(0).getChannelId(), xtreme);
-            assertEquals(5, episodes.getEpisodes().size());
-        }
-
-        for (Account m3u : getM3uAccounts()) {
-            cacheLive(m3u, cacheService);
-        }
-
-        for (Account rss : getAccountsByType(AccountType.RSS_FEED)) {
-            cacheLive(rss, cacheService);
-        }
-
-        // DRM checks against m3u cached content
-        Account drmAccount = accountService.getByName("m3u-seed-1");
-        drmAccount.setAction(itv);
-        List<Channel> m3uChannels = allLiveChannels(drmAccount);
-        Channel drmChannel = m3uChannels.stream().filter(ch -> PlayerService.getInstance().isDrmProtected(ch)).findFirst().orElse(null);
-        assertNotNull(drmChannel, "Expected at least one DRM-protected M3U channel");
-        assertEquals("org.w3.clearkey", drmChannel.getDrmType());
-        assertNotNull(drmChannel.getClearKeysJson());
-
-        // 6) play service scenarios
-        PlayerResponse drmPlay = PlayerService.getInstance().get(drmAccount, drmChannel);
-        assertNotNull(drmPlay.getUrl());
-        assertTrue(PlayerService.getInstance().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("drmLaunch="));
-
-        Account stalkerPlayAccount = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
-        stalkerPlayAccount.setAction(itv);
-        Channel stalkerLiveChannel = allLiveChannels(stalkerPlayAccount).get(0);
-        PlayerResponse stalkerPlay = PlayerService.getInstance().get(stalkerPlayAccount, stalkerLiveChannel);
-        assertTrue(stalkerPlay.getUrl().contains("stream=1001") || stalkerPlay.getUrl().contains("stream=2001"));
-        assertTrue(stalkerPlay.getUrl().contains("play_token="));
-
-        Account xtremePlayAccount = getAccountsByType(AccountType.XTREME_API).get(0);
-        xtremePlayAccount.setAction(itv);
-        Channel xtremeChannel = allLiveChannels(xtremePlayAccount).get(0);
-        PlayerResponse xtremePlay = PlayerService.getInstance().get(xtremePlayAccount, xtremeChannel);
-        assertTrue(xtremePlay.getUrl().contains("/xtreme/"));
-
-        // 7) clear cache + delete one account from each type; remaining should be 2 each
-        List<Account> removeSet = List.of(
-                getAccountsByType(AccountType.STALKER_PORTAL).get(0),
-                getAccountsByType(AccountType.XTREME_API).get(0),
-                getM3uAccounts().get(0),
-                getAccountsByType(AccountType.RSS_FEED).get(0)
-        );
-
-        for (Account account : removeSet) {
-            cacheService.clearCache(account);
-            assertAccountCacheTablesCleared(account.getDbId());
-            accountService.delete(account.getDbId());
-            assertNull(accountService.getById(account.getDbId()));
-        }
-
-        assertTypeCounts(2, 2, 2, 2);
-
-        // 8) global cache clear + delete all remaining
-        cacheService.clearAllCache();
-        assertAllCacheTablesEmpty();
-
-        for (Account account : new ArrayList<>(accountService.getAll().values())) {
-            accountService.delete(account.getDbId());
-        }
-        assertEquals(0, accountService.getAll().size());
-        assertAllCacheTablesEmpty();
     }
 
     private void cacheLive(Account account, CacheService cacheService) throws IOException {
@@ -460,6 +522,108 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.VOD_CHANNEL_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE));
+    }
+
+    private void runDbSyncFlow() throws Exception {
+        Path firstPath = tempDir.resolve("sync-first.db");
+        Path secondPath = tempDir.resolve("sync-second.db");
+        createSyncSchema(firstPath.toString());
+        createSyncSchema(secondPath.toString());
+
+        seedSyncDb(firstPath.toString(), "100", "sync-a", "101", "Sync One");
+        seedSyncDb(secondPath.toString(), "200", "sync-b", "202", "Sync Two");
+
+        com.uiptv.ui.RootApplication.syncDatabases(firstPath.toString(), secondPath.toString());
+
+        for (DatabaseUtils.DbTable table : DatabaseUtils.Syncable) {
+            int c1 = countRowsInDatabase(firstPath.toString(), table.getTableName());
+            int c2 = countRowsInDatabase(secondPath.toString(), table.getTableName());
+            assertEquals(c1, c2, "Synced table row count mismatch for " + table.getTableName());
+            assertTrue(c1 >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
+                    "Expected merged rows in " + table.getTableName());
+        }
+    }
+
+    private void createSyncSchema(String dbPath) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             Statement statement = conn.createStatement()) {
+            for (DatabaseUtils.DbTable table : DatabaseUtils.DbTable.values()) {
+                statement.execute(DatabaseUtils.createTableSql(table));
+            }
+        }
+    }
+
+    private void seedSyncDb(String dbPath, String accountId, String accountName, String bookmarkId, String bookmarkName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setString(1, accountId);
+                ps.setString(2, accountName);
+                ps.setString(3, "u");
+                ps.setString(4, "p");
+                ps.setString(5, "http://sync.example");
+                ps.setString(6, null);
+                ps.setString(7, null);
+                ps.setString(8, null);
+                ps.setString(9, null);
+                ps.setString(10, null);
+                ps.setString(11, null);
+                ps.setString(12, null);
+                ps.setString(13, null);
+                ps.setString(14, AccountType.M3U8_URL.name());
+                ps.setString(15, "");
+                ps.setString(16, "0");
+                ps.setString(17, "GET");
+                ps.setString(18, "UTC");
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO BookmarkCategory (id, name) VALUES (?,?)")) {
+                ps.setString(1, accountId);
+                ps.setString(2, "sync-category-" + accountId);
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT OR REPLACE INTO Bookmark (id, accountName, categoryTitle, channelId, channelName, cmd, serverPortalUrl, categoryId, accountAction, drmType, drmLicenseUrl, clearKeysJson, inputstreamaddon, manifestType, categoryJson, channelJson, vodJson, seriesJson) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setString(1, bookmarkId);
+                ps.setString(2, accountName);
+                ps.setString(3, "Sync");
+                ps.setString(4, "ch-" + bookmarkId);
+                ps.setString(5, bookmarkName);
+                ps.setString(6, "ffmpeg http://sync/" + bookmarkId + ".ts");
+                ps.setString(7, "http://sync.example");
+                ps.setString(8, "cat-sync");
+                ps.setString(9, "itv");
+                ps.setString(10, null);
+                ps.setString(11, null);
+                ps.setString(12, null);
+                ps.setString(13, null);
+                ps.setString(14, null);
+                ps.setString(15, "{}");
+                ps.setString(16, "{}");
+                ps.setString(17, "{}");
+                ps.setString(18, "{}");
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT OR REPLACE INTO BookmarkOrder (id, bookmark_db_id, category_id, display_order) VALUES (?,?,?,?)")) {
+                ps.setString(1, bookmarkId);
+                ps.setString(2, bookmarkId);
+                ps.setString(3, "cat-sync");
+                ps.setInt(4, 0);
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    private int countRowsInDatabase(String dbPath, String tableName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName);
+             ResultSet rs = statement.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
     }
 
     private int countTableRows(DatabaseUtils.DbTable table) {
