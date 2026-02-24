@@ -2,7 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.BookmarkCategory;
-import com.uiptv.test.DbBackedTest;
+import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 

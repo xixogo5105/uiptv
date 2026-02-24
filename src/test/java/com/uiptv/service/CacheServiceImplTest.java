@@ -6,7 +6,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
-import com.uiptv.test.DbBackedTest;
+import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import org.junit.jupiter.api.Test;

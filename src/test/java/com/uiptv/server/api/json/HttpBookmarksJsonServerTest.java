@@ -10,7 +10,7 @@ import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
-import com.uiptv.test.DbBackedTest;
+import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.json.JSONArray;
 import org.json.JSONObject;

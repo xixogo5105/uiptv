@@ -1,4 +1,4 @@
-package com.uiptv.test;
+package com.uiptv.service;
 
 import com.uiptv.db.SQLConnection;
 import org.junit.jupiter.api.AfterEach;
@@ -21,14 +21,14 @@ public abstract class DbBackedTest {
     protected File testDbFile;
 
     @BeforeEach
-    void setUpDatabase() throws Exception {
+    public void setUpDatabase() throws Exception {
         testDbFile = tempDir.resolve("uiptv-test.db").toFile();
         SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
         afterDatabaseSetup();
     }
 
     @AfterEach
-    void tearDownDatabase() {
+    public void tearDownDatabase() {
         beforeDatabaseCleanup();
         if (testDbFile != null && testDbFile.exists()) {
             testDbFile.delete();
@@ -40,5 +40,4 @@ public abstract class DbBackedTest {
 
     protected void beforeDatabaseCleanup() {
     }
-
 }
