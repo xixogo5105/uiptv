@@ -28,11 +28,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCachePopup extends VBox {
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
 
     private enum AccountRunStatus {
         QUEUED, RUNNING, DONE, FAILED, EMPTY
@@ -50,6 +53,7 @@ public class ReloadCachePopup extends VBox {
     private final List<CheckBox> checkBoxes = new ArrayList<>();
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
+    private final List<String> latestSummaryLines = new ArrayList<>();
     private String currentRunningAccountId;
 
     public ReloadCachePopup(Stage stage) {
@@ -116,12 +120,42 @@ public class ReloadCachePopup extends VBox {
         accountsScrollPane.setContent(accountsVBox);
         accountsScrollPane.setFitToWidth(true);
         accountsScrollPane.setMinHeight(250);
+        accountsScrollPane.setMaxWidth(Double.MAX_VALUE);
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
 
         logVBox.setPadding(new Insets(5));
         logScrollPane.setFitToWidth(true);
         logScrollPane.setMinHeight(250);
+        logScrollPane.setMaxWidth(Double.MAX_VALUE);
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
+
+        VBox accountColumn = new VBox(10, selectMenu, accountsScrollPane);
+        accountColumn.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
+
+        GridPane mainContent = new GridPane();
+        mainContent.setHgap(10);
+        mainContent.setMaxWidth(Double.MAX_VALUE);
+
+        ColumnConstraints accountsColumn = new ColumnConstraints();
+        accountsColumn.setPercentWidth(35);
+        accountsColumn.setFillWidth(true);
+        accountsColumn.setHgrow(Priority.ALWAYS);
+
+        ColumnConstraints logsColumn = new ColumnConstraints();
+        logsColumn.setPercentWidth(65);
+        logsColumn.setFillWidth(true);
+        logsColumn.setHgrow(Priority.ALWAYS);
+
+        RowConstraints contentRow = new RowConstraints();
+        contentRow.setVgrow(Priority.ALWAYS);
+        contentRow.setFillHeight(true);
+
+        mainContent.getColumnConstraints().addAll(accountsColumn, logsColumn);
+        mainContent.getRowConstraints().add(contentRow);
+        mainContent.add(accountColumn, 0, 0);
+        mainContent.add(logScrollPane, 1, 0);
+        VBox.setVgrow(mainContent, Priority.ALWAYS);
 
 
         reloadButton.setOnAction(event -> {
@@ -146,6 +180,11 @@ public class ReloadCachePopup extends VBox {
                 panel.getLogs().forEach(line -> sb.append("  ").append(line).append("\n"));
                 sb.append("\n");
             }
+            if (!latestSummaryLines.isEmpty()) {
+                sb.append("Run Summary\n");
+                latestSummaryLines.forEach(line -> sb.append("  ").append(line).append("\n"));
+                sb.append("\n");
+            }
             content.putString(sb.toString());
             clipboard.setContent(content);
         });
@@ -159,7 +198,7 @@ public class ReloadCachePopup extends VBox {
         buttonBox.setAlignment(Pos.CENTER_LEFT);
         buttonBox.setPadding(new Insets(10, 0, 0, 0));
 
-        getChildren().addAll(progressBar, selectMenu, accountsScrollPane, logScrollPane, buttonBox);
+        getChildren().addAll(progressBar, mainContent, buttonBox);
     }
 
     private void updateCheckboxes(AccountType type, boolean selected) {
@@ -202,6 +241,8 @@ public class ReloadCachePopup extends VBox {
         }
 
         List<Account> processedAccounts = new ArrayList<>();
+        Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
+        int totalSuccessChannels = 0;
 
         for (int i = 0; i < total; i++) {
             Account account = selectedAccounts.get(i);
@@ -216,25 +257,29 @@ public class ReloadCachePopup extends VBox {
                 channelCount = cacheService.getChannelCountForAccount(account.getDbId());
                 if (channelCount > 0) {
                     success = true;
+                    totalSuccessChannels += channelCount;
                 } else {
                     logMessage(account, "No channels found.");
                 }
             } catch (Exception e) {
                 failed = true;
-                logMessage(account, "Reload failed: " + e.getMessage());
+                logMessage(account, "Reload failed: " + shortFailure(e.getMessage()));
             }
 
             progressBar.updateSegment(i, success);
             AccountRunStatus finalStatus = success
                     ? AccountRunStatus.DONE
                     : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY);
+            finalStatuses.put(account.getDbId(), finalStatus);
             updateAccountStatus(account, finalStatus, channelCount);
         }
 
+        int runTotalSuccessChannels = totalSuccessChannels;
         Platform.runLater(() -> {
             System.out.print("\u0007"); // Beep
             reloadButton.setVisible(true);
             loadingIndicator.setVisible(false);
+            appendRunSummary(processedAccounts, finalStatuses, runTotalSuccessChannels);
 
             List<Account> emptyAccounts = processedAccounts.stream()
                     .filter(a -> cacheService.getChannelCountForAccount(a.getDbId()) == 0)
@@ -316,6 +361,7 @@ public class ReloadCachePopup extends VBox {
         runOnFxThreadAndWait(() -> {
             accountLogPanels.clear();
             runAccountOrder.clear();
+            latestSummaryLines.clear();
             currentRunningAccountId = null;
             logVBox.getChildren().clear();
 
@@ -328,6 +374,62 @@ public class ReloadCachePopup extends VBox {
                 logVBox.getChildren().add(panel.getRoot());
             }
         });
+    }
+
+    private void appendRunSummary(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses, int totalSuccessChannels) {
+        int successCount = 0;
+        int failedCount = 0;
+        int emptyCount = 0;
+
+        List<String> failedNames = new ArrayList<>();
+        List<String> emptyNames = new ArrayList<>();
+
+        for (Account account : processedAccounts) {
+            AccountRunStatus status = finalStatuses.get(account.getDbId());
+            if (status == AccountRunStatus.DONE) {
+                successCount++;
+            } else if (status == AccountRunStatus.FAILED) {
+                failedCount++;
+                failedNames.add(account.getAccountName());
+            } else if (status == AccountRunStatus.EMPTY) {
+                emptyCount++;
+                emptyNames.add(account.getAccountName());
+            }
+        }
+
+        latestSummaryLines.clear();
+        latestSummaryLines.add("Completed: " + processedAccounts.size() + "/" + processedAccounts.size());
+        latestSummaryLines.add("Successful: " + successCount);
+        latestSummaryLines.add("Failed: " + failedCount);
+        latestSummaryLines.add("Empty: " + emptyCount);
+        latestSummaryLines.add("Channels loaded: " + totalSuccessChannels);
+        if (!failedNames.isEmpty()) {
+            latestSummaryLines.add("Failed accounts: " + String.join(", ", failedNames));
+        }
+        if (!emptyNames.isEmpty()) {
+            latestSummaryLines.add("Empty accounts: " + String.join(", ", emptyNames));
+        }
+
+        VBox summaryBox = new VBox(4);
+        summaryBox.setPadding(new Insets(10));
+        summaryBox.setStyle("-fx-background-color: derive(-fx-control-inner-background, -2%);"
+                + "-fx-border-color: -fx-box-border;"
+                + "-fx-border-radius: 6;"
+                + "-fx-background-radius: 6;");
+
+        Label title = new Label("Run Summary");
+        title.setStyle("-fx-font-weight: bold;");
+        summaryBox.getChildren().add(title);
+
+        for (String line : latestSummaryLines) {
+            Label label = new Label(line);
+            label.setWrapText(true);
+            summaryBox.getChildren().add(label);
+        }
+
+        logVBox.getChildren().add(new Separator());
+        logVBox.getChildren().add(summaryBox);
+        logScrollPane.setVvalue(1.0);
     }
 
     private void setRunningAccount(Account currentAccount, int current, int total) {
@@ -366,7 +468,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void logMessage(Account account, String message) {
-        String compact = compactLog(message);
+        String compact = compactLog(account, message);
         if (compact == null || compact.isBlank()) {
             return;
         }
@@ -378,7 +480,7 @@ public class ReloadCachePopup extends VBox {
         });
     }
 
-    private String compactLog(String message) {
+    private String compactLog(Account account, String message) {
         if (message == null) {
             return "";
         }
@@ -390,29 +492,53 @@ public class ReloadCachePopup extends VBox {
             return "Loaded channels from local cache.";
         }
         if (trimmed.startsWith("No fresh cache found for category")) {
-            return trimmed.replace("No fresh cache found for category", "Cache miss for category")
-                    .replace(". Fetching from portal...", " -> fetching from portal.");
+            return trimmed.replace("No fresh cache found for category", "Cache miss:")
+                    .replace(". Fetching from portal...", " -> fetching.");
         }
         if (trimmed.startsWith("No fresh cached categories found")) {
-            return "Categories cache miss -> fetching from provider.";
+            String mode = modeLabel(account);
+            return mode == null ? "Categories cache miss -> fetching."
+                    : mode + " Categories: cache miss, fetching.";
         }
         if (trimmed.startsWith("No cached categories found")) {
-            return "No cached categories -> fetching from provider.";
+            String mode = modeLabel(account);
+            return mode == null ? "No cached categories -> fetching."
+                    : mode + " Categories: no cache, fetching.";
         }
         if (trimmed.startsWith("Fetching categories from Xtreme API")) {
-            return "Fetching categories (Xtreme API)...";
+            String mode = modeLabel(account);
+            return mode == null ? "Fetching categories (Xtreme API)..."
+                    : "Fetching " + mode + " categories (Xtreme API)...";
         }
         if (trimmed.startsWith("Fetching categories from Stalker Portal")) {
-            return "Fetching categories (Stalker Portal)...";
+            String mode = modeLabel(account);
+            return mode == null ? "Fetching categories (Stalker Portal)..."
+                    : "Fetching " + mode + " categories (Stalker Portal)...";
         }
         if (trimmed.startsWith("Found Categories")) {
+            Integer count = extractFirstNumber(trimmed);
+            if (count != null) {
+                String mode = modeLabel(account);
+                if (mode == null) {
+                    mode = "ITV";
+                }
+                return mode + " Categories: " + count;
+            }
             return trimmed.replace("Found Categories", "Categories:");
         }
         if (trimmed.startsWith("Found Channels")) {
+            Integer count = extractFirstNumber(trimmed);
+            if (count != null) {
+                String mode = modeLabel(account);
+                if (mode == null) {
+                    mode = "ITV";
+                }
+                return mode + " Channels: " + count;
+            }
             return trimmed.replace("Found Channels", "Channels:");
         }
         if (trimmed.endsWith("saved Successfully ✓")) {
-            return trimmed.replace(" saved Successfully ✓", " saved ✓");
+            return "Saved.";
         }
         if (trimmed.startsWith("Fetching page")) {
             return trimmed.replace("Fetching page", "Page")
@@ -427,16 +553,111 @@ public class ReloadCachePopup extends VBox {
             return trimmed.replace(" returned no channels.", " -> no channels.");
         }
         if (trimmed.startsWith("Saved ")) {
-            return trimmed.replace(" to local cache.", " to cache.")
-                    .replace(" to local VOD/Series cache.", " to VOD/Series cache.");
+            if (trimmed.contains(" to local VOD/Series cache.")) {
+                Integer count = extractFirstNumber(trimmed);
+                if (count != null) {
+                    String mode = modeLabel(account);
+                    if (mode != null) {
+                        return mode + " Categories: " + count;
+                    }
+                    return "Categories saved: " + count;
+                }
+            }
+            return trimmed.replace(" to local cache.", " to cache.");
         }
         if (trimmed.equals("No categories found. Keeping existing cache.")) {
-            return "No categories found. Existing cache kept.";
+            String mode = modeLabel(account);
+            return mode == null ? "No categories found. Cache kept."
+                    : mode + " Categories: none found.";
         }
         if (trimmed.equals("No channels found in any category. Keeping existing cache.")) {
-            return "No channels found. Existing cache kept.";
+            String mode = modeLabel(account);
+            if (mode == null) {
+                mode = "ITV";
+            }
+            return mode + " Channels: none found.";
+        }
+        if (trimmed.startsWith("Reload failed:")) {
+            return "Failed: " + shortFailure(trimmed.substring("Reload failed:".length()).trim());
+        }
+        if (trimmed.equals("Handshake failed.") || trimmed.startsWith("Handshake failed for")) {
+            return "Failed: handshake.";
+        }
+        if (trimmed.startsWith("Network error while loading categories")) {
+            return "Failed: network error.";
+        }
+        if (trimmed.startsWith("Failed to parse channels")) {
+            return "Failed: channel parse error.";
+        }
+        if (trimmed.startsWith("Last-resort fetch failed for category")) {
+            return "Failed: fallback category fetch.";
+        }
+        if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
+            return "Global lookup failed, using category fetch.";
+        }
+        if (trimmed.startsWith("Global Xtreme channel lookup returned no channels")) {
+            return "Global lookup empty, using category fetch.";
+        }
+        if (trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
+            return "Global lookup uncategorized, using category fetch.";
+        }
+        if (trimmed.startsWith("No channels returned by get_all_channels")) {
+            return "Global channel list empty, trying fallback.";
+        }
+        if (trimmed.startsWith("Last-resort fetch succeeded. Collected")) {
+            Integer count = extractFirstNumber(trimmed);
+            return count == null ? "Fallback fetch succeeded." : "Fallback fetch succeeded: " + count + " channels.";
         }
         return trimmed;
+    }
+
+    private Integer extractFirstNumber(String input) {
+        if (input == null) {
+            return null;
+        }
+        Matcher matcher = NUMBER_PATTERN.matcher(input);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String modeLabel(Account account) {
+        if (account == null || account.getAction() == null) {
+            return null;
+        }
+        switch (account.getAction()) {
+            case itv:
+                return "ITV";
+            case vod:
+                return "VOD";
+            case series:
+                return "SERIES";
+            default:
+                return null;
+        }
+    }
+
+    private String shortFailure(String message) {
+        if (message == null) {
+            return "unknown error.";
+        }
+        String compact = message.trim();
+        if (compact.isEmpty()) {
+            return "unknown error.";
+        }
+        int lineBreak = compact.indexOf('\n');
+        if (lineBreak >= 0) {
+            compact = compact.substring(0, lineBreak).trim();
+        }
+        if (compact.length() > 120) {
+            compact = compact.substring(0, 117).trim() + "...";
+        }
+        return compact;
     }
 
     private void runOnFxThreadAndWait(Runnable runnable) {
