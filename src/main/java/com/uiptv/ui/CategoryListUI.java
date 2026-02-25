@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.LoggerCallback;
+import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -33,10 +34,13 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.ui.RootApplication.primaryStage;
+import static com.uiptv.util.AccountType.M3U8_LOCAL;
+import static com.uiptv.util.AccountType.M3U8_URL;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -70,15 +74,30 @@ public class CategoryListUI extends HBox {
     }
 
     public void setItems(List<Category> list) {
+        List<Category> processedList = new ArrayList<>(list);
+
+        // Filter out "Uncategorized" for M3U accounts if it has no channels
+        if (account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL) {
+            processedList = processedList.stream()
+                    .filter(category -> {
+                        if ("Uncategorized".equalsIgnoreCase(category.getTitle())) {
+                            // Check if there are channels for this category in the DB
+                            return !ChannelDb.get().getChannels(category.getDbId()).isEmpty();
+                        }
+                        return true;
+                    })
+                    .collect(Collectors.toList());
+        }
+
         List<CategoryItem> catList = new ArrayList<>();
-        boolean hasAllCategory = list.stream().anyMatch(c -> "All".equalsIgnoreCase(c.getTitle()));
-        boolean shouldAddAll = !(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) || list.size() >= 2;
+        boolean hasAllCategory = processedList.stream().anyMatch(c -> "All".equalsIgnoreCase(c.getTitle()));
+        boolean shouldAddAll = !(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) || processedList.size() >= 2;
         if (!hasAllCategory && shouldAddAll) {
             catList.add(new CategoryItem(new SimpleStringProperty("all"), new SimpleStringProperty("All"), new SimpleStringProperty("all")));
         }
-        list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
+        processedList.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
         ModeState state = modeStates.computeIfAbsent(activeMode, k -> new ModeState());
-        state.categories = new ArrayList<>(list);
+        state.categories = new ArrayList<>(processedList);
         table.setItems(FXCollections.observableArrayList(catList));
         table.addTextFilter();
         table.setPlaceholder(null);
