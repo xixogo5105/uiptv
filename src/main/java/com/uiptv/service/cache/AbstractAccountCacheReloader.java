@@ -1,6 +1,7 @@
 package com.uiptv.service.cache;
 
 import com.uiptv.api.LoggerCallback;
+import com.uiptv.db.AccountDb;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
@@ -29,13 +30,23 @@ import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
 import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     protected static final String UNCATEGORIZED_ID = "uncategorized";
     protected static final String UNCATEGORIZED_NAME = "Uncategorized";
 
     protected void clearCache(Account account) {
+        String existingPortalUrl = account != null ? account.getServerPortalUrl() : "";
         ConfigurationService.getInstance().clearCache(account);
+        // During cache reloads we intentionally keep the discovered Stalker API endpoint.
+        // Otherwise clearCache() wipes it from Account table and later calls can fail with host-less requests.
+        if (account != null
+                && account.getType() == AccountType.STALKER_PORTAL
+                && isNotBlank(existingPortalUrl)) {
+            account.setServerPortalUrl(existingPortalUrl);
+            AccountDb.get().saveServerPortalUrl(account);
+        }
     }
 
     protected void log(LoggerCallback logger, String message) {

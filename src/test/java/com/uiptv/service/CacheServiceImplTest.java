@@ -1,5 +1,6 @@
 package com.uiptv.service;
 
+import com.uiptv.db.AccountDb;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
@@ -102,6 +103,30 @@ class CacheServiceImplTest extends DbBackedTest {
         assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
         assertTrue(logs.stream().anyMatch(m -> m.contains("Trying last-resort category-by-category fetch")));
         assertTrue(logs.stream().anyMatch(m -> m.contains("Last-resort fetch succeeded")));
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_persistsServerPortalUrl_afterInternalCacheClear() throws IOException {
+        Account account = createPersistedStalkerAccount("acc-stalker-persist-portal");
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+        String resolvedPortalUrl = "http://resolved.stalker.example/portal.php";
+
+        assertTrue(account.getServerPortalUrl() == null || account.getServerPortalUrl().isBlank());
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock, resolvedPortalUrl);
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
+                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        Account persisted = AccountDb.get().getAccountById(account.getDbId());
+        assertEquals(resolvedPortalUrl, persisted.getServerPortalUrl());
+        assertEquals(resolvedPortalUrl, account.getServerPortalUrl());
+        assertEquals(0, orderedListCalls.get(), "get_all_channels path should still be used");
     }
 
     @Test
@@ -283,12 +308,44 @@ class CacheServiceImplTest extends DbBackedTest {
         return account;
     }
 
+    private Account createPersistedStalkerAccount(String accountId) {
+        Account account = new Account(
+                "persisted-test-account-" + accountId,
+                "user",
+                "pass",
+                "http://stalker.example/portal.php",
+                "00:11:22:33:44:55",
+                null,
+                null,
+                null,
+                null,
+                null,
+                AccountType.STALKER_PORTAL,
+                null,
+                null,
+                false
+        );
+        account.setAction(Account.AccountAction.itv);
+        account.setServerPortalUrl("");
+        AccountDb.get().save(account);
+        Account persisted = AccountDb.get().getAccountByName(account.getAccountName());
+        persisted.setAction(Account.AccountAction.itv);
+        return persisted;
+    }
+
     private void mockSuccessfulHandshake(MockedStatic<HandshakeService> handshakeMock) {
+        mockSuccessfulHandshake(handshakeMock, null);
+    }
+
+    private void mockSuccessfulHandshake(MockedStatic<HandshakeService> handshakeMock, String resolvedPortalUrl) {
         HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
         handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
         Mockito.doAnswer(invocation -> {
             Account handshakeAccount = invocation.getArgument(0);
             handshakeAccount.setToken("mock-token");
+            if (resolvedPortalUrl != null) {
+                handshakeAccount.setServerPortalUrl(resolvedPortalUrl);
+            }
             return null;
         }).when(handshakeService).connect(Mockito.any(Account.class));
     }

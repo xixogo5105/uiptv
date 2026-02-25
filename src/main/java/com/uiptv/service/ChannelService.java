@@ -96,6 +96,9 @@ public class ChannelService {
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
+            if (account.getType() == STALKER_PORTAL) {
+                ensureStalkerSession(account, logger);
+            }
             if (shouldUseVodSeriesDbCache(account)) {
                 List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
                 if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
@@ -259,12 +262,25 @@ public class ChannelService {
 
     private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage, LoggerCallback logger) {
         List<Channel> channelList = new ArrayList<>();
+        if (account.getType() == STALKER_PORTAL) {
+            ensureStalkerSession(account, logger);
+        }
         log(logger, "Fetching page " + startPage + " for category " + category + "...");
         String json = FetchAPI.fetch(getChannelOrSeriesParams(category, startPage, account.getAction(), movieId, seriesId), account);
         Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
         List<Channel> firstPage = account.getAction() == itv
                 ? ChannelService.getInstance().parseItvChannels(json, censor)
                 : ChannelService.getInstance().parseVodChannels(account, json, censor);
+
+        if ((firstPage == null || firstPage.isEmpty()) && account.getType() == STALKER_PORTAL) {
+            log(logger, "No channels returned. Refreshing Stalker session and retrying page " + startPage + " once...");
+            HandshakeService.getInstance().hardTokenRefresh(account);
+            json = FetchAPI.fetch(getChannelOrSeriesParams(category, startPage, account.getAction(), movieId, seriesId), account);
+            pagination = ChannelService.getInstance().parsePagination(json, null);
+            firstPage = account.getAction() == itv
+                    ? ChannelService.getInstance().parseItvChannels(json, censor)
+                    : ChannelService.getInstance().parseVodChannels(account, json, censor);
+        }
 
         if (firstPage == null || firstPage.isEmpty()) {
             log(logger, "Page " + startPage + " returned no channels.");
@@ -296,6 +312,17 @@ public class ChannelService {
             if (callback != null) callback.accept(pagedChannels);
         }
         return dedupeChannels(channelList);
+    }
+
+    private void ensureStalkerSession(Account account, LoggerCallback logger) {
+        if (account == null || account.getType() != STALKER_PORTAL) {
+            return;
+        }
+        if (account.isConnected() && isNotBlank(account.getServerPortalUrl())) {
+            return;
+        }
+        log(logger, "Ensuring Stalker session...");
+        HandshakeService.getInstance().connect(account);
     }
 
     private void log(LoggerCallback logger, String message) {

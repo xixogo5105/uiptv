@@ -47,6 +47,9 @@ public class PlayerService {
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
+        if (!predefined && account != null && account.getType() == STALKER_PORTAL) {
+            ensureStalkerSession(account);
+        }
         LogDisplayUI.addLog("Resolving playback URL for " + account.getType() + " account: " + account.getAccountName());
         String rawUrl;
         if (predefined) {
@@ -515,6 +518,18 @@ public class PlayerService {
         // Reject known broken pattern with empty stream parameter.
         if (normalized.contains("stream=&")) return false;
         return true;
+    }
+
+    private void ensureStalkerSession(Account account) {
+        if (account == null || account.getType() != STALKER_PORTAL) {
+            return;
+        }
+        if (isBlank(account.getServerPortalUrl())) {
+            AccountService.getInstance().ensureServerPortalUrl(account);
+        }
+        if (account.isNotConnected()) {
+            HandshakeService.getInstance().connect(account);
+        }
     }
 
 }

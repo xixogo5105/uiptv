@@ -14,11 +14,15 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.util.LogUtil.httpLog;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class FetchAPI {
     public static String fetch(Map<String, String> params, final Account account) {
         try {
-            String baseUrl = account.getServerPortalUrl();
+            String baseUrl = resolveBaseUrl(account);
+            if (isBlank(baseUrl)) {
+                throw new IllegalArgumentException("Target host is not specified");
+            }
             String payload = params == null || params.isEmpty() ? "" : mapToString(params);
             String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
             boolean isPost = "POST".equalsIgnoreCase(httpMethod);
@@ -39,6 +43,45 @@ public class FetchAPI {
             Platform.runLater(() -> LogDisplayUI.addLog("Network Error: " + ex.getMessage()));
         }
         return StringUtils.EMPTY;
+    }
+
+    private static String resolveBaseUrl(Account account) {
+        if (account == null) {
+            return "";
+        }
+        String serverPortal = normalizeUrlCandidate(account.getServerPortalUrl(), true);
+        if (isNotBlank(serverPortal)) {
+            return serverPortal;
+        }
+        return normalizeUrlCandidate(account.getUrl(), true);
+    }
+
+    private static String normalizeUrlCandidate(String value, boolean appendPortalPhpWhenMissing) {
+        if (isBlank(value)) {
+            return "";
+        }
+        String candidate = value.trim();
+        if (!candidate.contains("://")) {
+            candidate = "http://" + candidate;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(candidate);
+            if (isBlank(uri.getHost())) {
+                return "";
+            }
+            String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();
+            if (appendPortalPhpWhenMissing
+                    && !path.endsWith("portal.php")
+                    && !path.endsWith("load.php")) {
+                if (candidate.endsWith("/")) {
+                    return candidate + "portal.php";
+                }
+                return candidate + "/portal.php";
+            }
+            return candidate;
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private static Map<String, String> headers(Account account, boolean isPost) {
