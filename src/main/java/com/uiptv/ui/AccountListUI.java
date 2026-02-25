@@ -25,6 +25,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -151,13 +152,7 @@ public class AccountListUI extends HBox {
         });
 
         MenuItem reloadCache = new MenuItem("Reload Cache");
-        reloadCache.setOnAction(actionEvent -> {
-            if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
-            } else {
-                handleReloadCache(row.getItem());
-            }
-        });
+        reloadCache.setOnAction(actionEvent -> handleReloadCache(row.getItem()));
 
         MenuItem deleteItem = new MenuItem("Delete Account");
         deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
@@ -182,13 +177,41 @@ public class AccountListUI extends HBox {
                         .otherwise(rowMenu));
     }
 
-    private void handleReloadCache(AccountItem item) {
-        Account account = AccountDb.get().getAccountById(item.getAccountId());
-        if (account == null) {
-            showErrorAlert("Unable to find account.");
+    private void handleReloadCache(AccountItem contextItem) {
+        List<Account> accounts = resolveAccountsForReload(contextItem);
+        if (accounts.isEmpty()) {
+            showErrorAlert("No cache-supported account selected.");
             return;
         }
-        ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account));
+        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
+    }
+
+    private List<Account> resolveAccountsForReload(AccountItem contextItem) {
+        List<AccountItem> selectedItems = (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems();
+        boolean contextInSelection = contextItem != null
+                && selectedItems.stream().anyMatch(item -> contextItem.getAccountId().equals(item.getAccountId()));
+
+        List<AccountItem> sourceItems;
+        if (!selectedItems.isEmpty() && contextInSelection) {
+            sourceItems = selectedItems;
+        } else if (contextItem != null) {
+            sourceItems = List.of(contextItem);
+        } else {
+            sourceItems = List.of();
+        }
+
+        LinkedHashSet<String> uniqueAccountIds = new LinkedHashSet<>();
+        List<Account> accounts = new ArrayList<>();
+        for (AccountItem sourceItem : sourceItems) {
+            if (sourceItem == null || !uniqueAccountIds.add(sourceItem.getAccountId())) {
+                continue;
+            }
+            Account account = AccountDb.get().getAccountById(sourceItem.getAccountId());
+            if (account != null && CACHE_SUPPORTED.contains(account.getType())) {
+                accounts.add(account);
+            }
+        }
+        return accounts;
     }
 
     private void handleDeleteAccounts() {
@@ -234,7 +257,7 @@ public class AccountListUI extends HBox {
         boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
 
         if (!channelsAlreadyLoaded) {
-            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account));
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::refresh);
         }
 
         primaryStage.getScene().setCursor(Cursor.WAIT);

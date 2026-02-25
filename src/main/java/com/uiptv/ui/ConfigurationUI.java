@@ -61,6 +61,7 @@ public class ConfigurationUI extends VBox {
 
     private final Button startServerButton = new Button("Start Server");
     private final Button stopServerButton = new Button("Stop Server");
+    private final Hyperlink openServerLink = new Hyperlink("open");
     private final Button publishM3u8Button = new Button("Publish M3U8");
     private final Button clearCacheButton = new Button("Clear Cache");
     private final Button reloadCacheButton = new Button("Reload Accounts Cache");
@@ -169,7 +170,9 @@ public class ConfigurationUI extends VBox {
         HBox cacheButtons = new HBox(10, clearCacheButton, reloadCacheButton);
         VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheButtons);
 
-        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton);
+        openServerLink.setVisible(false);
+        openServerLink.setManaged(false);
+        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
         VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
@@ -191,6 +194,7 @@ public class ConfigurationUI extends VBox {
         addClearCacheButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
         addReloadCacheButtonClickHandler();
+        addOpenServerLinkClickHandler();
         installServerStatusMonitor();
     }
 
@@ -224,7 +228,13 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow()));
+        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow(), null, this::notifyAccountsChanged));
+    }
+
+    private void notifyAccountsChanged() {
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
     }
 
     private void updateEmbeddedPlayerTitle() {
@@ -317,6 +327,26 @@ public class ConfigurationUI extends VBox {
         }
         startServerButton.setDisable(running);
         stopServerButton.setDisable(!running);
+        openServerLink.setVisible(running);
+        openServerLink.setManaged(running);
+    }
+
+    private void addOpenServerLinkClickHandler() {
+        openServerLink.setOnAction(event -> {
+            String port = resolveServerPort();
+            RootApplication.openInBrowser("http://localhost:" + port + "/");
+        });
+    }
+
+    private String resolveServerPort() {
+        String port = serverPort.getText();
+        if (port == null || port.isBlank()) {
+            Configuration configuration = service.read();
+            if (configuration != null) {
+                port = configuration.getServerPort();
+            }
+        }
+        return (port == null || port.isBlank()) ? "8888" : port.trim();
     }
 
     private void addSaveButtonClickHandler() {

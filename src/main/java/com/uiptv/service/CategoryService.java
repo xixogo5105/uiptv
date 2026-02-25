@@ -254,7 +254,29 @@ public class CategoryService {
     }
 
     private List<Category> maybeFilterCategories(List<Category> categories, boolean applyFilter) {
-        return applyFilter ? contentFilterService.filterCategories(categories) : categories;
+        List<Category> normalized = normalizeAllAndUncategorized(categories);
+        return applyFilter ? contentFilterService.filterCategories(normalized) : normalized;
+    }
+
+    private List<Category> normalizeAllAndUncategorized(List<Category> categories) {
+        if (categories == null || categories.isEmpty() || categories.size() != 2) {
+            return categories;
+        }
+        boolean hasAll = categories.stream().anyMatch(c -> titleEquals(c, "All"));
+        boolean hasUncategorized = categories.stream().anyMatch(c -> titleEquals(c, "Uncategorized"));
+        if (!hasAll || !hasUncategorized) {
+            return categories;
+        }
+        return categories.stream()
+                .filter(c -> !titleEquals(c, "Uncategorized"))
+                .toList();
+    }
+
+    private boolean titleEquals(Category category, String value) {
+        if (category == null || category.getTitle() == null || value == null) {
+            return false;
+        }
+        return category.getTitle().trim().equalsIgnoreCase(value.trim());
     }
 
     private void log(LoggerCallback logger, String message) {

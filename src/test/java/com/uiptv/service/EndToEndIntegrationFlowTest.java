@@ -282,6 +282,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         for (Account m3u : getM3uAccounts()) {
             cacheLive(m3u, cacheService);
         }
+        assertM3uUncategorizedAllCategoryCoverage();
 
         for (Account rss : getAccountsByType(AccountType.RSS_FEED)) {
             cacheLive(rss, cacheService);
@@ -591,6 +592,26 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
         assertNotNull(enriched, "Expected enriched bookmark entry");
         assertFalse(enriched.optString("logo", "").isBlank(), "Expected non-empty logo after bookmark JSON enrichment");
+    }
+
+    private void assertM3uUncategorizedAllCategoryCoverage() throws IOException {
+        Account uncategorizedOnlyM3u = getM3uAccounts().stream()
+                .filter(a -> a.getM3u8Path() != null && a.getM3u8Path().contains("/m3u/account-2.m3u"))
+                .findFirst()
+                .orElseThrow();
+
+        uncategorizedOnlyM3u.setAction(itv);
+        AccountService.getInstance().save(uncategorizedOnlyM3u);
+
+        List<Category> categories = CategoryDb.get().getCategories(uncategorizedOnlyM3u);
+        assertEquals(1, categories.size(), "Uncategorized-only M3U should expose only All category");
+        Category allCategory = categories.get(0);
+        assertEquals("All", allCategory.getTitle());
+
+        List<Channel> channels = ChannelService.getInstance().get("All", uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
+        assertEquals(3, channels.size(), "All category should preserve all channels from uncategorized-only playlist");
+        assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
+                channels.stream().map(Channel::getName).collect(Collectors.toSet()));
     }
 
     private void assertSeriesEpisodeBookmarkPlayFlow() throws Exception {
@@ -1176,10 +1197,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         if (path.endsWith("account-2.m3u")) {
             body = """
                     #EXTM3U
-                    #EXTINF:-1 tvg-id="m3u2-1" group-title="Live",M3U Two One
-                    http://example.com/m3u/two/one.ts
-                    #EXTINF:-1 tvg-id="m3u2-2" group-title="Live",M3U Two Two
-                    http://example.com/m3u/two/two.ts
+                    #EXTINF:-1 tvg-id="u-1" group-title="Uncategorized",Uncat One
+                    http://example.com/m3u/uncat/one.ts
+                    #EXTINF:-1 tvg-id="u-2" group-title="Uncategorized",Uncat Two
+                    http://example.com/m3u/uncat/two.ts
+                    #EXTINF:-1 tvg-id="u-3" group-title="Uncategorized",Uncat Three
+                    http://example.com/m3u/uncat/three.ts
                     """;
         } else {
             body = """

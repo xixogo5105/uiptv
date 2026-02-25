@@ -9,7 +9,9 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -30,6 +32,7 @@ public class ParseMultipleAccountUI extends VBox {
     private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox("Start verification after parsing");
     private final ProminentButton saveButton = new ProminentButton("Parse & Save");
     private final Button clearButton = new Button("Clear");
+    private final VBox contentContainer = new VBox();
     private Callback<Void> onSaveCallback;
 
     public ParseMultipleAccountUI() {
@@ -41,8 +44,19 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(5));
-        setSpacing(5);
+        setPadding(Insets.EMPTY);
+        setSpacing(0);
+        contentContainer.setPadding(new Insets(5));
+        contentContainer.setSpacing(5);
+
+        ScrollPane scrollPane = new ScrollPane(contentContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setPannable(true);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        getChildren().setAll(scrollPane);
+
         saveButton.setPrefWidth(330);
         saveButton.setPrefHeight(50);
         multipleSPAccounts.setMinHeight(400);
@@ -62,7 +76,7 @@ public class ParseMultipleAccountUI extends VBox {
         spacer.setPrefHeight(10);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, saveButton);
-        getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, startVerificationAfterParsingCheckBox, buttonWrapper2);
+        contentContainer.getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, startVerificationAfterParsingCheckBox, buttonWrapper2);
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
         addCheckBoxListeners();
@@ -124,6 +138,12 @@ public class ParseMultipleAccountUI extends VBox {
         Stage owner = getScene() != null && getScene().getWindow() instanceof Stage
                 ? (Stage) getScene().getWindow()
                 : null;
-        ReloadCachePopup.showPopup(owner, accountsToVerify);
+        ReloadCachePopup.showPopup(owner, accountsToVerify, this::notifyAccountsChanged);
+    }
+
+    private void notifyAccountsChanged() {
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
     }
 }

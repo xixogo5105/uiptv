@@ -60,8 +60,25 @@ public class HttpChannelJsonServer implements HttpHandler {
         } else if ("All".equalsIgnoreCase(categoryId)) {
             List<Category> categories = resolveCategoriesForAccount(account);
             JSONArray allChannels = new JSONArray();
-            for (Category cat : categories) {
-                if (!"All".equalsIgnoreCase(cat.getTitle())) {
+            List<Category> nonAllCategories = categories.stream()
+                    .filter(cat -> !"All".equalsIgnoreCase(cat.getTitle()))
+                    .toList();
+            if (nonAllCategories.isEmpty()) {
+                Category allCategory = categories.stream()
+                        .filter(cat -> "All".equalsIgnoreCase(cat.getTitle()))
+                        .findFirst()
+                        .orElse(null);
+                if (allCategory != null) {
+                    String channelsJson = ChannelService.getInstance().readToJson(allCategory, account);
+                    if (channelsJson != null && !channelsJson.isEmpty()) {
+                        JSONArray channelsArray = new JSONArray(channelsJson);
+                        for (int i = 0; i < channelsArray.length(); i++) {
+                            allChannels.put(channelsArray.getJSONObject(i));
+                        }
+                    }
+                }
+            } else {
+                for (Category cat : nonAllCategories) {
                     String channelsJson = ChannelService.getInstance().readToJson(cat, account);
                     if (channelsJson != null && !channelsJson.isEmpty()) {
                         JSONArray channelsArray = new JSONArray(channelsJson);

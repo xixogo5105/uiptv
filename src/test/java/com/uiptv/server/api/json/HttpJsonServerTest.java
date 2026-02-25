@@ -13,6 +13,7 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -80,6 +81,53 @@ class HttpJsonServerTest extends DbBackedTest {
         assertEquals(200, exchange.getResponseCode());
         JSONArray response = new JSONArray(exchange.getResponseBodyText());
         assertEquals(2, response.length());
+    }
+
+    @Test
+    void channelServer_allCategory_withOnlyAllCategory_returnsAllCategoryChannels() throws Exception {
+        Account account = createAccount("channel-all-only-api");
+        CategoryDb categoryDb = CategoryDb.get();
+        categoryDb.saveAll(List.of(new Category("all", "All", "all", false, 0)), account);
+        Category allCategory = categoryDb.getCategories(account).get(0);
+
+        ChannelDb.get().saveAll(
+                List.of(new Channel("c-all", "All One", "1", "cmd://all", null, null, null, "logo", 0, 1, 1, null, null, null, null, null)),
+                allCategory.getDbId(),
+                account
+        );
+
+        HttpChannelJsonServer handler = new HttpChannelJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/channel?accountId=" + account.getDbId() + "&categoryId=All", "GET");
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONArray response = new JSONArray(exchange.getResponseBodyText());
+        assertEquals(1, response.length());
+        assertEquals("All One", response.getJSONObject(0).getString("name"));
+    }
+
+    @Test
+    void webChannelServer_allCategory_withOnlyAllCategory_returnsAllCategoryChannels() throws Exception {
+        Account account = createAccount("web-channel-all-only-api");
+        CategoryDb categoryDb = CategoryDb.get();
+        categoryDb.saveAll(List.of(new Category("all", "All", "all", false, 0)), account);
+        Category allCategory = categoryDb.getCategories(account).get(0);
+
+        ChannelDb.get().saveAll(
+                List.of(new Channel("c-web-all", "Web All One", "1", "cmd://web-all", null, null, null, "logo", 0, 1, 1, null, null, null, null, null)),
+                allCategory.getDbId(),
+                account
+        );
+
+        HttpWebChannelJsonServer handler = new HttpWebChannelJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/channels?accountId=" + account.getDbId() + "&categoryId=All&page=0&pageSize=50", "GET");
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONObject response = new JSONObject(exchange.getResponseBodyText());
+        JSONArray items = response.getJSONArray("items");
+        assertEquals(1, items.length());
+        assertEquals("Web All One", items.getJSONObject(0).getString("name"));
     }
 
     @Test

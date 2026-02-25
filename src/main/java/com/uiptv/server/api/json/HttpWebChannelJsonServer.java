@@ -122,13 +122,31 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         if ("All".equalsIgnoreCase(categoryId)) {
             JSONArray allChannels = new JSONArray();
             List<Category> categories = resolveCategoriesForAccount(account);
-            for (Category cat : categories) {
-                if ("All".equalsIgnoreCase(cat.getTitle())) continue;
-                String channelsJson = ChannelService.getInstance().readToJson(cat, account);
-                if (channelsJson == null || channelsJson.isEmpty()) continue;
-                JSONArray channelsArray = new JSONArray(channelsJson);
-                for (int i = 0; i < channelsArray.length(); i++) {
-                    allChannels.put(channelsArray.getJSONObject(i));
+            List<Category> nonAllCategories = categories.stream()
+                    .filter(cat -> !"All".equalsIgnoreCase(cat.getTitle()))
+                    .toList();
+            if (nonAllCategories.isEmpty()) {
+                Category allCategory = categories.stream()
+                        .filter(cat -> "All".equalsIgnoreCase(cat.getTitle()))
+                        .findFirst()
+                        .orElse(null);
+                if (allCategory != null) {
+                    String channelsJson = ChannelService.getInstance().readToJson(allCategory, account);
+                    if (channelsJson != null && !channelsJson.isEmpty()) {
+                        JSONArray channelsArray = new JSONArray(channelsJson);
+                        for (int i = 0; i < channelsArray.length(); i++) {
+                            allChannels.put(channelsArray.getJSONObject(i));
+                        }
+                    }
+                }
+            } else {
+                for (Category cat : nonAllCategories) {
+                    String channelsJson = ChannelService.getInstance().readToJson(cat, account);
+                    if (channelsJson == null || channelsJson.isEmpty()) continue;
+                    JSONArray channelsArray = new JSONArray(channelsJson);
+                    for (int i = 0; i < channelsArray.length(); i++) {
+                        allChannels.put(channelsArray.getJSONObject(i));
+                    }
                 }
             }
             return allChannels.toString();

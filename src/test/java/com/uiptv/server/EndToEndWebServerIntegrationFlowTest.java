@@ -64,6 +64,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
+    private static final String WEB_M3U_UNCATEGORIZED_ONLY = "web-m3u-uncat-url";
+    private static final int UNCATEGORIZED_ONLY_CHANNEL_COUNT = 3;
+
     private HttpServer providerMockServer;
     private String providerBaseUrl;
     private String stalkerPortalUrl;
@@ -214,6 +217,14 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         m3uUrl.setAction(itv);
         AccountService.getInstance().save(m3uUrl);
 
+        Account m3uUncategorizedOnly = new Account(
+                WEB_M3U_UNCATEGORIZED_ONLY, null, null, providerBaseUrl + "/m3u/account-uncategorized-only.m3u",
+                null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, providerBaseUrl + "/m3u/account-uncategorized-only.m3u", false
+        );
+        m3uUncategorizedOnly.setAction(itv);
+        AccountService.getInstance().save(m3uUncategorizedOnly);
+
         Account rss = new Account(
                 "web-rss", null, null, rssFeedUrl,
                 null, null, null, null, null, null,
@@ -269,7 +280,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             ChannelService.getInstance().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
         }
 
-        for (String name : List.of("web-m3u-local", "web-m3u-url", "web-rss")) {
+        for (String name : List.of("web-m3u-local", "web-m3u-url", WEB_M3U_UNCATEGORIZED_ONLY, "web-rss")) {
             Account a = accountService.getByName(name);
             a.setAction(itv);
             accountService.save(a);
@@ -338,6 +349,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         Account stalker = accountService.getByName("web-stalker");
         Account xtreme = accountService.getByName("web-xtreme");
         Account m3u = accountService.getByName("web-m3u-local");
+        Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
         Account rss = accountService.getByName("web-rss");
 
         JSONArray stalkerItvCats = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=itv"));
@@ -347,6 +359,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         JSONArray xtremeVodCats = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=vod"));
         JSONArray xtremeSeriesCats = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
         JSONArray m3uCats = jsonArrayBody(get("/categories?accountId=" + m3u.getDbId() + "&mode=itv"));
+        JSONArray uncategorizedOnlyM3uCats = jsonArrayBody(get("/categories?accountId=" + uncategorizedOnlyM3u.getDbId() + "&mode=itv"));
         JSONArray rssCats = jsonArrayBody(get("/categories?accountId=" + rss.getDbId() + "&mode=itv"));
 
         assertTrue(stalkerItvCats.length() >= 2);
@@ -356,6 +369,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(xtremeVodCats.length() >= 2);
         assertTrue(xtremeSeriesCats.length() >= 2);
         assertTrue(m3uCats.length() >= 1);
+        assertEquals(1, uncategorizedOnlyM3uCats.length());
+        assertEquals("All", uncategorizedOnlyM3uCats.getJSONObject(0).optString("title"));
         assertTrue(rssCats.length() >= 1);
     }
 
@@ -363,6 +378,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         AccountService accountService = AccountService.getInstance();
         Account stalker = accountService.getByName("web-stalker");
         Account xtreme = accountService.getByName("web-xtreme");
+        Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
 
         Category stalkerLiveCategory = CategoryDb.get().getCategories(stalker).stream()
                 .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
@@ -387,6 +403,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 .orElseThrow();
         JSONArray xtremeChannels = jsonArrayBody(get("/channels?accountId=" + xtreme.getDbId() + "&categoryId=" + xtremeLiveCategory.getDbId() + "&mode=itv"));
         assertTrue(xtremeChannels.length() >= 1);
+
+        JSONArray uncategorizedOnlyAllChannels = jsonArrayBody(get("/channels?accountId="
+                + uncategorizedOnlyM3u.getDbId()
+                + "&categoryId=All&mode=itv"));
+        assertEquals(UNCATEGORIZED_ONLY_CHANNEL_COUNT, uncategorizedOnlyAllChannels.length());
+        assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"), jsonFieldSet(uncategorizedOnlyAllChannels, "name"));
     }
 
     private void assertSeriesApis() throws Exception {
@@ -628,6 +650,15 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                     + "&mode=itv&categoryId=" + xtremeCategory.getDbId() + "&page=0&pageSize=10&prefetchPages=1";
             JSONObject xtremeJson = jsonObjectBody(getAbsolute(xtremeUrl));
             assertTrue(xtremeJson.getJSONArray("items").length() >= 1);
+
+            Account uncategorizedOnlyM3u = AccountService.getInstance().getByName(WEB_M3U_UNCATEGORIZED_ONLY);
+            String uncategorizedOnlyUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + uncategorizedOnlyM3u.getDbId()
+                    + "&mode=itv&categoryId=All&page=0&pageSize=10&prefetchPages=1";
+            JSONObject uncategorizedOnlyJson = jsonObjectBody(getAbsolute(uncategorizedOnlyUrl));
+            assertEquals(UNCATEGORIZED_ONLY_CHANNEL_COUNT, uncategorizedOnlyJson.getJSONArray("items").length());
+            assertFalse(uncategorizedOnlyJson.getBoolean("hasMore"));
+            assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
+                    jsonFieldSet(uncategorizedOnlyJson.getJSONArray("items"), "name"));
         } finally {
             tempServer.stop(0);
         }
@@ -695,6 +726,14 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private JSONObject jsonObjectBody(HttpTextResponse response) {
         assertEquals(200, response.statusCode(), response.body());
         return new JSONObject(response.body());
+    }
+
+    private Set<String> jsonFieldSet(JSONArray array, String field) {
+        Set<String> values = new java.util.HashSet<>();
+        for (int i = 0; i < array.length(); i++) {
+            values.add(array.getJSONObject(i).optString(field));
+        }
+        return values;
     }
 
     private record HttpTextResponse(int statusCode, String body) {
@@ -900,6 +939,16 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                     http://example.com/m3u/two/one.ts
                     #EXTINF:-1 tvg-id="m3u2-2" group-title="Live",M3U Two Two
                     http://example.com/m3u/two/two.ts
+                    """;
+        } else if (path.endsWith("account-uncategorized-only.m3u")) {
+            body = """
+                    #EXTM3U
+                    #EXTINF:-1 tvg-id="u-1" group-title="Uncategorized",Uncat One
+                    http://example.com/m3u/uncat/one.ts
+                    #EXTINF:-1 tvg-id="u-2" group-title="Uncategorized",Uncat Two
+                    http://example.com/m3u/uncat/two.ts
+                    #EXTINF:-1 tvg-id="u-3" group-title="Uncategorized",Uncat Three
+                    http://example.com/m3u/uncat/three.ts
                     """;
         } else {
             body = """

@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.CategoryDb;
 import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
@@ -136,7 +137,7 @@ public class ChannelService {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
         }
 
-        List<Channel> channels = dedupeChannels(ChannelDb.get().getChannels(dbId));
+        List<Channel> channels = resolveCachedLiveChannels(categoryId, dbId, account);
         channels.forEach(this::resolveLogoIfNeeded);
         if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
             //if live TV channels for a category is empty then make a direct call to stream server for fetching the contents
@@ -151,6 +152,35 @@ public class ChannelService {
         List<Channel> censoredChannels = maybeFilterChannels(dedupeChannels(channels), true);
         if (callback != null) callback.accept(censoredChannels);
         return censoredChannels;
+    }
+
+    private List<Channel> resolveCachedLiveChannels(String categoryId, String dbCategoryId, Account account) {
+        if (!isAllCategoryForLocalCachedProvider(categoryId, account)) {
+            return dedupeChannels(ChannelDb.get().getChannels(dbCategoryId));
+        }
+
+        // Primary path: if "All" itself is cached, use it directly.
+        List<Channel> directAll = dedupeChannels(ChannelDb.get().getChannels(dbCategoryId));
+        if (!directAll.isEmpty()) {
+            return directAll;
+        }
+
+        // Fallback for legacy/stale caches where channels may still be under non-All categories.
+        List<Channel> merged = new ArrayList<>();
+        for (Category category : CategoryDb.get().getCategories(account)) {
+            if (category == null || isBlank(category.getDbId())) {
+                continue;
+            }
+            merged.addAll(ChannelDb.get().getChannels(category.getDbId()));
+        }
+        return dedupeChannels(merged);
+    }
+
+    private boolean isAllCategoryForLocalCachedProvider(String categoryId, Account account) {
+        return "All".equalsIgnoreCase(categoryId)
+                && account != null
+                && account.getType() != STALKER_PORTAL
+                && account.getType() != XTREME_API;
     }
 
     private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) throws IOException {

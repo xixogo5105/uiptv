@@ -85,6 +85,52 @@ class CacheServiceImplTest extends DbBackedTest {
     }
 
     @Test
+    void reloadCache_m3u8Local_uncategorizedOnly_savesOnlyAllCategory_andKeepsAllChannels() throws IOException {
+        Account account = createM3uAccount("acc-uncategorized-only", writeUncategorizedOnlyPlaylist("cache-playlist-uncategorized-only.m3u"));
+
+        CacheService cacheService = new CacheServiceImpl();
+        cacheService.reloadCache(account, m -> {
+        });
+
+        List<Category> categories = CategoryDb.get().getCategories(account);
+        assertEquals(1, categories.size());
+        assertEquals("All", categories.get(0).getTitle());
+
+        int channelCount = ChannelDb.get().getChannelCountForAccount(account.getDbId());
+        assertEquals(3, channelCount);
+
+        List<Channel> allChannels = ChannelService.getInstance().get("All", account, categories.get(0).getDbId());
+        assertEquals(3, allChannels.size(), "All category should still expose every playlist item");
+    }
+
+    @Test
+    void channelService_allCategory_aggregatesLegacyUncategorizedRows_whenAllCategoryHasNoRows() throws IOException {
+        Account account = createM3uAccount("acc-all-legacy-fallback", writePlaylist("cache-playlist-legacy-all.m3u"));
+
+        CategoryDb.get().saveAll(
+                List.of(
+                        new Category("all", "All", "all", false, 0),
+                        new Category("uncategorized", "Uncategorized", "Uncategorized", false, 0)
+                ),
+                account
+        );
+
+        List<Category> categories = CategoryDb.get().getCategories(account);
+        Category allCategory = categories.stream().filter(c -> "All".equalsIgnoreCase(c.getTitle())).findFirst().orElseThrow();
+        Category uncategorizedCategory = categories.stream().filter(c -> "Uncategorized".equalsIgnoreCase(c.getTitle())).findFirst().orElseThrow();
+
+        ChannelDb.get().saveAll(
+                List.of(new Channel("legacy-1", "Legacy Channel", "1", "cmd://legacy", null, null, null, "logo", 0, 1, 1, null, null, null, null, null)),
+                uncategorizedCategory.getDbId(),
+                account
+        );
+
+        List<Channel> channels = ChannelService.getInstance().get("All", account, allCategory.getDbId());
+        assertEquals(1, channels.size(), "All category should include channels stored under legacy Uncategorized rows");
+        assertEquals("Legacy Channel", channels.get(0).getName());
+    }
+
+    @Test
     void reloadCache_stalkerPortal_usesCategoryFallback_whenGetAllChannelsIsBlank() throws IOException {
         Account account = createStalkerAccount("acc-stalker-fallback");
         List<String> logs = new ArrayList<>();
@@ -448,6 +494,21 @@ class CacheServiceImplTest extends DbBackedTest {
                 http://example.com/live/sports
                 #EXTINF:-1 tvg-id="premium-1" tvg-logo="premium.png" group-title="Live",Premium Plus
                 http://example.com/live/premium
+                """;
+        Path file = tempDir.resolve(filename);
+        Files.writeString(file, content);
+        return file.toString();
+    }
+
+    private String writeUncategorizedOnlyPlaylist(String filename) throws IOException {
+        String content = """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="u-1" tvg-logo="u1.png" group-title="Uncategorized",Uncat One
+                http://example.com/uncat/one
+                #EXTINF:-1 tvg-id="u-2" tvg-logo="u2.png" group-title="Uncategorized",Uncat Two
+                http://example.com/uncat/two
+                #EXTINF:-1 tvg-id="u-3" tvg-logo="u3.png" group-title="Uncategorized",Uncat Three
+                http://example.com/uncat/three
                 """;
         Path file = tempDir.resolve(filename);
         Files.writeString(file, content);

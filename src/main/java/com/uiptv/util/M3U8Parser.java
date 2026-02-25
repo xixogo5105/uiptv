@@ -81,6 +81,7 @@ public class M3U8Parser {
     private static Set<PlaylistEntry> parseCategory(BufferedReader reader) {
         Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
         playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));
+        boolean hasUncategorizedEntries = false;
         try {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -94,6 +95,12 @@ public class M3U8Parser {
                                     null,
                                     null,
                                     null));
+                            if (groupTitle.equalsIgnoreCase("Uncategorized")) {
+                                hasUncategorizedEntries = true;
+                            }
+                        } else {
+                            // Missing group-title should be represented by Uncategorized if present in the source.
+                            hasUncategorizedEntries = true;
                         }
                         reader.readLine();
                     }
@@ -104,7 +111,8 @@ public class M3U8Parser {
         } catch (Exception e) {
             UIptvAlert.showError(e.getMessage());
         }
-        if (playlistEntries.size() > 1 && playlistEntries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase("Uncategorized"))) {
+        if (hasUncategorizedEntries
+                && playlistEntries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase("Uncategorized"))) {
             playlistEntries.add(new PlaylistEntry("Uncategorized", "Uncategorized", null, null, null));
         }
         return playlistEntries;

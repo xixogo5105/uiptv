@@ -17,6 +17,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -62,6 +63,7 @@ public class ManageAccountUI extends VBox {
     private final Button clearButton = new Button("Clear Data");
     private final Button refreshChannelsButton = new Button("Reload Cache");
     private final CacheService cacheService = new CacheServiceImpl();
+    private final VBox formContainer = new VBox();
     AccountService service = AccountService.getInstance();
     private String accountId;
     private Callback onSaveCallback;
@@ -75,8 +77,19 @@ public class ManageAccountUI extends VBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(5));
-        setSpacing(5);
+        setPadding(Insets.EMPTY);
+        setSpacing(0);
+        formContainer.setPadding(new Insets(5));
+        formContainer.setSpacing(5);
+
+        ScrollPane scrollPane = new ScrollPane(formContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setPannable(true);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        getChildren().setAll(scrollPane);
+
         saveButton.setMinWidth(430);
         saveButton.setPrefWidth(430);
         saveButton.setMinHeight(50);
@@ -150,27 +163,27 @@ public class ManageAccountUI extends VBox {
     }
 
     private void populateForm(AccountType type, HBox macAddressContainer, VBox actionSection) {
-        getChildren().clear();
+        formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox);
                 break;
             case M3U8_LOCAL:
-                getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
                 break;
             case M3U8_URL:
             case RSS_FEED:
-                getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
                 break;
             case XTREME_API:
-                getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox);
                 break;
         }
 
         boolean cacheSupported = CACHE_SUPPORTED.contains(type);
         refreshChannelsButton.setManaged(cacheSupported);
         refreshChannelsButton.setVisible(cacheSupported);
-        getChildren().add(actionSection);
+        formContainer.getChildren().add(actionSection);
     }
 
     private void openManageMacsPopup() {
@@ -356,8 +369,14 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert("Please save the account before reloading the cache.");
                 return;
             }
-            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account));
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged);
         });
+    }
+
+    private void notifyAccountsChanged() {
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
     }
 
     private Stage resolveOwnerStage() {

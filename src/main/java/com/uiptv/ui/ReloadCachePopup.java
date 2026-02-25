@@ -56,6 +56,10 @@ public class ReloadCachePopup extends VBox {
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
     private final List<String> latestSummaryLines = new ArrayList<>();
+    private final Runnable onAccountsDeleted;
+    private VBox accountColumn;
+    private ColumnConstraints accountsColumn;
+    private ColumnConstraints logsColumn;
     private String currentRunningAccountId;
 
     public static void showPopup(Stage owner) {
@@ -63,12 +67,16 @@ public class ReloadCachePopup extends VBox {
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts) {
+        showPopup(owner, preselectedAccounts, null);
+    }
+
+    public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
         Stage popupStage = new Stage();
         if (owner != null) {
             popupStage.initOwner(owner);
             popupStage.initModality(Modality.WINDOW_MODAL);
         }
-        ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts);
+        ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts, onAccountsDeleted);
         Scene scene = new Scene(popup, 1368, 720);
         popupStage.setTitle("Reload Accounts Cache");
         popupStage.setScene(scene);
@@ -80,7 +88,12 @@ public class ReloadCachePopup extends VBox {
     }
 
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts) {
+        this(stage, preselectedAccounts, null);
+    }
+
+    public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
         this.stage = stage;
+        this.onAccountsDeleted = onAccountsDeleted;
         setSpacing(10);
         setPadding(new Insets(10));
         setPrefSize(1368, 720);
@@ -152,7 +165,7 @@ public class ReloadCachePopup extends VBox {
         logScrollPane.setMaxWidth(Double.MAX_VALUE);
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
 
-        VBox accountColumn = new VBox(10, selectMenu, accountsScrollPane);
+        accountColumn = new VBox(10, selectMenu, accountsScrollPane);
         accountColumn.setMaxWidth(Double.MAX_VALUE);
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
 
@@ -160,12 +173,12 @@ public class ReloadCachePopup extends VBox {
         mainContent.setHgap(10);
         mainContent.setMaxWidth(Double.MAX_VALUE);
 
-        ColumnConstraints accountsColumn = new ColumnConstraints();
+        accountsColumn = new ColumnConstraints();
         accountsColumn.setPercentWidth(35);
         accountsColumn.setFillWidth(true);
         accountsColumn.setHgrow(Priority.ALWAYS);
 
-        ColumnConstraints logsColumn = new ColumnConstraints();
+        logsColumn = new ColumnConstraints();
         logsColumn.setPercentWidth(65);
         logsColumn.setFillWidth(true);
         logsColumn.setHgrow(Priority.ALWAYS);
@@ -226,9 +239,19 @@ public class ReloadCachePopup extends VBox {
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
             preselectAccounts(preselectedAccounts);
             if (checkBoxes.stream().anyMatch(CheckBox::isSelected)) {
+                hideAccountSelectionColumn();
                 Platform.runLater(this::startReloadInBackground);
             }
         }
+    }
+
+    private void hideAccountSelectionColumn() {
+        accountColumn.setVisible(false);
+        accountColumn.setManaged(false);
+        accountsColumn.setPercentWidth(0);
+        accountsColumn.setMinWidth(0);
+        accountsColumn.setMaxWidth(0);
+        logsColumn.setPercentWidth(100);
     }
 
     private void updateCheckboxes(AccountType type, boolean selected) {
@@ -399,6 +422,9 @@ public class ReloadCachePopup extends VBox {
             alert.showAndWait().ifPresent(response -> {
                 if (response == ButtonType.YES) {
                     toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
+                    if (onAccountsDeleted != null) {
+                        onAccountsDeleted.run();
+                    }
                     popupStage.close();
                 }
             });
