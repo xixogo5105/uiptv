@@ -52,6 +52,7 @@ createApp({
         const videoPlayerModal = ref(null);
         const playerModalFrame = ref(null);
         const videoTracks = ref([]);
+        const playbackLifecycleId = ref(0);
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
         const modeLoadingCount = ref({ itv: 0, vod: 0, series: 0, bookmarks: 0 });
@@ -930,8 +931,13 @@ createApp({
             startPlayback(playbackUrl);
         };
 
+        const isPlaybackRequestActive = (lifecycleId) => lifecycleId === playbackLifecycleId.value;
+
         const startPlayback = async (url) => {
-            await stopPlayback(true);
+            playbackLifecycleId.value++;
+            const lifecycleId = playbackLifecycleId.value;
+            await stopPlayback(true, false);
+            if (!isPlaybackRequestActive(lifecycleId)) return;
             playerKey.value++;
             isPlaying.value = true;
             isBusy.value = false;
@@ -941,22 +947,30 @@ createApp({
 
             try {
                 const response = await fetch(url);
+                if (!isPlaybackRequestActive(lifecycleId)) return;
                 const channelData = await response.json();
+                if (!isPlaybackRequestActive(lifecycleId)) return;
                 if (!channelData?.url && currentChannel.value?.cmd) {
                     const fallbackUrl = normalizeWebPlaybackUrl(String(currentChannel.value.cmd).trim().replace(/^ffmpeg\s+/i, ''));
-                    await initPlayer({ url: fallbackUrl });
+                    await initPlayer({ url: fallbackUrl }, lifecycleId);
                 } else {
-                    await initPlayer({ ...(channelData || {}), url: normalizeWebPlaybackUrl(channelData?.url) });
+                    await initPlayer({ ...(channelData || {}), url: normalizeWebPlaybackUrl(channelData?.url) }, lifecycleId);
                 }
             } catch (e) {
+                if (!isPlaybackRequestActive(lifecycleId)) return;
                 console.error('Failed to start playback', e);
                 isPlaying.value = false;
             } finally {
+                if (!isPlaybackRequestActive(lifecycleId)) return;
                 playerLoading.value = false;
             }
         };
 
-        const stopPlayback = async (preserveUi = false) => {
+        const stopPlayback = async (preserveUi = false, invalidateLifecycle = true) => {
+            if (invalidateLifecycle) {
+                playbackLifecycleId.value++;
+            }
+            const lifecycleId = playbackLifecycleId.value;
             repeatInFlight.value = false;
             if (playerInstance.value) {
                 try {
@@ -966,6 +980,7 @@ createApp({
                 }
                 playerInstance.value = null;
             }
+            if (!isPlaybackRequestActive(lifecycleId)) return;
             clearVideoElement(videoPlayerModal.value);
             if (!preserveUi) {
                 isPlaying.value = false;
@@ -1039,7 +1054,8 @@ createApp({
             video.dataset.uiptvBound = '1';
         };
 
-        const initPlayer = async (channel) => {
+        const initPlayer = async (channel, lifecycleId) => {
+            if (!isPlaybackRequestActive(lifecycleId)) return;
             const uri = normalizeWebPlaybackUrl(channel.url);
             if (!uri) {
                 isPlaying.value = false;
@@ -1055,7 +1071,7 @@ createApp({
 
             isYoutube.value = false;
             const video = await resolveActiveVideoElement();
-            if (!video) return;
+            if (!video || !isPlaybackRequestActive(lifecycleId)) return;
             bindPlaybackEvents(video);
 
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
@@ -1071,17 +1087,17 @@ createApp({
                 normalizedUri.includes('/play/movie.php');
 
             if (hasDRM) {
-                await loadShaka({ ...channel, url: uri });
+                await loadShaka({ ...channel, url: uri }, lifecycleId);
             } else if (isLikelyProgressive) {
-                await loadNative({ ...channel, url: uri });
+                await loadNative({ ...channel, url: uri }, lifecycleId);
             } else if (isDash) {
-                await loadShaka({ ...channel, url: uri });
+                await loadShaka({ ...channel, url: uri }, lifecycleId);
             } else if (isHls) {
-                if (isApple && canNative) await loadNative({ ...channel, url: uri });
-                else await loadShaka({ ...channel, url: uri });
+                if (isApple && canNative) await loadNative({ ...channel, url: uri }, lifecycleId);
+                else await loadShaka({ ...channel, url: uri }, lifecycleId);
             } else {
                 // Unknown URLs (often redirected Stalker series links) work better with native first.
-                await loadNative({ ...channel, url: uri });
+                await loadNative({ ...channel, url: uri }, lifecycleId);
             }
         };
 
@@ -1095,12 +1111,14 @@ createApp({
             return value;
         };
 
-        const loadNative = async (channel) => {
+        const loadNative = async (channel, lifecycleId) => {
+            if (!isPlaybackRequestActive(lifecycleId)) return;
             const video = await resolveActiveVideoElement();
-            if (video) {
+            if (video && isPlaybackRequestActive(lifecycleId)) {
                 let sourceUrl = normalizeWebPlaybackUrl(channel.url);
                 video.src = sourceUrl;
                 try {
+                    if (!isPlaybackRequestActive(lifecycleId)) return;
                     await video.play();
                 } catch (e) {
                     const lower = String(sourceUrl || '').toLowerCase();
@@ -1110,6 +1128,7 @@ createApp({
                         try {
                             sourceUrl = `http://${sourceUrl.slice('https://'.length)}`;
                             video.src = sourceUrl;
+                            if (!isPlaybackRequestActive(lifecycleId)) return;
                             await video.play();
                             return;
                         } catch (retryErr) {
@@ -1121,16 +1140,29 @@ createApp({
             }
         };
 
-        const loadShaka = async (channel) => {
+        const loadShaka = async (channel, lifecycleId) => {
+            if (!isPlaybackRequestActive(lifecycleId)) return;
             const video = await resolveActiveVideoElement();
-            if (!video) return;
+            if (!video || !isPlaybackRequestActive(lifecycleId)) return;
             bindPlaybackEvents(video);
 
             shaka.polyfill.installAll();
             if (!shaka.Player.isBrowserSupported()) return;
 
             const player = new shaka.Player();
+            const destroyTransientPlayer = async () => {
+                if (playerInstance.value === player) {
+                    playerInstance.value = null;
+                }
+                try {
+                    await player.destroy();
+                } catch (_) {}
+            };
             playerInstance.value = player;
+            if (!isPlaybackRequestActive(lifecycleId)) {
+                await destroyTransientPlayer();
+                return;
+            }
 
             player.addEventListener('error', (event) => {
                 console.error('Shaka Player Error:', event.detail);
@@ -1144,8 +1176,20 @@ createApp({
             }
 
             try {
+                if (!isPlaybackRequestActive(lifecycleId)) {
+                    await destroyTransientPlayer();
+                    return;
+                }
                 await player.attach(video);
+                if (!isPlaybackRequestActive(lifecycleId)) {
+                    await destroyTransientPlayer();
+                    return;
+                }
                 await player.load(channel.url);
+                if (!isPlaybackRequestActive(lifecycleId)) {
+                    await destroyTransientPlayer();
+                    return;
+                }
                 videoTracks.value = player.getVariantTracks();
                 autoSelectBestTrack(player);
             } catch (e) {
