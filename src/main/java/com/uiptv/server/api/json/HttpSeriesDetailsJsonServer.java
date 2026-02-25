@@ -2,6 +2,7 @@ package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
@@ -17,6 +18,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
@@ -24,6 +26,8 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpSeriesDetailsJsonServer implements HttpHandler {
+    private static final long EPISODE_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -41,6 +45,12 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         response.put("seasonInfo", new JSONObject());
         response.put("episodes", new JSONArray());
         response.put("episodesMeta", new JSONArray());
+        if (!isBlank(seriesId)) {
+            List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
+            if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, EPISODE_CACHE_TTL_MS)) {
+                response.put("episodes", new JSONArray(com.uiptv.util.ServerUtils.objectToJson(cached)));
+            }
+        }
 
         // IMDb-first strategy: use fuzzy IMDb match as primary metadata source.
         JSONObject seasonInfo = new JSONObject();
@@ -105,6 +115,9 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
                     }
                 }
                 response.put("episodes", episodesJson);
+                if (episodesJson.length() > 0) {
+                    SeriesEpisodeDb.get().saveAll(account, seriesId, toChannels(episodesJson));
+                }
             }
         }
 
@@ -127,6 +140,21 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         applyNameYearFallback(seasonInfo, seriesName);
 
         generateJsonResponse(ex, response.toString());
+    }
+
+    private java.util.List<Channel> toChannels(JSONArray episodesJson) {
+        java.util.List<Channel> channels = new java.util.ArrayList<>();
+        for (int i = 0; i < episodesJson.length(); i++) {
+            JSONObject obj = episodesJson.optJSONObject(i);
+            if (obj == null) {
+                continue;
+            }
+            Channel channel = Channel.fromJson(obj.toString());
+            if (channel != null) {
+                channels.add(channel);
+            }
+        }
+        return channels;
     }
 
     private void mergeMissing(JSONObject target, JSONObject source, String key) {

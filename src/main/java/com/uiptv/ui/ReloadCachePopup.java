@@ -11,7 +11,6 @@ import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
@@ -19,24 +18,29 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.scene.text.Text;
-import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCachePopup extends VBox {
 
+    private enum AccountRunStatus {
+        QUEUED, RUNNING, DONE, FAILED, EMPTY
+    }
+
     private final Stage stage;
     private final VBox accountsVBox = new VBox(5);
-    private final VBox logVBox = new VBox(5);
+    private final VBox logVBox = new VBox(8);
     private final ScrollPane accountsScrollPane = new ScrollPane();
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
@@ -44,6 +48,9 @@ public class ReloadCachePopup extends VBox {
     private final ProgressIndicator loadingIndicator = createLoadingIndicator();
     private final CacheService cacheService = new CacheServiceImpl();
     private final List<CheckBox> checkBoxes = new ArrayList<>();
+    private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
+    private final List<String> runAccountOrder = new ArrayList<>();
+    private String currentRunningAccountId;
 
     public ReloadCachePopup(Stage stage) {
         this.stage = stage;
@@ -115,11 +122,9 @@ public class ReloadCachePopup extends VBox {
         logScrollPane.setFitToWidth(true);
         logScrollPane.setMinHeight(250);
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
-        logVBox.heightProperty().addListener((obs, oldVal, newVal) -> logScrollPane.setVvalue(1.0));
 
 
         reloadButton.setOnAction(event -> {
-            logVBox.getChildren().clear();
             new Thread(this::reloadSelectedAccounts).start();
         });
 
@@ -132,17 +137,14 @@ public class ReloadCachePopup extends VBox {
             final Clipboard clipboard = Clipboard.getSystemClipboard();
             final ClipboardContent content = new ClipboardContent();
             StringBuilder sb = new StringBuilder();
-            for (Node node : logVBox.getChildren()) {
-                if (node instanceof Text) {
-                    sb.append(((Text) node).getText()).append("\n");
-                } else if (node instanceof TextFlow) {
-                    ((TextFlow) node).getChildren().forEach(t -> {
-                        if (t instanceof Text) {
-                            sb.append(((Text) t).getText());
-                        }
-                    });
-                    sb.append("\n");
+            for (String accountId : runAccountOrder) {
+                AccountLogPanel panel = accountLogPanels.get(accountId);
+                if (panel == null) {
+                    continue;
                 }
+                sb.append(panel.getAccountLabel()).append("\n");
+                panel.getLogs().forEach(line -> sb.append("  ").append(line).append("\n"));
+                sb.append("\n");
             }
             content.putString(sb.toString());
             clipboard.setContent(content);
@@ -182,40 +184,54 @@ public class ReloadCachePopup extends VBox {
             loadingIndicator.setVisible(true);
         });
 
-        List<CheckBox> selectedAccounts = accountsVBox.getChildren().stream()
-                .filter(node -> node instanceof CheckBox && ((CheckBox) node).isSelected())
-                .map(node -> (CheckBox) node)
+        List<Account> selectedAccounts = checkBoxes.stream()
+                .filter(CheckBox::isSelected)
+                .map(checkBox -> (Account) checkBox.getUserData())
                 .collect(Collectors.toList());
 
         int total = selectedAccounts.size();
         progressBar.setTotal(total);
+        prepareAccountLogPanels(selectedAccounts);
+
+        if (total == 0) {
+            Platform.runLater(() -> {
+                reloadButton.setVisible(true);
+                loadingIndicator.setVisible(false);
+            });
+            return;
+        }
 
         List<Account> processedAccounts = new ArrayList<>();
 
         for (int i = 0; i < total; i++) {
-            CheckBox checkBox = selectedAccounts.get(i);
-            Account account = (Account) checkBox.getUserData();
+            Account account = selectedAccounts.get(i);
             processedAccounts.add(account);
+            setRunningAccount(account, i + 1, total);
+
             boolean success = false;
+            boolean failed = false;
+            int channelCount = 0;
             try {
-                cacheService.reloadCache(account, this::logMessage);
-                if (cacheService.getChannelCountForAccount(account.getDbId()) > 0) {
+                cacheService.reloadCache(account, message -> logMessage(account, message));
+                channelCount = cacheService.getChannelCountForAccount(account.getDbId());
+                if (channelCount > 0) {
                     success = true;
                 } else {
-                    success = false;
-                    logMessage("Warning: No channels found for " + account.getAccountName());
+                    logMessage(account, "No channels found.");
                 }
             } catch (Exception e) {
-                logMessage("Error reloading cache for " + account.getAccountName() + ": " + e.getMessage());
-                success = false;
+                failed = true;
+                logMessage(account, "Reload failed: " + e.getMessage());
             }
+
             progressBar.updateSegment(i, success);
+            AccountRunStatus finalStatus = success
+                    ? AccountRunStatus.DONE
+                    : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY);
+            updateAccountStatus(account, finalStatus, channelCount);
         }
 
         Platform.runLater(() -> {
-            Text allDoneText = new Text("All done.");
-            allDoneText.setStyle("-fx-font-weight: bold; -fx-fill: darkgreen;");
-            logVBox.getChildren().add(allDoneText);
             System.out.print("\u0007"); // Beep
             reloadButton.setVisible(true);
             loadingIndicator.setVisible(false);
@@ -296,11 +312,247 @@ public class ReloadCachePopup extends VBox {
         popupStage.show();
     }
 
-    public void logMessage(String message) {
-        Platform.runLater(() -> {
-            Text text = new Text(message);
-            text.getStyleClass().add("log-text");
-            logVBox.getChildren().add(text);
+    private void prepareAccountLogPanels(List<Account> selectedAccounts) {
+        runOnFxThreadAndWait(() -> {
+            accountLogPanels.clear();
+            runAccountOrder.clear();
+            currentRunningAccountId = null;
+            logVBox.getChildren().clear();
+
+            for (Account account : selectedAccounts) {
+                AccountLogPanel panel = new AccountLogPanel(account);
+                panel.setStatus(AccountRunStatus.QUEUED, null);
+                panel.setExpanded(false);
+                accountLogPanels.put(account.getDbId(), panel);
+                runAccountOrder.add(account.getDbId());
+                logVBox.getChildren().add(panel.getRoot());
+            }
         });
+    }
+
+    private void setRunningAccount(Account currentAccount, int current, int total) {
+        runOnFxThreadAndWait(() -> {
+            String nextAccountId = currentAccount.getDbId();
+
+            if (currentRunningAccountId != null && !currentRunningAccountId.equals(nextAccountId)) {
+                AccountLogPanel previousPanel = accountLogPanels.get(currentRunningAccountId);
+                if (previousPanel != null) {
+                    previousPanel.setExpanded(false);
+                }
+            }
+
+            AccountLogPanel currentPanel = accountLogPanels.get(nextAccountId);
+            if (currentPanel != null) {
+                currentPanel.setExpanded(true);
+                currentPanel.setStatus(AccountRunStatus.RUNNING, current, total);
+            }
+            currentRunningAccountId = nextAccountId;
+
+            if (total > 1) {
+                logScrollPane.setVvalue((double) (current - 1) / (double) (total - 1));
+            } else {
+                logScrollPane.setVvalue(0);
+            }
+        });
+    }
+
+    private void updateAccountStatus(Account account, AccountRunStatus status, Integer channelCount) {
+        Platform.runLater(() -> {
+            AccountLogPanel panel = accountLogPanels.get(account.getDbId());
+            if (panel != null) {
+                panel.setStatus(status, channelCount);
+            }
+        });
+    }
+
+    private void logMessage(Account account, String message) {
+        String compact = compactLog(message);
+        if (compact == null || compact.isBlank()) {
+            return;
+        }
+        Platform.runLater(() -> {
+            AccountLogPanel panel = accountLogPanels.get(account.getDbId());
+            if (panel != null) {
+                panel.appendLog(compact);
+            }
+        });
+    }
+
+    private String compactLog(String message) {
+        if (message == null) {
+            return "";
+        }
+        String trimmed = message.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        if (trimmed.startsWith("Loaded channels from local cache")) {
+            return "Loaded channels from local cache.";
+        }
+        if (trimmed.startsWith("No fresh cache found for category")) {
+            return trimmed.replace("No fresh cache found for category", "Cache miss for category")
+                    .replace(". Fetching from portal...", " -> fetching from portal.");
+        }
+        if (trimmed.startsWith("No fresh cached categories found")) {
+            return "Categories cache miss -> fetching from provider.";
+        }
+        if (trimmed.startsWith("No cached categories found")) {
+            return "No cached categories -> fetching from provider.";
+        }
+        if (trimmed.startsWith("Fetching categories from Xtreme API")) {
+            return "Fetching categories (Xtreme API)...";
+        }
+        if (trimmed.startsWith("Fetching categories from Stalker Portal")) {
+            return "Fetching categories (Stalker Portal)...";
+        }
+        if (trimmed.startsWith("Found Categories")) {
+            return trimmed.replace("Found Categories", "Categories:");
+        }
+        if (trimmed.startsWith("Found Channels")) {
+            return trimmed.replace("Found Channels", "Channels:");
+        }
+        if (trimmed.endsWith("saved Successfully ✓")) {
+            return trimmed.replace(" saved Successfully ✓", " saved ✓");
+        }
+        if (trimmed.startsWith("Fetching page")) {
+            return trimmed.replace("Fetching page", "Page")
+                    .replace(" for category ", " (category ")
+                    .replace("...", ")");
+        }
+        if (trimmed.startsWith("Fetched")) {
+            return trimmed.replace(" channels from page ", " channels (page ")
+                    .replace(".", ")");
+        }
+        if (trimmed.startsWith("Page ") && trimmed.endsWith(" returned no channels.")) {
+            return trimmed.replace(" returned no channels.", " -> no channels.");
+        }
+        if (trimmed.startsWith("Saved ")) {
+            return trimmed.replace(" to local cache.", " to cache.")
+                    .replace(" to local VOD/Series cache.", " to VOD/Series cache.");
+        }
+        if (trimmed.equals("No categories found. Keeping existing cache.")) {
+            return "No categories found. Existing cache kept.";
+        }
+        if (trimmed.equals("No channels found in any category. Keeping existing cache.")) {
+            return "No channels found. Existing cache kept.";
+        }
+        return trimmed;
+    }
+
+    private void runOnFxThreadAndWait(Runnable runnable) {
+        if (Platform.isFxApplicationThread()) {
+            runnable.run();
+            return;
+        }
+        CountDownLatch latch = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try {
+                runnable.run();
+            } finally {
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static final class AccountLogPanel {
+        private final Account account;
+        private final VBox root = new VBox(6);
+        private final HBox header = new HBox(8);
+        private final Label accountLabel = new Label();
+        private final Label statusLabel = new Label();
+        private final Label arrowLabel = new Label("▸");
+        private final VBox logBody = new VBox(4);
+        private final List<String> logs = new ArrayList<>();
+
+        private AccountLogPanel(Account account) {
+            this.account = account;
+            this.accountLabel.setText(getAccountLabel());
+            this.accountLabel.setStyle("-fx-font-weight: bold;");
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            this.header.setAlignment(Pos.CENTER_LEFT);
+            this.header.setPadding(new Insets(8));
+            this.header.setStyle("-fx-background-color: derive(-fx-control-inner-background, -3%);"
+                    + "-fx-border-color: -fx-box-border;"
+                    + "-fx-border-radius: 6;"
+                    + "-fx-background-radius: 6;");
+            this.header.getChildren().addAll(accountLabel, spacer, statusLabel, arrowLabel);
+
+            this.logBody.setPadding(new Insets(0, 10, 8, 10));
+            this.root.getChildren().addAll(header, logBody);
+            this.root.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
+
+            this.header.setOnMouseClicked(event -> setExpanded(!logBody.isVisible()));
+        }
+
+        private String getAccountLabel() {
+            return account.getAccountName() + " (" + account.getType().getDisplay() + ")";
+        }
+
+        private VBox getRoot() {
+            return root;
+        }
+
+        private List<String> getLogs() {
+            return logs;
+        }
+
+        private void setExpanded(boolean expanded) {
+            logBody.setVisible(expanded);
+            logBody.setManaged(expanded);
+            arrowLabel.setText(expanded ? "▾" : "▸");
+        }
+
+        private void appendLog(String line) {
+            logs.add(line);
+            Label lineLabel = new Label(line);
+            lineLabel.setWrapText(true);
+            lineLabel.getStyleClass().add("log-text");
+            logBody.getChildren().add(lineLabel);
+        }
+
+        private void setStatus(AccountRunStatus status, Integer channelCount) {
+            switch (status) {
+                case QUEUED:
+                    statusLabel.setText("Queued");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
+                    break;
+                case RUNNING:
+                    statusLabel.setText("Running");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
+                    break;
+                case DONE:
+                    statusLabel.setText(channelCount == null ? "Done" : "Done (" + channelCount + " channels)");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
+                    break;
+                case EMPTY:
+                    statusLabel.setText("Empty (0 channels)");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
+                    break;
+                case FAILED:
+                    statusLabel.setText("Failed");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
+                    break;
+                default:
+                    statusLabel.setText("");
+                    break;
+            }
+        }
+
+        private void setStatus(AccountRunStatus status, Integer current, Integer total) {
+            if (status == AccountRunStatus.RUNNING && current != null && total != null) {
+                statusLabel.setText("Running (" + current + "/" + total + ")");
+                statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
+            } else {
+                setStatus(status, (Integer) null);
+            }
+        }
     }
 }

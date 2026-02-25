@@ -78,6 +78,8 @@ class CacheServiceImplTest extends DbBackedTest {
         assertEquals(0, orderedListCalls.get(), "Fallback API should not be called when get_all_channels has data");
         assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
         assertTrue(logs.stream().noneMatch(m -> m.contains("Trying last-resort category-by-category fetch")));
+        assertTrue(logs.stream().anyMatch(m -> m.startsWith("Found Categories ")));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Channels saved Successfully")));
     }
 
     @Test

@@ -399,6 +399,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         JSONArray episodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId() + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)));
         assertTrue(episodes.length() >= 5);
+        JSONArray cachedEpisodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId() + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)));
+        assertEquals(episodes.length(), cachedEpisodes.length());
 
         JSONObject details = jsonObjectBody(get("/seriesDetails?accountId=" + xtreme.getDbId()
                 + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)

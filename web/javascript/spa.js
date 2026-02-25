@@ -440,6 +440,16 @@ createApp({
             }
         };
 
+        const withSyntheticAllCategory = (items, accountType) => {
+            const list = Array.isArray(items) ? [...items] : [];
+            const normalizedType = String(accountType || '').toUpperCase();
+            const isStalkerOrXtreme = normalizedType === 'STALKER_PORTAL' || normalizedType === 'XTREME_API';
+            const hasAll = list.some(c => String(c?.title || '').toLowerCase() === 'all');
+            if (hasAll) return list;
+            if (isStalkerOrXtreme && list.length < 2) return list;
+            return [{ dbId: 'All', categoryId: 'All', title: 'All' }, ...list];
+        };
+
         const loadCategories = async (accountIdOrObj, forceReload = false) => {
             const selected = typeof accountIdOrObj === 'object'
                 ? accountIdOrObj
@@ -461,7 +471,7 @@ createApp({
                 const response = await fetch(
                     `${window.location.origin}/categories?accountId=${currentContext.value.accountId}&mode=${contentMode.value}`
                 );
-                categories.value = await response.json();
+                categories.value = withSyntheticAllCategory(await response.json(), currentContext.value.accountType);
                 channels.value = [];
                 episodes.value = [];
                 viewState.value = 'categories';

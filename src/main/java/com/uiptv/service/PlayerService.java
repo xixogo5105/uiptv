@@ -47,9 +47,11 @@ public class PlayerService {
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
+        LogDisplayUI.addLog("Resolving playback URL for " + account.getType() + " account: " + account.getAccountName());
         String rawUrl;
         if (predefined) {
             rawUrl = resolveBestChannelCmd(account, channel);
+            LogDisplayUI.addLog("Using direct channel command for " + account.getType() + ".");
         } else if (shouldTryLiveCmdFallback(account, channel)) {
             rawUrl = fetchStalkerLiveUrlWithFallback(account, channel, series);
         } else {
@@ -57,6 +59,7 @@ public class PlayerService {
             rawUrl = fetchStalkerPortalUrl(account, series, originalCmd);
         }
         String finalUrl = normalizeStreamUrl(account, resolveAndProcessUrl(rawUrl));
+        LogDisplayUI.addLog("Playback URL resolved.");
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;

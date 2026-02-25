@@ -15,6 +15,7 @@ public class DatabaseUtils {
         VOD_CHANNEL_TABLE("VodChannel"),
         SERIES_CATEGORY_TABLE("SeriesCategory"),
         SERIES_CHANNEL_TABLE("SeriesChannel"),
+        SERIES_EPISODE_TABLE("SeriesEpisode"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
         BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
 
@@ -36,7 +37,8 @@ public class DatabaseUtils {
             DbTable.VOD_CATEGORY_TABLE,
             DbTable.VOD_CHANNEL_TABLE,
             DbTable.SERIES_CATEGORY_TABLE,
-            DbTable.SERIES_CHANNEL_TABLE
+            DbTable.SERIES_CHANNEL_TABLE,
+            DbTable.SERIES_EPISODE_TABLE
     );
     public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE, DbTable.BOOKMARK_CATEGORY_TABLE, DbTable.BOOKMARK_ORDER_TABLE);
 
@@ -198,6 +200,23 @@ public class DatabaseUtils {
                 new DataColumn("clearKeysJson", "TEXT"),
                 new DataColumn("inputstreamaddon", "TEXT"),
                 new DataColumn("manifestType", "TEXT"),
+                new DataColumn("extraJson", "TEXT"),
+                new DataColumn("cachedAt", "INTEGER")
+        )));
+        dbStructure.put(DbTable.SERIES_EPISODE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("accountId", "TEXT"),
+                new DataColumn("seriesId", "TEXT"),
+                new DataColumn("channelId", "TEXT NOT NULL"),
+                new DataColumn("name", "TEXT"),
+                new DataColumn("cmd", "TEXT"),
+                new DataColumn("logo", "TEXT"),
+                new DataColumn("season", "TEXT"),
+                new DataColumn("episodeNum", "TEXT"),
+                new DataColumn("description", "TEXT"),
+                new DataColumn("releaseDate", "TEXT"),
+                new DataColumn("rating", "TEXT"),
+                new DataColumn("duration", "TEXT"),
                 new DataColumn("extraJson", "TEXT"),
                 new DataColumn("cachedAt", "INTEGER")
         )));

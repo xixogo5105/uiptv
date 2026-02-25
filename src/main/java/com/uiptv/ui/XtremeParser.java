@@ -67,6 +67,27 @@ public class XtremeParser {
         }
     }
 
+    public static List<Channel> parseAllChannels(Account account) {
+        try {
+            if (!account.getM3u8Path().endsWith("/")) {
+                account.setM3u8Path(account.getM3u8Path() + "/");
+            }
+            URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=" + getChannelListAction(account.getAction()));
+            if (account.getM3u8Path().startsWith("https")) {
+                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
+                return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
+            } else if (account.getM3u8Path().startsWith("http")) {
+                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
+                connection.setConnectTimeout(10000);
+                return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
+            }
+            return doParseChannels(readFullyAsString(m3u8Url.openStream(), "UTF-8"), account);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static EpisodeList parseEpisodes(String seriesId, Account account) {
         try {
             if (!account.getM3u8Path().endsWith("/")) {
@@ -128,6 +149,7 @@ public class XtremeParser {
                         null,
                         null
                 );
+                channel.setCategoryId(safeGetString(jsonCategory, "category_id"));
                 channel.setExtraJson(jsonCategory.toString());
                 categoryList.add(channel);
             }

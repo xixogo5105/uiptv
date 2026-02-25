@@ -72,7 +72,8 @@ public class CategoryListUI extends HBox {
     public void setItems(List<Category> list) {
         List<CategoryItem> catList = new ArrayList<>();
         boolean hasAllCategory = list.stream().anyMatch(c -> "All".equalsIgnoreCase(c.getTitle()));
-        if (!hasAllCategory) {
+        boolean shouldAddAll = !(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) || list.size() >= 2;
+        if (!hasAllCategory && shouldAddAll) {
             catList.add(new CategoryItem(new SimpleStringProperty("all"), new SimpleStringProperty("All"), new SimpleStringProperty("all")));
         }
         list.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));

@@ -3,10 +3,12 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.CategoryDb;
+import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.HandshakeService;
@@ -24,6 +26,8 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpChannelJsonServer implements HttpHandler {
+    private static final long EPISODE_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -39,11 +43,20 @@ public class HttpChannelJsonServer implements HttpHandler {
                 && account.getType() == AccountType.STALKER_PORTAL
                 && isNotBlank(movieId)
                 && !"All".equalsIgnoreCase(categoryId)) {
+            if (SeriesEpisodeDb.get().isFresh(account, movieId, EPISODE_CACHE_TTL_MS)) {
+                List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, movieId);
+                if (!cached.isEmpty()) {
+                    generateJsonResponse(ex, dedupeJsonResponse(com.uiptv.util.ServerUtils.objectToJson(cached)));
+                    return;
+                }
+            }
             Category category = resolveCategoryByDbId(account, categoryId);
             String categoryApiId = category != null ? category.getCategoryId() : categoryId;
-            response = StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(
-                    ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null)
-            );
+            List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
+            if (!episodes.isEmpty()) {
+                SeriesEpisodeDb.get().saveAll(account, movieId, episodes);
+            }
+            response = StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(episodes);
         } else if ("All".equalsIgnoreCase(categoryId)) {
             List<Category> categories = resolveCategoriesForAccount(account);
             JSONArray allChannels = new JSONArray();

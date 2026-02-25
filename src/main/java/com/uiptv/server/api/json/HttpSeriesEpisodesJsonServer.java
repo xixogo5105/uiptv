@@ -2,6 +2,7 @@ package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
@@ -21,6 +22,8 @@ import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
 
 public class HttpSeriesEpisodesJsonServer implements HttpHandler {
+    private static final long EPISODE_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -34,6 +37,16 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
 
         String seriesId = getParam(ex, "seriesId");
         List<Channel> episodesAsChannels = new ArrayList<>();
+        if (StringUtils.isBlank(seriesId)) {
+            generateJsonResponse(ex, "[]");
+            return;
+        }
+
+        List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
+        if (!cachedEpisodes.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, EPISODE_CACHE_TTL_MS)) {
+            generateJsonResponse(ex, ServerUtils.objectToJson(cachedEpisodes));
+            return;
+        }
 
         if (account.getType() == AccountType.XTREME_API && StringUtils.isNotBlank(seriesId)) {
             EpisodeList episodes = XtremeParser.parseEpisodes(seriesId, account);
@@ -63,6 +76,9 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
             }
         }
 
+        if (!episodesAsChannels.isEmpty()) {
+            SeriesEpisodeDb.get().saveAll(account, seriesId, episodesAsChannels);
+        }
         generateJsonResponse(ex, ServerUtils.objectToJson(episodesAsChannels));
     }
 }
