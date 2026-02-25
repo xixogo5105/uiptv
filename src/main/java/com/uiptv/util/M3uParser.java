@@ -3,6 +3,9 @@ package com.uiptv.util;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static com.uiptv.util.UiptUtils.*;
 
 /**
@@ -10,7 +13,8 @@ import static com.uiptv.util.UiptUtils.*;
  */
 public class M3uParser implements AccountParser {
     @Override
-    public void parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public List<Account> parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+        List<Account> createdAccounts = new ArrayList<>();
         for (String line : text.split("\\R")) {
             for (final String potentialUrl : replaceAllNonPrintableChars(line).split(SPACER)) {
                 if (!isValidURL(potentialUrl)) continue;
@@ -28,9 +32,12 @@ public class M3uParser implements AccountParser {
                 }
 
                 String uniqueName = getUniqueNameFromUrl(m3uPlayLIstUrl);
-                AccountService.getInstance().save(new Account(uniqueName, username, password, m3uPlayLIstUrl, null, null, null, null, null, null,
-                        accountType, null, m3uPlayLIstUrl, false));
+                Account account = new Account(uniqueName, username, password, m3uPlayLIstUrl, null, null, null, null, null, null,
+                        accountType, null, m3uPlayLIstUrl, false);
+                AccountService.getInstance().save(account);
+                createdAccounts.add(account);
             }
         }
+        return createdAccounts;
     }
 }

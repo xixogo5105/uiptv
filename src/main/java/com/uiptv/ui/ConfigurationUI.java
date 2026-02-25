@@ -224,14 +224,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> {
-            Stage popupStage = new Stage();
-            ReloadCachePopup popup = new ReloadCachePopup(popupStage);
-            Scene scene = new Scene(popup, 1368, 720);
-            popupStage.setTitle("Reload Accounts Cache");
-            popupStage.setScene(scene);
-            popupStage.showAndWait();
-        });
+        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow()));
     }
 
     private void updateEmbeddedPlayerTitle() {

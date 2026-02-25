@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
+import com.uiptv.model.Account;
 import com.uiptv.util.TextParserService;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvTextArea;
@@ -11,6 +12,9 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+
+import java.util.List;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -23,6 +27,7 @@ public class ParseMultipleAccountUI extends VBox {
     private final ComboBox<String> parseModeComboBox = new ComboBox<>();
     private final CheckBox groupAccountsCheckBox = new CheckBox("Group Account(s) by MAC Address");
     private final CheckBox convertM3uToXtremeCheckBox = new CheckBox("Where Possible, Convert M3U to Xtreme");
+    private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox("Start verification after parsing");
     private final ProminentButton saveButton = new ProminentButton("Parse & Save");
     private final Button clearButton = new Button("Clear");
     private Callback<Void> onSaveCallback;
@@ -48,6 +53,7 @@ public class ParseMultipleAccountUI extends VBox {
 
         groupAccountsCheckBox.setSelected(true);
         convertM3uToXtremeCheckBox.setSelected(true);
+        startVerificationAfterParsingCheckBox.setSelected(true);
 
         groupAccountsCheckBox.managedProperty().bind(groupAccountsCheckBox.visibleProperty());
         convertM3uToXtremeCheckBox.managedProperty().bind(convertM3uToXtremeCheckBox.visibleProperty());
@@ -56,7 +62,7 @@ public class ParseMultipleAccountUI extends VBox {
         spacer.setPrefHeight(10);
 
         HBox buttonWrapper2 = new HBox(10, clearButton, saveButton);
-        getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, buttonWrapper2);
+        getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, startVerificationAfterParsingCheckBox, buttonWrapper2);
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
         addCheckBoxListeners();
@@ -87,6 +93,7 @@ public class ParseMultipleAccountUI extends VBox {
         parseModeComboBox.setValue(TextParserService.MODE_STALKER);
         groupAccountsCheckBox.setSelected(true);
         convertM3uToXtremeCheckBox.setSelected(true);
+        startVerificationAfterParsingCheckBox.setSelected(true);
     }
 
     private void addSubmitButtonClickHandler() {
@@ -97,15 +104,26 @@ public class ParseMultipleAccountUI extends VBox {
                     return;
                 }
                 String selectedMode = parseModeComboBox.getValue();
-                TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
+                boolean startVerificationAfterParsing = startVerificationAfterParsingCheckBox.isSelected();
+                List<Account> createdAccounts = TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
                 clearAll();
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);
                 }
                 showMessageAlert("Accounts parsed and saved.");
+                if (startVerificationAfterParsing && createdAccounts != null && !createdAccounts.isEmpty()) {
+                    openVerificationPopup(createdAccounts);
+                }
             } catch (Exception e) {
                 showErrorAlert("Error parsing or saving accounts.");
             }
         });
+    }
+
+    private void openVerificationPopup(List<Account> accountsToVerify) {
+        Stage owner = getScene() != null && getScene().getWindow() instanceof Stage
+                ? (Stage) getScene().getWindow()
+                : null;
+        ReloadCachePopup.showPopup(owner, accountsToVerify);
     }
 }

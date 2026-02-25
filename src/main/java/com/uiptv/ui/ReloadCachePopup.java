@@ -24,9 +24,11 @@ import javafx.stage.Stage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,7 +58,28 @@ public class ReloadCachePopup extends VBox {
     private final List<String> latestSummaryLines = new ArrayList<>();
     private String currentRunningAccountId;
 
+    public static void showPopup(Stage owner) {
+        showPopup(owner, null);
+    }
+
+    public static void showPopup(Stage owner, List<Account> preselectedAccounts) {
+        Stage popupStage = new Stage();
+        if (owner != null) {
+            popupStage.initOwner(owner);
+            popupStage.initModality(Modality.WINDOW_MODAL);
+        }
+        ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts);
+        Scene scene = new Scene(popup, 1368, 720);
+        popupStage.setTitle("Reload Accounts Cache");
+        popupStage.setScene(scene);
+        popupStage.showAndWait();
+    }
+
     public ReloadCachePopup(Stage stage) {
+        this(stage, null);
+    }
+
+    public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts) {
         this.stage = stage;
         setSpacing(10);
         setPadding(new Insets(10));
@@ -159,7 +182,7 @@ public class ReloadCachePopup extends VBox {
 
 
         reloadButton.setOnAction(event -> {
-            new Thread(this::reloadSelectedAccounts).start();
+            startReloadInBackground();
         });
 
         // Ensure proper layout when toggling visibility
@@ -199,6 +222,13 @@ public class ReloadCachePopup extends VBox {
         buttonBox.setPadding(new Insets(10, 0, 0, 0));
 
         getChildren().addAll(progressBar, mainContent, buttonBox);
+
+        if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
+            preselectAccounts(preselectedAccounts);
+            if (checkBoxes.stream().anyMatch(CheckBox::isSelected)) {
+                Platform.runLater(this::startReloadInBackground);
+            }
+        }
     }
 
     private void updateCheckboxes(AccountType type, boolean selected) {
@@ -215,6 +245,39 @@ public class ReloadCachePopup extends VBox {
         indicator.setMaxSize(24, 24);
         indicator.setVisible(false);
         return indicator;
+    }
+
+    private void startReloadInBackground() {
+        new Thread(this::reloadSelectedAccounts).start();
+    }
+
+    private void preselectAccounts(List<Account> accountsToPreselect) {
+        Set<String> accountIds = new HashSet<>();
+        Set<String> accountNames = new HashSet<>();
+
+        for (Account account : accountsToPreselect) {
+            if (account == null) {
+                continue;
+            }
+            if (account.getDbId() != null && !account.getDbId().isBlank()) {
+                accountIds.add(account.getDbId());
+            }
+            if (account.getAccountName() != null && !account.getAccountName().isBlank()) {
+                accountNames.add(account.getAccountName());
+            }
+        }
+
+        for (CheckBox checkBox : checkBoxes) {
+            Account listedAccount = (Account) checkBox.getUserData();
+            if (listedAccount == null) {
+                continue;
+            }
+            String listedAccountId = listedAccount.getDbId();
+            String listedAccountName = listedAccount.getAccountName();
+            boolean matchesId = listedAccountId != null && accountIds.contains(listedAccountId);
+            boolean matchesName = listedAccountName != null && accountNames.contains(listedAccountName);
+            checkBox.setSelected(matchesId || matchesName);
+        }
     }
 
     private void reloadSelectedAccounts() {

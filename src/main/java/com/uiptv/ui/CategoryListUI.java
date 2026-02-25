@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
@@ -8,7 +7,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -23,10 +21,8 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -177,13 +173,11 @@ public class CategoryListUI extends HBox {
         table.setItems(FXCollections.observableArrayList());
         table.setPlaceholder(new Label("Loading categories..."));
         removeChannelPane();
-        LogPopupUI categoryLogPopup = createCategoryFetchPopupIfNeeded(mode);
-        LoggerCallback categoryLogger = categoryLogPopup != null ? categoryLogPopup.getLogger() : null;
 
         new Thread(() -> {
             try {
                 account.setAction(mode);
-                List<Category> categories = CategoryService.getInstance().get(account, true, categoryLogger);
+                List<Category> categories = CategoryService.getInstance().get(account, true);
                 Platform.runLater(() -> {
                     modeStates.computeIfAbsent(mode, k -> new ModeState()).categories = new ArrayList<>(categories);
                     if (activeMode == mode) {
@@ -192,10 +186,6 @@ public class CategoryListUI extends HBox {
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert("Failed to load categories: " + e.getMessage()));
-            } finally {
-                if (categoryLogPopup != null) {
-                    categoryLogPopup.closeGracefully();
-                }
             }
         }).start();
     }
@@ -294,53 +284,21 @@ public class CategoryListUI extends HBox {
 
         currentRequestCancelled = new AtomicBoolean(false);
         AtomicBoolean isCancelled = currentRequestCancelled;
-        LogPopupUI portalLogPopup = createPortalFetchPopupIfNeeded(noCachingNeeded, item, mode);
-        LoggerCallback portalLogger = portalLogPopup != null ? portalLogPopup.getLogger() : null;
 
-        // Always retrieve channels without triggering a cache reload popup
         primaryStage.getScene().setCursor(Cursor.WAIT);
         currentLoadingThread = new Thread(() -> {
             try {
-                retrieveChannels(item, portalLogger, false, noCachingNeeded, isCancelled::get, mode);
+                retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
             } finally {
                 Platform.runLater(() -> {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                    if (portalLogPopup != null) {
-                        portalLogPopup.closeGracefully();
-                    }
                 });
             }
         });
         currentLoadingThread.start();
     }
 
-    private LogPopupUI createPortalFetchPopupIfNeeded(boolean noCachingNeeded, CategoryItem item, Account.AccountAction mode) {
-        if (mode == Account.AccountAction.vod || mode == Account.AccountAction.series) {
-            return null;
-        }
-        if (!noCachingNeeded || account.getType() != STALKER_PORTAL || !NOT_LIVE_TV_CHANNELS.contains(mode)) {
-            return null;
-        }
-        LogPopupUI logPopup = new LogPopupUI("Loading channels from portal...");
-        logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
-        logPopup.show();
-        return logPopup;
-    }
-
-    private LogPopupUI createCategoryFetchPopupIfNeeded(Account.AccountAction mode) {
-        if (mode == Account.AccountAction.vod || mode == Account.AccountAction.series) {
-            return null;
-        }
-        if (account.getType() != STALKER_PORTAL || !NOT_LIVE_TV_CHANNELS.contains(mode)) {
-            return null;
-        }
-        LogPopupUI logPopup = new LogPopupUI("Loading categories from portal...");
-        logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
-        logPopup.show();
-        return logPopup;
-    }
-
-    private void retrieveChannels(CategoryItem item, LoggerCallback logger, boolean triggerCacheReload, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {
+    private void retrieveChannels(CategoryItem item, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {
         if (item == null) {
             return;
         }
@@ -371,14 +329,6 @@ public class CategoryListUI extends HBox {
 
             try {
                 boolean cachingNeeded = !noCachingNeeded;
-                if (cachingNeeded && triggerCacheReload && logger != null) {
-                    try {
-                        ChannelService.getInstance().reloadCache(account, logger);
-                    } catch (IOException e) {
-                        Platform.runLater(() -> showErrorAlert("Error loading channels: " + e.getMessage()));
-                        return;
-                    }
-                }
 
                 if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
                     if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
@@ -389,7 +339,7 @@ public class CategoryListUI extends HBox {
                                 account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),
                                 account, 
                                 item.getId(), 
-                                logger,
+                                null,
                                 channelListUI::addItems,
                                 isCancelled
                             );
@@ -401,7 +351,7 @@ public class CategoryListUI extends HBox {
                                     account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
                                     account, 
                                     categoryItem.getId(), 
-                                    logger,
+                                    null,
                                     channelListUI::addItems,
                                     isCancelled
                                 );
@@ -410,7 +360,7 @@ public class CategoryListUI extends HBox {
                     }
                 } else {
                     if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
-                    ChannelService.getInstance().get(categoryId, account, item.getId(), logger, channelListUI::addItems, isCancelled);
+                    ChannelService.getInstance().get(categoryId, account, item.getId(), null, channelListUI::addItems, isCancelled);
                 }
             } finally {
                 channelListUI.setLoadingComplete();

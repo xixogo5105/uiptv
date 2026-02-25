@@ -22,15 +22,19 @@ public class XtremeParser implements AccountParser {
     private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(pass(word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
 
     @Override
-    public void parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public List<Account> parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
         List<String> lines = Arrays.asList(text.split("\\R"));
         List<String> currentBlock = new ArrayList<>();
+        List<Account> createdAccounts = new ArrayList<>();
 
         for (String line : lines) {
             String trimmed = replaceAllNonPrintableChars(line).trim();
             if (trimmed.isEmpty()) {
                 if (!currentBlock.isEmpty()) {
-                    processBlock(currentBlock);
+                    Account savedAccount = processBlock(currentBlock);
+                    if (savedAccount != null) {
+                        createdAccounts.add(savedAccount);
+                    }
                     currentBlock.clear();
                 }
                 continue;
@@ -38,17 +42,21 @@ public class XtremeParser implements AccountParser {
             currentBlock.add(trimmed);
         }
         if (!currentBlock.isEmpty()) {
-            processBlock(currentBlock);
+            Account savedAccount = processBlock(currentBlock);
+            if (savedAccount != null) {
+                createdAccounts.add(savedAccount);
+            }
         }
+        return createdAccounts;
     }
 
-    private void processBlock(List<String> block) {
+    private Account processBlock(List<String> block) {
         String joinedBlock = String.join(" ", block);
         String url = null, username = null, password = null;
 
         Matcher mUrl = URL_PATTERN.matcher(joinedBlock);
         if (mUrl.find()) url = mUrl.group(1);
-        if (url == null) return;
+        if (url == null) return null;
 
         Matcher mUser = LABELED_USER.matcher(joinedBlock);
         if (mUser.find()) username = mUser.group(2);
@@ -70,8 +78,11 @@ public class XtremeParser implements AccountParser {
 
         if (url != null && username != null && password != null) {
             String name = getUniqueNameFromUrl(url);
-            AccountService.getInstance().save(new Account(name, username, password, url, null, null, null, null, null, null,
-                    AccountType.XTREME_API, null, url, false));
+            Account account = new Account(name, username, password, url, null, null, null, null, null, null,
+                    AccountType.XTREME_API, null, url, false);
+            AccountService.getInstance().save(account);
+            return account;
         }
+        return null;
     }
 }

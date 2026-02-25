@@ -23,7 +23,6 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -357,32 +356,15 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert("Please save the account before reloading the cache.");
                 return;
             }
-
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-            alert.setTitle("Confirmation");
-            alert.setHeaderText(null);
-            alert.setContentText("Are you sure you want to reload the cache for " + account.getAccountName() + "? This may take a while.");
-            if (RootApplication.currentTheme != null) {
-                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
-            }
-            Optional<ButtonType> result = alert.showAndWait();
-            if (result.isPresent() && result.get() == ButtonType.OK) {
-                LogPopupUI logPopup = new LogPopupUI("Reloading cache. This will take a while...");
-                logPopup.show();
-
-                Thread thread = new Thread(() -> {
-                    try {
-                        cacheService.reloadCache(account, logPopup.getLogger());
-                    } catch (IOException e) {
-                        Platform.runLater(() -> showErrorAlert("Failed to reload cache: " + e.getMessage()));
-                    } finally {
-                        logPopup.closeGracefully();
-                    }
-                });
-                logPopup.setOnStop(thread::interrupt);
-                thread.start();
-            }
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account));
         });
+    }
+
+    private Stage resolveOwnerStage() {
+        if (getScene() != null && getScene().getWindow() instanceof Stage) {
+            return (Stage) getScene().getWindow();
+        }
+        return RootApplication.primaryStage;
     }
 
     private void clearAll() {

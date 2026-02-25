@@ -41,7 +41,7 @@ public class StalkerPortalParser implements AccountParser {
     }
 
     @Override
-    public void parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
+    public List<Account> parseAndSave(String text, boolean groupAccountsByMac, boolean convertM3uToXtreme) {
         String sanitizedText = Arrays.stream(text.split("\\R"))
             .filter(line -> !(line.contains("http") && line.contains("?") && line.contains("=")))
             .map(UiptUtils::sanitizeStalkerText)
@@ -95,7 +95,7 @@ public class StalkerPortalParser implements AccountParser {
         if (isNotBlank(account.getUrl()) && isNotBlank(account.getMacAddress())) {
             parsedAccounts.add(account);
         }
-        saveAccounts(parsedAccounts, groupAccountsByMac);
+        return saveAccounts(parsedAccounts, groupAccountsByMac);
     }
 
     private void applyValueToAccount(Account account, String value, StalkerAttributeType type) {
@@ -131,9 +131,10 @@ public class StalkerPortalParser implements AccountParser {
         }
     }
 
-    private void saveAccounts(List<Account> accounts, boolean groupAccountsByMac) {
+    private List<Account> saveAccounts(List<Account> accounts, boolean groupAccountsByMac) {
         Map<String, Account> groupedAccounts = new LinkedHashMap<>();
         List<Account> individualAccounts = new ArrayList<>();
+        List<Account> createdAccounts = new ArrayList<>();
         Set<String> processedNames = new HashSet<>();
 
         List<Account> validAccounts = accounts.stream()
@@ -166,6 +167,7 @@ public class StalkerPortalParser implements AccountParser {
                         currentAccount.setMacAddressList(currentAccount.getMacAddress());
                         groupedAccounts.put(name, currentAccount);
                         processedNames.add(name);
+                        createdAccounts.add(currentAccount);
                     }
                 }
             } else {
@@ -180,11 +182,13 @@ public class StalkerPortalParser implements AccountParser {
                 currentAccount.setMacAddressList(currentAccount.getMacAddress());
                 individualAccounts.add(currentAccount);
                 processedNames.add(uniqueName);
+                createdAccounts.add(currentAccount);
             }
         }
 
         individualAccounts.forEach(accountSaver);
         groupedAccounts.values().forEach(accountSaver);
+        return createdAccounts;
     }
 
     /**

@@ -10,7 +10,6 @@ import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.AutoGrowPaneVBox;
-import com.uiptv.widget.LogPopupUI;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -23,12 +22,11 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -185,29 +183,12 @@ public class AccountListUI extends HBox {
     }
 
     private void handleReloadCache(AccountItem item) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Confirmation");
-        alert.setHeaderText(null);
-        alert.setContentText("Are you sure you want to reload the cache for " + item.getAccountName() + "? This may take a while.");
-        if (RootApplication.currentTheme != null) {
-            alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        Account account = AccountDb.get().getAccountById(item.getAccountId());
+        if (account == null) {
+            showErrorAlert("Unable to find account.");
+            return;
         }
-        Optional<ButtonType> result = alert.showAndWait();
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            Account account = AccountDb.get().getAccountById(item.getAccountId());
-            LogPopupUI logPopup = new LogPopupUI("Caching channels. This will take a while...");
-            logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
-            logPopup.show();
-            new Thread(() -> {
-                try {
-                    cacheService.reloadCache(account, logPopup.getLogger());
-                } catch (IOException e) {
-                    Platform.runLater(() -> showErrorAlert("Failed to reload cache: " + e.getMessage()));
-                } finally {
-                    Platform.runLater(logPopup::closeGracefully);
-                }
-            }).start();
-        }
+        ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account));
     }
 
     private void handleDeleteAccounts() {
@@ -236,6 +217,10 @@ public class AccountListUI extends HBox {
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
         Account account = AccountDb.get().getAccountById(item.getAccountId());
+        if (account == null) {
+            showErrorAlert("Unable to find account.");
+            return;
+        }
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
@@ -248,39 +233,34 @@ public class AccountListUI extends HBox {
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
         boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
 
-        primaryStage.getScene().setCursor(Cursor.WAIT);
-        LogPopupUI logPopup = null;
-
         if (!channelsAlreadyLoaded) {
-            logPopup = new LogPopupUI("Caching channels. This will take a while...");
-            logPopup.getScene().getStylesheets().add(RootApplication.currentTheme);
-            logPopup.show();
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account));
         }
 
-        final LogPopupUI finalLogPopup = logPopup;
+        primaryStage.getScene().setCursor(Cursor.WAIT);
 
         new Thread(() -> {
             try {
-                if (!channelsAlreadyLoaded) {
-                    cacheService.reloadCache(account, finalLogPopup.getLogger());
-                }
-
                 final List<Category> list = CategoryService.getInstance().get(account);
 
                 Platform.runLater(() -> {
                     categoryListUI.setItems(list);
                 });
-            } catch (IOException e) {
+            } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
             } finally {
                 Platform.runLater(() -> {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                    if (finalLogPopup != null) {
-                        finalLogPopup.closeGracefully();
-                    }
                 });
             }
         }).start();
+    }
+
+    private Stage resolveOwnerStage() {
+        if (getScene() != null && getScene().getWindow() instanceof Stage) {
+            return (Stage) getScene().getWindow();
+        }
+        return primaryStage;
     }
 
     public class AccountItem {
