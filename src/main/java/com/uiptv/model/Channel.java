@@ -18,6 +18,7 @@ public class Channel extends BaseJson {
     private String description, season, episodeNum, releaseDate, rating, duration;
     private String extraJson;
     private int censored, status, hd;
+    private boolean watched;
     private String drmType;
     private String drmLicenseUrl;
     private String clearKeysJson;
@@ -67,6 +68,13 @@ public class Channel extends BaseJson {
             channel.setCensored(jsonObj.optInt("censored"));
             channel.setStatus(jsonObj.optInt("status"));
             channel.setHd(jsonObj.optInt("hd"));
+            Object watched = jsonObj.opt("watched");
+            if (watched instanceof Boolean) {
+                channel.setWatched((Boolean) watched);
+            } else {
+                String watchedStr = safeGetString(jsonObj, "watched");
+                channel.setWatched("1".equals(watchedStr) || "true".equalsIgnoreCase(watchedStr));
+            }
             channel.setDrmType(safeGetString(jsonObj, "drmType"));
             channel.setDrmLicenseUrl(safeGetString(jsonObj, "drmLicenseUrl"));
             channel.setClearKeysJson(safeGetString(jsonObj, "clearKeysJson"));

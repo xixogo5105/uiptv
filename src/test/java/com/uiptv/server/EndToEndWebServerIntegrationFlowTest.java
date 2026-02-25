@@ -11,6 +11,7 @@ import com.uiptv.model.Bookmark;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.SeriesWatchState;
 import com.uiptv.server.api.json.HttpWebChannelJsonServer;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
@@ -23,6 +24,7 @@ import com.uiptv.service.DbBackedTest;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.LogUtil;
 import org.json.JSONArray;
@@ -416,15 +418,21 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
         assertTrue(xtremeSeriesCategories.length() >= 1);
         String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
+        String seriesCategoryApiId = xtremeSeriesCategories.getJSONObject(0).optString("categoryId");
         JSONArray seriesRows = jsonArrayBody(get("/channels?accountId=" + xtreme.getDbId()
                 + "&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8) + "&mode=series"));
         assertTrue(seriesRows.length() >= 1);
         String seriesId = seriesRows.getJSONObject(0).optString("channelId");
 
-        JSONArray episodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId() + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)));
+        JSONArray episodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)));
         assertTrue(episodes.length() >= 5);
-        JSONArray cachedEpisodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId() + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)));
+        JSONArray cachedEpisodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)));
         assertEquals(episodes.length(), cachedEpisodes.length());
+        assertSeriesWatchProgressionApis(xtreme, xtremeSeriesCategoryDbId, seriesCategoryApiId, seriesId, episodes);
 
         JSONObject details = jsonObjectBody(get("/seriesDetails?accountId=" + xtreme.getDbId()
                 + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
@@ -432,6 +440,108 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(details.has("seasonInfo"));
         assertTrue(details.has("episodes"));
         assertTrue(details.has("episodesMeta"));
+    }
+
+    private void assertSeriesWatchProgressionApis(Account account, String categoryDbId, String categoryApiId, String seriesId, JSONArray episodes) throws Exception {
+        JSONObject episode1 = findEpisodeByNumber(episodes, 1);
+        JSONObject episode2 = findEpisodeByNumber(episodes, 2);
+        JSONObject episode3 = findEpisodeByNumber(episodes, 3);
+        assertNotNull(episode1);
+        assertNotNull(episode2);
+        assertNotNull(episode3);
+
+        playSeriesEpisode(account, categoryDbId, seriesId, episode2);
+        JSONArray afterEpisode2 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
+        SeriesWatchState afterEpisode2State = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), categoryApiId, seriesId);
+        assertNotNull(afterEpisode2State, "Expected watch state to be created for series " + seriesId);
+        assertEquals(episode2.optString("channelId"), afterEpisode2State.getEpisodeId());
+        assertEquals(episode2.optString("channelId"), watchedEpisodeId(afterEpisode2));
+        assertSeriesRowWatched(account, categoryDbId, seriesId, true);
+
+        playSeriesEpisode(account, categoryDbId, seriesId, episode1);
+        JSONArray afterEpisode1 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
+        assertEquals(episode2.optString("channelId"), watchedEpisodeId(afterEpisode1));
+
+        playSeriesEpisode(account, categoryDbId, seriesId, episode3);
+        JSONArray afterEpisode3 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
+        assertEquals(episode3.optString("channelId"), watchedEpisodeId(afterEpisode3));
+    }
+
+    private void assertSeriesRowWatched(Account account, String categoryDbId, String seriesId, boolean expectedWatched) throws Exception {
+        JSONArray rows = jsonArrayBody(get("/channels?accountId=" + account.getDbId()
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8) + "&mode=series"));
+        JSONObject row = null;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject current = rows.getJSONObject(i);
+            if (seriesId.equals(current.optString("channelId"))) {
+                row = current;
+                break;
+            }
+        }
+        assertNotNull(row);
+        assertEquals(expectedWatched, isWatchedFlag(row));
+    }
+
+    private void playSeriesEpisode(Account account, String categoryDbId, String seriesId, JSONObject episode) throws Exception {
+        String response = jsonObjectBody(get("/player?accountId=" + account.getDbId()
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)
+                + "&channelId=" + URLEncoder.encode(episode.optString("channelId"), StandardCharsets.UTF_8)
+                + "&mode=series"
+                + "&seriesId=" + URLEncoder.encode(episode.optString("channelId"), StandardCharsets.UTF_8)
+                + "&seriesParentId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&name=" + URLEncoder.encode(episode.optString("name"), StandardCharsets.UTF_8)
+                + "&cmd=" + URLEncoder.encode(episode.optString("cmd"), StandardCharsets.UTF_8)
+                + "&season=" + URLEncoder.encode(episode.optString("season"), StandardCharsets.UTF_8)
+                + "&episodeNum=" + URLEncoder.encode(episode.optString("episodeNum"), StandardCharsets.UTF_8)
+        )).optString("url");
+        assertFalse(response.isBlank());
+    }
+
+    private JSONObject findEpisodeByNumber(JSONArray episodes, int episodeNum) {
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject episode = episodes.getJSONObject(i);
+            String raw = episode.optString("episodeNum");
+            if (raw == null) {
+                continue;
+            }
+            String digits = raw.replaceAll("[^0-9]", "");
+            if (!digits.isBlank() && Integer.parseInt(digits) == episodeNum) {
+                return episode;
+            }
+        }
+        return null;
+    }
+
+    private String watchedEpisodeId(JSONArray episodes) {
+        String watchedId = "";
+        int watchedCount = 0;
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject episode = episodes.getJSONObject(i);
+            if (isWatchedFlag(episode)) {
+                watchedCount++;
+                watchedId = episode.optString("channelId");
+            }
+        }
+        assertEquals(1, watchedCount);
+        return watchedId;
+    }
+
+    private boolean isWatchedFlag(JSONObject item) {
+        Object watched = item.opt("watched");
+        if (watched instanceof Boolean) {
+            return (Boolean) watched;
+        }
+        if (watched instanceof Number) {
+            return ((Number) watched).intValue() == 1;
+        }
+        String value = String.valueOf(watched == null ? "" : watched).trim().toLowerCase();
+        return "1".equals(value) || "true".equals(value);
     }
 
     private void assertVodDetailsApi() throws Exception {
@@ -650,6 +760,35 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                     + "&mode=itv&categoryId=" + xtremeCategory.getDbId() + "&page=0&pageSize=10&prefetchPages=1";
             JSONObject xtremeJson = jsonObjectBody(getAbsolute(xtremeUrl));
             assertTrue(xtremeJson.getJSONArray("items").length() >= 1);
+
+            JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
+            assertTrue(xtremeSeriesCategories.length() >= 1);
+            String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
+            String xtremeSeriesRowsUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
+                    + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
+                    + "&page=0&pageSize=50&prefetchPages=1";
+            JSONObject xtremeSeriesRows = jsonObjectBody(getAbsolute(xtremeSeriesRowsUrl));
+            JSONArray xtremeSeriesItems = xtremeSeriesRows.getJSONArray("items");
+            assertTrue(xtremeSeriesItems.length() >= 1);
+            boolean hasWatchedSeries = false;
+            String watchedSeriesId = "";
+            for (int i = 0; i < xtremeSeriesItems.length(); i++) {
+                JSONObject row = xtremeSeriesItems.getJSONObject(i);
+                if (isWatchedFlag(row)) {
+                    hasWatchedSeries = true;
+                    watchedSeriesId = row.optString("channelId");
+                    break;
+                }
+            }
+            assertTrue(hasWatchedSeries);
+            assertFalse(watchedSeriesId.isBlank());
+
+            String xtremeSeriesEpisodesUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
+                    + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
+                    + "&movieId=" + URLEncoder.encode(watchedSeriesId, StandardCharsets.UTF_8)
+                    + "&page=0&pageSize=50&prefetchPages=1";
+            JSONObject xtremeSeriesEpisodes = jsonObjectBody(getAbsolute(xtremeSeriesEpisodesUrl));
+            assertFalse(watchedEpisodeId(xtremeSeriesEpisodes.getJSONArray("items")).isBlank());
 
             Account uncategorizedOnlyM3u = AccountService.getInstance().getByName(WEB_M3U_UNCATEGORIZED_ONLY);
             String uncategorizedOnlyUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + uncategorizedOnlyM3u.getDbId()

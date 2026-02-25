@@ -216,7 +216,10 @@
                             <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @error="mediaImageError" alt="series image">
                             <div class="nf-media-fallback" :class="{ show: !channel.logo }">{{ channel.name }}</div>
                             <div class="nf-media-gradient"></div>
-                            <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
+                            <div class="nf-card-title nf-media-title">
+                                {{ channel.name }}
+                                <span v-if="channel.watched" class="badge bg-primary ms-2">IN PROGRESS</span>
+                            </div>
                         </button>
                         <button v-if="isModeState('series','channels') && hasMoreModeChannels('series')" class="nf-card nf-load-more-card" @click="loadMoreModeChannels('series')">
                             <div class="nf-card-icon"><i class="bi bi-chevron-down"></i></div>
@@ -226,7 +229,10 @@
                             <img v-if="episode.logo" class="nf-media-image" :src="episode.logo" loading="lazy" @error="mediaImageError" alt="episode image">
                             <div class="nf-media-fallback" :class="{ show: !episode.logo }">{{ episode.name }}</div>
                             <div class="nf-media-gradient"></div>
-                            <div class="nf-card-title nf-media-title">{{ episode.name }}</div>
+                            <div class="nf-card-title nf-media-title">
+                                {{ episode.name }}
+                                <span v-if="episode.watched" class="badge bg-primary ms-2">WATCHED</span>
+                            </div>
                         </button>
                         <button v-if="isModeState('series','episodes') && hasMoreModeEpisodes('series')" class="nf-card nf-load-more-card" @click="loadMoreModeEpisodes('series')">
                             <div class="nf-card-icon"><i class="bi bi-chevron-down"></i></div>
@@ -355,7 +361,10 @@
                                 <div class="nf-episode-thumb-fallback" :class="{ show: !episode.logo }">{{ episode.name }}</div>
                             </div>
                             <div class="nf-episode-main">
-                                <div class="nf-episode-title">{{ getEpisodeDisplayTitle(episode, idx) }}</div>
+                                <div class="nf-episode-title">
+                                    {{ getEpisodeDisplayTitle(episode, idx) }}
+                                    <span v-if="episode.watched" class="badge bg-primary ms-2">WATCHED</span>
+                                </div>
                                 <div class="nf-episode-sub">
                                     {{ episode.description || (episode.releaseDate ? ('Release: ' + episode.releaseDate) : (episode.channelId ? ('ID ' + episode.channelId) : 'Tap to play')) }}
                                 </div>

@@ -6,10 +6,14 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.json.JSONArray;
@@ -23,7 +27,9 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -156,8 +162,163 @@ class HttpJsonServerTest extends DbBackedTest {
         assertEquals("Sports One", response.getJSONObject(0).getString("name"));
     }
 
+    @Test
+    void channelServer_seriesRows_includeWatchedFlagFromSeriesWatchState() throws Exception {
+        Account account = createXtremeAccount("series-rows-watched-api");
+        account.setAction(Account.AccountAction.series);
+        AccountService.getInstance().save(account);
+        account = AccountService.getInstance().getByName("series-rows-watched-api");
+        account.setAction(Account.AccountAction.series);
+
+        SeriesCategoryDb.get().saveAll(List.of(
+                new Category("201", "Series", "series", false, 0)
+        ), account);
+        Category seriesCategory = SeriesCategoryDb.get().getCategories(account).get(0);
+
+        SeriesChannelDb.get().saveAll(List.of(
+                new Channel("s-1", "Series One", "", "cmd://series-1", null, null, null, "logo", 0, 1, 1, null, null, null, null, null),
+                new Channel("s-2", "Series Two", "", "cmd://series-2", null, null, null, "logo", 0, 1, 1, null, null, null, null, null)
+        ), seriesCategory.getDbId(), account);
+
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                account,
+                seriesCategory.getCategoryId(),
+                "s-2",
+                "ep-22",
+                "Episode 22",
+                "1",
+                "22"
+        );
+
+        HttpChannelJsonServer handler = new HttpChannelJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/channel?accountId=" + account.getDbId() + "&categoryId=" + seriesCategory.getDbId() + "&mode=series", "GET");
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONArray response = new JSONArray(exchange.getResponseBodyText());
+        assertEquals(2, response.length());
+        Map<String, Boolean> watchedBySeriesId = new HashMap<>();
+        for (int i = 0; i < response.length(); i++) {
+            JSONObject row = response.getJSONObject(i);
+            watchedBySeriesId.put(row.optString("channelId"), isWatched(row));
+        }
+        assertEquals(Boolean.FALSE, watchedBySeriesId.get("s-1"));
+        assertEquals(Boolean.TRUE, watchedBySeriesId.get("s-2"));
+    }
+
+    @Test
+    void seriesEpisodesServer_cachedEpisodes_includeWatchedFlagFromSeriesWatchState() throws Exception {
+        Account account = createXtremeAccount("series-episodes-watched-api");
+        account.setAction(Account.AccountAction.series);
+        AccountService.getInstance().save(account);
+        account = AccountService.getInstance().getByName("series-episodes-watched-api");
+        account.setAction(Account.AccountAction.series);
+
+        String seriesId = "series-901";
+        List<Channel> episodes = List.of(
+                buildEpisodeChannel("ep-1", "Episode 1", "1", "1"),
+                buildEpisodeChannel("ep-2", "Episode 2", "1", "2")
+        );
+        SeriesEpisodeDb.get().saveAll(account, seriesId, episodes);
+
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                account,
+                "series-category-901",
+                seriesId,
+                "ep-2",
+                "Episode 2",
+                "1",
+                "2"
+        );
+
+        HttpSeriesEpisodesJsonServer handler = new HttpSeriesEpisodesJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + seriesId
+                + "&categoryId=series-category-901", "GET");
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONArray response = new JSONArray(exchange.getResponseBodyText());
+        assertEquals(2, response.length());
+        Map<String, Boolean> watchedByEpisodeId = new HashMap<>();
+        for (int i = 0; i < response.length(); i++) {
+            JSONObject row = response.getJSONObject(i);
+            watchedByEpisodeId.put(row.optString("channelId"), isWatched(row));
+        }
+        assertEquals(Boolean.FALSE, watchedByEpisodeId.get("ep-1"));
+        assertEquals(Boolean.TRUE, watchedByEpisodeId.get("ep-2"));
+    }
+
+    @Test
+    void seriesEpisodesServer_duplicateEpisodeIdAcrossSeasons_marksOnlyMatchingSeason() throws Exception {
+        Account account = createXtremeAccount("series-episodes-duplicate-id-api");
+        account.setAction(Account.AccountAction.series);
+        AccountService.getInstance().save(account);
+        account = AccountService.getInstance().getByName("series-episodes-duplicate-id-api");
+        account.setAction(Account.AccountAction.series);
+
+        String seriesId = "series-902";
+        List<Channel> episodes = List.of(
+                buildEpisodeChannel("10", "Episode 10 S1", "1", "10"),
+                buildEpisodeChannel("10", "Episode 10 S2", "2", "10")
+        );
+        SeriesEpisodeDb.get().saveAll(account, seriesId, episodes);
+
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                account,
+                "series-category-902",
+                seriesId,
+                "10",
+                "Episode 10 S2",
+                "2",
+                "10"
+        );
+
+        HttpSeriesEpisodesJsonServer handler = new HttpSeriesEpisodesJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + seriesId
+                + "&categoryId=series-category-902", "GET");
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONArray response = new JSONArray(exchange.getResponseBodyText());
+        assertEquals(2, response.length());
+        Map<String, Boolean> watchedBySeason = new HashMap<>();
+        for (int i = 0; i < response.length(); i++) {
+            JSONObject row = response.getJSONObject(i);
+            watchedBySeason.put(row.optString("season"), isWatched(row));
+        }
+        assertEquals(Boolean.FALSE, watchedBySeason.get("1"));
+        assertEquals(Boolean.TRUE, watchedBySeason.get("2"));
+    }
+
+    private Channel buildEpisodeChannel(String channelId, String name, String season, String episodeNum) {
+        Channel channel = new Channel();
+        channel.setChannelId(channelId);
+        channel.setName(name);
+        channel.setCmd("http://example.com/series/" + channelId + ".m3u8");
+        channel.setSeason(season);
+        channel.setEpisodeNum(episodeNum);
+        return channel;
+    }
+
+    private boolean isWatched(JSONObject row) {
+        Object watched = row.opt("watched");
+        if (watched instanceof Boolean) {
+            return (Boolean) watched;
+        }
+        String value = String.valueOf(watched == null ? "" : watched).trim().toLowerCase();
+        return "1".equals(value) || "true".equals(value);
+    }
+
     private Account createAccount(String name) {
         Account account = new Account(name, "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
+        AccountService.getInstance().save(account);
+        return AccountService.getInstance().getByName(name);
+    }
+
+    private Account createXtremeAccount(String name) {
+        Account account = new Account(name, "user", "pass", "http://test.com/xtreme/", null, null, null, null, null, null, AccountType.XTREME_API, null, "http://test.com/xtreme/", false);
         AccountService.getInstance().save(account);
         return AccountService.getInstance().getByName(name);
     }

@@ -42,6 +42,11 @@ public class DatabasePatchesUtils {
         dbPatches.put("151", "CREATE TABLE IF NOT EXISTS " + SERIES_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, categoryId TEXT NOT NULL, accountId TEXT, accountType TEXT, title TEXT, alias TEXT, url TEXT, activeSub INTEGER, censored INTEGER, extraJson TEXT, cachedAt INTEGER)");
         dbPatches.put("152", "CREATE TABLE IF NOT EXISTS " + SERIES_CHANNEL_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, channelId TEXT NOT NULL, categoryId TEXT, accountId TEXT, name TEXT, number TEXT, cmd TEXT, cmd_1 TEXT, cmd_2 TEXT, cmd_3 TEXT, logo TEXT, censored INTEGER, status INTEGER, hd INTEGER, drmType TEXT, drmLicenseUrl TEXT, clearKeysJson TEXT, inputstreamaddon TEXT, manifestType TEXT, extraJson TEXT, cachedAt INTEGER)");
         dbPatches.put("153", "CREATE TABLE IF NOT EXISTS " + SERIES_EPISODE_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, accountId TEXT, seriesId TEXT, channelId TEXT NOT NULL, name TEXT, cmd TEXT, logo TEXT, season TEXT, episodeNum TEXT, description TEXT, releaseDate TEXT, rating TEXT, duration TEXT, extraJson TEXT, cachedAt INTEGER)");
+        dbPatches.put("154", "CREATE TABLE IF NOT EXISTS " + SERIES_WATCH_STATE_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, accountId TEXT, mode TEXT, categoryId TEXT, seriesId TEXT, episodeId TEXT, episodeName TEXT, season TEXT, episodeNum INTEGER, updatedAt INTEGER, source TEXT)");
+        dbPatches.put("155", "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique ON " + SERIES_WATCH_STATE_TABLE.getTableName() + " (accountId, mode, categoryId, seriesId)");
+        dbPatches.put("156", "ALTER TABLE " + SERIES_WATCH_STATE_TABLE.getTableName() + " ADD COLUMN categoryId TEXT default ''");
+        dbPatches.put("157", "DROP INDEX IF EXISTS idx_series_watch_unique");
+        dbPatches.put("158", "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique ON " + SERIES_WATCH_STATE_TABLE.getTableName() + " (accountId, mode, categoryId, seriesId)");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

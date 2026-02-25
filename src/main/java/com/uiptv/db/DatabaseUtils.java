@@ -16,6 +16,7 @@ public class DatabaseUtils {
         SERIES_CATEGORY_TABLE("SeriesCategory"),
         SERIES_CHANNEL_TABLE("SeriesChannel"),
         SERIES_EPISODE_TABLE("SeriesEpisode"),
+        SERIES_WATCH_STATE_TABLE("SeriesWatchState"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
         BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
 
@@ -219,6 +220,19 @@ public class DatabaseUtils {
                 new DataColumn("duration", "TEXT"),
                 new DataColumn("extraJson", "TEXT"),
                 new DataColumn("cachedAt", "INTEGER")
+        )));
+        dbStructure.put(DbTable.SERIES_WATCH_STATE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("accountId", "TEXT"),
+                new DataColumn("mode", "TEXT"),
+                new DataColumn("categoryId", "TEXT"),
+                new DataColumn("seriesId", "TEXT"),
+                new DataColumn("episodeId", "TEXT"),
+                new DataColumn("episodeName", "TEXT"),
+                new DataColumn("season", "TEXT"),
+                new DataColumn("episodeNum", "INTEGER"),
+                new DataColumn("updatedAt", "INTEGER"),
+                new DataColumn("source", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

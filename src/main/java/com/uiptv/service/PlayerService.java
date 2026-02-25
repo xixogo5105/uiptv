@@ -22,6 +22,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.AccountType.*;
@@ -30,8 +32,11 @@ import static com.uiptv.util.StringUtils.isBlank;
 public class PlayerService {
     private static PlayerService instance;
     public static final EnumSet<AccountType> PRE_DEFINED_URLS = EnumSet.of(RSS_FEED, M3U8_URL, M3U8_LOCAL, XTREME_API);
+    private final Set<PlaybackResolvedListener> playbackResolvedListeners = new CopyOnWriteArraySet<>();
 
     private PlayerService() {
+        addPlaybackResolvedListener((account, channel, seriesId, parentSeriesId, categoryId) ->
+                SeriesWatchStateService.getInstance().onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId));
     }
 
     public static synchronized PlayerService getInstance() {
@@ -42,10 +47,18 @@ public class PlayerService {
     }
 
     public PlayerResponse get(Account account, Channel channel) throws IOException {
-        return get(account, channel, "");
+        return get(account, channel, "", "", "");
     }
 
     public PlayerResponse get(Account account, Channel channel, String series) throws IOException {
+        return get(account, channel, series, "", "");
+    }
+
+    public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId) throws IOException {
+        return get(account, channel, series, parentSeriesId, "");
+    }
+
+    public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
         boolean predefined = PRE_DEFINED_URLS.contains(account.getType());
         if (!predefined && account != null && account.getType() == STALKER_PORTAL) {
             ensureStalkerSession(account);
@@ -65,7 +78,20 @@ public class PlayerService {
         LogDisplayUI.addLog("Playback URL resolved.");
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
+        notifyPlaybackResolved(account, channel, series, parentSeriesId, categoryId);
         return response;
+    }
+
+    public void addPlaybackResolvedListener(PlaybackResolvedListener listener) {
+        if (listener != null) {
+            playbackResolvedListeners.add(listener);
+        }
+    }
+
+    public void removePlaybackResolvedListener(PlaybackResolvedListener listener) {
+        if (listener != null) {
+            playbackResolvedListeners.remove(listener);
+        }
     }
 
     public boolean isDrmProtected(Channel channel) {
@@ -530,6 +556,21 @@ public class PlayerService {
         if (account.isNotConnected()) {
             HandshakeService.getInstance().connect(account);
         }
+    }
+
+    private void notifyPlaybackResolved(Account account, Channel channel, String seriesId, String parentSeriesId, String categoryId) {
+        for (PlaybackResolvedListener listener : playbackResolvedListeners) {
+            try {
+                listener.onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId);
+            } catch (Exception ignored) {
+                // Callback failures should not impact playback.
+            }
+        }
+    }
+
+    @FunctionalInterface
+    public interface PlaybackResolvedListener {
+        void onPlaybackResolved(Account account, Channel channel, String seriesId, String parentSeriesId, String categoryId);
     }
 
 }

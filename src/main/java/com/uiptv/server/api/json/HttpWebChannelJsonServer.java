@@ -8,9 +8,11 @@ import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.HandshakeService;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Pagination;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
@@ -100,6 +102,13 @@ public class HttpWebChannelJsonServer implements HttpHandler {
             }
         }
 
+        if (account.getAction() == Account.AccountAction.series) {
+            if (isNotBlank(movieId)) {
+                applySeriesEpisodesWatched(account, categoryApiId, movieId, merged);
+            } else {
+                applySeriesRowsWatched(account, categoryApiId, merged);
+            }
+        }
         List<Channel> deduped = dedupeChannels(merged);
         JSONObject response = new JSONObject();
         response.put("items", new JSONArray(deduped));
@@ -115,8 +124,10 @@ public class HttpWebChannelJsonServer implements HttpHandler {
                 && isNotBlank(movieId)
                 && !"All".equalsIgnoreCase(categoryId)) {
             String categoryApiId = resolveCategoryApiId(account, categoryId);
+            List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
+            applySeriesEpisodesWatched(account, categoryApiId, movieId, episodes);
             return StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(
-                    ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null)
+                    episodes
             );
         }
         if ("All".equalsIgnoreCase(categoryId)) {
@@ -149,10 +160,19 @@ public class HttpWebChannelJsonServer implements HttpHandler {
                     }
                 }
             }
-            return allChannels.toString();
+            String result = allChannels.toString();
+            if (account.getAction() == Account.AccountAction.series) {
+                result = enrichSeriesRowsWatchedJson(account, "", result);
+            }
+            return result;
         }
         Category category = resolveCategoryByDbId(account, categoryId);
-        return StringUtils.EMPTY + ChannelService.getInstance().readToJson(category, account);
+        String result = StringUtils.EMPTY + ChannelService.getInstance().readToJson(category, account);
+        if (account.getAction() == Account.AccountAction.series) {
+            String categoryApiId = resolveCategoryApiId(account, categoryId);
+            result = enrichSeriesRowsWatchedJson(account, categoryApiId, result);
+        }
+        return result;
     }
 
     private String sliceJson(String json, int page, int pageSize, int prefetchPages) {
@@ -231,6 +251,64 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         return CategoryDb.get().getCategories(account);
     }
 
+    private String enrichSeriesRowsWatchedJson(Account account, String fallbackCategoryId, String response) {
+        try {
+            JSONArray rows = new JSONArray(response);
+            if (rows.isEmpty()) {
+                return response;
+            }
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject item = rows.optJSONObject(i);
+                if (item == null) continue;
+                String seriesId = item.optString("channelId", "");
+                String rowCategoryId = item.optString("categoryId", "");
+                if (StringUtils.isBlank(rowCategoryId)) {
+                    rowCategoryId = fallbackCategoryId;
+                }
+                rowCategoryId = normalizeSeriesCategoryId(rowCategoryId);
+                item.put("watched",
+                        SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), rowCategoryId, seriesId) != null);
+            }
+            return rows.toString();
+        } catch (Exception ignored) {
+            return response;
+        }
+    }
+
+    private void applySeriesRowsWatched(Account account, String fallbackCategoryId, List<Channel> rows) {
+        if (rows == null || rows.isEmpty() || account == null) {
+            return;
+        }
+        for (Channel row : rows) {
+            if (row == null) continue;
+            String rowCategoryId = StringUtils.isBlank(row.getCategoryId()) ? fallbackCategoryId : row.getCategoryId();
+            rowCategoryId = normalizeSeriesCategoryId(rowCategoryId);
+            row.setWatched(SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), rowCategoryId, row.getChannelId()) != null);
+        }
+    }
+
+    private void applySeriesEpisodesWatched(Account account, String categoryId, String seriesId, List<Channel> episodes) {
+        if (episodes == null || episodes.isEmpty() || account == null) {
+            return;
+        }
+        String scopedCategoryId = normalizeSeriesCategoryId(categoryId);
+        SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), scopedCategoryId, seriesId);
+        String watchedEpisodeId = state == null ? "" : state.getEpisodeId();
+        String watchedSeason = state == null ? "" : state.getSeason();
+        String watchedEpisodeNum = state == null || state.getEpisodeNum() <= 0 ? "" : String.valueOf(state.getEpisodeNum());
+        for (Channel episode : episodes) {
+            if (episode == null) continue;
+            episode.setWatched(isMatchingWatchedEpisode(
+                    watchedEpisodeId,
+                    watchedSeason,
+                    watchedEpisodeNum,
+                    episode.getChannelId(),
+                    episode.getSeason(),
+                    episode.getEpisodeNum()
+            ));
+        }
+    }
+
     private void applyMode(Account account, String mode) {
         if (account == null || !isNotBlank(mode)) {
             return;
@@ -250,6 +328,46 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         } catch (Exception ignored) {
             return defaultValue;
         }
+    }
+
+    private String normalizeSeriesCategoryId(String categoryId) {
+        if (StringUtils.isBlank(categoryId)) {
+            return "";
+        }
+        Category category = SeriesCategoryDb.get().getById(categoryId);
+        if (category != null && isNotBlank(category.getCategoryId())) {
+            return category.getCategoryId();
+        }
+        return categoryId;
+    }
+
+    private boolean isMatchingWatchedEpisode(String watchedEpisodeId,
+                                             String watchedSeason,
+                                             String watchedEpisodeNum,
+                                             String episodeId,
+                                             String season,
+                                             String episodeNum) {
+        if (StringUtils.isBlank(watchedEpisodeId) || StringUtils.isBlank(episodeId)) {
+            return false;
+        }
+        if (!watchedEpisodeId.equals(episodeId)) {
+            return false;
+        }
+        String ws = digitsOnly(watchedSeason);
+        String s = digitsOnly(season);
+        if (StringUtils.isNotBlank(ws) && StringUtils.isNotBlank(s) && !ws.equals(s)) {
+            return false;
+        }
+        String we = digitsOnly(watchedEpisodeNum);
+        String e = digitsOnly(episodeNum);
+        return StringUtils.isBlank(we) || StringUtils.isBlank(e) || we.equals(e);
+    }
+
+    private String digitsOnly(String value) {
+        if (StringUtils.isBlank(value)) {
+            return "";
+        }
+        return value.replaceAll("[^0-9]", "");
     }
 
     private static class StalkerPageResult {

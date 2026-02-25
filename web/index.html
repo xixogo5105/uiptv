@@ -232,6 +232,7 @@
                                     <div class="title">
                                         {{ channel.name }}
                                         <span v-if="channel.drmType" class="badge bg-primary ms-2">DRM</span>
+                                        <span v-if="contentMode === 'series' && channel.watched" class="badge bg-primary ms-2">IN PROGRESS</span>
                                     </div>
                                 </div>
                             </div>
@@ -330,7 +331,10 @@
                                 <img v-if="episode.logo" :src="episode.logo" @error="imageError" alt="logo" class="episode-row-thumb">
                                 <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
                                 <div class="content-wrapper">
-                                    <div class="title">{{ getEpisodeDisplayTitle(episode, idx) }}</div>
+                                    <div class="title">
+                                        {{ getEpisodeDisplayTitle(episode, idx) }}
+                                        <span v-if="episode.watched" class="badge bg-primary ms-2">WATCHED</span>
+                                    </div>
                                     <div class="subtitle episode-subtitle">{{ getEpisodeSubtitle(episode) }}</div>
                                 </div>
                             </div>

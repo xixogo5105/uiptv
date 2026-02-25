@@ -10,6 +10,7 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
@@ -363,6 +364,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertNotNull(bookmarkPlay.getUrl());
         assertTrue(bookmarkPlay.getUrl().contains("play_token="));
 
+        assertSeriesWatchPointerProgressionThroughPlayerCallback(accountService);
         assertSeriesEpisodeBookmarkPlayFlow();
 
         Bookmark secondBookmark = new Bookmark(
@@ -655,6 +657,45 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         PlayerResponse response = PlayerService.getInstance().get(stalker, playbackChannel, persisted.getChannelId());
         assertNotNull(response.getUrl());
         assertTrue(response.getUrl().contains("stream="));
+    }
+
+    private void assertSeriesWatchPointerProgressionThroughPlayerCallback(AccountService accountService) throws Exception {
+        Account localPlaybackAccount = accountService.getByName("m3u-seed-1");
+        localPlaybackAccount.setAction(series);
+        accountService.save(localPlaybackAccount);
+        localPlaybackAccount = accountService.getByName("m3u-seed-1");
+        localPlaybackAccount.setAction(series);
+
+        String seriesId = "series-e2e-pointer";
+        SeriesWatchStateService.getInstance().clearSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+
+        PlayerService.getInstance().get(localPlaybackAccount, buildPlayableEpisode("ep-2", "Episode 2", "1", "2"), "ep-2", seriesId);
+        SeriesWatchState afterEpisode2 = SeriesWatchStateService.getInstance().getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        assertNotNull(afterEpisode2);
+        assertEquals("ep-2", afterEpisode2.getEpisodeId());
+        assertEquals(2, afterEpisode2.getEpisodeNum());
+
+        PlayerService.getInstance().get(localPlaybackAccount, buildPlayableEpisode("ep-1", "Episode 1", "1", "1"), "ep-1", seriesId);
+        SeriesWatchState afterEpisode1 = SeriesWatchStateService.getInstance().getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        assertNotNull(afterEpisode1);
+        assertEquals("ep-2", afterEpisode1.getEpisodeId());
+        assertEquals(2, afterEpisode1.getEpisodeNum());
+
+        PlayerService.getInstance().get(localPlaybackAccount, buildPlayableEpisode("ep-3", "Episode 3", "1", "3"), "ep-3", seriesId);
+        SeriesWatchState afterEpisode3 = SeriesWatchStateService.getInstance().getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        assertNotNull(afterEpisode3);
+        assertEquals("ep-3", afterEpisode3.getEpisodeId());
+        assertEquals(3, afterEpisode3.getEpisodeNum());
+    }
+
+    private Channel buildPlayableEpisode(String episodeId, String title, String season, String episodeNum) {
+        Channel episode = new Channel();
+        episode.setChannelId(episodeId);
+        episode.setName(title);
+        episode.setCmd("http://example.com/stream/" + episodeId + ".m3u8");
+        episode.setSeason(season);
+        episode.setEpisodeNum(episodeNum);
+        return episode;
     }
 
     private List<Channel> allLiveChannels(Account account) {

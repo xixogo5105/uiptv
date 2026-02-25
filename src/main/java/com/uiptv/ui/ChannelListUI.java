@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
@@ -102,6 +103,12 @@ public class ChannelListUI extends HBox {
                 channelList.add(i);
                 BookmarkContext ctx = resolveBookmarkContext(i);
                 boolean isBookmarked = bookmarkKeys.contains(bookmarkKey(ctx.categoryTitle, i.getChannelId(), i.getName()));
+                if (account.getAction() == series) {
+                    String seriesCategoryId = resolveSeriesCategoryId(i, ctx);
+                    boolean inProgress = SeriesWatchStateService.getInstance()
+                            .getSeriesLastWatched(account.getDbId(), seriesCategoryId, i.getChannelId()) != null;
+                    i.setWatched(inProgress);
+                }
                 String normalizedLogo = normalizeImageUrl(i.getLogo());
                 newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(normalizedLogo), i));
             });
@@ -154,6 +161,7 @@ public class ChannelListUI extends HBox {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
             private final Label drmBadge = new Label("DRM");
+            private final Label progressBadge = new Label("IN PROGRESS");
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = new SVGPath();
             private final AsyncImageView imageView = new AsyncImageView();
@@ -164,10 +172,13 @@ public class ChannelListUI extends HBox {
                 drmBadge.getStyleClass().add("drm-badge");
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
+                progressBadge.getStyleClass().add("drm-badge");
+                progressBadge.setVisible(false);
+                progressBadge.setManaged(false);
 
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, nameLabel, drmBadge, spacer, bookmarkIcon);
+                graphic.getChildren().addAll(imageView, nameLabel, drmBadge, progressBadge, spacer, bookmarkIcon);
             }
 
             @Override
@@ -192,6 +203,11 @@ public class ChannelListUI extends HBox {
                 boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
                 drmBadge.setVisible(drmProtected);
                 drmBadge.setManaged(drmProtected);
+                boolean inProgress = account.getAction() == series
+                        && channelItem.getChannel() != null
+                        && channelItem.getChannel().isWatched();
+                progressBadge.setVisible(inProgress);
+                progressBadge.setManaged(inProgress);
                 bookmarkIcon.setVisible(channelItem.isBookmarked());
                 imageView.loadImage(channelItem.getLogo(), "channel");
                 setGraphic(graphic);
@@ -379,6 +395,25 @@ public class ChannelListUI extends HBox {
         return new BookmarkContext(effectiveCategoryId, effectiveCategoryTitle);
     }
 
+    private String resolveSeriesCategoryId(Channel channel, BookmarkContext context) {
+        String candidate = "";
+        if (channel != null && !isBlank(channel.getCategoryId())) {
+            candidate = channel.getCategoryId();
+        } else if (context != null && !isBlank(context.categoryId)) {
+            candidate = context.categoryId;
+        } else if (!isBlank(categoryId)) {
+            candidate = categoryId;
+        }
+        if (isBlank(candidate)) {
+            return "";
+        }
+        Category category = SeriesCategoryDb.get().getById(candidate);
+        if (category != null && !isBlank(category.getCategoryId())) {
+            return category.getCategoryId();
+        }
+        return candidate;
+    }
+
     private static final class BookmarkContext {
         private final String categoryId;
         private final String categoryTitle;
@@ -446,7 +481,7 @@ public class ChannelListUI extends HBox {
                             if (this.getChildren().size() > 1) {
                                 this.getChildren().remove(1);
                             }
-                            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName());
+                            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
                             episodesListUIHolder[0] = ui;
                             HBox.setHgrow(ui, Priority.ALWAYS);
                             this.getChildren().add(ui);
@@ -470,7 +505,7 @@ public class ChannelListUI extends HBox {
                                 if (this.getChildren().size() > 1) {
                                     this.getChildren().remove(1);
                                 }
-                                EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName());
+                                EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
                                 episodesListUIHolder[0] = ui;
                                 HBox.setHgrow(ui, Priority.ALWAYS);
                                 this.getChildren().add(ui);
@@ -520,7 +555,7 @@ public class ChannelListUI extends HBox {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName());
+            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
             HBox.setHgrow(ui, Priority.ALWAYS);
             this.getChildren().add(ui);
             ui.setItems(episodes);

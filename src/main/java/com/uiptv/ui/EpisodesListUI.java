@@ -5,6 +5,8 @@ import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.service.SeriesWatchStateChangeListener;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
@@ -46,6 +48,8 @@ import static javafx.application.Platform.runLater;
 public class EpisodesListUI extends HBox {
     private final Account account;
     private final String categoryTitle;
+    private final String seriesId;
+    private final String seriesCategoryId;
     private final EpisodeList channelList;
     TableView<EpisodeItem> table = new TableView<>();
     TableColumn<EpisodeItem, String> channelName = new TableColumn<>("Episodes");
@@ -54,22 +58,35 @@ public class EpisodesListUI extends HBox {
     private final ObservableList<EpisodeItem> allEpisodeItems = FXCollections.observableArrayList(EpisodeItem.extractor());
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
+    private boolean watchStateListenerRegistered = false;
+    private final SeriesWatchStateChangeListener watchStateChangeListener;
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)");
     private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b");
 
-    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle) {
-        this(account, categoryTitle);
+    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this(account, categoryTitle, seriesId, seriesCategoryId);
         setItems(channelList);
     }
 
-    public EpisodesListUI(Account account, String categoryTitle) {
+    public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         this.channelList = new EpisodeList();
         this.account = account;
         this.categoryTitle = categoryTitle;
+        this.seriesId = isBlank(seriesId) ? "" : seriesId.trim();
+        this.seriesCategoryId = isBlank(seriesCategoryId) ? "" : seriesCategoryId.trim();
+        this.watchStateChangeListener = (accountId, changedSeriesId) -> {
+            if (this.account != null
+                    && this.account.getDbId() != null
+                    && this.account.getDbId().equals(accountId)
+                    && this.seriesId.equals(changedSeriesId)) {
+                refreshWatchedStatesAsync();
+            }
+        };
         ImageCacheManager.clearCache("episode");
         initWidgets();
         registerBookmarkListener();
+        registerWatchStateListener();
         table.setPlaceholder(new Label("Loading episodes for '" + categoryTitle + "'..."));
     }
 
@@ -82,6 +99,11 @@ public class EpisodesListUI extends HBox {
             this.channelList.episodes.addAll(newChannelList.episodes);
             this.channelList.seasonInfo = newChannelList.seasonInfo;
             Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
+            SeriesWatchState watchedState = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+            String watchedEpisodeId = watchedState != null ? watchedState.getEpisodeId() : "";
+            String watchedSeason = watchedState != null ? watchedState.getSeason() : "";
+            String watchedEpisodeNum = watchedState != null && watchedState.getEpisodeNum() > 0
+                    ? String.valueOf(watchedState.getEpisodeNum()) : "";
             
             List<EpisodeItem> catList = new ArrayList<>();
             newChannelList.episodes.forEach(i -> {
@@ -90,12 +112,15 @@ public class EpisodesListUI extends HBox {
                 String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
                 String season = inferSeason(i);
                 String episodeNo = inferEpisodeNumber(i);
+                boolean isWatched = isMatchingWatchedEpisode(
+                        watchedEpisodeId, watchedSeason, watchedEpisodeNum, i.getId(), season, episodeNo);
                 String displayTitle = isBlank(episodeNo) ? "Episode" : "Episode " + episodeNo;
                 catList.add(new EpisodeItem(
                         new SimpleStringProperty(displayTitle),
                         new SimpleStringProperty(i.getId()),
                         new SimpleStringProperty(i.getCmd()),
                         isBookmarked,
+                        isWatched,
                         new SimpleStringProperty(logo),
                         new SimpleStringProperty(tmdbId),
                         new SimpleStringProperty(season),
@@ -140,10 +165,14 @@ public class EpisodesListUI extends HBox {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
             private final AsyncImageView imageView = new AsyncImageView();
+            private final Label watchedBadge = new Label("WATCHED");
 
             {
+                watchedBadge.getStyleClass().add("drm-badge");
+                watchedBadge.setVisible(false);
+                watchedBadge.setManaged(false);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, nameLabel);
+                graphic.getChildren().addAll(imageView, nameLabel, watchedBadge);
             }
 
             @Override
@@ -159,6 +188,8 @@ public class EpisodesListUI extends HBox {
                     if (episodeItem != null) {
                         nameLabel.setText(item);
                         setStyle(episodeItem.isBookmarked() ? "-fx-font-weight: bold; -fx-font-size: 125%;" : "");
+                        watchedBadge.setVisible(episodeItem.isWatched());
+                        watchedBadge.setManaged(episodeItem.isWatched());
                         imageView.loadImage(episodeItem.getLogo(), "episode");
                         setGraphic(graphic);
                     } else {
@@ -197,12 +228,37 @@ public class EpisodesListUI extends HBox {
         });
     }
 
+    private void registerWatchStateListener() {
+        if (watchStateListenerRegistered) {
+            return;
+        }
+        SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+        watchStateListenerRegistered = true;
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                unregisterWatchStateListener();
+            } else if (!watchStateListenerRegistered) {
+                SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+                watchStateListenerRegistered = true;
+                refreshWatchedStatesAsync();
+            }
+        });
+    }
+
     private void unregisterBookmarkListener() {
         if (!bookmarkListenerRegistered) {
             return;
         }
         BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = false;
+    }
+
+    private void unregisterWatchStateListener() {
+        if (!watchStateListenerRegistered) {
+            return;
+        }
+        SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
+        watchStateListenerRegistered = false;
     }
 
     private void refreshBookmarkStatesAsync() {
@@ -223,6 +279,53 @@ public class EpisodesListUI extends HBox {
                 table.refresh();
             });
         }).start();
+    }
+
+    private void refreshWatchedStatesAsync() {
+        if (allEpisodeItems.isEmpty() || account == null || isBlank(account.getDbId()) || isBlank(seriesId)) {
+            return;
+        }
+        new Thread(() -> {
+            SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+            String watchedEpisodeId = state != null ? state.getEpisodeId() : "";
+            String watchedSeason = state != null ? state.getSeason() : "";
+            String watchedEpisodeNum = state != null && state.getEpisodeNum() > 0 ? String.valueOf(state.getEpisodeNum()) : "";
+            runLater(() -> {
+                for (EpisodeItem item : allEpisodeItems) {
+                    item.setWatched(isMatchingWatchedEpisode(
+                            watchedEpisodeId,
+                            watchedSeason,
+                            watchedEpisodeNum,
+                            item.getEpisodeId(),
+                            item.getSeason(),
+                            item.getEpisodeNumber()
+                    ));
+                }
+                table.refresh();
+            });
+        }).start();
+    }
+
+    private boolean isMatchingWatchedEpisode(String watchedEpisodeId,
+                                             String watchedSeason,
+                                             String watchedEpisodeNum,
+                                             String episodeId,
+                                             String season,
+                                             String episodeNum) {
+        if (isBlank(watchedEpisodeId) || isBlank(episodeId)) {
+            return false;
+        }
+        if (!watchedEpisodeId.equals(episodeId)) {
+            return false;
+        }
+        String ws = onlyDigits(watchedSeason);
+        String s = onlyDigits(season);
+        if (!isBlank(ws) && !isBlank(s) && !ws.equals(s)) {
+            return false;
+        }
+        String we = onlyDigits(watchedEpisodeNum);
+        String e = onlyDigits(episodeNum);
+        return isBlank(we) || isBlank(e) || we.equals(e);
     }
 
     private String bookmarkIdentityKey(String channelId, String channelName) {
@@ -438,13 +541,26 @@ public class EpisodesListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
+        Menu lastWatchedMenu = new Menu("Last Watched");
+        rowMenu.getItems().add(lastWatchedMenu);
+
         Menu bookmarkMenu = new Menu("Bookmark");
         rowMenu.getItems().add(bookmarkMenu);
 
         rowMenu.setOnShowing(event -> {
+            lastWatchedMenu.getItems().clear();
             bookmarkMenu.getItems().clear();
             EpisodeItem item = row.getItem();
             if (item == null) return;
+
+            MenuItem markWatched = new MenuItem("Mark as Watched");
+            markWatched.setOnAction(e -> markEpisodeAsWatched(item));
+            lastWatchedMenu.getItems().add(markWatched);
+
+            MenuItem clearWatched = new MenuItem("Clear Watched Marker");
+            clearWatched.setDisable(!item.isWatched());
+            clearWatched.setOnAction(e -> clearWatchedMarker());
+            lastWatchedMenu.getItems().add(clearWatched);
 
             new Thread(() -> {
                 Bookmark existingBookmark = BookmarkService.getInstance().getBookmark(new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null));
@@ -532,7 +648,38 @@ public class EpisodesListUI extends HBox {
         }).start();
     }
 
+    private void markEpisodeAsWatched(EpisodeItem item) {
+        if (item == null || isBlank(seriesId) || account == null) {
+            return;
+        }
+        new Thread(() -> {
+            SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                    account,
+                    seriesCategoryId,
+                    seriesId,
+                    item.getEpisodeId(),
+                    item.getEpisodeName(),
+                    item.getSeason(),
+                    item.getEpisodeNumber()
+            );
+            refreshWatchedStatesAsync();
+        }).start();
+    }
+
+    private void clearWatchedMarker() {
+        if (account == null || isBlank(account.getDbId()) || isBlank(seriesId)) {
+            return;
+        }
+        new Thread(() -> {
+            SeriesWatchStateService.getInstance().clearSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+            refreshWatchedStatesAsync();
+        }).start();
+    }
+
     private void play(EpisodeItem item, String playerPath) {
+        if (item == null) {
+            return;
+        }
         // Stop any existing playback immediately
         runLater(() -> getPlayer().stopForReload());
 
@@ -543,16 +690,13 @@ public class EpisodesListUI extends HBox {
         channel.setChannelId(item.getEpisodeId());
         channel.setName(item.getEpisodeName());
         channel.setCmd(item.getCmd());
+        channel.setSeason(item.getSeason());
+        channel.setEpisodeNum(item.getEpisodeNumber());
 
         getScene().setCursor(Cursor.WAIT);
         new Thread(() -> {
             try {
-                PlayerResponse response;
-                if (account.getType() == com.uiptv.util.AccountType.STALKER_PORTAL && account.getAction() == series) {
-                    response = PlayerService.getInstance().get(account, channel, item.getEpisodeId());
-                } else {
-                    response = PlayerService.getInstance().get(account, channel);
-                }
+                PlayerResponse response = PlayerService.getInstance().get(account, channel, item.getEpisodeId(), seriesId, seriesCategoryId);
 
                 final String evaluatedStreamUrl = response.getUrl();
                 final PlayerResponse finalResponse = response;
@@ -588,17 +732,19 @@ public class EpisodesListUI extends HBox {
         private final SimpleStringProperty episodeId;
         private final SimpleStringProperty cmd;
         private final SimpleBooleanProperty bookmarked;
+        private final SimpleBooleanProperty watched;
         private final SimpleStringProperty logo;
         private final SimpleStringProperty tmdbId;
         private final SimpleStringProperty season;
         private final SimpleStringProperty episodeNumber;
         private final Episode episode;
 
-        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, SimpleStringProperty logo, SimpleStringProperty tmdbId, SimpleStringProperty season, SimpleStringProperty episodeNumber, Episode episode) {
+        public EpisodeItem(SimpleStringProperty episodeName, SimpleStringProperty episodeId, SimpleStringProperty cmd, boolean isBookmarked, boolean isWatched, SimpleStringProperty logo, SimpleStringProperty tmdbId, SimpleStringProperty season, SimpleStringProperty episodeNumber, Episode episode) {
             this.episodeName = episodeName;
             this.episodeId = episodeId;
             this.cmd = cmd;
             this.bookmarked = new SimpleBooleanProperty(isBookmarked);
+            this.watched = new SimpleBooleanProperty(isWatched);
             this.logo = logo;
             this.tmdbId = tmdbId;
             this.season = season;
@@ -607,7 +753,7 @@ public class EpisodesListUI extends HBox {
         }
 
         public static Callback<EpisodeItem, Observable[]> extractor() {
-            return item -> new Observable[]{item.bookmarkedProperty()};
+            return item -> new Observable[]{item.bookmarkedProperty(), item.watchedProperty()};
         }
 
         public String getEpisodeName() {
@@ -642,6 +788,14 @@ public class EpisodesListUI extends HBox {
             this.bookmarked.set(bookmarked);
         }
 
+        public boolean isWatched() {
+            return watched.get();
+        }
+
+        public void setWatched(boolean watched) {
+            this.watched.set(watched);
+        }
+
         public SimpleStringProperty cmdProperty() {
             return cmd;
         }
@@ -656,6 +810,10 @@ public class EpisodesListUI extends HBox {
 
         public SimpleBooleanProperty bookmarkedProperty() {
             return bookmarked;
+        }
+
+        public SimpleBooleanProperty watchedProperty() {
+            return watched;
         }
 
         public String getLogo() {

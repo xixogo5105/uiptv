@@ -3,8 +3,10 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
@@ -30,6 +32,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String categoryId = getParam(ex, "categoryId");
         String channelId = getParam(ex, "channelId");
         String mode = getParam(ex, "mode");
+        String seriesParentId = getParam(ex, "seriesParentId");
         String hvec = getParam(ex, "hvec");
 
         PlayerResponse response;
@@ -71,7 +74,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 channel.setInputstreamaddon(bookmark.getInputstreamaddon());
                 channel.setManifestType(bookmark.getManifestType());
             }
-            response = PlayerService.getInstance().get(account, channel, bookmark.getChannelId());
+            String scopedCategoryId = resolveSeriesCategoryId(account, bookmark.getCategoryId());
+            response = PlayerService.getInstance().get(account, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
         } else {
             Account account = AccountService.getInstance().getById(accountId);
             applyMode(account, mode);
@@ -87,6 +91,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
             String reqClearKeys = sanitizeParam(getParam(ex, "clearKeysJson"));
             String reqInputstreamAddon = sanitizeParam(getParam(ex, "inputstreamaddon"));
             String reqManifestType = sanitizeParam(getParam(ex, "manifestType"));
+            String reqSeason = sanitizeParam(getParam(ex, "season"));
+            String reqEpisodeNum = sanitizeParam(getParam(ex, "episodeNum"));
 
             if (channel == null) {
                 channel = new Channel();
@@ -102,6 +108,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 channel.setClearKeysJson(reqClearKeys);
                 channel.setInputstreamaddon(reqInputstreamAddon);
                 channel.setManifestType(reqManifestType);
+                channel.setSeason(reqSeason);
+                channel.setEpisodeNum(reqEpisodeNum);
             } else {
                 if (isBlank(channel.getName()) && isNotBlank(reqName)) channel.setName(reqName);
                 if (isBlank(channel.getLogo()) && isNotBlank(reqLogo)) channel.setLogo(reqLogo);
@@ -114,9 +122,12 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 if (isBlank(channel.getClearKeysJson()) && isNotBlank(reqClearKeys)) channel.setClearKeysJson(reqClearKeys);
                 if (isBlank(channel.getInputstreamaddon()) && isNotBlank(reqInputstreamAddon)) channel.setInputstreamaddon(reqInputstreamAddon);
                 if (isBlank(channel.getManifestType()) && isNotBlank(reqManifestType)) channel.setManifestType(reqManifestType);
+                if (isBlank(channel.getSeason()) && isNotBlank(reqSeason)) channel.setSeason(reqSeason);
+                if (isBlank(channel.getEpisodeNum()) && isNotBlank(reqEpisodeNum)) channel.setEpisodeNum(reqEpisodeNum);
             }
             String seriesId = getParam(ex, "seriesId");
-            response = PlayerService.getInstance().get(account, channel, seriesId);
+            String scopedCategoryId = resolveSeriesCategoryId(account, categoryId);
+            response = PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId);
         }
 
         String originalUrl = response.getUrl();
@@ -199,6 +210,20 @@ public class HttpPlayerJsonServer implements HttpHandler {
         } catch (Exception ignored) {
             account.setAction(Account.AccountAction.itv);
         }
+    }
+
+    private String resolveSeriesCategoryId(Account account, String rawCategoryId) {
+        if (account == null || account.getAction() != Account.AccountAction.series) {
+            return "";
+        }
+        if (isBlank(rawCategoryId)) {
+            return "";
+        }
+        Category category = SeriesCategoryDb.get().getById(rawCategoryId);
+        if (category != null && isNotBlank(category.getCategoryId())) {
+            return category.getCategoryId();
+        }
+        return rawCategoryId;
     }
 
     private boolean isHvecEnabled(String value) {

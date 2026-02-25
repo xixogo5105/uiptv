@@ -4,6 +4,7 @@ import com.uiptv.db.AccountDb;
 import com.uiptv.db.BookmarkDb;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.SeriesWatchStateDb;
 import com.uiptv.model.Account;
 import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.ServerUtils;
@@ -45,6 +46,7 @@ public class AccountService {
             BookmarkDb.get().deleteByAccountName(account.getAccountName());
             sessionTokenByAccountKey.remove(getSessionAccountKey(account));
         }
+        SeriesWatchStateDb.get().deleteByAccount(accountId);
         ChannelDb.get().deleteByAccount(accountId);
         CategoryDb.get().deleteByAccount(AccountDb.get().getAccountById(accountId));
         AccountDb.get().delete(accountId);
