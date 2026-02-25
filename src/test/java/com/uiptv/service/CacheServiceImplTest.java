@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CacheServiceImplTest extends DbBackedTest {
@@ -101,6 +102,128 @@ class CacheServiceImplTest extends DbBackedTest {
         assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
         assertTrue(logs.stream().anyMatch(m -> m.contains("Trying last-resort category-by-category fetch")));
         assertTrue(logs.stream().anyMatch(m -> m.contains("Last-resort fetch succeeded")));
+    }
+
+    @Test
+    void verifyMacAddress_returnsFalse_whenAccountIsNull() {
+        CacheService cacheService = new CacheServiceImpl();
+        assertFalse(cacheService.verifyMacAddress(null, "00:11:22:33:44:99"));
+    }
+
+    @Test
+    void verifyMacAddress_returnsTrue_andRestoresOriginalMac_whenHandshakeAndCategoriesSucceed() {
+        Account account = createStalkerAccount("acc-verify-ok");
+        account.setAction(Account.AccountAction.itv);
+        String originalMac = account.getMacAddress();
+        CacheService cacheService = new CacheServiceImpl();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<CategoryService> categoryMock = Mockito.mockStatic(CategoryService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
+            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
+            Mockito.doAnswer(invocation -> {
+                Account a = invocation.getArgument(0);
+                a.setToken("valid-token");
+                return null;
+            }).when(handshakeService).connect(Mockito.any(Account.class));
+
+            CategoryService categoryService = Mockito.mock(CategoryService.class);
+            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
+            Mockito.when(categoryService.parseCategories(Mockito.anyString(), Mockito.eq(false)))
+                    .thenReturn(List.of(new Category("10", "News", "news", false, 0)));
+
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account))).thenReturn("{\"js\":[]}");
+
+            boolean verified = cacheService.verifyMacAddress(account, "00:11:22:33:44:99");
+            assertTrue(verified);
+            assertEquals(originalMac, account.getMacAddress(), "MAC must be restored after verification");
+        }
+    }
+
+    @Test
+    void verifyMacAddress_returnsFalse_whenHandshakeDoesNotConnect_andRestoresMac() {
+        Account account = createStalkerAccount("acc-verify-handshake-fail");
+        String originalMac = account.getMacAddress();
+        CacheService cacheService = new CacheServiceImpl();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class)) {
+            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
+            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
+            Mockito.doAnswer(invocation -> {
+                Account a = invocation.getArgument(0);
+                a.setToken(null);
+                return null;
+            }).when(handshakeService).connect(Mockito.any(Account.class));
+
+            boolean verified = cacheService.verifyMacAddress(account, "00:11:22:33:44:aa");
+            assertFalse(verified);
+            assertEquals(originalMac, account.getMacAddress(), "MAC must be restored after failed handshake");
+        }
+    }
+
+    @Test
+    void verifyMacAddress_returnsFalse_whenCategoriesEmpty() {
+        Account account = createStalkerAccount("acc-verify-empty-cats");
+        CacheService cacheService = new CacheServiceImpl();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<CategoryService> categoryMock = Mockito.mockStatic(CategoryService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
+            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
+            Mockito.doAnswer(invocation -> {
+                Account a = invocation.getArgument(0);
+                a.setToken("valid-token");
+                return null;
+            }).when(handshakeService).connect(Mockito.any(Account.class));
+
+            CategoryService categoryService = Mockito.mock(CategoryService.class);
+            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
+            Mockito.when(categoryService.parseCategories(Mockito.anyString(), Mockito.eq(false))).thenReturn(List.of());
+
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account))).thenReturn("{\"js\":[]}");
+            assertFalse(cacheService.verifyMacAddress(account, "00:11:22:33:44:ab"));
+        }
+    }
+
+    @Test
+    void verifyMacAddress_returnsFalse_whenFetchThrowsException_andUsesVodCategoryAction() {
+        Account account = createStalkerAccount("acc-verify-fetch-throws");
+        account.setAction(Account.AccountAction.vod);
+        String originalMac = account.getMacAddress();
+        CacheService cacheService = new CacheServiceImpl();
+        AtomicInteger fetchCalls = new AtomicInteger();
+        List<String> actions = new ArrayList<>();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<CategoryService> categoryMock = Mockito.mockStatic(CategoryService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
+            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
+            Mockito.doAnswer(invocation -> {
+                Account a = invocation.getArgument(0);
+                a.setToken("valid-token");
+                return null;
+            }).when(handshakeService).connect(Mockito.any(Account.class));
+
+            CategoryService categoryService = Mockito.mock(CategoryService.class);
+            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
+
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
+                    .thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> params = invocation.getArgument(0);
+                        actions.add(params.get("action"));
+                        fetchCalls.incrementAndGet();
+                        throw new RuntimeException("network down");
+                    });
+
+            assertFalse(cacheService.verifyMacAddress(account, "00:11:22:33:44:ac"));
+            assertEquals(1, fetchCalls.get());
+            assertEquals(List.of("get_categories"), actions, "VOD verification must query get_categories");
+            assertEquals(originalMac, account.getMacAddress(), "MAC must be restored after exception");
+        }
     }
 
     private List<Channel> getAllCachedChannels(Account account) {

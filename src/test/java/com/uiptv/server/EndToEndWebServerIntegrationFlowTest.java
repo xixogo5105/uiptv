@@ -80,6 +80,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         providerMockServer.createContext("/xtreme/player_api.php", this::handleXtreme);
         providerMockServer.createContext("/rss/feed.xml", this::handleRss);
         providerMockServer.createContext("/m3u", this::handleM3uPlaylist);
+        providerMockServer.createContext("/upstream", this::handleUpstreamStream);
         providerMockServer.start();
 
         int providerPort = providerMockServer.getAddress().getPort();
@@ -170,6 +171,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertBookmarksApis();
             assertPlayerApis();
             assertPlaylistApis();
+            assertHlsAndProxyApis();
             assertWebChannelJsonServerApi();
         }
     }
@@ -556,6 +558,47 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(iptvM3u.body().contains("#EXTM3U"));
     }
 
+    private void assertHlsAndProxyApis() throws Exception {
+        String playlistBody = """
+                #EXTM3U
+                #EXT-X-VERSION:3
+                #EXTINF:6.0,
+                segment-1.ts
+                """;
+        HttpTextResponse putPlaylist = send(appBaseUrl + "/hls-upload/sample.m3u8", "PUT", playlistBody, "application/vnd.apple.mpegurl");
+        assertEquals(200, putPlaylist.statusCode());
+
+        HttpTextResponse putSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "PUT", "UPSTREAM-TS-DATA", "video/mp2t");
+        assertEquals(200, putSegment.statusCode());
+
+        HttpTextResponse playlistNoHvec = get("/hls/sample.m3u8");
+        assertEquals(200, playlistNoHvec.statusCode());
+        assertTrue(playlistNoHvec.body().contains("segment-1.ts"));
+        assertFalse(playlistNoHvec.body().contains("hvec=1"));
+
+        HttpTextResponse playlistHvec = get("/hls/sample.m3u8?hvec=1");
+        assertEquals(200, playlistHvec.statusCode());
+        assertTrue(playlistHvec.body().contains("segment-1.ts?hvec=1"));
+
+        HttpTextResponse segment = get("/hls/segment-1.ts");
+        assertEquals(200, segment.statusCode());
+        assertTrue(segment.body().contains("UPSTREAM-TS-DATA"));
+
+        HttpTextResponse deleteSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "DELETE", null, null);
+        assertEquals(200, deleteSegment.statusCode());
+
+        HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
+        assertEquals(404, deletedSegmentFetch.statusCode());
+
+        HttpTextResponse missingProxyParam = get("/proxy-stream");
+        assertEquals(400, missingProxyParam.statusCode());
+
+        String src = URLEncoder.encode(providerBaseUrl + "/upstream/stream.ts", StandardCharsets.UTF_8);
+        HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
+        assertEquals(200, proxyStream.statusCode());
+        assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
+    }
+
     private void assertWebChannelJsonServerApi() throws Exception {
         HttpServer tempServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
@@ -868,6 +911,24 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                     """;
         }
         writeResponse(exchange, 200, body, "application/vnd.apple.mpegurl; charset=utf-8");
+    }
+
+    private void handleUpstreamStream(HttpExchange exchange) throws IOException {
+        URI uri = exchange.getRequestURI();
+        String path = uri == null ? "" : uri.getPath();
+        if (!"/upstream/stream.ts".equals(path)) {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+            return;
+        }
+        byte[] data = "UPSTREAM-TS-DATA".getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "video/mp2t");
+        exchange.getResponseHeaders().set("Accept-Ranges", "bytes");
+        exchange.sendResponseHeaders(200, data.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(data);
+        }
+        exchange.close();
     }
 
     private Map<String, String> readQuery(HttpExchange exchange) throws IOException {
