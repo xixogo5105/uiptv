@@ -84,12 +84,14 @@ public class HandshakeService {
 
     public void connect(Account account) {
         account.setToken(null);
+        AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
             Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));
+        AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             String finalJson = json;
             Platform.runLater(() -> LogDisplayUI.addLog("Unable to retrieve a token:\n\n" + finalJson));
@@ -103,12 +105,14 @@ public class HandshakeService {
 
     public void hardTokenRefresh(Account account) {
         account.setToken(null);
+        AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
             Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));
+        AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             Platform.runLater(() -> LogDisplayUI.addLog("Unable to retrieve a token:\n\n" + json));
         }

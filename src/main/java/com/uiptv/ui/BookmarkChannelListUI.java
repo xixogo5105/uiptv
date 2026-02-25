@@ -627,7 +627,7 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private PlaybackContext resolvePlaybackContext(BookmarkItem item) {
-        Account account = AccountService.getInstance().getAll().get(item.getAccountName());
+        Account account = AccountService.getInstance().getByName(item.getAccountName());
         if (account == null) {
             return null;
         }
