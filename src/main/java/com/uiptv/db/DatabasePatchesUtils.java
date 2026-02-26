@@ -47,6 +47,7 @@ public class DatabasePatchesUtils {
         dbPatches.put("156", "ALTER TABLE " + SERIES_WATCH_STATE_TABLE.getTableName() + " ADD COLUMN categoryId TEXT default ''");
         dbPatches.put("157", "DROP INDEX IF EXISTS idx_series_watch_unique");
         dbPatches.put("158", "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique ON " + SERIES_WATCH_STATE_TABLE.getTableName() + " (accountId, mode, categoryId, seriesId)");
+        dbPatches.put("159", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN cacheExpiryDays TEXT default '30'");
     }
 
     public static void applyPatches(Connection conn) throws SQLException {

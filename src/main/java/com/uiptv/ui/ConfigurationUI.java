@@ -58,6 +58,7 @@ public class ConfigurationUI extends VBox {
     private final UIptvText fontSize = new UIptvText("fontSize", "Font size. e.g. 13pt", 5);
     private final UIptvText fontWeight = new UIptvText("fontWeight", "Font weight. e.g. bold", 5);
     private final UIptvText serverPort = new UIptvText("serverPort", "e.g. 8888", 3);
+    private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "Cache expiry in days (numbers only, default 30)", 5);
 
     private final Button startServerButton = new Button("Start Server");
     private final Button stopServerButton = new Button("Stop Server");
@@ -127,7 +128,20 @@ public class ConfigurationUI extends VBox {
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
+            cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
         }
+        if (cacheExpiryDays.getText() == null || cacheExpiryDays.getText().isBlank()) {
+            cacheExpiryDays.setText(String.valueOf(ConfigurationService.DEFAULT_CACHE_EXPIRY_DAYS));
+        }
+        cacheExpiryDays.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) {
+                return;
+            }
+            String normalized = newVal.replaceAll("[^0-9]", "");
+            if (!newVal.equals(normalized)) {
+                cacheExpiryDays.setText(normalized);
+            }
+        });
         playerPath1.setMinWidth(275);
         playerPath2.setMinWidth(275);
         playerPath3.setMinWidth(275);
@@ -152,6 +166,10 @@ public class ConfigurationUI extends VBox {
         });
 
         filterPausedCheckBox.setMinWidth(250);
+        cacheExpiryDays.setPrefColumnCount(4);
+        cacheExpiryDays.setMaxWidth(70);
+        Label cacheExpiryLabel = new Label("Cache Expires in days:");
+        HBox cacheExpiryRow = new HBox(8, cacheExpiryLabel, cacheExpiryDays);
         saveButton.setMinWidth(40);
         saveButton.setPrefWidth(440);
         saveButton.setMinHeight(50);
@@ -168,7 +186,7 @@ public class ConfigurationUI extends VBox {
         VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox);
 
         HBox cacheButtons = new HBox(10, clearCacheButton, reloadCacheButton);
-        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheButtons);
+        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheButtons, cacheExpiryRow);
 
         openServerLink.setVisible(false);
         openServerLink.setManaged(false);
@@ -375,6 +393,7 @@ public class ConfigurationUI extends VBox {
                         defaultEmbedPlayer.isSelected(),
                         enableFfmpegCheckBox.isSelected()
                 );
+                newConfiguration.setCacheExpiryDays(sanitizeCacheExpiryDaysText());
                 newConfiguration.setDbId(dbId);
                 service.save(newConfiguration);
                 onSaveCallback.call(null);
@@ -424,5 +443,14 @@ public class ConfigurationUI extends VBox {
             File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
             playerPath3.setText(file.getAbsolutePath());
         });
+    }
+
+    private String sanitizeCacheExpiryDaysText() {
+        int normalized = service.normalizeCacheExpiryDays(cacheExpiryDays.getText());
+        String normalizedText = String.valueOf(normalized);
+        if (!normalizedText.equals(cacheExpiryDays.getText())) {
+            cacheExpiryDays.setText(normalizedText);
+        }
+        return normalizedText;
     }
 }

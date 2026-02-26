@@ -12,6 +12,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ChannelService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.AccountType;
@@ -29,8 +30,6 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpChannelJsonServer implements HttpHandler {
-    private static final long EPISODE_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
-
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -46,7 +45,7 @@ public class HttpChannelJsonServer implements HttpHandler {
                 && account.getType() == AccountType.STALKER_PORTAL
                 && isNotBlank(movieId)
                 && !"All".equalsIgnoreCase(categoryId)) {
-            if (SeriesEpisodeDb.get().isFresh(account, movieId, EPISODE_CACHE_TTL_MS)) {
+            if (SeriesEpisodeDb.get().isFresh(account, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
                 List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, movieId);
                 if (!cached.isEmpty()) {
                     String cachedJson = com.uiptv.util.ServerUtils.objectToJson(cached);
@@ -195,28 +194,17 @@ public class HttpChannelJsonServer implements HttpHandler {
             if (rows.isEmpty()) {
                 return response;
             }
-            String watchedEpisodeId = "";
-            String watchedSeason = "";
-            String watchedEpisodeNum = "";
             String scopedCategoryId = normalizeSeriesCategoryId(categoryId);
             SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), scopedCategoryId, seriesId);
-            if (state != null && state.getEpisodeId() != null) {
-                watchedEpisodeId = state.getEpisodeId();
-                watchedSeason = state.getSeason();
-                if (state.getEpisodeNum() > 0) {
-                    watchedEpisodeNum = String.valueOf(state.getEpisodeNum());
-                }
-            }
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject item = rows.optJSONObject(i);
                 if (item == null) continue;
-                item.put("watched", isMatchingWatchedEpisode(
-                        watchedEpisodeId,
-                        watchedSeason,
-                        watchedEpisodeNum,
+                item.put("watched", SeriesWatchStateService.getInstance().isMatchingEpisode(
+                        state,
                         item.optString("channelId", ""),
                         item.optString("season", ""),
-                        item.optString("episodeNum", "")
+                        item.optString("episodeNum", ""),
+                        item.optString("name", "")
                 ));
             }
             return rows.toString();
@@ -236,32 +224,4 @@ public class HttpChannelJsonServer implements HttpHandler {
         return categoryId;
     }
 
-    private boolean isMatchingWatchedEpisode(String watchedEpisodeId,
-                                             String watchedSeason,
-                                             String watchedEpisodeNum,
-                                             String episodeId,
-                                             String season,
-                                             String episodeNum) {
-        if (StringUtils.isBlank(watchedEpisodeId) || StringUtils.isBlank(episodeId)) {
-            return false;
-        }
-        if (!watchedEpisodeId.equals(episodeId)) {
-            return false;
-        }
-        String ws = digitsOnly(watchedSeason);
-        String s = digitsOnly(season);
-        if (StringUtils.isNotBlank(ws) && StringUtils.isNotBlank(s) && !ws.equals(s)) {
-            return false;
-        }
-        String we = digitsOnly(watchedEpisodeNum);
-        String e = digitsOnly(episodeNum);
-        return StringUtils.isBlank(we) || StringUtils.isBlank(e) || we.equals(e);
-    }
-
-    private String digitsOnly(String value) {
-        if (StringUtils.isBlank(value)) {
-            return "";
-        }
-        return value.replaceAll("[^0-9]", "");
-    }
 }

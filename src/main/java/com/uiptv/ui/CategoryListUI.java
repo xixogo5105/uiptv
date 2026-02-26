@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -77,8 +76,8 @@ public class CategoryListUI extends HBox {
             processedList = processedList.stream()
                     .filter(category -> {
                         if ("Uncategorized".equalsIgnoreCase(category.getTitle())) {
-                            // Check if there are channels for this category in the DB
-                            return !ChannelDb.get().getChannels(category.getDbId()).isEmpty();
+                            // Keep Uncategorized only when it actually has cached channels.
+                            return ChannelService.getInstance().hasCachedLiveChannelsByDbCategoryId(category.getDbId());
                         }
                         return true;
                     })

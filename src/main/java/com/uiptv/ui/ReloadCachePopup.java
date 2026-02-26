@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
@@ -52,6 +51,7 @@ public class ReloadCachePopup extends VBox {
     private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
     private final ProgressIndicator loadingIndicator = createLoadingIndicator();
     private final CacheService cacheService = new CacheServiceImpl();
+    private final AccountService accountService = AccountService.getInstance();
     private final List<CheckBox> checkBoxes = new ArrayList<>();
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
@@ -100,7 +100,7 @@ public class ReloadCachePopup extends VBox {
         getStylesheets().add(RootApplication.currentTheme);
 
         accountsVBox.setPadding(new Insets(10));
-        List<Account> supportedAccounts = AccountDb.get().getAccounts().stream()
+        List<Account> supportedAccounts = accountService.getAll().values().stream()
                 .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
                 .collect(Collectors.toList());
 

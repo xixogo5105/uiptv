@@ -112,8 +112,8 @@ public class EpisodesListUI extends HBox {
                 String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
                 String season = inferSeason(i);
                 String episodeNo = inferEpisodeNumber(i);
-                boolean isWatched = isMatchingWatchedEpisode(
-                        watchedEpisodeId, watchedSeason, watchedEpisodeNum, i.getId(), season, episodeNo);
+                boolean isWatched = SeriesWatchStateService.getInstance().isMatchingEpisode(
+                        watchedState, i.getId(), season, episodeNo, i.getTitle());
                 String displayTitle = isBlank(episodeNo) ? "Episode" : "Episode " + episodeNo;
                 catList.add(new EpisodeItem(
                         new SimpleStringProperty(displayTitle),
@@ -292,40 +292,17 @@ public class EpisodesListUI extends HBox {
             String watchedEpisodeNum = state != null && state.getEpisodeNum() > 0 ? String.valueOf(state.getEpisodeNum()) : "";
             runLater(() -> {
                 for (EpisodeItem item : allEpisodeItems) {
-                    item.setWatched(isMatchingWatchedEpisode(
-                            watchedEpisodeId,
-                            watchedSeason,
-                            watchedEpisodeNum,
+                    item.setWatched(SeriesWatchStateService.getInstance().isMatchingEpisode(
+                            state,
                             item.getEpisodeId(),
                             item.getSeason(),
-                            item.getEpisodeNumber()
+                            item.getEpisodeNumber(),
+                            item.getEpisodeName()
                     ));
                 }
                 table.refresh();
             });
         }).start();
-    }
-
-    private boolean isMatchingWatchedEpisode(String watchedEpisodeId,
-                                             String watchedSeason,
-                                             String watchedEpisodeNum,
-                                             String episodeId,
-                                             String season,
-                                             String episodeNum) {
-        if (isBlank(watchedEpisodeId) || isBlank(episodeId)) {
-            return false;
-        }
-        if (!watchedEpisodeId.equals(episodeId)) {
-            return false;
-        }
-        String ws = onlyDigits(watchedSeason);
-        String s = onlyDigits(season);
-        if (!isBlank(ws) && !isBlank(s) && !ws.equals(s)) {
-            return false;
-        }
-        String we = onlyDigits(watchedEpisodeNum);
-        String e = onlyDigits(episodeNum);
-        return isBlank(we) || isBlank(e) || we.equals(e);
     }
 
     private String bookmarkIdentityKey(String channelId, String channelName) {

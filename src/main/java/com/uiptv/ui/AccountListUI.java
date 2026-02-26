@@ -1,7 +1,6 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
-import com.uiptv.db.AccountDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
@@ -88,7 +87,10 @@ public class AccountListUI extends HBox {
 
     private void addAccountClickHandler() {
         table.setOnKeyReleased(event -> {
-            onEditCallback.call(AccountDb.get().getAccountById(((AccountItem) table.getFocusModel().getFocusedItem()).accountId.get()));
+            AccountItem focusedItem = (AccountItem) table.getFocusModel().getFocusedItem();
+            if (focusedItem != null && onEditCallback != null) {
+                onEditCallback.call(accountService.getById(focusedItem.accountId.get()));
+            }
             if (event.getCode() == KeyCode.DELETE) {
                 handleDeleteAccounts();
             } else if (event.getCode() == KeyCode.ENTER) {
@@ -106,7 +108,9 @@ public class AccountListUI extends HBox {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
                     AccountItem clickedRow = row.getItem();
                     try {
-                        onEditCallback.call(AccountDb.get().getAccountById(clickedRow.getAccountId()));
+                        if (onEditCallback != null) {
+                            onEditCallback.call(accountService.getById(clickedRow.getAccountId()));
+                        }
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -161,7 +165,13 @@ public class AccountListUI extends HBox {
 
         rowMenu.setOnShowing(e -> {
             if (row.getItem() != null) {
-                Account account = AccountDb.get().getAccountById(row.getItem().getAccountId());
+                Account account = accountService.getById(row.getItem().getAccountId());
+                if (account == null) {
+                    vod.setVisible(false);
+                    series.setVisible(false);
+                    reloadCache.setVisible(false);
+                    return;
+                }
                 boolean vodSupported = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
                 vod.setVisible(vodSupported);
                 series.setVisible(vodSupported);
@@ -206,7 +216,7 @@ public class AccountListUI extends HBox {
             if (sourceItem == null || !uniqueAccountIds.add(sourceItem.getAccountId())) {
                 continue;
             }
-            Account account = AccountDb.get().getAccountById(sourceItem.getAccountId());
+            Account account = accountService.getById(sourceItem.getAccountId());
             if (account != null && CACHE_SUPPORTED.contains(account.getType())) {
                 accounts.add(account);
             }
@@ -231,7 +241,9 @@ public class AccountListUI extends HBox {
             if (response == ButtonType.OK) {
                 for (AccountItem selectedItem : (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems()) {
                     AccountService.getInstance().delete(selectedItem.getAccountId());
-                    onDeleteCallback.call(AccountDb.get().getAccountById(selectedItem.getAccountId()));
+                    if (onDeleteCallback != null) {
+                        onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
+                    }
                 }
                 refresh();
             }
@@ -239,7 +251,7 @@ public class AccountListUI extends HBox {
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
-        Account account = AccountDb.get().getAccountById(item.getAccountId());
+        Account account = accountService.getById(item.getAccountId());
         if (account == null) {
             showErrorAlert("Unable to find account.");
             return;

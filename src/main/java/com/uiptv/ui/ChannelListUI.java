@@ -1,12 +1,7 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.CategoryDb;
-import com.uiptv.db.ChannelDb;
-import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.model.*;
 import com.uiptv.service.*;
-import com.uiptv.shared.Episode;
-import com.uiptv.shared.EpisodeInfo;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
@@ -36,8 +31,6 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.series;
@@ -67,8 +60,6 @@ public class ChannelListUI extends HBox {
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
-    private static final Pattern SERIES_SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
-    private static final Pattern SERIES_EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
         this(account, categoryTitle, categoryId);
@@ -293,7 +284,7 @@ public class ChannelListUI extends HBox {
         }
         new Thread(() -> {
             try {
-                List<Category> categories = CategoryDb.get().getCategories(account);
+                List<Category> categories = CategoryService.getInstance().getCached(account);
 
                 categoryTitleByCategoryId = categories.stream()
                         .filter(c -> c != null && c.getCategoryId() != null)
@@ -353,7 +344,7 @@ public class ChannelListUI extends HBox {
                 if ("all".equalsIgnoreCase(category.getTitle().trim())) {
                     continue;
                 }
-                List<Channel> channels = ChannelDb.get().getChannels(category.getDbId());
+                List<Channel> channels = ChannelService.getInstance().getCachedLiveChannelsByDbCategoryId(category.getDbId());
                 for (Channel channel : channels) {
                     String key = channelIdentityKey(channel);
                     if (isBlank(key)) {
@@ -404,14 +395,7 @@ public class ChannelListUI extends HBox {
         } else if (!isBlank(categoryId)) {
             candidate = categoryId;
         }
-        if (isBlank(candidate)) {
-            return "";
-        }
-        Category category = SeriesCategoryDb.get().getById(candidate);
-        if (category != null && !isBlank(category.getCategoryId())) {
-            return category.getCategoryId();
-        }
-        return candidate;
+        return isBlank(candidate) ? "" : candidate;
     }
 
     private static final class BookmarkContext {
@@ -491,7 +475,8 @@ public class ChannelListUI extends HBox {
                         latch.await();
                         if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
                         try {
-                            EpisodeList episodes = XtremeParser.parseEpisodes(item.getChannelId(), account);
+                            EpisodeList episodes = SeriesEpisodeService.getInstance()
+                                    .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
                             seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
                             episodesListUIHolder[0].setItems(episodes);
                         } finally {
@@ -516,8 +501,8 @@ public class ChannelListUI extends HBox {
                             if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
 
                             try {
-                                List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, item.getChannelId(), account, null, isCancelled::get);
-                                EpisodeList episodeList = toEpisodeList(seriesChannels);
+                                EpisodeList episodeList = SeriesEpisodeService.getInstance()
+                                        .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
                                 seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodeList);
                                 episodesListUIHolder[0].setItems(episodeList);
                             } finally {
@@ -545,9 +530,9 @@ public class ChannelListUI extends HBox {
         if (item == null) {
             return "";
         }
+        String category = categoryId == null ? "" : categoryId.trim();
         String id = item.getChannelId() == null ? "" : item.getChannelId().trim();
-        String name = item.getChannelName() == null ? "" : item.getChannelName().trim().toLowerCase();
-        return id + "|" + name;
+        return category + "|" + id;
     }
 
     private void showEpisodesListUI(ChannelItem item, EpisodeList episodes) {
@@ -776,28 +761,6 @@ public class ChannelListUI extends HBox {
         return fallback;
     }
 
-    private EpisodeList toEpisodeList(List<Channel> channels) {
-        EpisodeList list = new EpisodeList();
-        if (channels == null || channels.isEmpty()) {
-            return list;
-        }
-        for (Channel channel : channels) {
-            if (channel == null) {
-                continue;
-            }
-            Episode episode = new Episode();
-            episode.setId(channel.getChannelId());
-            episode.setTitle(channel.getName());
-            episode.setCmd(channel.getCmd());
-            episode.setSeason(extractSeason(channel.getName()));
-            episode.setEpisodeNum(extractEpisode(channel.getName()));
-            EpisodeInfo info = new EpisodeInfo();
-            info.setMovieImage(normalizeImageUrl(channel.getLogo()));
-            episode.setInfo(info);
-            list.episodes.add(episode);
-        }
-        return list;
-    }
 
     private String normalizeImageUrl(String imageUrl) {
         if (isBlank(imageUrl)) {
@@ -875,34 +838,6 @@ public class ChannelListUI extends HBox {
         } catch (Exception ignored) {
         }
         return "http://127.0.0.1:" + port;
-    }
-
-    private String extractSeason(String title) {
-        if (isBlank(title)) return "1";
-        Matcher matcher = SERIES_SEASON_PATTERN.matcher(title);
-        if (matcher.find()) {
-            String v1 = matcher.group(1);
-            if (!isBlank(v1)) return v1;
-            String v2 = matcher.group(2);
-            if (!isBlank(v2)) return v2;
-            String v3 = matcher.group(3);
-            if (!isBlank(v3)) return v3;
-        }
-        return "1";
-    }
-
-    private String extractEpisode(String title) {
-        if (isBlank(title)) return "";
-        Matcher matcher = SERIES_EPISODE_PATTERN.matcher(title);
-        if (matcher.find()) {
-            String v1 = matcher.group(1);
-            if (!isBlank(v1)) return v1;
-            String v2 = matcher.group(2);
-            if (!isBlank(v2)) return v2;
-            String v3 = matcher.group(3);
-            if (!isBlank(v3)) return v3;
-        }
-        return "";
     }
 
     public static class ChannelItem {

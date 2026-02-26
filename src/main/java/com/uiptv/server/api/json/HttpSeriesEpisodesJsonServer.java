@@ -9,6 +9,7 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
@@ -26,8 +27,6 @@ import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
 
 public class HttpSeriesEpisodesJsonServer implements HttpHandler {
-    private static final long EPISODE_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
-
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -49,7 +48,7 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
         }
 
         List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
-        if (!cachedEpisodes.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, EPISODE_CACHE_TTL_MS)) {
+        if (!cachedEpisodes.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
             applyWatchedFlag(cachedEpisodes, account, categoryId, seriesId);
             generateJsonResponse(ex, ServerUtils.objectToJson(cachedEpisodes));
             return;
@@ -95,51 +94,18 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
             return;
         }
         SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), categoryId, seriesId);
-        String watchedEpisodeId = state == null ? "" : state.getEpisodeId();
-        String watchedSeason = state == null ? "" : state.getSeason();
-        String watchedEpisodeNum = state == null || state.getEpisodeNum() <= 0 ? "" : String.valueOf(state.getEpisodeNum());
         for (Channel channel : episodes) {
             if (channel == null) {
                 continue;
             }
-            channel.setWatched(isMatchingWatchedEpisode(
-                    watchedEpisodeId,
-                    watchedSeason,
-                    watchedEpisodeNum,
+            channel.setWatched(SeriesWatchStateService.getInstance().isMatchingEpisode(
+                    state,
                     channel.getChannelId(),
                     channel.getSeason(),
-                    channel.getEpisodeNum()
+                    channel.getEpisodeNum(),
+                    channel.getName()
             ));
         }
-    }
-
-    private boolean isMatchingWatchedEpisode(String watchedEpisodeId,
-                                             String watchedSeason,
-                                             String watchedEpisodeNum,
-                                             String episodeId,
-                                             String season,
-                                             String episodeNum) {
-        if (StringUtils.isBlank(watchedEpisodeId) || StringUtils.isBlank(episodeId)) {
-            return false;
-        }
-        if (!watchedEpisodeId.equals(episodeId)) {
-            return false;
-        }
-        String ws = digitsOnly(watchedSeason);
-        String s = digitsOnly(season);
-        if (StringUtils.isNotBlank(ws) && StringUtils.isNotBlank(s) && !ws.equals(s)) {
-            return false;
-        }
-        String we = digitsOnly(watchedEpisodeNum);
-        String e = digitsOnly(episodeNum);
-        return StringUtils.isBlank(we) || StringUtils.isBlank(e) || we.equals(e);
-    }
-
-    private String digitsOnly(String value) {
-        if (StringUtils.isBlank(value)) {
-            return "";
-        }
-        return value.replaceAll("[^0-9]", "");
     }
 
     private String resolveSeriesCategoryId(String rawCategoryId) {

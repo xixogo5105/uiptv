@@ -113,6 +113,16 @@ createApp({
             return '';
         };
 
+        const resolvePlaybackSeason = (episode) => {
+            const resolved = resolveEpisodeSeason(episode);
+            return resolved ? String(resolved) : '';
+        };
+
+        const resolvePlaybackEpisodeNumber = (episode) => {
+            const resolved = resolveEpisodeNumber(episode);
+            return resolved ? String(resolved) : '';
+        };
+
         const cleanEpisodeTitle = (value) => {
             if (!value) return '';
             return value
@@ -610,13 +620,13 @@ createApp({
                 return false;
             }
             const watchedSeason = onlyDigits(watched?.season);
-            const candidateSeason = onlyDigits(candidate?.season);
-            if (watchedSeason && candidateSeason && watchedSeason !== candidateSeason) {
+            const candidateSeason = onlyDigits(resolvePlaybackSeason(candidate));
+            if (watchedSeason && (!candidateSeason || watchedSeason !== candidateSeason)) {
                 return false;
             }
             const watchedEpNum = onlyDigits(watched?.episodeNum);
-            const candidateEpNum = onlyDigits(candidate?.episodeNum);
-            return !(watchedEpNum && candidateEpNum && watchedEpNum !== candidateEpNum);
+            const candidateEpNum = onlyDigits(resolvePlaybackEpisodeNumber(candidate));
+            return !(watchedEpNum && (!candidateEpNum || watchedEpNum !== candidateEpNum));
         };
 
         const markCurrentSeriesEpisodeWatchedLocally = () => {
@@ -965,6 +975,8 @@ createApp({
             query.set('mode', modeToUse);
 
             if (modeToUse === 'series') {
+                const resolvedSeason = resolvePlaybackSeason(channel);
+                const resolvedEpisodeNum = resolvePlaybackEpisodeNumber(channel);
                 // Series watch pointer is keyed by episode channelId, not local DB row id.
                 query.set('channelId', channelIdentifier);
                 query.set('seriesId', channelIdentifier);
@@ -972,8 +984,8 @@ createApp({
                 query.set('name', channel.name || '');
                 query.set('logo', channel.logo || '');
                 query.set('cmd', channel.cmd || '');
-                query.set('season', channel.season || '');
-                query.set('episodeNum', channel.episodeNum || '');
+                query.set('season', resolvedSeason);
+                query.set('episodeNum', resolvedEpisodeNum);
                 query.set('drmType', channel.drmType || '');
                 query.set('drmLicenseUrl', channel.drmLicenseUrl || '');
                 query.set('clearKeysJson', channel.clearKeysJson || '');
@@ -1066,6 +1078,8 @@ createApp({
             query.set('manifestType', cleanLaunchValue(channel.manifestType));
             if (mode === 'series') {
                 query.set('seriesId', channelIdentifier);
+                query.set('season', cleanLaunchValue(channel.season || resolvePlaybackSeason(channel)));
+                query.set('episodeNum', cleanLaunchValue(channel.episodeNum || resolvePlaybackEpisodeNumber(channel)));
             }
 
             appendPlaybackCompatParams(query, mode);
@@ -1101,6 +1115,8 @@ createApp({
                 clearKeysJson: channel.clearKeysJson || '',
                 inputstreamaddon: channel.inputstreamaddon || '',
                 manifestType: channel.manifestType || '',
+                season: resolvePlaybackSeason(channel),
+                episodeNum: resolvePlaybackEpisodeNumber(channel),
                 accountId: currentContext.value.accountId,
                 categoryId: currentContext.value.categoryId,
                 type: 'channel',
@@ -1130,6 +1146,8 @@ createApp({
                 clearKeysJson: channel.clearKeysJson,
                 inputstreamaddon: channel.inputstreamaddon,
                 manifestType: channel.manifestType,
+                season: modeToUse === 'series' ? resolvePlaybackSeason(channel) : '',
+                episodeNum: modeToUse === 'series' ? resolvePlaybackEpisodeNumber(channel) : '',
                 accountId: currentContext.value.accountId,
                 categoryId: currentContext.value.categoryId,
                 type: 'channel',

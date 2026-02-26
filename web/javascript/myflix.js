@@ -275,6 +275,16 @@ createApp({
             return '';
         };
 
+        const resolvePlaybackSeason = (episode) => {
+            const resolved = resolveEpisodeSeason(episode);
+            return resolved ? String(resolved) : '';
+        };
+
+        const resolvePlaybackEpisodeNumber = (episode) => {
+            const resolved = resolveEpisodeNumber(episode);
+            return resolved ? String(resolved) : '';
+        };
+
         const cleanEpisodeTitle = (value) => {
             if (!value) return '';
             return value
@@ -816,20 +826,23 @@ createApp({
 
             const dbId = channel.dbId || '';
             const channelIdentifier = channel.channelId || channel.id || dbId;
+            const seriesEpisodeIdentifier = channel.channelId || channel.id || '';
             const seriesParentId = mode === 'series'
                 ? String(browserState?.detail?.value?.seriesId || browserState?.selectedSeriesId?.value || '')
                 : '';
 
             if (mode === 'series') {
+                const resolvedSeason = resolvePlaybackSeason(channel);
+                const resolvedEpisodeNum = resolvePlaybackEpisodeNumber(channel);
                 // Series watch pointer must use real episode channelId, not cached DB row id.
                 query.set('channelId', channelIdentifier || '');
-                query.set('seriesId', channelIdentifier || '');
+                query.set('seriesId', seriesEpisodeIdentifier || '');
                 query.set('seriesParentId', seriesParentId);
                 query.set('name', channel.name || '');
                 query.set('logo', channel.logo || '');
                 query.set('cmd', channel.cmd || '');
-                query.set('season', channel.season || '');
-                query.set('episodeNum', channel.episodeNum || '');
+                query.set('season', resolvedSeason);
+                query.set('episodeNum', resolvedEpisodeNum);
                 query.set('cmd_1', channel.cmd_1 || '');
                 query.set('cmd_2', channel.cmd_2 || '');
                 query.set('cmd_3', channel.cmd_3 || '');
@@ -868,10 +881,13 @@ createApp({
         const playChannel = (channel, mode = 'itv') => {
             const b = browsers[mode];
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
+            const seriesEpisodeIdentifier = channel.channelId || channel.id || '';
             currentChannel.value = {
                 id: channelIdentifier,
                 dbId: channel.dbId || '',
-                channelId: channel.channelId || channelIdentifier,
+                channelId: mode === 'series'
+                    ? seriesEpisodeIdentifier
+                    : (channel.channelId || channelIdentifier),
                 name: channel.name,
                 logo: channel.logo,
                 cmd: channel.cmd,
@@ -880,6 +896,8 @@ createApp({
                 clearKeysJson: channel.clearKeysJson,
                 inputstreamaddon: channel.inputstreamaddon,
                 manifestType: channel.manifestType,
+                season: mode === 'series' ? resolvePlaybackSeason(channel) : '',
+                episodeNum: mode === 'series' ? resolvePlaybackEpisodeNumber(channel) : '',
                 accountId: b.accountId.value,
                 accountName: resolveAccountName(b.accountId.value),
                 categoryId: b.categoryId.value,
@@ -1001,13 +1019,13 @@ createApp({
                 return false;
             }
             const watchedSeason = onlyDigits(watched?.season);
-            const candidateSeason = onlyDigits(candidate?.season);
-            if (watchedSeason && candidateSeason && watchedSeason !== candidateSeason) {
+            const candidateSeason = onlyDigits(resolvePlaybackSeason(candidate));
+            if (watchedSeason && (!candidateSeason || watchedSeason !== candidateSeason)) {
                 return false;
             }
             const watchedEpNum = onlyDigits(watched?.episodeNum);
-            const candidateEpNum = onlyDigits(candidate?.episodeNum);
-            return !(watchedEpNum && candidateEpNum && watchedEpNum !== candidateEpNum);
+            const candidateEpNum = onlyDigits(resolvePlaybackEpisodeNumber(candidate));
+            return !(watchedEpNum && (!candidateEpNum || watchedEpNum !== candidateEpNum));
         };
 
         const markCurrentSeriesEpisodeWatchedLocally = (lifecycleId) => {

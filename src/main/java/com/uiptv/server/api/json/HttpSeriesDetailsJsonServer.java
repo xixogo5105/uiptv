@@ -6,6 +6,7 @@ import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.shared.Episode;
@@ -26,8 +27,6 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpSeriesDetailsJsonServer implements HttpHandler {
-    private static final long EPISODE_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
-
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -47,7 +46,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         response.put("episodesMeta", new JSONArray());
         if (!isBlank(seriesId)) {
             List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
-            if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, EPISODE_CACHE_TTL_MS)) {
+            if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
                 response.put("episodes", new JSONArray(com.uiptv.util.ServerUtils.objectToJson(cached)));
             }
         }

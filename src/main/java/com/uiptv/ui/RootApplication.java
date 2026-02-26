@@ -1,11 +1,11 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.DatabaseUtils;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Application;
 import javafx.application.HostServices;
@@ -27,7 +27,6 @@ import java.io.PrintStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
-import static com.uiptv.util.SQLiteTableSync.syncTables;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static java.lang.System.exit;
 
@@ -38,6 +37,7 @@ public class RootApplication extends Application {
     public static String currentTheme;
     private static HostServices hostServices;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
@@ -81,11 +81,7 @@ public class RootApplication extends Application {
     }
 
     public static void syncDatabases(String firstDB, String secondDB) throws SQLException {
-        for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
-            if (DatabaseUtils.Syncable.contains(tableName)) {
-                syncTables(firstDB, secondDB, tableName.getTableName());
-            }
-        }
+        databaseSyncService.syncDatabases(firstDB, secondDB);
     }
 
     private static void startServer() {

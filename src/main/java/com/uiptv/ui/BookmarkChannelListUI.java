@@ -1,10 +1,10 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.ChannelDb;
 import com.uiptv.model.*;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.Episode;
@@ -286,12 +286,12 @@ public class BookmarkChannelListUI extends HBox {
             if (logoByAccountAndChannel.containsKey(key)) {
                 logo = logoByAccountAndChannel.get(key);
             } else {
-                channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+                channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
                 logo = channel != null ? channel.getLogo() : "";
                 logoByAccountAndChannel.put(key, logo);
             }
             if (channel == null) {
-                channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+                channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
             }
         }
 

@@ -42,7 +42,6 @@ import static com.uiptv.widget.UIptvAlert.showError;
 @Slf4j
 public class ChannelService {
     private static final int MAX_PAGES_WITHOUT_PAGINATION = 200;
-    private static final long VOD_SERIES_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
     private static ChannelService instance;
     private final CacheService cacheService;
     private final ContentFilterService contentFilterService;
@@ -214,11 +213,12 @@ public class ChannelService {
     }
 
     private boolean isVodSeriesChannelsFresh(Account account, String dbCategoryId) {
+        long cacheTtlMs = ConfigurationService.getInstance().getCacheExpiryMs();
         if (account.getAction() == vod) {
-            return VodChannelDb.get().isFresh(account, dbCategoryId, VOD_SERIES_CACHE_TTL_MS);
+            return VodChannelDb.get().isFresh(account, dbCategoryId, cacheTtlMs);
         }
         if (account.getAction() == series) {
-            return SeriesChannelDb.get().isFresh(account, dbCategoryId, VOD_SERIES_CACHE_TTL_MS);
+            return SeriesChannelDb.get().isFresh(account, dbCategoryId, cacheTtlMs);
         }
         return false;
     }
@@ -262,6 +262,25 @@ public class ChannelService {
 
     public int getChannelCountForAccount(String accountId) {
         return cacheService.getChannelCountForAccount(accountId);
+    }
+
+    public List<Channel> getCachedLiveChannelsByDbCategoryId(String dbCategoryId) {
+        return dedupeChannels(ChannelDb.get().getChannels(dbCategoryId));
+    }
+
+    public boolean hasCachedLiveChannelsByDbCategoryId(String dbCategoryId) {
+        return !getCachedLiveChannelsByDbCategoryId(dbCategoryId).isEmpty();
+    }
+
+    public Channel getChannelByChannelIdAndAccount(String channelId, String accountId) {
+        if (StringUtils.isBlank(channelId) || StringUtils.isBlank(accountId)) {
+            return null;
+        }
+        Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(channelId, accountId);
+        if (channel != null) {
+            resolveLogoIfNeeded(channel);
+        }
+        return channel;
     }
 
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {

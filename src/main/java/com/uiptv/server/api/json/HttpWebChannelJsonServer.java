@@ -293,18 +293,14 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         }
         String scopedCategoryId = normalizeSeriesCategoryId(categoryId);
         SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), scopedCategoryId, seriesId);
-        String watchedEpisodeId = state == null ? "" : state.getEpisodeId();
-        String watchedSeason = state == null ? "" : state.getSeason();
-        String watchedEpisodeNum = state == null || state.getEpisodeNum() <= 0 ? "" : String.valueOf(state.getEpisodeNum());
         for (Channel episode : episodes) {
             if (episode == null) continue;
-            episode.setWatched(isMatchingWatchedEpisode(
-                    watchedEpisodeId,
-                    watchedSeason,
-                    watchedEpisodeNum,
+            episode.setWatched(SeriesWatchStateService.getInstance().isMatchingEpisode(
+                    state,
                     episode.getChannelId(),
                     episode.getSeason(),
-                    episode.getEpisodeNum()
+                    episode.getEpisodeNum(),
+                    episode.getName()
             ));
         }
     }
@@ -339,35 +335,6 @@ public class HttpWebChannelJsonServer implements HttpHandler {
             return category.getCategoryId();
         }
         return categoryId;
-    }
-
-    private boolean isMatchingWatchedEpisode(String watchedEpisodeId,
-                                             String watchedSeason,
-                                             String watchedEpisodeNum,
-                                             String episodeId,
-                                             String season,
-                                             String episodeNum) {
-        if (StringUtils.isBlank(watchedEpisodeId) || StringUtils.isBlank(episodeId)) {
-            return false;
-        }
-        if (!watchedEpisodeId.equals(episodeId)) {
-            return false;
-        }
-        String ws = digitsOnly(watchedSeason);
-        String s = digitsOnly(season);
-        if (StringUtils.isNotBlank(ws) && StringUtils.isNotBlank(s) && !ws.equals(s)) {
-            return false;
-        }
-        String we = digitsOnly(watchedEpisodeNum);
-        String e = digitsOnly(episodeNum);
-        return StringUtils.isBlank(we) || StringUtils.isBlank(e) || we.equals(e);
-    }
-
-    private String digitsOnly(String value) {
-        if (StringUtils.isBlank(value)) {
-            return "";
-        }
-        return value.replaceAll("[^0-9]", "");
     }
 
     private static class StalkerPageResult {

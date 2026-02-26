@@ -8,8 +8,10 @@ import org.junit.jupiter.api.Test;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SeriesWatchStateServiceTest extends DbBackedTest {
 
@@ -81,6 +83,61 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
 
         assertNotNull(state);
         assertEquals("ep-4", state.getEpisodeId());
+    }
+
+    @Test
+    void matching_isSeasonAware_whenEpisodeIdsRepeatAcrossSeasons() {
+        Account account = createSeriesAccount("watch-series-season-aware");
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        service.markSeriesEpisodeManual(account, "cat-1", "series-1", "episode-10", "Season 2 Episode 10", "2", "10");
+        SeriesWatchState watched = service.getSeriesLastWatched(account.getDbId(), "cat-1", "series-1");
+
+        assertNotNull(watched);
+        assertTrue(service.isMatchingEpisode(watched, "episode-10", "2", "10", "Season 2 Episode 10"));
+        assertFalse(service.isMatchingEpisode(watched, "episode-10", "1", "10", "Season 1 Episode 10"));
+    }
+
+    @Test
+    void playbackResolved_infersSeasonFromTitle_whenSeasonMissing() {
+        Account account = createSeriesAccount("watch-series-infer-season");
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        Channel channel = new Channel();
+        channel.setChannelId("episode-15");
+        channel.setName("S03E15 - Finale");
+        channel.setEpisodeNum("15");
+        channel.setSeason("");
+        channel.setCmd("http://127.0.0.1/media/episode-15.m3u8");
+
+        service.onPlaybackResolved(account, channel, "episode-15", "series-3", "cat-1");
+
+        SeriesWatchState state = service.getSeriesLastWatched(account.getDbId(), "cat-1", "series-3");
+        assertNotNull(state);
+        assertEquals("3", state.getSeason());
+        assertEquals(15, state.getEpisodeNum());
+    }
+
+    @Test
+    void playbackResolved_advancesAcrossSeasons_evenWhenEpisodeNumberResets() {
+        Account account = createSeriesAccount("watch-series-season-progress");
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        service.onPlaybackResolved(account, episode("ep-s1e10", "Episode 10", "10"), "ep-s1e10", "series-4", "cat-1");
+        SeriesWatchState afterS1 = service.getSeriesLastWatched(account.getDbId(), "cat-1", "series-4");
+        assertNotNull(afterS1);
+        assertEquals("1", afterS1.getSeason());
+        assertEquals(10, afterS1.getEpisodeNum());
+
+        Channel s2e1 = episode("ep-s2e1", "Episode 1", "1");
+        s2e1.setSeason("2");
+        service.onPlaybackResolved(account, s2e1, "ep-s2e1", "series-4", "cat-1");
+
+        SeriesWatchState afterS2 = service.getSeriesLastWatched(account.getDbId(), "cat-1", "series-4");
+        assertNotNull(afterS2);
+        assertEquals("ep-s2e1", afterS2.getEpisodeId());
+        assertEquals("2", afterS2.getSeason());
+        assertEquals(1, afterS2.getEpisodeNum());
     }
 
     private Account createSeriesAccount(String name) {

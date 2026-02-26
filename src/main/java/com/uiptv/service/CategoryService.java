@@ -32,7 +32,6 @@ import static com.uiptv.util.M3U8Parser.parseUrlCategory;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class CategoryService {
-    private static final long VOD_SERIES_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L;
     private static CategoryService instance;
     private final ContentFilterService contentFilterService;
 
@@ -57,6 +56,19 @@ public class CategoryService {
 
     public List<Category> get(Account account) {
         return get(account, true);
+    }
+
+    public List<Category> getCached(Account account) {
+        if (account == null) {
+            return Collections.emptyList();
+        }
+        if (account.getAction() == vod) {
+            return VodCategoryDb.get().getCategories(account);
+        }
+        if (account.getAction() == series) {
+            return SeriesCategoryDb.get().getCategories(account);
+        }
+        return CategoryDb.get().getCategories(account);
     }
 
     public List<Category> get(Account account, boolean censor) {
@@ -145,11 +157,12 @@ public class CategoryService {
     }
 
     private boolean isVodSeriesCategoriesFresh(Account account) {
+        long cacheTtlMs = ConfigurationService.getInstance().getCacheExpiryMs();
         if (account.getAction() == vod) {
-            return VodCategoryDb.get().isFresh(account, VOD_SERIES_CACHE_TTL_MS);
+            return VodCategoryDb.get().isFresh(account, cacheTtlMs);
         }
         if (account.getAction() == series) {
-            return SeriesCategoryDb.get().isFresh(account, VOD_SERIES_CACHE_TTL_MS);
+            return SeriesCategoryDb.get().isFresh(account, cacheTtlMs);
         }
         return false;
     }
