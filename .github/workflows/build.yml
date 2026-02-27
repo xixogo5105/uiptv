@@ -31,7 +31,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: target/surefire-reports/**
@@ -59,7 +59,7 @@ jobs:
         run: mvn -B clean package -P ${{ matrix.profile }}
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: UIPTV-windows-${{ matrix.arch }}
           path: target/dist/*
@@ -90,7 +90,7 @@ jobs:
         run: mvn -B clean package -P ${{ matrix.profile }}
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: UIPTV-macos-${{ matrix.arch }}
           path: target/dist/*
@@ -117,7 +117,7 @@ jobs:
         run: mvn -B clean package -P linux-x86_64,pkg-deb
 
       - name: Upload DEB artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-deb
           path: target/dist/*.deb
@@ -129,7 +129,7 @@ jobs:
         run: mvn -B clean package -P linux-x86_64,pkg-rpm
 
       - name: Upload RPM artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-rpm
           path: target/dist/*.rpm
@@ -141,7 +141,7 @@ jobs:
         run: mvn -B clean package -P linux-x86_64,pkg-app-image
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-app-image
           path: target/dist/*.AppImage
