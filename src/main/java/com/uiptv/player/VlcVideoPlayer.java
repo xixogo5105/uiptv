@@ -4,21 +4,14 @@ import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.WritableImage;
-import javafx.scene.image.WritablePixelFormat;
+import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
+import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
+import uk.co.caprica.vlcj.player.base.TrackDescription;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
-import uk.co.caprica.vlcj.player.embedded.videosurface.CallbackVideoSurface;
-import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurfaceAdapters;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
-
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,10 +19,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     private EmbeddedMediaPlayer mediaPlayer;
     private ImageView videoImageView;
-    private WritableImage videoImage;
-    private WritablePixelFormat<ByteBuffer> pixelFormat;
-
-    private int videoSourceWidth, videoSourceHeight, videoSarNum, videoSarDen;
+    private int videoSourceWidth, videoSourceHeight;
 
     public VlcVideoPlayer() {
         super(); // Must be the first call
@@ -40,7 +30,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (osName.contains("mac")) {
             vlcArgs.add("--avcodec-hw=videotoolbox");
         } else {
-            vlcArgs.add("--avcodec-hw=auto");
+        vlcArgs.add("--avcodec-hw=auto");
         }
         vlcArgs.add("--network-caching=1000");
 
@@ -51,8 +41,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoImageView = new ImageView();
             videoImageView.setPreserveRatio(true);
         }
+        mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
 
-        mediaPlayer.videoSurface().set(new FXCallbackVideoSurface());
         mediaPlayer.controls().setRepeat(false);
         mediaPlayer.audio().setMute(isMuted);
 
@@ -65,6 +55,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     loadingSpinner.setVisible(false);
                     btnPlayPause.setGraphic(pauseIcon);
                     updateVideoSize();
+                    refreshTrackMenus();
                 });
             }
 
@@ -126,6 +117,27 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     }
                 });
             }
+
+            @Override
+            public void elementaryStreamAdded(MediaPlayer mp, TrackType type, int id) {
+                if (type == TrackType.AUDIO) {
+                    Platform.runLater(() -> refreshTrackMenus());
+                }
+            }
+
+            @Override
+            public void elementaryStreamDeleted(MediaPlayer mp, TrackType type, int id) {
+                if (type == TrackType.AUDIO) {
+                    Platform.runLater(() -> refreshTrackMenus());
+                }
+            }
+
+            @Override
+            public void elementaryStreamSelected(MediaPlayer mp, TrackType type, int id) {
+                if (type == TrackType.AUDIO) {
+                    Platform.runLater(() -> refreshTrackMenus());
+                }
+            }
         });
     }
 
@@ -147,7 +159,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     protected void stopMedia() {
         mediaPlayer.controls().stop();
         videoImageView.setImage(null);
-        videoImage = null;
     }
 
     @Override
@@ -206,12 +217,23 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoImageView.setFitHeight(containerHeight);
             videoImageView.setPreserveRatio(true);
         }
+
+        if (mediaPlayer != null && mediaPlayer.media() != null && mediaPlayer.media().info() != null) {
+            List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
+            if (tracks != null && !tracks.isEmpty()) {
+                VideoTrackInfo track = tracks.get(0);
+                if (track.width() > 0 && track.height() > 0) {
+                    videoSourceWidth = track.width();
+                    videoSourceHeight = track.height();
+                }
+            }
+        }
         updateStreamInfo(videoSourceWidth, videoSourceHeight);
     }
 
     protected void updateStreamInfo(int width, int height) {
         String codec = "";
-        if (mediaPlayer != null) {
+        if (mediaPlayer != null && mediaPlayer.media() != null && mediaPlayer.media().info() != null) {
             List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
             if (tracks != null && !tracks.isEmpty()) {
                 VideoTrackInfo bestTrack = tracks.get(0);
@@ -228,66 +250,82 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     @Override
+    protected boolean supportsTrackSelection() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsSubtitleTrackSelection() {
+        return false;
+    }
+
+    @Override
+    protected List<TrackOption> getAudioTrackOptions() {
+        List<TrackOption> options = new ArrayList<>();
+        if (mediaPlayer == null) {
+            return options;
+        }
+        for (TrackDescription track : mediaPlayer.audio().trackDescriptions()) {
+            options.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")));
+        }
+        return options;
+    }
+
+    @Override
+    protected int getSelectedAudioTrackId() {
+        if (mediaPlayer == null) {
+            return Integer.MIN_VALUE;
+        }
+        return mediaPlayer.audio().track();
+    }
+
+    @Override
+    protected void selectAudioTrack(int trackId) {
+        if (mediaPlayer != null) {
+            mediaPlayer.audio().setTrack(trackId);
+        }
+    }
+
+//    @Override
+//    protected List<TrackOption> getSubtitleTrackOptions() {
+//        List<TrackOption> options = new ArrayList<>();
+//        if (mediaPlayer == null) {
+//            return options;
+//        }
+//        for (TrackDescription track : mediaPlayer.subpictures().trackDescriptions()) {
+//            options.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Subtitle")));
+//        }
+//        return options;
+//    }
+//
+//    @Override
+//    protected int getSelectedSubtitleTrackId() {
+//        if (mediaPlayer == null) {
+//            return Integer.MIN_VALUE;
+//        }
+//        return mediaPlayer.subpictures().track();
+//    }
+//
+//    @Override
+//    protected void selectSubtitleTrack(int trackId) {
+//        if (mediaPlayer != null) {
+//            mediaPlayer.subpictures().setTrack(trackId);
+//            if (mediaPlayer.subpictures().track() != trackId) {
+//                mediaPlayer.submit(() -> mediaPlayer.subpictures().setTrack(trackId));
+//            }
+//        }
+//    }
+
+    private String normalizeTrackLabel(String label, String fallbackPrefix) {
+        if (label == null || label.trim().isEmpty()) {
+            return fallbackPrefix;
+        }
+        return label.trim();
+    }
+
+    @Override
     public PlayerType getType() {
         return PlayerType.VLC;
-    }
-
-    private class FXCallbackVideoSurface extends CallbackVideoSurface {
-        FXCallbackVideoSurface() {
-            super(new FXBufferFormatCallback(), new FXRenderCallback(), false, VideoSurfaceAdapters.getVideoSurfaceAdapter());
-        }
-    }
-
-    private class FXBufferFormatCallback implements BufferFormatCallback {
-        @Override
-        public BufferFormat getBufferFormat(int sourceWidth, int sourceHeight) {
-            return new RV32BufferFormat(sourceWidth, sourceHeight);
-        }
-
-        @Override
-        public void newFormatSize(int newWidth, int newHeight, int sarNumerator, int sarDenom) {
-            VlcVideoPlayer.this.videoSourceWidth = newWidth;
-            VlcVideoPlayer.this.videoSourceHeight = newHeight;
-            VlcVideoPlayer.this.videoSarNum = sarNumerator;
-            VlcVideoPlayer.this.videoSarDen = sarDenom;
-            Platform.runLater(() -> VlcVideoPlayer.this.updateVideoSize());
-        }
-
-        @Override
-        public void allocatedBuffers(ByteBuffer[] buffers) {
-            // No-op
-        }
-    }
-
-    private class FXRenderCallback implements RenderCallback {
-        @Override
-        public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers, BufferFormat bufferFormat, int sarNum, int sarDen) {
-            WritableImage img = videoImage;
-            if (img == null || img.getWidth() != bufferFormat.getWidth() || img.getHeight() != bufferFormat.getHeight()) {
-                img = new WritableImage(bufferFormat.getWidth(), bufferFormat.getHeight());
-                videoImage = img;
-                final WritableImage newImage = img;
-                Platform.runLater(() -> videoImageView.setImage(newImage));
-                pixelFormat = WritablePixelFormat.getByteBgraPreInstance();
-            }
-
-            final WritableImage imageToRender = img;
-            Platform.runLater(() -> {
-                if (imageToRender != null) {
-                    imageToRender.getPixelWriter().setPixels(0, 0, bufferFormat.getWidth(), bufferFormat.getHeight(), pixelFormat, nativeBuffers[0], bufferFormat.getPitches()[0]);
-                }
-            });
-        }
-
-        @Override
-        public void lock(MediaPlayer mediaPlayer) {
-            // No-op
-        }
-
-        @Override
-        public void unlock(MediaPlayer mediaPlayer) {
-            // No-op
-        }
     }
 
     protected void onPlaybackStarted() {

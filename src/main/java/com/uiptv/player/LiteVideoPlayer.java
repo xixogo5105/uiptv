@@ -290,4 +290,9 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         retryCount = 0;
         loadingSpinner.setVisible(false);
     }
+
+    @Override
+    protected boolean supportsTrackSelection() {
+        return false;
+    }
 }

@@ -10,6 +10,7 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
+import javafx.geometry.Side;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -32,8 +33,11 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntConsumer;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
 
@@ -71,6 +75,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnStop;
     protected Button btnAspectRatio;
     protected Button btnHideBar;
+    protected Button btnTracks;
+    protected ContextMenu tracksContextMenu;
     protected ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioStretchIcon, hideBarIcon;
 
     // Fullscreen & PiP
@@ -84,6 +90,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected StackPane hiddenBarMessage; // Changed from HBox to StackPane
     protected PauseTransition hiddenBarMessageHideTimer;
     protected static boolean hasShownHiddenBarMessage = false;
+    protected boolean isTracksMenuOpen = false;
 
     // Resizing Logic
     protected boolean isResizing = false;
@@ -94,6 +101,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected static final double RESIZE_BORDER = 5;
     protected static final double MIN_WIDTH = 200;
     protected static final double MIN_HEIGHT = 150;
+
+    protected static class TrackOption {
+        final int id;
+        final String label;
+
+        TrackOption(int id, String label) {
+            this.id = id;
+            this.label = label;
+        }
+    }
 
     public BaseVideoPlayer() {
         loadIcons();
@@ -135,6 +152,24 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnHideBar = createIconButton(hideBarIcon);
         btnHideBar.setTooltip(new Tooltip("Hide this bar"));
 
+        if (supportsTrackSelection()) {
+            btnTracks = createTrackRootButton();
+            tracksContextMenu = new ContextMenu();
+            tracksContextMenu.setStyle("-fx-font-size: 14px; -fx-padding: 4;");
+            tracksContextMenu.setOnHidden(e -> isTracksMenuOpen = false);
+            btnTracks.setOnAction(e -> {
+                if (tracksContextMenu == null) return;
+                if (tracksContextMenu.isShowing()) {
+                    tracksContextMenu.hide();
+                    return;
+                }
+                isTracksMenuOpen = true;
+                controlsContainer.setVisible(true);
+                refreshTrackMenus();
+                tracksContextMenu.show(btnTracks, Side.TOP, 0, 0);
+            });
+        }
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -146,7 +181,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         HBox buttonRow = new HBox(4);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio, btnHideBar);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnAspectRatio, btnPip, spacer, btnMute, volumeSlider);
+        if (supportsTrackSelection()) {
+            buttonRow.getChildren().add(btnTracks);
+        }
+        buttonRow.getChildren().add(btnHideBar);
 
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");
@@ -159,7 +198,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         timeRow.setAlignment(Pos.CENTER_LEFT);
         timeRow.getChildren().addAll(timeSlider, timeLabel);
 
-        controlsContainer = new VBox(5);
+        controlsContainer = new VBox(4);
         controlsContainer.setPadding(new Insets(5));
         controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
@@ -365,7 +404,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerContainer.setOnMouseExited(e -> {
             if (isFullscreen) {
                 idleTimer.playFromStart();
-            } else {
+            } else if (!isTracksMenuOpen) {
                 controlsContainer.setVisible(false);
             }
         });
@@ -381,6 +420,76 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         });
         controlsContainer.setOnMouseMoved(e -> e.consume());
+    }
+
+    protected boolean supportsTrackSelection() {
+        return false;
+    }
+
+    protected List<TrackOption> getAudioTrackOptions() {
+        return Collections.emptyList();
+    }
+
+    protected int getSelectedAudioTrackId() {
+        return Integer.MIN_VALUE;
+    }
+
+    protected void selectAudioTrack(int trackId) {
+        // No-op by default.
+    }
+
+    protected List<TrackOption> getSubtitleTrackOptions() {
+        return Collections.emptyList();
+    }
+
+    protected boolean supportsSubtitleTrackSelection() {
+        return false;
+    }
+
+    protected int getSelectedSubtitleTrackId() {
+        return Integer.MIN_VALUE;
+    }
+
+    protected void selectSubtitleTrack(int trackId) {
+        // No-op by default.
+    }
+
+    protected void refreshTrackMenus() {
+        if (!supportsTrackSelection() || tracksContextMenu == null) {
+            return;
+        }
+        List<MenuItem> items = tracksContextMenu.getItems();
+        items.clear();
+        updateTrackMenu(items, getAudioTrackOptions(), getSelectedAudioTrackId(), this::selectAudioTrack, "No audio tracks");
+        if (supportsSubtitleTrackSelection()) {
+            if (!items.isEmpty()) {
+                items.add(new SeparatorMenuItem());
+            }
+            updateTrackMenu(items, getSubtitleTrackOptions(), getSelectedSubtitleTrackId(), this::selectSubtitleTrack, "No subtitle tracks");
+        }
+    }
+
+    private void updateTrackMenu(List<MenuItem> targetItems, List<TrackOption> options, int selectedTrackId, IntConsumer onTrackSelected, String emptyLabel) {
+        if (options == null || options.isEmpty()) {
+            MenuItem noneItem = new MenuItem(emptyLabel);
+            noneItem.setStyle("-fx-padding: 8 16 8 16;");
+            noneItem.setDisable(true);
+            targetItems.add(noneItem);
+            return;
+        }
+
+        ToggleGroup group = new ToggleGroup();
+        for (TrackOption option : options) {
+            RadioMenuItem item = new RadioMenuItem(option.label);
+            item.setToggleGroup(group);
+            item.setSelected(option.id == selectedTrackId);
+            item.setStyle("-fx-padding: 8 16 8 16;");
+            item.setOnAction(e -> {
+                onTrackSelected.accept(option.id);
+                refreshTrackMenus();
+            });
+            targetItems.add(item);
+        }
     }
 
     // --- Common Logic ---
@@ -424,7 +533,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerContainer.setMinHeight(275);
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
-        controlsContainer.setVisible(false);
+        controlsContainer.setVisible(!isFullscreen && !isControlBarHiddenByUser);
         timeSlider.setDisable(false);
         timeSlider.setValue(0);
         timeLabel.setText("00:00 / 00:00");
@@ -543,6 +652,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     protected void toggleAspectRatio() {
         aspectRatioMode = (aspectRatioMode + 1) % 2;
+        updateAspectRatioButtonState();
+        updateVideoSize();
+    }
+
+    private void updateAspectRatioButtonState() {
         String tooltipText;
         ImageView icon;
         if (aspectRatioMode == 1) {
@@ -556,7 +670,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (btnAspectRatio.getTooltip() != null) {
             btnAspectRatio.getTooltip().setText(tooltipText);
         }
-        updateVideoSize();
     }
 
     protected String formatTime(long millis) {
@@ -1013,6 +1126,23 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btn.setGraphic(icon);
         btn.setPadding(new Insets(4));
         btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+        return btn;
+    }
+
+    private Button createTrackRootButton() {
+        Button btn = new Button();
+        ImageView upIcon = createIconView("arrow-up.png", false);
+        ColorAdjust whiteColorAdjust = new ColorAdjust();
+        whiteColorAdjust.setBrightness(1.0);
+        whiteColorAdjust.setSaturation(-1.0);
+        upIcon.setEffect(whiteColorAdjust);
+        btn.setGraphic(upIcon);
+        btn.setText("");
+        btn.setTooltip(new Tooltip("Audio/Subtitles"));
+        btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+        btn.setPadding(new Insets(4));
         btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
         btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
         return btn;

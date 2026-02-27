@@ -10,8 +10,10 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -276,12 +278,164 @@ public class ImdbMetadataService {
                     e.put("episodeNum", String.valueOf(video.optInt("episode", 0)));
                     episodesMeta.put(e);
                 }
+                enrichEpisodeMetaWithTvMaze(episodesMeta, imdbId, meta.optString("name", ""));
                 result.put("episodesMeta", episodesMeta);
             }
         } catch (Exception ignored) {
             // best effort
         }
         return result;
+    }
+
+    private void enrichEpisodeMetaWithTvMaze(JSONArray episodesMeta, String imdbId, String seriesName) {
+        if (episodesMeta == null || episodesMeta.isEmpty() || isBlank(imdbId)) {
+            return;
+        }
+        if (hasAnyEpisodePlot(episodesMeta)) {
+            return;
+        }
+
+        JSONArray tvMazeEpisodes = fetchTvMazeEpisodes(imdbId, seriesName);
+        if (tvMazeEpisodes == null || tvMazeEpisodes.isEmpty()) {
+            return;
+        }
+
+        Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
+        Map<String, JSONObject> byTitle = new HashMap<>();
+        for (int i = 0; i < tvMazeEpisodes.length(); i++) {
+            JSONObject row = tvMazeEpisodes.optJSONObject(i);
+            if (row == null) continue;
+
+            String season = safeNumeric(String.valueOf(row.optInt("season", 0)));
+            String episode = safeNumeric(String.valueOf(row.optInt("number", 0)));
+            if (isNotBlank(season) && isNotBlank(episode)) {
+                bySeasonEpisode.put(season + ":" + episode, row);
+            }
+
+            String title = normalizeTitle(row.optString("name", ""));
+            if (isNotBlank(title)) {
+                byTitle.put(title, row);
+            }
+        }
+
+        for (int i = 0; i < episodesMeta.length(); i++) {
+            JSONObject row = episodesMeta.optJSONObject(i);
+            if (row == null) continue;
+            if (isNotBlank(row.optString("plot", ""))) continue;
+
+            String season = safeNumeric(row.optString("season", ""));
+            String episode = safeNumeric(row.optString("episodeNum", ""));
+            JSONObject match = null;
+            if (isNotBlank(season) && isNotBlank(episode)) {
+                match = bySeasonEpisode.get(season + ":" + episode);
+            }
+            if (match == null) {
+                match = byTitle.get(normalizeTitle(row.optString("title", "")));
+            }
+            if (match == null) continue;
+
+            String summary = stripHtml(match.optString("summary", ""));
+            if (isNotBlank(summary)) {
+                row.put("plot", summary);
+            }
+            if (isBlank(row.optString("releaseDate", ""))) {
+                row.put("releaseDate", match.optString("airdate", ""));
+            }
+        }
+    }
+
+    private boolean hasAnyEpisodePlot(JSONArray episodesMeta) {
+        if (episodesMeta == null || episodesMeta.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < episodesMeta.length(); i++) {
+            JSONObject row = episodesMeta.optJSONObject(i);
+            if (row == null) continue;
+            if (isNotBlank(row.optString("plot", ""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private JSONArray fetchTvMazeEpisodes(String imdbId, String seriesName) {
+        try {
+            int showId = resolveTvMazeShowId(imdbId, seriesName);
+            if (showId <= 0) {
+                return new JSONArray();
+            }
+            String body = httpGet("https://api.tvmaze.com/shows/" + showId + "/episodes");
+            if (isBlank(body)) {
+                return new JSONArray();
+            }
+            return new JSONArray(body);
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    private int resolveTvMazeShowId(String imdbId, String seriesName) {
+        if (isBlank(seriesName)) {
+            return -1;
+        }
+        try {
+            String body = httpGet("https://api.tvmaze.com/search/shows?q=" + URLEncoder.encode(seriesName, StandardCharsets.UTF_8));
+            if (isBlank(body)) {
+                return -1;
+            }
+            JSONArray rows = new JSONArray(body);
+            if (rows.isEmpty()) {
+                return -1;
+            }
+
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject wrapper = rows.optJSONObject(i);
+                JSONObject show = wrapper == null ? null : wrapper.optJSONObject("show");
+                JSONObject externals = show == null ? null : show.optJSONObject("externals");
+                if (show == null || externals == null) continue;
+                if (imdbId.equalsIgnoreCase(externals.optString("imdb", ""))) {
+                    return show.optInt("id", -1);
+                }
+            }
+
+            String normalizedSeries = normalizeTitle(seriesName);
+            int bestId = -1;
+            int bestScore = Integer.MIN_VALUE;
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject wrapper = rows.optJSONObject(i);
+                JSONObject show = wrapper == null ? null : wrapper.optJSONObject("show");
+                if (show == null) continue;
+                int score = scoreCandidate(normalizedSeries, show.optString("name", ""), show.optString("type", ""));
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestId = show.optInt("id", -1);
+                }
+            }
+            return bestId;
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private String safeNumeric(String value) {
+        if (isBlank(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("[^0-9]", "");
+        return isBlank(normalized) ? "" : String.valueOf(Integer.parseInt(normalized));
+    }
+
+    private String stripHtml(String value) {
+        if (isBlank(value)) {
+            return "";
+        }
+        return value
+                .replaceAll("<[^>]*>", " ")
+                .replaceAll("&amp;", "&")
+                .replaceAll("&quot;", "\"")
+                .replaceAll("&#39;", "'")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private JSONObject fetchCinemetaMovieDetails(String imdbId) {
