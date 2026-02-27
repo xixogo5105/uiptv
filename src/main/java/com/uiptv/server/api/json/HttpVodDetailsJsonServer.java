@@ -12,6 +12,8 @@ import com.uiptv.service.ImdbMetadataService;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -60,7 +62,12 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
         }
 
         String queryTitle = isBlank(vodName) ? vodInfo.optString("name", "") : vodName;
-        JSONObject imdbFirst = ImdbMetadataService.getInstance().findBestEffortMovieDetails(queryTitle, "");
+        List<String> fuzzyHints = buildFuzzyHints(queryTitle, providerChannel, vodInfo);
+        JSONObject imdbFirst = ImdbMetadataService.getInstance().findBestEffortMovieDetails(
+                queryTitle,
+                vodInfo.optString("tmdb", ""),
+                fuzzyHints
+        );
         mergeMissing(vodInfo, "name", imdbFirst.optString("name", ""));
         mergeMissing(vodInfo, "cover", imdbFirst.optString("cover", ""));
         mergeMissing(vodInfo, "plot", imdbFirst.optString("plot", ""));
@@ -81,5 +88,36 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
         if (isBlank(target.optString(key, "")) && !isBlank(incoming)) {
             target.put(key, incoming);
         }
+    }
+
+    private List<String> buildFuzzyHints(String queryTitle, Channel providerChannel, JSONObject vodInfo) {
+        List<String> hints = new ArrayList<>();
+        addHint(hints, queryTitle);
+        if (providerChannel != null) {
+            addHint(hints, providerChannel.getName());
+            addHint(hints, providerChannel.getDescription());
+            addHint(hints, providerChannel.getReleaseDate());
+        }
+        if (vodInfo != null) {
+            addHint(hints, vodInfo.optString("name", ""));
+            addHint(hints, vodInfo.optString("plot", ""));
+            addHint(hints, vodInfo.optString("releaseDate", ""));
+        }
+        return hints;
+    }
+
+    private void addHint(List<String> hints, String value) {
+        if (hints == null || isBlank(value)) {
+            return;
+        }
+        String cleaned = value
+                .replaceAll("(?i)\\b(4k|8k|uhd|fhd|hd|sd|series|movie|complete)\\b", " ")
+                .replaceAll("[\\[\\]{}()]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (isBlank(cleaned) || cleaned.length() < 2 || hints.contains(cleaned)) {
+            return;
+        }
+        hints.add(cleaned);
     }
 }

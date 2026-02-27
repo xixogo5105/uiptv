@@ -219,7 +219,7 @@ class HttpJsonServerTest extends DbBackedTest {
                 buildEpisodeChannel("ep-1", "Episode 1", "1", "1"),
                 buildEpisodeChannel("ep-2", "Episode 2", "1", "2")
         );
-        SeriesEpisodeDb.get().saveAll(account, seriesId, episodes);
+        SeriesEpisodeDb.get().saveAll(account, "series-category-901", seriesId, episodes);
 
         SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account,
@@ -262,7 +262,7 @@ class HttpJsonServerTest extends DbBackedTest {
                 buildEpisodeChannel("10", "Episode 10 S1", "1", "10"),
                 buildEpisodeChannel("10", "Episode 10 S2", "2", "10")
         );
-        SeriesEpisodeDb.get().saveAll(account, seriesId, episodes);
+        SeriesEpisodeDb.get().saveAll(account, "series-category-902", seriesId, episodes);
 
         SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account,

@@ -18,6 +18,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,21 +40,22 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         }
 
         String seriesId = getParam(ex, "seriesId");
+        String categoryId = getParam(ex, "categoryId");
         String seriesName = getParam(ex, "seriesName");
         JSONObject response = new JSONObject();
         response.put("seasonInfo", new JSONObject());
         response.put("episodes", new JSONArray());
         response.put("episodesMeta", new JSONArray());
         if (!isBlank(seriesId)) {
-            List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
-            if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+            List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
+            if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
                 response.put("episodes", new JSONArray(com.uiptv.util.ServerUtils.objectToJson(cached)));
             }
         }
 
-        // IMDb-first strategy: use fuzzy IMDb match as primary metadata source.
         JSONObject seasonInfo = new JSONObject();
-        JSONObject imdbFirst = ImdbMetadataService.getInstance().findBestEffortDetails(seriesName, "");
+        List<String> fuzzyHints = buildFuzzyHints(seriesName, seasonInfo, response.optJSONArray("episodes"));
+        JSONObject imdbFirst = ImdbMetadataService.getInstance().findBestEffortDetails(seriesName, "", fuzzyHints);
         copyIfPresent(seasonInfo, imdbFirst, "name");
         copyIfPresent(seasonInfo, imdbFirst, "cover");
         copyIfPresent(seasonInfo, imdbFirst, "plot");
@@ -97,6 +99,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
                         channel.setChannelId(episode.getId());
                         channel.setName(episode.getTitle());
                         channel.setCmd(episode.getCmd());
+                        channel.setExtraJson(episode.toJson());
                         channel.setSeason(episode.getSeason());
                         channel.setEpisodeNum(episode.getEpisodeNum());
                         if (episode.getInfo() != null) {
@@ -115,26 +118,34 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
                 }
                 response.put("episodes", episodesJson);
                 if (episodesJson.length() > 0) {
-                    SeriesEpisodeDb.get().saveAll(account, seriesId, toChannels(episodesJson));
+                    SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, toChannels(episodesJson));
                 }
             }
         }
 
-        // If IMDb-first by seriesName failed, try once with provider title.
-        if (isBlank(seasonInfo.optString("name", ""))) {
-            JSONObject imdbFallback = ImdbMetadataService.getInstance()
-                    .findBestEffortDetails(seasonInfo.optString("name", seriesName), seasonInfo.optString("tmdb", ""));
-            mergeMissing(seasonInfo, imdbFallback, "name");
-            mergeMissing(seasonInfo, imdbFallback, "cover");
-            mergeMissing(seasonInfo, imdbFallback, "plot");
-            mergeMissing(seasonInfo, imdbFallback, "cast");
-            mergeMissing(seasonInfo, imdbFallback, "director");
-            mergeMissing(seasonInfo, imdbFallback, "genre");
-            mergeMissing(seasonInfo, imdbFallback, "releaseDate");
-            mergeMissing(seasonInfo, imdbFallback, "rating");
-            mergeMissing(seasonInfo, imdbFallback, "tmdb");
-            mergeMissing(seasonInfo, imdbFallback, "imdbUrl");
+        // Refine with provider fields + episode-derived hints to recover from wrong/missing portal IDs.
+        fuzzyHints = buildFuzzyHints(firstNonBlank(seasonInfo.optString("name", ""), seriesName), seasonInfo, response.optJSONArray("episodes"));
+        JSONObject imdbFallback = ImdbMetadataService.getInstance()
+                .findBestEffortDetails(
+                        firstNonBlank(seasonInfo.optString("name", ""), seriesName),
+                        seasonInfo.optString("tmdb", ""),
+                        fuzzyHints
+                );
+        mergeMissing(seasonInfo, imdbFallback, "name");
+        mergeMissing(seasonInfo, imdbFallback, "cover");
+        mergeMissing(seasonInfo, imdbFallback, "plot");
+        mergeMissing(seasonInfo, imdbFallback, "cast");
+        mergeMissing(seasonInfo, imdbFallback, "director");
+        mergeMissing(seasonInfo, imdbFallback, "genre");
+        mergeMissing(seasonInfo, imdbFallback, "releaseDate");
+        mergeMissing(seasonInfo, imdbFallback, "rating");
+        mergeMissing(seasonInfo, imdbFallback, "tmdb");
+        mergeMissing(seasonInfo, imdbFallback, "imdbUrl");
+        if ((response.optJSONArray("episodesMeta") == null || response.optJSONArray("episodesMeta").isEmpty())
+                && imdbFallback.optJSONArray("episodesMeta") != null) {
+            response.put("episodesMeta", imdbFallback.optJSONArray("episodesMeta"));
         }
+        enrichEpisodesInResponse(response);
         response.put("seasonInfo", seasonInfo);
         applyNameYearFallback(seasonInfo, seriesName);
 
@@ -254,5 +265,71 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         if (isBlank(seasonInfo.optString("releaseDate", "")) && !isBlank(inferredYear)) {
             seasonInfo.put("releaseDate", inferredYear);
         }
+    }
+
+    private void enrichEpisodesInResponse(JSONObject response) {
+        if (response == null) {
+            return;
+        }
+        JSONArray episodes = response.optJSONArray("episodes");
+        JSONArray episodesMeta = response.optJSONArray("episodesMeta");
+        if (episodes == null || episodes.isEmpty() || episodesMeta == null || episodesMeta.isEmpty()) {
+            return;
+        }
+        Map<String, JSONObject> indexed = indexEpisodesMeta(episodesMeta);
+        if (indexed.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject row = episodes.optJSONObject(i);
+            if (row == null) continue;
+            Channel channel = Channel.fromJson(row.toString());
+            if (channel == null) continue;
+            enrichEpisode(channel, indexed);
+            episodes.put(i, new JSONObject(channel.toJson()));
+        }
+    }
+
+    private List<String> buildFuzzyHints(String baseTitle, JSONObject seasonInfo, JSONArray episodes) {
+        List<String> hints = new ArrayList<>();
+        addHint(hints, baseTitle);
+        if (seasonInfo != null) {
+            addHint(hints, seasonInfo.optString("name", ""));
+            addHint(hints, seasonInfo.optString("plot", ""));
+            addHint(hints, seasonInfo.optString("releaseDate", ""));
+        }
+        if (episodes != null) {
+            for (int i = 0; i < Math.min(8, episodes.length()); i++) {
+                JSONObject row = episodes.optJSONObject(i);
+                if (row == null) continue;
+                addHint(hints, row.optString("name", ""));
+                addHint(hints, row.optString("releaseDate", ""));
+            }
+        }
+        return hints;
+    }
+
+    private void addHint(List<String> hints, String value) {
+        if (hints == null || isBlank(value)) {
+            return;
+        }
+        String cleaned = value
+                .replaceAll("(?i)\\b(4k|8k|uhd|fhd|hd|sd|series|movie|complete)\\b", " ")
+                .replaceAll("(?i)\\bs\\d{1,2}e\\d{1,3}\\b", " ")
+                .replaceAll("[\\[\\]{}()]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (isBlank(cleaned) || cleaned.length() < 2 || hints.contains(cleaned)) {
+            return;
+        }
+        hints.add(cleaned);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (!isBlank(value)) return value;
+        }
+        return "";
     }
 }

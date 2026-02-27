@@ -6,7 +6,6 @@ import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.PlayerService;
 import com.uiptv.shared.Episode;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
@@ -17,7 +16,6 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
@@ -33,10 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
-import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -552,8 +548,6 @@ public class BookmarkChannelListUI extends HBox {
         if (item == null) {
             return;
         }
-        boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-        boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
         PlaybackContext playbackContext;
         try {
             playbackContext = resolvePlaybackContext(item);
@@ -565,65 +559,10 @@ public class BookmarkChannelListUI extends HBox {
             showErrorAlert("Unable to load account/channel for this bookmark.");
             return;
         }
-        if (PlayerService.getInstance().isDrmProtected(playbackContext.channel)) {
-            String serverPort = resolveDrmPlaybackServerPort();
-            boolean confirmed = showConfirmationAlert("This channel has drm protected contents and will only run in the browser. It requires the local server to run on port " + serverPort + ". Do you want me to open a browser and try running this channel?");
-            if (!confirmed) {
-                return;
-            }
-            if (!RootApplication.ensureServerForWebPlayback()) {
-                showErrorAlert("Unable to start local web server for DRM playback.");
-                return;
-            }
-            String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(
-                    playbackContext.account,
-                    playbackContext.channel,
-                    item.getCategoryId(),
-                    playbackContext.account.getAction() == null ? "itv" : playbackContext.account.getAction().name()
-            );
-            RootApplication.openInBrowser(browserUrl);
-            return;
-        }
-
-        getScene().setCursor(Cursor.WAIT);
-        final PlaybackContext resolvedContext = playbackContext;
-        new Thread(() -> {
-            try {
-                PlayerResponse response = PlayerService.getInstance().get(resolvedContext.account, resolvedContext.channel, item.getChannelId());
-                response.setFromChannel(resolvedContext.channel, resolvedContext.account);
-
-                String evaluatedStreamUrl = response.getUrl();
-
-                runLater(() -> {
-                    if (playerPathIsEmbedded) {
-                        if (useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
-                            getPlayer().play(response);
-                        } else {
-                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
-                        }
-                    } else {
-                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
-                            getPlayer().play(response);
-                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
-                            showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
-                        } else {
-                            com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
-                        }
-                    }
-                });
-            } catch (Exception e) {
-                runLater(() -> showErrorAlert("Error playing bookmark: " + e.getMessage()));
-            } finally {
-                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
-            }
-        }).start();
-    }
-
-    private String resolveDrmPlaybackServerPort() {
-        String configured = ConfigurationService.getInstance().read().getServerPort();
-        return isBlank(configured) ? "8888" : configured.trim();
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.account, playbackContext.channel, playerPath)
+                .categoryId(item.getCategoryId())
+                .channelId(item.getChannelId())
+                .errorPrefix("Error playing bookmark: "));
     }
 
     private PlaybackContext resolvePlaybackContext(BookmarkItem item) {

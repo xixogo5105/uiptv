@@ -10,7 +10,9 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,21 +27,30 @@ public class ImdbMetadataService {
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId) {
-        return findBestEffortInternal(rawTitle, preferredImdbId, false);
+        return findBestEffortInternal(rawTitle, preferredImdbId, false, List.of());
+    }
+
+    public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId, List<String> fuzzyHints) {
+        return findBestEffortInternal(rawTitle, preferredImdbId, false, fuzzyHints);
     }
 
     public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId) {
-        return findBestEffortInternal(rawTitle, preferredImdbId, true);
+        return findBestEffortInternal(rawTitle, preferredImdbId, true, List.of());
     }
 
-    private JSONObject findBestEffortInternal(String rawTitle, String preferredImdbId, boolean moviePreferred) {
+    public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId, List<String> fuzzyHints) {
+        return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints);
+    }
+
+    private JSONObject findBestEffortInternal(String rawTitle, String preferredImdbId, boolean moviePreferred, List<String> fuzzyHints) {
         JSONObject details = new JSONObject();
         if (isBlank(rawTitle) && isBlank(preferredImdbId)) {
             return details;
         }
 
-        JSONObject candidate = searchBestCandidate(rawTitle);
-        String imdbId = resolvePreferredImdbId(preferredImdbId, candidate);
+        List<String> searchQueries = buildSearchQueries(rawTitle, fuzzyHints);
+        JSONObject candidate = searchBestCandidate(searchQueries);
+        String imdbId = resolvePreferredImdbId(preferredImdbId, candidate, searchQueries);
         if (isBlank(imdbId)) {
             return details;
         }
@@ -94,11 +105,15 @@ public class ImdbMetadataService {
         return details;
     }
 
-    private String resolvePreferredImdbId(String preferredImdbId, JSONObject candidate) {
-        if (isLikelyImdbId(preferredImdbId)) {
+    private String resolvePreferredImdbId(String preferredImdbId, JSONObject candidate, List<String> searchQueries) {
+        if (isLikelyImdbId(preferredImdbId) && isPreferredIdConsistent(preferredImdbId, searchQueries)) {
             return preferredImdbId;
         }
-        return candidate.optString("tmdb", "");
+        String candidateId = candidate.optString("tmdb", "");
+        if (isLikelyImdbId(candidateId)) {
+            return candidateId;
+        }
+        return isLikelyImdbId(preferredImdbId) ? preferredImdbId : "";
     }
 
     private boolean isLikelyImdbId(String id) {
@@ -106,27 +121,30 @@ public class ImdbMetadataService {
         return id.matches("tt\\d+");
     }
 
-    private JSONObject searchBestCandidate(String rawTitle) {
+    private JSONObject searchBestCandidate(List<String> queryTitles) {
         JSONObject best = new JSONObject();
         try {
-            String title = normalizeTitle(rawTitle);
-            if (isBlank(title)) return best;
-            JSONObject bestForPrimary = findBestInSuggestions(querySuggestions(title), title);
-            best = bestForPrimary;
-
-            String strippedYear = title.replaceAll("\\b(19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim();
-            if (isBlank(best.optString("tmdb", "")) && isNotBlank(strippedYear) && !strippedYear.equals(title)) {
-                JSONObject bestForStrippedYear = findBestInSuggestions(querySuggestions(strippedYear), strippedYear);
-                if (isNotBlank(bestForStrippedYear.optString("tmdb", ""))) {
-                    best = bestForStrippedYear;
-                }
+            if (queryTitles == null || queryTitles.isEmpty()) {
+                return best;
+            }
+            String primary = normalizeTitle(queryTitles.getFirst());
+            if (isBlank(primary)) {
+                return best;
             }
 
-            String beforeSeason = strippedYear.replaceAll("(?i)\\bseason\\s*\\d+\\b.*$", "").trim();
-            if (isBlank(best.optString("tmdb", "")) && isNotBlank(beforeSeason) && !beforeSeason.equals(strippedYear)) {
-                JSONObject bestBeforeSeason = findBestInSuggestions(querySuggestions(beforeSeason), beforeSeason);
-                if (isNotBlank(bestBeforeSeason.optString("tmdb", ""))) {
-                    best = bestBeforeSeason;
+            int bestScore = Integer.MIN_VALUE;
+            for (String query : queryTitles) {
+                String q = normalizeTitle(query);
+                if (isBlank(q)) continue;
+                JSONObject found = findBestInSuggestions(querySuggestions(q), q);
+                if (isBlank(found.optString("tmdb", ""))) continue;
+                int score = scoreCandidate(primary, found.optString("name", ""), found.optString("genre", ""));
+                if (q.equals(primary)) {
+                    score += 5;
+                }
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = found;
                 }
             }
             return best;
@@ -380,9 +398,110 @@ public class ImdbMetadataService {
         if (isBlank(s)) return "";
         return s.toLowerCase()
                 .replaceAll("(?i)\\b(uhd|fhd|hd|sd|4k|8k)\\b", " ")
+                .replaceAll("(?i)\\b(series|movie|complete|collection|season\\s*\\d+|episode\\s*\\d+)\\b", " ")
                 .replaceAll("[^a-z0-9 ]", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private List<String> buildSearchQueries(String rawTitle, List<String> fuzzyHints) {
+        LinkedHashSet<String> queries = new LinkedHashSet<>();
+        addQueryVariant(queries, rawTitle);
+        addQueryVariant(queries, normalizeTitle(rawTitle));
+        addQueryVariant(queries, normalizeTitle(rawTitle).replaceAll("\\b(19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim());
+        addQueryVariant(queries, normalizeTitle(rawTitle).replaceAll("(?i)\\bseason\\s*\\d+\\b.*$", "").trim());
+        if (fuzzyHints != null) {
+            for (String hint : fuzzyHints) {
+                addQueryVariant(queries, hint);
+                addQueryVariant(queries, normalizeTitle(hint));
+                addQueryVariant(queries, normalizeTitle(hint).replaceAll("\\b(19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim());
+            }
+        }
+        if (queries.isEmpty()) {
+            addQueryVariant(queries, rawTitle);
+        }
+        return new ArrayList<>(queries);
+    }
+
+    private void addQueryVariant(Set<String> sink, String value) {
+        if (sink == null || isBlank(value)) return;
+        String v = value.trim();
+        if (isBlank(v)) return;
+        if (v.length() < 2) return;
+        sink.add(v);
+    }
+
+    private boolean isPreferredIdConsistent(String imdbId, List<String> searchQueries) {
+        if (!isLikelyImdbId(imdbId)) {
+            return false;
+        }
+        if (searchQueries == null || searchQueries.isEmpty()) {
+            return true;
+        }
+        try {
+            String reference = normalizeTitle(searchQueries.getFirst());
+            if (isBlank(reference)) {
+                return true;
+            }
+            JSONObject seriesMeta = fetchCinemetaSeriesDetails(imdbId);
+            JSONObject movieMeta = fetchCinemetaMovieDetails(imdbId);
+            String resolved = firstNonBlank(
+                    seriesMeta.optString("name", ""),
+                    movieMeta.optString("name", ""),
+                    fetchImdbTitleDetails(imdbId).optString("name", "")
+            );
+            if (isBlank(resolved)) {
+                return true;
+            }
+            String resolvedNorm = normalizeTitle(resolved);
+            if (isBlank(resolvedNorm)) {
+                return true;
+            }
+            for (String query : searchQueries) {
+                String q = normalizeTitle(query);
+                if (isBlank(q)) continue;
+                if (titleSimilarity(q, resolvedNorm) >= 0.5) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception ignored) {
+            return true;
+        }
+    }
+
+    private double titleSimilarity(String a, String b) {
+        String na = normalizeTitle(a);
+        String nb = normalizeTitle(b);
+        if (isBlank(na) || isBlank(nb)) {
+            return 0;
+        }
+        if (na.equals(nb)) {
+            return 1;
+        }
+        Set<String> sa = new LinkedHashSet<>(List.of(na.split(" ")));
+        Set<String> sb = new LinkedHashSet<>(List.of(nb.split(" ")));
+        sa.removeIf(String::isBlank);
+        sb.removeIf(String::isBlank);
+        if (sa.isEmpty() || sb.isEmpty()) {
+            return 0;
+        }
+        int intersection = 0;
+        for (String token : sa) {
+            if (sb.contains(token)) {
+                intersection++;
+            }
+        }
+        int union = sa.size() + sb.size() - intersection;
+        return union <= 0 ? 0 : (double) intersection / union;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String v : values) {
+            if (isNotBlank(v)) return v;
+        }
+        return "";
     }
 
     private String httpGet(String url) {

@@ -362,7 +362,7 @@ public class ReloadCachePopup extends VBox {
 
         int runTotalSuccessChannels = totalSuccessChannels;
         Platform.runLater(() -> {
-            System.out.print("\u0007"); // Beep
+            LogDisplayUI.addLog("Reload run completed.");
             reloadButton.setVisible(true);
             loadingIndicator.setVisible(false);
             appendRunSummary(processedAccounts, finalStatuses, runTotalSuccessChannels);

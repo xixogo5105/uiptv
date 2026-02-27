@@ -6,6 +6,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -63,6 +64,13 @@ public class SeriesWatchStateService {
         return getSeriesLastWatchedByAccountAndCategory(accountId, "");
     }
 
+    public List<SeriesWatchState> getAllSeriesLastWatchedByAccount(String accountId) {
+        if (isBlank(accountId)) {
+            return java.util.Collections.emptyList();
+        }
+        return SeriesWatchStateDb.get().getByAccount(accountId);
+    }
+
     public Map<String, SeriesWatchState> getSeriesLastWatchedByAccountAndCategory(String accountId, String categoryId) {
         Map<String, SeriesWatchState> result = new LinkedHashMap<>();
         if (isBlank(accountId)) {
@@ -89,6 +97,11 @@ public class SeriesWatchStateService {
         }
         SeriesWatchStateDb.get().clear(accountId, normalizeCategoryId(categoryId), seriesId);
         notifyListeners(accountId, seriesId);
+    }
+
+    public void clearAllSeriesLastWatched() {
+        SeriesWatchStateDb.get().clearAllSeries();
+        notifyListeners("", "");
     }
 
     public void markSeriesEpisodeManual(Account account, String seriesId, String episodeId, String episodeName, String season, String episodeNum) {

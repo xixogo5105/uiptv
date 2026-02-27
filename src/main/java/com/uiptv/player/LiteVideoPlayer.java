@@ -1,5 +1,6 @@
 package com.uiptv.player;
 
+import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.scene.Node;
@@ -115,7 +116,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                         mediaPlayer.setOnError(() -> {
                             final MediaException me = mediaPlayer.getError();
                             Platform.runLater(() -> {
-                                System.err.println("MediaPlayer Error: " + me.getMessage() + " (" + me.getType() + ")");
+                                LogDisplayUI.addLog("MediaPlayer Error: " + me.getMessage() + " (" + me.getType() + ")");
                                 errorLabel.setText("Could not play video.\nUnsupported format or network error.");
                                 errorLabel.setVisible(true);
                                 loadingSpinner.setVisible(false);
@@ -273,8 +274,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     protected void handlePlaybackError(String message, Exception e) {
         Platform.runLater(() -> {
-            System.err.println(message + ": " + e.getMessage());
-            e.printStackTrace();
+            LogDisplayUI.addLog(message + ": " + e.getMessage());
             loadingSpinner.setVisible(false);
             errorLabel.setText("Could not load video.\nInvalid path or network issue.");
             errorLabel.setVisible(true);

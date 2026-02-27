@@ -151,12 +151,49 @@ public class PlayerService {
             return originalCmd;
         }
 
+        resolvedCmd = normalizeSeriesStreamPlaceholder(resolvedCmd, series);
         String mergedCmd = mergeMissingQueryParams(resolvedCmd, originalCmd);
         if (!mergedCmd.equals(resolvedCmd)) {
             LogDisplayUI.addLog("create_link had missing query params. Merged missing values from original channel cmd.");
         }
         LogDisplayUI.addLog("create_link resolved URL: " + mergedCmd);
         return mergedCmd;
+    }
+
+    private String normalizeSeriesStreamPlaceholder(String resolvedCmd, String seriesParam) {
+        if (isBlank(resolvedCmd) || isBlank(seriesParam)) {
+            return resolvedCmd;
+        }
+        String streamToken = extractStreamToken(seriesParam);
+        if (isBlank(streamToken)) {
+            return resolvedCmd;
+        }
+        if (resolvedCmd.contains("stream=.&")) {
+            return resolvedCmd.replace("stream=.&", "stream=" + streamToken + "&");
+        }
+        if (resolvedCmd.endsWith("stream=.")) {
+            return resolvedCmd.substring(0, resolvedCmd.length() - "stream=.".length()) + "stream=" + streamToken;
+        }
+        if (resolvedCmd.contains("stream=&")) {
+            return resolvedCmd.replace("stream=&", "stream=" + streamToken + "&");
+        }
+        if (resolvedCmd.endsWith("stream=")) {
+            return resolvedCmd + streamToken;
+        }
+        return resolvedCmd;
+    }
+
+    private String extractStreamToken(String seriesParam) {
+        if (isBlank(seriesParam)) {
+            return "";
+        }
+        String trimmed = seriesParam.trim();
+        int colonIndex = trimmed.indexOf(':');
+        if (colonIndex > 0) {
+            trimmed = trimmed.substring(0, colonIndex);
+        }
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        return digits;
     }
 
     private String resolveCreateLink(Account account, String series, String cmd) {

@@ -3,6 +3,7 @@ package com.uiptv.player;
 import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.DummyVideoPlayer;
+import com.uiptv.ui.LogDisplayUI;
 import javafx.scene.Node;
 import javafx.scene.layout.Region;
 
@@ -17,9 +18,9 @@ public class MediaPlayerFactory {
                 try {
                     instance = new VlcVideoPlayer();
                     playerType = VideoPlayerInterface.PlayerType.VLC;
-                    System.out.println("VLC found. Using it for embedded player");
+                    LogDisplayUI.addLog("VLC found. Using it for embedded player");
                 } catch (Throwable bundledError) {
-                    System.out.println("VLC not found. Using Lite player that plays limited set of videos");
+                    LogDisplayUI.addLog("VLC not found. Using Lite player that plays limited set of videos");
                     instance = new LiteVideoPlayer();
                     playerType = VideoPlayerInterface.PlayerType.LITE;
                 }

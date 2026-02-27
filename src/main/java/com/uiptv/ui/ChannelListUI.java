@@ -35,10 +35,8 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.model.Account.AccountAction.vod;
-import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -671,67 +669,11 @@ public class ChannelListUI extends HBox {
         if (item == null) {
             return;
         }
-        boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
-        boolean playerPathIsEmbedded = (playerPath != null && playerPath.toLowerCase().contains("embedded"));
-
         Channel channelForPlayback = resolveChannelForPlayback(item);
-        if (PlayerService.getInstance().isDrmProtected(channelForPlayback)) {
-            String serverPort = resolveDrmPlaybackServerPort();
-            boolean confirmed = showConfirmationAlert("This channel has drm protected contents and will only run in the browser. It requires the local server to run on port " + serverPort + ". Do you want me to open a browser and try running this channel?");
-            if (!confirmed) {
-                return;
-            }
-            if (!RootApplication.ensureServerForWebPlayback()) {
-                showErrorAlert("Unable to start local web server for DRM playback.");
-                return;
-            }
-            String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(account, channelForPlayback, categoryId, account.getAction().name());
-            RootApplication.openInBrowser(browserUrl);
-            return;
-        }
-
-        getScene().setCursor(Cursor.WAIT);
-        new Thread(() -> {
-            try {
-                PlayerResponse response;
-                Channel channel = channelForPlayback;
-
-                response = PlayerService.getInstance().get(account, channel, item.getChannelId());
-                response.setFromChannel(channel, account); // Ensure response has channel and account
-
-                final String evaluatedStreamUrl = response.getUrl();
-                final PlayerResponse finalResponse = response;
-
-                runLater(() -> {
-                    if (playerPathIsEmbedded) {
-                        if (useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
-                            getPlayer().play(finalResponse);
-                        } else {
-                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
-                        }
-                    } else {
-                        if (isBlank(playerPath) && useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
-                            getPlayer().play(finalResponse);
-                        } else if (isBlank(playerPath) && !useEmbeddedPlayerConfig) {
-                            showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
-                        } else {
-                            com.uiptv.util.Platform.executeCommand(playerPath, evaluatedStreamUrl);
-                        }
-                    }
-                });
-            } catch (Exception e) {
-                runLater(() -> showErrorAlert("Error playing channel: " + e.getMessage()));
-            } finally {
-                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
-            }
-        }).start();
-    }
-
-    private String resolveDrmPlaybackServerPort() {
-        String configured = ConfigurationService.getInstance().read().getServerPort();
-        return isBlank(configured) ? "8888" : configured.trim();
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(account, channelForPlayback, playerPath)
+                .categoryId(categoryId)
+                .channelId(item.getChannelId())
+                .errorPrefix("Error playing channel: "));
     }
 
     private Channel resolveChannelForPlayback(ChannelItem item) {

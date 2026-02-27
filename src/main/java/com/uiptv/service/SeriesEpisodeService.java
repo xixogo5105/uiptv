@@ -38,38 +38,38 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
 
-        EpisodeList cached = loadFromDbCache(account, seriesId);
+        EpisodeList cached = loadFromDbCache(account, categoryId, seriesId);
         if (cached != null && cached.episodes != null && !cached.episodes.isEmpty()) {
             return cached;
         }
 
         if (account.getType() == XTREME_API) {
             EpisodeList episodes = XtremeParser.parseEpisodes(seriesId, account);
-            saveEpisodesToDbCache(account, seriesId, episodes);
+            saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
             return episodes == null ? new EpisodeList() : episodes;
         }
 
         if (account.getType() == STALKER_PORTAL) {
             List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, seriesId, account, null, isCancelled);
-            SeriesEpisodeDb.get().saveAll(account, seriesId, seriesChannels);
+            SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, seriesChannels);
             return toEpisodeList(seriesChannels);
         }
 
         return new EpisodeList();
     }
 
-    private EpisodeList loadFromDbCache(Account account, String seriesId) {
-        List<Channel> cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
+    private EpisodeList loadFromDbCache(Account account, String categoryId, String seriesId) {
+        List<Channel> cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
         if (cachedChannels == null || cachedChannels.isEmpty()) {
             return null;
         }
-        if (!SeriesEpisodeDb.get().isFresh(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        if (!SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
             return null;
         }
         return toEpisodeList(cachedChannels);
     }
 
-    private void saveEpisodesToDbCache(Account account, String seriesId, EpisodeList episodes) {
+    private void saveEpisodesToDbCache(Account account, String categoryId, String seriesId, EpisodeList episodes) {
         if (account == null || isBlank(seriesId) || episodes == null || episodes.episodes == null || episodes.episodes.isEmpty()) {
             return;
         }
@@ -84,6 +84,7 @@ public class SeriesEpisodeService {
             channel.setCmd(episode.getCmd());
             channel.setSeason(episode.getSeason());
             channel.setEpisodeNum(episode.getEpisodeNum());
+            channel.setExtraJson(episode.toJson());
             if (episode.getInfo() != null) {
                 channel.setLogo(episode.getInfo().getMovieImage());
                 channel.setDescription(episode.getInfo().getPlot());
@@ -94,7 +95,7 @@ public class SeriesEpisodeService {
             channels.add(channel);
         }
         if (!channels.isEmpty()) {
-            SeriesEpisodeDb.get().saveAll(account, seriesId, channels);
+            SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, channels);
         }
     }
 
@@ -107,22 +108,64 @@ public class SeriesEpisodeService {
             if (channel == null) {
                 continue;
             }
+            Episode parsed = Episode.fromJson(channel.getExtraJson());
             Episode episode = new Episode();
-            episode.setId(channel.getChannelId());
-            episode.setTitle(channel.getName());
-            episode.setCmd(channel.getCmd());
-            episode.setSeason(isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason());
-            episode.setEpisodeNum(isBlank(channel.getEpisodeNum()) ? extractEpisode(channel.getName()) : channel.getEpisodeNum());
+            if (isParsedEpisodeCompatible(parsed, channel)) {
+                episode = parsed;
+            } else {
+                episode.setId(channel.getChannelId());
+                episode.setTitle(channel.getName());
+                episode.setCmd(channel.getCmd());
+                episode.setSeason(isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason());
+                episode.setEpisodeNum(isBlank(channel.getEpisodeNum()) ? extractEpisode(channel.getName()) : channel.getEpisodeNum());
+            }
+            if (isBlank(episode.getId())) episode.setId(channel.getChannelId());
+            if (isBlank(episode.getTitle())) episode.setTitle(channel.getName());
+            if (isBlank(episode.getCmd())) episode.setCmd(channel.getCmd());
+            if (isBlank(episode.getSeason())) episode.setSeason(isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason());
+            if (isBlank(episode.getEpisodeNum())) episode.setEpisodeNum(isBlank(channel.getEpisodeNum()) ? extractEpisode(channel.getName()) : channel.getEpisodeNum());
             EpisodeInfo info = new EpisodeInfo();
             info.setMovieImage(channel.getLogo());
             info.setPlot(channel.getDescription());
             info.setReleaseDate(channel.getReleaseDate());
             info.setRating(channel.getRating());
             info.setDuration(channel.getDuration());
-            episode.setInfo(info);
+            if (episode.getInfo() == null) {
+                episode.setInfo(info);
+            } else {
+                if (isBlank(episode.getInfo().getMovieImage())) episode.getInfo().setMovieImage(info.getMovieImage());
+                if (isBlank(episode.getInfo().getPlot())) episode.getInfo().setPlot(info.getPlot());
+                if (isBlank(episode.getInfo().getReleaseDate())) episode.getInfo().setReleaseDate(info.getReleaseDate());
+                if (isBlank(episode.getInfo().getRating())) episode.getInfo().setRating(info.getRating());
+                if (isBlank(episode.getInfo().getDuration())) episode.getInfo().setDuration(info.getDuration());
+            }
             list.episodes.add(episode);
         }
         return list;
+    }
+
+    private boolean isParsedEpisodeCompatible(Episode parsed, Channel channel) {
+        if (parsed == null || channel == null) {
+            return false;
+        }
+        String parsedId = safe(parsed.getId());
+        String cachedId = safe(channel.getChannelId());
+        if (!isBlank(parsedId) && !isBlank(cachedId)) {
+            if (!parsedId.equals(cachedId)) {
+                return false;
+            }
+            return true;
+        }
+        String parsedCmd = safe(parsed.getCmd());
+        String cachedCmd = safe(channel.getCmd());
+        if (!isBlank(parsedCmd) && !isBlank(cachedCmd) && parsedCmd.equals(cachedCmd)) {
+            return true;
+        }
+        return false;
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private String extractSeason(String title) {

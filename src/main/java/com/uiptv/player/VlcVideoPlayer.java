@@ -1,5 +1,6 @@
 package com.uiptv.player;
 
+import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.ImageView;
@@ -117,7 +118,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             public void error(MediaPlayer mp) {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
-                    System.err.println("VlcVideoPlayer: An error occurred in the media player.");
+                    LogDisplayUI.addLog("VlcVideoPlayer: An error occurred in the media player.");
                     errorLabel.setText("Could not play video.\nUnsupported format or network error.");
                     errorLabel.setVisible(true);
                     if (isRepeating && isRetrying.get()) {

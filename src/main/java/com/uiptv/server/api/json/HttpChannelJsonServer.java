@@ -45,21 +45,21 @@ public class HttpChannelJsonServer implements HttpHandler {
                 && account.getType() == AccountType.STALKER_PORTAL
                 && isNotBlank(movieId)
                 && !"All".equalsIgnoreCase(categoryId)) {
-            if (SeriesEpisodeDb.get().isFresh(account, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
-                List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, movieId);
+            String categoryApiId = resolveCategoryApiId(account, categoryId);
+            if (SeriesEpisodeDb.get().isFresh(account, categoryApiId, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+                List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryApiId, movieId);
                 if (!cached.isEmpty()) {
                     String cachedJson = com.uiptv.util.ServerUtils.objectToJson(cached);
-                    String categoryApiId = resolveCategoryApiId(account, categoryId);
                     cachedJson = enrichSeriesEpisodesWatched(account, categoryApiId, movieId, cachedJson);
                     generateJsonResponse(ex, dedupeJsonResponse(cachedJson));
                     return;
                 }
             }
             Category category = resolveCategoryByDbId(account, categoryId);
-            String categoryApiId = category != null ? category.getCategoryId() : categoryId;
+            categoryApiId = category != null ? category.getCategoryId() : categoryId;
             List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
             if (!episodes.isEmpty()) {
-                SeriesEpisodeDb.get().saveAll(account, movieId, episodes);
+                SeriesEpisodeDb.get().saveAll(account, categoryApiId, movieId, episodes);
             }
             response = StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(episodes);
             response = enrichSeriesEpisodesWatched(account, categoryApiId, movieId, response);

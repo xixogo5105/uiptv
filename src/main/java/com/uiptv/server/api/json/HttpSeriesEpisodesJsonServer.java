@@ -47,8 +47,8 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
             return;
         }
 
-        List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, seriesId);
-        if (!cachedEpisodes.isEmpty() && SeriesEpisodeDb.get().isFresh(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
+        if (!cachedEpisodes.isEmpty() && SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
             applyWatchedFlag(cachedEpisodes, account, categoryId, seriesId);
             generateJsonResponse(ex, ServerUtils.objectToJson(cachedEpisodes));
             return;
@@ -65,6 +65,7 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
                     channel.setChannelId(episode.getId());
                     channel.setName(episode.getTitle());
                     channel.setCmd(episode.getCmd());
+                    channel.setExtraJson(episode.toJson());
                     channel.setSeason(episode.getSeason());
                     channel.setEpisodeNum(episode.getEpisodeNum());
                     if (episode.getInfo() != null) {
@@ -83,7 +84,7 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
         }
 
         if (!episodesAsChannels.isEmpty()) {
-            SeriesEpisodeDb.get().saveAll(account, seriesId, episodesAsChannels);
+            SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, episodesAsChannels);
         }
         applyWatchedFlag(episodesAsChannels, account, categoryId, seriesId);
         generateJsonResponse(ex, ServerUtils.objectToJson(episodesAsChannels));

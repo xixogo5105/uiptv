@@ -27,15 +27,16 @@ public class SeriesEpisodeDb extends BaseDb {
         return instance;
     }
 
-    public List<Channel> getEpisodes(Account account, String seriesId) {
-        return getAll(" WHERE accountId=? AND seriesId=?", new String[]{account.getDbId(), seriesId});
+    public List<Channel> getEpisodes(Account account, String categoryId, String seriesId) {
+        return getAll(" WHERE accountId=? AND categoryId=? AND seriesId=?", new String[]{account.getDbId(), safeCategoryId(categoryId), seriesId});
     }
 
-    public boolean isFresh(Account account, String seriesId, long maxAgeMs) {
-        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND seriesId=?";
+    public boolean isFresh(Account account, String categoryId, String seriesId, long maxAgeMs) {
+        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND categoryId=? AND seriesId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
-            statement.setString(2, seriesId);
+            statement.setString(2, safeCategoryId(categoryId));
+            statement.setString(3, seriesId);
             try (ResultSet rs = statement.executeQuery()) {
                 if (rs.next()) {
                     long cachedAt = rs.getLong(1);
@@ -47,11 +48,11 @@ public class SeriesEpisodeDb extends BaseDb {
         return false;
     }
 
-    public void saveAll(Account account, String seriesId, List<Channel> episodes) {
-        deleteBySeries(account.getDbId(), seriesId);
+    public void saveAll(Account account, String categoryId, String seriesId, List<Channel> episodes) {
+        deleteBySeries(account.getDbId(), categoryId, seriesId);
         long cachedAt = System.currentTimeMillis();
         for (Channel channel : episodes) {
-            insert(account, seriesId, channel, cachedAt);
+            insert(account, categoryId, seriesId, channel, cachedAt);
         }
     }
 
@@ -65,33 +66,35 @@ public class SeriesEpisodeDb extends BaseDb {
         }
     }
 
-    private void deleteBySeries(String accountId, String seriesId) {
-        String sql = "DELETE FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND seriesId=?";
+    private void deleteBySeries(String accountId, String categoryId, String seriesId) {
+        String sql = "DELETE FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND categoryId=? AND seriesId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
-            statement.setString(2, seriesId);
+            statement.setString(2, safeCategoryId(categoryId));
+            statement.setString(3, seriesId);
             statement.execute();
         } catch (SQLException e) {
             throw new RuntimeException("Unable to execute delete query", e);
         }
     }
 
-    private void insert(Account account, String seriesId, Channel channel, long cachedAt) {
+    private void insert(Account account, String categoryId, String seriesId, Channel channel, long cachedAt) {
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(insertTableSql(SERIES_EPISODE_TABLE))) {
             statement.setString(1, account.getDbId());
-            statement.setString(2, seriesId);
-            statement.setString(3, channel.getChannelId());
-            statement.setString(4, channel.getName());
-            statement.setString(5, channel.getCmd());
-            statement.setString(6, channel.getLogo());
-            statement.setString(7, channel.getSeason());
-            statement.setString(8, channel.getEpisodeNum());
-            statement.setString(9, channel.getDescription());
-            statement.setString(10, channel.getReleaseDate());
-            statement.setString(11, channel.getRating());
-            statement.setString(12, channel.getDuration());
-            statement.setString(13, channel.getExtraJson());
-            statement.setLong(14, cachedAt);
+            statement.setString(2, safeCategoryId(categoryId));
+            statement.setString(3, seriesId);
+            statement.setString(4, channel.getChannelId());
+            statement.setString(5, channel.getName());
+            statement.setString(6, channel.getCmd());
+            statement.setString(7, channel.getLogo());
+            statement.setString(8, channel.getSeason());
+            statement.setString(9, channel.getEpisodeNum());
+            statement.setString(10, channel.getDescription());
+            statement.setString(11, channel.getReleaseDate());
+            statement.setString(12, channel.getRating());
+            statement.setString(13, channel.getDuration());
+            statement.setString(14, channel.getExtraJson());
+            statement.setLong(15, cachedAt);
             statement.execute();
         } catch (SQLException e) {
             throw new RuntimeException("Unable to execute insert query", e);
@@ -114,5 +117,9 @@ public class SeriesEpisodeDb extends BaseDb {
         channel.setDuration(nullSafeString(resultSet, "duration"));
         channel.setExtraJson(nullSafeString(resultSet, "extraJson"));
         return channel;
+    }
+
+    private String safeCategoryId(String categoryId) {
+        return categoryId == null ? "" : categoryId.trim();
     }
 }

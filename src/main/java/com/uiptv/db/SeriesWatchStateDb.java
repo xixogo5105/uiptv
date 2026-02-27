@@ -106,6 +106,16 @@ public class SeriesWatchStateDb extends BaseDb {
         }
     }
 
+    public void clearAllSeries() {
+        String sql = "DELETE FROM " + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE mode=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, "series");
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to clear all series watch state", e);
+        }
+    }
+
     @Override
     SeriesWatchState populate(ResultSet resultSet) {
         SeriesWatchState state = new SeriesWatchState();

@@ -208,6 +208,7 @@ public class DatabaseUtils {
         dbStructure.put(DbTable.SERIES_EPISODE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),
                 new DataColumn("accountId", "TEXT"),
+                new DataColumn("categoryId", "TEXT"),
                 new DataColumn("seriesId", "TEXT"),
                 new DataColumn("channelId", "TEXT NOT NULL"),
                 new DataColumn("name", "TEXT"),

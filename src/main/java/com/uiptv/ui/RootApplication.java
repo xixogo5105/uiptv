@@ -67,16 +67,16 @@ public class RootApplication extends Application {
 
     private static void handleSync(String[] args) {
         if (args.length != 3) {
-            System.err.println("Usage: sync <first_db_path> <second_db_path>");
+            LogDisplayUI.addLog("Usage: sync <first_db_path> <second_db_path>");
             exit(1);
         }
         String firstDB = args[1].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         String secondDB = args[2].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         try {
             syncDatabases(firstDB, secondDB);
-            System.out.println("Sync complete!");
+            LogDisplayUI.addLog("Sync complete!");
         } catch (SQLException e) {
-            System.err.println("Error syncing tables: " + e.getMessage());
+            LogDisplayUI.addLog("Error syncing tables: " + e.getMessage());
         }
     }
 
@@ -134,23 +134,25 @@ public class RootApplication extends Application {
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
+        WatchingNowUI watchingNowUI = new WatchingNowUI();
         AccountListUI accountListUI = new AccountListUI();
-        configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI);
+        configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI);
         LogDisplayUI logDisplayUI = new LogDisplayUI();
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {
             try {
                 configureFontStyles(RootApplication.primaryStage.getScene());
                 accountListUI.refresh();
                 bookmarkChannelListUI.forceReload();
+                watchingNowUI.forceReload();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         });
-        configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI);
+        configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI, watchingNowUI);
         configureParseMultipleAccountUI(parseMultipleAccountUI, accountListUI);
-        configureUIComponents(configurationUI, parseMultipleAccountUI, manageAccountUI, bookmarkChannelListUI, accountListUI);
+        configureUIComponents(configurationUI, parseMultipleAccountUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI, accountListUI);
 
-        TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, logDisplayUI, configurationUI);
+        TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, watchingNowUI, logDisplayUI, configurationUI);
 
         HBox embeddedPlayer = new HBox(MediaPlayerFactory.getPlayerContainer()); // Usage updated
 
@@ -190,35 +192,43 @@ public class RootApplication extends Application {
         primaryStage.show();
     }
 
-    private TabPane createTabPane(ManageAccountUI manageAccountUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI) {
+    private TabPane createTabPane(ManageAccountUI manageAccountUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI) {
         TabPane tabPane = new TabPane();
 
         Tab manageAccountTab = new Tab("Account", manageAccountUI);
         Tab parseMultipleAccountTab = new Tab("Import Bulk Accounts", parseMultipleAccountUI);
         Tab bookmarkChannelListTab = new Tab("Favorite", bookmarkChannelListUI);
+        Tab watchingNowTab = new Tab("Watching Now", watchingNowUI);
         Tab logDisplayTab = new Tab("Logs", logDisplayUI);
         Tab configurationTab = new Tab("Settings", configurationUI);
-        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab));
-        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, bookmarkChannelListTab);
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
+            if (newTab == watchingNowTab) {
+                watchingNowUI.refreshIfNeeded();
+            }
+        });
+        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, bookmarkChannelListTab, watchingNowTab);
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setSide(Side.LEFT);
         return tabPane;
     }
 
-    private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI) {
+    private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI) {
         accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
         accountListUI.addDeleteCallbackHandler(param -> {
             manageAccountUI.deleteAccount((Account) param);
             bookmarkChannelListUI.forceReload();
+            watchingNowUI.forceReload();
         });
     }
 
-    private void configureManageAccountUI(ManageAccountUI manageAccountUI, AccountListUI accountListUI, BookmarkChannelListUI bookmarkChannelListUI) {
+    private void configureManageAccountUI(ManageAccountUI manageAccountUI, AccountListUI accountListUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI) {
         manageAccountUI.addCallbackHandler(param -> {
             try {
                 accountListUI.refresh();
                 bookmarkChannelListUI.forceReload();
+                watchingNowUI.forceReload();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -235,11 +245,12 @@ public class RootApplication extends Application {
         });
     }
 
-    private void configureUIComponents(ConfigurationUI configurationUI, ParseMultipleAccountUI parseMultipleAccountUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, AccountListUI accountListUI) {
+    private void configureUIComponents(ConfigurationUI configurationUI, ParseMultipleAccountUI parseMultipleAccountUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, AccountListUI accountListUI) {
         configurationUI.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
         parseMultipleAccountUI.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
         manageAccountUI.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
         bookmarkChannelListUI.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
+        watchingNowUI.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
         accountListUI.setMinWidth((double) GUIDED_MAX_WIDTH_PIXELS / 4);
     }
 

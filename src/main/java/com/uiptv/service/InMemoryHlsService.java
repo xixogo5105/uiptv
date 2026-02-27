@@ -1,5 +1,7 @@
 package com.uiptv.service;
 
+import com.uiptv.ui.LogDisplayUI;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -79,7 +81,7 @@ public class InMemoryHlsService {
 
             if (oldestKey != null) {
                 remove(oldestKey);
-                System.out.println("InMemoryHlsService: Evicted old segment " + oldestKey + " to free memory.");
+                LogDisplayUI.addLog("InMemoryHlsService: Evicted old segment " + oldestKey + " to free memory.");
             }
         }
     }

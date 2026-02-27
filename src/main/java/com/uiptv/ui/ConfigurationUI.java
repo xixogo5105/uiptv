@@ -8,6 +8,7 @@ import com.uiptv.server.UIptvServer;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -65,6 +66,7 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink openServerLink = new Hyperlink("open");
     private final Button publishM3u8Button = new Button("Publish M3U8");
     private final Button clearCacheButton = new Button("Clear Cache");
+    private final Button clearWatchingNowButton = new Button("Clear Watching Now");
     private final Button reloadCacheButton = new Button("Reload Accounts Cache");
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final Callback onSaveCallback;
@@ -142,12 +144,12 @@ public class ConfigurationUI extends VBox {
                 cacheExpiryDays.setText(normalized);
             }
         });
-        playerPath1.setMinWidth(275);
-        playerPath2.setMinWidth(275);
-        playerPath3.setMinWidth(275);
-        playerPath1.setPrefWidth(275);
-        playerPath2.setPrefWidth(275);
-        playerPath3.setPrefWidth(275);
+        playerPath1.setMinWidth(295);
+        playerPath2.setMinWidth(295);
+        playerPath3.setMinWidth(295);
+        playerPath1.setPrefWidth(295);
+        playerPath2.setPrefWidth(295);
+        playerPath3.setPrefWidth(295);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
 
@@ -185,8 +187,9 @@ public class ConfigurationUI extends VBox {
 
         VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox);
 
-        HBox cacheButtons = new HBox(10, clearCacheButton, reloadCacheButton);
-        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheButtons, cacheExpiryRow);
+        HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
+        reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
+        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheExpiryRow, clearButtons, reloadCacheButton);
 
         openServerLink.setVisible(false);
         openServerLink.setManaged(false);
@@ -210,6 +213,7 @@ public class ConfigurationUI extends VBox {
         addStartServerButtonClickHandler();
         addStopServerButtonClickHandler();
         addClearCacheButtonClickHandler();
+        addClearWatchingNowButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
@@ -286,6 +290,19 @@ public class ConfigurationUI extends VBox {
                     showMessageAlert("Cache cleared");
                 } catch (Exception ignored) {
                     showMessageAlert("Error has occurred while clearing cache");
+                }
+            }
+        });
+    }
+
+    private void addClearWatchingNowButtonClickHandler() {
+        clearWatchingNowButton.setOnAction(event -> {
+            if (UIptvAlert.showConfirmationAlert("Are you sure you want to clear Watching Now data?")) {
+                try {
+                    SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
+                    showMessageAlert("Watching Now data cleared");
+                } catch (Exception ignored) {
+                    showMessageAlert("Error has occurred while clearing Watching Now data");
                 }
             }
         });
