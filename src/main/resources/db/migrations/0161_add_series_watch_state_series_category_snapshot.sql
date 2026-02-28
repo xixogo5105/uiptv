@@ -1,0 +1,1 @@
+--@add_column SeriesWatchState seriesCategorySnapshot TEXT default ''

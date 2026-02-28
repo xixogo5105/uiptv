@@ -1,0 +1,1 @@
+--@add_column SeriesWatchState categoryId TEXT default ''

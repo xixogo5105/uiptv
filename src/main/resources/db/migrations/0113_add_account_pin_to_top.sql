@@ -1,0 +1,1 @@
+--@add_column Account pinToTop TEXT default '0'

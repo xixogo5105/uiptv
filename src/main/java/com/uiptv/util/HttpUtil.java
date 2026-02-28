@@ -15,6 +15,7 @@ import org.apache.hc.core5.util.Timeout;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -84,7 +85,7 @@ public class HttpUtil {
     }
 
     private static HttpUriRequestBase buildRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) {
-        HttpUriRequestBase request = new HttpUriRequestBase(safeMethod(method), URI.create(url));
+        HttpUriRequestBase request = new HttpUriRequestBase(safeMethod(method), toSafeUri(url));
         request.setConfig(buildRequestConfig(options));
 
         if (headers != null) {
@@ -98,6 +99,29 @@ public class HttpUtil {
             request.setEntity(new StringEntity(body));
         }
         return request;
+    }
+
+    private static URI toSafeUri(String url) {
+        String normalized = url == null ? "" : url.trim();
+        try {
+            return URI.create(normalized);
+        } catch (IllegalArgumentException original) {
+            try {
+                URL parsed = new URL(normalized);
+                // Build component-wise to encode illegal chars (e.g. "|" in query values).
+                return new URI(
+                        parsed.getProtocol(),
+                        parsed.getUserInfo(),
+                        parsed.getHost(),
+                        parsed.getPort(),
+                        parsed.getPath(),
+                        parsed.getQuery(),
+                        parsed.getRef()
+                );
+            } catch (Exception ignored) {
+                throw original;
+            }
+        }
     }
 
     private static String safeMethod(String method) {

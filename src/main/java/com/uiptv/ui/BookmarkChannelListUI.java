@@ -6,6 +6,7 @@ import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.CategoryService;
 import com.uiptv.shared.Episode;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
@@ -29,7 +30,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -38,6 +41,7 @@ import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox {
     private static final DataFormat SERIALIZED_MIME_TYPE = new DataFormat("application/x-java-serialized-object");
+    private static final int BOOKMARK_BATCH_SIZE = 20;
     private final SearchableTableViewWithButton<BookmarkItem> bookmarkTable = new SearchableTableViewWithButton<>();
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
@@ -45,6 +49,7 @@ public class BookmarkChannelListUI extends HBox {
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
     private volatile long lastKnownBookmarkRevision = 0;
     private volatile boolean reloadInProgress = false;
+    private final AtomicLong reloadGeneration = new AtomicLong(0);
     private boolean changeListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || reloadInProgress) {
@@ -63,34 +68,81 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     public void forceReload() {
+        long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
-        bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
+        runLater(() -> {
+            if (generation != reloadGeneration.get()) {
+                return;
+            }
+            allBookmarkItems.clear();
+            populateCategoryTabPane();
+            filterView();
+            bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
+        });
         new Thread(() -> {
             try {
                 List<Bookmark> bookmarks = BookmarkService.getInstance().read();
                 Map<String, Account> accountByName = AccountService.getInstance().getAll();
                 Map<String, String> logoByAccountAndChannel = new HashMap<>();
-                List<BookmarkItem> items = bookmarks.stream()
-                        .map(bookmark -> createBookmarkItem(bookmark, accountByName, logoByAccountAndChannel))
-                        .collect(Collectors.toList());
+                List<BookmarkItem> batch = new ArrayList<>(BOOKMARK_BATCH_SIZE);
+                int totalCount = bookmarks.size();
+                int loadedCount = 0;
 
-                runLater(() -> {
-                    allBookmarkItems.clear();
-                    allBookmarkItems.addAll(items);
-                    populateCategoryTabPane();
-                    filterView();
-                    if (allBookmarkItems.isEmpty()) {
-                        bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
-                    } else {
-                        bookmarkTable.getTableView().setPlaceholder(null);
+                for (Bookmark bookmark : bookmarks) {
+                    if (generation != reloadGeneration.get()) {
+                        return;
                     }
-                    lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
-                    reloadInProgress = false;
-                });
+                    batch.add(createBookmarkItem(bookmark, accountByName, logoByAccountAndChannel));
+                    loadedCount++;
+                    if (batch.size() >= BOOKMARK_BATCH_SIZE) {
+                        List<BookmarkItem> chunk = new ArrayList<>(batch);
+                        int finalLoadedCount = loadedCount;
+                        runLater(() -> appendLoadedBatch(generation, chunk, finalLoadedCount, totalCount));
+                        batch.clear();
+                    }
+                }
+
+                if (!batch.isEmpty()) {
+                    List<BookmarkItem> chunk = new ArrayList<>(batch);
+                    int finalLoadedCount = loadedCount;
+                    runLater(() -> appendLoadedBatch(generation, chunk, finalLoadedCount, totalCount));
+                }
+
+                runLater(() -> finishReload(generation));
             } catch (Exception ignored) {
-                runLater(() -> reloadInProgress = false);
+                runLater(() -> {
+                    if (generation != reloadGeneration.get()) {
+                        return;
+                    }
+                    reloadInProgress = false;
+                    bookmarkTable.getTableView().setPlaceholder(new Label("Unable to load bookmarks"));
+                });
             }
         }).start();
+    }
+
+    private void appendLoadedBatch(long generation, List<BookmarkItem> chunk, int loadedCount, int totalCount) {
+        if (generation != reloadGeneration.get()) {
+            return;
+        }
+        allBookmarkItems.addAll(chunk);
+        filterView();
+        if (loadedCount < totalCount) {
+            bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks... (" + loadedCount + "/" + totalCount + ")"));
+        }
+    }
+
+    private void finishReload(long generation) {
+        if (generation != reloadGeneration.get()) {
+            return;
+        }
+        if (allBookmarkItems.isEmpty()) {
+            bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
+        } else {
+            bookmarkTable.getTableView().setPlaceholder(null);
+        }
+        lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
+        reloadInProgress = false;
     }
 
     private void registerBookmarkChangeListener() {
@@ -560,7 +612,7 @@ public class BookmarkChannelListUI extends HBox {
             return;
         }
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.account, playbackContext.channel, playerPath)
-                .categoryId(item.getCategoryId())
+                .categoryId(resolveSourceCategoryDbId(item))
                 .channelId(item.getChannelId())
                 .errorPrefix("Error playing bookmark: "));
     }
@@ -570,7 +622,9 @@ public class BookmarkChannelListUI extends HBox {
         if (account == null) {
             return null;
         }
-        account.setServerPortalUrl(item.getServerPortalUrl());
+        if (isNotBlank(item.getServerPortalUrl())) {
+            account.setServerPortalUrl(item.getServerPortalUrl());
+        }
         account.setAction(item.getAccountAction());
 
         Channel channel = null;
@@ -603,7 +657,83 @@ public class BookmarkChannelListUI extends HBox {
             channel.setManifestType(item.getManifestType());
         }
 
+        Channel latestCachedChannel = findLatestCachedChannel(account, item);
+        if (latestCachedChannel != null) {
+            mergeLatestChannel(channel, latestCachedChannel);
+        }
+
         return new PlaybackContext(account, channel);
+    }
+
+    private Channel findLatestCachedChannel(Account account, BookmarkItem item) {
+        if (account == null || item == null) {
+            return null;
+        }
+        if (isNotBlank(item.getSeriesJson())) {
+            return null;
+        }
+        String sourceCategoryDbId = resolveSourceCategoryDbId(item);
+        return switch (account.getAction()) {
+            case itv -> ChannelService.getInstance().findCachedLiveChannel(account, item.getChannelId(), item.getChannelName());
+            case vod -> ChannelService.getInstance().findCachedVodChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
+            case series -> ChannelService.getInstance().findCachedSeriesChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
+        };
+    }
+
+    private String resolveSourceCategoryDbId(BookmarkItem item) {
+        if (item == null) {
+            return "";
+        }
+        Account account = AccountService.getInstance().getByName(item.getAccountName());
+        if (account == null) {
+            return "";
+        }
+        if (isNotBlank(item.getCategoryJson())) {
+            Category category = Category.fromJson(item.getCategoryJson());
+            if (category != null && isNotBlank(category.getCategoryId())) {
+                return category.getCategoryId();
+            }
+            if (category != null && isNotBlank(category.getTitle())) {
+                String resolvedByJsonTitle = resolveCategoryDbIdByTitle(account, category.getTitle());
+                if (isNotBlank(resolvedByJsonTitle)) {
+                    return resolvedByJsonTitle;
+                }
+            }
+        }
+        if (isNotBlank(item.getCategoryId())) {
+            return item.getCategoryId();
+        }
+        return resolveCategoryDbIdByTitle(account, item.getCategoryTitle());
+    }
+
+    private String resolveCategoryDbIdByTitle(Account account, String categoryTitle) {
+        if (account == null || isBlank(categoryTitle)) {
+            return "";
+        }
+        List<Category> categories = CategoryService.getInstance().getCached(account);
+        if (categories == null || categories.isEmpty()) {
+            return "";
+        }
+        Category matched = categories.stream()
+                .filter(c -> c != null && isNotBlank(c.getTitle()) && categoryTitle.trim().equalsIgnoreCase(c.getTitle().trim()))
+                .findFirst()
+                .orElse(null);
+        return matched == null || isBlank(matched.getDbId()) ? "" : matched.getDbId();
+    }
+
+    private void mergeLatestChannel(Channel target, Channel latest) {
+        if (target == null || latest == null) {
+            return;
+        }
+        if (isNotBlank(latest.getCmd())) target.setCmd(latest.getCmd());
+        if (isNotBlank(latest.getName())) target.setName(latest.getName());
+        if (isNotBlank(latest.getChannelId())) target.setChannelId(latest.getChannelId());
+        if (isNotBlank(latest.getLogo())) target.setLogo(latest.getLogo());
+        if (isNotBlank(latest.getDrmType())) target.setDrmType(latest.getDrmType());
+        if (isNotBlank(latest.getDrmLicenseUrl())) target.setDrmLicenseUrl(latest.getDrmLicenseUrl());
+        if (isNotBlank(latest.getClearKeysJson())) target.setClearKeysJson(latest.getClearKeysJson());
+        if (isNotBlank(latest.getInputstreamaddon())) target.setInputstreamaddon(latest.getInputstreamaddon());
+        if (isNotBlank(latest.getManifestType())) target.setManifestType(latest.getManifestType());
     }
 
     private static final class PlaybackContext {

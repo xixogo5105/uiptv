@@ -1,96 +1,313 @@
 package com.uiptv.db;
 
-import java.sql.*;
-import java.util.HashMap;
-import java.util.Map;
-
-import static com.uiptv.db.DatabaseUtils.DbTable.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
 
 public class DatabasePatchesUtils {
-    private static Map<String, String> dbPatches = new HashMap<>();
-
-    static {
-        dbPatches.put("111", "CREATE TABLE IF NOT EXISTS " + BOOKMARK_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, name TEXT NOT NULL)");
-        dbPatches.put("112", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN macAddressList TEXT");
-        dbPatches.put("113", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN pinToTop TEXT default '0'");
-        dbPatches.put("114", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN categoryId TEXT");
-        dbPatches.put("115", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN embeddedPlayer TEXT");
-        dbPatches.put("116", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN drmType TEXT");
-        dbPatches.put("117", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN drmLicenseUrl TEXT");
-        dbPatches.put("118", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN clearKeysJson TEXT");
-        dbPatches.put("119", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN inputstreamaddon TEXT");
-        dbPatches.put("120", "ALTER TABLE " + CHANNEL_TABLE.getTableName() + " ADD COLUMN manifestType TEXT");
-        dbPatches.put("121", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN drmType TEXT");
-        dbPatches.put("122", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN drmLicenseUrl TEXT");
-        dbPatches.put("123", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN clearKeysJson TEXT");
-        dbPatches.put("124", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN inputstreamaddon TEXT");
-        dbPatches.put("125", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN manifestType TEXT");
-        dbPatches.put("127", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN enableFfmpegTranscoding TEXT");
-        dbPatches.put("138", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " DROP COLUMN pauseCaching");
-        dbPatches.put("139", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " DROP COLUMN pauseCaching");
-        dbPatches.put("140", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN accountAction TEXT");
-        dbPatches.put("141", "CREATE TABLE IF NOT EXISTS " + BOOKMARK_ORDER_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, bookmark_db_id TEXT NOT NULL, category_id TEXT, display_order INTEGER)");
-        dbPatches.put("142", "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) SELECT id, categoryId, 0 FROM " + BOOKMARK_TABLE.getTableName() + " WHERE id NOT IN (SELECT bookmark_db_id FROM " + BOOKMARK_ORDER_TABLE.getTableName() + ")");
-        dbPatches.put("143", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN categoryJson TEXT");
-        dbPatches.put("144", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN channelJson TEXT");
-        dbPatches.put("145", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN vodJson TEXT");
-        dbPatches.put("146", "ALTER TABLE " + BOOKMARK_TABLE.getTableName() + " ADD COLUMN seriesJson TEXT");
-        dbPatches.put("147", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN httpMethod TEXT default 'GET'");
-        dbPatches.put("148", "ALTER TABLE " + ACCOUNT_TABLE.getTableName() + " ADD COLUMN timezone TEXT default 'Europe/London'");
-        dbPatches.put("149", "CREATE TABLE IF NOT EXISTS " + VOD_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, categoryId TEXT NOT NULL, accountId TEXT, accountType TEXT, title TEXT, alias TEXT, url TEXT, activeSub INTEGER, censored INTEGER, extraJson TEXT, cachedAt INTEGER)");
-        dbPatches.put("150", "CREATE TABLE IF NOT EXISTS " + VOD_CHANNEL_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, channelId TEXT NOT NULL, categoryId TEXT, accountId TEXT, name TEXT, number TEXT, cmd TEXT, cmd_1 TEXT, cmd_2 TEXT, cmd_3 TEXT, logo TEXT, censored INTEGER, status INTEGER, hd INTEGER, drmType TEXT, drmLicenseUrl TEXT, clearKeysJson TEXT, inputstreamaddon TEXT, manifestType TEXT, extraJson TEXT, cachedAt INTEGER)");
-        dbPatches.put("151", "CREATE TABLE IF NOT EXISTS " + SERIES_CATEGORY_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, categoryId TEXT NOT NULL, accountId TEXT, accountType TEXT, title TEXT, alias TEXT, url TEXT, activeSub INTEGER, censored INTEGER, extraJson TEXT, cachedAt INTEGER)");
-        dbPatches.put("152", "CREATE TABLE IF NOT EXISTS " + SERIES_CHANNEL_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, channelId TEXT NOT NULL, categoryId TEXT, accountId TEXT, name TEXT, number TEXT, cmd TEXT, cmd_1 TEXT, cmd_2 TEXT, cmd_3 TEXT, logo TEXT, censored INTEGER, status INTEGER, hd INTEGER, drmType TEXT, drmLicenseUrl TEXT, clearKeysJson TEXT, inputstreamaddon TEXT, manifestType TEXT, extraJson TEXT, cachedAt INTEGER)");
-        dbPatches.put("153", "CREATE TABLE IF NOT EXISTS " + SERIES_EPISODE_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, accountId TEXT, seriesId TEXT, channelId TEXT NOT NULL, name TEXT, cmd TEXT, logo TEXT, season TEXT, episodeNum TEXT, description TEXT, releaseDate TEXT, rating TEXT, duration TEXT, extraJson TEXT, cachedAt INTEGER)");
-        dbPatches.put("154", "CREATE TABLE IF NOT EXISTS " + SERIES_WATCH_STATE_TABLE.getTableName() + " (id INTEGER PRIMARY KEY, accountId TEXT, mode TEXT, categoryId TEXT, seriesId TEXT, episodeId TEXT, episodeName TEXT, season TEXT, episodeNum INTEGER, updatedAt INTEGER, source TEXT)");
-        dbPatches.put("155", "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique ON " + SERIES_WATCH_STATE_TABLE.getTableName() + " (accountId, mode, categoryId, seriesId)");
-        dbPatches.put("156", "ALTER TABLE " + SERIES_WATCH_STATE_TABLE.getTableName() + " ADD COLUMN categoryId TEXT default ''");
-        dbPatches.put("157", "DROP INDEX IF EXISTS idx_series_watch_unique");
-        dbPatches.put("158", "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique ON " + SERIES_WATCH_STATE_TABLE.getTableName() + " (accountId, mode, categoryId, seriesId)");
-        dbPatches.put("159", "ALTER TABLE " + CONFIGURATION_TABLE.getTableName() + " ADD COLUMN cacheExpiryDays TEXT default '30'");
-        dbPatches.put("160", "ALTER TABLE " + SERIES_EPISODE_TABLE.getTableName() + " ADD COLUMN categoryId TEXT default ''");
-        dbPatches.put("161", "ALTER TABLE " + SERIES_WATCH_STATE_TABLE.getTableName() + " ADD COLUMN seriesCategorySnapshot TEXT default ''");
-        dbPatches.put("162", "ALTER TABLE " + SERIES_WATCH_STATE_TABLE.getTableName() + " ADD COLUMN seriesChannelSnapshot TEXT default ''");
-        dbPatches.put("163", "ALTER TABLE " + SERIES_WATCH_STATE_TABLE.getTableName() + " ADD COLUMN seriesEpisodeSnapshot TEXT default ''");
-    }
+    private static final String MIGRATIONS_LIST_RESOURCE = "db/migrations/migrations.txt";
+    private static final String BASELINE_RESOURCE = "db/migrations/0000_baseline.sql";
+    private static final String MIGRATIONS_DIR_RESOURCE = "db/migrations/";
 
     public static void applyPatches(Connection conn) throws SQLException {
-        createAppliedPatchesTable(conn);
+        createSchemaMigrationsTable(conn);
+        List<String> migrationNames = readMigrationNames();
+        for (String migrationName : migrationNames) {
+            applyMigration(conn, migrationName);
+        }
+    }
 
-        for (String key : dbPatches.keySet()) {
-            String patch = dbPatches.get(key);
-            if (!isPatchApplied(conn, Integer.parseInt(key))) {
-                recordPatchApplied(conn, Integer.parseInt(key));
-                try (Statement stmt = conn.createStatement()) {
-                    stmt.executeUpdate(patch);
-                } catch (Exception ignored) {
-                    ignored.getMessage();
+    public static void applyBaseline(Connection conn) throws SQLException {
+        String baselineSql = readResource(BASELINE_RESOURCE);
+        executeMigrationContent(conn, baselineSql);
+    }
+
+    public static boolean hasMigrationsListResource() {
+        return resourceExists(MIGRATIONS_LIST_RESOURCE);
+    }
+
+    public static boolean hasBaselineResource() {
+        return resourceExists(BASELINE_RESOURCE);
+    }
+
+    private static void applyMigration(Connection conn, String migrationName) throws SQLException {
+        String resourcePath = MIGRATIONS_DIR_RESOURCE + migrationName;
+        String migrationSql = readResource(resourcePath);
+        String checksum = checksum(migrationSql);
+
+        MigrationRecord existing = findMigrationRecord(conn, migrationName);
+        if (existing != null && "success".equalsIgnoreCase(existing.status) && checksum.equals(existing.checksum)) {
+            return;
+        }
+
+        boolean originalAutoCommit = conn.getAutoCommit();
+        try {
+            conn.setAutoCommit(false);
+            executeMigrationContent(conn, migrationSql);
+            upsertMigrationRecord(conn, migrationName, checksum, "success", null);
+            conn.commit();
+        } catch (Exception ex) {
+            conn.rollback();
+            upsertMigrationRecord(conn, migrationName, checksum, "failed", safeError(ex));
+            conn.commit();
+        } finally {
+            conn.setAutoCommit(originalAutoCommit);
+        }
+    }
+
+    private static void executeMigrationContent(Connection conn, String migrationSql) throws SQLException {
+        String directive = findDirectiveLine(migrationSql);
+        if (directive != null) {
+            executeDirective(conn, directive);
+            return;
+        }
+        executeSqlStatements(conn, migrationSql);
+    }
+
+    private static void executeDirective(Connection conn, String directiveLine) throws SQLException {
+        String[] parts = directiveLine.trim().split("\\s+", 4);
+        if (parts.length < 3) {
+            throw new SQLException("Invalid migration directive: " + directiveLine);
+        }
+        String command = parts[0].toLowerCase();
+        if ("--@add_column".equals(command)) {
+            if (parts.length < 4) {
+                throw new SQLException("Invalid add_column directive: " + directiveLine);
+            }
+            String table = parts[1];
+            String column = parts[2];
+            String definition = parts[3];
+            if (columnExists(conn, table, column)) {
+                return;
+            }
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+            }
+            return;
+        }
+        if ("--@drop_column".equals(command)) {
+            String table = parts[1];
+            String column = parts[2];
+            if (!columnExists(conn, table, column)) {
+                return;
+            }
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("ALTER TABLE " + table + " DROP COLUMN " + column);
+            }
+            return;
+        }
+        throw new SQLException("Unsupported migration directive: " + directiveLine);
+    }
+
+    private static void executeSqlStatements(Connection conn, String migrationSql) throws SQLException {
+        StringBuilder builder = new StringBuilder();
+        String[] lines = migrationSql.split("\\R");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("--")) {
+                continue;
+            }
+            builder.append(line).append('\n');
+        }
+        String sqlBlob = builder.toString();
+        for (String raw : sqlBlob.split(";")) {
+            String statement = raw.trim();
+            if (statement.isEmpty()) {
+                continue;
+            }
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate(statement);
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
+        String sql = "PRAGMA table_info(" + tableName + ")";
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                if (columnName.equalsIgnoreCase(rs.getString("name"))) {
+                    return true;
                 }
             }
+            return false;
         }
     }
 
-    private static void createAppliedPatchesTable(Connection conn) throws SQLException {
+    private static String findDirectiveLine(String migrationSql) {
+        String[] lines = migrationSql.split("\\R");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("--@")) {
+                return trimmed;
+            }
+        }
+        return null;
+    }
+
+    private static List<String> readMigrationNames() {
+        String content = readResource(MIGRATIONS_LIST_RESOURCE);
+        List<String> names = new ArrayList<>();
+        String[] lines = content.split("\\R");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                continue;
+            }
+            names.add(trimmed);
+        }
+        return names;
+    }
+
+    private static String readResource(String path) {
+        try (InputStream in = openResource(path)) {
+            if (in == null) {
+                throw new IllegalStateException("Migration resource not found: " + path);
+            }
+            StringBuilder out = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    out.append(line).append('\n');
+                }
+            }
+            return out.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to read migration resource: " + path, ex);
+        }
+    }
+
+    private static boolean resourceExists(String path) {
+        try (InputStream in = openResource(path)) {
+            return in != null;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private static InputStream openResource(String path) {
+        String normalized = path.startsWith("/") ? path.substring(1) : path;
+        String absolute = "/" + normalized;
+
+        InputStream in = DatabasePatchesUtils.class.getResourceAsStream(absolute);
+        if (in != null) {
+            return in;
+        }
+
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            in = contextClassLoader.getResourceAsStream(normalized);
+            if (in != null) {
+                return in;
+            }
+        }
+
+        ClassLoader classLoader = DatabasePatchesUtils.class.getClassLoader();
+        if (classLoader != null) {
+            in = classLoader.getResourceAsStream(normalized);
+            if (in != null) {
+                return in;
+            }
+        }
+
+        Module module = DatabasePatchesUtils.class.getModule();
+        try {
+            in = module.getResourceAsStream(normalized);
+            if (in != null) {
+                return in;
+            }
+        } catch (Exception ignored) {
+            // Continue trying other strategies.
+        }
+
+        Path localPath = Paths.get("src", "main", "resources", normalized);
+        if (Files.exists(localPath)) {
+            try {
+                return new FileInputStream(localPath.toFile());
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static String checksum(String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to compute migration checksum", ex);
+        }
+    }
+
+    private static void createSchemaMigrationsTable(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS AppliedPatches (patchIndex INTEGER PRIMARY KEY)");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS schema_migrations ("
+                    + "name TEXT PRIMARY KEY,"
+                    + "checksum TEXT NOT NULL,"
+                    + "status TEXT NOT NULL,"
+                    + "applied_at INTEGER NOT NULL,"
+                    + "error_message TEXT"
+                    + ")");
         }
     }
 
-    private static boolean isPatchApplied(Connection conn, int patchIndex) throws SQLException {
-        String query = "SELECT 1 FROM AppliedPatches WHERE patchIndex = ?";
-        try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setInt(1, patchIndex);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                return rs.next();
+    private static MigrationRecord findMigrationRecord(Connection conn, String name) throws SQLException {
+        String sql = "SELECT checksum, status FROM schema_migrations WHERE name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                return new MigrationRecord(rs.getString("checksum"), rs.getString("status"));
             }
         }
     }
 
-    private static void recordPatchApplied(Connection conn, int patchIndex) throws SQLException {
-        String insert = "INSERT INTO AppliedPatches (patchIndex) VALUES (?)";
-        try (PreparedStatement pstmt = conn.prepareStatement(insert)) {
-            pstmt.setInt(1, patchIndex);
-            pstmt.executeUpdate();
+    private static void upsertMigrationRecord(Connection conn, String name, String checksum, String status, String errorMessage) throws SQLException {
+        String sql = "INSERT INTO schema_migrations(name, checksum, status, applied_at, error_message) VALUES(?,?,?,?,?) "
+                + "ON CONFLICT(name) DO UPDATE SET "
+                + "checksum=excluded.checksum,"
+                + "status=excluded.status,"
+                + "applied_at=excluded.applied_at,"
+                + "error_message=excluded.error_message";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.setString(2, checksum);
+            ps.setString(3, status);
+            ps.setLong(4, Instant.now().getEpochSecond());
+            ps.setString(5, errorMessage);
+            ps.executeUpdate();
         }
+    }
+
+    private static String safeError(Exception ex) {
+        String message = ex == null ? "" : ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return ex == null ? "" : ex.getClass().getSimpleName();
+        }
+        if (message.length() > 1000) {
+            return message.substring(0, 1000);
+        }
+        return message;
+    }
+
+    private record MigrationRecord(String checksum, String status) {
     }
 }

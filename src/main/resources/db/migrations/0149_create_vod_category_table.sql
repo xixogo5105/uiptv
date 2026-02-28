@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS VodCategory (id INTEGER PRIMARY KEY, categoryId TEXT NOT NULL, accountId TEXT, accountType TEXT, title TEXT, alias TEXT, url TEXT, activeSub INTEGER, censored INTEGER, extraJson TEXT, cachedAt INTEGER);

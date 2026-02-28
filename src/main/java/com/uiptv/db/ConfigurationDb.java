@@ -20,12 +20,6 @@ public class ConfigurationDb extends BaseDb {
     public static synchronized ConfigurationDb get() {
         if (instance == null) {
             instance = new ConfigurationDb();
-            // Ensure patches are applied, especially if hot-swapped
-            try (Connection conn = connect()) {
-                DatabasePatchesUtils.applyPatches(conn);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return instance;
     }

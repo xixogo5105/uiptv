@@ -283,6 +283,109 @@ public class ChannelService {
         return channel;
     }
 
+    public Channel findCachedLiveChannel(Account account, String channelId, String channelName) {
+        if (account == null || isBlank(account.getDbId())) {
+            return null;
+        }
+        Channel byId = getChannelByChannelIdAndAccount(channelId, account.getDbId());
+        if (byId != null) {
+            return byId;
+        }
+        if (isBlank(channelName)) {
+            return null;
+        }
+        String targetName = channelName.trim();
+        for (Category category : CategoryDb.get().getCategories(account)) {
+            if (category == null || isBlank(category.getDbId())) {
+                continue;
+            }
+            Channel byName = ChannelDb.get().getChannels(category.getDbId()).stream()
+                    .filter(c -> c != null && isNotBlank(c.getName()) && targetName.equalsIgnoreCase(c.getName().trim()))
+                    .findFirst()
+                    .orElse(null);
+            if (byName != null) {
+                resolveLogoIfNeeded(byName);
+                return byName;
+            }
+        }
+        return null;
+    }
+
+    public Channel findCachedVodChannel(Account account, String categoryHint, String channelId, String channelName) {
+        return findCachedVodOrSeriesChannel(account, categoryHint, channelId, channelName, false);
+    }
+
+    public Channel findCachedSeriesChannel(Account account, String categoryHint, String channelId, String channelName) {
+        return findCachedVodOrSeriesChannel(account, categoryHint, channelId, channelName, true);
+    }
+
+    private Channel findCachedVodOrSeriesChannel(Account account, String categoryHint, String channelId, String channelName, boolean seriesLookup) {
+        if (account == null || isBlank(account.getDbId())) {
+            return null;
+        }
+        String dbCategoryId = resolveCategoryDbId(account, categoryHint);
+        if (isBlank(dbCategoryId)) {
+            return null;
+        }
+        List<Channel> channels = seriesLookup
+                ? SeriesChannelDb.get().getChannels(account, dbCategoryId)
+                : VodChannelDb.get().getChannels(account, dbCategoryId);
+        if (channels == null || channels.isEmpty()) {
+            return null;
+        }
+        if (isNotBlank(channelId)) {
+            Channel byId = channels.stream()
+                    .filter(c -> c != null && isNotBlank(c.getChannelId()) && channelId.trim().equals(c.getChannelId().trim()))
+                    .findFirst()
+                    .orElse(null);
+            if (byId != null) {
+                resolveLogoIfNeeded(byId);
+                return byId;
+            }
+        }
+        if (isNotBlank(channelName)) {
+            Channel byName = channels.stream()
+                    .filter(c -> c != null && isNotBlank(c.getName()) && channelName.trim().equalsIgnoreCase(c.getName().trim()))
+                    .findFirst()
+                    .orElse(null);
+            if (byName != null) {
+                resolveLogoIfNeeded(byName);
+                return byName;
+            }
+        }
+        return null;
+    }
+
+    private String resolveCategoryDbId(Account account, String categoryHint) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(categoryHint)) {
+            return "";
+        }
+        String hint = categoryHint.trim();
+        List<Category> categories = CategoryDb.get().getCategories(account);
+        if (categories == null || categories.isEmpty()) {
+            return "";
+        }
+        Category byDbId = categories.stream()
+                .filter(c -> c != null && isNotBlank(c.getDbId()) && hint.equals(c.getDbId().trim()))
+                .findFirst()
+                .orElse(null);
+        if (byDbId != null) {
+            return byDbId.getDbId();
+        }
+        Category byTitle = categories.stream()
+                .filter(c -> c != null && isNotBlank(c.getTitle()) && hint.equalsIgnoreCase(c.getTitle().trim()))
+                .findFirst()
+                .orElse(null);
+        if (byTitle != null) {
+            return byTitle.getDbId();
+        }
+        Category byProviderCategoryId = categories.stream()
+                .filter(c -> c != null && isNotBlank(c.getCategoryId()) && hint.equals(c.getCategoryId().trim()))
+                .findFirst()
+                .orElse(null);
+        return byProviderCategoryId == null ? "" : byProviderCategoryId.getDbId();
+    }
+
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true);
     }

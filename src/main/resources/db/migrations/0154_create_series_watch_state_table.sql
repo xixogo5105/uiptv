@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS SeriesWatchState (id INTEGER PRIMARY KEY, accountId TEXT, mode TEXT, categoryId TEXT, seriesId TEXT, episodeId TEXT, episodeName TEXT, season TEXT, episodeNum INTEGER, updatedAt INTEGER, source TEXT);

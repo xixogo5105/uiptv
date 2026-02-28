@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS SeriesEpisode (id INTEGER PRIMARY KEY, accountId TEXT, seriesId TEXT, channelId TEXT NOT NULL, name TEXT, cmd TEXT, logo TEXT, season TEXT, episodeNum TEXT, description TEXT, releaseDate TEXT, rating TEXT, duration TEXT, extraJson TEXT, cachedAt INTEGER);

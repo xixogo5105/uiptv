@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS VodChannel (id INTEGER PRIMARY KEY, channelId TEXT NOT NULL, categoryId TEXT, accountId TEXT, name TEXT, number TEXT, cmd TEXT, cmd_1 TEXT, cmd_2 TEXT, cmd_3 TEXT, logo TEXT, censored INTEGER, status INTEGER, hd INTEGER, drmType TEXT, drmLicenseUrl TEXT, clearKeysJson TEXT, inputstreamaddon TEXT, manifestType TEXT, extraJson TEXT, cachedAt INTEGER);

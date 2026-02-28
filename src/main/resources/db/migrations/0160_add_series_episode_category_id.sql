@@ -1,0 +1,1 @@
+--@add_column SeriesEpisode categoryId TEXT default ''

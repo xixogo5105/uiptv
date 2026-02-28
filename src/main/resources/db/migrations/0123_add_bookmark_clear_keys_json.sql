@@ -1,0 +1,1 @@
+--@add_column Bookmark clearKeysJson TEXT
