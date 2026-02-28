@@ -4,6 +4,7 @@ import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.service.cache.AccountCacheReloaderFactory;
+import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class CacheServiceImpl implements CacheService {
 
     @Override
     public boolean verifyMacAddress(Account account, String macAddress) {
-        if (account == null) {
+        if (account == null || account.getType() != AccountType.STALKER_PORTAL) {
             return false;
         }
 

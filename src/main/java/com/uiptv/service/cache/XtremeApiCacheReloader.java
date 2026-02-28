@@ -84,7 +84,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             return false;
         }
 
-        if (allChannels == null || allChannels.isEmpty()) {
+        if (allChannels.isEmpty()) {
             log(logger, "Global Xtreme channel lookup returned no channels. Falling back to category fetch.");
             return false;
         }
