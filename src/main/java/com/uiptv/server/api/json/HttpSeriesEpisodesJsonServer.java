@@ -10,7 +10,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.HandshakeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
@@ -34,9 +33,6 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
             generateJsonResponse(ex, "[]");
             return;
         }
-        if (account.isNotConnected()) {
-            HandshakeService.getInstance().connect(account);
-        }
 
         String seriesId = getParam(ex, "seriesId");
         String rawCategoryId = getParam(ex, "categoryId");
@@ -48,7 +44,15 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
         }
 
         List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
-        if (!cachedEpisodes.isEmpty() && SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        if (cachedEpisodes.isEmpty() && account.getType() == AccountType.XTREME_API) {
+            cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
+        }
+        boolean cachedFresh = !cachedEpisodes.isEmpty() && (
+                SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())
+                        || (account.getType() == AccountType.XTREME_API
+                        && SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs()))
+        );
+        if (cachedFresh) {
             applyWatchedFlag(cachedEpisodes, account, categoryId, seriesId);
             generateJsonResponse(ex, ServerUtils.objectToJson(cachedEpisodes));
             return;
@@ -85,6 +89,8 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
 
         if (!episodesAsChannels.isEmpty()) {
             SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, episodesAsChannels);
+        } else if (account.getType() == AccountType.XTREME_API) {
+            episodesAsChannels = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
         }
         applyWatchedFlag(episodesAsChannels, account, categoryId, seriesId);
         generateJsonResponse(ex, ServerUtils.objectToJson(episodesAsChannels));

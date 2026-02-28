@@ -64,8 +64,13 @@
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link" :class="{ active: activeTab === 'accounts' }" @click="switchTab('accounts')" title="Accounts">
+                    <button class="nav-link" :class="{ active: activeTab === 'accounts' && !watchingNowDrilldown }" @click="switchTab('accounts')" title="Accounts">
                         <i class="bi bi-person-lines-fill"></i>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" :class="{ active: activeTab === 'watchingNow' || watchingNowDrilldown }" @click="switchTab('watchingNow')" title="Watching Now">
+                        <i class="bi bi-play-btn-fill"></i>
                     </button>
                 </li>
             </ul>
@@ -143,7 +148,7 @@
                                 @dragover.prevent="onBookmarkDragOver($event, bookmark)"
                                 @drop.prevent="onBookmarkDrop($event, bookmark)"
                                 @dragend="onBookmarkDragEnd">
-                            <img v-if="bookmark.logo" :src="bookmark.logo" @error="imageError" alt="logo">
+                            <img v-if="bookmark.logo" :src="bookmark.logo" @load="imageLoad" @error="imageError" alt="logo">
                             <div v-else class="icon-placeholder"><i class="bi bi-bookmark-fill"></i></div>
                             <div class="content-wrapper">
                                 <div class="title">{{ bookmark.channelName }}</div>
@@ -226,7 +231,7 @@
                                 </div>
                             </div>
                             <div v-if="!listLoading" v-for="channel in filteredChannels" :key="channel.dbId || channel.channelId || channel.id" class="card-item" @click="handleChannelSelection(channel)">
-                                <img v-if="channel.logo" :src="channel.logo" @error="imageError" alt="logo">
+                                <img v-if="channel.logo" :src="channel.logo" @load="imageLoad" @error="imageError" alt="logo">
                                 <div v-else class="icon-placeholder"><i class="bi bi-tv"></i></div>
                                 <div class="content-wrapper">
                                     <div class="title">
@@ -242,7 +247,7 @@
                     <!-- VOD Detail -->
                     <div v-if="viewState === 'vodDetail' && contentMode === 'vod' && vodDetail" class="vod-detail-wrap">
                         <div class="card-item mb-2 series-header-card">
-                            <img v-if="vodDetail.cover" :src="vodDetail.cover" @error="imageError" alt="vod poster" class="series-header-poster">
+                            <img v-if="vodDetail.cover" :src="vodDetail.cover" @load="imageLoad" @error="imageError" alt="vod poster" class="series-header-poster">
                             <div v-else class="icon-placeholder"><i class="bi bi-film"></i></div>
                             <div class="content-wrapper">
                                 <div class="title">{{ vodDetail.name || 'Movie' }}</div>
@@ -280,7 +285,7 @@
                     <div v-if="viewState === 'episodes'">
                         <div class="px-2 pb-2 text-muted small">Episodes</div>
                         <div v-if="contentMode === 'series' && seriesDetail" class="card-item mb-2 series-header-card">
-                            <img v-if="seriesDetail.cover" :src="seriesDetail.cover" @error="imageError" alt="series poster" class="series-header-poster">
+                            <img v-if="seriesDetail.cover" :src="seriesDetail.cover" @load="imageLoad" @error="imageError" alt="series poster" class="series-header-poster">
                             <div v-else class="icon-placeholder"><i class="bi bi-film"></i></div>
                             <div class="content-wrapper">
                                 <div class="title">{{ seriesDetail.name || 'Series' }}</div>
@@ -308,6 +313,10 @@
                                 </a>
                             </div>
                         </div>
+                        <div v-if="contentMode === 'series' && seriesDetailLoading" class="px-2 pb-2 text-warning small">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading artwork and metadata...
+                        </div>
                         <div v-if="contentMode === 'series' && seriesSeasonTabs.length > 0" class="px-2 pb-2">
                             <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Seasons">
                                 <button
@@ -328,7 +337,7 @@
                                 </div>
                             </div>
                             <div v-if="!listLoading" v-for="(episode, idx) in filteredSeriesEpisodes" :key="episode.dbId || episode.channelId || episode.id" class="card-item episode-row-card" @click="playChannel(episode)">
-                                <img v-if="episode.logo" :src="episode.logo" @error="imageError" alt="logo" class="episode-row-thumb">
+                                <img v-if="episode.logo" :src="episode.logo" @load="imageLoad" @error="imageError" alt="logo" class="episode-row-thumb">
                                 <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
                                 <div class="content-wrapper">
                                     <div class="title">
@@ -337,6 +346,38 @@
                                     </div>
                                     <div class="subtitle episode-subtitle">{{ getEpisodeSubtitle(episode) }}</div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Watching Now Tab -->
+                <div v-if="activeTab === 'watchingNow'">
+                    <div class="grid-container">
+                        <div v-if="listLoading" class="card-item">
+                            <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ listLoadingMessage }}</div>
+                            </div>
+                        </div>
+                        <div
+                                v-if="!listLoading"
+                                v-for="row in filteredWatchingNowRows"
+                                :key="row.key"
+                                class="card-item"
+                                :class="{ 'border border-primary': selectedWatchingNowKey === row.key }"
+                                @click="openWatchingNowSeriesDetail(row)">
+                            <img v-if="row.seriesPoster" :src="row.seriesPoster" @load="imageLoad" @error="imageError" alt="series poster">
+                            <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">{{ row.seriesTitle }}</div>
+                                <div class="subtitle">{{ row.accountName }}</div>
+                            </div>
+                        </div>
+                        <div v-if="!listLoading && filteredWatchingNowRows.length === 0" class="card-item">
+                            <div class="icon-placeholder"><i class="bi bi-info-circle"></i></div>
+                            <div class="content-wrapper">
+                                <div class="title">No currently watched series found.</div>
                             </div>
                         </div>
                     </div>
@@ -350,6 +391,7 @@
                 <div v-if="!isPlaying" id="player-placeholder">
                     <i class="bi bi-play-circle" style="font-size: 5rem; color: #333;"></i>
                     <h3>Select a channel to play</h3>
+                    <p v-if="playbackError" class="text-danger mt-3 px-3">{{ playbackError }}</p>
                 </div>
 
                 <!-- Player Container -->
@@ -375,10 +417,53 @@
                                         <i class="bi bi-gear-fill"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="resolutionMenuButton">
+                                        <li>
+                                            <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchVideoAuto)">
+                                                Auto
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
                                         <li v-for="track in videoTracks" :key="track.id">
                                             <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchVideoTrack, track.id)">
                                                 {{ track.height }}p
                                                 <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-link text-white me-2" type="button" id="audioMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Audio tracks">
+                                        <i class="bi bi-music-note-list"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="audioMenuButton">
+                                        <li v-if="!audioTracks || audioTracks.length === 0"><span class="dropdown-item-text text-muted">No audio tracks</span></li>
+                                        <li v-for="track in audioTracks" :key="'audio-' + track.id">
+                                            <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchAudioTrack, track.id)">
+                                                {{ track.language || 'Audio' }}<span v-if="track.role"> · {{ track.role }}</span><span v-if="track.label"> · {{ track.label }}</span>
+                                                <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-link text-white me-2" type="button" id="subtitleMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Subtitles">
+                                        <i class="bi bi-badge-cc"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="subtitleMenuButton">
+                                        <li>
+                                            <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchTextTrack, 'off')">
+                                                Off
+                                                <span v-if="selectedTextTrackId === 'off'" class="badge bg-primary ms-2">Active</span>
+                                            </a>
+                                        </li>
+                                        <li v-if="!textTracks || textTracks.length === 0"><span class="dropdown-item-text text-muted">No subtitles</span></li>
+                                        <li v-for="track in textTracks" :key="'sub-' + track.id">
+                                            <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchTextTrack, track.id)">
+                                                {{ track.language || 'Subtitle' }}
+                                                <span v-if="track.kind"> · {{ track.kind }}</span>
+                                                <span v-if="track.roles && track.roles.length"> · {{ track.roles[0] }}</span>
+                                                <span v-if="track.label"> · {{ track.label }}</span>
+                                                <span v-if="String(selectedTextTrackId) === String(track.id)" class="badge bg-primary ms-2">Active</span>
                                             </a>
                                         </li>
                                     </ul>

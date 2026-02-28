@@ -2,18 +2,19 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
-import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;
+import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Platform;
 import javafx.beans.Observable;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -22,6 +23,8 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
+import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -101,6 +104,7 @@ public class EpisodesListUI extends HBox {
     private final Label genreNode = new Label();
     private final Label releaseNode = new Label();
     private final Label plotNode = new Label();
+    private final Button reloadEpisodesButton = new Button("Reload Episodes from Portal");
     private final HBox imdbLoadingNode = new HBox(6);
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
@@ -276,6 +280,8 @@ public class EpisodesListUI extends HBox {
         imdbProgress.setMaxSize(14, 14);
         Label imdbLoadingLabel = new Label("Loading IMDb details...");
         imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
+        reloadEpisodesButton.setFocusTraversable(false);
+        reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
 
         headerDetails.getChildren().setAll(titleNode);
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
@@ -286,7 +292,7 @@ public class EpisodesListUI extends HBox {
         String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
         titleNode.setText(title);
 
-        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode);
+        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode, reloadEpisodesButton);
         if (imdbBadgeNode != null) {
             headerDetails.getChildren().remove(imdbBadgeNode);
         }
@@ -322,6 +328,7 @@ public class EpisodesListUI extends HBox {
             plotNode.setText(plot);
             headerDetails.getChildren().add(plotNode);
         }
+        headerDetails.getChildren().add(reloadEpisodesButton);
 
         String cover = normalizeImageUrl(seasonInfo.optString("cover", ""));
         if (isBlank(cover)) {
@@ -338,6 +345,39 @@ public class EpisodesListUI extends HBox {
                         }
                     });
         }
+    }
+
+    private void reloadEpisodesFromPortal() {
+        if (account == null || isBlank(seriesId)) {
+            return;
+        }
+        reloadEpisodesButton.setDisable(true);
+        reloadEpisodesButton.setText("Reloading...");
+        new Thread(() -> {
+            EpisodeList refreshed = SeriesEpisodeService.getInstance()
+                    .reloadEpisodesFromPortal(account, seriesCategoryId, seriesId, () -> false);
+            Platform.runLater(() -> {
+                // Episode reload can return sparse series info; force IMDb merge again for header/details.
+                imdbLoaded = false;
+                imdbLoading = false;
+                clearEpisodesAndRefreshTabs();
+                if (refreshed != null && refreshed.episodes != null && !refreshed.episodes.isEmpty()) {
+                    setItems(refreshed);
+                } else {
+                    setEmptyState("No episodes found.", true);
+                }
+                reloadEpisodesButton.setText("Reload Episodes from Portal");
+                reloadEpisodesButton.setDisable(false);
+            });
+        }, "episodes-portal-reload").start();
+    }
+
+    private void clearEpisodesAndRefreshTabs() {
+        itemsLoaded.set(false);
+        channelList.episodes.clear();
+        allEpisodeItems.clear();
+        refreshSeasonTabs();
+        applySeasonFilter();
     }
 
     private void showPlaceholder(String text) {
@@ -527,39 +567,27 @@ public class EpisodesListUI extends HBox {
         return selected != null ? String.valueOf(selected.getUserData()) : "";
     }
 
-    private HBox createEpisodeCard(EpisodeItem row) {
-        HBox root = new HBox(10);
-        root.setAlignment(Pos.CENTER_LEFT);
+    private VBox createEpisodeCard(EpisodeItem row) {
+        VBox root = new VBox(8);
         root.setPadding(new Insets(6));
         root.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
 
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.TOP_LEFT);
+
         ImageView poster = SeriesCardUiSupport.createFitPoster(row.getLogo(), 96, 136, "episode");
-        VBox text = new VBox(2);
+        StackPane posterWrap = new StackPane(poster);
+        posterWrap.setAlignment(Pos.CENTER);
+        posterWrap.setMinWidth(110);
+        posterWrap.setPrefWidth(110);
+
+        VBox text = new VBox(4);
         text.setMaxWidth(Double.MAX_VALUE);
+        text.setFillWidth(true);
         HBox.setHgrow(text, Priority.ALWAYS);
 
-        Label title = new Label(row.getEpisodeName());
-        title.setWrapText(true);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setMinHeight(Region.USE_PREF_SIZE);
-        if (row.isWatched()) {
-            title.setStyle("-fx-font-weight: bold;");
-        }
-        text.getChildren().add(title);
-        if (!isBlank(row.getReleaseDate())) text.getChildren().add(new Label("Release: " + shortDateOnly(row.getReleaseDate())));
-        if (!isBlank(row.getRating())) text.getChildren().add(new Label("Rating: " + row.getRating()));
-        if (!isBlank(row.getPlot())) {
-            Label plot = new Label(row.getPlot());
-            plot.setWrapText(true);
-            plot.setMaxWidth(Double.MAX_VALUE);
-            plot.setMinHeight(Region.USE_PREF_SIZE);
-            text.getChildren().add(plot);
-        }
-
-        Region spacer = new Region();
-        spacer.setPrefWidth(8);
-        spacer.setMinWidth(8);
-        VBox badges = new VBox(4);
+        HBox badges = new HBox(4);
+        badges.setAlignment(Pos.TOP_RIGHT);
         if (row.isWatched()) {
             Label watched = new Label("WATCHING");
             watched.getStyleClass().add("drm-badge");
@@ -567,18 +595,55 @@ public class EpisodesListUI extends HBox {
             watched.setMaxWidth(Double.MAX_VALUE);
             badges.getChildren().add(watched);
         }
+        ContextMenu rowMenu = addRightClickContextMenu(row, root);
+        Button playButton = new Button("Play ...");
+        playButton.getStyleClass().setAll("button");
+        playButton.setMinWidth(Region.USE_PREF_SIZE);
+        playButton.setMaxWidth(Double.MAX_VALUE);
+        playButton.setMinHeight(Region.USE_PREF_SIZE);
+        playButton.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 6 2 6; -fx-background-radius: 6;");
+        playButton.setFocusTraversable(false);
+        playButton.setOnAction(event -> {
+            event.consume();
+            rowMenu.hide();
+            rowMenu.show(playButton, Side.BOTTOM, 0, 0);
+        });
+        badges.getChildren().add(playButton);
 
-        root.getChildren().addAll(poster, text, spacer, badges);
+        HBox actionRow = new HBox();
+        actionRow.setAlignment(Pos.TOP_RIGHT);
+        Region actionSpacer = new Region();
+        HBox.setHgrow(actionSpacer, Priority.ALWAYS);
+        actionRow.getChildren().addAll(actionSpacer, badges);
+
+        Label title = new Label(row.getEpisodeName());
+        title.setWrapText(true);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.setMinHeight(Region.USE_PREF_SIZE);
+        title.setStyle("-fx-font-weight: bold;");
+        text.getChildren().addAll(actionRow, title);
+        if (!isBlank(row.getReleaseDate())) text.getChildren().add(new Label("Release: " + shortDateOnly(row.getReleaseDate())));
+        if (!isBlank(row.getRating())) text.getChildren().add(new Label("Rating: " + row.getRating()));
+
+        top.getChildren().addAll(posterWrap, text);
+        root.getChildren().add(top);
+
+        if (!isBlank(row.getPlot())) {
+            Label plot = new Label(row.getPlot());
+            plot.setWrapText(true);
+            plot.setMaxWidth(Double.MAX_VALUE);
+            plot.setMinHeight(Region.USE_PREF_SIZE);
+            root.getChildren().add(plot);
+        }
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             }
         });
-        addRightClickContextMenu(row, root);
         return root;
     }
 
-    private void addRightClickContextMenu(EpisodeItem item, Pane target) {
+    private ContextMenu addRightClickContextMenu(EpisodeItem item, Pane target) {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
@@ -586,12 +651,8 @@ public class EpisodesListUI extends HBox {
         Menu lastWatchedMenu = new Menu("Last Watched");
         rowMenu.getItems().add(lastWatchedMenu);
 
-        Menu bookmarkMenu = new Menu("Bookmark");
-        rowMenu.getItems().add(bookmarkMenu);
-
         rowMenu.setOnShowing(event -> {
             lastWatchedMenu.getItems().clear();
-            bookmarkMenu.getItems().clear();
             if (item == null) return;
 
             MenuItem markWatched = new MenuItem("Mark as Watched");
@@ -602,40 +663,6 @@ public class EpisodesListUI extends HBox {
             clearWatched.setDisable(!item.isWatched());
             clearWatched.setOnAction(e -> clearWatchedMarker());
             lastWatchedMenu.getItems().add(clearWatched);
-
-            new Thread(() -> {
-                Bookmark existingBookmark = BookmarkService.getInstance().getBookmark(new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null));
-                List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
-
-                Platform.runLater(() -> {
-                    MenuItem allItem = new MenuItem("All");
-                    allItem.setOnAction(e -> saveBookmark(item, null));
-                    bookmarkMenu.getItems().add(allItem);
-                    bookmarkMenu.getItems().add(new SeparatorMenuItem());
-
-                    for (BookmarkCategory category : categories) {
-                        MenuItem categoryItem = new MenuItem(category.getName());
-                        categoryItem.setOnAction(e -> saveBookmark(item, category.getId()));
-                        bookmarkMenu.getItems().add(categoryItem);
-                    }
-
-                    if (existingBookmark != null) {
-                        bookmarkMenu.getItems().add(new SeparatorMenuItem());
-                        MenuItem unbookmarkItem = new MenuItem("Remove Bookmark");
-                        unbookmarkItem.setStyle("-fx-text-fill: red;");
-                        unbookmarkItem.setOnAction(e -> {
-                            new Thread(() -> {
-                                BookmarkService.getInstance().remove(existingBookmark.getDbId());
-                                Platform.runLater(() -> {
-                                    item.setBookmarked(false);
-                                    refreshBookmarkStatesAsync();
-                                });
-                            }, "episodes-unbookmark").start();
-                        });
-                        bookmarkMenu.getItems().add(unbookmarkItem);
-                    }
-                });
-            }, "episodes-bookmark-menu").start();
         });
 
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
@@ -661,22 +688,7 @@ public class EpisodesListUI extends HBox {
 
         rowMenu.getItems().addAll(new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
         target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
-    }
-
-    private void saveBookmark(EpisodeItem item, String bookmarkCategoryId) {
-        new Thread(() -> {
-            Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, item.getEpisodeId(), item.getEpisodeName(), item.getCmd(), account.getServerPortalUrl(), null);
-            bookmark.setAccountAction(account.getAction());
-            bookmark.setCategoryId(bookmarkCategoryId);
-            if (item.getEpisode() != null) {
-                bookmark.setSeriesJson(item.getEpisode().toJson());
-            }
-            BookmarkService.getInstance().save(bookmark);
-            Platform.runLater(() -> {
-                item.setBookmarked(true);
-                refreshBookmarkStatesAsync();
-            });
-        }, "episodes-bookmark-save").start();
+        return rowMenu;
     }
 
     private void markEpisodeAsWatched(EpisodeItem item) {
@@ -712,9 +724,17 @@ public class EpisodesListUI extends HBox {
         if (item == null) {
             return;
         }
-        if (!item.isWatched()) {
-            markEpisodeAsWatched(item);
-        }
+        account.setAction(Account.AccountAction.series);
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManualIfNewer(
+                account,
+                seriesCategoryId,
+                seriesId,
+                item.getEpisodeId(),
+                item.getEpisodeName(),
+                item.getSeason(),
+                item.getEpisodeNumber()
+        );
+        refreshWatchedStatesAsync();
         Channel channel = new Channel();
         channel.setChannelId(item.getEpisodeId());
         channel.setName(item.getEpisodeName());
@@ -722,9 +742,8 @@ public class EpisodesListUI extends HBox {
         channel.setSeason(item.getSeason());
         channel.setEpisodeNum(item.getEpisodeNumber());
         channel.setLogo(item.getLogo());
-        account.setAction(Account.AccountAction.series);
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(account, channel, playerPath)
-                .series(item.getEpisodeId(), seriesId)
+                .series(seriesId, seriesCategoryId)
                 .channelId(item.getEpisodeId())
                 .categoryId(seriesCategoryId)
                 .errorPrefix("Error playing episode: "));
@@ -1144,15 +1163,7 @@ public class EpisodesListUI extends HBox {
     }
 
     private String localServerOrigin() {
-        String port = "8888";
-        try {
-            String configured = ConfigurationService.getInstance().read().getServerPort();
-            if (!isBlank(configured)) {
-                port = configured.trim();
-            }
-        } catch (Exception ignored) {
-        }
-        return "http://127.0.0.1:" + port;
+        return ServerUrlUtil.getLocalServerUrl();
     }
 
     private String firstNonBlank(String... values) {

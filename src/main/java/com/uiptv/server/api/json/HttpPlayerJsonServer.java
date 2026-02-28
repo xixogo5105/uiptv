@@ -11,6 +11,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
+import com.uiptv.util.ServerUrlUtil;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -281,11 +282,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private String buildLocalProxyUrl(String sourceUrl) {
-        String port = ConfigurationService.getInstance().read().getServerPort();
-        if (isBlank(port)) {
-            port = "8888";
-        }
-        return "http://127.0.0.1:" + port + "/proxy-stream?src=" + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
+        return ServerUrlUtil.getLocalServerUrl() + "/proxy-stream?src=" + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
     }
 
     private String resolveWebPlaybackRedirects(String mode, String inputUrl) {

@@ -13,6 +13,8 @@ createApp({
         const bookmarks = ref([]);
         const bookmarkCategories = ref([]);
         const selectedBookmarkCategoryId = ref('');
+        const watchingNowRows = ref([]);
+        const selectedWatchingNowKey = ref('');
 
         const createBrowserState = () => ({
             viewState: ref('categories'), // categories, channels, episodes, seriesDetail, vodDetail
@@ -40,6 +42,7 @@ createApp({
 
         const currentChannel = ref(null);
         const isPlaying = ref(false);
+        const playbackError = ref('');
         const playerLoading = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
@@ -54,10 +57,13 @@ createApp({
         const videoPlayerModal = ref(null);
         const playerModalFrame = ref(null);
         const videoTracks = ref([]);
+        const audioTracks = ref([]);
+        const textTracks = ref([]);
+        const selectedTextTrackId = ref('off');
         const playbackLifecycleId = ref(0);
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
-        const modeLoadingCount = ref({ itv: 0, vod: 0, series: 0, bookmarks: 0 });
+        const modeLoadingCount = ref({ itv: 0, vod: 0, series: 0, bookmarks: 0, watchingNow: 0 });
 
         const theme = ref('system');
         const selectedSeriesSeason = ref('');
@@ -124,6 +130,24 @@ createApp({
                 (b.channelName || '').toLowerCase().includes(q) ||
                 (b.accountName || '').toLowerCase().includes(q)
             );
+        });
+
+        const filteredWatchingNowRows = computed(() => {
+            const q = String(searchQuery.value || '').trim().toLowerCase();
+            if (!q) return watchingNowRows.value;
+            return (watchingNowRows.value || []).filter(row => {
+                if ((row?.seriesTitle || '').toLowerCase().includes(q)) return true;
+                if ((row?.accountName || '').toLowerCase().includes(q)) return true;
+                return Array.isArray(row?.episodes) && row.episodes.some(ep => (ep?.name || '').toLowerCase().includes(q));
+            });
+        });
+
+        const selectedWatchingNowRow = computed(() => {
+            const key = String(selectedWatchingNowKey.value || '');
+            if (!key) return null;
+            return filteredWatchingNowRows.value.find(row => String(row?.key || '') === key)
+                || watchingNowRows.value.find(row => String(row?.key || '') === key)
+                || null;
         });
 
         const bookmarkCategoryTabs = computed(() => {
@@ -687,7 +711,7 @@ createApp({
                 startModeLoading('series');
                 try {
                     const response = await fetch(
-                        `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${b.accountId.value}&seriesName=${encodeURIComponent(seriesItem.name || '')}`
+                        `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${b.accountId.value}&categoryId=${encodeURIComponent(seriesCategoryId)}&seriesName=${encodeURIComponent(seriesItem.name || '')}`
                     );
                     const data = await response.json();
                     if (data?.seasonInfo) {
@@ -972,6 +996,31 @@ createApp({
             }
         };
 
+        const normalizeWatchingNowRow = (row = {}) => ({
+            ...row,
+            key: String(row.key || `${row.accountId || ''}|${row.categoryId || ''}|${row.seriesId || ''}`),
+            episodes: normalizeChannelList(row.episodes)
+        });
+
+        const loadWatchingNow = async () => {
+            try {
+                startModeLoading('watchingNow');
+                const response = await fetch(`${window.location.origin}/watchingNow`);
+                watchingNowRows.value = (await response.json()).map(normalizeWatchingNowRow);
+                const selectedKey = String(selectedWatchingNowKey.value || '');
+                const exists = watchingNowRows.value.some(row => String(row?.key || '') === selectedKey);
+                selectedWatchingNowKey.value = exists
+                    ? selectedKey
+                    : String(watchingNowRows.value[0]?.key || '');
+            } catch (e) {
+                console.error('Failed to load watching now', e);
+                watchingNowRows.value = [];
+                selectedWatchingNowKey.value = '';
+            } finally {
+                stopModeLoading('watchingNow');
+            }
+        };
+
         const ensureSelectedBookmarkCategory = () => {
             const selectedId = String(selectedBookmarkCategoryId.value || '');
             const exists = bookmarkCategoryTabs.value.some(tab => String(tab.id || '') === selectedId);
@@ -1006,6 +1055,26 @@ createApp({
                 playRequestUrl: playbackUrl
             };
             startPlayback(playbackUrl);
+        };
+
+        const openWatchingNowSeriesDetail = async (row) => {
+            if (!row) return;
+            selectedWatchingNowKey.value = String(row.key || '');
+            const b = browsers.series;
+            b.accountId.value = row.accountId || null;
+            b.accountType.value = row.accountType || null;
+            b.categoryId.value = row.categoryId || '';
+            b.selectedSeriesId.value = String(row.seriesId || '');
+            b.selectedSeriesCategoryId.value = String(row.categoryId || '');
+            selectedAccountId.value = String(row.accountId || '');
+            await openSeriesDetails({
+                channelId: row.seriesId || '',
+                id: row.seriesId || '',
+                dbId: row.seriesId || '',
+                categoryId: row.categoryId || '',
+                name: row.seriesTitle || 'Series',
+                logo: row.seriesPoster || ''
+            });
         };
 
         const isPlaybackRequestActive = (lifecycleId) => lifecycleId === playbackLifecycleId.value;
@@ -1063,6 +1132,7 @@ createApp({
                 }
                 if (!isPlaybackRequestActive(lifecycleId)) return;
                 b.episodes.value = enrichEpisodesFromMeta(normalizeChannelList(await response.json()), b.detail.value || null);
+                await loadWatchingNow();
             } catch (e) {
                 console.warn('Failed to refresh series watch state', e);
             }
@@ -1075,6 +1145,7 @@ createApp({
             if (!isPlaybackRequestActive(lifecycleId)) return;
             playerKey.value++;
             isPlaying.value = true;
+            playbackError.value = '';
             isBusy.value = false;
             playerLoading.value = true;
             lastPlaybackUrl.value = url || '';
@@ -1092,12 +1163,12 @@ createApp({
                     await initPlayer({ ...(channelData || {}), url: normalizeWebPlaybackUrl(channelData?.url) }, lifecycleId);
                 }
                 if (currentChannel.value?.mode === 'series') {
-                    markCurrentSeriesEpisodeWatchedLocally(lifecycleId);
                     await refreshSeriesEpisodeWatchState(lifecycleId);
                 }
             } catch (e) {
                 if (!isPlaybackRequestActive(lifecycleId)) return;
                 console.error('Failed to start playback', e);
+                playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             } finally {
                 if (!isPlaybackRequestActive(lifecycleId)) return;
@@ -1125,11 +1196,15 @@ createApp({
                 isPlaying.value = false;
                 currentChannel.value = null;
                 lastPlaybackUrl.value = '';
+                playbackError.value = '';
             }
             playerLoading.value = false;
             isYoutube.value = false;
             youtubeSrc.value = '';
             videoTracks.value = [];
+            audioTracks.value = [];
+            textTracks.value = [];
+            selectedTextTrackId.value = 'off';
         };
 
         const closePlayerPopup = () => {
@@ -1198,6 +1273,7 @@ createApp({
             const uri = normalizeWebPlaybackUrl(channel.url);
             if (!uri) {
                 isPlaying.value = false;
+                playbackError.value = 'Playback failed: no stream URL returned.';
                 return;
             }
 
@@ -1243,6 +1319,11 @@ createApp({
         const normalizeWebPlaybackUrl = (rawUrl) => {
             const value = String(rawUrl || '').trim();
             if (!value) return value;
+            return downgradeHttpsToHttpForKnownPaths(value);
+        };
+
+        const downgradeHttpsToHttpForKnownPaths = (url) => {
+            const value = String(url || '').trim();
             const lower = value.toLowerCase();
             if (lower.startsWith('https://') && (lower.includes('/live/play/') || lower.includes('/play/movie.php'))) {
                 return `http://${value.slice('https://'.length)}`;
@@ -1260,12 +1341,27 @@ createApp({
                     if (!isPlaybackRequestActive(lifecycleId)) return;
                     await video.play();
                 } catch (e) {
-                    const lower = String(sourceUrl || '').toLowerCase();
-                    const canRetryAsHttp = lower.startsWith('https://') &&
-                        (lower.includes('/live/play/') || lower.includes('/play/movie.php'));
-                    if (canRetryAsHttp) {
+                    // If backend proxy fails transiently, retry once with cache-busting query.
+                    const isProxyUrl = String(sourceUrl || '').includes('/proxy-stream');
+                    if (isProxyUrl) {
                         try {
-                            sourceUrl = `http://${sourceUrl.slice('https://'.length)}`;
+                            const parsed = new URL(sourceUrl, window.location.origin);
+                            parsed.searchParams.set('_retry', String(Date.now()));
+                            sourceUrl = parsed.toString();
+                            video.src = sourceUrl;
+                            if (!isPlaybackRequestActive(lifecycleId)) return;
+                            await video.play();
+                            return;
+                        } catch (retryProxyErr) {
+                            console.warn('Proxy retry failed.', retryProxyErr);
+                        }
+                    }
+
+                    // Retry with HTTP downgrade for known Stalker playback paths.
+                    const downgraded = downgradeHttpsToHttpForKnownPaths(sourceUrl);
+                    if (downgraded !== sourceUrl) {
+                        try {
+                            sourceUrl = downgraded;
                             video.src = sourceUrl;
                             if (!isPlaybackRequestActive(lifecycleId)) return;
                             await video.play();
@@ -1274,7 +1370,9 @@ createApp({
                             console.warn('Native playback retry failed.', retryErr);
                         }
                     }
-                    console.warn('Autoplay was prevented.', e);
+
+                    playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
+                    console.warn('Autoplay/source failed.', e);
                 }
             }
         };
@@ -1305,6 +1403,7 @@ createApp({
 
             player.addEventListener('error', (event) => {
                 console.error('Shaka Player Error:', event.detail);
+                playbackError.value = `Playback error: ${event?.detail?.message || 'Shaka error'}`;
             });
 
             if (channel.drm) {
@@ -1330,9 +1429,19 @@ createApp({
                     return;
                 }
                 videoTracks.value = player.getVariantTracks();
+                audioTracks.value = player.getVariantTracks()
+                    .filter(track => !track.audioOnly)
+                    .filter((track, idx, arr) => arr.findIndex(other =>
+                        String(other.language || '') === String(track.language || '')
+                        && String(other.label || '') === String(track.label || '')
+                        && String(other.audioCodec || '') === String(track.audioCodec || '')
+                    ) === idx);
+                textTracks.value = player.getTextTracks ? (player.getTextTracks() || []) : [];
+                selectedTextTrackId.value = 'off';
                 autoSelectBestTrack(player);
             } catch (e) {
                 console.error('Shaka: Error loading video:', e);
+                playbackError.value = `Playback failed: ${e?.message || 'Unable to load stream'}`;
             }
         };
 
@@ -1340,6 +1449,27 @@ createApp({
             if (!playerInstance.value) return;
             const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
             if (track) playerInstance.value.selectVariantTrack(track, true);
+        };
+
+        const switchAudioTrack = (trackId) => {
+            if (!playerInstance.value) return;
+            const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
+            if (track) playerInstance.value.selectVariantTrack(track, true);
+        };
+
+        const switchTextTrack = async (trackId) => {
+            if (!playerInstance.value) return;
+            if (trackId === 'off') {
+                selectedTextTrackId.value = 'off';
+                await playerInstance.value.setTextTrackVisibility(false);
+                return;
+            }
+            const track = (playerInstance.value.getTextTracks ? playerInstance.value.getTextTracks() : [])
+                .find(t => String(t.id) === String(trackId));
+            if (!track) return;
+            playerInstance.value.selectTextTrack(track);
+            await playerInstance.value.setTextTrackVisibility(true);
+            selectedTextTrackId.value = String(track.id);
         };
 
         const toggleFavorite = async () => {
@@ -1384,6 +1514,14 @@ createApp({
                 e.target.parentElement?.querySelector('.nf-media-fallback') ||
                 e.target.parentElement?.querySelector('.nf-episode-thumb-fallback');
             if (fallback) fallback.classList.add('show');
+        };
+
+        const mediaImageLoad = (e) => {
+            e.target.style.display = '';
+            const fallback =
+                e.target.parentElement?.querySelector('.nf-media-fallback') ||
+                e.target.parentElement?.querySelector('.nf-episode-thumb-fallback');
+            if (fallback) fallback.classList.remove('show');
         };
 
         const clearVideoElement = (video) => {
@@ -1565,12 +1703,15 @@ createApp({
             selectedSeriesSeason.value = '';
             searchQuery.value = '';
             selectedBookmarkCategoryId.value = '';
+            watchingNowRows.value = [];
+            selectedWatchingNowKey.value = '';
         };
 
         onMounted(() => {
             loadAccounts();
             loadBookmarkCategories();
             loadBookmarks();
+            loadWatchingNow();
 
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) theme.value = storedTheme;
@@ -1628,6 +1769,9 @@ createApp({
             visibleSeriesDetailEpisodes,
             hasMoreSeriesDetailEpisodes,
             filteredBookmarks,
+            filteredWatchingNowRows,
+            selectedWatchingNowRow,
+            selectedWatchingNowKey,
             bookmarkCategoryTabs,
             selectedBookmarkCategoryId,
             getEpisodeDisplayTitle,
@@ -1635,6 +1779,7 @@ createApp({
             currentChannelName,
             isCurrentFavorite,
             isPlaying,
+            playbackError,
             playerLoading,
             showOverlay,
             showBookmarkModal,
@@ -1644,6 +1789,9 @@ createApp({
             videoPlayerModal,
             playerModalFrame,
             videoTracks,
+            audioTracks,
+            textTracks,
+            selectedTextTrackId,
             isBusy,
             busyMessage,
             isModeLoading,
@@ -1658,6 +1806,7 @@ createApp({
             handleModeSelection,
             playVodFromDetail,
             playBookmark,
+            openWatchingNowSeriesDetail,
             selectBookmarkCategory,
             stopPlayback,
             closePlayerPopup,
@@ -1668,13 +1817,16 @@ createApp({
             onPlayerControlClick,
             toggleFavorite,
             mediaImageError,
+            mediaImageLoad,
             selectSeriesSeason,
             loadMoreSeriesDetailEpisodes,
             getImdbUrl,
             toggleTheme,
             clearWebCacheAndReload,
             resetApp,
-            switchVideoTrack
+            switchVideoTrack,
+            switchAudioTrack,
+            switchTextTrack
         };
     }
 }).mount('#app');

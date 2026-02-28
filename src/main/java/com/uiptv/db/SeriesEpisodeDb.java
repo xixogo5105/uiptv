@@ -31,12 +31,36 @@ public class SeriesEpisodeDb extends BaseDb {
         return getAll(" WHERE accountId=? AND categoryId=? AND seriesId=?", new String[]{account.getDbId(), safeCategoryId(categoryId), seriesId});
     }
 
+    public List<Channel> getEpisodesFromFreshestCategory(Account account, String seriesId) {
+        String freshestCategoryId = getFreshestCategoryId(account, seriesId);
+        if (freshestCategoryId == null) {
+            return java.util.Collections.emptyList();
+        }
+        return getEpisodes(account, freshestCategoryId, seriesId);
+    }
+
     public boolean isFresh(Account account, String categoryId, String seriesId, long maxAgeMs) {
         String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND categoryId=? AND seriesId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
             statement.setString(2, safeCategoryId(categoryId));
             statement.setString(3, seriesId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    long cachedAt = rs.getLong(1);
+                    return cachedAt > 0 && (System.currentTimeMillis() - cachedAt) <= maxAgeMs;
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+        return false;
+    }
+
+    public boolean isFreshInAnyCategory(Account account, String seriesId, long maxAgeMs) {
+        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND seriesId=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, account.getDbId());
+            statement.setString(2, seriesId);
             try (ResultSet rs = statement.executeQuery()) {
                 if (rs.next()) {
                     long cachedAt = rs.getLong(1);
@@ -121,5 +145,21 @@ public class SeriesEpisodeDb extends BaseDb {
 
     private String safeCategoryId(String categoryId) {
         return categoryId == null ? "" : categoryId.trim();
+    }
+
+    private String getFreshestCategoryId(Account account, String seriesId) {
+        String sql = "SELECT categoryId, MAX(cachedAt) AS latest FROM " + SERIES_EPISODE_TABLE.getTableName()
+                + " WHERE accountId=? AND seriesId=? GROUP BY categoryId ORDER BY latest DESC LIMIT 1";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, account.getDbId());
+            statement.setString(2, seriesId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    return safeCategoryId(rs.getString(1));
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+        return null;
     }
 }

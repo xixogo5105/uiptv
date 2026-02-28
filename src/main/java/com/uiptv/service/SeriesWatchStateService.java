@@ -115,6 +115,28 @@ public class SeriesWatchStateService {
         upsertState(account.getDbId(), normalizeCategoryId(categoryId), seriesId, episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), "MANUAL");
     }
 
+    public void markSeriesEpisodeManualIfNewer(Account account, String categoryId, String seriesId, String episodeId, String episodeName, String season, String episodeNum) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(seriesId) || isBlank(episodeId)) {
+            return;
+        }
+        String normalizedCategory = normalizeCategoryId(categoryId);
+        int nextEpisodeNum = parseEpisodeNum(episodeNum, episodeName);
+        int nextSeasonNum = parseSeasonNum(season, episodeName);
+        SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(account.getDbId(), normalizedCategory, seriesId);
+        if (existing == null) {
+            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, "MANUAL");
+            return;
+        }
+        int currentSeasonNum = parseSeasonNum(existing.getSeason(), existing.getEpisodeName());
+        int currentEpisodeNum = existing.getEpisodeNum();
+        if (nextEpisodeNum <= 0 && nextSeasonNum <= 0) {
+            return;
+        }
+        if (shouldAdvancePointer(currentSeasonNum, currentEpisodeNum, nextSeasonNum, nextEpisodeNum)) {
+            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, "MANUAL");
+        }
+    }
+
     public void onPlaybackResolved(Account account, Channel channel, String requestedSeriesId, String parentSeriesId) {
         onPlaybackResolved(account, channel, requestedSeriesId, parentSeriesId, "");
     }
@@ -130,6 +152,11 @@ public class SeriesWatchStateService {
         }
         String episodeId = channel.getChannelId();
         if (isBlank(episodeId)) {
+            return;
+        }
+        // Defensive guard: a series pointer must not be keyed to the episode id.
+        // This can happen when callers accidentally pass episodeId as parentSeriesId.
+        if (seriesId.trim().equals(episodeId.trim())) {
             return;
         }
 
@@ -232,7 +259,7 @@ public class SeriesWatchStateService {
         }
     }
 
-    private int parseEpisodeNum(String explicitEpisodeNum, String fallbackTitle) {
+    public int parseEpisodeNum(String explicitEpisodeNum, String fallbackTitle) {
         String onlyDigits = stripToDigits(explicitEpisodeNum);
         if (!isBlank(onlyDigits)) {
             return Integer.parseInt(onlyDigits);
@@ -252,7 +279,7 @@ public class SeriesWatchStateService {
         return 0;
     }
 
-    private int parseSeasonNum(String explicitSeason, String fallbackTitle) {
+    public int parseSeasonNum(String explicitSeason, String fallbackTitle) {
         String normalized = normalizeSeason(explicitSeason, fallbackTitle);
         if (isBlank(normalized)) {
             return 0;
@@ -264,7 +291,7 @@ public class SeriesWatchStateService {
         }
     }
 
-    private boolean shouldAdvancePointer(int currentSeasonNum,
+    public boolean shouldAdvancePointer(int currentSeasonNum,
                                          int currentEpisodeNum,
                                          int nextSeasonNum,
                                          int nextEpisodeNum) {

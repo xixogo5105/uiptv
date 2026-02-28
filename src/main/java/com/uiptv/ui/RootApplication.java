@@ -207,7 +207,7 @@ public class RootApplication extends Application {
                 watchingNowUI.refreshIfNeeded();
             }
         });
-        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, bookmarkChannelListTab, watchingNowTab);
+        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setSide(Side.LEFT);

@@ -14,11 +14,18 @@ createApp({
         const bookmarks = ref([]);
         const bookmarkCategories = ref([]);
         const selectedBookmarkCategoryId = ref('');
+        const watchingNowRows = ref([]);
+        const selectedWatchingNowKey = ref('');
+        const watchingNowDrilldown = ref(false);
+        const watchingNowLoadedAt = ref(0);
+        const WATCHING_NOW_CACHE_TTL_MS = 120000;
+        let watchingNowFetchPromise = null;
         const selectedAccountId = ref(null);
 
         const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
         const currentChannel = ref(null);
         const isPlaying = ref(false);
+        const playbackError = ref('');
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
         const listLoading = ref(false);
@@ -34,6 +41,9 @@ createApp({
         const playerInstance = ref(null);
         const videoPlayer = ref(null);
         const videoTracks = ref([]);
+        const audioTracks = ref([]);
+        const textTracks = ref([]);
+        const selectedTextTrackId = ref('off');
         const repeatEnabled = ref(false);
 
         const theme = ref('system');
@@ -288,6 +298,7 @@ createApp({
                 if (viewState.value === 'episodes') return 'Search episodes...';
             }
             if (activeTab.value === 'bookmarks') return 'Search bookmarks...';
+            if (activeTab.value === 'watchingNow') return 'Search series or episodes...';
             return 'Search...';
         });
 
@@ -381,6 +392,16 @@ createApp({
                 (b.channelName || '').toLowerCase().includes(q) ||
                 (b.accountName || '').toLowerCase().includes(q)
             );
+        });
+
+        const filteredWatchingNowRows = computed(() => {
+            const q = String(searchQuery.value || '').trim().toLowerCase();
+            if (!q) return watchingNowRows.value;
+            return (watchingNowRows.value || []).filter(row => {
+                if ((row?.seriesTitle || '').toLowerCase().includes(q)) return true;
+                if ((row?.accountName || '').toLowerCase().includes(q)) return true;
+                return false;
+            });
         });
 
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
@@ -664,6 +685,9 @@ createApp({
                 const refreshedEpisodes = (await response.json()).map(normalizeChannel);
                 episodes.value = enrichEpisodesFromMeta(refreshedEpisodes, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
+                if (activeTab.value === 'watchingNow') {
+                    await loadWatchingNow({ force: true, background: true });
+                }
             } catch (e) {
                 console.warn('Failed to refresh series watch state', e);
             }
@@ -750,6 +774,59 @@ createApp({
                 ensureSelectedBookmarkCategory();
             } catch (e) {
                 console.error('Failed to load bookmark categories', e);
+            }
+        };
+
+        const normalizeWatchingNowRow = (row = {}) => ({
+            ...row,
+            key: String(row.key || `${row.accountId || ''}|${row.seriesId || ''}`),
+            categoryDbId: String(row.categoryDbId || ''),
+            seriesPoster: resolveLogoUrl(row.seriesPoster),
+            episodes: Array.isArray(row.episodes) ? row.episodes.map(normalizeChannel) : []
+        });
+
+        const loadWatchingNow = async ({ force = false, background = false } = {}) => {
+            const hasRows = Array.isArray(watchingNowRows.value) && watchingNowRows.value.length > 0;
+            const cacheAgeMs = Date.now() - Number(watchingNowLoadedAt.value || 0);
+            const isFresh = hasRows && cacheAgeMs < WATCHING_NOW_CACHE_TTL_MS;
+            if (!force && isFresh) {
+                return watchingNowRows.value;
+            }
+            if (watchingNowFetchPromise) {
+                return await watchingNowFetchPromise;
+            }
+
+            watchingNowFetchPromise = (async () => {
+                try {
+                    if (!background) {
+                        listLoading.value = true;
+                        listLoadingMessage.value = 'Loading Watching Now...';
+                    }
+                    const response = await fetch(`${window.location.origin}/watchingNow`);
+                    watchingNowRows.value = (await response.json()).map(normalizeWatchingNowRow);
+                    watchingNowLoadedAt.value = Date.now();
+                    const selectedKey = String(selectedWatchingNowKey.value || '');
+                    const exists = watchingNowRows.value.some(row => String(row?.key || '') === selectedKey);
+                    selectedWatchingNowKey.value = exists
+                        ? selectedKey
+                        : String(watchingNowRows.value[0]?.key || '');
+                } catch (e) {
+                    console.error('Failed to load watching now', e);
+                    if (!hasRows) {
+                        watchingNowRows.value = [];
+                        selectedWatchingNowKey.value = '';
+                    }
+                } finally {
+                    if (!background) {
+                        listLoading.value = false;
+                    }
+                }
+            })();
+
+            try {
+                return await watchingNowFetchPromise;
+            } finally {
+                watchingNowFetchPromise = null;
             }
         };
 
@@ -883,10 +960,38 @@ createApp({
             } else {
                 activeTab.value = tab;
             }
+            if (tab !== 'accounts') {
+                watchingNowDrilldown.value = false;
+            }
             searchQuery.value = '';
+            if (tab === 'watchingNow') {
+                loadWatchingNow({ force: false, background: !!watchingNowRows.value.length });
+            }
+        };
+
+        const openWatchingNowSeriesDetail = async (row) => {
+            if (!row) return;
+            selectedWatchingNowKey.value = String(row.key || '');
+            watchingNowDrilldown.value = true;
+            activeTab.value = 'accounts';
+            contentMode.value = 'series';
+            selectedAccountId.value = row.accountId || null;
+            currentContext.value.accountId = row.accountId || null;
+            currentContext.value.accountType = row.accountType || null;
+            currentContext.value.categoryId = row.categoryDbId || row.categoryId || '';
+            viewState.value = 'channels';
+            await handleChannelSelection({
+                channelId: row.seriesId || '',
+                id: row.seriesId || '',
+                dbId: row.seriesId || '',
+                categoryId: row.categoryDbId || row.categoryId || '',
+                name: row.seriesTitle || 'Series',
+                logo: row.seriesPoster || ''
+            });
         };
 
         const selectAccount = async (account) => {
+            watchingNowDrilldown.value = false;
             const nextAccountId = String(account?.dbId || '');
             const accountChanged = String(selectedAccountId.value || '') !== nextAccountId;
             if (accountChanged) {
@@ -924,11 +1029,23 @@ createApp({
         };
 
         const goBackToAccounts = () => {
+            if (watchingNowDrilldown.value) {
+                watchingNowDrilldown.value = false;
+                activeTab.value = 'watchingNow';
+                searchQuery.value = '';
+                return;
+            }
             viewState.value = 'accounts';
             searchQuery.value = '';
         };
 
         const goBackToCategories = () => {
+            if (watchingNowDrilldown.value) {
+                watchingNowDrilldown.value = false;
+                activeTab.value = 'watchingNow';
+                searchQuery.value = '';
+                return;
+            }
             const modeState = getModeState(contentMode.value);
             if (viewState.value === 'episodes' || viewState.value === 'vodDetail') {
                 viewState.value = 'channels';
@@ -1211,7 +1328,7 @@ createApp({
                 (async () => {
                     try {
                         const response = await fetch(
-                            `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}&seriesName=${encodeURIComponent(channel.name || '')}`
+                            `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}&categoryId=${encodeURIComponent(modeState.selectedSeriesCategoryId || currentContext.value.categoryId || '')}&seriesName=${encodeURIComponent(channel.name || '')}`
                         );
                         const data = await response.json();
                         if (String(modeState.selectedSeriesId || '') !== String(seriesId || '')) return;
@@ -1278,17 +1395,18 @@ createApp({
 
             playerKey.value++;
             isPlaying.value = true;
+            playbackError.value = '';
 
             try {
                 const response = await fetch(url);
                 const channelData = await response.json();
                 await initPlayer(channelData);
                 if (currentChannel.value?.mode === 'series') {
-                    markCurrentSeriesEpisodeWatchedLocally();
                     await refreshSeriesEpisodeWatchState();
                 }
             } catch (e) {
                 console.error('Failed to start playback', e);
+                playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             }
         };
@@ -1308,16 +1426,21 @@ createApp({
             if (!preserveUi) {
                 isPlaying.value = false;
                 currentChannel.value = null;
+                playbackError.value = '';
             }
             isYoutube.value = false;
             youtubeSrc.value = '';
             videoTracks.value = [];
+            audioTracks.value = [];
+            textTracks.value = [];
+            selectedTextTrackId.value = 'off';
         };
 
         const initPlayer = async (channel) => {
             const uri = channel.url;
             if (!uri) {
                 console.error('No URL provided for playback.');
+                playbackError.value = 'Playback failed: no stream URL returned.';
                 isPlaying.value = false;
                 return;
             }
@@ -1340,6 +1463,7 @@ createApp({
             const video = videoPlayer.value;
             if (!video) {
                 console.error('Video element not found.');
+                playbackError.value = 'Playback failed: video element not available.';
                 return;
             }
 
@@ -1371,16 +1495,18 @@ createApp({
             try {
                 await video.play();
             } catch (e) {
-                // If backend proxy fails (e.g. 502), retry direct source URL from src query param.
-                const proxiedSource = extractProxySourceUrl(sourceUrl);
-                if (proxiedSource) {
+                // If backend proxy fails transiently, retry once with cache-busting query.
+                const isProxyUrl = String(sourceUrl || '').includes('/proxy-stream');
+                if (isProxyUrl) {
                     try {
-                        sourceUrl = normalizeWebPlaybackUrl(proxiedSource);
+                        const parsed = new URL(sourceUrl, window.location.origin);
+                        parsed.searchParams.set('_retry', String(Date.now()));
+                        sourceUrl = parsed.toString();
                         video.src = sourceUrl;
                         await video.play();
                         return;
-                    } catch (proxyErr) {
-                        console.warn('Proxy source fallback failed.', proxyErr);
+                    } catch (retryProxyErr) {
+                        console.warn('Proxy retry failed.', retryProxyErr);
                     }
                 }
 
@@ -1397,14 +1523,7 @@ createApp({
                     }
                 }
 
-                // Last fallback: try Shaka for browsers that reject native source MIME sniffing.
-                try {
-                    await loadShaka({ ...(channel || {}), url: sourceUrl });
-                    return;
-                } catch (shakaErr) {
-                    console.warn('Shaka fallback failed.', shakaErr);
-                }
-
+                playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
                 console.warn('Native playback failed.', e);
             }
         };
@@ -1422,19 +1541,6 @@ createApp({
                 return `http://${value.slice('https://'.length)}`;
             }
             return value;
-        };
-
-        const extractProxySourceUrl = (url) => {
-            const value = String(url || '').trim();
-            if (!value) return '';
-            try {
-                const parsed = new URL(value, window.location.origin);
-                if (!parsed.pathname.includes('/proxy-stream')) return '';
-                const src = parsed.searchParams.get('src');
-                return src ? decodeURIComponent(src) : '';
-            } catch (_) {
-                return '';
-            }
         };
 
         const extractYoutubeId = (value) => {
@@ -1503,6 +1609,7 @@ createApp({
 
             player.addEventListener('error', (event) => {
                 console.error('Shaka Player Error:', event.detail);
+                playbackError.value = `Playback error: ${event?.detail?.message || 'Shaka error'}`;
             });
 
             if (channel.drm) {
@@ -1519,10 +1626,53 @@ createApp({
             try {
                 await player.attach(video);
                 await player.load(channel.url);
-                videoTracks.value = player.getVariantTracks();
+                refreshShakaTracks(player);
+                player.addEventListener('trackschanged', () => refreshShakaTracks(player));
+                player.addEventListener('variantchanged', () => refreshShakaTracks(player));
+                player.addEventListener('adaptation', () => refreshShakaTracks(player));
             } catch (e) {
                 console.error('Shaka: Error loading video:', e);
+                playbackError.value = `Playback failed: ${e?.message || 'Unable to load stream'}`;
             }
+        };
+
+        const refreshShakaTracks = (player) => {
+            if (!player) return;
+            const allVariants = typeof player.getVariantTracks === 'function' ? (player.getVariantTracks() || []) : [];
+            videoTracks.value = allVariants
+                .filter(track => track && !track.audioOnly)
+                .filter((track, idx, arr) => arr.findIndex(other =>
+                    Number(other.height || 0) === Number(track.height || 0)
+                    && Number(other.bandwidth || 0) === Number(track.bandwidth || 0)
+                ) === idx)
+                .sort((a, b) => Number(a.height || 0) - Number(b.height || 0));
+
+            const selectedVariant = allVariants.find(track => track && track.active) || null;
+            const selectedAudioKey = selectedVariant
+                ? `${String(selectedVariant.language || '')}|${String(selectedVariant.roles?.[0] || '')}|${String(selectedVariant.label || '')}`
+                : '';
+            const audioByKey = new Map();
+            for (const track of allVariants) {
+                if (!track || track.audioOnly) continue;
+                const key = `${String(track.language || '')}|${String(track.roles?.[0] || '')}|${String(track.label || '')}`;
+                if (!audioByKey.has(key)) {
+                    audioByKey.set(key, {
+                        id: key,
+                        language: track.language || '',
+                        role: track.roles?.[0] || '',
+                        label: track.label || '',
+                        active: key === selectedAudioKey
+                    });
+                } else if (key === selectedAudioKey) {
+                    audioByKey.get(key).active = true;
+                }
+            }
+            audioTracks.value = Array.from(audioByKey.values());
+
+            const texts = typeof player.getTextTracks === 'function' ? (player.getTextTracks() || []) : [];
+            textTracks.value = texts;
+            const selectedText = texts.find(track => track && track.active);
+            selectedTextTrackId.value = selectedText ? String(selectedText.id) : 'off';
         };
 
         const switchVideoTrack = (trackId) => {
@@ -1530,7 +1680,71 @@ createApp({
             const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
             if (track) {
                 playerInstance.value.selectVariantTrack(track, true);
+                if (typeof playerInstance.value.configure === 'function') {
+                    playerInstance.value.configure('abr.enabled', false);
+                }
+                refreshShakaTracks(playerInstance.value);
             }
+        };
+
+        const switchVideoAuto = () => {
+            if (!playerInstance.value) return;
+            if (typeof playerInstance.value.configure === 'function') {
+                playerInstance.value.configure('abr.enabled', true);
+            }
+            refreshShakaTracks(playerInstance.value);
+        };
+
+        const switchAudioTrack = (trackId) => {
+            if (!playerInstance.value) return;
+            const [language, role, label] = String(trackId || '').split('|');
+            const target = (audioTracks.value || []).find(track =>
+                String(track.id) === String(trackId)
+                || (
+                    String(track.language || '') === String(language || '')
+                    && String(track.role || '') === String(role || '')
+                    && String(track.label || '') === String(label || '')
+                )
+            );
+            if (target && typeof playerInstance.value.selectAudioLanguage === 'function') {
+                playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
+                refreshShakaTracks(playerInstance.value);
+                return;
+            }
+            const fallback = (playerInstance.value.getVariantTracks ? playerInstance.value.getVariantTracks() : [])
+                .find(track =>
+                    String(track.language || '') === String(language || '')
+                    && String(track.roles?.[0] || '') === String(role || '')
+                );
+            if (fallback) {
+                playerInstance.value.selectVariantTrack(fallback, true);
+                refreshShakaTracks(playerInstance.value);
+            }
+        };
+
+        const switchTextTrack = async (trackId) => {
+            if (!playerInstance.value) return;
+            if (trackId === 'off') {
+                selectedTextTrackId.value = 'off';
+                if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
+                    await playerInstance.value.setTextTrackVisibility(false);
+                } else if (typeof playerInstance.value.selectTextLanguage === 'function') {
+                    playerInstance.value.selectTextLanguage('');
+                }
+                refreshShakaTracks(playerInstance.value);
+                return;
+            }
+            const track = (playerInstance.value.getTextTracks ? playerInstance.value.getTextTracks() : [])
+                .find(t => String(t.id) === String(trackId));
+            if (!track) return;
+            if (typeof playerInstance.value.selectTextTrack === 'function') {
+                playerInstance.value.selectTextTrack(track);
+            }
+            if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
+                await playerInstance.value.setTextTrackVisibility(true);
+            }
+            selectedTextTrackId.value = String(track.id);
+            refreshShakaTracks(playerInstance.value);
         };
 
         const toggleFavorite = async () => {
@@ -1622,6 +1836,14 @@ createApp({
             }
         };
 
+        const imageLoad = (e) => {
+            e.target.style.display = '';
+            const icon = e.target.nextElementSibling;
+            if (icon && icon.classList.contains('icon-placeholder')) {
+                icon.style.display = 'none';
+            }
+        };
+
         const mediaImageError = (e) => {
             e.target.onerror = null;
             e.target.removeAttribute('src');
@@ -1629,6 +1851,14 @@ createApp({
             const fallback = e.target.parentElement?.querySelector('.nf-media-fallback');
             if (fallback) {
                 fallback.classList.add('show');
+            }
+        };
+
+        const mediaImageLoad = (e) => {
+            e.target.style.display = '';
+            const fallback = e.target.parentElement?.querySelector('.nf-media-fallback');
+            if (fallback) {
+                fallback.classList.remove('show');
             }
         };
 
@@ -1723,6 +1953,10 @@ createApp({
             currentContext.value = { accountId: null, categoryId: null, accountType: null };
             searchQuery.value = '';
             selectedBookmarkCategoryId.value = '';
+            watchingNowRows.value = [];
+            selectedWatchingNowKey.value = '';
+            watchingNowDrilldown.value = false;
+            watchingNowLoadedAt.value = 0;
             repeatEnabled.value = false;
             listLoading.value = false;
             selectedSeriesSeason.value = '';
@@ -1739,6 +1973,7 @@ createApp({
             await loadAccounts();
             await loadBookmarkCategories();
             await loadBookmarks();
+            await loadWatchingNow();
 
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) {
@@ -1763,6 +1998,9 @@ createApp({
             filteredEpisodes,
             filteredSeriesEpisodes,
             filteredBookmarks,
+            filteredWatchingNowRows,
+            selectedWatchingNowKey,
+            watchingNowDrilldown,
             bookmarkCategoryTabs,
             bookmarkPrimaryTabs,
             bookmarkOverflowTabs,
@@ -1778,6 +2016,7 @@ createApp({
             currentChannelName,
             isCurrentFavorite,
             isPlaying,
+            playbackError,
             showOverlay,
             showBookmarkModal,
             listLoading,
@@ -1790,6 +2029,9 @@ createApp({
             youtubeSrc,
             videoPlayer,
             videoTracks,
+            audioTracks,
+            textTracks,
+            selectedTextTrackId,
             repeatEnabled,
             theme,
             themeIcon,
@@ -1816,6 +2058,7 @@ createApp({
             playChannel,
             handleChannelSelection,
             playBookmark,
+            openWatchingNowSeriesDetail,
             onBookmarkCardClick,
             onBookmarkDragStart,
             onBookmarkDragOver,
@@ -1828,11 +2071,16 @@ createApp({
             togglePictureInPicture,
             onPlayerControlClick,
             imageError,
+            imageLoad,
             mediaImageError,
+            mediaImageLoad,
             toggleTheme,
             clearWebCacheAndReload,
             resetApp,
-            switchVideoTrack
+            switchVideoTrack,
+            switchVideoAuto,
+            switchAudioTrack,
+            switchTextTrack
         };
     }
 }).mount('#app');

@@ -9,6 +9,7 @@ import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -368,8 +369,7 @@ public class ConfigurationUI extends VBox {
 
     private void addOpenServerLinkClickHandler() {
         openServerLink.setOnAction(event -> {
-            String port = resolveServerPort();
-            RootApplication.openInBrowser("http://localhost:" + port + "/");
+            RootApplication.openInBrowser(ServerUrlUtil.getLocalServerUrl() + "/");
         });
     }
 

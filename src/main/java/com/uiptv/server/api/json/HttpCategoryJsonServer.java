@@ -5,7 +5,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
-import com.uiptv.service.HandshakeService;
 import com.uiptv.util.StringUtils;
 
 import java.io.IOException;
@@ -18,10 +17,11 @@ public class HttpCategoryJsonServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
-        applyMode(account, getParam(ex, "mode"));
-        if (account.isNotConnected()) {
-            HandshakeService.getInstance().connect(account);
+        if (account == null) {
+            generateJsonResponse(ex, "[]");
+            return;
         }
+        applyMode(account, getParam(ex, "mode"));
         String response = StringUtils.EMPTY + CategoryService.getInstance().readToJson(account);
         generateJsonResponse(ex, response);
     }

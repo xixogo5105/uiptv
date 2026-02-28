@@ -1,5 +1,7 @@
 package com.uiptv.service;
 
+import com.uiptv.util.ServerUrlUtil;
+
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -32,10 +34,7 @@ public class FfmpegService {
         stopTransmuxing();
         InMemoryHlsService.getInstance().clear();
 
-        String port = ConfigurationService.getInstance().read().getServerPort();
-        if (isBlank(port)) port = "8888";
-        
-        String outputUrl = "http://127.0.0.1:" + port + "/hls-upload/" + STREAM_FILENAME;
+        String outputUrl = ServerUrlUtil.getLocalServerUrl() + "/hls-upload/" + STREAM_FILENAME;
 
         // Ensure ffmpeg is in PATH
         ProcessBuilder pb;

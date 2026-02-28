@@ -7,6 +7,7 @@ import com.uiptv.player.YoutubeDL;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.ui.LogDisplayUI;
+import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -455,11 +456,7 @@ public class PlayerService {
     }
 
     private static String localServerOrigin() {
-        String port = ConfigurationService.getInstance().read().getServerPort();
-        if (isBlank(port)) {
-            port = "8888";
-        }
-        return "http://127.0.0.1:" + port.trim();
+        return ServerUrlUtil.getLocalServerUrl();
     }
 
     private static String normalizeMode(String mode, Account account) {

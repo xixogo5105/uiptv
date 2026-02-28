@@ -13,7 +13,6 @@ import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.HandshakeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.StringUtils;
@@ -33,10 +32,11 @@ public class HttpChannelJsonServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
-        applyMode(account, getParam(ex, "mode"));
-        if (account.isNotConnected()) {
-            HandshakeService.getInstance().connect(account);
+        if (account == null) {
+            generateJsonResponse(ex, "[]");
+            return;
         }
+        applyMode(account, getParam(ex, "mode"));
         String categoryId = getParam(ex, "categoryId");
         String movieId = getParam(ex, "movieId");
         String response;

@@ -70,6 +70,7 @@ public class UIptvServer {
         server.createContext("/channels", new HttpChannelJsonServer());
         server.createContext("/seriesEpisodes", new HttpSeriesEpisodesJsonServer());
         server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
+        server.createContext("/watchingNow", new HttpWatchingNowJsonServer());
         server.createContext("/vodDetails", new HttpVodDetailsJsonServer());
         server.createContext("/player", new HttpPlayerJsonServer());
         server.createContext("/bookmarks", new HttpBookmarksJsonServer());

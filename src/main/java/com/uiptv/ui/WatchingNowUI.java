@@ -15,15 +15,19 @@ import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Accordion;
+import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
@@ -36,6 +40,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -53,11 +58,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class WatchingNowUI extends VBox {
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
@@ -75,8 +82,11 @@ public class WatchingNowUI extends VBox {
     private volatile boolean dirty = true;
     private boolean firstRender = true;
     private String lastExpandedSeriesKey = "";
+    private String selectedSeriesKey = "";
+    private String renderedDetailKey = "";
     private Accordion seriesAccordion;
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
+    private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = new ConcurrentHashMap<>();
     private boolean watchStateListenerRegistered = false;
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
 
@@ -136,7 +146,7 @@ public class WatchingNowUI extends VBox {
                 if (state == null || isBlank(state.getSeriesId())) {
                     continue;
                 }
-                String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+                String key = safe(state.getSeriesId());
                 SeriesWatchState existing = deduped.get(key);
                 if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
                     deduped.put(key, state);
@@ -178,7 +188,23 @@ public class WatchingNowUI extends VBox {
             seasonInfo.put("cover", cacheInfo.seriesPoster);
         }
 
-        return new SeriesPanelData(account, state, cacheInfo.seriesTitle, seasonInfo, episodes);
+        SeriesPanelData panel = new SeriesPanelData(account, state, cacheInfo.seriesTitle, seasonInfo, episodes);
+        applyImdbMemoryCache(panel);
+        return panel;
+    }
+
+    private void applyImdbMemoryCache(SeriesPanelData data) {
+        if (data == null) {
+            return;
+        }
+        ImdbCacheEntry cached = imdbCacheByPanelKey.get(panelCacheKey(data.account, data.state));
+        if (cached == null) {
+            return;
+        }
+        mergeMissingSeasonInfo(data.seasonInfo, cached.seasonInfo);
+        enrichEpisodesFromMeta(data.episodes, cached.episodesMeta);
+        data.imdbLoaded = true;
+        data.imdbLoading = false;
     }
 
     private SeriesCacheInfo resolveSeriesInfoFromCache(Account account, SeriesWatchState state) {
@@ -277,36 +303,257 @@ public class WatchingNowUI extends VBox {
     private void render(List<SeriesPanelData> rows) {
         contentBox.getChildren().clear();
         panelDataByKey.clear();
-        if (rows.isEmpty()) {
+        if (rows == null || rows.isEmpty()) {
             contentBox.getChildren().add(new Label("No currently watched series found."));
-            lastExpandedSeriesKey = "";
-            seriesAccordion = null;
+            selectedSeriesKey = "";
             return;
         }
-
-        Accordion accordion = new Accordion();
-        seriesAccordion = accordion;
-        accordion.setMaxWidth(Double.MAX_VALUE);
-        VBox.setVgrow(accordion, Priority.ALWAYS);
-
         for (SeriesPanelData data : rows) {
             panelDataByKey.put(seriesPaneKey(data), data);
-            accordion.getPanes().add(createSeriesPane(data));
         }
-        if (firstRender) {
-            accordion.setExpandedPane(null);
-            firstRender = false;
-        } else if (!isBlank(lastExpandedSeriesKey)) {
-            for (TitledPane pane : accordion.getPanes()) {
-                if (lastExpandedSeriesKey.equals(safe((String) pane.getUserData()))) {
-                    accordion.setExpandedPane(pane);
+        renderCurrentView();
+    }
+
+    private void renderCurrentView() {
+        List<SeriesPanelData> rows = new ArrayList<>(panelDataByKey.values());
+        rows.sort(Comparator.comparing((SeriesPanelData d) -> safe(d.seriesTitle), String.CASE_INSENSITIVE_ORDER));
+        if (!isBlank(selectedSeriesKey)) {
+            SeriesPanelData selected = panelDataByKey.get(selectedSeriesKey);
+            if (selected != null) {
+                showSeriesDetail(selected);
+                return;
+            }
+            selectedSeriesKey = "";
+        }
+        showSeriesList(rows);
+    }
+
+    private void showSeriesList(List<SeriesPanelData> rows) {
+        contentBox.getChildren().clear();
+        renderedDetailKey = "";
+        if (rows == null || rows.isEmpty()) {
+            contentBox.getChildren().add(new Label("No currently watched series found."));
+            return;
+        }
+        VBox list = new VBox(8);
+        list.setFillWidth(true);
+        for (SeriesPanelData data : rows) {
+            list.getChildren().add(createSeriesListCard(data));
+        }
+        contentBox.getChildren().add(list);
+        VBox.setVgrow(list, Priority.ALWAYS);
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private HBox createSeriesListCard(SeriesPanelData data) {
+        HBox card = new HBox(10);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setPadding(new Insets(6));
+        card.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
+
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString("cover", ""), 96, 136, "watching-now");
+        VBox text = new VBox(3);
+        text.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(text, Priority.ALWAYS);
+
+        Label title = new Label(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
+        title.setStyle("-fx-font-weight: bold;");
+        title.setWrapText(true);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.setMinHeight(Region.USE_PREF_SIZE);
+
+        Label account = new Label(data.account.getAccountName());
+        account.setWrapText(true);
+        account.setMaxWidth(Double.MAX_VALUE);
+        account.setMinHeight(Region.USE_PREF_SIZE);
+
+        Button remove = new Button("Remove");
+        remove.setFocusTraversable(false);
+        remove.setOnAction(event -> {
+            event.consume();
+            boolean confirmed = showConfirmationAlert("This series should be removed from Watching list?");
+            if (!confirmed) {
+                return;
+            }
+            removeSeriesFromWatchingNow(data);
+        });
+
+        Hyperlink bigView = new Hyperlink("View Episodes...");
+        bigView.setFocusTraversable(false);
+        bigView.setMinWidth(Region.USE_PREF_SIZE);
+        bigView.setMaxWidth(Region.USE_PREF_SIZE);
+        bigView.setTextOverrun(OverrunStyle.CLIP);
+        bigView.setOnAction(event -> {
+            event.consume();
+            selectedSeriesKey = seriesPaneKey(data);
+            showSeriesDetail(data);
+        });
+
+        text.getChildren().addAll(title, account, remove);
+
+        VBox rightActions = new VBox();
+        rightActions.setFillWidth(false);
+        rightActions.setAlignment(Pos.BOTTOM_RIGHT);
+        rightActions.setMaxHeight(Double.MAX_VALUE);
+        Region pushDown = new Region();
+        VBox.setVgrow(pushDown, Priority.ALWAYS);
+        rightActions.getChildren().addAll(pushDown, bigView);
+
+        card.getChildren().addAll(poster, text, rightActions);
+        card.setOnMouseClicked(event -> {
+            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                selectedSeriesKey = seriesPaneKey(data);
+                showSeriesDetail(data);
+            }
+        });
+        return card;
+    }
+
+    private void removeSeriesFromWatchingNow(SeriesPanelData data) {
+        if (data == null || data.account == null || data.state == null || isBlank(data.account.getDbId()) || isBlank(data.state.getSeriesId())) {
+            return;
+        }
+        String accountId = data.account.getDbId();
+        String seriesId = data.state.getSeriesId();
+        new Thread(() -> {
+            List<SeriesWatchState> states = SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountId);
+            for (SeriesWatchState state : states) {
+                if (state == null) {
+                    continue;
+                }
+                if (safe(seriesId).equals(safe(state.getSeriesId()))) {
+                    SeriesWatchStateService.getInstance().clearSeriesLastWatched(accountId, state.getCategoryId(), seriesId);
+                }
+            }
+            Platform.runLater(() -> {
+                String keyToRemove = seriesPaneKey(data);
+                panelDataByKey.remove(keyToRemove);
+                if (safe(selectedSeriesKey).equals(keyToRemove)) {
+                    selectedSeriesKey = "";
+                    renderedDetailKey = "";
+                }
+                renderCurrentView();
+            });
+        }, "watching-now-remove-series").start();
+    }
+
+    private void showSeriesDetail(SeriesPanelData data) {
+        if (data == null) {
+            selectedSeriesKey = "";
+            renderCurrentView();
+            return;
+        }
+        selectedSeriesKey = seriesPaneKey(data);
+        renderedDetailKey = selectedSeriesKey;
+        contentBox.getChildren().clear();
+
+        HBox topBar = new HBox(8);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+        Button back = new Button("\u2190 Back");
+        back.setOnAction(event -> {
+            selectedSeriesKey = "";
+            renderCurrentView();
+        });
+        Label heading = new Label("Episodes...");
+        heading.setStyle("-fx-font-weight: bold;");
+        topBar.getChildren().addAll(back, heading);
+
+        VBox body = new VBox(8);
+        body.setPadding(new Insets(8));
+        HBox header = createSeriesHeader(data);
+        TabPane seasonTabs = createSeasonTabs(data);
+        VBox.setVgrow(seasonTabs, Priority.ALWAYS);
+        body.getChildren().addAll(header, seasonTabs);
+        VBox.setVgrow(body, Priority.ALWAYS);
+
+        if (!data.imdbLoaded && !data.imdbLoading) {
+            data.imdbLoading = true;
+            applySeasonInfoToHeader(data);
+            lazyLoadImdb(data, null, header, seasonTabs);
+        }
+
+        contentBox.getChildren().addAll(topBar, body);
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private void configureAccordionFocusMode(Accordion accordion) {
+        if (accordion == null) {
+            return;
+        }
+        List<TitledPane> basePanes = new ArrayList<>(accordion.getPanes());
+        AtomicBoolean focusModeActive = new AtomicBoolean(false);
+        AtomicBoolean internalUpdate = new AtomicBoolean(false);
+        accordion.expandedPaneProperty().addListener((obs, oldPane, newPane) -> {
+            if (internalUpdate.get()) {
+                return;
+            }
+
+            if (newPane != null && !focusModeActive.get()) {
+                focusModeActive.set(true);
+                internalUpdate.set(true);
+                try {
+                    accordion.getPanes().setAll(newPane);
+                    accordion.setExpandedPane(newPane);
+                } finally {
+                    internalUpdate.set(false);
+                }
+                rerenderSeasonTabsForExpandedPane(newPane);
+                Platform.runLater(() -> {
+                    contentBox.requestLayout();
+                    scrollPane.layout();
+                    scrollPane.setVvalue(0.0);
+                });
+                return;
+            }
+
+            if (newPane == null && focusModeActive.get()) {
+                focusModeActive.set(false);
+                internalUpdate.set(true);
+                try {
+                    for (TitledPane pane : basePanes) {
+                        pane.setExpanded(false);
+                    }
+                    accordion.getPanes().setAll(basePanes);
+                    accordion.setExpandedPane(null);
+                } finally {
+                    internalUpdate.set(false);
+                }
+                Platform.runLater(() -> {
+                    contentBox.requestLayout();
+                    scrollPane.layout();
+                });
+            }
+        });
+    }
+
+    private void rerenderSeasonTabsForExpandedPane(TitledPane pane) {
+        if (pane == null) {
+            return;
+        }
+        String key = safe((String) pane.getUserData());
+        SeriesPanelData data = panelDataByKey.get(key);
+        if (data == null || !(pane.getContent() instanceof VBox body)) {
+            return;
+        }
+        String selectedSeason = "";
+        if (data.seasonTabs != null && data.seasonTabs.getSelectionModel() != null && data.seasonTabs.getSelectionModel().getSelectedItem() != null) {
+            selectedSeason = safe(data.seasonTabs.getSelectionModel().getSelectedItem().getText());
+        }
+        data.seasonCardsBySeason.clear();
+        TabPane refreshed = createSeasonTabs(data);
+        if (!isBlank(selectedSeason)) {
+            for (Tab tab : refreshed.getTabs()) {
+                if (selectedSeason.equals(safe(tab.getText()))) {
+                    refreshed.getSelectionModel().select(tab);
                     break;
                 }
             }
         }
-
-        contentBox.getChildren().add(accordion);
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
+        if (body.getChildren().size() >= 2) {
+            body.getChildren().set(1, refreshed);
+        } else {
+            body.getChildren().add(refreshed);
+        }
     }
 
     private TitledPane createSeriesPane(SeriesPanelData data) {
@@ -383,7 +630,7 @@ public class WatchingNowUI extends VBox {
 
     private void applySeasonInfoToHeader(SeriesPanelData data) {
         VBox details = (VBox) data.titleNode.getParent();
-        details.getChildren().removeAll(data.ratingNode, data.genreNode, data.releaseNode, data.plotNode);
+        details.getChildren().removeAll(data.ratingNode, data.genreNode, data.releaseNode, data.plotNode, data.reloadEpisodesButton);
         if (data.imdbLoadingNode != null) {
             details.getChildren().remove(data.imdbLoadingNode);
         }
@@ -432,6 +679,12 @@ public class WatchingNowUI extends VBox {
             data.plotNode.setText(plot);
             details.getChildren().add(data.plotNode);
         }
+        if (data.reloadEpisodesButton == null) {
+            data.reloadEpisodesButton = new Button("Reload Episodes from Portal");
+            data.reloadEpisodesButton.setFocusTraversable(false);
+            data.reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal(data));
+        }
+        details.getChildren().add(data.reloadEpisodesButton);
     }
 
     private TabPane createSeasonTabs(SeriesPanelData data) {
@@ -440,6 +693,19 @@ public class WatchingNowUI extends VBox {
         tabPane.setMaxWidth(Double.MAX_VALUE);
         tabPane.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
+        populateSeasonTabs(tabPane, data);
+        data.seasonTabs = tabPane;
+        return tabPane;
+    }
+
+    private void populateSeasonTabs(TabPane tabPane, SeriesPanelData data) {
+        if (tabPane == null || data == null) {
+            return;
+        }
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        String selectedSeason = selectedTab == null ? "" : safe(selectedTab.getText());
+        tabPane.getTabs().clear();
+        data.seasonCardsBySeason.clear();
 
         Map<String, List<WatchingEpisode>> bySeason = new LinkedHashMap<>();
         for (WatchingEpisode episode : data.episodes) {
@@ -465,9 +731,13 @@ public class WatchingNowUI extends VBox {
             tabPane.getTabs().add(tab);
             data.seasonCardsBySeason.put(season, cards);
         }
-
-        data.seasonTabs = tabPane;
-        return tabPane;
+        if (!tabPane.getTabs().isEmpty()) {
+            Tab toSelect = tabPane.getTabs().stream()
+                    .filter(t -> safe(t.getText()).equals(selectedSeason))
+                    .findFirst()
+                    .orElse(tabPane.getTabs().get(0));
+            tabPane.getSelectionModel().select(toSelect);
+        }
     }
 
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
@@ -485,50 +755,86 @@ public class WatchingNowUI extends VBox {
         return container;
     }
 
-    private HBox createEpisodeCard(SeriesPanelData data, WatchingEpisode row) {
-        HBox root = new HBox(10);
-        root.setAlignment(Pos.CENTER_LEFT);
+    private VBox createEpisodeCard(SeriesPanelData data, WatchingEpisode row) {
+        VBox root = new VBox(8);
         root.setPadding(new Insets(6));
         root.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
 
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.TOP_LEFT);
+
         ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 136, "watching-now");
-        VBox text = new VBox(2);
+        StackPane posterWrap = new StackPane(poster);
+        posterWrap.setAlignment(Pos.CENTER);
+        posterWrap.setMinWidth(110);
+        posterWrap.setPrefWidth(110);
+
+        VBox text = new VBox(4);
         text.setMaxWidth(Double.MAX_VALUE);
+        text.setFillWidth(true);
         HBox.setHgrow(text, Priority.ALWAYS);
+
+        HBox badges = new HBox(4);
+        badges.setAlignment(Pos.TOP_RIGHT);
+        
+        Label watching = new Label("WATCHING");
+        watching.getStyleClass().add("drm-badge");
+        watching.setMinWidth(Region.USE_PREF_SIZE);
+        watching.setMaxWidth(Double.MAX_VALUE);
+        watching.setVisible(row.watched);
+        watching.setManaged(row.watched);
+        badges.getChildren().add(watching);
+        
+        // Store the watching label in the episode object or map for later access
+        data.watchingLabels.put(row, watching);
+
+        Button play = new Button("PLAY");
+        play.getStyleClass().setAll("button");
+        play.setMinWidth(Region.USE_PREF_SIZE);
+        play.setMaxWidth(Double.MAX_VALUE);
+        play.setMinHeight(Region.USE_PREF_SIZE);
+        play.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 6 2 6; -fx-background-radius: 6;");
+        play.setFocusTraversable(false);
+        play.setOnAction(event -> {
+            event.consume();
+            playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+        });
+        badges.getChildren().add(play);
+
+        HBox actionRow = new HBox();
+        actionRow.setAlignment(Pos.TOP_RIGHT);
+        Region actionSpacer = new Region();
+        HBox.setHgrow(actionSpacer, Priority.ALWAYS);
+        actionRow.getChildren().addAll(actionSpacer, badges);
+
         Label title = new Label("E" + (isBlank(row.episodeNum) ? "-" : row.episodeNum) + "  " + safe(row.title));
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
-        if (row.watched) {
-            title.setStyle("-fx-font-weight: bold;");
+        title.setStyle("-fx-font-weight: bold;");
+
+        text.getChildren().addAll(actionRow, title);
+        if (!isBlank(row.rating)) {
+            Label rating = new Label("Rating: " + row.rating);
+            text.getChildren().add(rating);
         }
-        text.getChildren().add(title);
-        if (!isBlank(row.releaseDate)) text.getChildren().add(new Label("Release: " + shortDateOnly(row.releaseDate)));
-        if (!isBlank(row.rating)) text.getChildren().add(new Label("Rating: " + row.rating));
+        if (!isBlank(row.releaseDate)) {
+            Label release = new Label("Release: " + shortDateOnly(row.releaseDate));
+            text.getChildren().add(release);
+        }
+
+        top.getChildren().addAll(posterWrap, text);
+        root.getChildren().add(top);
         if (!isBlank(row.plot)) {
             Label plot = new Label(row.plot);
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
             plot.setMinHeight(Region.USE_PREF_SIZE);
-            text.getChildren().add(plot);
+            root.getChildren().add(plot);
         }
-
-        Region spacer = new Region();
-        spacer.setPrefWidth(8);
-        spacer.setMinWidth(8);
-        VBox badges = new VBox(4);
-                if (row.watched) {
-                    Label watching = new Label("WATCHING");
-                    watching.getStyleClass().add("drm-badge");
-                    watching.setMinWidth(Region.USE_PREF_SIZE);
-                    watching.setMaxWidth(Double.MAX_VALUE);
-                    badges.getChildren().add(watching);
-                }
-
-        root.getChildren().addAll(poster, text, spacer, badges);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                playEpisode(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             }
         });
         addEpisodeContextMenu(data, row, root);
@@ -537,34 +843,20 @@ public class WatchingNowUI extends VBox {
 
     private void addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
         ContextMenu rowMenu = new ContextMenu();
-        Menu lastWatchedMenu = new Menu("Last Watched");
-
-        rowMenu.setOnShowing(event -> {
-            lastWatchedMenu.getItems().clear();
-            if (item == null) {
-                return;
-            }
-
-            MenuItem markWatched = new MenuItem("Mark as Watched");
-            markWatched.setOnAction(e -> markEpisodeAsWatched(item));
-            lastWatchedMenu.getItems().add(markWatched);
-
-            MenuItem clearWatched = new MenuItem("Clear Watched Marker");
-            clearWatched.setDisable(!item.watched);
-            clearWatched.setOnAction(e -> clearWatchedMarker(item));
-            lastWatchedMenu.getItems().add(clearWatched);
-        });
+        if (item == null) {
+            return;
+        }
 
         MenuItem embedded = new MenuItem("Embedded Player");
-        embedded.setOnAction(e -> playEpisode(item, "embedded"));
+        embedded.setOnAction(e -> playEpisode(data, item, "embedded"));
         MenuItem p1 = new MenuItem("Player 1");
-        p1.setOnAction(e -> playEpisode(item, ConfigurationService.getInstance().read().getPlayerPath1()));
+        p1.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath1()));
         MenuItem p2 = new MenuItem("Player 2");
-        p2.setOnAction(e -> playEpisode(item, ConfigurationService.getInstance().read().getPlayerPath2()));
+        p2.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath2()));
         MenuItem p3 = new MenuItem("Player 3");
-        p3.setOnAction(e -> playEpisode(item, ConfigurationService.getInstance().read().getPlayerPath3()));
+        p3.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath3()));
 
-        rowMenu.getItems().addAll(lastWatchedMenu, new SeparatorMenuItem(), embedded, p1, p2, p3);
+        rowMenu.getItems().addAll(embedded, p1, p2, p3);
         target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
     }
 
@@ -595,25 +887,113 @@ public class WatchingNowUI extends VBox {
         }, "watching-now-clear-watched").start();
     }
 
-    private void playEpisode(WatchingEpisode item, String playerPath) {
+    private void playEpisode(SeriesPanelData data, WatchingEpisode item, String playerPath) {
         if (item == null || item.channel == null || item.account == null) {
             return;
         }
-        if (!item.watched) {
-            markEpisodeAsWatched(item);
-        }
+        
+        // Optimistically update UI
+        updateWatchingStatusUI(data, item);
+
         item.account.setAction(Account.AccountAction.series);
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManualIfNewer(
+                item.account,
+                item.state.getCategoryId(),
+                item.state.getSeriesId(),
+                item.channel.getChannelId(),
+                item.title,
+                item.season,
+                item.episodeNum
+        );
+        // refreshWatchedStateInstant(item); // No longer needed as we update UI directly
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(item.account, item.channel, playerPath)
-                .series(item.channel.getChannelId(), item.state.getSeriesId())
+                .series(item.state.getSeriesId(), item.state.getCategoryId())
                 .categoryId(item.state.getCategoryId())
                 .channelId(item.channel.getChannelId())
                 .errorPrefix("Error playing episode: "));
+    }
+    
+    private void updateWatchingStatusUI(SeriesPanelData data, WatchingEpisode currentEpisode) {
+        if (data == null || currentEpisode == null) return;
+        
+        // Check if we should update the UI based on whether the new episode is "newer"
+        // We need to find the currently watched episode first
+        WatchingEpisode previouslyWatched = null;
+        for (WatchingEpisode ep : data.episodes) {
+            if (ep.watched) {
+                previouslyWatched = ep;
+                break;
+            }
+        }
+
+        boolean shouldUpdate = true;
+        if (previouslyWatched != null) {
+            int currentSeason = parseNumberOrDefault(currentEpisode.season, 0);
+            int currentEpNum = parseNumberOrDefault(currentEpisode.episodeNum, 0);
+            int prevSeason = parseNumberOrDefault(previouslyWatched.season, 0);
+            int prevEpNum = parseNumberOrDefault(previouslyWatched.episodeNum, 0);
+
+            if (currentSeason < prevSeason) {
+                shouldUpdate = false;
+            } else if (currentSeason == prevSeason && currentEpNum <= prevEpNum) {
+                shouldUpdate = false;
+            }
+        }
+
+        if (!shouldUpdate) {
+            return;
+        }
+        
+        // Hide all watching labels
+        for (Map.Entry<WatchingEpisode, Label> entry : data.watchingLabels.entrySet()) {
+            WatchingEpisode episode = entry.getKey();
+            Label label = entry.getValue();
+            
+            boolean isCurrent = episode == currentEpisode;
+            episode.watched = isCurrent;
+            
+            if (label != null) {
+                label.setVisible(isCurrent);
+                label.setManaged(isCurrent);
+            }
+        }
+    }
+
+    private void refreshWatchedStateInstant(WatchingEpisode item) {
+        if (item == null || item.account == null || isBlank(item.account.getDbId())) {
+            return;
+        }
+        SeriesWatchState state = SeriesWatchStateService.getInstance()
+                .getSeriesLastWatched(item.account.getDbId(), item.state.getCategoryId(), item.state.getSeriesId());
+        String accountId = safe(item.account.getDbId());
+        String seriesId = safe(item.state.getSeriesId());
+        for (SeriesPanelData panel : panelDataByKey.values()) {
+            if (panel == null || panel.account == null || panel.state == null) {
+                continue;
+            }
+            if (!accountId.equals(safe(panel.account.getDbId())) || !seriesId.equals(safe(panel.state.getSeriesId()))) {
+                continue;
+            }
+            for (WatchingEpisode episode : panel.episodes) {
+                episode.watched = SeriesWatchStateService.getInstance().isMatchingEpisode(
+                        state,
+                        episode.channel.getChannelId(),
+                        episode.season,
+                        episode.episodeNum,
+                        episode.title
+                );
+            }
+            if (seriesPaneKey(panel).equals(selectedSeriesKey) && panel.seasonTabs != null) {
+                Platform.runLater(() -> refreshSeasonTables(panel));
+            }
+        }
     }
 
     private void lazyLoadImdb(SeriesPanelData data, TitledPane pane, HBox header, TabPane seasonTabs) {
         new Thread(() -> {
             try {
                 JSONObject imdb = findImdbWithRetry(data, 3);
+                JSONArray episodesMeta = null;
                 if (imdb != null) {
                     String imdbCover = normalizeImageUrl(imdb.optString("cover", ""), data.account);
                     if (!isBlank(imdbCover)) {
@@ -630,13 +1010,18 @@ public class WatchingNowUI extends VBox {
                     mergeMissing(data.seasonInfo, imdb, "tmdb");
                     mergeMissing(data.seasonInfo, imdb, "imdbUrl");
 
-                    enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));
+                    episodesMeta = imdb.optJSONArray("episodesMeta");
+                    enrichEpisodesFromMeta(data.episodes, episodesMeta);
+                    imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
+                            new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString()), cloneArray(episodesMeta)));
                 }
             } finally {
                 data.imdbLoaded = true;
                 data.imdbLoading = false;
                 Platform.runLater(() -> {
-                    pane.setText(buildSeriesPaneTitle(data));
+                    if (pane != null) {
+                        pane.setText(buildSeriesPaneTitle(data));
+                    }
                     applySeasonInfoToHeader(data);
                     String cover = data.seasonInfo.optString("cover", "");
                     if (!isBlank(cover)) {
@@ -734,24 +1119,41 @@ public class WatchingNowUI extends VBox {
     }
 
     private void refreshSeasonTables(SeriesPanelData data) {
-        Map<String, List<WatchingEpisode>> bySeason = new HashMap<>();
-        for (WatchingEpisode e : data.episodes) {
-            String season = isBlank(e.season) ? "1" : normalizeNumber(e.season);
-            if (isBlank(season)) season = "1";
-            bySeason.computeIfAbsent(season, k -> new ArrayList<>()).add(e);
+        if (data == null || data.seasonTabs == null) {
+            return;
         }
-        for (Map.Entry<String, VBox> entry : data.seasonCardsBySeason.entrySet()) {
-            List<WatchingEpisode> seasonRows = bySeason.getOrDefault(entry.getKey(), List.of());
-            VBox cards = entry.getValue();
-            cards.getChildren().clear();
-            if (seasonRows.isEmpty()) {
-                cards.getChildren().add(new Label("No episodes found."));
-            } else {
-                for (WatchingEpisode episode : seasonRows) {
-                    cards.getChildren().add(createEpisodeCard(data, episode));
+        populateSeasonTabs(data.seasonTabs, data);
+    }
+
+    private void reloadEpisodesFromPortal(SeriesPanelData data) {
+        if (data == null || data.account == null || data.state == null || isBlank(data.state.getSeriesId())) {
+            return;
+        }
+        if (data.reloadEpisodesButton != null) {
+            data.reloadEpisodesButton.setDisable(true);
+            data.reloadEpisodesButton.setText("Reloading...");
+        }
+        new Thread(() -> {
+            EpisodeList refreshed = SeriesEpisodeService.getInstance()
+                    .reloadEpisodesFromPortal(data.account, data.state.getCategoryId(), data.state.getSeriesId(), () -> false);
+            List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, data.seriesTitle, refreshed);
+            Platform.runLater(() -> {
+                // Always discard old episodes on reload and rebuild tabs from the latest response.
+                data.episodes.clear();
+                data.episodes.addAll(refreshedEpisodes);
+                refreshSeasonTables(data);
+                // Reload complete: invalidate prior IMDb merge and fetch fresh metadata for updated episodes/seasons.
+                imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
+                data.imdbLoaded = false;
+                data.imdbLoading = true;
+                applySeasonInfoToHeader(data);
+                lazyLoadImdb(data, null, null, data.seasonTabs);
+                if (data.reloadEpisodesButton != null) {
+                    data.reloadEpisodesButton.setText("Reload Episodes from Portal");
+                    data.reloadEpisodesButton.setDisable(false);
                 }
-            }
-        }
+            });
+        }, "watching-now-portal-reload").start();
     }
 
     private void enrichEpisodesFromMeta(List<WatchingEpisode> episodes, JSONArray metaRows) {
@@ -865,7 +1267,7 @@ public class WatchingNowUI extends VBox {
     }
 
     private void onDataChanged(String accountId, String seriesId) {
-        if (isBlank(accountId) || isBlank(seriesId) || seriesAccordion == null) {
+        if (isBlank(accountId) || isBlank(seriesId)) {
             dirty = true;
             Platform.runLater(this::refreshIfNeeded);
             return;
@@ -890,7 +1292,7 @@ public class WatchingNowUI extends VBox {
                         if (state == null || isBlank(state.getSeriesId()) || !safe(state.getSeriesId()).equals(safe(seriesId))) {
                             continue;
                         }
-                        String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+                        String key = safe(state.getSeriesId());
                         SeriesWatchState existing = deduped.get(key);
                         if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
                             deduped.put(key, state);
@@ -914,23 +1316,94 @@ public class WatchingNowUI extends VBox {
     }
 
     private void applySeriesDelta(String accountId, String seriesId, List<SeriesPanelData> updated) {
+        SeriesPanelData renderedPanel = panelDataByKey.get(renderedDetailKey);
+        String renderedAccountId = renderedPanel != null && renderedPanel.account != null ? safe(renderedPanel.account.getDbId()) : "";
+        String renderedSeriesId = renderedPanel != null && renderedPanel.state != null ? safe(renderedPanel.state.getSeriesId()) : "";
+        boolean renderedPanelReused = false;
+
         String prefix = safe(accountId) + "|";
         String suffix = "|" + safe(seriesId);
         panelDataByKey.keySet().removeIf(key -> key.startsWith(prefix) && key.endsWith(suffix));
         for (SeriesPanelData panel : updated) {
-            panelDataByKey.put(seriesPaneKey(panel), panel);
-        }
-        List<SeriesPanelData> rows = new ArrayList<>(panelDataByKey.values());
-        rows.sort(Comparator.comparing((SeriesPanelData d) -> safe(d.seriesTitle), String.CASE_INSENSITIVE_ORDER));
-
-        String expandedKey = lastExpandedSeriesKey;
-        if (seriesAccordion != null && seriesAccordion.getExpandedPane() != null) {
-            Object key = seriesAccordion.getExpandedPane().getUserData();
-            if (key instanceof String s) {
-                expandedKey = s;
+            String key = seriesPaneKey(panel);
+            boolean isRenderedSeries = renderedPanel != null
+                    && safe(panel.account.getDbId()).equals(renderedAccountId)
+                    && safe(panel.state.getSeriesId()).equals(renderedSeriesId);
+            if (isRenderedSeries) {
+                mergePanelInPlace(renderedPanel, panel);
+                panelDataByKey.put(key, renderedPanel);
+                selectedSeriesKey = key;
+                renderedDetailKey = key;
+                renderedPanelReused = true;
+            } else {
+                panelDataByKey.put(key, panel);
             }
         }
-        rebuildAccordion(rows, expandedKey);
+
+        if (!isBlank(selectedSeriesKey)) {
+            SeriesPanelData selected = panelDataByKey.get(selectedSeriesKey);
+            if (selected != null && selectedSeriesKey.equals(renderedDetailKey)) {
+                refreshSelectedDetailInPlace(selected);
+                return;
+            }
+            if (renderedPanelReused && renderedPanel != null && selectedSeriesKey.equals(renderedDetailKey)) {
+                refreshSelectedDetailInPlace(renderedPanel);
+                return;
+            }
+        }
+        renderCurrentView();
+    }
+
+    private void mergePanelInPlace(SeriesPanelData target, SeriesPanelData source) {
+        if (target == null || source == null) {
+            return;
+        }
+        target.episodes.clear();
+        target.episodes.addAll(source.episodes);
+        replaceJson(target.seasonInfo, source.seasonInfo);
+        target.imdbLoaded = source.imdbLoaded;
+        target.imdbLoading = source.imdbLoading;
+    }
+
+    private void replaceJson(JSONObject target, JSONObject source) {
+        if (target == null || source == null) {
+            return;
+        }
+        List<String> keys = new ArrayList<>();
+        java.util.Iterator<String> it = target.keys();
+        while (it.hasNext()) {
+            keys.add(it.next());
+        }
+        for (String key : keys) {
+            target.remove(key);
+        }
+        java.util.Iterator<String> srcIt = source.keys();
+        while (srcIt.hasNext()) {
+            String key = srcIt.next();
+            target.put(key, source.opt(key));
+        }
+    }
+
+    private void refreshSelectedDetailInPlace(SeriesPanelData selected) {
+        if (selected == null || !selectedSeriesKey.equals(renderedDetailKey)) {
+            return;
+        }
+        if (selected.titleNode != null) {
+            applySeasonInfoToHeader(selected);
+        }
+        if (selected.seriesPosterNode != null) {
+            String cover = selected.seasonInfo.optString("cover", "");
+            if (!isBlank(cover)) {
+                ImageCacheManager.loadImageAsync(cover, "watching-now").thenAccept(img -> {
+                    if (img != null) {
+                        Platform.runLater(() -> selected.seriesPosterNode.setImage(img));
+                    }
+                });
+            }
+        }
+        if (selected.seasonTabs != null) {
+            refreshSeasonTables(selected);
+        }
     }
 
     private void rebuildAccordion(List<SeriesPanelData> rows, String expandedKey) {
@@ -951,6 +1424,7 @@ public class WatchingNowUI extends VBox {
             panelDataByKey.put(key, data);
             accordion.getPanes().add(createSeriesPane(data));
         }
+        configureAccordionFocusMode(accordion);
         if (!isBlank(expandedKey)) {
             for (TitledPane pane : accordion.getPanes()) {
                 if (expandedKey.equals(safe((String) pane.getUserData()))) {
@@ -1163,7 +1637,7 @@ public class WatchingNowUI extends VBox {
             String normalized = value.startsWith("./") ? value.substring(2) : value;
             return scheme + "://" + host + (port > 0 ? ":" + port : "") + "/" + normalized;
         }
-        return localServerOrigin() + "/" + value.replaceFirst("^\\./", "");
+        return ServerUrlUtil.getLocalServerUrl() + "/" + value.replaceFirst("^\\./", "");
     }
 
     private URI resolveBaseUri(Account account) {
@@ -1191,15 +1665,7 @@ public class WatchingNowUI extends VBox {
     }
 
     private String localServerOrigin() {
-        String port = "8888";
-        try {
-            String configured = ConfigurationService.getInstance().read().getServerPort();
-            if (!isBlank(configured)) {
-                port = configured.trim();
-            }
-        } catch (Exception ignored) {
-        }
-        return "http://127.0.0.1:" + port;
+        return ServerUrlUtil.getLocalServerUrl();
     }
 
     private String firstNonBlank(String... values) {
@@ -1223,6 +1689,41 @@ public class WatchingNowUI extends VBox {
         }
     }
 
+    private void mergeMissingSeasonInfo(JSONObject target, JSONObject source) {
+        if (target == null || source == null) {
+            return;
+        }
+        java.util.Iterator<String> it = source.keys();
+        while (it.hasNext()) {
+            String key = it.next();
+            Object value = source.opt(key);
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof String str) {
+                if (isBlank(target.optString(key, "")) && !isBlank(str)) {
+                    target.put(key, str);
+                }
+            } else if (!target.has(key)) {
+                target.put(key, value);
+            }
+        }
+    }
+
+    private JSONArray cloneArray(JSONArray input) {
+        if (input == null) {
+            return null;
+        }
+        return new JSONArray(input.toString());
+    }
+
+    private String panelCacheKey(Account account, SeriesWatchState state) {
+        if (account == null || state == null) {
+            return "";
+        }
+        return safe(account.getDbId()) + "|" + safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+    }
+
     private static final class SeriesCacheInfo {
         private final String seriesTitle;
         private final String seriesPoster;
@@ -1232,6 +1733,16 @@ public class WatchingNowUI extends VBox {
             this.seriesTitle = seriesTitle;
             this.seriesPoster = seriesPoster;
             this.resolvedFromCache = resolvedFromCache;
+        }
+    }
+
+    private static final class ImdbCacheEntry {
+        private final JSONObject seasonInfo;
+        private final JSONArray episodesMeta;
+
+        private ImdbCacheEntry(JSONObject seasonInfo, JSONArray episodesMeta) {
+            this.seasonInfo = seasonInfo == null ? new JSONObject() : seasonInfo;
+            this.episodesMeta = episodesMeta;
         }
     }
 
@@ -1251,9 +1762,11 @@ public class WatchingNowUI extends VBox {
         private Label plotNode;
         private HBox imdbBadgeNode;
         private HBox imdbLoadingNode;
+        private Button reloadEpisodesButton;
         private ImageView seriesPosterNode;
         private TabPane seasonTabs;
         private final Map<String, VBox> seasonCardsBySeason = new LinkedHashMap<>();
+        private final Map<WatchingEpisode, Label> watchingLabels = new HashMap<>();
 
         private SeriesPanelData(Account account, SeriesWatchState state, String seriesTitle, JSONObject seasonInfo, List<WatchingEpisode> episodes) {
             this.account = account;

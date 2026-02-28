@@ -4,6 +4,7 @@ import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
@@ -771,15 +772,7 @@ public class ChannelListUI extends HBox {
     }
 
     private String localServerOrigin() {
-        String port = "8888";
-        try {
-            String configured = ConfigurationService.getInstance().read().getServerPort();
-            if (!isBlank(configured)) {
-                port = configured.trim();
-            }
-        } catch (Exception ignored) {
-        }
-        return "http://127.0.0.1:" + port;
+        return ServerUrlUtil.getLocalServerUrl();
     }
 
     public static class ChannelItem {

@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE;
@@ -29,6 +30,25 @@ public class SeriesChannelDb extends BaseDb {
 
     public List<Channel> getChannels(Account account, String categoryId) {
         return getAll(" WHERE accountId=? AND categoryId=?", new String[]{account.getDbId(), categoryId});
+    }
+
+    public List<Channel> getChannelsBySeriesIds(Account account, List<String> seriesIds) {
+        if (account == null || seriesIds == null || seriesIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> filtered = seriesIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        if (filtered.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(filtered.size(), "?"));
+        String where = " WHERE accountId=? AND channelId IN (" + placeholders + ")";
+        List<String> params = new ArrayList<>(filtered.size() + 1);
+        params.add(account.getDbId());
+        params.addAll(filtered);
+        return getAll(where, params.toArray(new String[0]));
     }
 
     public boolean isFresh(Account account, String categoryId, long maxAgeMs) {

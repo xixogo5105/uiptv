@@ -56,6 +56,7 @@ public class ReloadCachePopup extends VBox {
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
     private final List<String> latestSummaryLines = new ArrayList<>();
+    private final ReloadRunOutcomeTracker runOutcomeTracker = new ReloadRunOutcomeTracker();
     private final Runnable onAccountsDeleted;
     private VBox accountColumn;
     private ColumnConstraints accountsColumn;
@@ -328,7 +329,7 @@ public class ReloadCachePopup extends VBox {
 
         List<Account> processedAccounts = new ArrayList<>();
         Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
-        int totalSuccessChannels = 0;
+        int totalFetchedChannels = 0;
 
         for (int i = 0; i < total; i++) {
             Account account = selectedAccounts.get(i);
@@ -337,14 +338,11 @@ public class ReloadCachePopup extends VBox {
 
             boolean success = false;
             boolean failed = false;
-            int channelCount = 0;
+            int fetchedChannelCount = 0;
             try {
                 cacheService.reloadCache(account, message -> logMessage(account, message));
-                channelCount = cacheService.getChannelCountForAccount(account.getDbId());
-                if (channelCount > 0) {
-                    success = true;
-                    totalSuccessChannels += channelCount;
-                } else {
+                fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
+                if (fetchedChannelCount <= 0) {
                     logMessage(account, "No channels found.");
                 }
             } catch (Exception e) {
@@ -352,20 +350,28 @@ public class ReloadCachePopup extends VBox {
                 logMessage(account, "Reload failed: " + shortFailure(e.getMessage()));
             }
 
+            if (runOutcomeTracker.hasCriticalFailure(account.getDbId())) {
+                failed = true;
+                success = false;
+            } else if (fetchedChannelCount > 0) {
+                success = true;
+                totalFetchedChannels += fetchedChannelCount;
+            }
+
             progressBar.updateSegment(i, success);
             AccountRunStatus finalStatus = success
                     ? AccountRunStatus.DONE
                     : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY);
             finalStatuses.put(account.getDbId(), finalStatus);
-            updateAccountStatus(account, finalStatus, channelCount);
+            updateAccountStatus(account, finalStatus, fetchedChannelCount);
         }
 
-        int runTotalSuccessChannels = totalSuccessChannels;
+        int runTotalFetchedChannels = totalFetchedChannels;
         Platform.runLater(() -> {
             LogDisplayUI.addLog("Reload run completed.");
             reloadButton.setVisible(true);
             loadingIndicator.setVisible(false);
-            appendRunSummary(processedAccounts, finalStatuses, runTotalSuccessChannels);
+            appendRunSummary(processedAccounts, finalStatuses, runTotalFetchedChannels);
 
             List<Account> emptyAccounts = processedAccounts.stream()
                     .filter(a -> cacheService.getChannelCountForAccount(a.getDbId()) == 0)
@@ -451,6 +457,7 @@ public class ReloadCachePopup extends VBox {
             accountLogPanels.clear();
             runAccountOrder.clear();
             latestSummaryLines.clear();
+            runOutcomeTracker.clear();
             currentRunningAccountId = null;
             logVBox.getChildren().clear();
 
@@ -561,6 +568,7 @@ public class ReloadCachePopup extends VBox {
         if (compact == null || compact.isBlank()) {
             return;
         }
+        runOutcomeTracker.recordMessage(account.getDbId(), message, compact);
         Platform.runLater(() -> {
             AccountLogPanel panel = accountLogPanels.get(account.getDbId());
             if (panel != null) {

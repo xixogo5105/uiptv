@@ -75,7 +75,7 @@
                     <button class="nf-edge-btn left" onclick="scrollRow('row-saved', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
                     <div class="nf-strip" id="row-saved">
                         <button v-for="bookmark in filteredBookmarks" :key="'saved-server-' + bookmark.dbId" class="nf-card nf-card-media" @click="playBookmark(bookmark)">
-                            <img v-if="bookmark.logo" class="nf-media-image" :src="bookmark.logo" @error="mediaImageError" alt="bookmark image">
+                            <img v-if="bookmark.logo" class="nf-media-image" :src="bookmark.logo" @load="mediaImageLoad" @error="mediaImageError" alt="bookmark image">
                             <div class="nf-media-fallback" :class="{ show: !bookmark.logo }">
                                 {{ bookmark.channelName }}
                             </div>
@@ -90,6 +90,35 @@
                         <div v-else-if="filteredBookmarks.length === 0" class="nf-empty-card">No favorites found.</div>
                     </div>
                     <button class="nf-edge-btn right" onclick="scrollRow('row-saved', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
+                </div>
+            </div>
+
+            <div class="nf-row nf-row-shell">
+                <div class="nf-row-title">
+                    <h5 class="nf-section-title"><span>Watching Now</span></h5>
+                </div>
+                <div class="nf-track-wrap">
+                    <button class="nf-edge-btn left" onclick="scrollRow('row-watching-now', -1)" type="button"><i class="bi bi-chevron-left"></i></button>
+                    <div class="nf-strip" id="row-watching-now">
+                        <button
+                                v-for="row in filteredWatchingNowRows"
+                                :key="'watching-now-' + row.key"
+                                class="nf-card nf-card-media"
+                                :class="{ active: selectedWatchingNowKey === row.key }"
+                                @click="openWatchingNowSeriesDetail(row)">
+                            <img v-if="row.seriesPoster" class="nf-media-image" :src="row.seriesPoster" loading="lazy" @load="mediaImageLoad" @error="mediaImageError" alt="series poster">
+                            <div class="nf-media-fallback" :class="{ show: !row.seriesPoster }">{{ row.seriesTitle }}</div>
+                            <div class="nf-media-gradient"></div>
+                            <div class="nf-card-title nf-media-title">{{ row.seriesTitle }}</div>
+                            <div class="nf-card-subtitle nf-media-subtitle"><small>{{ row.accountName }}</small></div>
+                        </button>
+                        <div v-if="isModeLoading('watchingNow')" class="nf-empty-card">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading Watching Now...
+                        </div>
+                        <div v-else-if="filteredWatchingNowRows.length === 0" class="nf-empty-card">No currently watched series found.</div>
+                    </div>
+                    <button class="nf-edge-btn right" onclick="scrollRow('row-watching-now', 1)" type="button"><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>
 
@@ -139,7 +168,7 @@
                             <div class="nf-card-title">{{ category.title }}</div>
                         </button>
                         <button v-if="isModeState('itv','channels')" v-for="channel in visibleModeChannels('itv')" :key="'itv-ch-' + (channel.dbId || channel.channelId || channel.id)" class="nf-card nf-card-media" @click="handleModeSelection('itv', channel)">
-                            <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @error="mediaImageError" alt="channel image">
+                            <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @load="mediaImageLoad" @error="mediaImageError" alt="channel image">
                             <div class="nf-media-fallback" :class="{ show: !channel.logo }">{{ channel.name }}</div>
                             <div class="nf-media-gradient"></div>
                             <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
@@ -176,7 +205,7 @@
                             <div class="nf-card-title">{{ category.title }}</div>
                         </button>
                         <button v-if="isModeState('vod','channels')" v-for="channel in visibleModeChannels('vod')" :key="'vod-ch-' + (channel.dbId || channel.channelId || channel.id)" class="nf-card nf-card-media" @click="handleModeSelection('vod', channel)">
-                            <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @error="mediaImageError" alt="vod image">
+                            <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @load="mediaImageLoad" @error="mediaImageError" alt="vod image">
                             <div class="nf-media-fallback" :class="{ show: !channel.logo }">{{ channel.name }}</div>
                             <div class="nf-media-gradient"></div>
                             <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
@@ -213,7 +242,7 @@
                             <div class="nf-card-title">{{ category.title }}</div>
                         </button>
                         <button v-if="isModeState('series','channels')" v-for="channel in visibleModeChannels('series')" :key="'series-ch-' + (channel.dbId || channel.channelId || channel.id)" class="nf-card nf-card-media" @click="handleModeSelection('series', channel)">
-                            <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @error="mediaImageError" alt="series image">
+                            <img v-if="channel.logo" class="nf-media-image" :src="channel.logo" loading="lazy" @load="mediaImageLoad" @error="mediaImageError" alt="series image">
                             <div class="nf-media-fallback" :class="{ show: !channel.logo }">{{ channel.name }}</div>
                             <div class="nf-media-gradient"></div>
                             <div class="nf-card-title nf-media-title">
@@ -226,7 +255,7 @@
                             <div class="nf-card-title">Load More</div>
                         </button>
                         <button v-if="isModeState('series','episodes')" v-for="episode in visibleModeEpisodes('series')" :key="'series-ep-' + (episode.channelId || episode.id)" class="nf-card nf-card-media" @click="handleModeSelection('series', episode)">
-                            <img v-if="episode.logo" class="nf-media-image" :src="episode.logo" loading="lazy" @error="mediaImageError" alt="episode image">
+                            <img v-if="episode.logo" class="nf-media-image" :src="episode.logo" loading="lazy" @load="mediaImageLoad" @error="mediaImageError" alt="episode image">
                             <div class="nf-media-fallback" :class="{ show: !episode.logo }">{{ episode.name }}</div>
                             <div class="nf-media-gradient"></div>
                             <div class="nf-card-title nf-media-title">
@@ -265,7 +294,7 @@
                 <div class="nf-series-page">
                     <div class="nf-series-hero">
                         <div class="nf-series-poster-wrap">
-                            <img v-if="getVodDetail() && getVodDetail().cover" class="nf-series-poster" :src="getVodDetail().cover" @error="mediaImageError" alt="vod poster">
+                            <img v-if="getVodDetail() && getVodDetail().cover" class="nf-series-poster" :src="getVodDetail().cover" @load="mediaImageLoad" @error="mediaImageError" alt="vod poster">
                             <div v-else class="nf-series-poster-fallback">No Poster</div>
                         </div>
                         <div class="nf-series-meta">
@@ -309,7 +338,7 @@
                 <div class="nf-series-page">
                     <div class="nf-series-hero">
                         <div class="nf-series-poster-wrap">
-                            <img v-if="getSeriesDetail() && getSeriesDetail().cover" class="nf-series-poster" :src="getSeriesDetail().cover" @error="mediaImageError" alt="series poster">
+                            <img v-if="getSeriesDetail() && getSeriesDetail().cover" class="nf-series-poster" :src="getSeriesDetail().cover" @load="mediaImageLoad" @error="mediaImageError" alt="series poster">
                             <div v-else class="nf-series-poster-fallback">No Poster</div>
                         </div>
                         <div class="nf-series-meta">
@@ -335,6 +364,10 @@
                     <div class="nf-row-title mt-3 mb-2">
                         <h6 class="nf-episodes-title">Episodes</h6>
                     </div>
+                    <div v-if="isModeLoading('series')" class="nf-empty-card mb-2">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Loading artwork and metadata...
+                    </div>
                     <div v-if="seriesSeasonTabs.length > 0" class="nf-season-tabs">
                         <button
                                 v-for="tab in seriesSeasonTabs"
@@ -357,7 +390,7 @@
                                 @click="handleModeSelection('series', episode)">
                             <div class="nf-episode-index">{{ idx + 1 }}</div>
                             <div class="nf-episode-thumb-wrap">
-                                <img v-if="episode.logo" class="nf-episode-thumb" :src="episode.logo" @error="mediaImageError" alt="episode image">
+                                <img v-if="episode.logo" class="nf-episode-thumb" :src="episode.logo" @load="mediaImageLoad" @error="mediaImageError" alt="episode image">
                                 <div class="nf-episode-thumb-fallback" :class="{ show: !episode.logo }">{{ episode.name }}</div>
                             </div>
                             <div class="nf-episode-main">
@@ -388,6 +421,11 @@
         <div class="nf-loading-box">
             <div class="spinner-border text-light" role="status"></div>
             <div class="nf-loading-text">{{ busyMessage }}</div>
+        </div>
+    </div>
+    <div v-if="playbackError && !isPlaying" class="nf-loading-overlay" role="alert" aria-live="assertive">
+        <div class="nf-loading-box">
+            <div class="nf-loading-text text-danger">{{ playbackError }}</div>
         </div>
     </div>
 
@@ -421,6 +459,40 @@
                                     <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchVideoTrack, track.id)">
                                         {{ track.height }}p
                                         <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-link text-white me-2" type="button" id="audioMenuButtonPopup" data-bs-toggle="dropdown" aria-expanded="false" title="Audio tracks">
+                                <i class="bi bi-music-note-list"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="audioMenuButtonPopup">
+                                <li v-if="!audioTracks || audioTracks.length === 0"><span class="dropdown-item-text text-muted">No audio tracks</span></li>
+                                <li v-for="track in audioTracks" :key="'audio-popup-' + track.id">
+                                    <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchAudioTrack, track.id)">
+                                        {{ track.language || 'Audio' }}<span v-if="track.label"> · {{ track.label }}</span>
+                                        <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-link text-white me-2" type="button" id="subtitleMenuButtonPopup" data-bs-toggle="dropdown" aria-expanded="false" title="Subtitles">
+                                <i class="bi bi-badge-cc"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="subtitleMenuButtonPopup">
+                                <li>
+                                    <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchTextTrack, 'off')">
+                                        Off
+                                        <span v-if="selectedTextTrackId === 'off'" class="badge bg-primary ms-2">Active</span>
+                                    </a>
+                                </li>
+                                <li v-if="!textTracks || textTracks.length === 0"><span class="dropdown-item-text text-muted">No subtitles</span></li>
+                                <li v-for="track in textTracks" :key="'sub-popup-' + track.id">
+                                    <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchTextTrack, track.id)">
+                                        {{ track.language || 'Subtitle' }}<span v-if="track.label"> · {{ track.label }}</span>
+                                        <span v-if="String(selectedTextTrackId) === String(track.id)" class="badge bg-primary ms-2">Active</span>
                                     </a>
                                 </li>
                             </ul>

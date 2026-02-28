@@ -2,6 +2,8 @@
     const statusEl = document.getElementById('status');
     const videoEl = document.getElementById('video');
     const reloadBtn = document.getElementById('reload-btn');
+    const audioSelectEl = document.getElementById('audio-select');
+    const subtitleSelectEl = document.getElementById('subtitle-select');
     let shakaPlayer = null;
 
     const setStatus = (message) => {
@@ -107,6 +109,53 @@
         }
     };
 
+    const resetTrackMenus = () => {
+        if (audioSelectEl) {
+            audioSelectEl.innerHTML = '<option value="">Audio</option>';
+            audioSelectEl.disabled = true;
+        }
+        if (subtitleSelectEl) {
+            subtitleSelectEl.innerHTML = '<option value="off">Subtitles Off</option>';
+            subtitleSelectEl.disabled = true;
+        }
+    };
+
+    const populateTrackMenus = () => {
+        if (!shakaPlayer) return;
+
+        if (audioSelectEl) {
+            const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
+            const audioTracks = variants
+                .filter(track => !track.audioOnly)
+                .filter((track, idx, arr) => arr.findIndex(other =>
+                    String(other.language || '') === String(track.language || '')
+                    && String(other.label || '') === String(track.label || '')
+                    && String(other.audioCodec || '') === String(track.audioCodec || '')
+                ) === idx);
+            audioSelectEl.innerHTML = '<option value="">Audio</option>';
+            for (const track of audioTracks) {
+                const option = document.createElement('option');
+                option.value = String(track.id);
+                option.textContent = `${track.language || 'Audio'}${track.label ? ` - ${track.label}` : ''}`;
+                if (track.active) option.selected = true;
+                audioSelectEl.appendChild(option);
+            }
+            audioSelectEl.disabled = audioTracks.length === 0;
+        }
+
+        if (subtitleSelectEl) {
+            const textTracks = shakaPlayer.getTextTracks ? (shakaPlayer.getTextTracks() || []) : [];
+            subtitleSelectEl.innerHTML = '<option value="off">Subtitles Off</option>';
+            for (const track of textTracks) {
+                const option = document.createElement('option');
+                option.value = String(track.id);
+                option.textContent = `${track.language || 'Subtitle'}${track.label ? ` - ${track.label}` : ''}`;
+                subtitleSelectEl.appendChild(option);
+            }
+            subtitleSelectEl.disabled = textTracks.length === 0;
+        }
+    };
+
     const loadShaka = async (responseData) => {
         if (!window.shaka || !window.shaka.Player) {
             throw new Error('Shaka Player is not available.');
@@ -134,6 +183,7 @@
         }
 
         await shakaPlayer.load(responseData.url);
+        populateTrackMenus();
         await ensurePlaying();
     };
 
@@ -173,6 +223,14 @@
             setStatus('Unable to play channel: ' + (e?.message || String(e)));
         }
     };
+
+    if (videoEl) {
+        videoEl.addEventListener('error', () => {
+            const mediaError = videoEl.error;
+            const code = mediaError?.code ? ` (code ${mediaError.code})` : '';
+            setStatus(`Playback failed${code}.`);
+        });
+    }
 
     const clearWebCacheAndReload = async () => {
         try {
@@ -230,6 +288,34 @@
         });
     }
 
+    if (audioSelectEl) {
+        audioSelectEl.addEventListener('change', () => {
+            if (!shakaPlayer) return;
+            const selected = String(audioSelectEl.value || '');
+            if (!selected) return;
+            const track = (shakaPlayer.getVariantTracks ? shakaPlayer.getVariantTracks() : []).find(t => String(t.id) === selected);
+            if (track) {
+                shakaPlayer.selectVariantTrack(track, true);
+            }
+        });
+    }
+
+    if (subtitleSelectEl) {
+        subtitleSelectEl.addEventListener('change', async () => {
+            if (!shakaPlayer) return;
+            const selected = String(subtitleSelectEl.value || 'off');
+            if (selected === 'off') {
+                await shakaPlayer.setTextTrackVisibility(false);
+                return;
+            }
+            const track = (shakaPlayer.getTextTracks ? shakaPlayer.getTextTracks() : []).find(t => String(t.id) === selected);
+            if (track) {
+                shakaPlayer.selectTextTrack(track);
+                await shakaPlayer.setTextTrackVisibility(true);
+            }
+        });
+    }
+
     window.addEventListener('beforeunload', async () => {
         if (shakaPlayer) {
             try {
@@ -241,5 +327,6 @@
         }
     });
 
+    resetTrackMenus();
     start();
 })();
