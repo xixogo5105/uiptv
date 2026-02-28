@@ -8,6 +8,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 
 public class SegmentedProgressBar extends HBox {
+    public enum SegmentStatus {
+        SUCCESS,
+        WARNING,
+        FAILURE
+    }
 
     private int currentIndex = 0;
 
@@ -40,13 +45,26 @@ public class SegmentedProgressBar extends HBox {
     }
 
     public void updateSegment(int index, boolean success) {
+        updateSegment(index, success ? SegmentStatus.SUCCESS : SegmentStatus.FAILURE);
+    }
+
+    public void updateSegment(int index, SegmentStatus status) {
         Platform.runLater(() -> {
             if (index >= 0 && index < getChildren().size()) {
                 Node node = getChildren().get(index);
                 if (node instanceof Region) {
-                    String color = success ? "#4CAF50" : "#F44336";
+                    SegmentStatus effective = status == null ? SegmentStatus.FAILURE : status;
+                    String color = switch (effective) {
+                        case SUCCESS -> "#4CAF50";
+                        case WARNING -> "#F59E0B";
+                        case FAILURE -> "#F44336";
+                    };
                     node.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 0;");
-                    node.getStyleClass().add(success ? "success" : "failure");
+                    node.getStyleClass().add(switch (effective) {
+                        case SUCCESS -> "success";
+                        case WARNING -> "warning";
+                        case FAILURE -> "failure";
+                    });
                 }
             }
         });

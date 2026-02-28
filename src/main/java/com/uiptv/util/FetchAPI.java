@@ -5,7 +5,6 @@ import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import org.json.JSONObject;
 
-import java.net.HttpURLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -36,7 +35,7 @@ public class FetchAPI {
             HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null);
 
             httpLog(requestUrl, response, params);
-            if (response.statusCode() == HttpURLConnection.HTTP_OK) {
+            if (response.statusCode() == HttpUtil.STATUS_OK) {
                 return response.body();
             }
         } catch (Exception ex) {

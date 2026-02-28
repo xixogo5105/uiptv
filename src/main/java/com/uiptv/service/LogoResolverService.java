@@ -1,13 +1,12 @@
 package com.uiptv.service;
 
+import com.uiptv.util.HttpUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,14 +94,11 @@ public class LogoResolverService {
         }
         refreshInProgress = true;
         try {
-            HttpURLConnection connection = (HttpURLConnection) new URL(CHANNELS_CATALOG_URL).openConnection();
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(12000);
-            connection.setRequestMethod("GET");
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(CHANNELS_CATALOG_URL, null, "GET");
+            if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return;
             }
-            String json = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String json = response.body();
             JSONArray channels = new JSONArray(json);
             Map<String, String> logoByChannelId = loadLogosByChannelId();
 
@@ -144,14 +140,11 @@ public class LogoResolverService {
     private Map<String, String> loadLogosByChannelId() {
         ConcurrentHashMap<String, String> logoById = new ConcurrentHashMap<>();
         try {
-            HttpURLConnection connection = (HttpURLConnection) new URL(LOGOS_CATALOG_URL).openConnection();
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(12000);
-            connection.setRequestMethod("GET");
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(LOGOS_CATALOG_URL, null, "GET");
+            if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return logoById;
             }
-            String csv = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String csv = response.body();
             String[] lines = csv.split("\\r?\\n");
             for (int i = 1; i < lines.length; i++) {
                 String line = lines[i];

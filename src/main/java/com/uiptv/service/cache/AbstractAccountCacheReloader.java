@@ -85,12 +85,30 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         try {
             for (Account.AccountAction mode : List.of(vod, series)) {
                 account.setAction(mode);
-                List<Category> categories = CategoryService.getInstance().get(account, false, logger);
-                saveVodOrSeriesCategories(account, categories);
+                try {
+                    List<Category> categories = CategoryService.getInstance().get(account, false, logger);
+                    saveVodOrSeriesCategories(account, categories);
+                } catch (Exception e) {
+                    log(logger, "Global " + mode.name().toUpperCase() + " category list failed: " + shortReason(e));
+                }
             }
         } finally {
             account.setAction(original);
         }
+    }
+
+    private String shortReason(Exception e) {
+        if (e == null) {
+            return "unknown error";
+        }
+        String msg = e.getMessage();
+        if (msg == null && e.getCause() != null) {
+            msg = e.getCause().getMessage();
+        }
+        if (isBlank(msg)) {
+            return e.getClass().getSimpleName();
+        }
+        return msg;
     }
 
     protected void saveVodOrSeriesCategories(Account account, List<Category> categories) {

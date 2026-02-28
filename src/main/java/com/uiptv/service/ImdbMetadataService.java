@@ -1,12 +1,9 @@
 package com.uiptv.service;
 
+import com.uiptv.util.HttpUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -660,21 +657,13 @@ public class ImdbMetadataService {
 
     private String httpGet(String url) {
         try {
-            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(10000);
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            Map<String, String> headers = new HashMap<>();
+            headers.put("User-Agent", "Mozilla/5.0");
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(url, headers, "GET");
+            if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return "";
             }
-            try (InputStream in = conn.getInputStream()) {
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                byte[] buffer = new byte[4096];
-                int n;
-                while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
-                return out.toString(StandardCharsets.UTF_8);
-            }
+            return response.body();
         } catch (Exception ignored) {
             return "";
         }

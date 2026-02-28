@@ -10,15 +10,16 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
+import com.uiptv.util.HttpUtil;
 import com.uiptv.shared.Episode;
 import com.uiptv.util.ServerUrlUtil;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -302,23 +303,20 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
 
         for (int i = 0; i < 5; i++) {
-            HttpURLConnection conn = null;
             try {
-                URL url = new URL(current);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setInstanceFollowRedirects(false);
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("User-Agent", "UIPTV/1.0");
-                conn.connect();
-
-                int status = conn.getResponseCode();
+                HttpUtil.HttpResult response = HttpUtil.sendRequest(
+                        current,
+                        Map.of("User-Agent", "UIPTV/1.0"),
+                        "GET",
+                        null,
+                        new HttpUtil.RequestOptions(false, false)
+                );
+                int status = response.statusCode();
                 if (status < 300 || status > 399) {
                     return current;
                 }
 
-                String location = conn.getHeaderField("Location");
+                String location = firstHeader(response.responseHeaders(), "Location");
                 if (isBlank(location)) {
                     return forceHttpChain && current.toLowerCase().startsWith("https://")
                             ? "http://" + current.substring("https://".length())
@@ -335,13 +333,24 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 }
             } catch (Exception ignored) {
                 return current;
-            } finally {
-                if (conn != null) {
-                    conn.disconnect();
-                }
             }
         }
         return current;
+    }
+
+    private String firstHeader(Map<String, List<String>> headers, String name) {
+        if (headers == null || isBlank(name)) {
+            return "";
+        }
+        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
+                List<String> values = entry.getValue();
+                if (values != null && !values.isEmpty() && isNotBlank(values.get(0))) {
+                    return values.get(0);
+                }
+            }
+        }
+        return "";
     }
 
     private boolean shouldForceWebHlsForUrl(String mode, String url) {

@@ -6,7 +6,6 @@ import org.json.JSONObject;
 
 import javax.net.ssl.SSLException;
 import java.net.ConnectException;
-import java.net.HttpURLConnection;
 import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
@@ -53,7 +52,7 @@ public class PingStalkerPortal {
 
             HttpUtil.HttpResult response = HttpUtil.sendRequest(pingUrl, headers, httpMethod);
 
-            if (response.statusCode() == HttpURLConnection.HTTP_OK) {
+            if (response.statusCode() == HttpUtil.STATUS_OK) {
                 String discoveredApi = parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
                 String defaultApi = getDefaultApiEndpoint(url);
                 if (isNotBlank(discoveredApi) && !discoveredApi.equalsIgnoreCase(defaultApi)) {

@@ -3,12 +3,11 @@ package com.uiptv.util;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.widget.UIptvAlert;
 
-import javax.net.ssl.HttpsURLConnection;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
+import java.io.InputStream;
+import java.io.StringReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -29,17 +28,15 @@ public class M3U8Parser {
 
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
         try {
-            if (m3u8Url.getProtocol().startsWith("https")) {
-                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
-            } else if (m3u8Url.getProtocol().startsWith("http")) {
-                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return parseCategory(new BufferedReader(new InputStreamReader(connection.getInputStream())));
+            String protocol = m3u8Url.getProtocol();
+            if (protocol != null && protocol.toLowerCase().startsWith("http")) {
+                HttpUtil.HttpResult response = HttpUtil.sendRequest(m3u8Url.toString(), null, "GET");
+                return parseCategory(new BufferedReader(new StringReader(response.body())));
             }
-            return parseCategory(new BufferedReader(new InputStreamReader(m3u8Url.openStream())));
+            return parseCategory(new BufferedReader(new StringReader(readNonHttpUrl(m3u8Url))));
         } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -54,18 +51,15 @@ public class M3U8Parser {
 
     public static List<PlaylistEntry> parseChannelUrlM3U8(URL m3u8Url) {
         try {
-            if (m3u8Url.getProtocol().startsWith("https")) {
-                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
+            String protocol = m3u8Url.getProtocol();
+            if (protocol != null && protocol.toLowerCase().startsWith("http")) {
+                HttpUtil.HttpResult response = HttpUtil.sendRequest(m3u8Url.toString(), null, "GET");
+                return parseM3U8(new BufferedReader(new StringReader(response.body())));
             }
-            if (m3u8Url.getProtocol().startsWith("http")) {
-                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return parseM3U8(new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)));
-            }
-            return parseM3U8(new BufferedReader(new InputStreamReader(m3u8Url.openStream())));
+            return parseM3U8(new BufferedReader(new StringReader(readNonHttpUrl(m3u8Url))));
         } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -269,5 +263,11 @@ public class M3U8Parser {
             return true;
         }
         return candidate.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
+    }
+
+    private static String readNonHttpUrl(URL source) throws IOException {
+        try (InputStream inputStream = source.openStream()) {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 }

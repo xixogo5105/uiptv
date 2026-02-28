@@ -39,7 +39,23 @@ public class ReloadCachePopup extends VBox {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
 
     private enum AccountRunStatus {
-        QUEUED, RUNNING, DONE, FAILED, EMPTY
+        QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY
+    }
+
+    private enum SummaryLevel {
+        GOOD, YELLOW, BAD
+    }
+
+    private static final class SummaryStatus {
+        private final SummaryLevel level;
+        private final int channelsLoaded;
+        private final List<String> reasons;
+
+        private SummaryStatus(SummaryLevel level, int channelsLoaded, List<String> reasons) {
+            this.level = level;
+            this.channelsLoaded = channelsLoaded;
+            this.reasons = reasons;
+        }
     }
 
     private final Stage stage;
@@ -56,6 +72,7 @@ public class ReloadCachePopup extends VBox {
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
     private final List<String> latestSummaryLines = new ArrayList<>();
+    private final Map<String, SummaryStatus> latestAccountSummaries = new LinkedHashMap<>();
     private final ReloadRunOutcomeTracker runOutcomeTracker = new ReloadRunOutcomeTracker();
     private final Runnable onAccountsDeleted;
     private VBox accountColumn;
@@ -215,6 +232,14 @@ public class ReloadCachePopup extends VBox {
                 }
                 sb.append(panel.getAccountLabel()).append("\n");
                 panel.getLogs().forEach(line -> sb.append("  ").append(line).append("\n"));
+                SummaryStatus status = latestAccountSummaries.get(accountId);
+                if (status != null) {
+                    sb.append("  Summary: ").append(status.level.name())
+                            .append(" (channels=").append(status.channelsLoaded).append(")\n");
+                    if (!status.reasons.isEmpty()) {
+                        sb.append("  Reasons: ").append(String.join(" | ", status.reasons)).append("\n");
+                    }
+                }
                 sb.append("\n");
             }
             if (!latestSummaryLines.isEmpty()) {
@@ -329,6 +354,7 @@ public class ReloadCachePopup extends VBox {
 
         List<Account> processedAccounts = new ArrayList<>();
         Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
+        Map<String, SummaryStatus> summaryStatusByAccountId = new LinkedHashMap<>();
         int totalFetchedChannels = 0;
 
         for (int i = 0; i < total; i++) {
@@ -339,15 +365,41 @@ public class ReloadCachePopup extends VBox {
             boolean success = false;
             boolean failed = false;
             int fetchedChannelCount = 0;
+            List<String> accountIssues = new ArrayList<>();
+            final boolean[] globalFailurePrompted = {false};
             try {
-                cacheService.reloadCache(account, message -> logMessage(account, message));
+                cacheService.reloadCache(account, message -> {
+                    logMessage(account, message);
+                    String issue = extractIssueReason(account, message);
+                    if (issue != null) {
+                        addIssue(accountIssues, issue);
+                    }
+                    if (globalFailurePrompted[0]) {
+                        return;
+                    }
+                    String failureReason = extractGlobalFailureReason(account, message);
+                    if (failureReason == null) {
+                        return;
+                    }
+                    globalFailurePrompted[0] = true;
+                    boolean carryOn = promptCarryOnAfterGlobalFailure(account, failureReason);
+                    if (!carryOn) {
+                        throw new SkipAccountReloadException();
+                    }
+                });
                 fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
                 if (fetchedChannelCount <= 0) {
                     logMessage(account, "No channels found.");
+                    addIssue(accountIssues, "No channels loaded.");
                 }
+            } catch (SkipAccountReloadException e) {
+                failed = true;
+                logMessage(account, "Marked bad and skipped after global call failure.");
+                addIssue(accountIssues, "Marked bad by user after global call failure.");
             } catch (Exception e) {
                 failed = true;
                 logMessage(account, "Reload failed: " + shortFailure(e.getMessage()));
+                addIssue(accountIssues, "Exception: " + shortFailure(e.getMessage()));
             }
 
             if (runOutcomeTracker.hasCriticalFailure(account.getDbId())) {
@@ -358,12 +410,26 @@ public class ReloadCachePopup extends VBox {
                 totalFetchedChannels += fetchedChannelCount;
             }
 
-            progressBar.updateSegment(i, success);
-            AccountRunStatus finalStatus = success
-                    ? AccountRunStatus.DONE
-                    : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY);
+            int existingChannelCount = cacheService.getChannelCountForAccount(account.getDbId());
+            int availableChannelCount = Math.max(fetchedChannelCount, existingChannelCount);
+
+            SummaryStatus summaryStatus = buildSummaryStatus(availableChannelCount, failed, accountIssues);
+            summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
+
+            SegmentedProgressBar.SegmentStatus segmentStatus = switch (summaryStatus.level) {
+                case GOOD -> SegmentedProgressBar.SegmentStatus.SUCCESS;
+                case YELLOW -> SegmentedProgressBar.SegmentStatus.WARNING;
+                case BAD -> SegmentedProgressBar.SegmentStatus.FAILURE;
+            };
+            progressBar.updateSegment(i, segmentStatus);
+
+            AccountRunStatus finalStatus = switch (summaryStatus.level) {
+                case GOOD -> AccountRunStatus.DONE;
+                case YELLOW -> AccountRunStatus.YELLOW;
+                case BAD -> (availableChannelCount > 0 ? AccountRunStatus.YELLOW : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY));
+            };
             finalStatuses.put(account.getDbId(), finalStatus);
-            updateAccountStatus(account, finalStatus, fetchedChannelCount);
+            updateAccountStatus(account, finalStatus, availableChannelCount);
         }
 
         int runTotalFetchedChannels = totalFetchedChannels;
@@ -371,27 +437,32 @@ public class ReloadCachePopup extends VBox {
             LogDisplayUI.addLog("Reload run completed.");
             reloadButton.setVisible(true);
             loadingIndicator.setVisible(false);
+            latestAccountSummaries.clear();
+            latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, runTotalFetchedChannels);
 
-            List<Account> emptyAccounts = processedAccounts.stream()
-                    .filter(a -> cacheService.getChannelCountForAccount(a.getDbId()) == 0)
-                    .collect(Collectors.toList());
-
-            if (!emptyAccounts.isEmpty()) {
-                showDeleteEmptyAccountsPopup(emptyAccounts);
+            Map<String, SummaryStatus> problematicAccounts = new LinkedHashMap<>();
+            for (Account account : processedAccounts) {
+                SummaryStatus status = summaryStatusByAccountId.get(account.getDbId());
+                if (status != null && status.level != SummaryLevel.GOOD) {
+                    problematicAccounts.put(account.getDbId(), status);
+                }
+            }
+            if (!problematicAccounts.isEmpty()) {
+                showDeleteProblemAccountsPopup(processedAccounts, problematicAccounts);
             }
         });
     }
 
-    private void showDeleteEmptyAccountsPopup(List<Account> emptyAccounts) {
+    private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
         Stage popupStage = new Stage();
         popupStage.initModality(Modality.APPLICATION_MODAL);
-        popupStage.setTitle("Delete Empty Accounts");
+        popupStage.setTitle("Delete Problematic Accounts");
 
         VBox root = new VBox(10);
         root.setPadding(new Insets(20));
 
-        Label warningLabel = new Label("The following accounts have 0 channels. Select the ones you want to delete.");
+        Label warningLabel = new Label("The following accounts are flagged as BAD or YELLOW. Select the ones you want to delete.");
         warningLabel.setWrapText(true);
         warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
 
@@ -405,10 +476,26 @@ public class ReloadCachePopup extends VBox {
             if (node instanceof CheckBox) ((CheckBox) node).setSelected(selectAll.isSelected());
         }));
 
-        for (Account account : emptyAccounts) {
-            CheckBox cb = new CheckBox(account.getAccountName() + " (" + account.getType().getDisplay() + ")");
-            cb.setUserData(account);
-            accountsBox.getChildren().add(cb);
+        List<Account> badAccounts = processedAccounts.stream()
+                .filter(a -> problematicAccounts.containsKey(a.getDbId()))
+                .filter(a -> problematicAccounts.get(a.getDbId()).level == SummaryLevel.BAD)
+                .collect(Collectors.toList());
+        List<Account> yellowAccounts = processedAccounts.stream()
+                .filter(a -> problematicAccounts.containsKey(a.getDbId()))
+                .filter(a -> problematicAccounts.get(a.getDbId()).level == SummaryLevel.YELLOW)
+                .collect(Collectors.toList());
+
+        if (!badAccounts.isEmpty()) {
+            Label badLabel = new Label("BAD (Red)");
+            badLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
+            accountsBox.getChildren().add(badLabel);
+            addProblemAccountsToDeleteBox(accountsBox, badAccounts, problematicAccounts);
+        }
+        if (!yellowAccounts.isEmpty()) {
+            Label yellowLabel = new Label("YELLOW (Partially successful)");
+            yellowLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
+            accountsBox.getChildren().add(yellowLabel);
+            addProblemAccountsToDeleteBox(accountsBox, yellowAccounts, problematicAccounts);
         }
 
         Button deleteButton = new Button("Delete Selected");
@@ -452,11 +539,25 @@ public class ReloadCachePopup extends VBox {
         popupStage.show();
     }
 
+    private void addProblemAccountsToDeleteBox(VBox accountsBox, List<Account> accounts, Map<String, SummaryStatus> problematicAccounts) {
+        for (Account account : accounts) {
+            SummaryStatus status = problematicAccounts.get(account.getDbId());
+            String reasons = status == null || status.reasons.isEmpty()
+                    ? "No reason captured."
+                    : String.join(" | ", status.reasons);
+            CheckBox cb = new CheckBox(account.getAccountName() + " (" + account.getType().getDisplay() + ") - " + reasons);
+            cb.setWrapText(true);
+            cb.setUserData(account);
+            accountsBox.getChildren().add(cb);
+        }
+    }
+
     private void prepareAccountLogPanels(List<Account> selectedAccounts) {
         runOnFxThreadAndWait(() -> {
             accountLogPanels.clear();
             runAccountOrder.clear();
             latestSummaryLines.clear();
+            latestAccountSummaries.clear();
             runOutcomeTracker.clear();
             currentRunningAccountId = null;
             logVBox.getChildren().clear();
@@ -473,37 +574,52 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void appendRunSummary(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses, int totalSuccessChannels) {
-        int successCount = 0;
-        int failedCount = 0;
-        int emptyCount = 0;
+        if (processedAccounts.size() == 1) {
+            latestSummaryLines.clear();
+            return;
+        }
 
-        List<String> failedNames = new ArrayList<>();
-        List<String> emptyNames = new ArrayList<>();
+        int successCount = 0;
+        int yellowCount = 0;
+        int badCount = 0;
+
+        List<String> yellowNames = new ArrayList<>();
+        List<String> badNames = new ArrayList<>();
 
         for (Account account : processedAccounts) {
-            AccountRunStatus status = finalStatuses.get(account.getDbId());
-            if (status == AccountRunStatus.DONE) {
+            SummaryStatus summary = latestAccountSummaries.get(account.getDbId());
+            if (summary == null) {
+                AccountRunStatus status = finalStatuses.get(account.getDbId());
+                if (status == AccountRunStatus.DONE) {
+                    successCount++;
+                } else {
+                    badCount++;
+                    badNames.add(account.getAccountName());
+                }
+                continue;
+            }
+            if (summary.level == SummaryLevel.GOOD) {
                 successCount++;
-            } else if (status == AccountRunStatus.FAILED) {
-                failedCount++;
-                failedNames.add(account.getAccountName());
-            } else if (status == AccountRunStatus.EMPTY) {
-                emptyCount++;
-                emptyNames.add(account.getAccountName());
+            } else if (summary.level == SummaryLevel.YELLOW) {
+                yellowCount++;
+                yellowNames.add(account.getAccountName());
+            } else {
+                badCount++;
+                badNames.add(account.getAccountName());
             }
         }
 
         latestSummaryLines.clear();
         latestSummaryLines.add("Completed: " + processedAccounts.size() + "/" + processedAccounts.size());
-        latestSummaryLines.add("Successful: " + successCount);
-        latestSummaryLines.add("Failed: " + failedCount);
-        latestSummaryLines.add("Empty: " + emptyCount);
+        latestSummaryLines.add("Good: " + successCount);
+        latestSummaryLines.add("Yellow (Partial): " + yellowCount);
+        latestSummaryLines.add("Bad: " + badCount);
         latestSummaryLines.add("Channels loaded: " + totalSuccessChannels);
-        if (!failedNames.isEmpty()) {
-            latestSummaryLines.add("Failed accounts: " + String.join(", ", failedNames));
+        if (!yellowNames.isEmpty()) {
+            latestSummaryLines.add("Yellow accounts: " + String.join(", ", yellowNames));
         }
-        if (!emptyNames.isEmpty()) {
-            latestSummaryLines.add("Empty accounts: " + String.join(", ", emptyNames));
+        if (!badNames.isEmpty()) {
+            latestSummaryLines.add("Bad accounts: " + String.join(", ", badNames));
         }
 
         VBox summaryBox = new VBox(4);
@@ -531,13 +647,6 @@ public class ReloadCachePopup extends VBox {
     private void setRunningAccount(Account currentAccount, int current, int total) {
         runOnFxThreadAndWait(() -> {
             String nextAccountId = currentAccount.getDbId();
-
-            if (currentRunningAccountId != null && !currentRunningAccountId.equals(nextAccountId)) {
-                AccountLogPanel previousPanel = accountLogPanels.get(currentRunningAccountId);
-                if (previousPanel != null) {
-                    previousPanel.setExpanded(false);
-                }
-            }
 
             AccountLogPanel currentPanel = accountLogPanels.get(nextAccountId);
             if (currentPanel != null) {
@@ -594,11 +703,17 @@ public class ReloadCachePopup extends VBox {
         }
         if (trimmed.startsWith("No fresh cached categories found")) {
             String mode = modeLabel(account);
+            if ("VOD".equals(mode) || "SERIES".equals(mode)) {
+                return "";
+            }
             return mode == null ? "Categories cache miss -> fetching."
                     : mode + " Categories: cache miss, fetching.";
         }
         if (trimmed.startsWith("No cached categories found")) {
             String mode = modeLabel(account);
+            if ("VOD".equals(mode) || "SERIES".equals(mode)) {
+                return "";
+            }
             return mode == null ? "No cached categories -> fetching."
                     : mode + " Categories: no cache, fetching.";
         }
@@ -701,11 +816,145 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith("No channels returned by get_all_channels")) {
             return "Global channel list empty, trying fallback.";
         }
+        if (trimmed.startsWith("Global Stalker get_all_channels failed")) {
+            return "Global channel list failed, trying fallback.";
+        }
         if (trimmed.startsWith("Last-resort fetch succeeded. Collected")) {
             Integer count = extractFirstNumber(trimmed);
             return count == null ? "Fallback fetch succeeded." : "Fallback fetch succeeded: " + count + " channels.";
         }
+        if (trimmed.startsWith("Global VOD category list failed:")) {
+            return "VOD category list failed.";
+        }
+        if (trimmed.startsWith("Global SERIES category list failed:")) {
+            return "SERIES category list failed.";
+        }
+        if (trimmed.equals("Marked bad and skipped after global call failure.")) {
+            return "Marked bad and moved to next account.";
+        }
         return trimmed;
+    }
+
+    private String extractGlobalFailureReason(Account account, String message) {
+        if (account == null || message == null) {
+            return null;
+        }
+        if (account.getType() != AccountType.XTREME_API && account.getType() != AccountType.STALKER_PORTAL) {
+            return null;
+        }
+        String trimmed = message.trim();
+        if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
+            return "ITV global call failed for Xtreme.";
+        }
+        if (trimmed.startsWith("Global Stalker get_all_channels failed")) {
+            return "ITV get_all_channels failed for Stalker Portal.";
+        }
+        if (trimmed.startsWith("Global VOD category list failed:")) {
+            return "VOD category list call failed.";
+        }
+        if (trimmed.startsWith("Global SERIES category list failed:")) {
+            return "SERIES category list call failed.";
+        }
+        if (trimmed.startsWith("Network error while loading categories")) {
+            String mode = modeLabel(account);
+            if ("VOD".equals(mode) || "SERIES".equals(mode)) {
+                return mode + " category list call failed.";
+            }
+        }
+        return null;
+    }
+
+    private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues) {
+        List<String> normalizedReasons = issues == null ? new ArrayList<>() : new ArrayList<>(issues);
+        if (fetchedChannelCount > 0) {
+            if (normalizedReasons.isEmpty() && !failed) {
+                return new SummaryStatus(SummaryLevel.GOOD, fetchedChannelCount, normalizedReasons);
+            }
+            return new SummaryStatus(SummaryLevel.YELLOW, fetchedChannelCount, normalizedReasons);
+        }
+        if (normalizedReasons.isEmpty()) {
+            normalizedReasons.add("No channels loaded.");
+        }
+        return new SummaryStatus(SummaryLevel.BAD, fetchedChannelCount, normalizedReasons);
+    }
+
+    private void addIssue(List<String> issues, String issue) {
+        if (issues == null || issue == null || issue.isBlank()) {
+            return;
+        }
+        if (!issues.contains(issue)) {
+            issues.add(issue);
+        }
+    }
+
+    private String extractIssueReason(Account account, String message) {
+        if (message == null) {
+            return null;
+        }
+        String trimmed = message.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.startsWith("Reload failed:")) {
+            return "Reload failed.";
+        }
+        if (trimmed.equals("Handshake failed.") || trimmed.startsWith("Handshake failed for")) {
+            return "Handshake failed.";
+        }
+        if (trimmed.startsWith("Network error while loading categories")) {
+            return "Network error while loading categories.";
+        }
+        if (trimmed.startsWith("Failed to parse channels")) {
+            return "Failed to parse channels.";
+        }
+        if (trimmed.startsWith("Last-resort fetch failed for category")) {
+            return "Fallback category fetch failed.";
+        }
+        if (trimmed.startsWith("No channels returned by get_all_channels")
+                || trimmed.startsWith("Global Stalker get_all_channels failed")) {
+            return "Global ITV channel call failed.";
+        }
+        if (trimmed.startsWith("Global Xtreme channel lookup failed")
+                || trimmed.startsWith("Global Xtreme channel lookup returned no channels")
+                || trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
+            return "Global Xtreme lookup failed.";
+        }
+        if (trimmed.startsWith("Global VOD category list failed:")) {
+            return "VOD category list failed.";
+        }
+        if (trimmed.startsWith("Global SERIES category list failed:")) {
+            return "SERIES category list failed.";
+        }
+        if (trimmed.equals("No channels found in any category. Keeping existing cache.")
+                || trimmed.equals("No channels found.")) {
+            String mode = modeLabel(account);
+            return (mode == null ? "No channels found." : mode + " no channels found.");
+        }
+        if (trimmed.equals("Marked bad and skipped after global call failure.")) {
+            return "Marked bad by user.";
+        }
+        return null;
+    }
+
+    private boolean promptCarryOnAfterGlobalFailure(Account account, String reason) {
+        final boolean[] carryOn = {true};
+        runOnFxThreadAndWait(() -> {
+            ButtonType carryOnButton = new ButtonType("Carry On", ButtonBar.ButtonData.YES);
+            ButtonType markBadButton = new ButtonType("Mark Bad & Next", ButtonBar.ButtonData.CANCEL_CLOSE);
+            Alert alert = new Alert(
+                    Alert.AlertType.CONFIRMATION,
+                    "Account: \"" + account.getAccountName() + "\"\n"
+                            + reason + "\n\nDo you want to continue this account run?",
+                    carryOnButton,
+                    markBadButton
+            );
+            alert.setHeaderText("Global Call Failure");
+            if (RootApplication.currentTheme != null) {
+                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+            }
+            carryOn[0] = alert.showAndWait().orElse(markBadButton) == carryOnButton;
+        });
+        return carryOn[0];
     }
 
     private Integer extractFirstNumber(String input) {
@@ -850,6 +1099,10 @@ public class ReloadCachePopup extends VBox {
                     statusLabel.setText(channelCount == null ? "Done" : "Done (" + channelCount + " channels)");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
                     break;
+                case YELLOW:
+                    statusLabel.setText(channelCount == null ? "Partial" : "Partial (" + channelCount + " channels)");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
+                    break;
                 case EMPTY:
                     statusLabel.setText("Empty (0 channels)");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
@@ -872,5 +1125,8 @@ public class ReloadCachePopup extends VBox {
                 setStatus(status, (Integer) null);
             }
         }
+    }
+
+    private static final class SkipAccountReloadException extends RuntimeException {
     }
 }

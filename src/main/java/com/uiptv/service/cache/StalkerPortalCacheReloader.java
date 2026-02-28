@@ -75,7 +75,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
 
         if (allChannels.isEmpty()) {
-            log(logger, "No channels returned by get_all_channels. Trying last-resort category-by-category fetch.");
+            log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
             allChannels = fetchAllChannelsByCategoryLastResort(account, officialCategories, logger);
             if (allChannels.isEmpty()) {
                 log(logger, "No channels found. Keeping existing cache.");

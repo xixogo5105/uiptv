@@ -6,41 +6,28 @@ import com.uiptv.model.Channel;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.shared.SeasonInfo;
+import com.uiptv.util.HttpUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import javax.net.ssl.HttpsURLConnection;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.uiptv.model.Account.AccountAction.series;
-import static com.uiptv.util.StringUtils.getXtremeStreamUrl;
+import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.nullSafeEncode;
 import static com.uiptv.util.StringUtils.safeGetString;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class XtremeParser {
     public static List<Category> parseCategories(Account account) {
         try {
-            if (!account.getM3u8Path().endsWith("/")) {
-                account.setM3u8Path(account.getM3u8Path() + "/");
-            }
-            URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=" + getCategoryAction(account.getAction()));
-            if (account.getM3u8Path().startsWith("https")) {
-                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return doParseCategories(readFullyAsString(connection.getInputStream(), "UTF-8"));
-            } else if (account.getM3u8Path().startsWith("http")) {
-                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return doParseCategories(readFullyAsString(connection.getInputStream(), "UTF-8"));
-            }
-            return doParseCategories(readFullyAsString(m3u8Url.openStream(), "UTF-8"));
+            return doParseCategories(fetchPlayerApi(account, getCategoryAction(account.getAction()), null));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -48,20 +35,9 @@ public class XtremeParser {
 
     public static List<Channel> parseChannels(String categoryId, Account account) {
         try {
-            if (!account.getM3u8Path().endsWith("/")) {
-                account.setM3u8Path(account.getM3u8Path() + "/");
-            }
-            URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=" + getChannelListAction(account.getAction()) + "&category_id=" + categoryId);
-            if (account.getM3u8Path().startsWith("https")) {
-                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
-            } else if (account.getM3u8Path().startsWith("http")) {
-                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
-            }
-            return doParseChannels(readFullyAsString(m3u8Url.openStream(), "UTF-8"), account);
+            Map<String, String> extraParams = new LinkedHashMap<>();
+            extraParams.put("category_id", categoryId);
+            return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -69,20 +45,7 @@ public class XtremeParser {
 
     public static List<Channel> parseAllChannels(Account account) {
         try {
-            if (!account.getM3u8Path().endsWith("/")) {
-                account.setM3u8Path(account.getM3u8Path() + "/");
-            }
-            URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=" + getChannelListAction(account.getAction()));
-            if (account.getM3u8Path().startsWith("https")) {
-                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
-            } else if (account.getM3u8Path().startsWith("http")) {
-                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(10000);
-                return doParseChannels(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
-            }
-            return doParseChannels(readFullyAsString(m3u8Url.openStream(), "UTF-8"), account);
+            return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), null), account);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -90,20 +53,9 @@ public class XtremeParser {
 
     public static EpisodeList parseEpisodes(String seriesId, Account account) {
         try {
-            if (!account.getM3u8Path().endsWith("/")) {
-                account.setM3u8Path(account.getM3u8Path() + "/");
-            }
-            URL m3u8Url = new URL(account.getM3u8Path() + "player_api.php?username=" + account.getUsername() + "&password=" + account.getPassword() + "&action=get_series_info&series_id=" + seriesId);
-            if (account.getM3u8Path().startsWith("https")) {
-                HttpsURLConnection connection = (HttpsURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(30000);
-                return doParseEpisodes(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
-            } else if (account.getM3u8Path().startsWith("http")) {
-                HttpURLConnection connection = (HttpURLConnection) m3u8Url.openConnection();
-                connection.setConnectTimeout(30000);
-                return doParseEpisodes(readFullyAsString(connection.getInputStream(), "UTF-8"), account);
-            }
-            return doParseEpisodes(readFullyAsString(m3u8Url.openStream(), "UTF-8"), account);
+            Map<String, String> extraParams = new LinkedHashMap<>();
+            extraParams.put("series_id", seriesId);
+            return doParseEpisodes(fetchPlayerApi(account, "get_series_info", extraParams), account);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -135,7 +87,7 @@ public class XtremeParser {
                         safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
                         safeGetString(jsonCategory, "name"),
                         null,
-                        getXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")),
+                        buildXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")),
                         null,
                         null,
                         null,
@@ -198,17 +150,111 @@ public class XtremeParser {
         return "get_live_streams";
     }
 
-    public static String readFullyAsString(InputStream inputStream, String encoding) throws IOException {
-        return readFully(inputStream).toString(encoding);
+    private static String fetchPlayerApi(Account account, String action, Map<String, String> extraParams) throws IOException {
+        List<String> baseUrlCandidates = baseUrlCandidates(account);
+        if (baseUrlCandidates.isEmpty()) {
+            throw new IOException("Xtreme base URL is blank.");
+        }
+
+        IOException lastIoException = null;
+        for (int index = 0; index < baseUrlCandidates.size(); index++) {
+            String baseUrl = baseUrlCandidates.get(index);
+            boolean hasMoreCandidates = index + 1 < baseUrlCandidates.size();
+            StringBuilder url = new StringBuilder(baseUrl)
+                    .append("player_api.php")
+                    .append("?username=").append(nullSafeEncode(account.getUsername()))
+                    .append("&password=").append(nullSafeEncode(account.getPassword()))
+                    .append("&action=").append(nullSafeEncode(action));
+
+            if (extraParams != null) {
+                for (Map.Entry<String, String> entry : extraParams.entrySet()) {
+                    url.append('&')
+                            .append(nullSafeEncode(entry.getKey()))
+                            .append('=')
+                            .append(nullSafeEncode(entry.getValue()));
+                }
+            }
+
+            try {
+                HttpUtil.HttpResult response = HttpUtil.sendRequest(url.toString(), null, "GET");
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    return response.body();
+                }
+                if (response.statusCode() == 404 && hasMoreCandidates) {
+                    continue;
+                }
+                throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
+            } catch (Exception e) {
+                if (e instanceof IOException ioException) {
+                    lastIoException = ioException;
+                } else {
+                    lastIoException = new IOException("Failed to call Xtreme API: " + e.getMessage(), e);
+                }
+                if (hasMoreCandidates) {
+                    continue;
+                }
+            }
+        }
+        throw lastIoException != null ? lastIoException : new IOException("Failed to call Xtreme API.");
     }
 
-    private static ByteArrayOutputStream readFully(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length = 0;
-        while ((length = inputStream.read(buffer)) != -1) {
-            baos.write(buffer, 0, length);
+    private static String normalizedBaseUrl(Account account) {
+        if (account == null) {
+            return "";
         }
-        return baos;
+        String fromM3uPath = normalizeBaseUrl(account.getM3u8Path());
+        if (isBlank(fromM3uPath)) {
+            return normalizeBaseUrl(account.getUrl());
+        }
+        return fromM3uPath;
+    }
+
+    private static List<String> baseUrlCandidates(Account account) {
+        Set<String> candidates = new LinkedHashSet<>();
+        if (account != null) {
+            String fromM3uPath = normalizeBaseUrl(account.getM3u8Path());
+            if (!isBlank(fromM3uPath)) {
+                candidates.add(fromM3uPath);
+            }
+            String fromUrl = normalizeBaseUrl(account.getUrl());
+            if (!isBlank(fromUrl)) {
+                candidates.add(fromUrl);
+            }
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private static String normalizeBaseUrl(String source) {
+        if (isBlank(source)) {
+            return "";
+        }
+        String trimmed = source.trim();
+        if (!trimmed.contains("://")) {
+            trimmed = "http://" + trimmed;
+        }
+        int playerApiIndex = trimmed.toLowerCase().indexOf("player_api.php");
+        if (playerApiIndex >= 0) {
+            trimmed = trimmed.substring(0, playerApiIndex);
+        }
+        if (!trimmed.endsWith("/")) {
+            trimmed += "/";
+        }
+        return trimmed;
+    }
+
+    private static String buildXtremeStreamUrl(Account account, String streamId, String extension) {
+        String baseUrl = normalizedBaseUrl(account);
+        if (isBlank(baseUrl) || isBlank(streamId)) {
+            return "";
+        }
+        String ext = isBlank(extension) ? "ts" : extension;
+        switch (account.getAction()) {
+            case vod:
+                return baseUrl + "movie/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + ext;
+            case series:
+                return baseUrl + "series/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + ext;
+            default:
+                return baseUrl + account.getUsername() + "/" + account.getPassword() + "/" + streamId;
+        }
     }
 }

@@ -35,14 +35,18 @@ public class XtremePlayerService implements AccountPlayerService {
             LogDisplayUI.addLog("Found channel cmd: " + fallbackCmd);
         }
 
-        String baseUrl = account.getUrl();
+        String baseUrl = account.getM3u8Path();
+        if (isBlank(baseUrl)) {
+            baseUrl = account.getUrl();
+        }
         if (isBlank(baseUrl)) {
             LogDisplayUI.addLog("Xtreme base URL is blank. Falling back to channel cmd.");
             return fallbackCmd;
         }
 
-        if (baseUrl.endsWith("player_api.php")) {
-            baseUrl = baseUrl.substring(0, baseUrl.length() - "player_api.php".length());
+        int playerApiIndex = baseUrl.indexOf("player_api.php");
+        if (playerApiIndex >= 0) {
+            baseUrl = baseUrl.substring(0, playerApiIndex);
         }
         if (!baseUrl.endsWith("/")) {
             baseUrl += "/";

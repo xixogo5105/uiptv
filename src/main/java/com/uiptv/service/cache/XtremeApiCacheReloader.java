@@ -48,15 +48,27 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
         Map<String, List<Channel>> channelsMap = new HashMap<>();
         int totalChannels = 0;
+        int failedCategories = 0;
         for (Category category : categories) {
-            List<Channel> channels = XtremeParser.parseChannels(category.getCategoryId(), account);
-            if (!channels.isEmpty()) {
-                channelsMap.put(category.getCategoryId(), channels);
-                totalChannels += channels.size();
+            try {
+                List<Channel> channels = XtremeParser.parseChannels(category.getCategoryId(), account);
+                if (!channels.isEmpty()) {
+                    channelsMap.put(category.getCategoryId(), channels);
+                    totalChannels += channels.size();
+                }
+            } catch (Exception e) {
+                failedCategories++;
+                log(logger, "Category fetch failed (" + category.getTitle() + "): " + shortReason(e));
             }
         }
 
+        if (failedCategories == categories.size()) {
+            throw new RuntimeException("All category channel requests failed.");
+        }
         if (totalChannels == 0) {
+            if (failedCategories > 0) {
+                throw new RuntimeException("No usable channels loaded after category fetch failures.");
+            }
             log(logger, "No channels found in any category. Keeping existing cache.");
             return;
         }
@@ -145,5 +157,19 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
         log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
         return true;
+    }
+
+    private String shortReason(Exception e) {
+        if (e == null) {
+            return "unknown error";
+        }
+        String msg = e.getMessage();
+        if (msg == null && e.getCause() != null) {
+            msg = e.getCause().getMessage();
+        }
+        if (msg == null || msg.isBlank()) {
+            return e.getClass().getSimpleName();
+        }
+        return msg;
     }
 }

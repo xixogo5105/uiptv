@@ -4,10 +4,7 @@ import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
 
-import javax.net.ssl.HttpsURLConnection;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,17 +53,8 @@ public class RssFeedReader {
         List<RssItem> items = new ArrayList<>();
 
         SyndFeedInput input = new SyndFeedInput();
-        InputStreamReader reader;
-        if (url.startsWith("https")) {
-            HttpsURLConnection connection = (HttpsURLConnection) new URL(url).openConnection();
-            connection.setConnectTimeout(10000);
-            reader = (new InputStreamReader(connection.getInputStream()));
-        } else {
-            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-            connection.setConnectTimeout(10000);
-            reader = (new InputStreamReader(connection.getInputStream()));
-        }
-        SyndFeed feed = input.build(reader);
+        HttpUtil.HttpResult response = HttpUtil.sendRequest(url, null, "GET");
+        SyndFeed feed = input.build(new StringReader(response.body()));
 
         for (SyndEntry entry : feed.getEntries()) {
             String link = entry.getLink();

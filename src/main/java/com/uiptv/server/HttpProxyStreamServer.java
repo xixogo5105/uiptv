@@ -2,16 +2,17 @@ package com.uiptv.server;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import com.uiptv.util.HttpUtil;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -26,7 +27,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
 
         String current = source.trim();
-        HttpURLConnection conn = null;
+        HttpUtil.StreamResult upstream = null;
         List<String> cookies = new ArrayList<>();
 
         try {
@@ -35,47 +36,48 @@ public class HttpProxyStreamServer implements HttpHandler {
             String refererHeader = ex.getRequestHeaders().getFirst("Referer");
             String originHeader = ex.getRequestHeaders().getFirst("Origin");
             for (int i = 0; i < 6; i++) {
-                conn = (HttpURLConnection) new URL(current).openConnection();
-                conn.setInstanceFollowRedirects(false);
-                conn.setConnectTimeout(7000);
-                conn.setReadTimeout(15000);
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("User-Agent", "UIPTV/1.0");
-                conn.setRequestProperty("Accept", isBlank(acceptHeader) ? "*/*" : acceptHeader);
-                conn.setRequestProperty("Accept-Encoding", "identity");
+                if (upstream != null) {
+                    upstream.close();
+                    upstream = null;
+                }
+
+                Map<String, String> upstreamHeaders = new LinkedHashMap<>();
+                upstreamHeaders.put("User-Agent", "UIPTV/1.0");
+                upstreamHeaders.put("Accept", isBlank(acceptHeader) ? "*/*" : acceptHeader);
+                upstreamHeaders.put("Accept-Encoding", "identity");
                 if (!isBlank(rangeHeader)) {
-                    conn.setRequestProperty("Range", rangeHeader);
+                    upstreamHeaders.put("Range", rangeHeader);
                 }
                 if (!isBlank(refererHeader)) {
-                    conn.setRequestProperty("Referer", refererHeader);
+                    upstreamHeaders.put("Referer", refererHeader);
                 }
                 if (!isBlank(originHeader)) {
-                    conn.setRequestProperty("Origin", originHeader);
+                    upstreamHeaders.put("Origin", originHeader);
                 }
                 if (!cookies.isEmpty()) {
-                    conn.setRequestProperty("Cookie", String.join("; ", cookies));
+                    upstreamHeaders.put("Cookie", String.join("; ", cookies));
                 }
-                conn.connect();
-                collectCookies(conn, cookies);
+                upstream = HttpUtil.openStream(current, upstreamHeaders, "GET", null, new HttpUtil.RequestOptions(false, true));
+                collectCookies(upstream.responseHeaders(), cookies);
 
-                int status = conn.getResponseCode();
+                int status = upstream.statusCode();
                 if (status >= 300 && status <= 399) {
-                    String location = conn.getHeaderField("Location");
+                    String location = firstHeader(upstream.responseHeaders(), "Location");
                     if (isBlank(location)) {
                         break;
                     }
                     URI base = URI.create(current);
                     URI resolved = base.resolve(location);
                     current = downgradeHttpsToHttp(resolved.toString());
-                    conn.disconnect();
-                    conn = null;
+                    upstream.close();
+                    upstream = null;
                     continue;
                 }
-                if (status == HttpURLConnection.HTTP_NOT_ACCEPTABLE) {
+                if (status == HttpUtil.STATUS_NOT_ACCEPTABLE) {
                     String fallback = build406Fallback(current);
                     if (!isBlank(fallback) && !fallback.equals(current)) {
-                        conn.disconnect();
-                        conn = null;
+                        upstream.close();
+                        upstream = null;
                         current = fallback;
                         continue;
                     }
@@ -83,28 +85,28 @@ public class HttpProxyStreamServer implements HttpHandler {
                 break;
             }
 
-            if (conn == null) {
+            if (upstream == null) {
                 ex.sendResponseHeaders(502, -1);
                 return;
             }
 
-            int upstreamStatus = conn.getResponseCode();
-            InputStream upstreamStream = upstreamStatus >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            int upstreamStatus = upstream.statusCode();
+            InputStream upstreamStream = upstream.bodyStream();
             if (upstreamStream == null) {
                 upstreamStream = new ByteArrayInputStream(new byte[0]);
             }
 
-            String contentType = conn.getContentType();
+            String contentType = firstHeader(upstream.responseHeaders(), "Content-Type");
             if (isBlank(contentType)) {
                 contentType = "application/octet-stream";
             }
             ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
             ex.getResponseHeaders().add("Cache-Control", "no-store");
             ex.getResponseHeaders().add("Content-Type", contentType);
-            String acceptRanges = conn.getHeaderField("Accept-Ranges");
-            String contentRange = conn.getHeaderField("Content-Range");
-            String contentLengthHeader = conn.getHeaderField("Content-Length");
-            String contentDisposition = conn.getHeaderField("Content-Disposition");
+            String acceptRanges = firstHeader(upstream.responseHeaders(), "Accept-Ranges");
+            String contentRange = firstHeader(upstream.responseHeaders(), "Content-Range");
+            String contentLengthHeader = firstHeader(upstream.responseHeaders(), "Content-Length");
+            String contentDisposition = firstHeader(upstream.responseHeaders(), "Content-Disposition");
             if (!isBlank(acceptRanges)) ex.getResponseHeaders().add("Accept-Ranges", acceptRanges);
             if (!isBlank(contentRange)) ex.getResponseHeaders().add("Content-Range", contentRange);
             if (!isBlank(contentDisposition)) ex.getResponseHeaders().add("Content-Disposition", contentDisposition);
@@ -128,17 +130,23 @@ public class HttpProxyStreamServer implements HttpHandler {
         } catch (Exception ignored) {
             ex.sendResponseHeaders(502, -1);
         } finally {
-            if (conn != null) {
-                conn.disconnect();
+            if (upstream != null) {
+                upstream.close();
             }
         }
     }
 
-    private void collectCookies(HttpURLConnection conn, List<String> cookies) {
-        if (conn == null || cookies == null) {
+    private void collectCookies(Map<String, List<String>> responseHeaders, List<String> cookies) {
+        if (responseHeaders == null || cookies == null) {
             return;
         }
-        List<String> setCookie = conn.getHeaderFields().get("Set-Cookie");
+        List<String> setCookie = null;
+        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
+            if (entry.getKey() != null && "Set-Cookie".equalsIgnoreCase(entry.getKey())) {
+                setCookie = entry.getValue();
+                break;
+            }
+        }
         if (setCookie == null || setCookie.isEmpty()) {
             return;
         }
@@ -157,6 +165,21 @@ public class HttpProxyStreamServer implements HttpHandler {
             cookies.removeIf(existing -> existing.startsWith(key + "="));
             cookies.add(pair);
         }
+    }
+
+    private String firstHeader(Map<String, List<String>> headers, String name) {
+        if (headers == null || isBlank(name)) {
+            return "";
+        }
+        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
+                List<String> values = entry.getValue();
+                if (values != null && !values.isEmpty() && !isBlank(values.get(0))) {
+                    return values.get(0);
+                }
+            }
+        }
+        return "";
     }
 
     private String downgradeHttpsToHttp(String url) {
