@@ -18,4 +18,7 @@ public class SeriesWatchState extends BaseJson {
     private int episodeNum;
     private long updatedAt;
     private String source;
+    private String seriesCategorySnapshot;
+    private String seriesChannelSnapshot;
+    private String seriesEpisodeSnapshot;
 }

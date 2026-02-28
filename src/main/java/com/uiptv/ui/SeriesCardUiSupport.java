@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Rectangle2D;
@@ -88,7 +89,7 @@ public final class SeriesCardUiSupport {
         Label value = new Label(rating);
         value.setStyle("-fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: #111111;");
         pill.getChildren().addAll(logo, value);
-        pill.setOnMouseClicked(e -> RootApplication.openInBrowser(imdbUrl));
+        pill.setOnMouseClicked(e -> ServerUrlUtil.openInBrowser(imdbUrl));
         return pill;
     }
 

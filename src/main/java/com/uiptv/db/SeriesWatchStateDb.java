@@ -46,11 +46,13 @@ public class SeriesWatchStateDb extends BaseDb {
 
     public void upsert(SeriesWatchState state) {
         String updateSql = "UPDATE " + SERIES_WATCH_STATE_TABLE.getTableName()
-                + " SET episodeId=?, episodeName=?, season=?, episodeNum=?, updatedAt=?, source=?"
+                + " SET episodeId=?, episodeName=?, season=?, episodeNum=?, updatedAt=?, source=?,"
+                + " seriesCategorySnapshot=?, seriesChannelSnapshot=?, seriesEpisodeSnapshot=?"
                 + " WHERE accountId=? AND mode=? AND categoryId=? AND seriesId=?";
         String insertSql = "INSERT INTO " + SERIES_WATCH_STATE_TABLE.getTableName()
-                + " (accountId, mode, categoryId, seriesId, episodeId, episodeName, season, episodeNum, updatedAt, source)"
-                + " VALUES (?,?,?,?,?,?,?,?,?,?)";
+                + " (accountId, mode, categoryId, seriesId, episodeId, episodeName, season, episodeNum, updatedAt, source,"
+                + " seriesCategorySnapshot, seriesChannelSnapshot, seriesEpisodeSnapshot)"
+                + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
         try (Connection conn = connect();
              PreparedStatement update = conn.prepareStatement(updateSql);
              PreparedStatement insert = conn.prepareStatement(insertSql)) {
@@ -60,10 +62,13 @@ public class SeriesWatchStateDb extends BaseDb {
             update.setInt(4, state.getEpisodeNum());
             update.setLong(5, state.getUpdatedAt());
             update.setString(6, state.getSource());
-            update.setString(7, state.getAccountId());
-            update.setString(8, state.getMode());
-            update.setString(9, state.getCategoryId());
-            update.setString(10, state.getSeriesId());
+            update.setString(7, state.getSeriesCategorySnapshot());
+            update.setString(8, state.getSeriesChannelSnapshot());
+            update.setString(9, state.getSeriesEpisodeSnapshot());
+            update.setString(10, state.getAccountId());
+            update.setString(11, state.getMode());
+            update.setString(12, state.getCategoryId());
+            update.setString(13, state.getSeriesId());
             int updated = update.executeUpdate();
             if (updated == 0) {
                 insert.setString(1, state.getAccountId());
@@ -76,6 +81,9 @@ public class SeriesWatchStateDb extends BaseDb {
                 insert.setInt(8, state.getEpisodeNum());
                 insert.setLong(9, state.getUpdatedAt());
                 insert.setString(10, state.getSource());
+                insert.setString(11, state.getSeriesCategorySnapshot());
+                insert.setString(12, state.getSeriesChannelSnapshot());
+                insert.setString(13, state.getSeriesEpisodeSnapshot());
                 insert.executeUpdate();
             }
         } catch (SQLException e) {
@@ -134,6 +142,9 @@ public class SeriesWatchStateDb extends BaseDb {
             state.setUpdatedAt(0L);
         }
         state.setSource(nullSafeString(resultSet, "source"));
+        state.setSeriesCategorySnapshot(nullSafeString(resultSet, "seriesCategorySnapshot"));
+        state.setSeriesChannelSnapshot(nullSafeString(resultSet, "seriesChannelSnapshot"));
+        state.setSeriesEpisodeSnapshot(nullSafeString(resultSet, "seriesEpisodeSnapshot"));
         return state;
     }
 }

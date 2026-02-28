@@ -234,7 +234,10 @@ public class DatabaseUtils {
                 new DataColumn("season", "TEXT"),
                 new DataColumn("episodeNum", "INTEGER"),
                 new DataColumn("updatedAt", "INTEGER"),
-                new DataColumn("source", "TEXT")
+                new DataColumn("source", "TEXT"),
+                new DataColumn("seriesCategorySnapshot", "TEXT"),
+                new DataColumn("seriesChannelSnapshot", "TEXT"),
+                new DataColumn("seriesEpisodeSnapshot", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

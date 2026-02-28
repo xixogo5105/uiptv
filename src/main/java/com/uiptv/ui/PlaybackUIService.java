@@ -2,9 +2,11 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 
@@ -15,6 +17,8 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
+    private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
+
     private PlaybackUIService() {
     }
 
@@ -23,23 +27,39 @@ public final class PlaybackUIService {
             return;
         }
 
-        boolean useEmbeddedPlayerConfig = ConfigurationService.getInstance().read().isEmbeddedPlayer();
+        Configuration configuration = ConfigurationService.getInstance().read();
+        boolean useEmbeddedPlayerConfig = configuration != null && configuration.isEmbeddedPlayer();
+        boolean browserIsDefaultConfig = configuration != null
+                && WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(configuration.getDefaultPlayerPath()).trim());
         boolean playerPathIsEmbedded = request.playerPath != null && request.playerPath.toLowerCase().contains("embedded");
+        boolean playerPathIsBrowser = WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(request.playerPath).trim());
         String mode = request.account.getAction() == null ? "itv" : request.account.getAction().name();
 
-        if (request.allowDrmBrowserFallback && PlayerService.getInstance().isDrmProtected(request.channel)) {
-            String configured = ConfigurationService.getInstance().read().getServerPort();
-            String serverPort = isBlank(configured) ? "8888" : configured.trim();
-            boolean confirmed = showConfirmationAlert("This channel has drm protected contents and will only run in the browser. It requires the local server to run on port " + serverPort + ". Do you want me to open a browser and try running this channel?");
-            if (!confirmed) {
+        if (playerPathIsBrowser) {
+            if (!ServerUrlUtil.ensureServerForWebPlayback()) {
+                showErrorAlert("Unable to start local web server for browser playback.");
                 return;
             }
-            if (!RootApplication.ensureServerForWebPlayback()) {
+            String browserUrl = PlayerService.getInstance()
+                    .buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
+            ServerUrlUtil.openInBrowser(browserUrl);
+            return;
+        }
+
+        if (request.allowDrmBrowserFallback && PlayerService.getInstance().isDrmProtected(request.channel)) {
+            if (!browserIsDefaultConfig) {
+                String localServerUrl = ServerUrlUtil.getLocalServerUrl();
+                boolean confirmed = showConfirmationAlert("This channel has DRM-protected content and can only play in the browser. Local server: " + localServerUrl + ". Open it now?");
+                if (!confirmed) {
+                    return;
+                }
+            }
+            if (!ServerUrlUtil.ensureServerForWebPlayback()) {
                 showErrorAlert("Unable to start local web server for DRM playback.");
                 return;
             }
             String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
-            RootApplication.openInBrowser(browserUrl);
+            ServerUrlUtil.openInBrowser(browserUrl);
             return;
         }
 

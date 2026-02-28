@@ -3,12 +3,10 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
-import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
-import com.uiptv.widget.UIptvAlert;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Application;
-import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
@@ -35,13 +33,12 @@ public class RootApplication extends Application {
     public final static int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     public static Stage primaryStage;
     public static String currentTheme;
-    private static HostServices hostServices;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
-        addShutdownHook();
+        ServerUrlUtil.installServerShutdownHook();
         if (args == null || Arrays.stream(args).noneMatch(s -> s.equalsIgnoreCase("--show-logs"))) {
             PrintStream dummyStream = new PrintStream(new OutputStream() {
                 @Override
@@ -57,7 +54,7 @@ public class RootApplication extends Application {
             handleSync(args);
             exit(0);
         } else if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
-            startServer();
+            ServerUrlUtil.startServer();
         } else {
             System.setProperty("file.encoding", "UTF-8");
             java.nio.charset.Charset.defaultCharset();
@@ -84,51 +81,10 @@ public class RootApplication extends Application {
         databaseSyncService.syncDatabases(firstDB, secondDB);
     }
 
-    private static void startServer() {
-        try {
-            UIptvServer.start();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void addShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                UIptvServer.stop();
-                UIptvAlert.showMessage("UIPTV Shutting down");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }));
-    }
-
-    public static HostServices getStaticHostServices() {
-        return hostServices;
-    }
-
-    public static boolean ensureServerForWebPlayback() {
-        try {
-            UIptvServer.ensureStarted();
-            return true;
-        } catch (Exception e) {
-            UIptvAlert.showError("Unable to start local web server for playback.", e);
-            return false;
-        }
-    }
-
-    public static void openInBrowser(String url) {
-        if (isNotBlank(url) && hostServices != null) {
-            hostServices.showDocument(url);
-            return;
-        }
-        UIptvAlert.showError("Unable to open browser for DRM playback.");
-    }
-
     @Override
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
-        RootApplication.hostServices = getHostServices();
+        ServerUrlUtil.setHostServices(getHostServices());
 
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();
@@ -256,12 +212,7 @@ public class RootApplication extends Application {
 
     @Override
     public void stop() throws Exception {
-        try {
-            UIptvServer.stop();
-            UIptvAlert.showMessage("UIPTV Shutting down");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        ServerUrlUtil.stopServerWithShutdownMessage();
         super.stop();
     }
 

@@ -146,7 +146,7 @@ public class WatchingNowUI extends VBox {
                 if (state == null || isBlank(state.getSeriesId())) {
                     continue;
                 }
-                String key = safe(state.getSeriesId());
+                String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
                 SeriesWatchState existing = deduped.get(key);
                 if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
                     deduped.put(key, state);
@@ -164,12 +164,26 @@ public class WatchingNowUI extends VBox {
     }
 
     private SeriesPanelData buildPanel(Account account, SeriesWatchState state) {
-        SeriesCacheInfo cacheInfo = resolveSeriesInfoFromCache(account, state);
-        if (!cacheInfo.resolvedFromCache && state.getSeriesId().matches("^\\d+$")) {
+        SnapshotScope scope = resolveSnapshotScope(state);
+        SeriesWatchState scopedState = copyStateWithScope(state, scope.categoryId, scope.parentChannelId);
+
+        SeriesCacheInfo cacheInfo = resolveSeriesInfoFromCache(account, scopedState);
+        if (!isBlank(scope.seriesTitle)) {
+            cacheInfo = new SeriesCacheInfo(scope.seriesTitle, firstNonBlank(scope.seriesPoster, cacheInfo.seriesPoster), true);
+        } else if (!isBlank(scope.seriesPoster)) {
+            cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, scope.seriesPoster, cacheInfo.resolvedFromCache);
+        }
+        if (!cacheInfo.resolvedFromCache && scopedState.getSeriesId().matches("^\\d+$")) {
             return null;
         }
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, state.getCategoryId(), state.getSeriesId(), () -> false);
-        List<WatchingEpisode> episodes = mapEpisodesFromCache(account, state, cacheInfo.seriesTitle, list);
+        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
+        if (list == null) {
+            list = new EpisodeList();
+        }
+        if (list.getSeasonInfo() != null && isBlank(list.getSeasonInfo().getName()) && !isBlank(cacheInfo.seriesTitle)) {
+            list.getSeasonInfo().setName(cacheInfo.seriesTitle);
+        }
+        List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, cacheInfo.seriesTitle, list);
         if (episodes.isEmpty()) {
             return null;
         }
@@ -188,7 +202,7 @@ public class WatchingNowUI extends VBox {
             seasonInfo.put("cover", cacheInfo.seriesPoster);
         }
 
-        SeriesPanelData panel = new SeriesPanelData(account, state, cacheInfo.seriesTitle, seasonInfo, episodes);
+        SeriesPanelData panel = new SeriesPanelData(account, scopedState, cacheInfo.seriesTitle, seasonInfo, episodes, list);
         applyImdbMemoryCache(panel);
         return panel;
     }
@@ -213,8 +227,16 @@ public class WatchingNowUI extends VBox {
         boolean resolved = false;
 
         String categoryDbId = resolveSeriesCategoryDbId(account, state.getCategoryId());
+        List<String> categoryCandidates = new ArrayList<>();
+        categoryCandidates.add(safe(state.getCategoryId()));
         if (!isBlank(categoryDbId)) {
-            List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryDbId);
+            categoryCandidates.add(categoryDbId);
+        }
+        for (String categoryCandidate : categoryCandidates) {
+            if (isBlank(categoryCandidate)) {
+                continue;
+            }
+            List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryCandidate);
             Channel match = channels.stream().filter(c -> safe(c.getChannelId()).equals(safe(state.getSeriesId()))).findFirst().orElse(null);
             if (match != null) {
                 if (!isBlank(match.getName())) {
@@ -222,6 +244,7 @@ public class WatchingNowUI extends VBox {
                 }
                 poster = firstNonBlank(normalizeImageUrl(match.getLogo(), account), poster);
                 resolved = true;
+                break;
             }
         }
 
@@ -241,6 +264,56 @@ public class WatchingNowUI extends VBox {
         }
 
         return new SeriesCacheInfo(firstNonBlank(title, state.getSeriesId()), poster, resolved);
+    }
+
+    private SnapshotScope resolveSnapshotScope(SeriesWatchState state) {
+        String categoryId = safe(state == null ? "" : state.getCategoryId());
+        String parentChannelId = safe(state == null ? "" : state.getSeriesId());
+        String title = "";
+        String poster = "";
+        if (state == null) {
+            return new SnapshotScope(categoryId, parentChannelId, title, poster);
+        }
+        try {
+            Category category = Category.fromJson(state.getSeriesCategorySnapshot());
+            if (category != null) {
+                categoryId = firstNonBlank(category.getCategoryId(), categoryId);
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            Channel channel = Channel.fromJson(state.getSeriesChannelSnapshot());
+            if (channel != null) {
+                parentChannelId = firstNonBlank(channel.getChannelId(), parentChannelId);
+                categoryId = firstNonBlank(channel.getCategoryId(), categoryId);
+                title = firstNonBlank(channel.getName(), title);
+                poster = firstNonBlank(channel.getLogo(), poster);
+            }
+        } catch (Exception ignored) {
+        }
+        return new SnapshotScope(categoryId, parentChannelId, title, poster);
+    }
+
+    private SeriesWatchState copyStateWithScope(SeriesWatchState source, String categoryId, String parentChannelId) {
+        SeriesWatchState scoped = new SeriesWatchState();
+        if (source == null) {
+            return scoped;
+        }
+        scoped.setDbId(source.getDbId());
+        scoped.setAccountId(source.getAccountId());
+        scoped.setMode(source.getMode());
+        scoped.setCategoryId(firstNonBlank(categoryId, source.getCategoryId()));
+        scoped.setSeriesId(firstNonBlank(parentChannelId, source.getSeriesId()));
+        scoped.setEpisodeId(source.getEpisodeId());
+        scoped.setEpisodeName(source.getEpisodeName());
+        scoped.setSeason(source.getSeason());
+        scoped.setEpisodeNum(source.getEpisodeNum());
+        scoped.setUpdatedAt(source.getUpdatedAt());
+        scoped.setSource(source.getSource());
+        scoped.setSeriesCategorySnapshot(source.getSeriesCategorySnapshot());
+        scoped.setSeriesChannelSnapshot(source.getSeriesChannelSnapshot());
+        scoped.setSeriesEpisodeSnapshot(source.getSeriesEpisodeSnapshot());
+        return scoped;
     }
 
     private String resolveSeriesCategoryDbId(Account account, String apiCategoryId) {
@@ -460,17 +533,19 @@ public class WatchingNowUI extends VBox {
 
         VBox body = new VBox(8);
         body.setPadding(new Insets(8));
-        HBox header = createSeriesHeader(data);
-        TabPane seasonTabs = createSeasonTabs(data);
-        VBox.setVgrow(seasonTabs, Priority.ALWAYS);
-        body.getChildren().addAll(header, seasonTabs);
-        VBox.setVgrow(body, Priority.ALWAYS);
-
-        if (!data.imdbLoaded && !data.imdbLoading) {
-            data.imdbLoading = true;
-            applySeasonInfoToHeader(data);
-            lazyLoadImdb(data, null, header, seasonTabs);
+        EpisodesListUI episodesListUI = new EpisodesListUI(
+                data.account,
+                firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
+                data.state.getSeriesId(),
+                data.state.getCategoryId()
+        );
+        if (data.episodeList != null) {
+            episodesListUI.setItems(data.episodeList);
         }
+        episodesListUI.setLoadingComplete();
+        body.getChildren().add(episodesListUI);
+        VBox.setVgrow(body, Priority.ALWAYS);
+        VBox.setVgrow(episodesListUI, Priority.ALWAYS);
 
         contentBox.getChildren().addAll(topBar, body);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
@@ -1141,6 +1216,7 @@ public class WatchingNowUI extends VBox {
                 // Always discard old episodes on reload and rebuild tabs from the latest response.
                 data.episodes.clear();
                 data.episodes.addAll(refreshedEpisodes);
+                data.episodeList = refreshed;
                 refreshSeasonTables(data);
                 // Reload complete: invalidate prior IMDb merge and fetch fresh metadata for updated episodes/seasons.
                 imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
@@ -1292,7 +1368,7 @@ public class WatchingNowUI extends VBox {
                         if (state == null || isBlank(state.getSeriesId()) || !safe(state.getSeriesId()).equals(safe(seriesId))) {
                             continue;
                         }
-                        String key = safe(state.getSeriesId());
+                        String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
                         SeriesWatchState existing = deduped.get(key);
                         if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
                             deduped.put(key, state);
@@ -1360,6 +1436,7 @@ public class WatchingNowUI extends VBox {
         }
         target.episodes.clear();
         target.episodes.addAll(source.episodes);
+        target.episodeList = source.episodeList;
         replaceJson(target.seasonInfo, source.seasonInfo);
         target.imdbLoaded = source.imdbLoaded;
         target.imdbLoading = source.imdbLoading;
@@ -1752,6 +1829,7 @@ public class WatchingNowUI extends VBox {
         private final String seriesTitle;
         private final JSONObject seasonInfo;
         private final List<WatchingEpisode> episodes;
+        private EpisodeList episodeList;
         private boolean imdbLoaded;
         private boolean imdbLoading;
 
@@ -1768,14 +1846,29 @@ public class WatchingNowUI extends VBox {
         private final Map<String, VBox> seasonCardsBySeason = new LinkedHashMap<>();
         private final Map<WatchingEpisode, Label> watchingLabels = new HashMap<>();
 
-        private SeriesPanelData(Account account, SeriesWatchState state, String seriesTitle, JSONObject seasonInfo, List<WatchingEpisode> episodes) {
+        private SeriesPanelData(Account account, SeriesWatchState state, String seriesTitle, JSONObject seasonInfo, List<WatchingEpisode> episodes, EpisodeList episodeList) {
             this.account = account;
             this.state = state;
             this.seriesTitle = seriesTitle;
             this.seasonInfo = seasonInfo == null ? new JSONObject() : seasonInfo;
             this.episodes = episodes == null ? new ArrayList<>() : episodes;
+            this.episodeList = episodeList == null ? new EpisodeList() : episodeList;
             this.imdbLoaded = false;
             this.imdbLoading = false;
+        }
+    }
+
+    private static final class SnapshotScope {
+        private final String categoryId;
+        private final String parentChannelId;
+        private final String seriesTitle;
+        private final String seriesPoster;
+
+        private SnapshotScope(String categoryId, String parentChannelId, String seriesTitle, String seriesPoster) {
+            this.categoryId = categoryId == null ? "" : categoryId.trim();
+            this.parentChannelId = parentChannelId == null ? "" : parentChannelId.trim();
+            this.seriesTitle = seriesTitle == null ? "" : seriesTitle;
+            this.seriesPoster = seriesPoster == null ? "" : seriesPoster;
         }
     }
 

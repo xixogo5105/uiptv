@@ -35,6 +35,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ConfigurationUI extends VBox {
+    private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     private String dbId;
     private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
@@ -46,6 +47,8 @@ public class ConfigurationUI extends VBox {
     private final RadioButton defaultPlayer2 = new RadioButton("");
     private final RadioButton defaultPlayer3 = new RadioButton("");
     private final RadioButton defaultEmbedPlayer = new RadioButton();
+    private final RadioButton defaultWebBrowserPlayer = new RadioButton("Web Browser Player");
+    private boolean ignorePlayerSelectionPrompt = false;
 
     private final UIptvText playerPath1 = new UIptvText("playerPath1", "Enter your favorite player's Path here.", 5);
     private final UIptvText playerPath2 = new UIptvText("playerPath2", "Enter your second favorite player's Path here.", 5);
@@ -100,6 +103,7 @@ public class ConfigurationUI extends VBox {
         defaultPlayer2.setToggleGroup(group);
         defaultPlayer3.setToggleGroup(group);
         defaultEmbedPlayer.setToggleGroup(group);
+        defaultWebBrowserPlayer.setToggleGroup(group);
 
         updateEmbeddedPlayerTitle();
 
@@ -107,6 +111,7 @@ public class ConfigurationUI extends VBox {
         defaultPlayer2.setUserData("defaultPlayer2");
         defaultPlayer3.setUserData("defaultPlayer3");
         defaultEmbedPlayer.setUserData("defaultEmbedPlayer");
+        defaultWebBrowserPlayer.setUserData("defaultWebBrowserPlayer");
         defaultEmbedPlayer.setSelected(true);
         if (configuration != null) {
             this.dbId = configuration.getDbId();
@@ -121,6 +126,8 @@ public class ConfigurationUI extends VBox {
                 defaultPlayer2.setSelected(true);
             } else if (playerPath3.getText() != null && playerPath3.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer3.setSelected(true);
+            } else if (WEB_BROWSER_PLAYER_PATH.equals(configuration.getDefaultPlayerPath())) {
+                defaultWebBrowserPlayer.setSelected(true);
             } else {
                 defaultEmbedPlayer.setSelected(true);
             }
@@ -182,7 +189,8 @@ public class ConfigurationUI extends VBox {
         HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
         HBox box4 = new HBox(6, defaultEmbedPlayer);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4);
+        HBox box5 = new HBox(6, defaultWebBrowserPlayer);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5);
 
         VBox filtersGroup = new VBox(10, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
@@ -218,6 +226,7 @@ public class ConfigurationUI extends VBox {
         addPublishM3u8ButtonClickHandler();
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
+        installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
     }
 
@@ -369,7 +378,7 @@ public class ConfigurationUI extends VBox {
 
     private void addOpenServerLinkClickHandler() {
         openServerLink.setOnAction(event -> {
-            RootApplication.openInBrowser(ServerUrlUtil.getLocalServerUrl() + "/");
+            ServerUrlUtil.openInBrowser(ServerUrlUtil.getLocalServerUrl() + "/");
         });
     }
 
@@ -399,6 +408,8 @@ public class ConfigurationUI extends VBox {
                     defaultPlayer = playerPath2.getText();
                 } else if (defaultPlayer3.isSelected()) {
                     defaultPlayer = playerPath3.getText();
+                } else if (defaultWebBrowserPlayer.isSelected()) {
+                    defaultPlayer = WEB_BROWSER_PLAYER_PATH;
                 }
                 Configuration newConfiguration = new Configuration(
                         playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), defaultPlayer,
@@ -460,6 +471,44 @@ public class ConfigurationUI extends VBox {
             File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
             playerPath3.setText(file.getAbsolutePath());
         });
+    }
+
+    private void installPlayerSelectionConfirmationHandler() {
+        group.selectedToggleProperty().addListener((observable, oldToggle, newToggle) -> {
+            if (ignorePlayerSelectionPrompt || newToggle == null) {
+                return;
+            }
+            if (newToggle == defaultWebBrowserPlayer) {
+                boolean proceed = UIptvAlert.showConfirmationAlert(
+                        "Browser playback may not support every stream. Enabling FFmpeg transcoding can improve compatibility. Continue?"
+                );
+                if (!proceed) {
+                    restorePreviousPlayerSelection(oldToggle);
+                }
+                return;
+            }
+            if (newToggle == defaultEmbedPlayer) {
+                boolean proceed = UIptvAlert.showConfirmationAlert(
+                        "For best embedded playback, install the standard VLC desktop app. Without VLC, a limited built-in player is used and many codecs may fail. Continue?"
+                );
+                if (!proceed) {
+                    restorePreviousPlayerSelection(oldToggle);
+                }
+            }
+        });
+    }
+
+    private void restorePreviousPlayerSelection(Toggle oldToggle) {
+        ignorePlayerSelectionPrompt = true;
+        try {
+            if (oldToggle != null) {
+                group.selectToggle(oldToggle);
+            } else {
+                group.selectToggle(null);
+            }
+        } finally {
+            ignorePlayerSelectionPrompt = false;
+        }
     }
 
     private String sanitizeCacheExpiryDaysText() {

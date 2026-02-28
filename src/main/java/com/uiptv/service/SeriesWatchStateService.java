@@ -1,9 +1,14 @@
 package com.uiptv.service;
 
 import com.uiptv.db.SeriesWatchStateDb;
+import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
+import org.json.JSONObject;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -205,8 +210,111 @@ public class SeriesWatchStateService {
         state.setEpisodeNum(normalizedEpisodeNum);
         state.setUpdatedAt(System.currentTimeMillis());
         state.setSource(source);
+        applySnapshots(state);
         SeriesWatchStateDb.get().upsert(state);
         notifyListeners(accountId, seriesId);
+    }
+
+    private void applySnapshots(SeriesWatchState state) {
+        if (state == null || isBlank(state.getAccountId()) || isBlank(state.getSeriesId())) {
+            return;
+        }
+        Account account = new Account();
+        account.setDbId(state.getAccountId());
+
+        Category matchedCategory = findCategory(account.getDbId(), state.getCategoryId());
+        String portalCategoryId = matchedCategory != null && !isBlank(matchedCategory.getCategoryId())
+                ? matchedCategory.getCategoryId()
+                : normalizeCategoryId(state.getCategoryId());
+
+        if (matchedCategory != null) {
+            JSONObject categoryJson = new JSONObject(matchedCategory.toJson());
+            categoryJson.put("categoryId", portalCategoryId);
+            state.setSeriesCategorySnapshot(categoryJson.toString());
+        } else {
+            state.setSeriesCategorySnapshot("");
+        }
+
+        Channel seriesChannel = findSeriesChannel(account, portalCategoryId, state.getSeriesId(), matchedCategory);
+        if (seriesChannel != null) {
+            JSONObject seriesJson = new JSONObject(seriesChannel.toJson());
+            seriesJson.put("categoryId", portalCategoryId);
+            seriesJson.put("channelId", safe(seriesChannel.getChannelId()));
+            state.setSeriesChannelSnapshot(seriesJson.toString());
+        } else {
+            state.setSeriesChannelSnapshot("");
+        }
+
+        Channel episodeChannel = findEpisode(account, portalCategoryId, state.getSeriesId(), state.getEpisodeId(), matchedCategory);
+        if (episodeChannel != null) {
+            JSONObject episodeJson = new JSONObject(episodeChannel.toJson());
+            episodeJson.put("categoryId", portalCategoryId);
+            episodeJson.put("seriesId", safe(state.getSeriesId()));
+            episodeJson.put("channelId", safe(episodeChannel.getChannelId()));
+            state.setSeriesEpisodeSnapshot(episodeJson.toString());
+        } else {
+            state.setSeriesEpisodeSnapshot("");
+        }
+    }
+
+    private Category findCategory(String accountId, String categoryId) {
+        if (isBlank(accountId) || isBlank(categoryId)) {
+            return null;
+        }
+        String target = safe(categoryId);
+        List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{accountId});
+        for (Category category : categories) {
+            if (category == null) {
+                continue;
+            }
+            if (target.equals(safe(category.getCategoryId())) || target.equals(safe(category.getDbId()))) {
+                return category;
+            }
+        }
+        return null;
+    }
+
+    private Channel findSeriesChannel(Account account, String portalCategoryId, String parentChannelId, Category matchedCategory) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(parentChannelId)) {
+            return null;
+        }
+        List<String> categoryKeys = new java.util.ArrayList<>();
+        if (!isBlank(portalCategoryId)) {
+            categoryKeys.add(portalCategoryId);
+        }
+        if (matchedCategory != null && !isBlank(matchedCategory.getDbId())) {
+            categoryKeys.add(matchedCategory.getDbId());
+        }
+        for (String key : categoryKeys) {
+            for (Channel channel : SeriesChannelDb.get().getChannels(account, key)) {
+                if (channel != null && safe(parentChannelId).equals(safe(channel.getChannelId()))) {
+                    return channel;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Channel findEpisode(Account account, String portalCategoryId, String parentChannelId, String episodeId, Category matchedCategory) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(parentChannelId) || isBlank(episodeId)) {
+            return null;
+        }
+        List<String> categoryKeys = new java.util.ArrayList<>();
+        if (!isBlank(portalCategoryId)) {
+            categoryKeys.add(portalCategoryId);
+        }
+        if (matchedCategory != null && !isBlank(matchedCategory.getDbId())) {
+            categoryKeys.add(matchedCategory.getDbId());
+        }
+        for (String key : categoryKeys) {
+            List<Channel> episodes = SeriesEpisodeDb.get().getEpisodes(account, key, parentChannelId);
+            for (Channel channel : episodes) {
+                if (channel != null && safe(episodeId).equals(safe(channel.getChannelId()))) {
+                    return channel;
+                }
+            }
+        }
+        return null;
     }
 
     public boolean isMatchingEpisode(SeriesWatchState watchedState,
@@ -247,6 +355,10 @@ public class SeriesWatchStateService {
 
     private String normalizeCategoryId(String categoryId) {
         return isBlank(categoryId) ? "" : categoryId.trim();
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private void notifyListeners(String accountId, String seriesId) {
