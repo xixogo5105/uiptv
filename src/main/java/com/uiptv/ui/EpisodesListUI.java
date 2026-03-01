@@ -34,6 +34,10 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -86,6 +90,7 @@ public class EpisodesListUI extends HBox {
     private final TabPane seasonTabPane = new TabPane();
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
+    private final TableView<EpisodeItem> tableView = new TableView<>();
     private final Label emptyStateLabel = new Label();
     private final StackPane contentStack = new StackPane();
     private final ObservableList<EpisodeItem> allEpisodeItems = FXCollections.observableArrayList(EpisodeItem.extractor());
@@ -129,7 +134,9 @@ public class EpisodesListUI extends HBox {
                 refreshWatchedStatesAsync();
             }
         };
-        ImageCacheManager.clearCache("episode");
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            ImageCacheManager.clearCache("episode");
+        }
         initWidgets();
         registerBookmarkListener();
         registerWatchStateListener();
@@ -194,10 +201,14 @@ public class EpisodesListUI extends HBox {
 
             runLater(() -> {
                 allEpisodeItems.setAll(catList);
-                applySeriesHeader();
-                refreshSeasonTabs();
-                applySeasonFilter();
-                triggerImdbLazyLoad();
+                if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+                    applySeriesHeader();
+                    refreshSeasonTabs();
+                    applySeasonFilter();
+                    triggerImdbLazyLoad();
+                } else {
+                    applyTableFilter();
+                }
             });
         }
     }
@@ -217,31 +228,106 @@ public class EpisodesListUI extends HBox {
         setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         setMaxWidth(Double.MAX_VALUE);
 
-        initHeader();
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            initHeader();
+            seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+            seasonTabPane.setMaxWidth(Double.MAX_VALUE);
+            seasonTabPane.setMaxHeight(Double.MAX_VALUE);
+            seasonTabPane.setMinHeight(36);
+            seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> applySeasonFilter());
 
-        seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        seasonTabPane.setMaxWidth(Double.MAX_VALUE);
-        seasonTabPane.setMaxHeight(Double.MAX_VALUE);
-        seasonTabPane.setMinHeight(36);
-        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> applySeasonFilter());
+            cardsContainer.setPadding(new Insets(4));
+            cardsContainer.setFillWidth(true);
 
-        cardsContainer.setPadding(new Insets(4));
-        cardsContainer.setFillWidth(true);
+            cardsScroll.setFitToWidth(true);
+            cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            cardsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+            cardsScroll.setMaxWidth(Double.MAX_VALUE);
+            cardsScroll.setMaxHeight(Double.MAX_VALUE);
 
-        cardsScroll.setFitToWidth(true);
-        cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        cardsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        cardsScroll.setMaxWidth(Double.MAX_VALUE);
-        cardsScroll.setMaxHeight(Double.MAX_VALUE);
+            VBox body = new VBox(6, header, seasonTabPane, cardsScroll);
+            body.setMaxWidth(Double.MAX_VALUE);
+            body.setMaxHeight(Double.MAX_VALUE);
+            HBox.setHgrow(body, Priority.ALWAYS);
+            header.setMaxHeight(Double.MAX_VALUE);
+            VBox.setVgrow(header, Priority.SOMETIMES);
+            VBox.setVgrow(cardsScroll, Priority.ALWAYS);
+            VBox.setVgrow(seasonTabPane, Priority.NEVER);
+            contentStack.getChildren().addAll(body, emptyStateLabel);
+        } else {
+            // Table View Mode
+            tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+            TableColumn<EpisodeItem, String> nameCol = new TableColumn<>("Episodes");
+            nameCol.setCellValueFactory(cellData -> {
+                EpisodeItem item = cellData.getValue();
+                String season = item.getSeason();
+                String episode = item.getEpisodeNumber();
+                String title = cleanEpisodeTitle(item.getEpisode().getTitle())
+                        .replaceAll("(?i)^\\s*episode\\s*\\d+\\s*[-:]*\\s*", "")
+                        .replaceAll("(?i)^\\s*e\\d+\\s*[-:]*\\s*", "")
+                        .trim();
+                
+                StringBuilder sb = new StringBuilder();
+                if (!isBlank(season)) {
+                    sb.append("Season ").append(season);
+                }
+                if (!isBlank(episode)) {
+                    if (sb.length() > 0) sb.append(" - ");
+                    sb.append("Episode ").append(episode);
+                }
+                if (!isBlank(title)) {
+                    if (sb.length() > 0) sb.append(" - ");
+                    sb.append(title);
+                }
+                
+                if (sb.length() == 0) {
+                    return new SimpleStringProperty(item.getEpisodeName());
+                }
+                return new SimpleStringProperty(sb.toString());
+            });
+            nameCol.setCellFactory(col -> new TableCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        EpisodeItem row = getTableView().getItems().get(getIndex());
+                        HBox box = new HBox(10);
+                        box.setAlignment(Pos.CENTER_LEFT);
+                        Label label = new Label(item);
+                        box.getChildren().add(label);
+                        
+                        if (row.isWatched()) {
+                            Label watched = new Label("WATCHING");
+                            watched.getStyleClass().add("drm-badge");
+                            box.getChildren().add(watched);
+                        }
+                        setGraphic(box);
+                    }
+                }
+            });
+            
+            tableView.getColumns().add(nameCol);
+            tableView.setRowFactory(tv -> {
+                TableRow<EpisodeItem> row = new TableRow<>();
+                row.setOnMouseClicked(event -> {
+                    if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                        play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                    }
+                });
+                addRightClickContextMenu(row);
+                return row;
+            });
 
-        VBox body = new VBox(6, header, seasonTabPane, cardsScroll);
-        body.setMaxWidth(Double.MAX_VALUE);
-        body.setMaxHeight(Double.MAX_VALUE);
-        HBox.setHgrow(body, Priority.ALWAYS);
-        header.setMaxHeight(Double.MAX_VALUE);
-        VBox.setVgrow(header, Priority.SOMETIMES);
-        VBox.setVgrow(cardsScroll, Priority.ALWAYS);
-        VBox.setVgrow(seasonTabPane, Priority.NEVER);
+            VBox body = new VBox(6, tableView);
+            body.setMaxWidth(Double.MAX_VALUE);
+            body.setMaxHeight(Double.MAX_VALUE);
+            HBox.setHgrow(body, Priority.ALWAYS);
+            VBox.setVgrow(tableView, Priority.ALWAYS);
+            contentStack.getChildren().addAll(body, emptyStateLabel);
+        }
 
         emptyStateLabel.setWrapText(true);
         emptyStateLabel.setMaxWidth(Double.MAX_VALUE);
@@ -249,7 +335,6 @@ public class EpisodesListUI extends HBox {
         emptyStateLabel.setManaged(false);
         emptyStateLabel.setVisible(false);
         StackPane.setAlignment(emptyStateLabel, Pos.CENTER);
-        contentStack.getChildren().addAll(body, emptyStateLabel);
         HBox.setHgrow(contentStack, Priority.ALWAYS);
 
         getChildren().add(contentStack);
@@ -257,10 +342,14 @@ public class EpisodesListUI extends HBox {
 
     private void initHeader() {
         header.setAlignment(Pos.TOP_LEFT);
-        seriesPosterNode.setFitWidth(170);
-        seriesPosterNode.setFitHeight(250);
-        seriesPosterNode.setPreserveRatio(true);
-        seriesPosterNode.setSmooth(true);
+
+        // Only initialize poster image if thumbnails are enabled
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            seriesPosterNode.setFitWidth(170);
+            seriesPosterNode.setFitHeight(250);
+            seriesPosterNode.setPreserveRatio(true);
+            seriesPosterNode.setSmooth(true);
+        }
 
         titleNode.setStyle("-fx-font-weight: bold;");
         titleNode.setWrapText(true);
@@ -285,7 +374,12 @@ public class EpisodesListUI extends HBox {
 
         headerDetails.getChildren().setAll(titleNode);
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
-        header.getChildren().setAll(seriesPosterNode, headerDetails);
+
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            header.getChildren().setAll(seriesPosterNode, headerDetails);
+        } else {
+            header.getChildren().setAll(headerDetails);
+        }
     }
 
     private void applySeriesHeader() {
@@ -376,21 +470,34 @@ public class EpisodesListUI extends HBox {
         itemsLoaded.set(false);
         channelList.episodes.clear();
         allEpisodeItems.clear();
-        refreshSeasonTabs();
-        applySeasonFilter();
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            refreshSeasonTabs();
+            applySeasonFilter();
+        } else {
+            applyTableFilter();
+        }
     }
 
     private void showPlaceholder(String text) {
-        cardsContainer.getChildren().setAll(new Label(text));
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            cardsContainer.getChildren().setAll(new Label(text));
+        } else {
+            tableView.setPlaceholder(new Label(text));
+        }
     }
 
     private void setEmptyState(String message, boolean empty) {
-        header.setManaged(!empty);
-        header.setVisible(!empty);
-        seasonTabPane.setManaged(!empty);
-        seasonTabPane.setVisible(!empty);
-        cardsScroll.setManaged(!empty);
-        cardsScroll.setVisible(!empty);
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            header.setManaged(!empty);
+            header.setVisible(!empty);
+            seasonTabPane.setManaged(!empty);
+            seasonTabPane.setVisible(!empty);
+            cardsScroll.setManaged(!empty);
+            cardsScroll.setVisible(!empty);
+        } else {
+            tableView.setManaged(!empty);
+            tableView.setVisible(!empty);
+        }
         emptyStateLabel.setText(message == null ? "" : message);
         emptyStateLabel.setManaged(empty);
         emptyStateLabel.setVisible(empty);
@@ -471,7 +578,11 @@ public class EpisodesListUI extends HBox {
                     boolean isBookmarked = bookmarkKeys.contains(bookmarkIdentityKey(item.getEpisodeId(), item.getEpisodeName()));
                     item.setBookmarked(isBookmarked);
                 }
-                applySeasonFilter();
+                if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+                    applySeasonFilter();
+                } else {
+                    tableView.refresh();
+                }
             });
         }, "episodes-bookmark-refresh").start();
     }
@@ -492,7 +603,11 @@ public class EpisodesListUI extends HBox {
                             item.getEpisodeName()
                     ));
                 }
-                applySeasonFilter();
+                if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+                    applySeasonFilter();
+                } else {
+                    tableView.refresh();
+                }
             });
         }, "episodes-watch-refresh").start();
     }
@@ -570,6 +685,15 @@ public class EpisodesListUI extends HBox {
         for (EpisodeItem item : filtered) {
             cardsContainer.getChildren().add(createEpisodeCard(item));
         }
+    }
+
+    private void applyTableFilter() {
+        if (allEpisodeItems.isEmpty()) {
+            setEmptyState("No episodes found.", true);
+            return;
+        }
+        setEmptyState("", false);
+        tableView.setItems(allEpisodeItems);
     }
 
     private String selectedSeason() {
@@ -700,6 +824,54 @@ public class EpisodesListUI extends HBox {
         target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
         return rowMenu;
     }
+    
+    private void addRightClickContextMenu(TableRow<EpisodeItem> row) {
+        final ContextMenu rowMenu = new ContextMenu();
+        rowMenu.hideOnEscapeProperty();
+        rowMenu.setAutoHide(true);
+
+        Menu lastWatchedMenu = new Menu("Last Watched");
+        rowMenu.getItems().add(lastWatchedMenu);
+
+        rowMenu.setOnShowing(event -> {
+            lastWatchedMenu.getItems().clear();
+            if (row.getItem() == null) return;
+            EpisodeItem item = row.getItem();
+
+            MenuItem markWatched = new MenuItem("Mark as Watched");
+            markWatched.setOnAction(e -> markEpisodeAsWatched(item));
+            lastWatchedMenu.getItems().add(markWatched);
+
+            MenuItem clearWatched = new MenuItem("Clear Watched Marker");
+            clearWatched.setDisable(!item.isWatched());
+            clearWatched.setOnAction(e -> clearWatchedMarker());
+            lastWatchedMenu.getItems().add(clearWatched);
+        });
+
+        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        playerEmbeddedItem.setOnAction(event -> {
+            rowMenu.hide();
+            play(row.getItem(), "embedded");
+        });
+        MenuItem player1Item = new MenuItem("Player 1");
+        player1Item.setOnAction(event -> {
+            rowMenu.hide();
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
+        });
+        MenuItem player2Item = new MenuItem("Player 2");
+        player2Item.setOnAction(event -> {
+            rowMenu.hide();
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
+        });
+        MenuItem player3Item = new MenuItem("Player 3");
+        player3Item.setOnAction(event -> {
+            rowMenu.hide();
+            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
+        });
+
+        rowMenu.getItems().addAll(new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
+        row.setContextMenu(rowMenu);
+    }
 
     private void markEpisodeAsWatched(EpisodeItem item) {
         if (item == null || isBlank(seriesId) || account == null) {
@@ -760,6 +932,12 @@ public class EpisodesListUI extends HBox {
     }
 
     private void triggerImdbLazyLoad() {
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            // Skip IMDB loading when thumbnails disabled
+            imdbLoaded = true;
+            imdbLoading = false;
+            return;
+        }
         if (imdbLoaded || imdbLoading) {
             return;
         }
@@ -1342,6 +1520,10 @@ public class EpisodesListUI extends HBox {
 
         public Episode getEpisode() {
             return episode;
+        }
+        
+        public SimpleStringProperty episodeNameProperty() {
+            return episodeName;
         }
     }
 }

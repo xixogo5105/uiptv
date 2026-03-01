@@ -59,6 +59,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox filterPausedCheckBox = new CheckBox("Pause filtering");
     private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
     private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
+    private final CheckBox enableThumbnailsCheckBox = new CheckBox("Enable thumbnails");
     private final UIptvText fontFamily = new UIptvText("fontFamily", "Font family. e.g. 'Helvetica', Arial, sans-serif.", 5);
     private final UIptvText fontSize = new UIptvText("fontSize", "Font size. e.g. 13pt", 5);
     private final UIptvText fontWeight = new UIptvText("fontWeight", "Font weight. e.g. bold", 5);
@@ -136,6 +137,7 @@ public class ConfigurationUI extends VBox {
             fontWeight.setText(configuration.getFontWeight());
             fontSize.setText(configuration.getFontSize());
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
+            enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
@@ -194,7 +196,7 @@ public class ConfigurationUI extends VBox {
 
         VBox filtersGroup = new VBox(10, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
-        VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox);
+        VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox, enableThumbnailsCheckBox);
 
         HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
@@ -419,9 +421,10 @@ public class ConfigurationUI extends VBox {
                         darkThemeCheckBox.isSelected(), serverPort.getText(),
 
                         defaultEmbedPlayer.isSelected(),
-                        enableFfmpegCheckBox.isSelected()
+                        enableFfmpegCheckBox.isSelected(),
+                        sanitizeCacheExpiryDaysText(),
+                        enableThumbnailsCheckBox.isSelected()
                 );
-                newConfiguration.setCacheExpiryDays(sanitizeCacheExpiryDaysText());
                 newConfiguration.setDbId(dbId);
                 service.save(newConfiguration);
                 onSaveCallback.call(null);

@@ -79,7 +79,9 @@ public class ChannelListUI extends HBox {
         this.account = account;
         this.categoryTitle = categoryTitle;
         preloadAllCategoryContextAsync();
-        ImageCacheManager.clearCache("channel");
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            ImageCacheManager.clearCache("channel");
+        }
         initWidgets();
         registerBookmarkListener();
         table.setPlaceholder(new Label("Loading channels for '" + categoryTitle + "'..."));
@@ -154,7 +156,22 @@ public class ChannelListUI extends HBox {
         table.setItems(sortedList);
         table.addTextFilter();
 
-        channelName.setCellFactory(column -> new TableCell<>() {
+        boolean enableThumbnails = ThumbnailAwareUI.areThumbnailsEnabled();
+
+        if (enableThumbnails) {
+            channelName.setCellFactory(column -> createThumbnailCell());
+        } else {
+            channelName.setCellFactory(column -> createPlainTextCell());
+        }
+
+        channelName.setSortType(TableColumn.SortType.ASCENDING);
+
+        getChildren().addAll(new AutoGrowVBox(5, table.getSearchTextField(), table));
+        addChannelClickHandler();
+    }
+
+    private TableCell<ChannelItem, String> createThumbnailCell() {
+        return new TableCell<>() {
 
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
@@ -210,12 +227,65 @@ public class ChannelListUI extends HBox {
                 imageView.loadImage(channelItem.getLogo(), "channel");
                 setGraphic(graphic);
             }
-        });
+        };
+    }
 
-        channelName.setSortType(TableColumn.SortType.ASCENDING);
+    private TableCell<ChannelItem, String> createPlainTextCell() {
+        return new TableCell<>() {
 
-        getChildren().addAll(new AutoGrowVBox(5, table.getSearchTextField(), table));
-        addChannelClickHandler();
+            private final HBox graphic = new HBox(10);
+            private final Label nameLabel = new Label();
+            private final Label drmBadge = new Label("DRM");
+            private final Label progressBadge = new Label("IN PROGRESS");
+            private final Pane spacer = new Pane();
+            private final SVGPath bookmarkIcon = new SVGPath();
+
+            {
+                bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
+                bookmarkIcon.setFill(Color.BLACK);
+                drmBadge.getStyleClass().add("drm-badge");
+                drmBadge.setVisible(false);
+                drmBadge.setManaged(false);
+                progressBadge.getStyleClass().add("drm-badge");
+                progressBadge.setVisible(false);
+                progressBadge.setManaged(false);
+
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                graphic.setAlignment(Pos.CENTER_LEFT);
+                graphic.getChildren().addAll(nameLabel, drmBadge, progressBadge, spacer, bookmarkIcon);
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+
+                ChannelItem channelItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
+                        ? getTableView().getItems().get(getIndex())
+                        : null;
+
+                if (channelItem == null) {
+                    setGraphic(null);
+                    return;
+                }
+
+                nameLabel.setText(item);
+                boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
+                drmBadge.setVisible(drmProtected);
+                drmBadge.setManaged(drmProtected);
+                boolean inProgress = account.getAction() == series
+                        && channelItem.getChannel() != null
+                        && channelItem.getChannel().isWatched();
+                progressBadge.setVisible(inProgress);
+                progressBadge.setManaged(inProgress);
+                bookmarkIcon.setVisible(channelItem.isBookmarked());
+                setGraphic(graphic);
+            }
+        };
     }
 
     private void registerBookmarkListener() {

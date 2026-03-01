@@ -1,6 +1,7 @@
 package com.uiptv.util;
 
 import com.uiptv.ui.LogDisplayUI;
+import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.scene.image.Image;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -115,6 +116,10 @@ public class ImageCacheManager {
     private static final Map<String, CompletableFuture<Image>> LOADING_TASKS = new ConcurrentHashMap<>();
 
     public static CompletableFuture<Image> loadImageAsync(String url, String caller) {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return CompletableFuture.completedFuture(null);
+        }
         String normalizedCaller = normalizeCaller(caller);
         String cacheKey = normalizedCaller + ":" + url;
         if (url == null || !url.startsWith("http")) {
@@ -458,6 +463,10 @@ public class ImageCacheManager {
     }
 
     public static void clearCache() {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return;
+        }
         IMAGE_CACHE.clear();
         LOADING_TASKS.clear();
         NEGATIVE_CACHE_UNTIL.clear();
@@ -468,6 +477,10 @@ public class ImageCacheManager {
     }
 
     public static void clearCache(String caller) {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return;
+        }
         String normalizedCaller = normalizeCaller(caller);
         String prefix = normalizedCaller + ":";
         IMAGE_CACHE.keySet().removeIf(key -> key.startsWith(prefix));

@@ -18,6 +18,7 @@ import com.uiptv.util.ImageCacheManager;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Accordion;
@@ -33,6 +34,8 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TitledPane;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
@@ -106,6 +109,9 @@ public class WatchingNowUI extends VBox {
         contentBox.setPadding(new Insets(4));
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            ImageCacheManager.clearCache("watching-now");
+        }
         registerListeners();
         refreshIfNeeded();
     }
@@ -415,13 +421,90 @@ public class WatchingNowUI extends VBox {
             contentBox.getChildren().add(new Label("No currently watched series found."));
             return;
         }
-        VBox list = new VBox(8);
-        list.setFillWidth(true);
-        for (SeriesPanelData data : rows) {
-            list.getChildren().add(createSeriesListCard(data));
+
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            // Show plain table view of series (no thumbnails, no IMDB data)
+            TableView<SeriesListItem> table = new TableView<>();
+            table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+            table.setFocusTraversable(true);
+
+            TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>("Series");
+            seriesColumn.setCellValueFactory(cellData -> cellData.getValue().seriesTitleProperty());
+            seriesColumn.setReorderable(false);
+
+            TableColumn<SeriesListItem, String> accountColumn = new TableColumn<>("Account");
+            accountColumn.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
+            accountColumn.setReorderable(false);
+
+            table.getColumns().addAll(seriesColumn, accountColumn);
+
+            ObservableList<SeriesListItem> items = FXCollections.observableArrayList();
+            for (SeriesPanelData data : rows) {
+                items.add(new SeriesListItem(
+                    firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
+                    data.account.getAccountName(),
+                    seriesPaneKey(data)
+                ));
+            }
+            table.setItems(items);
+
+            // Double-click handler to show series detail
+            table.setOnMousePressed(event -> {
+                if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
+                    SeriesListItem selected = table.getSelectionModel().getSelectedItem();
+                    if (selected != null) {
+                        SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
+                        if (panelData != null) {
+                            selectedSeriesKey = selected.getPanelKey();
+                            renderCurrentView();
+                        }
+                    }
+                }
+            });
+
+            contentBox.getChildren().add(table);
+            VBox.setVgrow(table, Priority.ALWAYS);
+        } else {
+            // Single column table view for series list when thumbnails are disabled
+            TableView<SeriesListItem> table = new TableView<>();
+            table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+            table.setFocusTraversable(true);
+
+            TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>("Series");
+            seriesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
+                    cellData.getValue().seriesTitleProperty().get() + " (" + cellData.getValue().accountNameProperty().get() + ")"
+            ));
+            seriesColumn.setReorderable(false);
+
+            table.getColumns().add(seriesColumn);
+
+            ObservableList<SeriesListItem> items = FXCollections.observableArrayList();
+            for (SeriesPanelData data : rows) {
+                items.add(new SeriesListItem(
+                        firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
+                        data.account.getAccountName(),
+                        seriesPaneKey(data)
+                ));
+            }
+            table.setItems(items);
+
+            // Double-click handler to show series detail
+            table.setOnMousePressed(event -> {
+                if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
+                    SeriesListItem selected = table.getSelectionModel().getSelectedItem();
+                    if (selected != null) {
+                        SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
+                        if (panelData != null) {
+                            selectedSeriesKey = selected.getPanelKey();
+                            renderCurrentView();
+                        }
+                    }
+                }
+            });
+
+            contentBox.getChildren().add(table);
+            VBox.setVgrow(table, Priority.ALWAYS);
         }
-        contentBox.getChildren().add(list);
-        VBox.setVgrow(list, Priority.ALWAYS);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
     }
 
@@ -1073,6 +1156,11 @@ public class WatchingNowUI extends VBox {
     }
 
     private void lazyLoadImdb(SeriesPanelData data, TitledPane pane, HBox header, TabPane seasonTabs) {
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            data.imdbLoaded = true;
+            data.imdbLoading = false;
+            return;
+        }
         new Thread(() -> {
             try {
                 JSONObject imdb = findImdbWithRetry(data, 3);
@@ -1816,6 +1904,33 @@ public class WatchingNowUI extends VBox {
             return "";
         }
         return safe(account.getDbId()) + "|" + safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+    }
+
+    /**
+     * Simple data class for series list table view
+     */
+    private static final class SeriesListItem {
+        private final javafx.beans.property.SimpleStringProperty seriesTitle;
+        private final javafx.beans.property.SimpleStringProperty accountName;
+        private final String panelKey;
+
+        SeriesListItem(String seriesTitle, String accountName, String panelKey) {
+            this.seriesTitle = new javafx.beans.property.SimpleStringProperty(seriesTitle);
+            this.accountName = new javafx.beans.property.SimpleStringProperty(accountName);
+            this.panelKey = panelKey;
+        }
+
+        javafx.beans.property.StringProperty seriesTitleProperty() {
+            return seriesTitle;
+        }
+
+        javafx.beans.property.StringProperty accountNameProperty() {
+            return accountName;
+        }
+
+        String getPanelKey() {
+            return panelKey;
+        }
     }
 
     private static final class SeriesCacheInfo {

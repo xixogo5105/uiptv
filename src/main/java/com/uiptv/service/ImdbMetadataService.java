@@ -1,5 +1,6 @@
 package com.uiptv.service;
 
+import com.uiptv.ui.ThumbnailAwareUI;
 import com.uiptv.util.HttpUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -26,18 +27,34 @@ public class ImdbMetadataService {
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId) {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return new JSONObject();
+        }
         return findBestEffortInternal(rawTitle, preferredImdbId, false, List.of());
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId, List<String> fuzzyHints) {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return new JSONObject();
+        }
         return findBestEffortInternal(rawTitle, preferredImdbId, false, fuzzyHints);
     }
 
     public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId) {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return new JSONObject();
+        }
         return findBestEffortInternal(rawTitle, preferredImdbId, true, List.of());
     }
 
     public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId, List<String> fuzzyHints) {
+        // Return immediately when thumbnails disabled
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return new JSONObject();
+        }
         return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints);
     }
 

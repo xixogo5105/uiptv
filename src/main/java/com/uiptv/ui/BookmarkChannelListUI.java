@@ -63,7 +63,9 @@ public class BookmarkChannelListUI extends HBox {
     });
 
     public BookmarkChannelListUI() {
-        ImageCacheManager.clearCache("bookmark");
+        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
+            ImageCacheManager.clearCache("bookmark");
+        }
         initWidgets();
         registerBookmarkChangeListener();
         sceneProperty().addListener((obs, oldScene, newScene) -> {
@@ -223,7 +225,17 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
         bookmarkColumn.setText("Bookmarked Channels");
 
-        bookmarkColumn.setCellFactory(column -> new TableCell<>() {
+        boolean enableThumbnails = ThumbnailAwareUI.areThumbnailsEnabled();
+
+        if (enableThumbnails) {
+            bookmarkColumn.setCellFactory(column -> createThumbnailCell());
+        } else {
+            bookmarkColumn.setCellFactory(column -> createPlainTextCell());
+        }
+    }
+
+    private TableCell<BookmarkItem, String> createThumbnailCell() {
+        return new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
             private final Label drmBadge = new Label("DRM");
@@ -267,7 +279,53 @@ public class BookmarkChannelListUI extends HBox {
                 imageView.loadImage(bookmarkItem.getLogo(), "bookmark");
                 setGraphic(graphic);
             }
-        });
+        };
+    }
+
+    private TableCell<BookmarkItem, String> createPlainTextCell() {
+        return new TableCell<>() {
+            private final HBox graphic = new HBox(10);
+            private final Label nameLabel = new Label();
+            private final Label drmBadge = new Label("DRM");
+            private final Pane spacer = new Pane();
+
+            {
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                drmBadge.getStyleClass().add("drm-badge");
+                drmBadge.setVisible(false);
+                drmBadge.setManaged(false);
+                graphic.setAlignment(Pos.CENTER_LEFT);
+                graphic.getChildren().addAll(nameLabel, drmBadge, spacer);
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+
+                BookmarkItem bookmarkItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
+                        ? getTableView().getItems().get(getIndex())
+                        : null;
+
+                if (bookmarkItem == null) {
+                    setGraphic(null);
+                    return;
+                }
+
+                nameLabel.setText(item);
+                boolean drmProtected = isNotBlank(bookmarkItem.getDrmType())
+                        || isNotBlank(bookmarkItem.getDrmLicenseUrl())
+                        || isNotBlank(bookmarkItem.getClearKeysJson())
+                        || isNotBlank(bookmarkItem.getInputstreamaddon())
+                        || isNotBlank(bookmarkItem.getManifestType());
+                drmBadge.setVisible(drmProtected);
+                drmBadge.setManaged(drmProtected);
+                setGraphic(graphic);
+            }
+        };
     }
 
     private void setupCategoryTabPaneListener() {

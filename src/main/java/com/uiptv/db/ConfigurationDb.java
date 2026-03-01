@@ -105,7 +105,8 @@ public class ConfigurationDb extends BaseDb {
                 nullSafeString(resultSet, "serverPort"),
                 safeBoolean(resultSet, "embeddedPlayer"),
                 safeBoolean(resultSet, "enableFfmpegTranscoding"),
-                nullSafeString(resultSet, "cacheExpiryDays")
+                nullSafeString(resultSet, "cacheExpiryDays"),
+                safeBoolean(resultSet, "enableThumbnails")
         );
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
@@ -125,7 +126,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(16, current.getDbId());
+                statement.setString(17, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new RuntimeException("Unable to execute update query", e);
@@ -158,5 +159,6 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(13, configuration.isEmbeddedPlayer() ? "1" : "0");
         statement.setString(14, configuration.isEnableFfmpegTranscoding() ? "1" : "0");
         statement.setString(15, configuration.getCacheExpiryDays());
+        statement.setString(16, configuration.isEnableThumbnails() ? "1" : "0");
     }
 }
