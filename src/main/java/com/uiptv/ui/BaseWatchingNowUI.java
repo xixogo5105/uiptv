@@ -416,6 +416,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private void showSeriesList(List<SeriesPanelData> rows) {
         contentBox.getChildren().clear();
         renderedDetailKey = "";
+        contentBox.setPadding(thumbnailsEnabled() ? new Insets(4) : Insets.EMPTY);
         if (rows == null || rows.isEmpty()) {
             contentBox.getChildren().add(new Label("No currently watched series found."));
             return;
@@ -564,10 +565,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         selectedSeriesKey = seriesPaneKey(data);
         renderedDetailKey = selectedSeriesKey;
         contentBox.getChildren().clear();
+        contentBox.setPadding(thumbnailsEnabled() ? new Insets(0, 2, 0, 2) : Insets.EMPTY);
 
         boolean thumbnailsEnabled = thumbnailsEnabled();
         HBox topBar = new HBox(0);
         topBar.setAlignment(Pos.CENTER_LEFT);
+        topBar.setPadding(thumbnailsEnabled ? new Insets(0, 5, 0, 5) : Insets.EMPTY);
+        topBar.setMaxWidth(Double.MAX_VALUE);
         Button back = new Button("\u2190 Back");
         back.setOnAction(event -> {
             selectedSeriesKey = "";
@@ -576,13 +580,16 @@ public abstract class BaseWatchingNowUI extends VBox {
         topBar.getChildren().add(back);
 
         VBox body = new VBox(thumbnailsEnabled ? 6 : 0);
-        body.setPadding(thumbnailsEnabled ? new Insets(0, 4, 0, 4) : Insets.EMPTY);
+        body.setPadding(thumbnailsEnabled ? new Insets(0, 2, 0, 2) : Insets.EMPTY);
         EpisodesListUI episodesListUI = new EpisodesListUI(
                 data.account,
                 firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
                 data.state.getSeriesId(),
                 data.state.getCategoryId()
         );
+        if (thumbnailsEnabled) {
+            episodesListUI.applyWatchingNowDetailStyling();
+        }
         if (data.episodeList != null) {
             episodesListUI.setItems(data.episodeList);
         }

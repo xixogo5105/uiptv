@@ -42,6 +42,12 @@ public class EpisodesListUI extends HBox {
         delegate.setLoadingComplete();
     }
 
+    public void applyWatchingNowDetailStyling() {
+        if (delegate instanceof ThumbnailEpisodesListUI thumbnail) {
+            thumbnail.applyWatchingNowDetailStyling();
+        }
+    }
+
     private void registerThumbnailModeListener() {
         if (thumbnailListenerRegistered) {
             return;

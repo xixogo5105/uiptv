@@ -58,6 +58,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private volatile boolean imdbLoading = false;
     private volatile boolean imdbLoaded = false;
     private VBox selectedEpisodeCard;
+    private boolean watchingNowDetailStylingApplied = false;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -92,6 +93,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         VBox body = new VBox(6, header, seasonTabPane, cardsScroll);
         body.setMaxWidth(Double.MAX_VALUE);
         body.setMaxHeight(Double.MAX_VALUE);
+        body.setPadding(new Insets(0, 4, 0, 4));
         HBox.setHgrow(body, Priority.ALWAYS);
         header.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(header, Priority.SOMETIMES);
@@ -147,6 +149,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void initHeader() {
         header.setAlignment(Pos.TOP_LEFT);
+        header.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6;");
 
         seriesPosterNode.setFitWidth(170);
         seriesPosterNode.setFitHeight(250);
@@ -178,6 +181,15 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
 
         header.getChildren().setAll(seriesPosterNode, headerDetails);
+    }
+
+    public void applyWatchingNowDetailStyling() {
+        if (watchingNowDetailStylingApplied) {
+            return;
+        }
+        watchingNowDetailStylingApplied = true;
+        header.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6;");
+        seasonTabPane.setStyle("");
     }
 
     private void applySeriesHeader() {
