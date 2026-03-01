@@ -1,2 +1,2 @@
-ALTER TABLE Configuration ADD COLUMN enableThumbnails TEXT DEFAULT '1';
+ALTER TABLE Configuration ADD COLUMN enableThumbnails TEXT DEFAULT '0';
 

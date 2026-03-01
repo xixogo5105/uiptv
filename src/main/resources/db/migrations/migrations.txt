@@ -41,3 +41,4 @@
 0161_add_series_watch_state_series_category_snapshot.sql
 0162_add_series_watch_state_series_channel_snapshot.sql
 0163_add_series_watch_state_series_episode_snapshot.sql
+0164_add_configuration_enable_thumbnails.sql
