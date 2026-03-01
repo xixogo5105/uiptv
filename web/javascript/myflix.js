@@ -49,6 +49,7 @@ createApp({
         const repeatEnabled = ref(false);
         const lastPlaybackUrl = ref('');
         const repeatInFlight = ref(false);
+        const thumbnailsEnabled = ref(true);
 
         const playerKey = ref(0);
         const isYoutube = ref(false);
@@ -175,7 +176,12 @@ createApp({
                 || String(item.watched || '') === '1'
         });
 
-        const normalizeChannelList = (items) => (Array.isArray(items) ? items.map(normalizeWatchedFlag) : []);
+        const normalizeChannel = (item = {}) => ({
+            ...normalizeWatchedFlag(item),
+            logo: resolveLogoUrl(item.logo)
+        });
+
+        const normalizeChannelList = (items) => (Array.isArray(items) ? items.map(normalizeChannel) : []);
 
         const filteredModeCategories = (mode) => filterBySearch(browsers[mode].categories.value, 'title');
         const filteredModeChannels = (mode) => filterBySearch(browsers[mode].channels.value, 'name');
@@ -357,7 +363,7 @@ createApp({
                 }
                 return {
                     ...episode,
-                    logo: meta.logo || episode.logo,
+                    logo: resolveLogoUrl(meta.logo || episode.logo),
                     description: episode.description || meta.plot || '',
                     releaseDate: episode.releaseDate || meta.releaseDate || '',
                     season: episode.season || meta.season || '',
@@ -395,6 +401,26 @@ createApp({
         const resolveAccountId = (accountName) => {
             const account = accounts.value.find(a => String(a.accountName || '') === String(accountName || ''));
             return account?.dbId || '';
+        };
+
+        const resolveLogoUrl = (logo) => {
+            if (!thumbnailsEnabled.value) return '';
+            const raw = String(logo || '').trim();
+            if (!raw) return '';
+            if (/^(data:|blob:|https?:\/\/|file:)/i.test(raw)) return raw;
+            if (raw.startsWith('//')) return `${window.location.protocol}${raw}`;
+            if (raw.startsWith('/')) return `${window.location.origin}${raw}`;
+            return `${window.location.origin}/${raw.replace(/^\.?\//, '')}`;
+        };
+
+        const loadConfig = async () => {
+            try {
+                const response = await fetch(window.location.origin + '/config');
+                const config = await response.json();
+                thumbnailsEnabled.value = config?.enableThumbnails !== false;
+            } catch (e) {
+                thumbnailsEnabled.value = true;
+            }
         };
 
         const findBookmarkForChannel = (channel) => {
@@ -667,7 +693,7 @@ createApp({
             const detail = {
                 seriesId: String(seriesId || ''),
                 name: seriesItem.name || 'Series',
-                cover: seriesItem.logo || '',
+                cover: resolveLogoUrl(seriesItem.logo || ''),
                 plot: '',
                 cast: '',
                 director: '',
@@ -751,7 +777,7 @@ createApp({
 
             const detail = {
                 name: vodItem.name || 'VOD',
-                cover: vodItem.logo || '',
+                cover: resolveLogoUrl(vodItem.logo || ''),
                 plot: vodItem.description || '',
                 cast: '',
                 director: '',
@@ -873,7 +899,7 @@ createApp({
                 query.set('seriesId', seriesEpisodeIdentifier || '');
                 query.set('seriesParentId', seriesParentId);
                 query.set('name', channel.name || '');
-                query.set('logo', channel.logo || '');
+                query.set('logo', resolveLogoUrl(channel.logo || ''));
                 query.set('cmd', channel.cmd || '');
                 query.set('season', resolvedSeason);
                 query.set('episodeNum', resolvedEpisodeNum);
@@ -894,7 +920,7 @@ createApp({
             } else {
                 query.set('channelId', channelIdentifier || '');
                 query.set('name', channel.name || '');
-                query.set('logo', channel.logo || '');
+                query.set('logo', resolveLogoUrl(channel.logo || ''));
                 query.set('cmd', channel.cmd || '');
                 query.set('season', channel.season || '');
                 query.set('episodeNum', channel.episodeNum || '');
@@ -924,7 +950,7 @@ createApp({
                     ? seriesEpisodeIdentifier
                     : (channel.channelId || channelIdentifier),
                 name: channel.name,
-                logo: channel.logo,
+                logo: resolveLogoUrl(channel.logo),
                 cmd: channel.cmd,
                 drmType: channel.drmType,
                 drmLicenseUrl: channel.drmLicenseUrl,
@@ -988,7 +1014,10 @@ createApp({
             try {
                 startModeLoading('bookmarks');
                 const response = await fetch(`${window.location.origin}/bookmarks`);
-                bookmarks.value = await response.json();
+                const data = await response.json();
+                bookmarks.value = Array.isArray(data)
+                    ? data.map(b => ({ ...b, logo: resolveLogoUrl(b.logo) }))
+                    : [];
                 ensureSelectedBookmarkCategory();
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
@@ -1010,6 +1039,7 @@ createApp({
         const normalizeWatchingNowRow = (row = {}) => ({
             ...row,
             key: String(row.key || `${row.accountId || ''}|${row.categoryId || ''}|${row.seriesId || ''}`),
+            seriesPoster: resolveLogoUrl(row.seriesPoster),
             episodes: normalizeChannelList(row.episodes)
         });
 
@@ -1054,7 +1084,7 @@ createApp({
             currentChannel.value = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
-                logo: bookmark.logo,
+                logo: resolveLogoUrl(bookmark.logo),
                 accountName: bookmark.accountName,
                 accountId: resolveAccountId(bookmark.accountName),
                 categoryId: bookmark.categoryId || '',
@@ -1084,7 +1114,7 @@ createApp({
                 dbId: row.seriesId || '',
                 categoryId: row.categoryId || '',
                 name: row.seriesTitle || 'Series',
-                logo: row.seriesPoster || ''
+                logo: resolveLogoUrl(row.seriesPoster || '')
             });
         };
 
@@ -1501,7 +1531,7 @@ createApp({
                             mode: currentChannel.value.mode || 'itv',
                             channelId: currentChannel.value.channelId || currentChannel.value.id || '',
                             name: currentChannel.value.name || currentChannel.value.channelName || '',
-                            logo: currentChannel.value.logo || '',
+                            logo: resolveLogoUrl(currentChannel.value.logo || ''),
                             cmd: currentChannel.value.cmd || '',
                             drmType: currentChannel.value.drmType || '',
                             drmLicenseUrl: currentChannel.value.drmLicenseUrl || '',
@@ -1718,7 +1748,8 @@ createApp({
             selectedWatchingNowKey.value = '';
         };
 
-        onMounted(() => {
+        onMounted(async () => {
+            await loadConfig();
             loadAccounts();
             loadBookmarkCategories();
             loadBookmarks();

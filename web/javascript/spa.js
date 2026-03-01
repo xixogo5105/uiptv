@@ -46,6 +46,8 @@ createApp({
         const selectedTextTrackId = ref('off');
         const repeatEnabled = ref(false);
 
+        const thumbnailsEnabled = ref(true);
+
         const theme = ref('system');
 
         const contentModeLabels = {
@@ -417,6 +419,7 @@ createApp({
         };
 
         const resolveLogoUrl = (logo) => {
+            if (!thumbnailsEnabled.value) return '';
             const raw = String(logo || '').trim();
             if (!raw) return '';
             if (/^(data:|blob:|https?:\/\/|file:)/i.test(raw)) return raw;
@@ -438,6 +441,16 @@ createApp({
             ...bookmark,
             logo: resolveLogoUrl(bookmark.logo)
         });
+
+        const loadConfig = async () => {
+            try {
+                const response = await fetch(window.location.origin + '/config');
+                const config = await response.json();
+                thumbnailsEnabled.value = config?.enableThumbnails !== false;
+            } catch (e) {
+                thumbnailsEnabled.value = true;
+            }
+        };
 
         const findBookmarkForChannel = (channel) => {
             if (!channel) return null;
@@ -986,7 +999,7 @@ createApp({
                 dbId: row.seriesId || '',
                 categoryId: row.categoryDbId || row.categoryId || '',
                 name: row.seriesTitle || 'Series',
-                logo: row.seriesPoster || ''
+                logo: resolveLogoUrl(row.seriesPoster || '')
             });
         };
 
@@ -1778,7 +1791,7 @@ createApp({
                             mode: currentChannel.value.mode || 'itv',
                             channelId: currentChannel.value.channelId || currentChannel.value.id || '',
                             name: currentChannel.value.name || currentChannel.value.channelName || '',
-                            logo: currentChannel.value.logo || '',
+                            logo: resolveLogoUrl(currentChannel.value.logo || ''),
                             cmd: currentChannel.value.cmd || '',
                             drmType: currentChannel.value.drmType || '',
                             drmLicenseUrl: currentChannel.value.drmLicenseUrl || '',
@@ -1983,6 +1996,7 @@ createApp({
         };
 
         onMounted(async () => {
+            await loadConfig();
             await loadAccounts();
             await loadBookmarkCategories();
             await loadBookmarks();
