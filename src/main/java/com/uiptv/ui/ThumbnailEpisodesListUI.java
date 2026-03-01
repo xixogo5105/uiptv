@@ -57,6 +57,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
     private volatile boolean imdbLoaded = false;
+    private VBox selectedEpisodeCard;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -301,6 +302,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         setEmptyState("", false);
+        selectedEpisodeCard = null;
         String season = selectedSeason();
         List<EpisodeItem> filtered;
         if (isBlank(season)) {
@@ -327,7 +329,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private VBox createEpisodeCard(EpisodeItem row) {
         VBox root = new VBox(8);
         root.setPadding(new Insets(6));
-        root.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
+        String baseStyle = "-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;";
+        root.setStyle(baseStyle);
+        root.getProperties().put("baseStyle", baseStyle);
 
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
@@ -378,9 +382,22 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
         title.setStyle("-fx-font-weight: bold;");
+        registerLabelBaseStyle(title);
         text.getChildren().addAll(actionRow, title);
-        if (!isBlank(row.getReleaseDate())) text.getChildren().add(new Label("Release: " + shortDateOnly(row.getReleaseDate())));
-        if (!isBlank(row.getRating())) text.getChildren().add(new Label("Rating: " + row.getRating()));
+        List<Label> cardLabels = new ArrayList<>();
+        cardLabels.add(title);
+        if (!isBlank(row.getReleaseDate())) {
+            Label release = new Label("Release: " + shortDateOnly(row.getReleaseDate()));
+            registerLabelBaseStyle(release);
+            text.getChildren().add(release);
+            cardLabels.add(release);
+        }
+        if (!isBlank(row.getRating())) {
+            Label rating = new Label("Rating: " + row.getRating());
+            registerLabelBaseStyle(rating);
+            text.getChildren().add(rating);
+            cardLabels.add(rating);
+        }
 
         top.getChildren().addAll(posterWrap, text);
         root.getChildren().add(top);
@@ -390,14 +407,75 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
             plot.setMinHeight(Region.USE_PREF_SIZE);
+            registerLabelBaseStyle(plot);
             root.getChildren().add(plot);
+            cardLabels.add(plot);
         }
+        root.getProperties().put("cardLabels", cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+                setSelectedEpisodeCard(root);
             }
         });
         return root;
+    }
+
+    private void setSelectedEpisodeCard(VBox current) {
+        if (current == null) {
+            return;
+        }
+        if (selectedEpisodeCard != null && selectedEpisodeCard != current) {
+            applyCardSelection(selectedEpisodeCard, false);
+        }
+        applyCardSelection(current, true);
+        selectedEpisodeCard = current;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applyCardSelection(VBox card, boolean selected) {
+        if (card == null) {
+            return;
+        }
+        Object baseStyle = card.getProperties().get("baseStyle");
+        String base = baseStyle instanceof String ? (String) baseStyle : "";
+        if (selected) {
+            card.setStyle(base + " -fx-background-color: -fx-selection-bar;");
+        } else {
+            card.setStyle(base);
+        }
+        Object labelsObj = card.getProperties().get("cardLabels");
+        if (labelsObj instanceof List<?> labels) {
+            for (Object labelObj : labels) {
+                if (labelObj instanceof Label label) {
+                    applyLabelSelection(label, selected);
+                }
+            }
+        }
+    }
+
+    private void registerLabelBaseStyle(Label label) {
+        if (label == null) {
+            return;
+        }
+        Object existing = label.getProperties().get("baseTextStyle");
+        if (existing == null) {
+            label.getProperties().put("baseTextStyle", label.getStyle() == null ? "" : label.getStyle());
+        }
+    }
+
+    private void applyLabelSelection(Label label, boolean selected) {
+        if (label == null) {
+            return;
+        }
+        Object baseStyle = label.getProperties().get("baseTextStyle");
+        String base = baseStyle instanceof String ? (String) baseStyle : "";
+        if (selected) {
+            label.setStyle(base + " -fx-text-fill: white;");
+        } else {
+            label.setStyle(base);
+        }
     }
 
     private ContextMenu addRightClickContextMenu(EpisodeItem item, Pane target) {

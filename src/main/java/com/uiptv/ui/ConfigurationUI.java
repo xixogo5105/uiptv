@@ -403,6 +403,9 @@ public class ConfigurationUI extends VBox {
                 }
                 saveButton.setDisable(true);
 
+                Configuration previous = service.read();
+                boolean previousThumbnailsEnabled = previous != null && previous.isEnableThumbnails();
+
                 String defaultPlayer = defaultEmbedPlayer.getText();
                 if (defaultPlayer1.isSelected()) {
                     defaultPlayer = playerPath1.getText();
@@ -429,6 +432,9 @@ public class ConfigurationUI extends VBox {
                 service.save(newConfiguration);
                 onSaveCallback.call(null);
                 showSaveSuccessAnimation();
+                if (previousThumbnailsEnabled != newConfiguration.isEnableThumbnails()) {
+                    ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
+                }
 
                 if (newConfiguration.isEmbeddedPlayer() && MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.DUMMY) {
                     showMessageAlert("Please restart the application for the embedded player to be initialized.");

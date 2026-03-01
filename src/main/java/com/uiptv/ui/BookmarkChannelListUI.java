@@ -53,6 +53,7 @@ public class BookmarkChannelListUI extends HBox {
     private volatile boolean loadedOnce = false;
     private final AtomicLong reloadGeneration = new AtomicLong(0);
     private boolean changeListenerRegistered = false;
+    private boolean thumbnailListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || reloadInProgress) {
             return;
@@ -61,6 +62,7 @@ public class BookmarkChannelListUI extends HBox {
             forceReload();
         }
     });
+    private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
 
     public BookmarkChannelListUI() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
@@ -68,6 +70,7 @@ public class BookmarkChannelListUI extends HBox {
         }
         initWidgets();
         registerBookmarkChangeListener();
+        registerThumbnailModeListener();
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 releaseTransientState();
@@ -225,13 +228,38 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
         bookmarkColumn.setText("Bookmarked Channels");
 
-        boolean enableThumbnails = ThumbnailAwareUI.areThumbnailsEnabled();
+        applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
+    }
 
-        if (enableThumbnails) {
+    private void registerThumbnailModeListener() {
+        if (thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = true;
+        sceneProperty().addListener((observable, oldScene, newScene) -> {
+            if (newScene == null) {
+                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+                thumbnailListenerRegistered = false;
+            } else if (!thumbnailListenerRegistered) {
+                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
+                thumbnailListenerRegistered = true;
+            }
+        });
+    }
+
+    private void onThumbnailModeChanged(boolean enabled) {
+        runLater(() -> applyThumbnailMode(enabled));
+    }
+
+    private void applyThumbnailMode(boolean enabled) {
+        if (enabled) {
+            ImageCacheManager.clearCache("bookmark");
             bookmarkColumn.setCellFactory(column -> createThumbnailCell());
         } else {
             bookmarkColumn.setCellFactory(column -> createPlainTextCell());
         }
+        bookmarkTable.getTableView().refresh();
     }
 
     private TableCell<BookmarkItem, String> createThumbnailCell() {

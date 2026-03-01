@@ -4,6 +4,7 @@ import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
@@ -33,6 +34,15 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     public PlainEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
+    }
+
+    @Override
+    protected void initBaseLayout() {
+        setPadding(Insets.EMPTY);
+        setSpacing(0);
+        setMinWidth(0);
+        setPrefWidth((double) RootApplication.GUIDED_MAX_WIDTH_PIXELS / 3);
+        setMaxWidth(Double.MAX_VALUE);
     }
 
     @Override
@@ -101,8 +111,16 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             addRightClickContextMenu(row);
             return row;
         });
+        tableView.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                EpisodeItem selected = tableView.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    play(selected, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                }
+            }
+        });
 
-        VBox body = new VBox(6, tableView);
+        VBox body = new VBox(0, tableView);
         body.setMaxWidth(Double.MAX_VALUE);
         body.setMaxHeight(Double.MAX_VALUE);
         HBox.setHgrow(body, Priority.ALWAYS);

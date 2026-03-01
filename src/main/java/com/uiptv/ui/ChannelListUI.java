@@ -64,9 +64,11 @@ public class ChannelListUI extends HBox {
             }
     );
     private boolean bookmarkListenerRegistered = false;
+    private boolean thumbnailListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
+    private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
         this(account, categoryTitle, categoryId);
@@ -84,6 +86,7 @@ public class ChannelListUI extends HBox {
         }
         initWidgets();
         registerBookmarkListener();
+        registerThumbnailModeListener();
         table.setPlaceholder(new Label("Loading channels for '" + categoryTitle + "'..."));
     }
 
@@ -156,13 +159,7 @@ public class ChannelListUI extends HBox {
         table.setItems(sortedList);
         table.addTextFilter();
 
-        boolean enableThumbnails = ThumbnailAwareUI.areThumbnailsEnabled();
-
-        if (enableThumbnails) {
-            channelName.setCellFactory(column -> createThumbnailCell());
-        } else {
-            channelName.setCellFactory(column -> createPlainTextCell());
-        }
+        applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
 
         channelName.setSortType(TableColumn.SortType.ASCENDING);
 
@@ -304,6 +301,37 @@ public class ChannelListUI extends HBox {
                 refreshBookmarkStatesAsync();
             }
         });
+    }
+
+    private void registerThumbnailModeListener() {
+        if (thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = true;
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+                thumbnailListenerRegistered = false;
+            } else if (!thumbnailListenerRegistered) {
+                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
+                thumbnailListenerRegistered = true;
+            }
+        });
+    }
+
+    private void onThumbnailModeChanged(boolean enabled) {
+        runLater(() -> applyThumbnailMode(enabled));
+    }
+
+    private void applyThumbnailMode(boolean enabled) {
+        if (enabled) {
+            ImageCacheManager.clearCache("channel");
+            channelName.setCellFactory(column -> createThumbnailCell());
+        } else {
+            channelName.setCellFactory(column -> createPlainTextCell());
+        }
+        table.refresh();
     }
 
     private void releaseTransientState() {
