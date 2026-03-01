@@ -80,9 +80,24 @@ public class ParseMultipleAccountUI extends VBox {
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
         addCheckBoxListeners();
+        registerSceneCleanupListener();
 
         // Initial state
         updateCheckboxesVisibility(TextParserService.MODE_STALKER);
+    }
+
+    private void registerSceneCleanupListener() {
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                releaseTransientState();
+            }
+        });
+    }
+
+    private void releaseTransientState() {
+        // Clear all UI components to allow garbage collection
+        contentContainer.getChildren().clear();
+        multipleSPAccounts.clear();
     }
 
     private void addCheckBoxListeners() {

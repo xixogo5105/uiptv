@@ -405,6 +405,7 @@ public class EpisodesListUI extends HBox {
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
+                releaseTransientState();
             } else if (!bookmarkListenerRegistered) {
                 BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
@@ -422,12 +423,21 @@ public class EpisodesListUI extends HBox {
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 unregisterWatchStateListener();
+                releaseTransientState();
             } else if (!watchStateListenerRegistered) {
                 SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
                 watchStateListenerRegistered = true;
                 refreshWatchedStatesAsync();
             }
         });
+    }
+
+    private void releaseTransientState() {
+        // Clear all episode items to allow garbage collection
+        allEpisodeItems.clear();
+        seasonInfo = new JSONObject();
+        channelList.episodes.clear();
+        channelList.seasonInfo = null;
     }
 
     private void unregisterBookmarkListener() {

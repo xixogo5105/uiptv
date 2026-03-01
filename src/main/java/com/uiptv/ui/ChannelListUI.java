@@ -54,7 +54,15 @@ public class ChannelListUI extends HBox {
     private volatile Map<String, String> categoryTitleByNormalizedTitle = Map.of();
     private volatile Map<String, BookmarkContext> m3uAllSourceContextByChannelKey = Map.of();
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
-    private final Map<String, EpisodeList> seriesEpisodesCache = new HashMap<>();
+    private static final int MAX_SERIES_EPISODE_CACHE_ENTRIES = Integer.getInteger("uiptv.series.cache.maxEntries", 48);
+    private final Map<String, EpisodeList> seriesEpisodesCache = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, EpisodeList> eldest) {
+                    return size() > MAX_SERIES_EPISODE_CACHE_ENTRIES;
+                }
+            }
+    );
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private volatile Thread currentLoadingThread;
@@ -219,12 +227,31 @@ public class ChannelListUI extends HBox {
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
+                releaseTransientState();
             } else if (!bookmarkListenerRegistered) {
                 BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
                 refreshBookmarkStatesAsync();
             }
         });
+    }
+
+    private void releaseTransientState() {
+        if (currentRequestCancelled != null) {
+            currentRequestCancelled.set(true);
+        }
+        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+            currentLoadingThread.interrupt();
+        }
+        seriesEpisodesCache.clear();
+        // Clear channel items and metadata to allow garbage collection
+        if (channelItems != null) {
+            channelItems.clear();
+        }
+        seenChannelKeys.clear();
+        categoryTitleByCategoryId = Map.of();
+        categoryTitleByNormalizedTitle = Map.of();
+        m3uAllSourceContextByChannelKey = Map.of();
     }
 
     private void unregisterBookmarkListener() {

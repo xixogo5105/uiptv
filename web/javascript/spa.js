@@ -1077,15 +1077,27 @@ createApp({
             query.set('action', resolvedMode);
         };
 
+        const resolvePlaybackCategoryIdForChannel = (channel, modeOverride = null) => {
+            const modeToUse = String(modeOverride || contentMode.value || 'itv').toLowerCase();
+            if (modeToUse === 'series') {
+                const seriesState = getModeState('series');
+                return String(seriesState?.selectedSeriesCategoryId || channel?.categoryId || currentContext.value.categoryId || '');
+            }
+            const scopedCategoryId = String(currentContext.value.categoryId || '');
+            const channelCategoryId = String(channel?.categoryId || '');
+            if (scopedCategoryId.toLowerCase() === 'all' && channelCategoryId) {
+                return channelCategoryId;
+            }
+            return String(channelCategoryId || scopedCategoryId || '');
+        };
+
         const buildPlayerUrlForChannel = (channel, modeOverride = null) => {
             const modeToUse = String(modeOverride || contentMode.value || 'itv').toLowerCase();
             const channelDbId = channel.dbId || '';
             const channelIdentifier = channel.channelId || channel.id || '';
             const seriesState = getModeState('series');
             const seriesParentId = modeToUse === 'series' ? String(seriesState?.selectedSeriesId || '') : '';
-            const scopedCategoryId = modeToUse === 'series'
-                ? String(seriesState?.selectedSeriesCategoryId || channel?.categoryId || currentContext.value.categoryId || '')
-                : String(currentContext.value.categoryId || '');
+            const scopedCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
             const query = new URLSearchParams();
             query.set('accountId', currentContext.value.accountId || '');
             query.set('categoryId', scopedCategoryId);
@@ -1249,6 +1261,7 @@ createApp({
         const playChannel = (channel) => {
             scrollToTop();
             const modeToUse = String(contentMode.value || 'itv').toLowerCase();
+            const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
             const playbackUrl = buildPlayerUrlForChannel(channel, modeToUse);
             currentChannel.value = {
@@ -1266,7 +1279,7 @@ createApp({
                 season: modeToUse === 'series' ? resolvePlaybackSeason(channel) : '',
                 episodeNum: modeToUse === 'series' ? resolvePlaybackEpisodeNumber(channel) : '',
                 accountId: currentContext.value.accountId,
-                categoryId: currentContext.value.categoryId,
+                categoryId: playbackCategoryId,
                 type: 'channel',
                 mode: modeToUse,
                 playRequestUrl: playbackUrl

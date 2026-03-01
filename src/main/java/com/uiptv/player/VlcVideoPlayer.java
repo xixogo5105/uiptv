@@ -17,37 +17,46 @@ import java.util.List;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
 
+    private final Object playerLock = new Object();
+    private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
+    private MediaPlayerEventAdapter mediaPlayerEvents;
     private ImageView videoImageView;
     private int videoSourceWidth, videoSourceHeight;
 
     public VlcVideoPlayer() {
         super(); // Must be the first call
 
-        // --- VLCJ SETUP ---
-        List<String> vlcArgs = new ArrayList<>();
-        String osName = System.getProperty("os.name").toLowerCase();
-        if (osName.contains("mac")) {
-            vlcArgs.add("--avcodec-hw=videotoolbox");
-        } else {
-        vlcArgs.add("--avcodec-hw=auto");
-        }
-        vlcArgs.add("--network-caching=1000");
-
-        MediaPlayerFactory mediaPlayerFactory = new MediaPlayerFactory(vlcArgs.toArray(new String[0]));
-        mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
-
         if (videoImageView == null) {
             videoImageView = new ImageView();
             videoImageView.setPreserveRatio(true);
         }
-        mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
+        ensurePlayerInitialized();
+    }
 
-        mediaPlayer.controls().setRepeat(false);
-        mediaPlayer.audio().setMute(isMuted);
+    private void ensurePlayerInitialized() {
+        synchronized (playerLock) {
+            if (mediaPlayer != null) {
+                return;
+            }
 
-        // --- VLC EVENTS ---
-        mediaPlayer.events().addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
+            List<String> vlcArgs = new ArrayList<>();
+            String osName = System.getProperty("os.name").toLowerCase();
+            String defaultHw = osName.contains("mac") ? "none" : "auto";
+            String hwDecode = System.getProperty("uiptv.vlc.hwdec", defaultHw).trim().toLowerCase();
+            if (hwDecode.isBlank()) {
+                hwDecode = defaultHw;
+            }
+            vlcArgs.add("--avcodec-hw=" + hwDecode);
+            vlcArgs.add("--network-caching=1000");
+
+            mediaPlayerFactory = new MediaPlayerFactory(vlcArgs.toArray(new String[0]));
+            mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
+            mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
+            mediaPlayer.controls().setRepeat(false);
+            mediaPlayer.audio().setMute(isMuted);
+
+            mediaPlayerEvents = new MediaPlayerEventAdapter() {
             @Override
             public void playing(MediaPlayer mp) {
                 Platform.runLater(() -> {
@@ -138,7 +147,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     Platform.runLater(() -> refreshTrackMenus());
                 }
             }
-        });
+            };
+            mediaPlayer.events().addMediaPlayerEventListener(mediaPlayerEvents);
+        }
     }
 
     @Override
@@ -152,48 +163,128 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
-        new Thread(() -> mediaPlayer.media().play(uri)).start();
+        new Thread(() -> {
+            ensurePlayerInitialized();
+            EmbeddedMediaPlayer player;
+            synchronized (playerLock) {
+                player = mediaPlayer;
+            }
+            if (player != null) {
+                player.media().play(uri);
+            }
+        }).start();
     }
 
     @Override
     protected void stopMedia() {
-        mediaPlayer.controls().stop();
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.controls().stop();
+        }
         videoImageView.setImage(null);
     }
 
     @Override
     protected void disposeMedia() {
-        // No-op for VLCJ
+        synchronized (playerLock) {
+            if (mediaPlayer != null) {
+                try {
+                    mediaPlayer.controls().stop();
+                } catch (Exception ignored) {
+                }
+                try {
+                    if (mediaPlayerEvents != null) {
+                        mediaPlayer.events().removeMediaPlayerEventListener(mediaPlayerEvents);
+                    }
+                } catch (Exception ignored) {
+                }
+                try {
+                    mediaPlayer.videoSurface().set(null);
+                } catch (Exception ignored) {
+                }
+                try {
+                    mediaPlayer.release();
+                } catch (Exception ignored) {
+                }
+                mediaPlayer = null;
+                mediaPlayerEvents = null;
+            }
+            if (mediaPlayerFactory != null) {
+                try {
+                    mediaPlayerFactory.release();
+                } catch (Exception ignored) {
+                }
+                mediaPlayerFactory = null;
+            }
+        }
+        videoImageView.setImage(null);
     }
 
     @Override
     protected void setVolume(double volume) {
-        mediaPlayer.audio().setVolume((int) volume);
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.audio().setVolume((int) volume);
+        }
     }
 
     @Override
     protected void setMute(boolean mute) {
-        mediaPlayer.audio().setMute(mute);
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.audio().setMute(mute);
+        }
     }
 
     @Override
     protected void seek(float position) {
-        mediaPlayer.controls().setPosition(position);
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.controls().setPosition(position);
+        }
     }
 
     @Override
     protected boolean isPlaying() {
-        return mediaPlayer.status().isPlaying();
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        return player != null && player.status().isPlaying();
     }
 
     @Override
     protected void pauseMedia() {
-        mediaPlayer.controls().pause();
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.controls().pause();
+        }
     }
 
     @Override
     protected void resumeMedia() {
-        mediaPlayer.controls().play();
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.controls().play();
+        }
     }
 
     @Override
@@ -218,8 +309,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoImageView.setPreserveRatio(true);
         }
 
-        if (mediaPlayer != null && mediaPlayer.media() != null && mediaPlayer.media().info() != null) {
-            List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null && player.media() != null && player.media().info() != null) {
+            List<VideoTrackInfo> tracks = player.media().info().videoTracks();
             if (tracks != null && !tracks.isEmpty()) {
                 VideoTrackInfo track = tracks.get(0);
                 if (track.width() > 0 && track.height() > 0) {
@@ -233,8 +328,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     protected void updateStreamInfo(int width, int height) {
         String codec = "";
-        if (mediaPlayer != null && mediaPlayer.media() != null && mediaPlayer.media().info() != null) {
-            List<VideoTrackInfo> tracks = mediaPlayer.media().info().videoTracks();
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null && player.media() != null && player.media().info() != null) {
+            List<VideoTrackInfo> tracks = player.media().info().videoTracks();
             if (tracks != null && !tracks.isEmpty()) {
                 VideoTrackInfo bestTrack = tracks.get(0);
                 for (VideoTrackInfo track : tracks) {
@@ -262,10 +361,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     @Override
     protected List<TrackOption> getAudioTrackOptions() {
         List<TrackOption> options = new ArrayList<>();
-        if (mediaPlayer == null) {
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player == null) {
             return options;
         }
-        for (TrackDescription track : mediaPlayer.audio().trackDescriptions()) {
+        for (TrackDescription track : player.audio().trackDescriptions()) {
             options.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")));
         }
         return options;
@@ -273,16 +376,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected int getSelectedAudioTrackId() {
-        if (mediaPlayer == null) {
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player == null) {
             return Integer.MIN_VALUE;
         }
-        return mediaPlayer.audio().track();
+        return player.audio().track();
     }
 
     @Override
     protected void selectAudioTrack(int trackId) {
-        if (mediaPlayer != null) {
-            mediaPlayer.audio().setTrack(trackId);
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player != null) {
+            player.audio().setTrack(trackId);
         }
     }
 

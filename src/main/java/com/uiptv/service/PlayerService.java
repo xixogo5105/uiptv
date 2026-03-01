@@ -113,7 +113,7 @@ public class PlayerService {
         String encoded = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
-        return localServerOrigin() + "/player.html?drmLaunch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260224a";
+        return localServerOrigin() + "/player.html?drmLaunch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260301f";
     }
 
     private static String localServerOrigin() {

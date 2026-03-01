@@ -262,12 +262,36 @@ public class ReloadCachePopup extends VBox {
 
         getChildren().addAll(progressBar, mainContent, buttonBox);
 
+        // Register cleanup listener to release memory when stage closes
+        registerStageCloseListener();
+
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
             preselectAccounts(preselectedAccounts);
             if (checkBoxes.stream().anyMatch(CheckBox::isSelected)) {
                 hideAccountSelectionColumn();
                 Platform.runLater(this::startReloadInBackground);
             }
+        }
+    }
+
+    private void registerStageCloseListener() {
+        stage.setOnCloseRequest(event -> releaseTransientState());
+    }
+
+    private void releaseTransientState() {
+        // Clear all cached data to allow garbage collection
+        checkBoxes.clear();
+        accountLogPanels.clear();
+        runAccountOrder.clear();
+        latestSummaryLines.clear();
+        latestAccountSummaries.clear();
+
+        // Clear all log panel UI nodes
+        logVBox.getChildren().clear();
+
+        // Clear account column UI
+        if (accountColumn != null) {
+            accountColumn.getChildren().clear();
         }
     }
 

@@ -592,6 +592,69 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         return playerContainer;
     }
 
+    /**
+     * Disposes the entire player and cleans up all resources.
+     * Must be called when the application exits or player is no longer needed.
+     * This is separate from stopMedia/disposeMedia to handle complete cleanup.
+     */
+    public void disposePlayer() {
+        try {
+            // First stop any current playback and dispose current media
+            stopForReload();
+        } catch (Exception ignored) {
+        }
+
+        try {
+            // Clear UI components
+            if (playerContainer != null) {
+                playerContainer.getChildren().clear();
+            }
+
+            // Clear controls container
+            if (controlsContainer != null) {
+                controlsContainer.getChildren().clear();
+            }
+
+            // Clear all buttons
+            if (tracksContextMenu != null) {
+                tracksContextMenu.getItems().clear();
+            }
+
+            // Clear text flows
+            if (nowShowingFlow != null) {
+                nowShowingFlow.getChildren().clear();
+            }
+
+            // Remove any fullscreen stage
+            if (fullscreenStage != null) {
+                try {
+                    fullscreenStage.close();
+                } catch (Exception ignored) {
+                }
+                fullscreenStage = null;
+            }
+
+            // Remove any PiP stage
+            if (pipStage != null) {
+                try {
+                    pipStage.close();
+                } catch (Exception ignored) {
+                }
+                pipStage = null;
+            }
+
+            // Cancel idle timers
+            if (idleTimer != null) {
+                idleTimer.stop();
+            }
+
+            if (hiddenBarMessageHideTimer != null) {
+                hiddenBarMessageHideTimer.stop();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     protected void handleRepeat() {
         if (!isRetrying.get()) return;
         if (retryCount < 5) {

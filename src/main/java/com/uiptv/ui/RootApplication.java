@@ -212,6 +212,11 @@ public class RootApplication extends Application {
 
     @Override
     public void stop() throws Exception {
+        // Cleanup player resources before shutdown
+        try {
+            MediaPlayerFactory.release();
+        } catch (Exception ignored) {
+        }
         ServerUrlUtil.stopServerWithShutdownMessage();
         super.stop();
     }

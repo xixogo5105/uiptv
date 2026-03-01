@@ -118,6 +118,32 @@ public class CategoryListUI extends HBox {
         leftPane.getChildren().addAll(modeTabs, table.getSearchTextField(), table);
         getChildren().addAll(leftPane);
         addChannelClickHandler();
+        registerSceneCleanupListener();
+    }
+
+    private void registerSceneCleanupListener() {
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                releaseTransientState();
+            }
+        });
+    }
+
+    private void releaseTransientState() {
+        // Cancel any ongoing loading thread
+        if (currentRequestCancelled != null) {
+            currentRequestCancelled.set(true);
+        }
+        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+            currentLoadingThread.interrupt();
+        }
+
+        // Clear all cached mode states to allow garbage collection
+        // This is critical because modeStates holds ChannelListUI instances with data
+        modeStates.clear();
+
+        // Clear table items
+        table.getItems().clear();
     }
 
     private void setupModeTabs() {

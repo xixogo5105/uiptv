@@ -47,7 +47,17 @@ public class AccountListUI extends HBox {
 
     public AccountListUI() { // Removed MediaPlayer argument
         initWidgets();
-        refresh();
+        // Don't load accounts on startup - load lazily when visible
+        registerVisibilityListener();
+    }
+
+    private void registerVisibilityListener() {
+        // Load data only when tab becomes visible
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                refresh();
+            }
+        });
     }
 
     public void addUpdateCallbackHandler(Callback onEditCallback) {
@@ -83,6 +93,17 @@ public class AccountListUI extends HBox {
         getChildren().addAll(new AutoGrowPaneVBox(5, sceneBox, table));
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        registerSceneCleanupListener();
+    }
+
+    private void registerSceneCleanupListener() {
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                // Clear all children to allow garbage collection of CategoryListUI
+                getChildren().clear();
+                table.getItems().clear();
+            }
+        });
     }
 
     private void addAccountClickHandler() {

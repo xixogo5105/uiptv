@@ -51,6 +51,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -58,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -86,7 +86,15 @@ public class WatchingNowUI extends VBox {
     private String renderedDetailKey = "";
     private Accordion seriesAccordion;
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = new ConcurrentHashMap<>();
+    private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.imdb.maxEntries", 200);
+    private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, ImdbCacheEntry> eldest) {
+                    return size() > MAX_IMDB_CACHE_ENTRIES;
+                }
+            }
+    );
     private boolean watchStateListenerRegistered = false;
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
 
@@ -216,7 +224,6 @@ public class WatchingNowUI extends VBox {
             return;
         }
         mergeMissingSeasonInfo(data.seasonInfo, cached.seasonInfo);
-        enrichEpisodesFromMeta(data.episodes, cached.episodesMeta);
         data.imdbLoaded = true;
         data.imdbLoading = false;
     }
@@ -781,6 +788,7 @@ public class WatchingNowUI extends VBox {
         String selectedSeason = selectedTab == null ? "" : safe(selectedTab.getText());
         tabPane.getTabs().clear();
         data.seasonCardsBySeason.clear();
+        data.watchingLabels.clear();
 
         Map<String, List<WatchingEpisode>> bySeason = new LinkedHashMap<>();
         for (WatchingEpisode episode : data.episodes) {
@@ -1068,7 +1076,6 @@ public class WatchingNowUI extends VBox {
         new Thread(() -> {
             try {
                 JSONObject imdb = findImdbWithRetry(data, 3);
-                JSONArray episodesMeta = null;
                 if (imdb != null) {
                     String imdbCover = normalizeImageUrl(imdb.optString("cover", ""), data.account);
                     if (!isBlank(imdbCover)) {
@@ -1085,10 +1092,10 @@ public class WatchingNowUI extends VBox {
                     mergeMissing(data.seasonInfo, imdb, "tmdb");
                     mergeMissing(data.seasonInfo, imdb, "imdbUrl");
 
-                    episodesMeta = imdb.optJSONArray("episodesMeta");
+                    JSONArray episodesMeta = imdb.optJSONArray("episodesMeta");
                     enrichEpisodesFromMeta(data.episodes, episodesMeta);
                     imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
-                            new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString()), cloneArray(episodesMeta)));
+                            new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString())));
                 }
             } finally {
                 data.imdbLoaded = true;
@@ -1327,6 +1334,7 @@ public class WatchingNowUI extends VBox {
                     SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
                     watchStateListenerRegistered = false;
                 }
+                releaseUiState();
             } else {
                 if (!watchStateListenerRegistered) {
                     SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
@@ -1434,6 +1442,7 @@ public class WatchingNowUI extends VBox {
         if (target == null || source == null) {
             return;
         }
+        target.watchingLabels.clear();
         target.episodes.clear();
         target.episodes.addAll(source.episodes);
         target.episodeList = source.episodeList;
@@ -1787,11 +1796,19 @@ public class WatchingNowUI extends VBox {
         }
     }
 
-    private JSONArray cloneArray(JSONArray input) {
-        if (input == null) {
-            return null;
+    private void releaseUiState() {
+        for (SeriesPanelData panel : panelDataByKey.values()) {
+            if (panel != null) {
+                panel.watchingLabels.clear();
+                panel.seasonCardsBySeason.clear();
+            }
         }
-        return new JSONArray(input.toString());
+        panelDataByKey.clear();
+        imdbCacheByPanelKey.clear();
+        selectedSeriesKey = "";
+        renderedDetailKey = "";
+        lastExpandedSeriesKey = "";
+        contentBox.getChildren().clear();
     }
 
     private String panelCacheKey(Account account, SeriesWatchState state) {
@@ -1815,11 +1832,9 @@ public class WatchingNowUI extends VBox {
 
     private static final class ImdbCacheEntry {
         private final JSONObject seasonInfo;
-        private final JSONArray episodesMeta;
 
-        private ImdbCacheEntry(JSONObject seasonInfo, JSONArray episodesMeta) {
+        private ImdbCacheEntry(JSONObject seasonInfo) {
             this.seasonInfo = seasonInfo == null ? new JSONObject() : seasonInfo;
-            this.episodesMeta = episodesMeta;
         }
     }
 

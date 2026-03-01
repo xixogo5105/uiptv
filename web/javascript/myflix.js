@@ -839,12 +839,22 @@ createApp({
             query.set('hvec', canDecodeHevc() ? '1' : '0');
         };
 
+        const resolvePlaybackCategoryIdForChannel = (channel, mode, browserState) => {
+            if (mode === 'series') {
+                return String(browserState?.selectedSeriesCategoryId?.value || channel?.categoryId || browserState.categoryId.value || '');
+            }
+            const scopedCategoryId = String(browserState?.categoryId?.value || '');
+            const channelCategoryId = String(channel?.categoryId || '');
+            if (scopedCategoryId.toLowerCase() === 'all' && channelCategoryId) {
+                return channelCategoryId;
+            }
+            return String(channelCategoryId || scopedCategoryId || '');
+        };
+
         const buildPlayerUrlForChannel = (channel, mode, browserState) => {
             const query = new URLSearchParams();
             query.set('accountId', browserState.accountId.value || '');
-            const scopedCategoryId = mode === 'series'
-                ? String(browserState?.selectedSeriesCategoryId?.value || channel?.categoryId || browserState.categoryId.value || '')
-                : String(browserState.categoryId.value || '');
+            const scopedCategoryId = resolvePlaybackCategoryIdForChannel(channel, mode, browserState);
             query.set('categoryId', scopedCategoryId);
             query.set('mode', mode);
 
@@ -904,6 +914,7 @@ createApp({
 
         const playChannel = (channel, mode = 'itv') => {
             const b = browsers[mode];
+            const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, mode, b);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
             const seriesEpisodeIdentifier = channel.channelId || channel.id || '';
             currentChannel.value = {
@@ -924,7 +935,7 @@ createApp({
                 episodeNum: mode === 'series' ? resolvePlaybackEpisodeNumber(channel) : '',
                 accountId: b.accountId.value,
                 accountName: resolveAccountName(b.accountId.value),
-                categoryId: b.categoryId.value,
+                categoryId: playbackCategoryId,
                 type: 'channel',
                 mode,
                 clearKeys: channel.clearKeys,
