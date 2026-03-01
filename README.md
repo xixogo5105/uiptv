@@ -43,6 +43,7 @@ This application is built using **Java 25** and **JavaFX**, and it is packaged i
 Before compiling, please ensure you have:
 1.  A JDK (version 25 or higher) installed, with the `JAVA_HOME` environment variable correctly set.
 2.  Apache Maven installed.
+3.  **Windows only:** The WiX Toolset build tools must be installed and available on `PATH` when building Windows installers. `jpackage` requires `candle.exe` and `light.exe` for `.exe`/`.msi` packaging.
 
 To compile the project, you can use Maven profiles to target specific operating systems and package formats. The final application will be generated in the `target/dist` directory.
 
@@ -58,6 +59,7 @@ Here are some examples of how to build the application for different targets.
   ```sh
   mvn clean package -P windows-aarch64
   ```
+  **Note:** The native Windows ARM64 build is currently not working reliably. On Windows ARM devices, use the x86_64 build under emulation instead.
 
 #### macOS
 - **macOS (Intel/x86_64):**
