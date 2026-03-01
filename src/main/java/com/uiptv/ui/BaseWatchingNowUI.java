@@ -355,9 +355,9 @@ public abstract class BaseWatchingNowUI extends VBox {
             }
             String season = inferSeason(episode);
             String episodeNum = inferEpisodeNumber(episode);
-            String title = cleanEpisodeTitle(episode.getTitle());
-            String image = episode.getInfo() != null ? normalizeImageUrl(episode.getInfo().getMovieImage(), account) : "";
             String plot = episode.getInfo() != null ? safe(episode.getInfo().getPlot()) : "";
+            String title = cleanEpisodeTitleWithPlot(episode.getTitle(), plot);
+            String image = episode.getInfo() != null ? normalizeImageUrl(episode.getInfo().getMovieImage(), account) : "";
             String releaseDate = episode.getInfo() != null ? safe(episode.getInfo().getReleaseDate()) : "";
             String rating = episode.getInfo() != null ? safe(episode.getInfo().getRating()) : "";
 
@@ -1696,6 +1696,38 @@ public abstract class BaseWatchingNowUI extends VBox {
                 .replaceAll("(?i)^\\s*season\\s*\\d+\\s*[-:]\\s*", "")
                 .replaceAll("(?i)^\\s*s\\d+\\s*[-:]\\s*", "")
                 .trim();
+    }
+
+    private String cleanEpisodeTitleWithPlot(String title, String plot) {
+        String cleaned = cleanEpisodeTitle(title);
+        return stripAppendedPlot(cleaned, plot);
+    }
+
+    private String stripAppendedPlot(String title, String plot) {
+        if (isBlank(title) || isBlank(plot)) {
+            return title;
+        }
+        String trimmedPlot = plot.trim();
+        if (trimmedPlot.length() < 15) {
+            return title;
+        }
+        int idx = indexOfIgnoreCase(title, trimmedPlot);
+        if (idx <= 0) {
+            return title;
+        }
+        String before = title.substring(0, idx).trim();
+        if (before.isEmpty()) {
+            return title;
+        }
+        before = before.replaceAll("[-:|]+\\s*$", "").trim();
+        return before.isEmpty() ? title : before;
+    }
+
+    private int indexOfIgnoreCase(String text, String needle) {
+        if (text == null || needle == null) {
+            return -1;
+        }
+        return text.toLowerCase(Locale.ENGLISH).indexOf(needle.toLowerCase(Locale.ENGLISH));
     }
 
     private String normalizeNumber(String value) {

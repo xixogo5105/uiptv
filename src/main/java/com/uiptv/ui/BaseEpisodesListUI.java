@@ -142,9 +142,9 @@ public abstract class BaseEpisodesListUI extends HBox {
                 String episodeNo = inferEpisodeNumber(i);
                 boolean isWatched = SeriesWatchStateService.getInstance().isMatchingEpisode(
                         watchedState, i.getId(), season, episodeNo, i.getTitle());
-                String cleanTitle = cleanEpisodeTitle(i.getTitle());
-                String displayTitle = isBlank(episodeNo) ? cleanTitle : "E" + episodeNo + "  " + cleanTitle;
                 String plot = i.getInfo() != null ? safe(i.getInfo().getPlot()) : "";
+                String cleanTitle = cleanEpisodeTitleWithPlot(i.getTitle(), plot);
+                String displayTitle = isBlank(episodeNo) ? cleanTitle : "E" + episodeNo + "  " + cleanTitle;
                 String releaseDate = i.getInfo() != null ? safe(i.getInfo().getReleaseDate()) : "";
                 String rating = i.getInfo() != null ? safe(i.getInfo().getRating()) : "";
 
@@ -418,6 +418,38 @@ public abstract class BaseEpisodesListUI extends HBox {
                 .replaceAll("(?i)^\\s*season\\s*\\d+\\s*[-:]\\s*", "")
                 .replaceAll("(?i)^\\s*s\\d+\\s*[-:]\\s*", "")
                 .trim();
+    }
+
+    protected String cleanEpisodeTitleWithPlot(String title, String plot) {
+        String cleaned = cleanEpisodeTitle(title);
+        return stripAppendedPlot(cleaned, plot);
+    }
+
+    protected String stripAppendedPlot(String title, String plot) {
+        if (isBlank(title) || isBlank(plot)) {
+            return title;
+        }
+        String trimmedPlot = plot.trim();
+        if (trimmedPlot.length() < 15) {
+            return title;
+        }
+        int idx = indexOfIgnoreCase(title, trimmedPlot);
+        if (idx <= 0) {
+            return title;
+        }
+        String before = title.substring(0, idx).trim();
+        if (before.isEmpty()) {
+            return title;
+        }
+        before = before.replaceAll("[-:|]+\\s*$", "").trim();
+        return before.isEmpty() ? title : before;
+    }
+
+    protected int indexOfIgnoreCase(String text, String needle) {
+        if (text == null || needle == null) {
+            return -1;
+        }
+        return text.toLowerCase(Locale.ENGLISH).indexOf(needle.toLowerCase(Locale.ENGLISH));
     }
 
     protected int parseNumberOrDefault(String value) {

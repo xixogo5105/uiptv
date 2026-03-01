@@ -53,27 +53,11 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             EpisodeItem item = cellData.getValue();
             String season = item.getSeason();
             String episode = item.getEpisodeNumber();
-            String title = cleanEpisodeTitle(item.getEpisode().getTitle())
-                    .replaceAll("(?i)^\\s*episode\\s*\\d+\\s*[-:]*\\s*", "")
-                    .replaceAll("(?i)^\\s*e\\d+\\s*[-:]*\\s*", "")
-                    .trim();
 
             StringBuilder sb = new StringBuilder();
-            if (!isBlank(season)) {
-                sb.append("Season ").append(season);
-            }
-            if (!isBlank(episode)) {
-                if (sb.length() > 0) sb.append(" - ");
-                sb.append("Episode ").append(episode);
-            }
-            if (!isBlank(title)) {
-                if (sb.length() > 0) sb.append(" - ");
-                sb.append(title);
-            }
-
-            if (sb.length() == 0) {
-                return new SimpleStringProperty(item.getEpisodeName());
-            }
+            sb.append("Season ").append(isBlank(season) ? "1" : season);
+            sb.append(" - ");
+            sb.append("Episode ").append(isBlank(episode) ? "-" : episode);
             return new SimpleStringProperty(sb.toString());
         });
         nameCol.setCellFactory(col -> new TableCell<>() {
@@ -87,8 +71,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
                     EpisodeItem row = getTableView().getItems().get(getIndex());
                     HBox box = new HBox(10);
                     box.setAlignment(Pos.CENTER_LEFT);
-                    Label label = new Label(item);
-                    box.getChildren().add(label);
+                    box.getChildren().add(new Label(item));
 
                     if (row.isWatched()) {
                         Label watched = new Label("WATCHING");
