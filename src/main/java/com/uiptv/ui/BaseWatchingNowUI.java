@@ -438,7 +438,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         } else {
             // Single column table view for series list when thumbnails are disabled
             TableView<SeriesListItem> table = new TableView<>();
-            table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+            table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
             table.setFocusTraversable(true);
 
             TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>("Series");

@@ -47,7 +47,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void initWidgets() {
-        tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         TableColumn<EpisodeItem, String> nameCol = new TableColumn<>("Episodes");
         nameCol.setCellValueFactory(cellData -> {
             EpisodeItem item = cellData.getValue();

@@ -25,7 +25,7 @@ public class SearchableFilterableTableView extends TableView {
 
     public SearchableFilterableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
-        this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         textField.setOnMousePressed(event -> textField.clear());
         menuButton.setPrefWidth(175);
         textField.setPrefWidth(275);
