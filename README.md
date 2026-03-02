@@ -7,7 +7,7 @@ Native installers and packages are available for Windows (x86_64, aarch64), Linu
 
 A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
 
-Download the latest release [here](https://github.com/xixogo5105/uiptv/releases/latest).
+[![Download](https://img.shields.io/badge/Download-Latest%20Release-brightgreen)](https://github.com/xixogo5105/uiptv/releases/latest)
 
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
 
