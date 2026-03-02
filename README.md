@@ -59,7 +59,7 @@ Here are some examples of how to build the application for different targets.
   ```sh
   mvn clean package -P windows-aarch64
   ```
-  **Note:** JavaFX does not publish `win-aarch64` artifacts on Maven Central (as of 25.0.2), so this profile fails dependency resolution. On Windows ARM devices, use the x86_64 build under emulation instead.
+  <span style="color: red;"><strong>Warning:</strong> JavaFX does not publish <code>win-aarch64</code> artifacts on Maven Central (as of 25.0.2), so this profile fails dependency resolution. On Windows ARM devices, use the x86_64 build under emulation instead.</span>
 
 #### macOS
 - **macOS (Intel/x86_64):**
