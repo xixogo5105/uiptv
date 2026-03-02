@@ -297,7 +297,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -336,7 +336,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -377,7 +377,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -475,7 +475,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -586,7 +586,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -626,7 +626,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -666,7 +666,7 @@
                     <plugin>
                         <groupId>org.panteleyev</groupId>
                         <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.3</version>
+                        <version>1.7.4</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
