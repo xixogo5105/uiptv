@@ -65,7 +65,6 @@ public class ReloadCachePopup extends VBox {
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
-    private final ProgressIndicator loadingIndicator = createLoadingIndicator();
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountService accountService = AccountService.getInstance();
     private final List<CheckBox> checkBoxes = new ArrayList<>();
@@ -218,7 +217,6 @@ public class ReloadCachePopup extends VBox {
 
         // Ensure proper layout when toggling visibility
         reloadButton.managedProperty().bind(reloadButton.visibleProperty());
-        loadingIndicator.managedProperty().bind(loadingIndicator.visibleProperty());
 
         Button copyLogButton = new Button("Copy Log");
         copyLogButton.setOnAction(event -> {
@@ -256,7 +254,7 @@ public class ReloadCachePopup extends VBox {
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox buttonBox = new HBox(10, reloadButton, loadingIndicator, spacer, copyLogButton, closeButton);
+        HBox buttonBox = new HBox(10, reloadButton, spacer, copyLogButton, closeButton);
         buttonBox.setAlignment(Pos.CENTER_LEFT);
         buttonBox.setPadding(new Insets(10, 0, 0, 0));
 
@@ -313,13 +311,6 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
-    private ProgressIndicator createLoadingIndicator() {
-        ProgressIndicator indicator = new ProgressIndicator();
-        indicator.setMaxSize(24, 24);
-        indicator.setVisible(false);
-        return indicator;
-    }
-
     private void startReloadInBackground() {
         new Thread(this::reloadSelectedAccounts).start();
     }
@@ -356,7 +347,6 @@ public class ReloadCachePopup extends VBox {
     private void reloadSelectedAccounts() {
         Platform.runLater(() -> {
             reloadButton.setVisible(false);
-            loadingIndicator.setVisible(true);
         });
 
         List<Account> selectedAccounts = checkBoxes.stream()
@@ -371,7 +361,6 @@ public class ReloadCachePopup extends VBox {
         if (total == 0) {
             Platform.runLater(() -> {
                 reloadButton.setVisible(true);
-                loadingIndicator.setVisible(false);
             });
             return;
         }
@@ -460,7 +449,6 @@ public class ReloadCachePopup extends VBox {
         Platform.runLater(() -> {
             LogDisplayUI.addLog("Reload run completed.");
             reloadButton.setVisible(true);
-            loadingIndicator.setVisible(false);
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, runTotalFetchedChannels);
@@ -1057,6 +1045,7 @@ public class ReloadCachePopup extends VBox {
         private final Label accountLabel = new Label();
         private final Label statusLabel = new Label();
         private final Label arrowLabel = new Label("▸");
+        private final ProgressIndicator runningIndicator = new ProgressIndicator();
         private final VBox logBody = new VBox(4);
         private final List<String> logs = new ArrayList<>();
 
@@ -1074,7 +1063,11 @@ public class ReloadCachePopup extends VBox {
                     + "-fx-border-color: -fx-box-border;"
                     + "-fx-border-radius: 6;"
                     + "-fx-background-radius: 6;");
-            this.header.getChildren().addAll(accountLabel, spacer, statusLabel, arrowLabel);
+            this.runningIndicator.setMaxSize(14, 14);
+            this.runningIndicator.setVisible(false);
+            this.runningIndicator.managedProperty().bind(this.runningIndicator.visibleProperty());
+
+            this.header.getChildren().addAll(accountLabel, spacer, runningIndicator, statusLabel, arrowLabel);
 
             this.logBody.setPadding(new Insets(0, 10, 8, 10));
             this.root.getChildren().addAll(header, logBody);
@@ -1112,30 +1105,37 @@ public class ReloadCachePopup extends VBox {
         private void setStatus(AccountRunStatus status, Integer channelCount) {
             switch (status) {
                 case QUEUED:
+                    runningIndicator.setVisible(false);
                     statusLabel.setText("Queued");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
                     break;
                 case RUNNING:
+                    runningIndicator.setVisible(true);
                     statusLabel.setText("Running");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
                     break;
                 case DONE:
+                    runningIndicator.setVisible(false);
                     statusLabel.setText(channelCount == null ? "Done" : "Done (" + channelCount + " channels)");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
                     break;
                 case YELLOW:
+                    runningIndicator.setVisible(false);
                     statusLabel.setText(channelCount == null ? "Partial" : "Partial (" + channelCount + " channels)");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
                     break;
                 case EMPTY:
+                    runningIndicator.setVisible(false);
                     statusLabel.setText("Empty (0 channels)");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
                     break;
                 case FAILED:
+                    runningIndicator.setVisible(false);
                     statusLabel.setText("Failed");
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
                     break;
                 default:
+                    runningIndicator.setVisible(false);
                     statusLabel.setText("");
                     break;
             }
@@ -1143,6 +1143,7 @@ public class ReloadCachePopup extends VBox {
 
         private void setStatus(AccountRunStatus status, Integer current, Integer total) {
             if (status == AccountRunStatus.RUNNING && current != null && total != null) {
+                runningIndicator.setVisible(true);
                 statusLabel.setText("Running (" + current + "/" + total + ")");
                 statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
             } else {
