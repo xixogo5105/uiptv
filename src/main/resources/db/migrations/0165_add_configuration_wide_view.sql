@@ -1,0 +1,1 @@
+ALTER TABLE Configuration ADD COLUMN wideView TEXT DEFAULT '0';

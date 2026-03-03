@@ -13,7 +13,6 @@ import javafx.geometry.Side;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
-import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
@@ -52,13 +51,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label genreNode = new Label();
     private final Label releaseNode = new Label();
     private final Label plotNode = new Label();
-    private final Button reloadEpisodesButton = new Button("Reload Episodes from Portal");
+    private final Button reloadEpisodesButton = new Button("Reload from server");
     private final HBox imdbLoadingNode = new HBox(6);
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
     private volatile boolean imdbLoaded = false;
     private VBox selectedEpisodeCard;
     private boolean watchingNowDetailStylingApplied = false;
+    private VBox bodyContainer;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -81,25 +81,27 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         seasonTabPane.setMinHeight(36);
         seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> applySeasonFilter());
 
-        cardsContainer.setPadding(new Insets(4));
+        cardsContainer.setPadding(new Insets(5));
         cardsContainer.setFillWidth(true);
+        cardsContainer.setMaxWidth(Double.MAX_VALUE);
 
         cardsScroll.setFitToWidth(true);
         cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         cardsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         cardsScroll.setMaxWidth(Double.MAX_VALUE);
         cardsScroll.setMaxHeight(Double.MAX_VALUE);
+        cardsScroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
 
-        VBox body = new VBox(6, header, seasonTabPane, cardsScroll);
-        body.setMaxWidth(Double.MAX_VALUE);
-        body.setMaxHeight(Double.MAX_VALUE);
-        body.setPadding(new Insets(0, 4, 0, 4));
-        HBox.setHgrow(body, Priority.ALWAYS);
+        bodyContainer = new VBox(6, header, seasonTabPane, cardsScroll);
+        bodyContainer.setMaxWidth(Double.MAX_VALUE);
+        bodyContainer.setMaxHeight(Region.USE_COMPUTED_SIZE);
+        bodyContainer.setPadding(new Insets(0, 4, 0, 4));
+        HBox.setHgrow(bodyContainer, Priority.ALWAYS);
         header.setMaxHeight(Double.MAX_VALUE);
-        VBox.setVgrow(header, Priority.SOMETIMES);
+        VBox.setVgrow(header, Priority.NEVER);
         VBox.setVgrow(cardsScroll, Priority.ALWAYS);
         VBox.setVgrow(seasonTabPane, Priority.NEVER);
-        contentStack.getChildren().add(body);
+        contentStack.getChildren().add(bodyContainer);
     }
 
     @Override
@@ -174,7 +176,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbProgress.setMaxSize(14, 14);
         Label imdbLoadingLabel = new Label("Loading IMDb details...");
         imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
-        reloadEpisodesButton.setFocusTraversable(false);
+        reloadEpisodesButton.setFocusTraversable(true);
         reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
 
         headerDetails.getChildren().setAll(titleNode);
@@ -188,8 +190,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         watchingNowDetailStylingApplied = true;
-        header.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6;");
-        seasonTabPane.setStyle("");
+        header.setStyle("-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8;");
+        if (bodyContainer != null) {
+            bodyContainer.setSpacing(1);
+            bodyContainer.setPadding(new Insets(0, 1, 0, 1));
+        }
+        cardsContainer.setPadding(new Insets(5));
+        seasonTabPane.getStyleClass().add("watching-now-detail-tabs");
     }
 
     private void applySeriesHeader() {
@@ -269,10 +276,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 } else {
                     setEmptyState("No episodes found.", true);
                 }
-                reloadEpisodesButton.setText("Reload Episodes from Portal");
+                reloadEpisodesButton.setText("Reload from server");
                 reloadEpisodesButton.setDisable(false);
             });
         }, "episodes-portal-reload").start();
+    }
+
+    public void reloadFromServer() {
+        reloadEpisodesFromPortal();
     }
 
     private void refreshSeasonTabs() {
@@ -340,8 +351,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private VBox createEpisodeCard(EpisodeItem row) {
         VBox root = new VBox(8);
-        root.setPadding(new Insets(6));
-        String baseStyle = "-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;";
+        root.setPadding(new Insets(10));
+        String baseStyle = "-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;";
         root.setStyle(baseStyle);
         root.getProperties().put("baseStyle", baseStyle);
 
@@ -375,7 +386,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         playButton.setMaxWidth(Double.MAX_VALUE);
         playButton.setMinHeight(Region.USE_PREF_SIZE);
         playButton.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 6 2 6; -fx-background-radius: 6;");
-        playButton.setFocusTraversable(false);
+        playButton.setFocusTraversable(true);
         playButton.setOnAction(event -> {
             event.consume();
             rowMenu.hide();
@@ -494,46 +505,46 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-
-        Menu lastWatchedMenu = new Menu("Last Watched");
-        rowMenu.getItems().add(lastWatchedMenu);
-
-        rowMenu.setOnShowing(event -> {
-            lastWatchedMenu.getItems().clear();
-            if (item == null) return;
-
-            MenuItem markWatched = new MenuItem("Mark as Watched");
-            markWatched.setOnAction(e -> markEpisodeAsWatched(item));
-            lastWatchedMenu.getItems().add(markWatched);
-
-            MenuItem clearWatched = new MenuItem("Clear Watched Marker");
-            clearWatched.setDisable(!item.isWatched());
-            clearWatched.setOnAction(e -> clearWatchedMarker());
-            lastWatchedMenu.getItems().add(clearWatched);
-        });
-
+        MenuItem watchingToggleItem = new MenuItem("Watching Now");
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
-        playerEmbeddedItem.setOnAction(event -> {
+        playerEmbeddedItem.setOnAction(e -> {
             rowMenu.hide();
             play(item, "embedded");
         });
         MenuItem player1Item = new MenuItem("Player 1");
-        player1Item.setOnAction(event -> {
+        player1Item.setOnAction(e -> {
             rowMenu.hide();
             play(item, ConfigurationService.getInstance().read().getPlayerPath1());
         });
         MenuItem player2Item = new MenuItem("Player 2");
-        player2Item.setOnAction(event -> {
+        player2Item.setOnAction(e -> {
             rowMenu.hide();
             play(item, ConfigurationService.getInstance().read().getPlayerPath2());
         });
         MenuItem player3Item = new MenuItem("Player 3");
-        player3Item.setOnAction(event -> {
+        player3Item.setOnAction(e -> {
             rowMenu.hide();
             play(item, ConfigurationService.getInstance().read().getPlayerPath3());
         });
+        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
 
-        rowMenu.getItems().addAll(new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
+        rowMenu.setOnShowing(event -> {
+            if (item == null) {
+                watchingToggleItem.setDisable(true);
+                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setOnAction(null);
+                return;
+            }
+            watchingToggleItem.setDisable(false);
+
+            if (item.isWatched()) {
+                watchingToggleItem.setText("Remove Watching Now");
+                watchingToggleItem.setOnAction(e -> clearWatchedMarker());
+            } else {
+                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setOnAction(e -> markEpisodeAsWatched(item));
+            }
+        });
         target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
         return rowMenu;
     }

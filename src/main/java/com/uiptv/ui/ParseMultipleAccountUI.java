@@ -54,6 +54,7 @@ public class ParseMultipleAccountUI extends VBox {
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setPannable(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 
@@ -75,8 +76,18 @@ public class ParseMultipleAccountUI extends VBox {
         Region spacer = new Region();
         spacer.setPrefHeight(10);
 
-        HBox buttonWrapper2 = new HBox(10, clearButton, saveButton);
-        contentContainer.getChildren().addAll(multipleSPAccounts, parseModeComboBox, spacer, groupAccountsCheckBox, convertM3uToXtremeCheckBox, startVerificationAfterParsingCheckBox, buttonWrapper2);
+        HBox parseSaveRow = new HBox(5, saveButton);
+        HBox clearRow = new HBox(5, clearButton);
+        contentContainer.getChildren().addAll(
+                multipleSPAccounts,
+                parseModeComboBox,
+                spacer,
+                groupAccountsCheckBox,
+                convertM3uToXtremeCheckBox,
+                startVerificationAfterParsingCheckBox,
+                parseSaveRow,
+                clearRow
+        );
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
         addCheckBoxListeners();

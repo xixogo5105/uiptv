@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Configuration extends BaseJson {
     private String dbId, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, fontFamily, fontSize, fontWeight, serverPort, cacheExpiryDays;
-    private boolean darkTheme, pauseFiltering, pauseCaching, embeddedPlayer, enableFfmpegTranscoding, enableThumbnails = true;
+    private boolean darkTheme, pauseFiltering, pauseCaching, embeddedPlayer, wideView, enableFfmpegTranscoding, enableThumbnails = true;
 
 
     public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String fontFamily, String fontSize, String fontWeight, boolean darkTheme, String serverPort, boolean embeddedPlayer, boolean enableFfmpegTranscoding, boolean enableThumbnails) {

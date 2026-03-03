@@ -61,7 +61,8 @@ public class DatabaseUtils {
                 new DataColumn("embeddedPlayer", "TEXT"),
                 new DataColumn("enableFfmpegTranscoding", "TEXT"),
                 new DataColumn("cacheExpiryDays", "TEXT"),
-                new DataColumn("enableThumbnails", "TEXT")
+                new DataColumn("enableThumbnails", "TEXT"),
+                new DataColumn("wideView", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

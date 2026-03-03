@@ -24,11 +24,13 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
@@ -103,7 +105,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         setSpacing(5);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(true);
-        contentBox.setPadding(thumbnailsEnabled() ? new Insets(4) : Insets.EMPTY);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        contentBox.setPadding(new Insets(5));
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         if (thumbnailsEnabled()) {
@@ -416,91 +419,84 @@ public abstract class BaseWatchingNowUI extends VBox {
     private void showSeriesList(List<SeriesPanelData> rows) {
         contentBox.getChildren().clear();
         renderedDetailKey = "";
-        contentBox.setPadding(thumbnailsEnabled() ? new Insets(4) : Insets.EMPTY);
+        contentBox.setPadding(new Insets(5));
+        contentBox.setSpacing(10);
         if (rows == null || rows.isEmpty()) {
             contentBox.getChildren().add(new Label("No currently watched series found."));
             return;
         }
 
         if (thumbnailsEnabled()) {
-            VBox list = new VBox(6);
-            list.setFillWidth(true);
-            list.setPadding(Insets.EMPTY);
             for (SeriesPanelData data : rows) {
-                list.getChildren().add(createSeriesListCard(data));
+                contentBox.getChildren().add(createSeriesListCard(data));
             }
-            ScrollPane listScroll = new ScrollPane(list);
-            listScroll.setFitToWidth(true);
-            listScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-            listScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-            contentBox.getChildren().add(listScroll);
-            VBox.setVgrow(listScroll, Priority.ALWAYS);
-        } else {
-            // Single column table view for series list when thumbnails are disabled
-            TableView<SeriesListItem> table = new TableView<>();
-            table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-            table.setFocusTraversable(true);
-
-            TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>("Series");
-            seriesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
-                    cellData.getValue().seriesTitleProperty().get() + " (" + cellData.getValue().accountNameProperty().get() + ")"
-            ));
-            seriesColumn.setReorderable(false);
-
-            table.getColumns().add(seriesColumn);
-
-            ObservableList<SeriesListItem> items = FXCollections.observableArrayList();
-            for (SeriesPanelData data : rows) {
-                items.add(new SeriesListItem(
-                        firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
-                        data.account.getAccountName(),
-                        seriesPaneKey(data)
-                ));
-            }
-            table.setItems(items);
-
-            // Double-click handler to show series detail
-            table.setOnMousePressed(event -> {
-                if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
-                    SeriesListItem selected = table.getSelectionModel().getSelectedItem();
-                    if (selected != null) {
-                        SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
-                        if (panelData != null) {
-                            selectedSeriesKey = selected.getPanelKey();
-                            renderCurrentView();
-                        }
-                    }
-                }
-            });
-            table.setOnKeyPressed(event -> {
-                if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                    SeriesListItem selected = table.getSelectionModel().getSelectedItem();
-                    if (selected != null) {
-                        SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
-                        if (panelData != null) {
-                            selectedSeriesKey = selected.getPanelKey();
-                            renderCurrentView();
-                        }
-                    }
-                }
-            });
-
-            contentBox.getChildren().add(table);
-            VBox.setVgrow(table, Priority.ALWAYS);
+            selectedSeriesCard = null;
+            VBox.setVgrow(contentBox, Priority.ALWAYS);
+            return;
         }
+
+        TableView<SeriesListItem> table = new TableView<>();
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setFocusTraversable(false);
+
+        TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>("Series");
+        seriesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
+                cellData.getValue().seriesTitleProperty().get() + " (" + cellData.getValue().accountNameProperty().get() + ")"
+        ));
+        seriesColumn.setReorderable(false);
+        table.getColumns().add(seriesColumn);
+
+        ObservableList<SeriesListItem> items = FXCollections.observableArrayList();
+        for (SeriesPanelData data : rows) {
+            items.add(new SeriesListItem(
+                    firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
+                    data.account.getAccountName(),
+                    seriesPaneKey(data)
+            ));
+        }
+        table.setItems(items);
+
+        table.setOnMousePressed(event -> {
+            if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
+                SeriesListItem selected = table.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
+                    if (panelData != null) {
+                        selectedSeriesKey = selected.getPanelKey();
+                        renderCurrentView();
+                    }
+                }
+            }
+        });
+        table.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                SeriesListItem selected = table.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
+                    if (panelData != null) {
+                        selectedSeriesKey = selected.getPanelKey();
+                        renderCurrentView();
+                    }
+                }
+            }
+        });
+
+        contentBox.getChildren().add(table);
+        VBox.setVgrow(table, Priority.ALWAYS);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
     }
 
     private HBox createSeriesListCard(SeriesPanelData data) {
-        HBox card = new HBox(10);
+        HBox card = new HBox(8);
         card.setAlignment(Pos.CENTER_LEFT);
+        card.setFocusTraversable(false);
         card.setPadding(new Insets(6));
-        String baseStyle = "-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;";
+        String baseStyle = "-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;";
         card.setStyle(baseStyle);
         card.getProperties().put("baseStyle", baseStyle);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString("cover", ""), 96, 136, "watching-now");
-        VBox text = new VBox(3);
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString("cover", ""), 52, 74, "watching-now");
+        VBox text = new VBox(2);
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
 
@@ -512,7 +508,30 @@ public abstract class BaseWatchingNowUI extends VBox {
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
-        text.getChildren().addAll(title);
+
+        Button removeButton = new Button("Remove");
+        removeButton.setMinHeight(Region.USE_PREF_SIZE);
+        removeButton.setMinWidth(Region.USE_PREF_SIZE);
+        removeButton.setOnAction(event -> {
+            event.consume();
+            removeSeriesFromWatchingNow(data);
+        });
+
+        Hyperlink viewEpisodesLink = new Hyperlink("View Episodes...");
+        viewEpisodesLink.setFocusTraversable(true);
+        viewEpisodesLink.setOnAction(event -> {
+            event.consume();
+            setSelectedSeriesCard(card);
+            selectedSeriesKey = seriesPaneKey(data);
+            showSeriesDetail(data);
+        });
+
+        HBox linkRow = new HBox();
+        Region linkSpacer = new Region();
+        HBox.setHgrow(linkSpacer, Priority.ALWAYS);
+        linkRow.getChildren().addAll(linkSpacer, viewEpisodesLink);
+
+        text.getChildren().addAll(title, removeButton, linkRow);
 
         card.getChildren().addAll(poster, text);
         card.setOnMouseClicked(event -> {
@@ -565,22 +584,24 @@ public abstract class BaseWatchingNowUI extends VBox {
         selectedSeriesKey = seriesPaneKey(data);
         renderedDetailKey = selectedSeriesKey;
         contentBox.getChildren().clear();
-        contentBox.setPadding(thumbnailsEnabled() ? new Insets(0, 2, 0, 2) : Insets.EMPTY);
+        contentBox.setPadding(Insets.EMPTY);
 
         boolean thumbnailsEnabled = thumbnailsEnabled();
         HBox topBar = new HBox(0);
         topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setPadding(thumbnailsEnabled ? new Insets(0, 5, 0, 5) : Insets.EMPTY);
+        topBar.setPadding(Insets.EMPTY);
         topBar.setMaxWidth(Double.MAX_VALUE);
-        Button back = new Button("\u2190 Back");
+        Button back = new Button("Back");
         back.setOnAction(event -> {
             selectedSeriesKey = "";
             renderCurrentView();
         });
         topBar.getChildren().add(back);
 
-        VBox body = new VBox(thumbnailsEnabled ? 6 : 0);
-        body.setPadding(thumbnailsEnabled ? new Insets(0, 2, 0, 2) : Insets.EMPTY);
+        VBox body = new VBox(thumbnailsEnabled ? 2 : 0);
+        body.setPadding(Insets.EMPTY);
+        body.setMaxWidth(Double.MAX_VALUE);
+        body.setMaxHeight(Double.MAX_VALUE);
         EpisodesListUI episodesListUI = new EpisodesListUI(
                 data.account,
                 firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
@@ -597,6 +618,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         body.getChildren().add(episodesListUI);
         VBox.setVgrow(body, Priority.ALWAYS);
         VBox.setVgrow(episodesListUI, Priority.ALWAYS);
+        HBox.setHgrow(episodesListUI, Priority.ALWAYS);
 
         contentBox.getChildren().addAll(topBar, body);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
@@ -806,8 +828,8 @@ public abstract class BaseWatchingNowUI extends VBox {
             details.getChildren().add(data.plotNode);
         }
         if (data.reloadEpisodesButton == null) {
-            data.reloadEpisodesButton = new Button("Reload Episodes from Portal");
-            data.reloadEpisodesButton.setFocusTraversable(false);
+            data.reloadEpisodesButton = new Button("Reload from server");
+            data.reloadEpisodesButton.setFocusTraversable(true);
             data.reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal(data));
         }
         details.getChildren().add(data.reloadEpisodesButton);
@@ -869,8 +891,8 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
-        VBox container = new VBox(8);
-        container.setPadding(new Insets(4));
+        VBox container = new VBox(10);
+        container.setPadding(new Insets(5));
         container.setFillWidth(true);
         VBox.setVgrow(container, Priority.ALWAYS);
         if (items == null || items.isEmpty()) {
@@ -885,8 +907,8 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private VBox createEpisodeCard(SeriesPanelData data, WatchingEpisode row) {
         VBox root = new VBox(8);
-        root.setPadding(new Insets(6));
-        String baseStyle = "-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;";
+        root.setPadding(new Insets(10));
+        String baseStyle = "-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;";
         root.setStyle(baseStyle);
         root.getProperties().put("baseStyle", baseStyle);
 
@@ -924,7 +946,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         play.setMaxWidth(Double.MAX_VALUE);
         play.setMinHeight(Region.USE_PREF_SIZE);
         play.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 6 2 6; -fx-background-radius: 6;");
-        play.setFocusTraversable(false);
+        play.setFocusTraversable(true);
         play.setOnAction(event -> {
             event.consume();
             playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
@@ -983,17 +1005,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         return root;
     }
 
-    private void setSelectedEpisodeCard(SeriesPanelData data, VBox current) {
-        if (data == null || current == null) {
-            return;
-        }
-        if (data.selectedEpisodeCard != null && data.selectedEpisodeCard != current) {
-            applyCardSelection(data.selectedEpisodeCard, false);
-        }
-        applyCardSelection(current, true);
-        data.selectedEpisodeCard = current;
-    }
-
     private void setSelectedSeriesCard(HBox current) {
         if (current == null) {
             return;
@@ -1003,6 +1014,17 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         applyCardSelection(current, true);
         selectedSeriesCard = current;
+    }
+
+    private void setSelectedEpisodeCard(SeriesPanelData data, VBox current) {
+        if (data == null || current == null) {
+            return;
+        }
+        if (data.selectedEpisodeCard != null && data.selectedEpisodeCard != current) {
+            applyCardSelection(data.selectedEpisodeCard, false);
+        }
+        applyCardSelection(current, true);
+        data.selectedEpisodeCard = current;
     }
 
     @SuppressWarnings("unchecked")
@@ -1055,6 +1077,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (item == null) {
             return;
         }
+        rowMenu.hideOnEscapeProperty();
+        rowMenu.setAutoHide(true);
 
         MenuItem embedded = new MenuItem("Embedded Player");
         embedded.setOnAction(e -> playEpisode(data, item, "embedded"));
@@ -1065,7 +1089,25 @@ public abstract class BaseWatchingNowUI extends VBox {
         MenuItem p3 = new MenuItem("Player 3");
         p3.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath3()));
 
-        rowMenu.getItems().addAll(embedded, p1, p2, p3);
+        rowMenu.setOnShowing(event -> {
+            rowMenu.getItems().clear();
+            if (item.watched) {
+                MenuItem removeWatchingNow = new MenuItem("Remove Watching Now");
+                removeWatchingNow.setOnAction(e -> {
+                    clearWatchedMarker(item);
+                    clearWatchingStatusUI(data);
+                });
+                rowMenu.getItems().add(removeWatchingNow);
+            } else {
+                MenuItem watchingNow = new MenuItem("Watching Now");
+                watchingNow.setOnAction(e -> {
+                    markEpisodeAsWatched(item);
+                    updateWatchingStatusUI(data, item);
+                });
+                rowMenu.getItems().add(watchingNow);
+            }
+            rowMenu.getItems().addAll(new SeparatorMenuItem(), embedded, p1, p2, p3);
+        });
         target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
     }
 
@@ -1164,6 +1206,23 @@ public abstract class BaseWatchingNowUI extends VBox {
             if (label != null) {
                 label.setVisible(isCurrent);
                 label.setManaged(isCurrent);
+            }
+        }
+    }
+
+    private void clearWatchingStatusUI(SeriesPanelData data) {
+        if (data == null) {
+            return;
+        }
+        for (Map.Entry<WatchingEpisode, Label> entry : data.watchingLabels.entrySet()) {
+            WatchingEpisode episode = entry.getKey();
+            Label label = entry.getValue();
+            if (episode != null) {
+                episode.watched = false;
+            }
+            if (label != null) {
+                label.setVisible(false);
+                label.setManaged(false);
             }
         }
     }
@@ -1363,7 +1422,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 applySeasonInfoToHeader(data);
                 lazyLoadImdb(data, null, null, data.seasonTabs);
                 if (data.reloadEpisodesButton != null) {
-                    data.reloadEpisodesButton.setText("Reload Episodes from Portal");
+                    data.reloadEpisodesButton.setText("Reload from server");
                     data.reloadEpisodesButton.setDisable(false);
                 }
             });

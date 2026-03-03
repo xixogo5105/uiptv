@@ -60,6 +60,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
     private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
     private final CheckBox enableThumbnailsCheckBox = new CheckBox("Enable thumbnails");
+    private final CheckBox wideViewCheckBox = new CheckBox("Wide View");
     private final UIptvText fontFamily = new UIptvText("fontFamily", "Font family. e.g. 'Helvetica', Arial, sans-serif.", 5);
     private final UIptvText fontSize = new UIptvText("fontSize", "Font size. e.g. 13pt", 5);
     private final UIptvText fontWeight = new UIptvText("fontWeight", "Font weight. e.g. bold", 5);
@@ -96,6 +97,7 @@ public class ConfigurationUI extends VBox {
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setPannable(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 
@@ -138,6 +140,7 @@ public class ConfigurationUI extends VBox {
             fontSize.setText(configuration.getFontSize());
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
+            wideViewCheckBox.setSelected(configuration.isWideView());
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
@@ -190,7 +193,7 @@ public class ConfigurationUI extends VBox {
         HBox box1 = new HBox(6, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
         HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
-        HBox box4 = new HBox(6, defaultEmbedPlayer);
+        HBox box4 = new HBox(6, defaultEmbedPlayer, wideViewCheckBox);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5);
 
@@ -239,8 +242,9 @@ public class ConfigurationUI extends VBox {
         BorderPane.setMargin(titleLabel, new Insets(0, 0, 8, 0));
         pane.setTop(titleLabel);
         pane.setPadding(new Insets(10));
-        pane.setStyle("-fx-background-color: -fx-control-inner-background-alt;"
-                + "-fx-border-color: -fx-box-border;"
+        pane.setStyle("-fx-background-color: -uiptv-card-bg;"
+                + "-fx-border-color: -uiptv-card-border;"
+                + "-fx-border-width: 1;"
                 + "-fx-background-radius: 8;"
                 + "-fx-border-radius: 8;");
         return pane;
@@ -405,6 +409,8 @@ public class ConfigurationUI extends VBox {
 
                 Configuration previous = service.read();
                 boolean previousThumbnailsEnabled = previous != null && previous.isEnableThumbnails();
+                boolean previousEmbeddedPlayer = previous != null && previous.isEmbeddedPlayer();
+                boolean previousWideView = previous != null && previous.isWideView();
 
                 String defaultPlayer = defaultEmbedPlayer.getText();
                 if (defaultPlayer1.isSelected()) {
@@ -429,6 +435,7 @@ public class ConfigurationUI extends VBox {
                         enableThumbnailsCheckBox.isSelected()
                 );
                 newConfiguration.setDbId(dbId);
+                newConfiguration.setWideView(wideViewCheckBox.isSelected());
                 service.save(newConfiguration);
                 onSaveCallback.call(null);
                 showSaveSuccessAnimation();
@@ -436,8 +443,10 @@ public class ConfigurationUI extends VBox {
                     ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
                 }
 
-                if (newConfiguration.isEmbeddedPlayer() && MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.DUMMY) {
-                    showMessageAlert("Please restart the application for the embedded player to be initialized.");
+                boolean restartRequired = previousEmbeddedPlayer != newConfiguration.isEmbeddedPlayer()
+                        || previousWideView != newConfiguration.isWideView();
+                if (restartRequired) {
+                    showMessageAlert("Please restart the application for Embedded Player/Wide View changes to take effect.");
                 }
             } catch (Exception e) {
                 showErrorAlert("Failed to save configuration. Please try again!");
@@ -451,7 +460,7 @@ public class ConfigurationUI extends VBox {
         saveButton.setText("✅");
 
         Timeline timeline = new Timeline(new KeyFrame(
-                Duration.seconds(10),
+                Duration.seconds(3),
                 event -> {
                     saveButton.setText(originalText);
                     saveButton.setDisable(false);

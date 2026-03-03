@@ -56,13 +56,9 @@ public class MediaPlayerFactory {
     }
 
     private static void definePlayerRegion(Region playerContainer) {
-        playerContainer.setMinWidth(470);
-        playerContainer.setPrefWidth(470);
-        playerContainer.setMaxWidth(470);
-        playerContainer.setMinHeight(275);
-        playerContainer.setPrefHeight(275);
-        playerContainer.setMaxHeight(275);
-
+        playerContainer.setMinSize(0, 0);
+        playerContainer.setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
+        playerContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
     }
 
     private static void defineDummyRegion(Region playerContainer) {

@@ -5,17 +5,21 @@ import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
@@ -86,12 +90,15 @@ public class RootApplication extends Application {
         RootApplication.primaryStage = primaryStage;
         ServerUrlUtil.setHostServices(getHostServices());
 
+        boolean embeddedEnabled = configurationService.read().isEmbeddedPlayer();
+        boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
 
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
         WatchingNowUI watchingNowUI = new WatchingNowUI();
-        AccountListUI accountListUI = new AccountListUI();
+        AccountListUI accountListUI = new AccountListUI(embeddedWideViewEnabled);
+        accountListUI.setManageAccountUI(manageAccountUI);
         configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI);
         LogDisplayUI logDisplayUI = new LogDisplayUI();
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {
@@ -108,19 +115,49 @@ public class RootApplication extends Application {
         configureParseMultipleAccountUI(parseMultipleAccountUI, accountListUI);
         configureUIComponents(configurationUI, parseMultipleAccountUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI, accountListUI);
 
-        TabPane tabPane = createTabPane(manageAccountUI, parseMultipleAccountUI, bookmarkChannelListUI, watchingNowUI, logDisplayUI, configurationUI);
+        TabPane tabPane = createTabPane(manageAccountUI, accountListUI, parseMultipleAccountUI, bookmarkChannelListUI, watchingNowUI, logDisplayUI, configurationUI, embeddedWideViewEnabled);
 
-        HBox embeddedPlayer = new HBox(MediaPlayerFactory.getPlayerContainer()); // Usage updated
+        javafx.scene.Node playerNode = MediaPlayerFactory.getPlayerContainer();
+        StackPane playerShell = createEmbeddedPlayerShell(playerNode);
+        HBox embeddedPlayer = new HBox(playerShell);
+        HBox.setHgrow(playerShell, Priority.ALWAYS);
 
         embeddedPlayer.setPadding(new javafx.geometry.Insets(5));
-        VBox containerWithEmbeddedPlayer = new VBox();
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
-        containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, tabPane);
-        HBox mainContent = new HBox(containerWithEmbeddedPlayer, accountListUI); // AccountListUI as the first horizontal item
-        HBox.setHgrow(tabPane, Priority.ALWAYS);
-        tabPane.setMinWidth(480);
-        tabPane.setPrefWidth(480);
-        tabPane.setMaxWidth(480);
+        HBox mainContent;
+        if (embeddedEnabled) {
+            if (embeddedWideViewEnabled) {
+                embeddedPlayer.setMaxWidth(Double.MAX_VALUE);
+                embeddedPlayer.setMaxHeight(Double.MAX_VALUE);
+                HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
+                tabPane.setMinWidth(445);
+                tabPane.setPrefWidth(445);
+                tabPane.setMaxWidth(445);
+                tabPane.setMaxHeight(Double.MAX_VALUE);
+                tabPane.setMinHeight(0);
+                accountListUI.setMaxHeight(Double.MAX_VALUE);
+                accountListUI.setMinHeight(0);
+                embeddedPlayer.setMinHeight(0);
+                mainContent = new HBox(tabPane, embeddedPlayer);
+            } else {
+                VBox containerWithEmbeddedPlayer = new VBox();
+                VBox.setVgrow(tabPane, Priority.ALWAYS);
+                containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, tabPane);
+                mainContent = new HBox(containerWithEmbeddedPlayer, accountListUI);
+                HBox.setHgrow(tabPane, Priority.ALWAYS);
+                tabPane.setMinWidth(480);
+                tabPane.setPrefWidth(480);
+                tabPane.setMaxWidth(480);
+            }
+        } else {
+            VBox containerWithEmbeddedPlayer = new VBox();
+            VBox.setVgrow(tabPane, Priority.ALWAYS);
+            containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, tabPane);
+            mainContent = new HBox(containerWithEmbeddedPlayer, accountListUI); // AccountListUI as the first horizontal item
+            HBox.setHgrow(tabPane, Priority.ALWAYS);
+            tabPane.setMinWidth(480);
+            tabPane.setPrefWidth(480);
+            tabPane.setMaxWidth(480);
+        }
 
         MenuBar menuBar = new MenuBar();
         menuBar.setUseSystemMenuBar(true);
@@ -132,6 +169,8 @@ public class RootApplication extends Application {
         helpMenu.getItems().addAll(aboutItem, updateItem);
         menuBar.getMenus().add(helpMenu);
 
+        mainContent.setPadding(new javafx.geometry.Insets(5));
+        mainContent.setSpacing(5);
         VBox rootLayout = new VBox(menuBar, mainContent);
         VBox.setVgrow(mainContent, Priority.ALWAYS);
 
@@ -148,10 +187,10 @@ public class RootApplication extends Application {
         primaryStage.show();
     }
 
-    private TabPane createTabPane(ManageAccountUI manageAccountUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI) {
+    private TabPane createTabPane(ManageAccountUI manageAccountUI, AccountListUI accountListUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI, boolean embeddedWideViewEnabled) {
         TabPane tabPane = new TabPane();
 
-        Tab manageAccountTab = new Tab("Account", manageAccountUI);
+        Tab manageAccountTab = new Tab("Account", embeddedWideViewEnabled ? wrapToFill(accountListUI) : manageAccountUI);
         Tab parseMultipleAccountTab = new Tab("Import Bulk Accounts", parseMultipleAccountUI);
         Tab bookmarkChannelListTab = new Tab("Favorite", bookmarkChannelListUI);
         Tab watchingNowTab = new Tab("Watching Now", watchingNowUI);
@@ -168,6 +207,41 @@ public class RootApplication extends Application {
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setSide(Side.LEFT);
         return tabPane;
+    }
+
+    private VBox wrapToFill(javafx.scene.Node content) {
+        VBox wrapper = new VBox(content);
+        VBox.setVgrow(content, Priority.ALWAYS);
+        wrapper.setFillWidth(true);
+        return wrapper;
+    }
+
+    private StackPane createEmbeddedPlayerShell(javafx.scene.Node playerNode) {
+        StackPane shell = new StackPane();
+        shell.getStyleClass().add("embedded-player-shell");
+        shell.setMinSize(0, 0);
+        shell.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        if (playerNode instanceof Region region) {
+            region.setMinSize(0, 0);
+            region.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        }
+
+        VBox placeholder = createEmbeddedPlayerPlaceholder();
+        placeholder.setMouseTransparent(true);
+        StackPane.setAlignment(placeholder, Pos.CENTER);
+        StackPane.setAlignment(playerNode, Pos.CENTER);
+        shell.getChildren().setAll(placeholder, playerNode);
+        return shell;
+    }
+
+    private VBox createEmbeddedPlayerPlaceholder() {
+        Label icon = new Label("▶");
+        icon.getStyleClass().add("embedded-player-placeholder-icon");
+        VBox wrapper = new VBox(icon);
+        wrapper.setAlignment(Pos.CENTER);
+        wrapper.getStyleClass().add("embedded-player-placeholder");
+        return wrapper;
     }
 
     private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI) {

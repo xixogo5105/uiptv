@@ -8,6 +8,7 @@ import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.AutoGrowPaneVBox;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
@@ -16,17 +17,24 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.scene.shape.SVGPath;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -41,11 +49,28 @@ public class AccountListUI extends HBox {
     private final CacheService cacheService = new CacheServiceImpl();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
+    private final boolean embeddedMode;
+    private final VBox listView = new VBox(5);
+    private final VBox detailView = new VBox(8);
+    private final HBox navHeader = new HBox(6);
+    private final Button backButton = createBackButton();
+    private final Button homeButton = createHomeButton();
+    private final VBox detailContent = new VBox();
+    private ManageAccountUI manageAccountUI;
+    private final Button newAccountButton = new Button("Add");
+    private final Deque<Node> viewStack = new ArrayDeque<>();
+    private Node currentContent;
+    private final VBox embeddedContainer = new VBox();
     private Callback onEditCallback;
     private Callback onDeleteCallback;
     private boolean isPromptShowing = false;
 
     public AccountListUI() { // Removed MediaPlayer argument
+        this(ConfigurationService.getInstance().read().isEmbeddedPlayer());
+    }
+
+    public AccountListUI(boolean embeddedMode) {
+        this.embeddedMode = embeddedMode;
         initWidgets();
         // Don't load accounts on startup - load lazily when visible
         registerVisibilityListener();
@@ -81,19 +106,166 @@ public class AccountListUI extends HBox {
 
     private void initWidgets() {
         setSpacing(5);
-        setPadding(new Insets(5, 0, 0, 0));
+        setPadding(new Insets(5));
+        setFillHeight(true);
         table.setEditable(true);
         table.getColumns().addAll(accountName);
         accountName.setVisible(true);
         accountName.setSortType(TableColumn.SortType.ASCENDING);
         accountName.setSortable(true);
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton());
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
         sceneBox.setMaxHeight(25);
-        getChildren().addAll(new AutoGrowPaneVBox(5, sceneBox, table));
+        newAccountButton.setManaged(embeddedMode);
+        newAccountButton.setVisible(embeddedMode);
+        AutoGrowPaneVBox contentBox = new AutoGrowPaneVBox(5, sceneBox, table);
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
+        listView.getChildren().setAll(contentBox);
+        if (embeddedMode) {
+            initDetailView();
+            embeddedContainer.getChildren().setAll(navHeader, listView);
+            showAccountListView();
+        } else {
+            getChildren().setAll(listView);
+        }
+        table.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        setMaxHeight(Double.MAX_VALUE);
+        setMinHeight(0);
+        HBox.setHgrow(listView, Priority.ALWAYS);
+        listView.setMaxHeight(Double.MAX_VALUE);
+        listView.setMinHeight(0);
+        detailView.setMaxHeight(Double.MAX_VALUE);
+        detailView.setMinHeight(0);
+        configureNewAccountButton();
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         registerSceneCleanupListener();
+    }
+
+    private void configureNewAccountButton() {
+        newAccountButton.setMinWidth(56);
+        newAccountButton.setPrefWidth(64);
+        newAccountButton.setMinHeight(26);
+        newAccountButton.setPrefHeight(26);
+        newAccountButton.setTooltip(new Tooltip("New Account"));
+        newAccountButton.setOnAction(event -> {
+            if (!embeddedMode) {
+                return;
+            }
+            if (manageAccountUI == null) {
+                showErrorAlert("Manage Account UI is not available.");
+                return;
+            }
+            manageAccountUI.clearAll();
+            showDetailView(manageAccountUI, "New Account");
+        });
+    }
+
+    private void initDetailView() {
+        backButton.setOnAction(event -> showPreviousView());
+        homeButton.setOnAction(event -> showAccountListView());
+        navHeader.setPadding(new Insets(0, 8, 6, 8));
+        navHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        navHeader.getChildren().setAll(backButton, homeButton);
+        detailContent.setSpacing(5);
+        detailContent.setPadding(new Insets(5, 0, 0, 0));
+        VBox.setVgrow(detailContent, Priority.ALWAYS);
+        detailView.getChildren().setAll(detailContent);
+    }
+
+    private Button createBackButton() {
+        Button button = new Button("Back");
+        button.setFocusTraversable(false);
+        return button;
+    }
+
+    private Button createHomeButton() {
+        Button button = new Button();
+        button.getStyleClass().add("nav-back-button");
+        button.setFocusTraversable(false);
+        button.setTooltip(new Tooltip("Home"));
+        SVGPath icon = new SVGPath();
+        icon.setContent("M4 10 L12 4 L20 10 V20 H14 V13 H10 V20 H4 Z");
+        icon.setScaleX(1.25);
+        icon.setScaleY(1.25);
+        icon.getStyleClass().add("nav-back-icon");
+        button.setGraphic(icon);
+        return button;
+    }
+
+    public void setManageAccountUI(ManageAccountUI manageAccountUI) {
+        this.manageAccountUI = manageAccountUI;
+    }
+
+    public void showAccountListView() {
+        if (!embeddedMode) {
+            return;
+        }
+        viewStack.clear();
+        setCurrentContent(listView);
+        updateNavButtons();
+        if (embeddedContainer.getChildren().isEmpty()) {
+            embeddedContainer.getChildren().setAll(navHeader, listView);
+        } else {
+            embeddedContainer.getChildren().setAll(navHeader, currentContent);
+        }
+        getChildren().setAll(embeddedContainer);
+    }
+
+    private void showDetailView(Node content, String title) {
+        if (!embeddedMode) {
+            return;
+        }
+        detailContent.getChildren().setAll(content);
+        VBox.setVgrow(content, Priority.ALWAYS);
+        if (currentContent != null) {
+            viewStack.push(currentContent);
+        }
+        setCurrentContent(detailView);
+        updateNavButtons();
+        embeddedContainer.getChildren().setAll(navHeader, currentContent);
+        getChildren().setAll(embeddedContainer);
+    }
+
+    private void showDetailViewNonEmbedded(Node content) {
+        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
+        sceneBox.setMaxHeight(25);
+        AutoGrowPaneVBox listContainer = new AutoGrowPaneVBox(5, sceneBox, table);
+        VBox.setVgrow(listContainer, Priority.ALWAYS);
+        HBox.setHgrow(listContainer, Priority.ALWAYS);
+        HBox.setHgrow(content, Priority.ALWAYS);
+        getChildren().setAll(listContainer, content);
+    }
+
+    private void setCurrentContent(Node content) {
+        currentContent = content;
+        VBox.setVgrow(content, Priority.ALWAYS);
+    }
+
+    private void showPreviousView() {
+        if (!embeddedMode) {
+            return;
+        }
+        if (!detailContent.getChildren().isEmpty()) {
+            Node content = detailContent.getChildren().get(0);
+            if (content instanceof CategoryListUI categoryListUI && categoryListUI.navigateBackEmbedded()) {
+                return;
+            }
+        }
+        if (viewStack.isEmpty()) {
+            return;
+        }
+        Node prev = viewStack.pop();
+        setCurrentContent(prev);
+        updateNavButtons();
+        embeddedContainer.getChildren().setAll(navHeader, currentContent);
+        getChildren().setAll(embeddedContainer);
+    }
+
+    private void updateNavButtons() {
+        backButton.setDisable(viewStack.isEmpty());
+        homeButton.setDisable(false);
     }
 
     private void registerSceneCleanupListener() {
@@ -109,7 +281,7 @@ public class AccountListUI extends HBox {
     private void addAccountClickHandler() {
         table.setOnKeyReleased(event -> {
             AccountItem focusedItem = (AccountItem) table.getFocusModel().getFocusedItem();
-            if (focusedItem != null && onEditCallback != null) {
+            if (!embeddedMode && focusedItem != null && onEditCallback != null) {
                 onEditCallback.call(accountService.getById(focusedItem.accountId.get()));
             }
             if (event.getCode() == KeyCode.DELETE) {
@@ -126,15 +298,8 @@ public class AccountListUI extends HBox {
         table.setRowFactory(tv -> {
             TableRow<AccountItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-                    AccountItem clickedRow = row.getItem();
-                    try {
-                        if (onEditCallback != null) {
-                            onEditCallback.call(accountService.getById(clickedRow.getAccountId()));
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+                if (!embeddedMode && !row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+                    openManageAccount(row.getItem());
                 } else if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                     retrieveThreadedAccountCategories(row.getItem(), itv);
                 }
@@ -148,6 +313,15 @@ public class AccountListUI extends HBox {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
+
+        MenuItem editAccount = new MenuItem("Edit/Manage Account");
+        editAccount.setOnAction(actionEvent -> {
+            if (table.getSelectionModel().getSelectedItems().size() > 1) {
+                showErrorAlert("This action is disabled for multiple selections.");
+            } else {
+                openManageAccount(row.getItem());
+            }
+        });
 
         MenuItem itv = new MenuItem("TV Channels");
         itv.setOnAction(actionEvent -> {
@@ -182,7 +356,7 @@ public class AccountListUI extends HBox {
         MenuItem deleteItem = new MenuItem("Delete Account");
         deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
 
-        rowMenu.getItems().addAll(itv, vod, series, new SeparatorMenuItem(), reloadCache, deleteItem);
+        rowMenu.getItems().addAll(editAccount, new SeparatorMenuItem(), itv, vod, series, new SeparatorMenuItem(), reloadCache, deleteItem);
 
         rowMenu.setOnShowing(e -> {
             if (row.getItem() != null) {
@@ -280,11 +454,12 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account);
-        AccountListUI.this.getChildren().clear();
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton());
-        sceneBox.setMaxHeight(25);
-        AccountListUI.this.getChildren().addAll(new VBox(5, sceneBox, table), categoryListUI);
+        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode, this::showAccountListView);
+        if (embeddedMode) {
+            showDetailView(categoryListUI, resolveDetailTitle(accountAction));
+        } else {
+            showDetailViewNonEmbedded(categoryListUI);
+        }
 
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
         boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
@@ -317,6 +492,43 @@ public class AccountListUI extends HBox {
             return (Stage) getScene().getWindow();
         }
         return primaryStage;
+    }
+
+    private void openManageAccount(AccountItem item) {
+        if (item == null) {
+            return;
+        }
+        Account account = accountService.getById(item.getAccountId());
+        if (account == null) {
+            showErrorAlert("Unable to find account.");
+            return;
+        }
+        if (embeddedMode && manageAccountUI != null) {
+            manageAccountUI.editAccount(account);
+            showDetailView(manageAccountUI, "Manage Account");
+            return;
+        }
+        if (!embeddedMode && manageAccountUI != null) {
+            if (onEditCallback != null) {
+                onEditCallback.call(account);
+            } else {
+                manageAccountUI.editAccount(account);
+            }
+            return;
+        }
+        if (onEditCallback != null) {
+            onEditCallback.call(account);
+        }
+    }
+
+    private String resolveDetailTitle(Account.AccountAction action) {
+        if (action == Account.AccountAction.vod) {
+            return "Video On Demand";
+        }
+        if (action == Account.AccountAction.series) {
+            return "Series";
+        }
+        return "Live Channels";
     }
 
     public class AccountItem {

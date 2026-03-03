@@ -5,6 +5,8 @@
     -fx-control-inner-background: #2c2c2c; /* Slightly lighter controls */
     -fx-control-inner-background-alt: #3c3c3c; /* Even lighter for alternate backgrounds */
     -fx-text-fill: #e0e0e0; /* Light grey text for readability */
+    -uiptv-card-bg: #2b2d30;
+    -uiptv-card-border: #4e5258;
 }
 
 .titleWindowsBorder {
@@ -235,6 +237,55 @@
     -fx-control-inner-background: white;
 }
 
+.tab-pane > .tab-content-area {
+    -fx-border-color: #4c4c4c;
+    -fx-border-width: 1;
+    -fx-padding: 5;
+}
+
 .no-dim-disabled:disabled {
     -fx-opacity: 1.0;
+}
+
+.nav-back-button {
+    -fx-background-color: transparent;
+    -fx-padding: 6 12 6 12;
+    -fx-min-width: 64;
+    -fx-min-height: 34;
+    -fx-cursor: hand;
+}
+
+.nav-back-button:hover {
+    -fx-background-color: rgba(79, 156, 255, 0.16);
+    -fx-background-radius: 6;
+}
+
+.nav-back-icon {
+    -fx-fill: #c9d6e4;
+    -fx-scale-x: 1.35;
+    -fx-scale-y: 1.35;
+}
+
+.watching-now-detail-tabs > .tab-content-area {
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.embedded-player-shell {
+    -fx-background-color: -uiptv-card-bg;
+    -fx-border-color: -uiptv-card-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10;
+}
+
+.embedded-player-placeholder {
+    -fx-alignment: center;
+}
+
+.embedded-player-placeholder-icon {
+    -fx-font-size: 64px;
+    -fx-opacity: 0.24;
 }

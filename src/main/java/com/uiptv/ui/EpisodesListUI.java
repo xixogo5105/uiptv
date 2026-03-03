@@ -28,6 +28,8 @@ public class EpisodesListUI extends HBox {
         this.seriesCategoryId = seriesCategoryId;
         this.delegate = buildDelegate();
         getChildren().add(delegate);
+        setMaxHeight(Double.MAX_VALUE);
+        setMinHeight(0);
         HBox.setHgrow(delegate, Priority.ALWAYS);
         registerThumbnailModeListener();
     }
@@ -45,6 +47,16 @@ public class EpisodesListUI extends HBox {
     public void applyWatchingNowDetailStyling() {
         if (delegate instanceof ThumbnailEpisodesListUI thumbnail) {
             thumbnail.applyWatchingNowDetailStyling();
+        }
+    }
+
+    public boolean canReloadFromServer() {
+        return delegate instanceof ThumbnailEpisodesListUI;
+    }
+
+    public void reloadFromServer() {
+        if (delegate instanceof ThumbnailEpisodesListUI thumbnail) {
+            thumbnail.reloadFromServer();
         }
     }
 

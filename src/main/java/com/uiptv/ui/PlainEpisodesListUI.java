@@ -8,7 +8,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
-import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TableCell;
@@ -161,47 +160,48 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-
-        Menu lastWatchedMenu = new Menu("Last Watched");
-        rowMenu.getItems().add(lastWatchedMenu);
-
-        rowMenu.setOnShowing(event -> {
-            lastWatchedMenu.getItems().clear();
-            if (row.getItem() == null) return;
-            EpisodeItem item = row.getItem();
-
-            MenuItem markWatched = new MenuItem("Mark as Watched");
-            markWatched.setOnAction(e -> markEpisodeAsWatched(item));
-            lastWatchedMenu.getItems().add(markWatched);
-
-            MenuItem clearWatched = new MenuItem("Clear Watched Marker");
-            clearWatched.setDisable(!item.isWatched());
-            clearWatched.setOnAction(e -> clearWatchedMarker());
-            lastWatchedMenu.getItems().add(clearWatched);
-        });
+        MenuItem watchingToggleItem = new MenuItem("Watching Now");
 
         MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
-        playerEmbeddedItem.setOnAction(event -> {
+        playerEmbeddedItem.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), "embedded");
         });
         MenuItem player1Item = new MenuItem("Player 1");
-        player1Item.setOnAction(event -> {
+        player1Item.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
         });
         MenuItem player2Item = new MenuItem("Player 2");
-        player2Item.setOnAction(event -> {
+        player2Item.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
         });
         MenuItem player3Item = new MenuItem("Player 3");
-        player3Item.setOnAction(event -> {
+        player3Item.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
         });
+        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
 
-        rowMenu.getItems().addAll(new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
+        rowMenu.setOnShowing(event -> {
+            EpisodeItem item = row.getItem();
+            if (item == null) {
+                watchingToggleItem.setDisable(true);
+                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setOnAction(null);
+                return;
+            }
+            watchingToggleItem.setDisable(false);
+
+            if (item.isWatched()) {
+                watchingToggleItem.setText("Remove Watching Now");
+                watchingToggleItem.setOnAction(e -> clearWatchedMarker());
+            } else {
+                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setOnAction(e -> markEpisodeAsWatched(item));
+            }
+        });
         row.setContextMenu(rowMenu);
     }
 }

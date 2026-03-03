@@ -386,7 +386,7 @@ public class ManageAccountUI extends VBox {
         return RootApplication.primaryStage;
     }
 
-    private void clearAll() {
+    public void clearAll() {
         Arrays.stream(new UIptvText[]{name, username, password, url, serialNumber, deviceId1, deviceId2, signature, m3u8Path, epg}).forEach(TextInputControl::clear);
         macAddressList.clear();
         macAddress.getItems().clear();
@@ -458,9 +458,9 @@ public class ManageAccountUI extends VBox {
         String originalText = saveButton.getText();
         saveButton.setText("✅");
 
-        // Reset button after 10 seconds (10000 milliseconds)
+        // Reset button after 3 seconds
         Timeline timeline = new Timeline(new KeyFrame(
-            Duration.seconds(10),
+            Duration.seconds(3),
             event -> {
                 saveButton.setText(originalText);
                 saveButton.setDisable(false);

@@ -11,16 +11,13 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.scene.Cursor;
-import javafx.scene.control.Label;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableRow;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.SVGPath;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -42,12 +39,17 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class CategoryListUI extends HBox {
     private final Account account;
+    private final boolean embeddedMode;
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
     private final VBox leftPane = new VBox(5);
+    private final VBox detailPane = new VBox(8);
+    private final Runnable onHome;
+    private final Label detailTitle = new Label();
+    private final VBox detailContent = new VBox();
     private final TabPane modeTabs = new TabPane();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
     private final Tab itvTab = new Tab("Channels");
@@ -56,12 +58,22 @@ public class CategoryListUI extends HBox {
     private Account.AccountAction activeMode;
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
-        this(account);
+        this(account, false);
         setItems(list);
     }
 
     public CategoryListUI(Account account) {
+        this(account, false, null);
+    }
+
+    public CategoryListUI(Account account, boolean embeddedMode) {
+        this(account, embeddedMode, null);
+    }
+
+    public CategoryListUI(Account account, boolean embeddedMode, Runnable onHome) {
         this.account = account;
+        this.embeddedMode = embeddedMode;
+        this.onHome = onHome;
         this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;
         initWidgets();
         refreshCategoryColumnTitle();
@@ -104,6 +116,8 @@ public class CategoryListUI extends HBox {
 
     private void initWidgets() {
         setSpacing(5);
+        setMaxHeight(Double.MAX_VALUE);
+        setMinHeight(0);
         table.setEditable(true);
         table.getColumns().addAll(categoryTitle);
         categoryTitle.setVisible(true);
@@ -116,9 +130,63 @@ public class CategoryListUI extends HBox {
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
         leftPane.getChildren().addAll(modeTabs, table.getSearchTextField(), table);
-        getChildren().addAll(leftPane);
+        leftPane.setMaxHeight(Double.MAX_VALUE);
+        leftPane.setMinHeight(0);
+        VBox.setVgrow(leftPane, Priority.ALWAYS);
+        initDetailPane();
+        getChildren().setAll(leftPane);
         addChannelClickHandler();
         registerSceneCleanupListener();
+    }
+
+    private void initDetailPane() {
+        detailContent.setSpacing(5);
+        VBox.setVgrow(detailContent, Priority.ALWAYS);
+        detailPane.getChildren().setAll(detailContent);
+    }
+
+    private Button createBackButton() {
+        Button button = new Button("Back");
+        button.getStyleClass().add("nav-back-button");
+        button.setFocusTraversable(false);
+        button.setTooltip(new Tooltip("Back"));
+        return button;
+    }
+
+    private void showListView() {
+        if (!embeddedMode) {
+            return;
+        }
+        getChildren().setAll(leftPane);
+    }
+
+    private void showDetailView(ChannelListUI ui, String title) {
+        if (!embeddedMode || ui == null) {
+            return;
+        }
+        detailTitle.setText(title);
+        detailContent.getChildren().setAll(ui);
+        VBox.setVgrow(ui, Priority.ALWAYS);
+        detailPane.setMaxHeight(Double.MAX_VALUE);
+        detailPane.setMinHeight(0);
+        getChildren().setAll(detailPane);
+    }
+
+    public boolean navigateBackEmbedded() {
+        if (!embeddedMode) {
+            return false;
+        }
+        if (!getChildren().contains(detailPane)) {
+            return false;
+        }
+        if (!detailContent.getChildren().isEmpty()) {
+            javafx.scene.Node content = detailContent.getChildren().get(0);
+            if (content instanceof ChannelListUI channelListUI && channelListUI.navigateBackEmbedded()) {
+                return true;
+            }
+        }
+        showListView();
+        return true;
     }
 
     private void registerSceneCleanupListener() {
@@ -197,7 +265,11 @@ public class CategoryListUI extends HBox {
 
         table.setItems(FXCollections.observableArrayList());
         table.setPlaceholder(new Label("Loading categories..."));
-        removeChannelPane();
+        if (embeddedMode) {
+            showListView();
+        } else {
+            removeChannelPane();
+        }
 
         new Thread(() -> {
             try {
@@ -239,16 +311,26 @@ public class CategoryListUI extends HBox {
 
     private void maybeShowCachedChannelPane(ModeState state) {
         if (state == null || state.channelListUI == null) {
-            removeChannelPane();
+            if (embeddedMode) {
+                showListView();
+            } else {
+                removeChannelPane();
+            }
             return;
         }
-        showChannelPane(state.channelListUI);
+        if (embeddedMode) {
+            String title = state.selectedCategory == null ? "" : state.selectedCategory.getCategoryTitle();
+            showDetailView(state.channelListUI, title);
+        } else {
+            showChannelPane(state.channelListUI);
+        }
     }
 
     private void showChannelPane(ChannelListUI ui) {
         if (ui == null) return;
         removeChannelPane();
         getChildren().add(ui);
+        HBox.setHgrow(ui, Priority.ALWAYS);
     }
 
     private void removeChannelPane() {
@@ -286,7 +368,11 @@ public class CategoryListUI extends HBox {
         if (state.selectedCategory != null
                 && state.channelListUI != null
                 && sameCategorySelection(state.selectedCategory, item)) {
-            showChannelPane(state.channelListUI);
+            if (embeddedMode) {
+                showDetailView(state.channelListUI, item.getCategoryTitle());
+            } else {
+                showChannelPane(state.channelListUI);
+            }
             return;
         }
         // Check if channels are already loaded for this account
@@ -336,12 +422,19 @@ public class CategoryListUI extends HBox {
         CountDownLatch latch = new CountDownLatch(1);
 
         Platform.runLater(() -> {
-            removeChannelPane();
             ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), categoryId);
+            if (embeddedMode) {
+                ui.setEmbeddedMode(true, onHome);
+            }
             channelListUIHolder[0] = ui;
             state.channelListUI = ui;
             state.selectedCategory = item;
-            getChildren().add(ui);
+            if (embeddedMode) {
+                showDetailView(ui, item.getCategoryTitle());
+            } else {
+                removeChannelPane();
+                getChildren().add(ui);
+            }
             if ("All".equalsIgnoreCase(item.getCategoryTitle())) {
                  allItems.addAll(table.getItems());
             }
