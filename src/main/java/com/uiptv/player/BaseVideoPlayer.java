@@ -179,9 +179,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         volumeSlider.setPrefWidth(100);
         volumeSlider.getStyleClass().add("video-player-slider");
 
-        HBox buttonRow = new HBox(4);
+        HBox buttonRow = new HBox(3);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnAspectRatio, btnPip, spacer, btnMute, volumeSlider);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
         if (supportsTrackSelection()) {
             buttonRow.getChildren().add(btnTracks);
         }
@@ -400,6 +400,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 controlsContainer.setVisible(true);
             }
         });
+        playerContainer.addEventFilter(MouseEvent.MOUSE_ENTERED, e -> {
+            playerContainer.setCursor(Cursor.DEFAULT);
+            if (isFullscreen) {
+                idleTimer.playFromStart();
+            }
+            if (!isControlBarHiddenByUser) {
+                controlsContainer.setVisible(true);
+            }
+        });
 
         playerContainer.setOnMouseExited(e -> {
             if (isFullscreen) {
@@ -533,7 +542,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerContainer.setMinHeight(275);
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
-        controlsContainer.setVisible(!isFullscreen && !isControlBarHiddenByUser);
+        controlsContainer.setVisible(false);
         timeSlider.setDisable(false);
         timeSlider.setValue(0);
         timeLabel.setText("00:00 / 00:00");
@@ -993,7 +1002,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 ((MediaView) videoView).fitHeightProperty().bind(playerContainer.heightProperty());
             }
 
-            controlsContainer.setVisible(true);
+            controlsContainer.setVisible(false);
             controlsContainer.setManaged(true);
             btnPlayPause.setVisible(true);
             btnPlayPause.setManaged(true);

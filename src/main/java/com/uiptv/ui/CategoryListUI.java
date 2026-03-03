@@ -371,6 +371,7 @@ public class CategoryListUI extends HBox {
             if (embeddedMode) {
                 showDetailView(state.channelListUI, item.getCategoryTitle());
             } else {
+                state.channelListUI.showChannelListView();
                 showChannelPane(state.channelListUI);
             }
             return;
@@ -425,6 +426,8 @@ public class CategoryListUI extends HBox {
             ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), categoryId);
             if (embeddedMode) {
                 ui.setEmbeddedMode(true, onHome);
+            } else {
+                ui.setInlineEpisodeNavigationEnabled(true);
             }
             channelListUIHolder[0] = ui;
             state.channelListUI = ui;

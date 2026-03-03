@@ -72,9 +72,13 @@ public class ChannelListUI extends HBox {
     private AtomicBoolean currentRequestCancelled;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean embeddedMode = false;
+    private boolean inlineEpisodeNavigationEnabled = false;
     private final VBox listPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
     private Runnable onHome;
+    private final HBox detailNavHeader = new HBox(6);
+    private final Button detailBackButton = createBackButton();
+    private final Label detailTitle = new Label();
     private final VBox detailContent = new VBox();
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
@@ -101,6 +105,13 @@ public class ChannelListUI extends HBox {
         this.embeddedMode = embeddedMode;
         this.onHome = onHome;
         if (embeddedMode) {
+            showListView();
+        }
+    }
+
+    public void setInlineEpisodeNavigationEnabled(boolean enabled) {
+        this.inlineEpisodeNavigationEnabled = enabled;
+        if (enabled) {
             showListView();
         }
     }
@@ -193,6 +204,9 @@ public class ChannelListUI extends HBox {
     }
 
     private void initDetailPane() {
+        detailBackButton.setOnAction(event -> showListView());
+        detailNavHeader.setAlignment(Pos.CENTER_LEFT);
+        detailNavHeader.getChildren().setAll(detailBackButton, detailTitle);
         detailContent.setSpacing(5);
         detailContent.setPadding(new javafx.geometry.Insets(5, 0, 0, 0));
         VBox.setVgrow(detailContent, Priority.ALWAYS);
@@ -213,14 +227,17 @@ public class ChannelListUI extends HBox {
 
     private Button createBackButton() {
         Button button = new Button("Back");
-        button.getStyleClass().add("nav-back-button");
         button.setFocusTraversable(false);
         button.setTooltip(new Tooltip("Back"));
         return button;
     }
 
+    public void showChannelListView() {
+        showListView();
+    }
+
     private void showListView() {
-        if (!embeddedMode) {
+        if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
             getChildren().setAll(listPane);
             return;
         }
@@ -228,13 +245,19 @@ public class ChannelListUI extends HBox {
     }
 
     private void showDetailView(Node ui, String title) {
-        if (!embeddedMode || ui == null) {
+        if ((!embeddedMode && !inlineEpisodeNavigationEnabled) || ui == null) {
             return;
         }
+        detailTitle.setText(title == null ? "" : title);
         detailContent.getChildren().setAll(ui);
         VBox.setVgrow(ui, Priority.ALWAYS);
         detailPane.setMaxHeight(Double.MAX_VALUE);
         detailPane.setMinHeight(0);
+        if (!embeddedMode && inlineEpisodeNavigationEnabled) {
+            detailPane.getChildren().setAll(detailNavHeader, detailContent);
+        } else {
+            detailPane.getChildren().setAll(detailContent);
+        }
         getChildren().setAll(detailPane);
     }
 
@@ -376,7 +399,7 @@ public class ChannelListUI extends HBox {
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
-                if (!embeddedMode) {
+                if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
                     releaseTransientState();
                 }
             } else if (!bookmarkListenerRegistered) {
@@ -742,7 +765,7 @@ public class ChannelListUI extends HBox {
                             EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
                             episodesListUIHolder[0] = ui;
                             HBox.setHgrow(ui, Priority.ALWAYS);
-                            if (embeddedMode) {
+                            if (embeddedMode || inlineEpisodeNavigationEnabled) {
                                 showDetailView(ui, item.getChannelName());
                             } else {
                                 this.getChildren().add(ui);
@@ -771,7 +794,7 @@ public class ChannelListUI extends HBox {
                                 EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
                                 episodesListUIHolder[0] = ui;
                                 HBox.setHgrow(ui, Priority.ALWAYS);
-                                if (embeddedMode) {
+                                if (embeddedMode || inlineEpisodeNavigationEnabled) {
                                     showDetailView(ui, item.getChannelName());
                                 } else {
                                     this.getChildren().add(ui);
@@ -824,7 +847,7 @@ public class ChannelListUI extends HBox {
             }
             EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
             HBox.setHgrow(ui, Priority.ALWAYS);
-            if (embeddedMode) {
+            if (embeddedMode || inlineEpisodeNavigationEnabled) {
                 showDetailView(ui, item.getChannelName());
             } else {
                 this.getChildren().add(ui);
