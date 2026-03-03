@@ -162,6 +162,11 @@ a {
     line-height: 1.04;
 }
 
+.hero-line {
+    display: block;
+    white-space: nowrap;
+}
+
 .hero-text {
     margin-top: 1.2rem;
     color: var(--muted);
@@ -420,11 +425,6 @@ a {
     }
 }
 
-@media (min-width: 1025px) {
-    .hero h1 {
-        white-space: nowrap;
-    }
-}
 
 @media (max-width: 680px) {
     .nav-inner {
