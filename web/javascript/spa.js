@@ -39,6 +39,7 @@ createApp({
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
         const playerInstance = ref(null);
+        const mpegtsPlayer = ref(null);
         const videoPlayer = ref(null);
         const videoTracks = ref([]);
         const audioTracks = ref([]);
@@ -1446,6 +1447,14 @@ createApp({
                 }
                 playerInstance.value = null;
             }
+            if (mpegtsPlayer.value) {
+                try {
+                    mpegtsPlayer.value.destroy();
+                } catch (e) {
+                    console.warn('Error destroying MPEGTS player', e);
+                }
+                mpegtsPlayer.value = null;
+            }
 
             clearVideoElement(videoPlayer.value);
 
@@ -1498,15 +1507,72 @@ createApp({
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
             const canNative = video.canPlayType('application/vnd.apple.mpegurl');
             const hasDRM = channel.drm != null;
+            const normalizedUri = String(uri || '').toLowerCase();
+            const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
+            const isTs = manifestType === 'ts'
+                || manifestType === 'mpegts'
+                || manifestType === 'mpeg2ts'
+                || normalizedUri.includes('.ts?')
+                || normalizedUri.endsWith('.ts')
+                || normalizedUri.includes('.m2ts?')
+                || normalizedUri.endsWith('.m2ts');
 
             if (hasDRM) {
                 await loadShaka(channel);
+            } else if (isTs) {
+                await loadMpegTs(channel);
             } else if (isApple && canNative) {
                 await loadNative(channel);
             } else if (canNative && uri.endsWith('.m3u8')) {
                 await loadNative(channel);
             } else {
                 await loadShaka(channel);
+            }
+        };
+
+        const loadMpegTs = async (channel) => {
+            await nextTick();
+            const video = videoPlayer.value;
+            if (!video) return;
+
+            bindPlaybackEvents(video);
+            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
+            const engine = window.mpegts;
+            const canUseMpegts = !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
+            if (!canUseMpegts) {
+                await loadNative({ ...channel, url: sourceUrl });
+                return;
+            }
+
+            try {
+                const player = engine.createPlayer(
+                    {
+                        type: 'mpegts',
+                        isLive: String(currentChannel.value?.mode || 'itv') === 'itv',
+                        url: sourceUrl
+                    },
+                    {
+                        enableWorker: true,
+                        lazyLoad: false
+                    }
+                );
+                mpegtsPlayer.value = player;
+                player.on(engine.Events.ERROR, (_, detail) => {
+                    const message = detail?.msg || detail?.message || 'MPEGTS error';
+                    playbackError.value = `Playback error: ${message}`;
+                });
+                player.attachMediaElement(video);
+                player.load();
+                await player.play();
+            } catch (e) {
+                console.warn('MPEGTS playback failed, falling back to native.', e);
+                if (mpegtsPlayer.value) {
+                    try {
+                        mpegtsPlayer.value.destroy();
+                    } catch (_) {}
+                    mpegtsPlayer.value = null;
+                }
+                await loadNative({ ...channel, url: sourceUrl });
             }
         };
 

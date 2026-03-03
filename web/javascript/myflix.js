@@ -55,6 +55,7 @@ createApp({
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
         const playerInstance = ref(null);
+        const mpegtsPlayer = ref(null);
         const videoPlayerModal = ref(null);
         const playerModalFrame = ref(null);
         const videoTracks = ref([]);
@@ -1231,6 +1232,14 @@ createApp({
                 }
                 playerInstance.value = null;
             }
+            if (mpegtsPlayer.value) {
+                try {
+                    mpegtsPlayer.value.destroy();
+                } catch (e) {
+                    console.warn('Error destroying MPEGTS player', e);
+                }
+                mpegtsPlayer.value = null;
+            }
             if (!isPlaybackRequestActive(lifecycleId)) return;
             clearVideoElement(videoPlayerModal.value);
             if (!preserveUi) {
@@ -1337,6 +1346,13 @@ createApp({
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
             const isHls = manifestType === 'hls' || normalizedUri.includes('.m3u8');
             const isDash = manifestType === 'mpd' || normalizedUri.includes('.mpd');
+            const isTs = manifestType === 'ts'
+                || manifestType === 'mpegts'
+                || manifestType === 'mpeg2ts'
+                || normalizedUri.includes('.ts?')
+                || normalizedUri.endsWith('.ts')
+                || normalizedUri.includes('.m2ts?')
+                || normalizedUri.endsWith('.m2ts');
             const isLikelyProgressive =
                 /\.(mkv|mp4|mov|avi|ts|m2ts|webm)(\?|$)/i.test(uri) ||
                 normalizedUri.includes('/live/play/') ||
@@ -1344,6 +1360,8 @@ createApp({
 
             if (hasDRM) {
                 await loadShaka({ ...channel, url: uri }, lifecycleId);
+            } else if (isTs) {
+                await loadMpegTs({ ...channel, url: uri }, lifecycleId);
             } else if (isLikelyProgressive) {
                 await loadNative({ ...channel, url: uri }, lifecycleId);
             } else if (isDash) {
@@ -1354,6 +1372,62 @@ createApp({
             } else {
                 // Unknown URLs (often redirected Stalker series links) work better with native first.
                 await loadNative({ ...channel, url: uri }, lifecycleId);
+            }
+        };
+
+        const loadMpegTs = async (channel, lifecycleId) => {
+            if (!isPlaybackRequestActive(lifecycleId)) return;
+            const video = await resolveActiveVideoElement();
+            if (!video || !isPlaybackRequestActive(lifecycleId)) return;
+            bindPlaybackEvents(video);
+
+            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
+            const engine = window.mpegts;
+            const canUseMpegts = !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
+            if (!canUseMpegts) {
+                await loadNative({ ...channel, url: sourceUrl }, lifecycleId);
+                return;
+            }
+
+            try {
+                const player = engine.createPlayer(
+                    {
+                        type: 'mpegts',
+                        isLive: String(currentChannel.value?.mode || 'itv') === 'itv',
+                        url: sourceUrl
+                    },
+                    {
+                        enableWorker: true,
+                        lazyLoad: false
+                    }
+                );
+                mpegtsPlayer.value = player;
+                player.on(engine.Events.ERROR, (_, detail) => {
+                    const message = detail?.msg || detail?.message || 'MPEGTS error';
+                    playbackError.value = `Playback error: ${message}`;
+                });
+                player.attachMediaElement(video);
+                if (!isPlaybackRequestActive(lifecycleId)) {
+                    player.destroy();
+                    if (mpegtsPlayer.value === player) mpegtsPlayer.value = null;
+                    return;
+                }
+                player.load();
+                if (!isPlaybackRequestActive(lifecycleId)) {
+                    player.destroy();
+                    if (mpegtsPlayer.value === player) mpegtsPlayer.value = null;
+                    return;
+                }
+                await player.play();
+            } catch (e) {
+                console.warn('MPEGTS playback failed, falling back to native.', e);
+                if (mpegtsPlayer.value) {
+                    try {
+                        mpegtsPlayer.value.destroy();
+                    } catch (_) {}
+                    mpegtsPlayer.value = null;
+                }
+                await loadNative({ ...channel, url: sourceUrl }, lifecycleId);
             }
         };
 
