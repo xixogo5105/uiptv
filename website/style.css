@@ -225,11 +225,11 @@ a {
 }
 
 .screen-frame {
-    border: 1px solid rgba(21, 32, 51, 0.08);
-    padding: 0.8rem;
-    border-radius: 20px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 244, 239, 0.92));
-    box-shadow: var(--shadow-deep);
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
     transform: none;
 }
 
@@ -237,6 +237,7 @@ a {
     width: 100%;
     border-radius: 14px;
     display: block;
+    box-shadow: var(--shadow-deep);
 }
 
 .section-head {
