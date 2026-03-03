@@ -39,9 +39,9 @@ public class ConfigurationUI extends VBox {
     private String dbId;
     private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
-    final Button browserButtonPlayerPath1 = new Button("Browse...");
-    final Button browserButtonPlayerPath2 = new Button("Browse...");
-    final Button browserButtonPlayerPath3 = new Button("Browse...");
+    final Button browserButtonPlayerPath1 = new Button("...");
+    final Button browserButtonPlayerPath2 = new Button("...");
+    final Button browserButtonPlayerPath3 = new Button("...");
     final FileChooser fileChooser = new FileChooser();
     private final RadioButton defaultPlayer1 = new RadioButton("");
     private final RadioButton defaultPlayer2 = new RadioButton("");
