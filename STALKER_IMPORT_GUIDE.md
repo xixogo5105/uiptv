@@ -2,6 +2,13 @@
 
 This file demonstrates the format for bulk importing Stalker Portal accounts with MAC addresses and optional device parameters.
 
+## v0.1.9 Import Notes
+
+- Parser now supports smarter attribute extraction for Stalker details (`serial`, `device id 1/2`, `signature`) with flexible labels.
+- `HTTP Method` and `Timezone` can be provided in import text and are stored per account.
+- In the UI, you can verify and manage MAC addresses after import from **Manage Account** (`Verify` + `Manage` tools).
+- If **Group Account(s) by MAC Address** is enabled, accounts containing extra device fields are intentionally kept separate to avoid merging incompatible device identities.
+
 ## Format Overview
 
 Each Stalker Portal account requires:
@@ -292,8 +299,9 @@ Europe/Paris
 3. Select **"Stalker Portal"** as the account type
 4. Optional: Check **"Group Accounts by MAC"** for special grouping behavior
 5. Paste your Stalker Portal accounts in the text field
-6. Click "Save"
-7. All accounts will be imported with their parameters
+6. Optional: keep **"Start verification after parsing"** enabled to immediately validate imported accounts
+7. Click "Save"
+8. All accounts will be imported with their parameters
 
 ## Optional: Group Accounts by MAC
 
@@ -330,6 +338,7 @@ The parser recognizes various label formats (case-insensitive):
 - If multiple accounts have same URL + MAC, they will still be stored
 - Device parameters help with portal authentication
 - Portal response times may vary depending on network
+- For timezones, use valid Java ZoneId values (for example `Europe/London`, `America/New_York`).
 
 ## Troubleshooting
 
@@ -364,5 +373,3 @@ The parser recognizes various label formats (case-insensitive):
 - **Check**: Network connectivity to portal
 - **Check**: Portal credentials (MAC address) are valid
 - **Check**: Portal allows connections from your network
-
-

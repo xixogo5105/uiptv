@@ -1,3 +1,16 @@
+## M3U Import Guide
+
+This guide explains how to bulk import M3U/M3U8 playlist URLs and optionally convert supported URLs into Xtream-style accounts.
+
+## v0.1.9 Import Notes
+
+- Imported M3U accounts can be used in desktop and web modes.
+- You can publish merged playlists from Configuration and consume them via:
+  - `/iptv.m3u`
+  - `/iptv.m3u8`
+- Conversion to Xtream remains optional and only applies when URL requirements are met.
+- Import parser accepts valid URLs only (invalid tokens are ignored).
+
 ## Format Overview
 
 Each M3U playlist URL should be on its own line or separated by spaces. The parser supports:
@@ -137,9 +150,10 @@ All 4 URLs parsed correctly, can be on same line or separate lines
 2. Go to "Parse Multiple Accounts" (usually in the Accounts menu)
 3. Select **"M3U Playlists"** as the account type
 4. Optional: Check **"Convert M3U to Xtreme"** to convert URLs with credentials
-5. Paste your M3U URLs in the text field
-6. Click "Save"
-7. All accounts will be imported
+5. Optional: keep **"Start verification after parsing"** enabled to run post-import checks
+6. Paste your M3U URLs in the text field
+7. Click "Save"
+8. All accounts will be imported
 
 ## Conversion Reference
 
@@ -205,5 +219,3 @@ http://cdn.example.com/playlist.m3u8 (missing get.php)
 **Issue**: Wrong credentials extracted
 - **Check**: Username and password values in query parameters
 - **Check**: No URL encoding issues (%20, %3D, etc.)
-
-

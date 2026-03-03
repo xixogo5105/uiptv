@@ -16,17 +16,20 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Filtering Content](#filtering-content)
    - [Appearance & Styling](#appearance--styling)
    - [Cache Management](#cache-management)
+   - [Web Server Settings](#web-server-settings)
    - [Updates & About](#updates--about)
 4. [Managing Accounts](#4-managing-accounts)
    - [Stalker Portal](#stalker-portal)
    - [Xtream Codes](#xtream-codes)
    - [M3U Playlists (Remote & Local)](#m3u-playlists-remote--local)
    - [RSS Feeds (YouTube Support)](#rss-feeds-youtube-support)
+   - [Account Maintenance](#account-maintenance)
    - [Bulk Account Import](#bulk-account-import)
 5. [Using the Player](#5-using-the-player)
    - [Navigation](#navigation)
    - [Search & Favorites](#search--favorites)
    - [Playback Controls](#playback-controls)
+   - [Watching Now](#watching-now)
    - [Embedded Players Explained](#embedded-players-explained)
 6. [Web Server & Remote Access](#6-web-server--remote-access)
    - [Setting Up the Server](#setting-up-the-server)
@@ -48,8 +51,9 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
 Key highlights include:
 - **Cross-Platform**: Runs natively on Windows, Linux, and macOS.
 - **Flexible Player Support**: Use the embedded VLC-based player or your favorite external player (MPV, SMPlayer, etc.).
-- **Web Server**: Stream your content to any device on your local network via a web browser.
-- **Privacy & Control**: robust filtering options to hide unwanted content and local caching for performance.
+- **Web SPA/PWA**: Stream your content to any device on your local network via a modern browser-first interface.
+- **Live TV + VOD + Series**: Unified content modes with watched-state/resume flows.
+- **Privacy & Control**: Robust filtering options to hide unwanted content and local caching for performance.
 
 ---
 
@@ -120,12 +124,16 @@ The **Configuration** tab is your central hub for customizing UIPTV.
 UIPTV offers flexibility in how you watch your content:
 - **Embedded VLC Player**: This is the default and most robust option. It uses the VLC libraries installed on your system.
 - **Embedded Lite Player**: A fallback player with basic functionality, useful if VLC is unavailable.
+- **Web Browser Player**: You can select browser playback as a default route for compatible workflows.
 - **External Players**: You can configure up to three external players.
   1. Click **Browse...** to locate the executable of your preferred player (e.g., `mpv.exe`, `smplayer`).
   2. Use the **Radio Button** next to a player path to set it as the default player when you double-click a channel.
+- **Wide View**: Enables a wider embedded player layout.
+- **Restart Requirement**: Changing embedded player mode or wide view requires app restart for full effect.
 
 ### Filtering Content
 Keep your channel list clean and safe:
+- **Show/Hide Filters**: Filter input text areas can be collapsed/expanded.
 - **Category Filter**: Enter keywords (comma-separated) to hide entire categories (e.g., `adult, xxx, shopping`).
 - **Channel Filter**: Enter specific channel names to exclude them from your list.
 - **Pause Filtering**: Toggle this option to temporarily show all hidden content without deleting your filter lists.
@@ -135,11 +143,20 @@ Keep your channel list clean and safe:
 Make UIPTV look the way you want:
 - **Font Settings**: Adjust the font family, size, and weight to suit your readability preferences.
 - **Dark Theme**: Enable this for a modern, eye-friendly dark interface.
+- **Thumbnails**: Enable/disable thumbnail-heavy series and watching-now cards.
 
 ### Cache Management
 UIPTV uses a local SQLite database to cache channel lists and EPG data for faster loading.
 - **Clear Cache**: If you experience missing channels or outdated data, click this to reset the local database.
-- **Pause Caching**: Enable this if you prefer to fetch fresh data every time you load an account (may slow down startup). This can be set globally or on a per-account basis.
+- **Reload Cache**: Refresh account caches on demand from the account management screen.
+- **Cache Expiry**: Configure cache lifetime in days in the Configuration tab.
+- **Clear Watching Now**: Clear stored watched-progress data.
+
+### Web Server Settings
+- **Server Port**: Configure the listening port.
+- **Start/Stop/Open**: Manage server lifecycle from the Configuration tab.
+- **FFmpeg Transcoding**: Enable optional TS-friendly web playback compatibility.
+- **Publish M3U8**: Generate merged playlists for remote-player consumption.
 
 ### Updates & About
 - **About Page**: Provides version information and credits.
@@ -159,7 +176,9 @@ Used by many IPTV providers. See [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.
 1. Select **Stalker Portal** from the dropdown.
 2. Enter the **Portal URL** provided by your service.
 3. Enter your **MAC Address** (usually linked to your subscription).
-4. Click **Add Account**.
+4. Optional: set `HTTP Method` and `Timezone` when needed.
+5. Optional: set `Serial`, `Device ID 1/2`, and `Signature`.
+6. Click **Add Account**.
 
 ### Xtream Codes
 A popular API-based method. See [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) for bulk import examples.
@@ -183,13 +202,19 @@ Turn UIPTV into a news or video feed reader.
 
 **Note**: After adding an account, click **Parse Accounts** to load the channels.
 
+### Account Maintenance
+- **Verify MAC**: For Stalker accounts, use `Verify` to validate and clean MAC lists.
+- **Manage MAC List**: Edit/remove MAC entries and choose default MAC with the popup tool.
+- **Reload Cache**: Trigger account-level cache refresh for supported account types.
+- **Pin Account on Top**: Keep frequently used accounts pinned at the top.
+
 ### Bulk Account Import
 The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
 
 **Format References:**
-- [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) - Stalker Portal format with 8 examples
-- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtreme Codes format with 7 examples
-- [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) - M3U format with 7 examples and conversion feature
+- [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) - Stalker Portal format and advanced parameter examples
+- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtream Codes format examples
+- [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) - M3U format examples and conversion feature
 
 1. **Select Mode**: Choose between `Stalker Portal`, `Xtream Codes`, or `M3U`.
 2. **Enter Data**: Paste your account details in the text area.
@@ -211,8 +236,8 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
    - **Convert M3U to Xtreme** (M3U Mode only):
      - When enabled, the parser attempts to convert M3U URLs into Xtream Codes API accounts (Host, Username, Password) for better compatibility and performance.
      - This is only available when parsing M3U links.
-   - **Pause Caching**:
-     - Prevents the application from immediately caching the content of the newly added accounts. This is useful if you are adding many accounts and want to avoid high resource usage immediately.
+   - **Start verification after parsing**:
+     - Runs verification/reload flow for newly imported accounts.
 4. Click **Parse & Save** to import the accounts.
 
 ---
@@ -233,6 +258,11 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
 ### Playback Controls
 - **Double-Click**: Starts playback using your selected default player.
 - **Right-Click**: Offers options to play with a specific player (Embedded, External 1, 2, or 3).
+
+### Watching Now
+- **Resume Flow**: Continue watching series from recently watched entries.
+- **Episode Actions**: Open episodes from cards and reload episodes from server.
+- **Watched Markers**: Series and episode rows show watched/in-progress states.
 
 ### Embedded Players Explained
 UIPTV comes with two embedded players, each serving a different purpose.
@@ -262,22 +292,24 @@ This is a lightweight player based on JavaFX's built-in media engine. It is used
 
 ## 6. Web Server & Remote Access
 
-UIPTV includes an experimental web server, allowing you to watch your IPTV content on other devices (phones, tablets, smart TVs) via a web browser.
+UIPTV includes a built-in web server, allowing you to watch IPTV content on other devices (phones, tablets, smart TVs) via a web browser.
 
 ### Setting Up the Server
 1. Go to the **Configuration** tab.
-2. Set a **Port** (default is `8080`).
+2. Set a **Port** (default is `8888` unless changed in your config).
 3. Click **Save** to apply the port setting.
 4. Click **Start Server**.
 
 ### Accessing via Browser
 1. Find the IP address of your computer (e.g., `192.168.1.10`).
-2. On your other device, open a browser and go to `http://192.168.1.10:8080`.
+2. On your other device, open a browser and go to `http://192.168.1.10:8888` (or your configured port).
 3. You will see a web interface where you can browse categories and play channels.
 
 **Important Notes**:
-- **HLS Only**: The web player primarily supports HLS (`.m3u8`) streams.
-- **TS Support**: To play MPEG-TS (`.ts`) streams in the browser, you **must** have **FFmpeg** installed on the host computer. UIPTV uses FFmpeg to transmux the stream for web compatibility.
+- **SPA Web UI**: The main web entry is `/` or `/index.html` with additional views like `/myflix.html`.
+- **Playlist Exports**: You can download published playlists from `/iptv.m3u` and `/iptv.m3u8`.
+- **Bookmarks Playlist**: Export favorites as `/bookmarks.m3u8`.
+- **TS Support**: To play MPEG-TS (`.ts`) streams in the browser, install **FFmpeg** on the host and enable FFmpeg transcoding in Configuration.
 
 ### Headless Mode
 If you want to run UIPTV on a server without a graphical interface:
@@ -360,7 +392,7 @@ A: This is often a codec issue. We strongly recommend using **VLC** as your back
 A:
 - If it's a `.ts` stream, ensure **FFmpeg** is installed.
 - Ensure the device you are watching on is on the same local network.
-- Check if your firewall is blocking the port (default 8080).
+- Check if your firewall is blocking the configured server port (default 8888).
 
 **Q: The application is slow.**
 A: Large playlists (20,000+ channels) can be heavy. Use the **Filter** options to exclude categories you don't watch (e.g., foreign languages), which will significantly speed up loading times.

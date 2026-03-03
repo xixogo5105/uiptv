@@ -1,9 +1,9 @@
 <img src="https://github.com/xixogo5105/uiptv/assets/161976171/5563a042-157e-4ae7-bb6e-a72b38c8aa62"  width="64" height="64"  alt=""/>
 
 # UIPTV - A Universal IPTV Player for Windows, Linux & macOS
-UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. At its core, UIPTV is a text-based IPTV player that also provides limited web support for accessing your content across your local network.
+UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. It provides both a desktop experience and a full local-network web experience (SPA/PWA) for Live TV, VOD, and Series.
 
-Native installers and packages are available for Windows (x86_64, aarch64), Linux (x86_64, aarch64), and macOS (x86_64, aarch64).
+Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64).
 
 A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
 
@@ -11,16 +11,29 @@ A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/
 
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
 
+## What's New in v0.1.9
+- **Web app rewrite**: Replaced legacy web pages with a responsive SPA (`/`, `/index.html`, `/myflix.html`, `/player.html`) and PWA support.
+- **Watching Now + Series tracking**: Added series watch-state tracking across desktop/web with richer episode flows.
+- **DRM + playback metadata**: Added DRM-aware playback payloads and improved web playback compatibility paths.
+- **FFmpeg in-memory HLS path**: Optional web transmuxing for TS-like streams when FFmpeg transcoding is enabled.
+- **Published playlist export**: Added server endpoints for `/iptv.m3u` and `/iptv.m3u8`.
+- **Import/parser improvements**: Better Stalker parsing, MAC management/verification, and expanded import guides.
+
 
 ## Features:
 - **Embedded & External Player Support**: UIPTV now includes two embedded video players: a full-featured player powered by **VLC** and a limited, lightweight alternative.
   - For the best experience, it is highly recommended to have **VLC** installed on your system and available in the system's PATH.
   - If VLC is not found, the player will fall back to a basic, lightweight player with fewer features.
   - You can still configure an external player (like MPV, SMPlayer, etc.) for maximum control.
+- **Watching Now + Series Resume**: Track watched series/episodes and continue from where you left off on desktop and web.
+- **VOD/Series Metadata**: Enhanced details for movies/series including richer cards and IMDb-oriented metadata flows.
 - **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
 - **Dark Mode/Styling**: A limited set of built-in styling options is available, allowing users to change the font, size, and weight. A dark mode is also included, which applies to all components.
-- **Web Server (EXPERIMENTAL)**: Expose your accounts and bookmarks via a web server port, making them instantly available to any device on your local network through a web browser. Please note that only HLS-compatible streams will play in the web player.
-  - **FFmpeg Requirement**: For the web app to play TS files, **ffmpeg** must be installed and accessible in the system's PATH.
+- **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.
+  - **SPA Routes**: Main UI is served from `/` and `/index.html` with additional views (`/myflix.html`, `/player.html`).
+  - **Extra Endpoints**: Includes playlist exports (`/iptv.m3u`, `/iptv.m3u8`) and bookmarks playlist (`/bookmarks.m3u8`).
+  - **FFmpeg Requirement**: For TS-style streams in web playback, install **ffmpeg** and enable FFmpeg transcoding in Configuration.
+- **DRM-aware Web Playback**: Playback payloads now include DRM fields (type/license/clear keys/manifest hints) where available.
 - **Web Server Headless Support**: Run UIPTV in headless mode if you only intend to access channels through a browser.
 - **Multiple IPTV Protocols**: The player supports the following protocols and formats:
   - **Stalker Portal**: Live Channels, Video On Demand, and Series.
@@ -28,10 +41,11 @@ A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/
   - **Xtreme Codes**: Live Channels, Video On Demand, and Series.
   - **RSS Feeds**: Add and watch content from RSS feeds. This includes support for YouTube channels by using their RSS feed URL (e.g., `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`). For YouTube videos to play, **yt-dlp** must be installed and accessible in the system's PATH.
 - **Bulk Account Import**: Add multiple accounts at once for Stalker, Xtreme, and M3U.
+- **Account Tools**: MAC verify/manage flows, account pinning, timezone and HTTP method support for Stalker, and account-level cache reload.
 - **Database Synchronization**: Synchronize your configuration and accounts between two database files, perfect for backups or multi-device setups.
 - **Tab-Based Interface**: The user interface has been updated from expandable panels to a more intuitive tab-based layout for managing accounts and settings.
 - **About Page & Update Checks**: An "About" page has been added, which includes a mechanism to check for new application updates.
-- **Cache Management**: UIPTV uses an SQLite database to cache data, reducing repeated calls to servers. You can "Clear Cache" or "Pause Caching" globally or on a per-account basis to manage performance.
+- **Cache Management**: UIPTV uses an SQLite database cache with configurable expiry, global clear/reload flows, and account-level reload tools.
 - **Website**: A promotional website is now available at [https://xixogo5105.github.io/uiptv/](https://xixogo5105.github.io/uiptv/).
 
 ## Important Installation Note for Windows and Linux (DEB) Users
