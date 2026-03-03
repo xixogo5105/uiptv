@@ -225,7 +225,7 @@ a {
     border-radius: 20px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 244, 239, 0.92));
     box-shadow: var(--shadow-deep);
-    transform: rotate(-1deg);
+    transform: none;
 }
 
 .screen-frame img {
@@ -417,6 +417,12 @@ a {
     .feature-grid,
     .import-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1025px) {
+    .hero h1 {
+        white-space: nowrap;
     }
 }
 
