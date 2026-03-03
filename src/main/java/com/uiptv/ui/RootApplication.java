@@ -89,7 +89,7 @@ public class RootApplication extends Application {
         boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
 
         BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
-        Scene scene = mainUiRoute.buildScene(embeddedEnabled, embeddedWideViewEnabled);
+        Scene scene = mainUiRoute.buildScene();
 
         primaryStage.setOnCloseRequest(event -> {
             Platform.exit();
@@ -120,7 +120,8 @@ public class RootApplication extends Application {
                 configurationService,
                 this::configureFontStyles,
                 GUIDED_MAX_WIDTH_PIXELS,
-                GUIDED_MAX_HEIGHT_PIXELS
+                GUIDED_MAX_HEIGHT_PIXELS,
+                embeddedEnabled
         );
     }
 

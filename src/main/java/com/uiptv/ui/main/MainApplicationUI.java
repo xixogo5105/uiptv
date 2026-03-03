@@ -17,6 +17,7 @@ import javafx.stage.Stage;
 import java.util.function.Consumer;
 
 public class MainApplicationUI extends BaseMainApplicationUI {
+    private final boolean embeddedEnabled;
 
     public MainApplicationUI(
             Stage primaryStage,
@@ -24,13 +25,15 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             ConfigurationService configurationService,
             Consumer<Scene> fontStyleConfigurer,
             int guidedMaxWidthPixels,
-            int guidedMaxHeightPixels
+            int guidedMaxHeightPixels,
+            boolean embeddedEnabled
     ) {
         super(primaryStage, hostServices, configurationService, fontStyleConfigurer, guidedMaxWidthPixels, guidedMaxHeightPixels);
+        this.embeddedEnabled = embeddedEnabled;
     }
 
     @Override
-    protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI, boolean embeddedEnabled) {
+    protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI) {
         if (!embeddedEnabled) {
             return createMainContent(tabPane, accountListUI);
         }
@@ -63,5 +66,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         tabPane.setPrefWidth(480);
         tabPane.setMaxWidth(480);
         return mainContent;
+    }
+
+    @Override
+    protected boolean useEmbeddedAccountFlow() {
+        return false;
     }
 }

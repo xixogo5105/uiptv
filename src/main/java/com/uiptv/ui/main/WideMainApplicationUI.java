@@ -24,10 +24,12 @@ public class WideMainApplicationUI extends BaseMainApplicationUI {
     }
 
     @Override
-    protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI, boolean embeddedEnabled) {
-        if (embeddedEnabled) {
-            return createWideMainContent(tabPane, accountListUI);
-        }
-        return createMainContent(tabPane, accountListUI);
+    protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI) {
+        return createWideMainContent(tabPane, accountListUI);
+    }
+
+    @Override
+    protected boolean useEmbeddedAccountFlow() {
+        return true;
     }
 }

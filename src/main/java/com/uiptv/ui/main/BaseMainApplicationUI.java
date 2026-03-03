@@ -57,12 +57,12 @@ public abstract class BaseMainApplicationUI {
         this.guidedMaxHeightPixels = guidedMaxHeightPixels;
     }
 
-    public Scene buildScene(boolean embeddedEnabled, boolean embeddedWideViewEnabled) throws IOException {
+    public Scene buildScene() throws IOException {
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
         WatchingNowUI watchingNowUI = new WatchingNowUI();
-        AccountListUI accountListUI = new AccountListUI(embeddedEnabled);
+        AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow());
         accountListUI.setManageAccountUI(manageAccountUI);
 
         configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI);
@@ -93,11 +93,10 @@ public abstract class BaseMainApplicationUI {
                 bookmarkChannelListUI,
                 watchingNowUI,
                 logDisplayUI,
-                configurationUI,
-                embeddedWideViewEnabled
+                configurationUI
         );
 
-        HBox mainContent = buildMainContent(tabPane, accountListUI, embeddedEnabled);
+        HBox mainContent = buildMainContent(tabPane, accountListUI);
 
         MenuBar menuBar = createMenuBar();
 
@@ -109,7 +108,9 @@ public abstract class BaseMainApplicationUI {
         return scene;
     }
 
-    protected abstract HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI, boolean embeddedEnabled);
+    protected abstract HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI);
+
+    protected abstract boolean useEmbeddedAccountFlow();
 
     protected HBox createWideMainContent(TabPane tabPane, AccountListUI accountListUI) {
         HBox embeddedPlayer = createEmbeddedPlayerContainer();
@@ -173,10 +174,10 @@ public abstract class BaseMainApplicationUI {
         return menuBar;
     }
 
-    private TabPane createTabPane(ManageAccountUI manageAccountUI, AccountListUI accountListUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI, boolean embeddedWideViewEnabled) {
+    private TabPane createTabPane(ManageAccountUI manageAccountUI, AccountListUI accountListUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI) {
         TabPane tabPane = new TabPane();
 
-        Tab manageAccountTab = new Tab("Account", embeddedWideViewEnabled ? wrapToFill(accountListUI) : manageAccountUI);
+        Tab manageAccountTab = new Tab("Account", useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : manageAccountUI);
         Tab parseMultipleAccountTab = new Tab("Import Bulk Accounts", parseMultipleAccountUI);
         Tab bookmarkChannelListTab = new Tab("Favorite", bookmarkChannelListUI);
         Tab watchingNowTab = new Tab("Watching Now", watchingNowUI);

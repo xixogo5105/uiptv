@@ -518,6 +518,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         });
 
         Hyperlink viewEpisodesLink = new Hyperlink("View Episodes...");
+        registerHyperlinkBaseStyle(viewEpisodesLink);
         viewEpisodesLink.setFocusTraversable(true);
         viewEpisodesLink.setOnAction(event -> {
             event.consume();
@@ -544,6 +545,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             }
         });
         card.getProperties().put("cardLabels", List.of(title));
+        card.getProperties().put("cardLinks", List.of(viewEpisodesLink));
         return card;
     }
 
@@ -1047,6 +1049,14 @@ public abstract class BaseWatchingNowUI extends VBox {
                 }
             }
         }
+        Object linksObj = card.getProperties().get("cardLinks");
+        if (linksObj instanceof List<?> links) {
+            for (Object linkObj : links) {
+                if (linkObj instanceof Hyperlink link) {
+                    applyHyperlinkSelection(link, selected);
+                }
+            }
+        }
     }
 
     private void registerLabelBaseStyle(Label label) {
@@ -1069,6 +1079,29 @@ public abstract class BaseWatchingNowUI extends VBox {
             label.setStyle(base + " -fx-text-fill: white;");
         } else {
             label.setStyle(base);
+        }
+    }
+
+    private void registerHyperlinkBaseStyle(Hyperlink link) {
+        if (link == null) {
+            return;
+        }
+        Object existing = link.getProperties().get("baseLinkStyle");
+        if (existing == null) {
+            link.getProperties().put("baseLinkStyle", link.getStyle() == null ? "" : link.getStyle());
+        }
+    }
+
+    private void applyHyperlinkSelection(Hyperlink link, boolean selected) {
+        if (link == null) {
+            return;
+        }
+        Object baseStyle = link.getProperties().get("baseLinkStyle");
+        String base = baseStyle instanceof String ? (String) baseStyle : "";
+        if (selected) {
+            link.setStyle(base + " -fx-text-fill: white;");
+        } else {
+            link.setStyle(base);
         }
     }
 
