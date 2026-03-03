@@ -23,6 +23,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -55,7 +56,6 @@ public class ConfigurationUI extends VBox {
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "Enter your third favorite player's Path here.", 5);
     private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "Enter comma separated list. All categories containing this would be filtered out.", 5);
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "Enter comma separated list. All Channels containing this would be filtered out.", 5);
-    private final Hyperlink showHideFilters = new Hyperlink("Show Filters");
     private final CheckBox filterPausedCheckBox = new CheckBox("Pause filtering");
     private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
     private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
@@ -68,8 +68,7 @@ public class ConfigurationUI extends VBox {
     private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "Cache expiry in days (numbers only, default 30)", 5);
 
     private final Button startServerButton = new Button("Start Server");
-    private final Button stopServerButton = new Button("Stop Server");
-    private final Hyperlink openServerLink = new Hyperlink("open");
+    private final Hyperlink openServerLink = new Hyperlink("Open Web App");
     private final Button publishM3u8Button = new Button("Publish M3U8");
     private final Button clearCacheButton = new Button("Clear Cache");
     private final Button clearWatchingNowButton = new Button("Clear Watching Now");
@@ -166,20 +165,6 @@ public class ConfigurationUI extends VBox {
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
 
-        filterCategoriesWithTextContains.setVisible(false);
-        filterCategoriesWithTextContains.setManaged(false);
-        filterChannelWithTextContains.setVisible(false);
-        filterChannelWithTextContains.setManaged(false);
-
-        showHideFilters.setOnAction(event -> {
-            boolean visible = !filterCategoriesWithTextContains.isVisible();
-            filterCategoriesWithTextContains.setVisible(visible);
-            filterCategoriesWithTextContains.setManaged(visible);
-            filterChannelWithTextContains.setVisible(visible);
-            filterChannelWithTextContains.setManaged(visible);
-            showHideFilters.setText(visible ? "Hide Filters" : "Show Filters");
-        });
-
         filterPausedCheckBox.setMinWidth(250);
         cacheExpiryDays.setPrefColumnCount(4);
         cacheExpiryDays.setMaxWidth(70);
@@ -197,7 +182,7 @@ public class ConfigurationUI extends VBox {
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5);
 
-        VBox filtersGroup = new VBox(10, showHideFilters, filterCategoriesWithTextContains, filterChannelWithTextContains);
+        VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
         VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox, enableThumbnailsCheckBox);
 
@@ -207,17 +192,17 @@ public class ConfigurationUI extends VBox {
 
         openServerLink.setVisible(false);
         openServerLink.setManaged(false);
-        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, stopServerButton, openServerLink);
+        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
         VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
 
         contentContainer.getChildren().addAll(
-                createGroupPane("Players", "Add player paths and select the matching radio button to set the default player.", playersGroup),
-                createGroupPane("Filters", filtersGroup),
-                createGroupPane("Font & Theme", fontGroup),
-                createGroupPane("Cache & Filtering", cacheGroup),
-                createGroupPane("FFmpeg & Web Server", serverGroup),
+                createCollapsibleGroupPane("Players", "Add player paths and select the matching radio button to set the default player.", playersGroup, false),
+                createCollapsibleGroupPane("Filters", null, filtersGroup, true),
+                createCollapsibleGroupPane("Font & Theme", null, fontGroup, false),
+                createCollapsibleGroupPane("Cache & Filtering", null, cacheGroup, false),
+                createCollapsibleGroupPane("FFmpeg & Web Server", null, serverGroup, false),
                 saveButton
         );
         addSaveButtonClickHandler();
@@ -225,7 +210,6 @@ public class ConfigurationUI extends VBox {
         addBrowserButton2ClickHandler();
         addBrowserButton3ClickHandler();
         addStartServerButtonClickHandler();
-        addStopServerButtonClickHandler();
         addClearCacheButtonClickHandler();
         addClearWatchingNowButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
@@ -235,33 +219,56 @@ public class ConfigurationUI extends VBox {
         installServerStatusMonitor();
     }
 
-    private BorderPane createGroupPane(String title, Node content) {
+    private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
         BorderPane pane = new BorderPane(content);
         Label titleLabel = new Label(title);
         titleLabel.setStyle("-fx-font-weight: bold;");
-        BorderPane.setMargin(titleLabel, new Insets(0, 0, 8, 0));
-        pane.setTop(titleLabel);
+        VBox titleContainer = new VBox(4, titleLabel);
+        titleContainer.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(titleContainer, Priority.ALWAYS);
+        final Label descriptionLabel;
+        if (description != null && !description.isBlank()) {
+            Label label = new Label(description);
+            label.setWrapText(true);
+            label.setStyle("-fx-opacity: 0.85;");
+            titleContainer.getChildren().add(label);
+            descriptionLabel = label;
+        } else {
+            descriptionLabel = null;
+        }
+
+        Hyperlink toggleLink = new Hyperlink();
+        toggleLink.setMinWidth(Region.USE_PREF_SIZE);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox header = new HBox(8, titleContainer, spacer, toggleLink);
+
+        final Runnable refreshToggleLabel = () -> {
+            boolean expanded = content.isVisible() && content.isManaged();
+            toggleLink.setText(expanded ? "Hide" : "Show");
+            if (descriptionLabel != null) {
+                descriptionLabel.setVisible(expanded);
+                descriptionLabel.setManaged(expanded);
+            }
+        };
+        content.setVisible(!collapsedByDefault);
+        content.setManaged(!collapsedByDefault);
+        refreshToggleLabel.run();
+        toggleLink.setOnAction(event -> {
+            boolean expand = !(content.isVisible() && content.isManaged());
+            content.setVisible(expand);
+            content.setManaged(expand);
+            refreshToggleLabel.run();
+        });
+
+        BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
+        pane.setTop(header);
         pane.setPadding(new Insets(10));
         pane.setStyle("-fx-background-color: -uiptv-card-bg;"
                 + "-fx-border-color: -uiptv-card-border;"
                 + "-fx-border-width: 1;"
                 + "-fx-background-radius: 8;"
                 + "-fx-border-radius: 8;");
-        return pane;
-    }
-
-    private BorderPane createGroupPane(String title, String description, Node content) {
-        Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-weight: bold;");
-
-        Label descriptionLabel = new Label(description);
-        descriptionLabel.setWrapText(true);
-        descriptionLabel.setStyle("-fx-opacity: 0.85;");
-
-        VBox header = new VBox(4, titleLabel, descriptionLabel);
-        BorderPane pane = createGroupPane("", content);
-        pane.setTop(header);
-        BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
         return pane;
     }
 
@@ -284,18 +291,6 @@ public class ConfigurationUI extends VBox {
             title = "Embedded Player (Using Lite)";
         }
         defaultEmbedPlayer.setText(title);
-    }
-
-    private void addStopServerButtonClickHandler() {
-        stopServerButton.setOnAction(event -> {
-            try {
-                UIptvServer.stop();
-                refreshServerStatusUI();
-                // showMessageAlert("Server stopped"); // Removed alert
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
     private void addClearCacheButtonClickHandler() {
@@ -328,7 +323,11 @@ public class ConfigurationUI extends VBox {
     private void addStartServerButtonClickHandler() {
         startServerButton.setOnAction(event -> {
             try {
-                UIptvServer.start();
+                if (UIptvServer.isRunning()) {
+                    UIptvServer.stop();
+                } else {
+                    UIptvServer.start();
+                }
                 refreshServerStatusUI();
                 // showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort()); // Removed alert
             } catch (IOException e) {
@@ -376,8 +375,7 @@ public class ConfigurationUI extends VBox {
         } else {
             startServerButton.getStyleClass().remove("dangerous");
         }
-        startServerButton.setDisable(running);
-        stopServerButton.setDisable(!running);
+        startServerButton.setText(running ? "Stop Server" : "Start Server");
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
     }
