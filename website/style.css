@@ -235,7 +235,7 @@ a {
 
 .screen-frame img {
     width: 100%;
-    border-radius: 14px;
+    border-radius: 0;
     display: block;
     box-shadow: var(--shadow-deep);
 }
