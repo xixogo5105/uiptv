@@ -62,7 +62,7 @@ public abstract class BaseMainApplicationUI {
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
         WatchingNowUI watchingNowUI = new WatchingNowUI();
-        AccountListUI accountListUI = new AccountListUI(embeddedWideViewEnabled);
+        AccountListUI accountListUI = new AccountListUI(embeddedEnabled);
         accountListUI.setManageAccountUI(manageAccountUI);
 
         configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI);
@@ -100,8 +100,6 @@ public abstract class BaseMainApplicationUI {
         HBox mainContent = buildMainContent(tabPane, accountListUI, embeddedEnabled);
 
         MenuBar menuBar = createMenuBar();
-        mainContent.setPadding(new javafx.geometry.Insets(5));
-        mainContent.setSpacing(5);
 
         VBox rootLayout = new VBox(menuBar, mainContent);
         VBox.setVgrow(mainContent, Priority.ALWAYS);
