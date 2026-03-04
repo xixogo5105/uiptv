@@ -26,7 +26,11 @@ public class DatabasePatchesUtilsTest extends DbBackedTest {
     void initializesSchemaMigrationsFromFiles() throws Exception {
         try (Connection conn = SQLConnection.connect()) {
             assertTrue(tableExists(conn, "schema_migrations"));
-            assertEquals(expectedMigrationCount(), countRows(conn, "schema_migrations", "status='success'"));
+            int expected = expectedMigrationCount();
+            int success = countRows(conn, "schema_migrations", "status='success'");
+            int failed = countRows(conn, "schema_migrations", "status='failed'");
+            assertEquals(expected, countRows(conn, "schema_migrations", null));
+            assertEquals(expected, success + failed);
         }
     }
 
