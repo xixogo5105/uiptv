@@ -60,6 +60,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private boolean watchingNowDetailStylingApplied = false;
     private VBox bodyContainer;
     private final Map<EpisodeItem, VBox> renderedCardsByItem = new HashMap<>();
+    private String pendingTargetSeason;
+    private String pendingTargetEpisodeId;
+    private String pendingTargetEpisodeNumber;
+    private String pendingTargetEpisodeName;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -152,6 +156,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void navigateToEpisodeTarget(String season, String episodeId, String episodeNumber, String episodeName) {
+        this.pendingTargetSeason = season;
+        this.pendingTargetEpisodeId = episodeId;
+        this.pendingTargetEpisodeNumber = episodeNumber;
+        this.pendingTargetEpisodeName = episodeName;
         String requestedSeason = normalizeNumber(season);
         if (!isBlank(requestedSeason)) {
             Tab requestedSeasonTab = seasonTabPane.getTabs().stream()
@@ -188,7 +196,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         int index = cardsContainer.getChildren().indexOf(card);
         int size = cardsContainer.getChildren().size();
         if (index >= 0 && size > 1) {
-            cardsScroll.setVvalue((double) index / (double) (size - 1));
+            cardsScroll.setVvalue((double) index / (double) (size));
         } else {
             cardsScroll.setVvalue(0.0);
         }
@@ -618,6 +626,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 Platform.runLater(() -> {
                     applySeriesHeader();
                     applySeasonFilter();
+                    if (pendingTargetSeason != null) {
+                        navigateToEpisodeTarget(pendingTargetSeason, pendingTargetEpisodeId, pendingTargetEpisodeNumber, pendingTargetEpisodeName);
+                        pendingTargetSeason = null;
+                        pendingTargetEpisodeId = null;
+                        pendingTargetEpisodeNumber = null;
+                        pendingTargetEpisodeName = null;
+                    }
                 });
             }
         }, "episodes-imdb-loader").start();
