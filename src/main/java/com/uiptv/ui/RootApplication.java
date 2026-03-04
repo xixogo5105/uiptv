@@ -145,9 +145,6 @@ public class RootApplication extends Application {
         if (isNotBlank(configuration.getFontSize())) {
             customStylesheet += Bindings.format("-fx-font-size: %s;", new SimpleStringProperty(configuration.getFontSize())).getValueSafe();
         }
-        if (isNotBlank(configuration.getFontWeight())) {
-            customStylesheet += Bindings.format("-fx-font-weight: %s;", new SimpleStringProperty(configuration.getFontWeight())).getValueSafe();
-        }
 
         scene.getStylesheets().clear();
         String themeFileName = configuration.isDarkTheme() ? "dark-application.css" : "application.css";

@@ -752,7 +752,7 @@ public class BookmarkChannelListUI extends HBox {
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, addToMenu);
+        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, addToMenu, new SeparatorMenuItem(), editItem);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
