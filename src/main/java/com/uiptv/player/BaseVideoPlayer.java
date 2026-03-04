@@ -82,6 +82,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     // Fullscreen & PiP
     protected Stage fullscreenStage;
+    protected StackPane fullscreenRoot;
     protected boolean isFullscreen = false;
     protected Stage pipStage;
     protected Pane originalParent;
@@ -795,6 +796,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void enterFullscreen() {
         if (fullscreenStage != null) return;
         Platform.runLater(() -> {
+            Scene originalScene = playerContainer.getScene();
             originalParent = (Pane) playerContainer.getParent();
             if (originalParent != null) {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
@@ -802,8 +804,17 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
             fullscreenStage = new Stage(StageStyle.UNDECORATED);
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
-            Scene scene = new Scene(playerContainer, bounds.getWidth(), bounds.getHeight());
+            fullscreenRoot = new StackPane(playerContainer);
+            if (!fullscreenRoot.getStyleClass().contains("root")) {
+                fullscreenRoot.getStyleClass().add("root");
+            }
+            fullscreenRoot.getStyleClass().add("player-fullscreen-root");
+            StyleClassDecorator.decorate(fullscreenRoot);
+            Scene scene = new Scene(fullscreenRoot, bounds.getWidth(), bounds.getHeight());
             scene.setFill(Color.BLACK);
+            if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
+                scene.getStylesheets().setAll(originalScene.getStylesheets());
+            }
             StyleClassDecorator.decorate(playerContainer);
             fullscreenStage.setScene(scene);
             fullscreenStage.setFullScreen(true);
@@ -829,6 +840,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         Platform.runLater(() -> {
             if (fullscreenStage != null) fullscreenStage.close();
             fullscreenStage = null;
+            if (fullscreenRoot != null) {
+                fullscreenRoot.getChildren().remove(playerContainer);
+                fullscreenRoot = null;
+            }
             if (originalParent != null) {
                 originalParent.getChildren().add(originalIndex, playerContainer);
                 if (originalParent.getScene() != null) {

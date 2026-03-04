@@ -42,6 +42,7 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ConfigurationUI extends VBox {
     private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
+    private static final String EMBEDDED_PLAYER_PATH = PlaybackUIService.EMBEDDED_PLAYER_PATH;
     private String dbId;
     private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
@@ -529,7 +530,7 @@ public class ConfigurationUI extends VBox {
                 boolean previousEmbeddedPlayer = previous != null && previous.isEmbeddedPlayer();
                 boolean previousWideView = previous != null && previous.isWideView();
 
-                String defaultPlayer = defaultEmbedPlayer.getText();
+                String defaultPlayer = EMBEDDED_PLAYER_PATH;
                 if (defaultPlayer1.isSelected()) {
                     defaultPlayer = playerPath1.getText();
                 } else if (defaultPlayer2.isSelected()) {

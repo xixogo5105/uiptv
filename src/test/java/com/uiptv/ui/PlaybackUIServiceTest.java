@@ -43,6 +43,21 @@ class PlaybackUIServiceTest {
         assertEquals("Error playing episode: ", readStringField(request, "errorPrefix"));
     }
 
+    @Test
+    void isEmbeddedPlayerPath_acceptsStableMarker() {
+        assertTrue(PlaybackUIService.isEmbeddedPlayerPath(PlaybackUIService.EMBEDDED_PLAYER_PATH));
+    }
+
+    @Test
+    void isEmbeddedPlayerPath_acceptsEmbeddedLabel() {
+        assertTrue(PlaybackUIService.isEmbeddedPlayerPath("Embedded Player (Using VLC)"));
+    }
+
+    @Test
+    void isEmbeddedPlayerPath_rejectsExecutablePath() {
+        assertFalse(PlaybackUIService.isEmbeddedPlayerPath("/usr/bin/vlc"));
+    }
+
     private String readStringField(Object target, String name) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);

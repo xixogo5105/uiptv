@@ -18,6 +18,7 @@ import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
     private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
+    static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
 
     private PlaybackUIService() {
     }
@@ -31,7 +32,7 @@ public final class PlaybackUIService {
         boolean useEmbeddedPlayerConfig = configuration != null && configuration.isEmbeddedPlayer();
         boolean browserIsDefaultConfig = configuration != null
                 && WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(configuration.getDefaultPlayerPath()).trim());
-        boolean playerPathIsEmbedded = request.playerPath != null && request.playerPath.toLowerCase().contains("embedded");
+        boolean playerPathIsEmbedded = isEmbeddedPlayerPath(request.playerPath);
         boolean playerPathIsBrowser = WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(request.playerPath).trim());
         String mode = request.account.getAction() == null ? "itv" : request.account.getAction().name();
 
@@ -105,6 +106,17 @@ public final class PlaybackUIService {
                 }
             }
         }).start();
+    }
+
+    static boolean isEmbeddedPlayerPath(String playerPath) {
+        if (isBlank(playerPath)) {
+            return false;
+        }
+        String normalized = playerPath.trim().toLowerCase();
+        if (EMBEDDED_PLAYER_PATH.equalsIgnoreCase(normalized)) {
+            return true;
+        }
+        return normalized.contains("embedded");
     }
 
     public static final class PlaybackRequest {
