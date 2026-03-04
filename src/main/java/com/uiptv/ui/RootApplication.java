@@ -11,8 +11,6 @@ import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
@@ -137,13 +135,16 @@ public class RootApplication extends Application {
 
     private void configureFontStyles(Scene scene) {
         Configuration configuration = configurationService.read();
-        String customStylesheet = "";
+        StringBuilder customStylesheet = new StringBuilder();
 
         if (isNotBlank(configuration.getFontFamily())) {
-            customStylesheet += Bindings.format("-fx-font-family: %s;", new SimpleStringProperty(configuration.getFontFamily())).getValueSafe();
+            customStylesheet.append("-fx-font-family: ").append(configuration.getFontFamily()).append(";");
         }
         if (isNotBlank(configuration.getFontSize())) {
-            customStylesheet += Bindings.format("-fx-font-size: %s;", new SimpleStringProperty(configuration.getFontSize())).getValueSafe();
+            customStylesheet.append("-fx-font-size: ").append(configuration.getFontSize()).append(";");
+        }
+        if (isNotBlank(configuration.getFontWeight())) {
+            customStylesheet.append("-fx-font-weight: ").append(configuration.getFontWeight()).append(";");
         }
 
         scene.getStylesheets().clear();
@@ -151,6 +152,7 @@ public class RootApplication extends Application {
         java.net.URL themeUrl = getClass().getResource("/" + themeFileName);
         currentTheme = themeUrl != null ? themeUrl.toExternalForm() : themeFileName;
         scene.getStylesheets().add(currentTheme);
-        scene.getRoot().styleProperty().bind(Bindings.format(customStylesheet));
+        scene.getRoot().styleProperty().unbind();
+        scene.getRoot().setStyle(customStylesheet.toString());
     }
 }
