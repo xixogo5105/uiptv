@@ -524,22 +524,15 @@
 }
 
 .dialog-pane {
-    -fx-background-color: #2b2d30;
-    -fx-border-color: #4e5258;
-    -fx-border-width: 1;
 }
 
 .dialog-pane > .header-panel {
-    -fx-background-color: #32353a;
 }
 
 .dialog-pane > .header-panel .label {
-    -fx-text-fill: #e8e8e8;
-    -fx-font-weight: bold;
 }
 
 .dialog-pane > .content.label {
-    -fx-text-fill: #d8d8d8;
 }
 
 .custom-dialog-root {

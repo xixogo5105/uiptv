@@ -2,12 +2,12 @@
 
 This guide describes how desktop JavaFX styles are resolved in UIPTV and how to safely customize them.
 
-## 1. Theme Source Priority
+## 1. Theme Source Selection
 
-UIPTV applies CSS in this order:
+UIPTV resolves exactly one stylesheet source per theme:
 
 1. User override CSS from database (if provided)
-2. Built-in resource CSS (`application.css` or `dark-application.css`)
+2. Otherwise, built-in resource CSS (`application.css` or `dark-application.css`)
 
 Override lookup is theme-aware:
 
@@ -22,7 +22,7 @@ In **Settings -> Theme**:
 2. Upload a dark CSS file
 3. Save settings
 
-UIPTV stores both CSS files in the `ThemeCssOverride` database table and applies them directly as in-memory stylesheet URLs (no filesystem write).
+UIPTV stores both CSS files in the `ThemeCssOverride` database table and applies the selected one directly as an in-memory stylesheet URL (no filesystem write).
 
 If an override is cleared, UIPTV falls back to built-in resource CSS.
 
@@ -49,8 +49,6 @@ Every node receives:
 This is handled by `StyleClassDecorator` and is applied to:
 
 - Main app scene
-- Themed dialogs
-- Decorated popups
 - Player fullscreen/PiP scene roots
 
 ## 5. Naming Guidance for New UI
@@ -244,18 +242,20 @@ These are automatically attached at runtime and should exist in both theme files
 - `.invalid-text`: Negative validation state text.
 - `.default-text`: Neutral/default status text.
 
-### 8.11 Themed custom dialogs and popup decorator
+### 8.11 Legacy custom dialog/popup hooks
 
-- `.custom-dialog-root`: Themed dialog root container.
-- `.custom-dialog-header`: Dialog header row.
-- `.custom-dialog-title`: Dialog title label.
-- `.custom-dialog-message`: Dialog message/content text.
-- `.custom-dialog-buttons`: Dialog button row.
-- `.custom-dialog-close`: Dialog close button.
-- `.custom-popup-root`: Decorated popup root.
-- `.custom-popup-header`: Decorated popup header row.
-- `.custom-popup-title`: Decorated popup title label.
-- `.custom-popup-close`: Decorated popup close button.
+These classes are kept in CSS as compatibility hooks/placeholders:
+
+- `.custom-dialog-root`
+- `.custom-dialog-header`
+- `.custom-dialog-title`
+- `.custom-dialog-message`
+- `.custom-dialog-buttons`
+- `.custom-dialog-close`
+- `.custom-popup-root`
+- `.custom-popup-header`
+- `.custom-popup-title`
+- `.custom-popup-close`
 
 ### 8.12 JavaFX structural selectors used by themes
 

@@ -438,22 +438,15 @@
 }
 
 .dialog-pane {
-    -fx-background-color: #e6e8eb;
-    -fx-border-color: #bcc2c9;
-    -fx-border-width: 1;
 }
 
 .dialog-pane > .header-panel {
-    -fx-background-color: #d8dde3;
 }
 
 .dialog-pane > .header-panel .label {
-    -fx-text-fill: #111827;
-    -fx-font-weight: bold;
 }
 
 .dialog-pane > .content.label {
-    -fx-text-fill: #1f2937;
 }
 
 .custom-dialog-root {

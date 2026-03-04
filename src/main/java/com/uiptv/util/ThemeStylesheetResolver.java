@@ -19,12 +19,7 @@ public final class ThemeStylesheetResolver {
         ThemeCssOverride override = ThemeCssOverrideService.getInstance().read();
         String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
         if (overrideCss != null && !overrideCss.isBlank()) {
-            try {
-                String defaultCss = readDefaultStylesheetContent(resourceAnchor, darkTheme);
-                return toDataUrl(defaultCss + System.lineSeparator() + System.lineSeparator() + overrideCss);
-            } catch (IOException ignored) {
-                return toDataUrl(overrideCss);
-            }
+            return toDataUrl(overrideCss);
         }
         String resourcePath = getDefaultResourcePath(darkTheme);
         java.net.URL themeUrl = resourceAnchor.getResource(resourcePath);
