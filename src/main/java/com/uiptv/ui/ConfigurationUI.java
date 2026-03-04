@@ -78,6 +78,7 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private Timeline serverStatusTimeline;
+    private Timeline saveSuccessTimeline;
 
     public ConfigurationUI(Callback onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
@@ -435,7 +436,9 @@ public class ConfigurationUI extends VBox {
                 newConfiguration.setDbId(dbId);
                 newConfiguration.setWideView(wideViewCheckBox.isSelected());
                 service.save(newConfiguration);
-                onSaveCallback.call(null);
+                if (onSaveCallback != null) {
+                    onSaveCallback.call(null);
+                }
                 showSaveSuccessAnimation();
                 if (previousThumbnailsEnabled != newConfiguration.isEnableThumbnails()) {
                     ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
@@ -457,15 +460,23 @@ public class ConfigurationUI extends VBox {
         String originalText = saveButton.getText();
         saveButton.setText("✅");
 
-        Timeline timeline = new Timeline(new KeyFrame(
+        if (saveSuccessTimeline != null) {
+            saveSuccessTimeline.stop();
+        }
+
+        saveSuccessTimeline = new Timeline(new KeyFrame(
                 Duration.seconds(3),
                 event -> {
                     saveButton.setText(originalText);
                     saveButton.setDisable(false);
                 }
         ));
-        timeline.setCycleCount(1);
-        timeline.play();
+        saveSuccessTimeline.setCycleCount(1);
+        saveSuccessTimeline.setOnFinished(event -> {
+            saveButton.setText(originalText);
+            saveButton.setDisable(false);
+        });
+        saveSuccessTimeline.play();
     }
 
     private void addBrowserButton1ClickHandler() {

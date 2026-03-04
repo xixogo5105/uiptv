@@ -67,6 +67,7 @@ public class ManageAccountUI extends VBox {
     AccountService service = AccountService.getInstance();
     private String accountId;
     private Callback onSaveCallback;
+    private Timeline saveSuccessTimeline;
 
     public ManageAccountUI() {
         initWidgets();
@@ -422,34 +423,37 @@ public class ManageAccountUI extends VBox {
     }
 
     private void saveAccount(boolean isFullSave) {
+        if (saveButton.isDisable()) {
+            return;
+        }
+
         try {
             if (isBlank(name.getText())) {
                 showErrorAlert("Name cannot be empty");
                 return;
             }
 
-            // Prevent multiple rapid save clicks
-            if (!saveButton.isDisable()) {
-                saveButton.setDisable(true);
+            saveButton.setDisable(true);
 
-                Account account = getAccountFromForm();
-                service.save(account);
+            Account account = getAccountFromForm();
+            service.save(account);
 
-                if (isFullSave) {
-                    // Keep the current account displayed instead of clearing
-                    // Refresh the account data to show updated values
-                    Account refreshedAccount = service.getByName(account.getAccountName());
-                    if (refreshedAccount != null) {
-                        editAccount(refreshedAccount);
-                    }
-                    onSaveCallback.call(null);
-
-                    // Show success animation on button
-                    showSaveSuccessAnimation();
+            if (isFullSave) {
+                // Keep the current account displayed instead of clearing
+                // Refresh the account data to show updated values
+                Account refreshedAccount = service.getByName(account.getAccountName());
+                if (refreshedAccount != null) {
+                    editAccount(refreshedAccount);
                 }
+                if (onSaveCallback != null) {
+                    onSaveCallback.call(null);
+                }
+                showSaveSuccessAnimation();
+            } else {
+                saveButton.setDisable(false);
             }
         } catch (Exception e) {
-            showErrorAlert("Failed to save successfully saved!");
+            showErrorAlert("Failed to save account. Please try again!");
             saveButton.setDisable(false);
         }
     }
@@ -458,16 +462,24 @@ public class ManageAccountUI extends VBox {
         String originalText = saveButton.getText();
         saveButton.setText("✅");
 
+        if (saveSuccessTimeline != null) {
+            saveSuccessTimeline.stop();
+        }
+
         // Reset button after 3 seconds
-        Timeline timeline = new Timeline(new KeyFrame(
-            Duration.seconds(3),
-            event -> {
-                saveButton.setText(originalText);
-                saveButton.setDisable(false);
-            }
+        saveSuccessTimeline = new Timeline(new KeyFrame(
+                Duration.seconds(3),
+                event -> {
+                    saveButton.setText(originalText);
+                    saveButton.setDisable(false);
+                }
         ));
-        timeline.setCycleCount(1);
-        timeline.play();
+        saveSuccessTimeline.setCycleCount(1);
+        saveSuccessTimeline.setOnFinished(event -> {
+            saveButton.setText(originalText);
+            saveButton.setDisable(false);
+        });
+        saveSuccessTimeline.play();
     }
 
     private void addSubmitButtonClickHandler() {
