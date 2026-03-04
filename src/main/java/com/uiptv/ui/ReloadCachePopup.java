@@ -5,8 +5,6 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.DialogAlert;
-import com.uiptv.widget.PopupDecorator;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
@@ -17,10 +15,10 @@ import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -91,18 +89,13 @@ public class ReloadCachePopup extends VBox {
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
         Stage popupStage = new Stage();
-        popupStage.initStyle(StageStyle.TRANSPARENT);
         if (owner != null) {
             popupStage.initOwner(owner);
             popupStage.initModality(Modality.WINDOW_MODAL);
         }
         ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts, onAccountsDeleted);
-        VBox decoratedRoot = PopupDecorator.wrap(popupStage, "Reload Accounts Cache", popup);
-        Scene scene = new Scene(decoratedRoot, 1368, 720);
-        scene.setFill(Color.TRANSPARENT);
-        if (RootApplication.currentTheme != null) {
-            scene.getStylesheets().add(RootApplication.currentTheme);
-        }
+        Scene scene = new Scene(popup, 1368, 720);
+        popupStage.setTitle("Reload Accounts Cache");
         popupStage.setScene(scene);
         popupStage.showAndWait();
     }
@@ -144,9 +137,11 @@ public class ReloadCachePopup extends VBox {
             accountCheckBox.setUserData(account);
             accountCheckBox.setMaxWidth(Double.MAX_VALUE);
             accountCheckBox.setPadding(new Insets(5));
-            accountCheckBox.getStyleClass().add("reload-account-row");
+
             if (i % 2 == 0) {
-                accountCheckBox.getStyleClass().add("reload-account-row-alt");
+                accountCheckBox.setStyle("-fx-background-color: derive(-fx-control-inner-background, -2%);");
+            } else {
+                accountCheckBox.setStyle("-fx-background-color: -fx-control-inner-background;");
             }
             accountsVBox.getChildren().add(accountCheckBox);
             checkBoxes.add(accountCheckBox);
@@ -473,15 +468,15 @@ public class ReloadCachePopup extends VBox {
 
     private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
         Stage popupStage = new Stage();
-        popupStage.initStyle(StageStyle.TRANSPARENT);
         popupStage.initModality(Modality.APPLICATION_MODAL);
+        popupStage.setTitle("Delete Problematic Accounts");
 
         VBox root = new VBox(10);
         root.setPadding(new Insets(20));
 
         Label warningLabel = new Label("The following accounts are flagged as BAD or YELLOW. Select the ones you want to delete.");
         warningLabel.setWrapText(true);
-        warningLabel.getStyleClass().add("reload-warning-label");
+        warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
 
         VBox accountsBox = new VBox(5);
         ScrollPane scrollPane = new ScrollPane(accountsBox);
@@ -504,19 +499,19 @@ public class ReloadCachePopup extends VBox {
 
         if (!badAccounts.isEmpty()) {
             Label badLabel = new Label("BAD (Red)");
-            badLabel.getStyleClass().add("reload-status-bad");
+            badLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
             accountsBox.getChildren().add(badLabel);
             addProblemAccountsToDeleteBox(accountsBox, badAccounts, problematicAccounts);
         }
         if (!yellowAccounts.isEmpty()) {
             Label yellowLabel = new Label("YELLOW (Partially successful)");
-            yellowLabel.getStyleClass().add("reload-status-yellow");
+            yellowLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
             accountsBox.getChildren().add(yellowLabel);
             addProblemAccountsToDeleteBox(accountsBox, yellowAccounts, problematicAccounts);
         }
 
         Button deleteButton = new Button("Delete Selected");
-        deleteButton.getStyleClass().add("dangerous");
+        deleteButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-weight: bold;");
         deleteButton.setOnAction(e -> {
             List<Account> toDelete = accountsBox.getChildren().stream()
                     .filter(n -> n instanceof CheckBox && ((CheckBox) n).isSelected())
@@ -525,17 +520,19 @@ public class ReloadCachePopup extends VBox {
 
             if (toDelete.isEmpty()) return;
 
-            ButtonType response = DialogAlert.showDialog(
-                    "Confirmation",
-                    "Are you sure you want to delete " + toDelete.size() + " accounts?"
-            );
-            if (response == ButtonType.YES) {
-                toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
-                if (onAccountsDeleted != null) {
-                    onAccountsDeleted.run();
-                }
-                popupStage.close();
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to delete " + toDelete.size() + " accounts?", ButtonType.YES, ButtonType.NO);
+            if (RootApplication.currentTheme != null) {
+                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
             }
+            alert.showAndWait().ifPresent(response -> {
+                if (response == ButtonType.YES) {
+                    toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
+                    if (onAccountsDeleted != null) {
+                        onAccountsDeleted.run();
+                    }
+                    popupStage.close();
+                }
+            });
         });
 
         Button cancelButton = new Button("Cancel");
@@ -546,9 +543,7 @@ public class ReloadCachePopup extends VBox {
 
         root.getChildren().addAll(warningLabel, selectAll, scrollPane, buttons);
 
-        VBox decoratedRoot = PopupDecorator.wrap(popupStage, "Delete Problematic Accounts", root);
-        Scene scene = new Scene(decoratedRoot, 500, 500);
-        scene.setFill(Color.TRANSPARENT);
+        Scene scene = new Scene(root, 500, 500);
         if (RootApplication.currentTheme != null) {
             scene.getStylesheets().add(RootApplication.currentTheme);
         }
@@ -641,10 +636,13 @@ public class ReloadCachePopup extends VBox {
 
         VBox summaryBox = new VBox(4);
         summaryBox.setPadding(new Insets(10));
-        summaryBox.getStyleClass().add("reload-summary-box");
+        summaryBox.setStyle("-fx-background-color: derive(-fx-control-inner-background, -2%);"
+                + "-fx-border-color: -fx-box-border;"
+                + "-fx-border-radius: 6;"
+                + "-fx-background-radius: 6;");
 
         Label title = new Label("Run Summary");
-        title.getStyleClass().add("strong-label");
+        title.setStyle("-fx-font-weight: bold;");
         summaryBox.getChildren().add(title);
 
         for (String line : latestSummaryLines) {
@@ -953,12 +951,20 @@ public class ReloadCachePopup extends VBox {
     private boolean promptCarryOnAfterGlobalFailure(Account account, String reason) {
         final boolean[] carryOn = {true};
         runOnFxThreadAndWait(() -> {
-            ButtonType response = DialogAlert.showDialog(
-                    "Global Call Failure",
+            ButtonType carryOnButton = new ButtonType("Carry On", ButtonBar.ButtonData.YES);
+            ButtonType markBadButton = new ButtonType("Mark Bad & Next", ButtonBar.ButtonData.CANCEL_CLOSE);
+            Alert alert = new Alert(
+                    Alert.AlertType.CONFIRMATION,
                     "Account: \"" + account.getAccountName() + "\"\n"
-                            + reason + "\n\nDo you want to continue this account run?"
+                            + reason + "\n\nDo you want to continue this account run?",
+                    carryOnButton,
+                    markBadButton
             );
-            carryOn[0] = response == ButtonType.YES;
+            alert.setHeaderText("Global Call Failure");
+            if (RootApplication.currentTheme != null) {
+                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+            }
+            carryOn[0] = alert.showAndWait().orElse(markBadButton) == carryOnButton;
         });
         return carryOn[0];
     }
@@ -1046,14 +1052,17 @@ public class ReloadCachePopup extends VBox {
         private AccountLogPanel(Account account) {
             this.account = account;
             this.accountLabel.setText(getAccountLabel());
-            this.accountLabel.getStyleClass().add("strong-label");
+            this.accountLabel.setStyle("-fx-font-weight: bold;");
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
 
             this.header.setAlignment(Pos.CENTER_LEFT);
             this.header.setPadding(new Insets(8));
-            this.header.getStyleClass().add("reload-log-header");
+            this.header.setStyle("-fx-background-color: derive(-fx-control-inner-background, -3%);"
+                    + "-fx-border-color: -fx-box-border;"
+                    + "-fx-border-radius: 6;"
+                    + "-fx-background-radius: 6;");
             this.runningIndicator.setMaxSize(14, 14);
             this.runningIndicator.setVisible(false);
             this.runningIndicator.managedProperty().bind(this.runningIndicator.visibleProperty());
@@ -1062,7 +1071,7 @@ public class ReloadCachePopup extends VBox {
 
             this.logBody.setPadding(new Insets(0, 10, 8, 10));
             this.root.getChildren().addAll(header, logBody);
-            this.root.getStyleClass().add("reload-log-root");
+            this.root.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
 
             this.header.setOnMouseClicked(event -> setExpanded(!logBody.isVisible()));
         }
@@ -1098,37 +1107,36 @@ public class ReloadCachePopup extends VBox {
                 case QUEUED:
                     runningIndicator.setVisible(false);
                     statusLabel.setText("Queued");
-                    applyStatusStyle("reload-status-queued");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
                     break;
                 case RUNNING:
                     runningIndicator.setVisible(true);
                     statusLabel.setText("Running");
-                    applyStatusStyle("reload-status-running");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
                     break;
                 case DONE:
                     runningIndicator.setVisible(false);
                     statusLabel.setText(channelCount == null ? "Done" : "Done (" + channelCount + " channels)");
-                    applyStatusStyle("reload-status-done");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
                     break;
                 case YELLOW:
                     runningIndicator.setVisible(false);
                     statusLabel.setText(channelCount == null ? "Partial" : "Partial (" + channelCount + " channels)");
-                    applyStatusStyle("reload-status-yellow");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
                     break;
                 case EMPTY:
                     runningIndicator.setVisible(false);
                     statusLabel.setText("Empty (0 channels)");
-                    applyStatusStyle("reload-status-yellow");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
                     break;
                 case FAILED:
                     runningIndicator.setVisible(false);
                     statusLabel.setText("Failed");
-                    applyStatusStyle("reload-status-bad");
+                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
                     break;
                 default:
                     runningIndicator.setVisible(false);
                     statusLabel.setText("");
-                    clearStatusStyles();
                     break;
             }
         }
@@ -1137,25 +1145,10 @@ public class ReloadCachePopup extends VBox {
             if (status == AccountRunStatus.RUNNING && current != null && total != null) {
                 runningIndicator.setVisible(true);
                 statusLabel.setText("Running (" + current + "/" + total + ")");
-                applyStatusStyle("reload-status-running");
+                statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
             } else {
                 setStatus(status, (Integer) null);
             }
-        }
-
-        private void applyStatusStyle(String styleClass) {
-            clearStatusStyles();
-            statusLabel.getStyleClass().add(styleClass);
-        }
-
-        private void clearStatusStyles() {
-            statusLabel.getStyleClass().removeAll(
-                    "reload-status-queued",
-                    "reload-status-running",
-                    "reload-status-done",
-                    "reload-status-yellow",
-                    "reload-status-bad"
-            );
         }
     }
 

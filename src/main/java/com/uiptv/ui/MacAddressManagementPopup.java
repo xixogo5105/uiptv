@@ -8,14 +8,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
-import javafx.scene.control.Separator;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -23,8 +16,6 @@ import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
-import javafx.scene.paint.Color;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,11 +23,8 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import com.uiptv.widget.DialogAlert;
-import com.uiptv.widget.PopupDecorator;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.widget.UIptvAlert.showWarningAlert;
 
 public class MacAddressManagementPopup extends VBox {
 
@@ -62,9 +50,9 @@ public class MacAddressManagementPopup extends VBox {
         );
 
         stage = new Stage();
-        stage.initStyle(StageStyle.TRANSPARENT);
         stage.initOwner(owner);
         stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle("Manage MAC Addresses");
 
         setPadding(new Insets(10));
         setSpacing(10);
@@ -134,9 +122,7 @@ public class MacAddressManagementPopup extends VBox {
 
         getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label("Add New:"), addBox, new Separator(), bottomBox);
 
-        VBox decoratedRoot = PopupDecorator.wrap(stage, "Manage MAC Addresses", this);
-        Scene scene = new Scene(decoratedRoot, 450, 500);
-        scene.setFill(Color.TRANSPARENT);
+        Scene scene = new Scene(this, 450, 500);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
@@ -180,11 +166,11 @@ public class MacAddressManagementPopup extends VBox {
         boolean removingDefault = selectedItems.stream().anyMatch(item -> item.getMac().equalsIgnoreCase(defaultMac));
 
         if (removingDefault) {
-            ButtonType result = DialogAlert.showDialog(
-                    "Confirmation",
-                    "You are removing the default MAC address. The first available MAC will become the new default. Continue?"
-            );
-            if (result != ButtonType.YES) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+                    "You are removing the default MAC address. The first available MAC will become the new default. Continue?",
+                    ButtonType.YES, ButtonType.NO);
+            alert.initOwner(stage);
+            if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
                 return;
             }
         }
@@ -224,7 +210,9 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private void showAlert(String message) {
-        showWarningAlert(message);
+        Alert alert = new Alert(Alert.AlertType.WARNING, message);
+        alert.initOwner(stage);
+        alert.showAndWait();
     }
 
     private static class MacItem {

@@ -10,7 +10,6 @@ import com.uiptv.service.CategoryService;
 import com.uiptv.shared.Episode;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
-import com.uiptv.widget.PopupDecorator;
 import com.uiptv.widget.SearchableTableViewWithButton;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
@@ -25,9 +24,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +37,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
-import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox {
@@ -583,12 +579,10 @@ public class BookmarkChannelListUI extends HBox {
 
     private void openCategoryManagementPopup() {
         Stage popupStage = new Stage();
-        popupStage.initStyle(StageStyle.TRANSPARENT);
         CategoryManagementPopup popup = new CategoryManagementPopup(this);
-        VBox decoratedRoot = PopupDecorator.wrap(popupStage, "Manage Categories", popup);
-        Scene scene = new Scene(decoratedRoot, 300, 400);
-        scene.setFill(Color.TRANSPARENT);
+        Scene scene = new Scene(popup, 300, 400);
         scene.getStylesheets().add(RootApplication.currentTheme);
+        popupStage.setTitle("Manage Categories");
         popupStage.setScene(scene);
         popupStage.showAndWait();
         forceReload();
@@ -690,7 +684,6 @@ public class BookmarkChannelListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         MenuItem editItem = new MenuItem("Remove from favorite");
-        editItem.getStyleClass().add("danger-menu-item");
 
         editItem.setOnAction(actionEvent -> {
             handleDeleteMultipleBookmarks();
@@ -752,7 +745,7 @@ public class BookmarkChannelListUI extends HBox {
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item, addToMenu, new SeparatorMenuItem(), editItem);
+        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, addToMenu);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
@@ -761,44 +754,50 @@ public class BookmarkChannelListUI extends HBox {
 
     private void handleDeleteMultipleBookmarks() {
         int selectedCount = bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size();
-        String message = "Are you sure you want to remove " + selectedCount + " bookmark(s) from favorite? Bookmark(s) to be deleted:\n" +
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirmation");
+        alert.setHeaderText(null);
+        alert.setContentText("Are you sure you want to remove " + selectedCount + " bookmark(s) from favorite? Bookmark(s) to be deleted:\n" +
                 bookmarkTable.getTableView().getSelectionModel().getSelectedItems().stream()
                         .map(BookmarkItem::getChannelName)
-                        .collect(Collectors.joining(", "));
+                        .collect(Collectors.joining(", ")));
 
         isPromptShowing = true;
-        if (showConfirmationAlert(message)) {
-            List<BookmarkItem> selectedItems = new ArrayList<>(bookmarkTable.getTableView().getSelectionModel().getSelectedItems());
-            if (selectedItems.isEmpty()) {
-                return;
-            }
-            suppressAutoReloadOnBookmarkChange = true;
-            new Thread(() -> {
-                List<String> removedBookmarkIds = new ArrayList<>();
-                for (BookmarkItem selectedItem : selectedItems) {
-                    try {
-                        BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
-                        removedBookmarkIds.add(selectedItem.getBookmarkId());
-                    } catch (Exception ignored) {
-                    }
+        alert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                List<BookmarkItem> selectedItems = new ArrayList<>(bookmarkTable.getTableView().getSelectionModel().getSelectedItems());
+                if (selectedItems.isEmpty()) {
+                    return;
                 }
-                runLater(() -> {
-                    try {
-                        if (!removedBookmarkIds.isEmpty()) {
-                            allBookmarkItems.removeIf(item -> removedBookmarkIds.contains(item.getBookmarkId()));
-                            filterView();
-                            bookmarkTable.getTableView().getSelectionModel().clearSelection();
-                            if (allBookmarkItems.isEmpty()) {
-                                bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
-                            }
+                suppressAutoReloadOnBookmarkChange = true;
+                new Thread(() -> {
+                    List<String> removedBookmarkIds = new ArrayList<>();
+                    for (BookmarkItem selectedItem : selectedItems) {
+                        try {
+                            BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
+                            removedBookmarkIds.add(selectedItem.getBookmarkId());
+                        } catch (Exception ignored) {
                         }
-                        lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
-                    } finally {
-                        suppressAutoReloadOnBookmarkChange = false;
                     }
-                });
-            }, "bookmark-delete").start();
-        }
+                    runLater(() -> {
+                        try {
+                            if (!removedBookmarkIds.isEmpty()) {
+                                allBookmarkItems.removeIf(item -> removedBookmarkIds.contains(item.getBookmarkId()));
+                                filterView();
+                                bookmarkTable.getTableView().getSelectionModel().clearSelection();
+                                if (allBookmarkItems.isEmpty()) {
+                                    bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
+                                }
+                            }
+                            lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
+                        } finally {
+                            suppressAutoReloadOnBookmarkChange = false;
+                        }
+                    });
+                }, "bookmark-delete").start();
+            }
+        });
     }
 
     private void play(BookmarkItem item, String playerPath) {

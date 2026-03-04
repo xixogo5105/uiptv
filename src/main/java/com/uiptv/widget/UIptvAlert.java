@@ -1,25 +1,27 @@
 package com.uiptv.widget;
 
 import com.uiptv.ui.LogDisplayUI;
+import com.uiptv.ui.RootApplication;
+import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.stage.Modality;
+
+import java.util.Optional;
 
 public class UIptvAlert {
     public static void showMessageAlert(String contents) {
-        ThemedDialogs.showInfo("Info", contents);
-    }
-
-    public static void showWarningAlert(String contents) {
-        ThemedDialogs.showInfo("Warning", contents);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, contents, ButtonType.CLOSE);
+        alert.initModality(Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        alert.showAndWait();
     }
 
     public static boolean showConfirmationAlert(String contents) {
-        ButtonType result = ThemedDialogs.showConfirm("Confirm", contents, ButtonType.OK, ButtonType.CLOSE);
-        return result == ButtonType.OK;
-    }
-
-    public static boolean showYesNoConfirmation(String title, String contents) {
-        ButtonType result = ThemedDialogs.showConfirm(title == null ? "Confirm" : title, contents, ButtonType.YES, ButtonType.NO);
-        return result == ButtonType.YES;
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, contents, ButtonType.OK, ButtonType.CLOSE);
+        alert.initModality(Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     public static void showMessage(String contents) {
@@ -42,6 +44,9 @@ public class UIptvAlert {
         if (ex != null) {
             LogDisplayUI.addLog(ex.getMessage());
         }
-        ThemedDialogs.showError("Error", contents);
+        Alert alert = new Alert(Alert.AlertType.ERROR, contents, ButtonType.CLOSE);
+        alert.initModality(Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        alert.showAndWait();
     }
 }

@@ -14,7 +14,6 @@ import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.ProminentButton;
-import com.uiptv.widget.PopupDecorator;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
@@ -29,10 +28,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -461,12 +458,10 @@ public class ConfigurationUI extends VBox {
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
             Stage popupStage = new Stage();
-            popupStage.initStyle(StageStyle.TRANSPARENT);
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
-            VBox decoratedRoot = PopupDecorator.wrap(popupStage, "Publish M3U8", popup);
-            Scene scene = new Scene(decoratedRoot, 400, 300);
-            scene.setFill(Color.TRANSPARENT);
+            Scene scene = new Scene(popup, 400, 300);
             scene.getStylesheets().add(RootApplication.currentTheme);
+            popupStage.setTitle("Publish M3U8");
             popupStage.setScene(scene);
             popupStage.showAndWait();
         });
