@@ -89,7 +89,7 @@ public class ManageAccountUI extends VBox {
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setPannable(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0;");
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 
@@ -310,8 +310,8 @@ public class ManageAccountUI extends VBox {
         }
 
         if (!wasStopped && invalidMacs.size() == allMacs.size()) {
-            Alert alert = showDialog("No valid MAC addresses found. Delete this account?");
-            if (alert.getResult() == ButtonType.YES) {
+            ButtonType result = showDialog("No valid MAC addresses found. Delete this account?");
+            if (result == ButtonType.YES) {
                 deleteAccount(name.getText(), accountId);
             }
             return;
@@ -328,8 +328,8 @@ public class ManageAccountUI extends VBox {
         }
 
         message.append("\nDelete them?");
-        Alert alert = showDialog(message.toString());
-        if (alert.getResult() == ButtonType.YES) {
+        ButtonType result = showDialog(message.toString());
+        if (result == ButtonType.YES) {
             List<String> validMacs = new ArrayList<>(allMacs);
             validMacs.removeAll(invalidMacs);
             String newMacsStr = String.join(", ", validMacs);
@@ -367,8 +367,8 @@ public class ManageAccountUI extends VBox {
 
     private void addClearButtonClickHandler() {
         clearButton.setOnAction(event -> {
-            Alert confirmDialogue = showDialog("Clear all cached data for this account?");
-            if (confirmDialogue.getResult() == ButtonType.YES) {
+            ButtonType result = showDialog("Clear all cached data for this account?");
+            if (result == ButtonType.YES) {
                 cacheService.clearCache(getAccountFromForm());
                 showMessageAlert("Cache cleared.");
             }
@@ -508,8 +508,8 @@ public class ManageAccountUI extends VBox {
         if (isBlank(name) || isBlank(accountId)) {
             return;
         }
-        Alert confirmDialogue = showDialog("Delete This account " + name + "?");
-        if (confirmDialogue.getResult() == ButtonType.YES) {
+        ButtonType result = showDialog("Delete This account " + name + "?");
+        if (result == ButtonType.YES) {
             Task<Void> task = new Task<>() {
                 @Override
                 protected Void call() throws Exception {

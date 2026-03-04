@@ -160,7 +160,7 @@ public abstract class BaseMainApplicationUI {
 
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
-        menuBar.setUseSystemMenuBar(true);
+        menuBar.setUseSystemMenuBar(!configurationService.read().isDarkTheme());
 
         Menu helpMenu = new Menu("Help");
         MenuItem aboutItem = new MenuItem("About");

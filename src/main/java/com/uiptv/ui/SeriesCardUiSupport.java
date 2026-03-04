@@ -74,7 +74,7 @@ public final class SeriesCardUiSupport {
         }
         HBox pill = new HBox(6);
         pill.setPadding(new Insets(4, 8, 4, 8));
-        pill.setStyle("-fx-background-color: #f5c518; -fx-background-radius: 8; -fx-border-color: rgba(245,197,24,0.7); -fx-border-radius: 8;");
+        pill.getStyleClass().add("imdb-pill");
         pill.setMinWidth(Region.USE_PREF_SIZE);
         pill.setMaxWidth(Region.USE_PREF_SIZE);
         pill.setCursor(Cursor.HAND);
@@ -87,7 +87,7 @@ public final class SeriesCardUiSupport {
             logo.setSmooth(true);
         }
         Label value = new Label(rating);
-        value.setStyle("-fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: #111111;");
+        value.getStyleClass().add("imdb-pill-value");
         pill.getChildren().addAll(logo, value);
         pill.setOnMouseClicked(e -> ServerUrlUtil.openInBrowser(imdbUrl));
         return pill;

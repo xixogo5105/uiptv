@@ -66,6 +66,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public abstract class BaseWatchingNowUI extends VBox {
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
@@ -105,7 +106,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         setSpacing(5);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         contentBox.setPadding(new Insets(5));
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
@@ -491,9 +492,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         card.setAlignment(Pos.CENTER_LEFT);
         card.setFocusTraversable(false);
         card.setPadding(new Insets(6));
-        String baseStyle = "-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;";
-        card.setStyle(baseStyle);
-        card.getProperties().put("baseStyle", baseStyle);
+        card.getStyleClass().add("uiptv-card");
 
         ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString("cover", ""), 52, 74, "watching-now");
         VBox text = new VBox(2);
@@ -503,22 +502,25 @@ public abstract class BaseWatchingNowUI extends VBox {
         String titleText = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         String accountText = data.account.getAccountName();
         Label title = new Label(titleText + " (" + accountText + ")");
-        title.setStyle("-fx-font-weight: bold;");
-        registerLabelBaseStyle(title);
+        title.getStyleClass().add("strong-label");
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
 
-        Button removeButton = new Button("Remove");
-        removeButton.setMinHeight(Region.USE_PREF_SIZE);
-        removeButton.setMinWidth(Region.USE_PREF_SIZE);
-        removeButton.setOnAction(event -> {
+        Hyperlink removeLink = new Hyperlink("Remove");
+        removeLink.getStyleClass().add("danger-link");
+        removeLink.setFocusTraversable(true);
+        removeLink.setOnAction(event -> {
             event.consume();
+            String seriesName = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle, "this series");
+            if (!showConfirmationAlert("Remove \"" + seriesName + "\" from Watching Now?")) {
+                return;
+            }
             removeSeriesFromWatchingNow(data);
         });
 
         Hyperlink viewEpisodesLink = new Hyperlink("View Episodes...");
-        registerHyperlinkBaseStyle(viewEpisodesLink);
+        viewEpisodesLink.getStyleClass().add("watching-now-view-link");
         viewEpisodesLink.setFocusTraversable(true);
         viewEpisodesLink.setOnAction(event -> {
             event.consume();
@@ -532,7 +534,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         HBox.setHgrow(linkSpacer, Priority.ALWAYS);
         linkRow.getChildren().addAll(linkSpacer, viewEpisodesLink);
 
-        text.getChildren().addAll(title, removeButton, linkRow);
+        text.getChildren().addAll(title, removeLink, linkRow);
 
         card.getChildren().addAll(poster, text);
         card.setOnMouseClicked(event -> {
@@ -755,7 +757,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         VBox details = new VBox(4);
         details.setMaxWidth(Double.MAX_VALUE);
         data.titleNode = new Label(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
-        data.titleNode.setStyle("-fx-font-weight: bold;");
+        data.titleNode.getStyleClass().add("strong-label");
         data.titleNode.setWrapText(true);
         data.titleNode.setMaxWidth(Double.MAX_VALUE);
         details.getChildren().add(data.titleNode);
@@ -911,9 +913,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private VBox createEpisodeCard(SeriesPanelData data, WatchingEpisode row) {
         VBox root = new VBox(8);
         root.setPadding(new Insets(10));
-        String baseStyle = "-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;";
-        root.setStyle(baseStyle);
-        root.getProperties().put("baseStyle", baseStyle);
+        root.getStyleClass().add("uiptv-card");
 
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
@@ -945,10 +945,10 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         Button play = new Button("PLAY");
         play.getStyleClass().setAll("button");
+        play.getStyleClass().add("small-pill-button");
         play.setMinWidth(Region.USE_PREF_SIZE);
         play.setMaxWidth(Double.MAX_VALUE);
         play.setMinHeight(Region.USE_PREF_SIZE);
-        play.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 6 2 6; -fx-background-radius: 6;");
         play.setFocusTraversable(true);
         play.setOnAction(event -> {
             event.consume();
@@ -966,21 +966,18 @@ public abstract class BaseWatchingNowUI extends VBox {
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
-        title.setStyle("-fx-font-weight: bold;");
-        registerLabelBaseStyle(title);
+        title.getStyleClass().add("strong-label");
 
         text.getChildren().addAll(actionRow, title);
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         if (!isBlank(row.rating)) {
             Label rating = new Label("Rating: " + row.rating);
-            registerLabelBaseStyle(rating);
             text.getChildren().add(rating);
             cardLabels.add(rating);
         }
         if (!isBlank(row.releaseDate)) {
             Label release = new Label("Release: " + shortDateOnly(row.releaseDate));
-            registerLabelBaseStyle(release);
             text.getChildren().add(release);
             cardLabels.add(release);
         }
@@ -992,7 +989,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
             plot.setMinHeight(Region.USE_PREF_SIZE);
-            registerLabelBaseStyle(plot);
             root.getChildren().add(plot);
             cardLabels.add(plot);
         }
@@ -1035,12 +1031,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (card == null) {
             return;
         }
-        Object baseStyle = card.getProperties().get("baseStyle");
-        String base = baseStyle instanceof String ? (String) baseStyle : "";
         if (selected) {
-            card.setStyle(base + " -fx-background-color: -fx-selection-bar;");
+            card.getStyleClass().add("selected-card");
         } else {
-            card.setStyle(base);
+            card.getStyleClass().remove("selected-card");
         }
         Object labelsObj = card.getProperties().get("cardLabels");
         if (labelsObj instanceof List<?> labels) {
@@ -1061,48 +1055,32 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void registerLabelBaseStyle(Label label) {
-        if (label == null) {
-            return;
-        }
-        Object existing = label.getProperties().get("baseTextStyle");
-        if (existing == null) {
-            label.getProperties().put("baseTextStyle", label.getStyle() == null ? "" : label.getStyle());
-        }
+        // no-op (legacy hook retained for compatibility)
     }
 
     private void applyLabelSelection(Label label, boolean selected) {
         if (label == null) {
             return;
         }
-        Object baseStyle = label.getProperties().get("baseTextStyle");
-        String base = baseStyle instanceof String ? (String) baseStyle : "";
         if (selected) {
-            label.setStyle(base + " -fx-text-fill: white;");
+            label.getStyleClass().add("selected-card-text");
         } else {
-            label.setStyle(base);
+            label.getStyleClass().remove("selected-card-text");
         }
     }
 
     private void registerHyperlinkBaseStyle(Hyperlink link) {
-        if (link == null) {
-            return;
-        }
-        Object existing = link.getProperties().get("baseLinkStyle");
-        if (existing == null) {
-            link.getProperties().put("baseLinkStyle", link.getStyle() == null ? "" : link.getStyle());
-        }
+        // no-op (legacy hook retained for compatibility)
     }
 
     private void applyHyperlinkSelection(Hyperlink link, boolean selected) {
         if (link == null) {
             return;
         }
-        Object baseStyle = link.getProperties().get("baseLinkStyle");
-        String base = baseStyle instanceof String ? (String) baseStyle : "";
         if (selected) {
-            link.setStyle(base + " -fx-text-fill: white;");
+            link.getStyleClass().add("selected-card-link");
         } else {
-            link.setStyle(base);
+            link.getStyleClass().remove("selected-card-link");
         }
     }
 

@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.util.VersionManager;
+import com.uiptv.widget.PopupDecorator;
 import javafx.application.HostServices;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,15 +12,17 @@ import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 public class AboutUI {
 
     public AboutUI(HostServices hostServices) {
         Stage stage = new Stage();
+        stage.initStyle(StageStyle.TRANSPARENT);
         stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle("About UIPTV");
 
         VBox vbox = new VBox();
         vbox.setAlignment(Pos.CENTER);
@@ -43,7 +46,9 @@ public class AboutUI {
 
         vbox.getChildren().addAll(imageView, titleLabel, authorLabel, copyrightLabel, link, updateButton);
 
-        Scene scene = new Scene(vbox);
+        VBox decoratedRoot = PopupDecorator.wrap(stage, "About UIPTV", vbox);
+        Scene scene = new Scene(decoratedRoot);
+        scene.setFill(Color.TRANSPARENT);
         scene.getStylesheets().add(RootApplication.currentTheme);
         stage.setScene(scene);
         stage.showAndWait();

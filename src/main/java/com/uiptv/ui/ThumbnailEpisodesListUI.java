@@ -91,7 +91,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         cardsScroll.setMaxWidth(Double.MAX_VALUE);
         cardsScroll.setMaxHeight(Double.MAX_VALUE);
-        cardsScroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        cardsScroll.getStyleClass().add("transparent-scroll-pane");
 
         bodyContainer = new VBox(6, header, seasonTabPane, cardsScroll);
         bodyContainer.setMaxWidth(Double.MAX_VALUE);
@@ -196,14 +196,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void initHeader() {
         header.setAlignment(Pos.TOP_LEFT);
-        header.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6;");
+        header.getStyleClass().add("uiptv-outline-pane");
 
         seriesPosterNode.setFitWidth(170);
         seriesPosterNode.setFitHeight(250);
         seriesPosterNode.setPreserveRatio(true);
         seriesPosterNode.setSmooth(true);
 
-        titleNode.setStyle("-fx-font-weight: bold;");
+        titleNode.getStyleClass().add("strong-label");
         titleNode.setWrapText(true);
         titleNode.setMaxWidth(Double.MAX_VALUE);
         plotNode.setWrapText(true);
@@ -235,7 +235,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         watchingNowDetailStylingApplied = true;
-        header.setStyle("-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8;");
+        header.getStyleClass().remove("uiptv-outline-pane");
+        header.getStyleClass().add("uiptv-card");
         if (bodyContainer != null) {
             bodyContainer.setSpacing(1);
             bodyContainer.setPadding(new Insets(0, 1, 0, 1));
@@ -400,9 +401,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private VBox createEpisodeCard(EpisodeItem row) {
         VBox root = new VBox(8);
         root.setPadding(new Insets(10));
-        String baseStyle = "-fx-background-color: -uiptv-card-bg; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;";
-        root.setStyle(baseStyle);
-        root.getProperties().put("baseStyle", baseStyle);
+        root.getStyleClass().add("uiptv-card");
 
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
@@ -430,10 +429,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
         Button playButton = new Button("Play ...");
         playButton.getStyleClass().setAll("button");
+        playButton.getStyleClass().add("small-pill-button");
         playButton.setMinWidth(Region.USE_PREF_SIZE);
         playButton.setMaxWidth(Double.MAX_VALUE);
         playButton.setMinHeight(Region.USE_PREF_SIZE);
-        playButton.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 6 2 6; -fx-background-radius: 6;");
         playButton.setFocusTraversable(true);
         playButton.setOnAction(event -> {
             event.consume();
@@ -452,20 +451,17 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
-        title.setStyle("-fx-font-weight: bold;");
-        registerLabelBaseStyle(title);
+        title.getStyleClass().add("strong-label");
         text.getChildren().addAll(actionRow, title);
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         if (!isBlank(row.getReleaseDate())) {
             Label release = new Label("Release: " + shortDateOnly(row.getReleaseDate()));
-            registerLabelBaseStyle(release);
             text.getChildren().add(release);
             cardLabels.add(release);
         }
         if (!isBlank(row.getRating())) {
             Label rating = new Label("Rating: " + row.getRating());
-            registerLabelBaseStyle(rating);
             text.getChildren().add(rating);
             cardLabels.add(rating);
         }
@@ -478,7 +474,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
             plot.setMinHeight(Region.USE_PREF_SIZE);
-            registerLabelBaseStyle(plot);
             root.getChildren().add(plot);
             cardLabels.add(plot);
         }
@@ -509,12 +504,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (card == null) {
             return;
         }
-        Object baseStyle = card.getProperties().get("baseStyle");
-        String base = baseStyle instanceof String ? (String) baseStyle : "";
         if (selected) {
-            card.setStyle(base + " -fx-background-color: -fx-selection-bar;");
+            card.getStyleClass().add("selected-card");
         } else {
-            card.setStyle(base);
+            card.getStyleClass().remove("selected-card");
         }
         Object labelsObj = card.getProperties().get("cardLabels");
         if (labelsObj instanceof List<?> labels) {
@@ -527,25 +520,17 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void registerLabelBaseStyle(Label label) {
-        if (label == null) {
-            return;
-        }
-        Object existing = label.getProperties().get("baseTextStyle");
-        if (existing == null) {
-            label.getProperties().put("baseTextStyle", label.getStyle() == null ? "" : label.getStyle());
-        }
+        // no-op (legacy hook retained for compatibility)
     }
 
     private void applyLabelSelection(Label label, boolean selected) {
         if (label == null) {
             return;
         }
-        Object baseStyle = label.getProperties().get("baseTextStyle");
-        String base = baseStyle instanceof String ? (String) baseStyle : "";
         if (selected) {
-            label.setStyle(base + " -fx-text-fill: white;");
+            label.getStyleClass().add("selected-card-text");
         } else {
-            label.setStyle(base);
+            label.getStyleClass().remove("selected-card-text");
         }
     }
 

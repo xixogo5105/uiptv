@@ -43,6 +43,7 @@ import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>("Account List");
@@ -354,6 +355,7 @@ public class AccountListUI extends HBox {
         reloadCache.setOnAction(actionEvent -> handleReloadCache(row.getItem()));
 
         MenuItem deleteItem = new MenuItem("Delete Account");
+        deleteItem.getStyleClass().add("danger-menu-item");
         deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
 
         rowMenu.getItems().addAll(editAccount, new SeparatorMenuItem(), itv, vod, series, new SeparatorMenuItem(), reloadCache, deleteItem);
@@ -421,28 +423,20 @@ public class AccountListUI extends HBox {
 
     private void handleDeleteAccounts() {
         int selectedCount = table.getSelectionModel().getSelectedItems().size();
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Confirmation");
-        alert.setHeaderText(null);
-        alert.setContentText("Are you sure you want to remove " + selectedCount + " account(s)? Account(s) to be deleted:\n" +
+        String message = "Are you sure you want to remove " + selectedCount + " account(s)? Account(s) to be deleted:\n" +
                 table.getSelectionModel().getSelectedItems().stream()
                         .map(accountItem -> ((AccountItem) accountItem).getAccountName())
-                        .collect(Collectors.joining(", ")));
-        if (RootApplication.currentTheme != null) {
-            alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
-        }
+                        .collect(Collectors.joining(", "));
         isPromptShowing = true;
-        alert.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                for (AccountItem selectedItem : (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems()) {
-                    AccountService.getInstance().delete(selectedItem.getAccountId());
-                    if (onDeleteCallback != null) {
-                        onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
-                    }
+        if (showConfirmationAlert(message)) {
+            for (AccountItem selectedItem : (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems()) {
+                AccountService.getInstance().delete(selectedItem.getAccountId());
+                if (onDeleteCallback != null) {
+                    onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
                 }
-                refresh();
             }
-        });
+            refresh();
+        }
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {

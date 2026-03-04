@@ -155,7 +155,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (supportsTrackSelection()) {
             btnTracks = createTrackRootButton();
             tracksContextMenu = new ContextMenu();
-            tracksContextMenu.setStyle("-fx-font-size: 14px; -fx-padding: 4;");
+            tracksContextMenu.getStyleClass().add("player-tracks-menu");
             tracksContextMenu.setOnHidden(e -> isTracksMenuOpen = false);
             btnTracks.setOnAction(e -> {
                 if (tracksContextMenu == null) return;
@@ -192,7 +192,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
         timeLabel = new Label("00:00 / 00:00");
         timeLabel.setTextFill(Color.WHITE);
-        timeLabel.setStyle("-fx-font-family: monospace; -fx-font-weight: bold;");
+        timeLabel.getStyleClass().add("player-time-label");
 
         HBox timeRow = new HBox(5);
         timeRow.setAlignment(Pos.CENTER_LEFT);
@@ -200,13 +200,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         controlsContainer = new VBox(4);
         controlsContainer.setPadding(new Insets(5));
-        controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 10;");
+        controlsContainer.getStyleClass().add("player-controls-container");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(576);
         controlsContainer.setPrefWidth(36);
         controlsContainer.setMaxHeight(60);
 
-        playerContainer.setStyle("-fx-background-color: black;");
+        playerContainer.getStyleClass().add("player-container");
         playerContainer.setFocusTraversable(true);
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
@@ -225,7 +225,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         errorLabel = new Label();
         errorLabel.setTextFill(Color.WHITE);
         errorLabel.setWrapText(true);
-        errorLabel.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 10; -fx-background-radius: 5;");
+        errorLabel.getStyleClass().add("player-error-label");
         errorLabel.setVisible(false);
         StackPane.setAlignment(errorLabel, Pos.CENTER);
 
@@ -242,13 +242,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         // Inner box for text with background
         HBox messageBox = new HBox(10);
         messageBox.setAlignment(Pos.CENTER);
-        messageBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-background-radius: 15; -fx-padding: 20;"); // Rounded corners, more padding
+        messageBox.getStyleClass().add("player-hiddenbar-message-box");
         messageBox.setMinHeight(90); // Minimum height
 
         Label msgLabel = new Label("Control bar is hidden. Right click mouse button or press 'B' on your keyboard to show it again");
         msgLabel.setWrapText(true);
         msgLabel.setTextFill(Color.WHITE);
-        msgLabel.setStyle("-fx-font-size: 18px;"); // Increased font size
+        msgLabel.getStyleClass().add("player-hiddenbar-message-label");
         
         messageBox.getChildren().add(msgLabel);
 
@@ -259,7 +259,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         closeIcon.setStroke(Color.WHITE);
         closeIcon.setStrokeWidth(2);
         msgCloseBtn.setGraphic(closeIcon);
-        msgCloseBtn.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-background-radius: 50%; -fx-cursor: hand;"); // Circular background
+        msgCloseBtn.getStyleClass().add("player-round-control-button");
         msgCloseBtn.setPadding(new Insets(8)); // Bigger hit area
         
         // Action
@@ -481,7 +481,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void updateTrackMenu(List<MenuItem> targetItems, List<TrackOption> options, int selectedTrackId, IntConsumer onTrackSelected, String emptyLabel) {
         if (options == null || options.isEmpty()) {
             MenuItem noneItem = new MenuItem(emptyLabel);
-            noneItem.setStyle("-fx-padding: 8 16 8 16;");
+            noneItem.getStyleClass().add("player-tracks-menu-item");
             noneItem.setDisable(true);
             targetItems.add(noneItem);
             return;
@@ -492,7 +492,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             RadioMenuItem item = new RadioMenuItem(option.label);
             item.setToggleGroup(group);
             item.setSelected(option.id == selectedTrackId);
-            item.setStyle("-fx-padding: 8 16 8 16;");
+            item.getStyleClass().add("player-tracks-menu-item");
             item.setOnAction(e -> {
                 onTrackSelected.accept(option.id);
                 refreshTrackMenus();
@@ -551,7 +551,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
             Text channelNameText = new Text(currentChannel.getName());
             channelNameText.setFill(Color.YELLOW);
-            channelNameText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+            channelNameText.getStyleClass().add("player-channel-title");
             streamInfoText.setText("");
             nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
             nowShowingFlow.setVisible(true);
@@ -877,7 +877,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipStage.setAlwaysOnTop(true);
 
             StackPane pipRoot = new StackPane();
-            pipRoot.setStyle("-fx-background-color: black;");
+            pipRoot.getStyleClass().add("player-container");
 
             Button restoreButton = new Button();
             if (pipExitIcon != null && pipExitIcon.getImage() != null) {
@@ -893,7 +893,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restoreButton.setText("Restore");
                 restoreButton.setTextFill(Color.WHITE);
             }
-            restoreButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            restoreButton.getStyleClass().add("player-round-control-button");
             restoreButton.setPadding(new Insets(15));
             restoreButton.setVisible(false);
             restoreButton.setOnAction(e -> exitPip());
@@ -906,7 +906,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             whiteColorAdjust.setBrightness(1.0);
             pipMuteIcon.setEffect(whiteColorAdjust);
             pipMuteButton.setGraphic(pipMuteIcon);
-            pipMuteButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            pipMuteButton.getStyleClass().add("player-round-control-button");
             pipMuteButton.setPadding(new Insets(8));
             pipMuteButton.setVisible(false);
             pipMuteButton.setOnAction(e -> {
@@ -920,7 +920,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipReloadIcon.setFitWidth(20);
             pipReloadIcon.setEffect(whiteColorAdjust);
             pipReloadButton.setGraphic(pipReloadIcon);
-            pipReloadButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-background-radius: 50em; -fx-cursor: hand;");
+            pipReloadButton.getStyleClass().add("player-round-control-button");
             pipReloadButton.setPadding(new Insets(8));
             pipReloadButton.setVisible(false);
             pipReloadButton.setOnAction(e -> refreshAndPlay());
@@ -1197,9 +1197,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         Button btn = new Button();
         btn.setGraphic(icon);
         btn.setPadding(new Insets(4));
-        btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
+        btn.getStyleClass().add("player-icon-button");
         return btn;
     }
 
@@ -1213,10 +1211,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btn.setGraphic(upIcon);
         btn.setText("");
         btn.setTooltip(new Tooltip("Audio/Subtitles"));
-        btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+        btn.getStyleClass().add("player-icon-button");
         btn.setPadding(new Insets(4));
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: rgba(255,255,255,0.2); -fx-cursor: hand; -fx-background-radius: 4;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-cursor: hand;"));
         return btn;
     }
 }

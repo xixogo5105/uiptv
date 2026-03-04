@@ -11,6 +11,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.PopupDecorator;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
@@ -25,8 +26,10 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -97,7 +100,7 @@ public class ConfigurationUI extends VBox {
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setPannable(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 
@@ -223,7 +226,7 @@ public class ConfigurationUI extends VBox {
     private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
         BorderPane pane = new BorderPane(content);
         Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-weight: bold;");
+        titleLabel.getStyleClass().add("strong-label");
         VBox titleContainer = new VBox(4, titleLabel);
         titleContainer.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(titleContainer, Priority.ALWAYS);
@@ -231,7 +234,7 @@ public class ConfigurationUI extends VBox {
         if (description != null && !description.isBlank()) {
             Label label = new Label(description);
             label.setWrapText(true);
-            label.setStyle("-fx-opacity: 0.85;");
+            label.getStyleClass().add("dim-label");
             titleContainer.getChildren().add(label);
             descriptionLabel = label;
         } else {
@@ -265,11 +268,7 @@ public class ConfigurationUI extends VBox {
         BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
         pane.setTop(header);
         pane.setPadding(new Insets(10));
-        pane.setStyle("-fx-background-color: -uiptv-card-bg;"
-                + "-fx-border-color: -uiptv-card-border;"
-                + "-fx-border-width: 1;"
-                + "-fx-background-radius: 8;"
-                + "-fx-border-radius: 8;");
+        pane.getStyleClass().add("uiptv-card");
         return pane;
     }
 
@@ -340,10 +339,12 @@ public class ConfigurationUI extends VBox {
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
             Stage popupStage = new Stage();
+            popupStage.initStyle(StageStyle.TRANSPARENT);
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
-            Scene scene = new Scene(popup, 400, 300);
+            VBox decoratedRoot = PopupDecorator.wrap(popupStage, "Publish M3U8", popup);
+            Scene scene = new Scene(decoratedRoot, 400, 300);
+            scene.setFill(Color.TRANSPARENT);
             scene.getStylesheets().add(RootApplication.currentTheme);
-            popupStage.setTitle("Publish M3U8");
             popupStage.setScene(scene);
             popupStage.showAndWait();
         });

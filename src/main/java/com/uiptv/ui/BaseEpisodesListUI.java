@@ -293,7 +293,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     private void configureEmptyStateOverlay() {
         emptyStateLabel.setWrapText(true);
         emptyStateLabel.setMaxWidth(Double.MAX_VALUE);
-        emptyStateLabel.setStyle("-fx-font-size: 1.1em; -fx-text-alignment: center;");
+        emptyStateLabel.getStyleClass().add("empty-state-label");
         emptyStateLabel.setManaged(false);
         emptyStateLabel.setVisible(false);
         StackPane.setAlignment(emptyStateLabel, Pos.CENTER);

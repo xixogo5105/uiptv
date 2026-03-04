@@ -54,7 +54,7 @@ public class ParseMultipleAccountUI extends VBox {
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setPannable(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 

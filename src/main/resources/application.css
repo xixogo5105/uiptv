@@ -42,6 +42,27 @@
     -fx-background-color: darkgreen;
 }
 
+/* Reference placeholders for light-theme table/list styling (intentionally no-op) */
+.table-view {
+}
+
+.table-view .column-header .label {
+}
+
+.list-cell:even,
+.list-cell:odd,
+.table-row-cell:even,
+.table-row-cell:odd {
+}
+
+.list-cell:empty,
+.table-row-cell:empty {
+}
+
+.list-cell,
+.table-row-cell {
+}
+
 /* terminal.css */
 .terminal {
     -fx-font-family: "Courier New", monospace;
@@ -198,4 +219,300 @@
 .menu-item.danger-menu-item:hover > .label,
 .menu-item.danger-menu-item:armed > .label {
     -fx-text-fill: white;
+}
+
+.transparent-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.transparent-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+.uiptv-card {
+    -fx-background-color: -uiptv-card-bg;
+    -fx-border-color: -uiptv-card-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.uiptv-outline-pane {
+    -fx-border-color: -fx-box-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 6;
+}
+
+.strong-label {
+    -fx-font-weight: bold;
+}
+
+.dim-label {
+    -fx-opacity: 0.85;
+}
+
+.empty-state-label {
+    -fx-font-size: 1.1em;
+    -fx-text-alignment: center;
+}
+
+.small-pill-button {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 6;
+}
+
+.selected-card {
+    -fx-background-color: -fx-selection-bar;
+}
+
+.selected-card-text,
+.selected-card-link {
+    -fx-text-fill: white;
+}
+
+.imdb-pill {
+    -fx-background-color: #f5c518;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(245, 197, 24, 0.7);
+    -fx-border-radius: 8;
+}
+
+.imdb-pill-value {
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #111111;
+}
+
+.reload-account-row {
+    -fx-background-color: -fx-control-inner-background;
+}
+
+.reload-account-row-alt {
+    -fx-background-color: derive(-fx-control-inner-background, -2%);
+}
+
+.reload-summary-box {
+    -fx-background-color: derive(-fx-control-inner-background, -2%);
+    -fx-border-color: -fx-box-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.reload-log-header {
+    -fx-background-color: derive(-fx-control-inner-background, -3%);
+    -fx-border-color: -fx-box-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.reload-log-root {
+    -fx-border-color: -fx-box-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.reload-status-queued,
+.reload-status-running,
+.reload-status-done,
+.reload-status-yellow,
+.reload-status-bad {
+    -fx-font-weight: bold;
+}
+
+.reload-status-queued {
+    -fx-text-fill: -fx-text-base-color;
+}
+
+.reload-status-running {
+    -fx-text-fill: #0b79d0;
+}
+
+.reload-status-done {
+    -fx-text-fill: #2e7d32;
+}
+
+.reload-status-yellow {
+    -fx-text-fill: #d97706;
+}
+
+.reload-status-bad {
+    -fx-text-fill: #b91c1c;
+}
+
+.player-container {
+    -fx-background-color: black;
+}
+
+.player-controls-container {
+    -fx-background-color: rgba(0, 0, 0, 0.75);
+    -fx-background-radius: 10;
+}
+
+.player-time-label {
+    -fx-font-family: monospace;
+    -fx-font-weight: bold;
+}
+
+.player-error-label {
+    -fx-font-size: 14px;
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-padding: 10;
+    -fx-background-radius: 5;
+}
+
+.player-hiddenbar-message-box {
+    -fx-background-color: rgba(0, 0, 0, 0.8);
+    -fx-background-radius: 15;
+    -fx-padding: 20;
+}
+
+.player-hiddenbar-message-label {
+    -fx-font-size: 18px;
+}
+
+.player-round-control-button {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-background-radius: 50em;
+    -fx-cursor: hand;
+}
+
+.player-icon-button {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+}
+
+.player-icon-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 4;
+}
+
+.player-tracks-menu {
+    -fx-font-size: 14px;
+    -fx-padding: 4;
+}
+
+.player-tracks-menu-item {
+    -fx-padding: 8 16 8 16;
+}
+
+.player-channel-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.watching-now-view-link {
+    -fx-font-weight: bold;
+    -fx-text-fill: #0b57d0;
+}
+
+.watching-now-view-link:hover {
+    -fx-text-fill: #1f7ae0;
+}
+
+.danger-link {
+    -fx-font-weight: bold;
+    -fx-text-fill: #b71c1c;
+}
+
+.danger-link:hover {
+    -fx-text-fill: #c62828;
+}
+
+.menu-bar {
+    -fx-background-color: #e3e5e8;
+    -fx-border-color: #bcc2c9;
+    -fx-border-width: 0 0 1 0;
+}
+
+.menu-bar .label {
+    -fx-text-fill: #1f2937;
+}
+
+.dialog-pane {
+    -fx-background-color: #e6e8eb;
+    -fx-border-color: #bcc2c9;
+    -fx-border-width: 1;
+}
+
+.dialog-pane > .header-panel {
+    -fx-background-color: #d8dde3;
+}
+
+.dialog-pane > .header-panel .label {
+    -fx-text-fill: #111827;
+    -fx-font-weight: bold;
+}
+
+.dialog-pane > .content.label {
+    -fx-text-fill: #1f2937;
+}
+
+.custom-dialog-root {
+    -fx-background-color: #e6e8eb;
+    -fx-border-color: #bcc2c9;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+}
+
+.custom-dialog-header {
+    -fx-padding: 0 0 4 0;
+}
+
+.custom-dialog-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.custom-dialog-message {
+    -fx-text-fill: #1f2937;
+}
+
+.custom-dialog-buttons {
+    -fx-padding: 8 0 0 0;
+}
+
+.custom-dialog-close {
+    -fx-min-width: 28;
+    -fx-pref-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-font-size: 12px;
+}
+
+.custom-popup-root {
+    -fx-background-color: #e6e8eb;
+    -fx-border-color: #bcc2c9;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-padding: 10;
+}
+
+.custom-popup-header {
+    -fx-padding: 0 0 6 0;
+}
+
+.custom-popup-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.custom-popup-close {
+    -fx-min-width: 28;
+    -fx-pref-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-font-size: 12px;
 }

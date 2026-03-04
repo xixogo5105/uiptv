@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.widget.PopupDecorator;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -11,7 +12,9 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_HEIGHT_PIXELS;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
@@ -105,8 +108,14 @@ public class LogDisplayUI extends VBox {
         VBox.setVgrow(logArea, Priority.ALWAYS);
 
         detachedStage = new Stage();
-        detachedStage.setTitle("UIPTV Logs");
-        detachedStage.setScene(new Scene(popupRoot, 800, 600));
+        detachedStage.initStyle(StageStyle.TRANSPARENT);
+        VBox decoratedRoot = PopupDecorator.wrap(detachedStage, "UIPTV Logs", popupRoot);
+        Scene scene = new Scene(decoratedRoot, 800, 600);
+        scene.setFill(Color.TRANSPARENT);
+        if (RootApplication.currentTheme != null) {
+            scene.getStylesheets().add(RootApplication.currentTheme);
+        }
+        detachedStage.setScene(scene);
         detachedStage.setOnCloseRequest(event -> attachWindow());
         detachedStage.show();
     }

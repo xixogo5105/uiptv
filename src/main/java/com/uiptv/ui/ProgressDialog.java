@@ -1,13 +1,14 @@
 package com.uiptv.ui;
 
 import com.uiptv.widget.SegmentedProgressBar;
+import com.uiptv.widget.DialogAlert;
+import com.uiptv.widget.PopupDecorator;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
@@ -19,12 +20,14 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,9 +47,9 @@ public class ProgressDialog extends Stage {
     private final Label pauseLabel = new Label();
 
     public ProgressDialog(Stage owner) {
+        initStyle(StageStyle.TRANSPARENT);
         initOwner(owner);
         initModality(Modality.APPLICATION_MODAL);
-        setTitle("Verifying MAC Addresses...");
 
         // Root Layout
         BorderPane root = new BorderPane();
@@ -94,7 +97,9 @@ public class ProgressDialog extends Stage {
         root.setCenter(scrollPane);
         root.setBottom(bottomBar);
 
-        Scene scene = new Scene(root, 600, 450); // Increased width for dropdown
+        VBox decoratedRoot = PopupDecorator.wrap(this, "Verifying MAC Addresses...", root);
+        Scene scene = new Scene(decoratedRoot, 600, 450); // Increased width for dropdown
+        scene.setFill(Color.TRANSPARENT);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
@@ -197,14 +202,14 @@ public class ProgressDialog extends Stage {
 
     public void setOnClose(Runnable action) {
         cancelButton.setOnAction(event -> {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to cancel the verification process? No changes will be saved.", ButtonType.YES, ButtonType.NO);
-            alert.initOwner(this);
-            alert.showAndWait().ifPresent(response -> {
-                if (response == ButtonType.YES) {
-                    action.run();
-                    close();
-                }
-            });
+            ButtonType response = DialogAlert.showDialog(
+                    "Confirmation",
+                    "Are you sure you want to cancel the verification process? No changes will be saved."
+            );
+            if (response == ButtonType.YES) {
+                action.run();
+                close();
+            }
         });
 
         setOnCloseRequest(event -> {
@@ -215,13 +220,13 @@ public class ProgressDialog extends Stage {
 
     public void setOnStop(Runnable action) {
         stopButton.setOnAction(event -> {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to stop? Invalid MACs found so far will be processed.", ButtonType.YES, ButtonType.NO);
-            alert.initOwner(this);
-            alert.showAndWait().ifPresent(response -> {
-                if (response == ButtonType.YES) {
-                    action.run();
-                }
-            });
+            ButtonType response = DialogAlert.showDialog(
+                    "Confirmation",
+                    "Are you sure you want to stop? Invalid MACs found so far will be processed."
+            );
+            if (response == ButtonType.YES) {
+                action.run();
+            }
         });
     }
 }
