@@ -142,7 +142,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     void endToEndWebPortal_backendApisAndAllJsonHandlers() throws Exception {
         Configuration cfg = new Configuration(
                 "player-a", "player-b", "player-c", "player-a",
-                "", "", false, "JetBrains Mono", "12", "Medium",
+                "", "", false,
                 false, String.valueOf(appPort), false, false
         );
         ConfigurationService.getInstance().save(cfg);

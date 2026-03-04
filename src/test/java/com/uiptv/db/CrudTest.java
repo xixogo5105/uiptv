@@ -250,7 +250,7 @@ public class CrudTest extends DbBackedTest {
         ConfigurationService configService = ConfigurationService.getInstance();
 
         // 1. Create/Update Configuration
-        Configuration config = new Configuration("path1", "path2", "path3", "default", "catFilter", "chanFilter", true, "Arial", "12", "Bold", true, "8080", false, false);
+        Configuration config = new Configuration("path1", "path2", "path3", "default", "catFilter", "chanFilter", true, true, "8080", false, false);
         configService.save(config);
 
         // 2. Read
