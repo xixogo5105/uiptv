@@ -514,10 +514,10 @@ public class ChannelListUI extends HBox {
             }
 
             if (!allView) {
-                String bookmarkCategoryId = normalizeExact(bookmark.getCategoryId());
-                String bookmarkCategoryTitle = normalizeLower(bookmark.getCategoryTitle());
+                String bookmarkCategoryId = resolveBookmarkSourceCategoryId(bookmark);
+                String bookmarkCategoryTitle = resolveBookmarkSourceCategoryTitle(bookmark);
                 boolean sameCategoryById = !isBlank(channelCategoryId) && !isBlank(bookmarkCategoryId) && channelCategoryId.equals(bookmarkCategoryId);
-                boolean sameCategoryByTitle = isBlank(channelCategoryId) && !isBlank(channelCategoryTitle) && channelCategoryTitle.equals(bookmarkCategoryTitle);
+                boolean sameCategoryByTitle = !isBlank(channelCategoryTitle) && !isBlank(bookmarkCategoryTitle) && channelCategoryTitle.equals(bookmarkCategoryTitle);
                 if (!sameCategoryById && !sameCategoryByTitle) {
                     continue;
                 }
@@ -548,6 +548,29 @@ public class ChannelListUI extends HBox {
 
     private String normalizeLower(String value) {
         return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private String resolveBookmarkSourceCategoryId(Bookmark bookmark) {
+        if (bookmark == null) {
+            return "";
+        }
+        Category sourceCategory = Category.fromJson(bookmark.getCategoryJson());
+        if (sourceCategory != null && !isBlank(sourceCategory.getCategoryId())) {
+            return normalizeExact(sourceCategory.getCategoryId());
+        }
+        // Legacy fallback for older bookmarks without categoryJson.
+        return normalizeExact(bookmark.getCategoryId());
+    }
+
+    private String resolveBookmarkSourceCategoryTitle(Bookmark bookmark) {
+        if (bookmark == null) {
+            return "";
+        }
+        Category sourceCategory = Category.fromJson(bookmark.getCategoryJson());
+        if (sourceCategory != null && !isBlank(sourceCategory.getTitle())) {
+            return normalizeLower(sourceCategory.getTitle());
+        }
+        return normalizeLower(bookmark.getCategoryTitle());
     }
 
     private void preloadAllCategoryContextAsync() {
@@ -894,7 +917,7 @@ public class ChannelListUI extends HBox {
                     if (existingBookmark != null) {
                         bookmarkMenu.getItems().add(new SeparatorMenuItem());
                         MenuItem unbookmarkItem = new MenuItem("Remove Bookmark");
-                        unbookmarkItem.setStyle("-fx-text-fill: red;");
+                        unbookmarkItem.getStyleClass().add("danger-menu-item");
                         unbookmarkItem.setOnAction(e -> {
                             new Thread(() -> {
                                 BookmarkService.getInstance().remove(existingBookmark.getDbId());

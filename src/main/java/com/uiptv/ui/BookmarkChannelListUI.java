@@ -684,6 +684,7 @@ public class BookmarkChannelListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         MenuItem editItem = new MenuItem("Remove from favorite");
+        editItem.getStyleClass().add("danger-menu-item");
 
         editItem.setOnAction(actionEvent -> {
             handleDeleteMultipleBookmarks();

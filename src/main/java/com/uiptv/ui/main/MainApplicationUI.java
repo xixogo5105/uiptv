@@ -52,7 +52,12 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
 
         HBox embeddedPlayer = new HBox(playerContainer);
-        embeddedPlayer.setPadding(new javafx.geometry.Insets(2));
+        // Keep total row width aligned with the fixed 480px left pane.
+        // 478px player + 1px left/right insets = 480px.
+        embeddedPlayer.setPadding(new javafx.geometry.Insets(1));
+        embeddedPlayer.setMinWidth(480);
+        embeddedPlayer.setPrefWidth(480);
+        embeddedPlayer.setMaxWidth(480);
         embeddedPlayer.managedProperty().bind(activePlayerNode.managedProperty());
         embeddedPlayer.visibleProperty().bind(activePlayerNode.visibleProperty());
 
