@@ -15,9 +15,9 @@ import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -80,31 +80,48 @@ public class ManageAccountUI extends VBox {
     private void initWidgets() {
         setPadding(Insets.EMPTY);
         setSpacing(0);
-        formContainer.setPadding(new Insets(5));
+        formContainer.setPadding(new Insets(8));
         formContainer.setSpacing(5);
+        formContainer.setFillWidth(true);
 
         ScrollPane scrollPane = new ScrollPane(formContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setPannable(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0;");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 
-        saveButton.setMinWidth(430);
-        saveButton.setPrefWidth(430);
+        saveButton.setMinWidth(Region.USE_COMPUTED_SIZE);
+        saveButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        saveButton.setMaxWidth(Double.MAX_VALUE);
         saveButton.setMinHeight(50);
         saveButton.setPrefHeight(50);
-        refreshChannelsButton.setMinWidth(130);
-        refreshChannelsButton.setPrefWidth(130);
+        refreshChannelsButton.setMinWidth(Region.USE_COMPUTED_SIZE);
+        refreshChannelsButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
         m3u8Path.setMinWidth(180);
         accountType.setMinWidth(250);
-        macAddress.setPrefWidth(280); // Reduced by 20% from 350
+        macAddress.setPrefWidth(235); // Reduced by ~33% from 350
 
-        clearButton.setMinWidth(130);
-        clearButton.setPrefWidth(130);
-        deleteButton.setMinWidth(130);
-        deleteButton.setPrefWidth(130);
+        clearButton.setMinWidth(Region.USE_COMPUTED_SIZE);
+        clearButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        deleteButton.setMinWidth(Region.USE_COMPUTED_SIZE);
+        deleteButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        accountType.setMaxWidth(Double.MAX_VALUE);
+        name.setMaxWidth(Double.MAX_VALUE);
+        url.setMaxWidth(Double.MAX_VALUE);
+        m3u8Path.setMaxWidth(Double.MAX_VALUE);
+        epg.setMaxWidth(Double.MAX_VALUE);
+        username.setMaxWidth(Double.MAX_VALUE);
+        password.setMaxWidth(Double.MAX_VALUE);
+        serialNumber.setMaxWidth(Double.MAX_VALUE);
+        deviceId1.setMaxWidth(Double.MAX_VALUE);
+        deviceId2.setMaxWidth(Double.MAX_VALUE);
+        signature.setMaxWidth(Double.MAX_VALUE);
+        macAddressList.setMaxWidth(Double.MAX_VALUE);
+        httpMethodCombo.setMaxWidth(Double.MAX_VALUE);
+        timezoneCombo.setMaxWidth(Double.MAX_VALUE);
 
         macAddressList.textProperty().addListener((observable, oldVal, newVal) -> {
             setupMacAddressByList(newVal);
@@ -123,8 +140,13 @@ public class ManageAccountUI extends VBox {
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
 
         HBox actionButtonRow = new HBox(5, refreshChannelsButton, clearButton, deleteButton);
-        BorderPane actionButtonPane = createActionButtonPane(actionButtonRow);
-        VBox actionSection = new VBox(12, saveButton, actionButtonPane);
+        HBox.setHgrow(refreshChannelsButton, Priority.ALWAYS);
+        HBox.setHgrow(clearButton, Priority.ALWAYS);
+        HBox.setHgrow(deleteButton, Priority.ALWAYS);
+        refreshChannelsButton.setMaxWidth(Double.MAX_VALUE);
+        clearButton.setMaxWidth(Double.MAX_VALUE);
+        deleteButton.setMaxWidth(Double.MAX_VALUE);
+        VBox actionSection = new VBox(12, saveButton, actionButtonRow);
 
         populateForm(STALKER_PORTAL, macAddressContainer, actionSection);
         addSubmitButtonClickHandler();
@@ -151,16 +173,6 @@ public class ManageAccountUI extends VBox {
                 });
             }
         });
-    }
-
-    private BorderPane createActionButtonPane(HBox actionButtonRow) {
-        BorderPane pane = new BorderPane(actionButtonRow);
-        pane.setPadding(new Insets(10));
-        pane.setStyle("-fx-background-color: -fx-control-inner-background-alt;"
-                + "-fx-border-color: -fx-box-border;"
-                + "-fx-background-radius: 8;"
-                + "-fx-border-radius: 8;");
-        return pane;
     }
 
     private void populateForm(AccountType type, HBox macAddressContainer, VBox actionSection) {

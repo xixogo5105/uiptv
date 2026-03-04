@@ -87,6 +87,10 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
                 safe(state.getCategoryId()),
                 cacheInfo.categoryDbId,
                 safe(state.getSeriesId()),
+                safe(state.getEpisodeId()),
+                safe(state.getEpisodeName()),
+                safe(state.getSeason()),
+                state.getEpisodeNum(),
                 firstNonBlank(cacheInfo.seriesTitle, safe(state.getSeriesId())),
                 cacheInfo.seriesPoster,
                 state.getUpdatedAt()
@@ -217,6 +221,10 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
         private final String categoryId;
         private final String categoryDbId;
         private final String seriesId;
+        private final String episodeId;
+        private final String episodeName;
+        private final String season;
+        private final int episodeNum;
         private final String seriesTitle;
         private final String seriesPoster;
         private final long updatedAt;
@@ -227,6 +235,10 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
                          String categoryId,
                          String categoryDbId,
                          String seriesId,
+                         String episodeId,
+                         String episodeName,
+                         String season,
+                         int episodeNum,
                          String seriesTitle,
                          String seriesPoster,
                          long updatedAt) {
@@ -236,6 +248,10 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
             this.categoryId = categoryId;
             this.categoryDbId = categoryDbId;
             this.seriesId = seriesId;
+            this.episodeId = episodeId;
+            this.episodeName = episodeName;
+            this.season = season;
+            this.episodeNum = episodeNum;
             this.seriesTitle = seriesTitle;
             this.seriesPoster = seriesPoster;
             this.updatedAt = updatedAt;
@@ -250,6 +266,10 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
             row.put("categoryId", categoryId);
             row.put("categoryDbId", categoryDbId);
             row.put("seriesId", seriesId);
+            row.put("episodeId", episodeId);
+            row.put("episodeName", episodeName);
+            row.put("season", season);
+            row.put("episodeNum", episodeNum);
             row.put("seriesTitle", seriesTitle);
             row.put("seriesPoster", seriesPoster);
             row.put("updatedAt", updatedAt);

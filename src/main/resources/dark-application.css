@@ -240,7 +240,7 @@
 .tab-pane > .tab-content-area {
     -fx-border-color: transparent;
     -fx-border-width: 0;
-    -fx-padding: 0 2.5 0 0;
+    -fx-padding: 0;
 }
 
 .no-dim-disabled:disabled {

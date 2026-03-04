@@ -390,6 +390,8 @@
                         <button
                                 v-for="(episode, idx) in visibleSeriesDetailEpisodes"
                                 :key="'series-detail-ep-' + (episode.channelId || episode.id)"
+                                :id="getSeriesDetailEpisodeAnchorId(episode)"
+                                :data-watched="episode.watched ? '1' : '0'"
                                 class="nf-episode-row"
                                 @click="handleModeSelection('series', episode)">
                             <div class="nf-episode-index">{{ idx + 1 }}</div>
@@ -552,7 +554,7 @@
     </div>
 </div>
 
-<script src="/javascript/myflix.js?v=20260224a"></script>
+<script src="/javascript/myflix.js?v=20260304d"></script>
 <script>
     function scrollRow(id, direction) {
         const row = document.getElementById(id);

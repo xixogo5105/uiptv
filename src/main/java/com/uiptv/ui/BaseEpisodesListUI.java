@@ -63,6 +63,10 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final ObservableList<EpisodeItem> allEpisodeItems = FXCollections.observableArrayList(EpisodeItem.extractor());
 
     protected JSONObject seasonInfo = new JSONObject();
+    private String pendingTargetSeason = "";
+    private String pendingTargetEpisodeId = "";
+    private String pendingTargetEpisodeNumber = "";
+    private String pendingTargetEpisodeName = "";
 
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
@@ -132,6 +136,7 @@ public abstract class BaseEpisodesListUI extends HBox {
 
             Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
             SeriesWatchState watchedState = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+            navigateToLastWatched(watchedState);
 
             List<EpisodeItem> catList = new ArrayList<>();
             newChannelList.episodes.forEach(i -> {
@@ -168,6 +173,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             runLater(() -> {
                 allEpisodeItems.setAll(catList);
                 onItemsLoaded();
+                applyPendingNavigation();
             });
         }
     }
@@ -178,6 +184,102 @@ public abstract class BaseEpisodesListUI extends HBox {
                 setEmptyState("Nothing found for '" + categoryTitle + "'", true);
             }
         });
+    }
+
+    public void navigateToLastWatched(SeriesWatchState state) {
+        if (state == null) {
+            pendingTargetSeason = "";
+            pendingTargetEpisodeId = "";
+            pendingTargetEpisodeNumber = "";
+            pendingTargetEpisodeName = "";
+            return;
+        }
+        pendingTargetSeason = normalizeNumber(state.getSeason());
+        pendingTargetEpisodeId = safe(state.getEpisodeId());
+        pendingTargetEpisodeNumber = state.getEpisodeNum() > 0 ? String.valueOf(state.getEpisodeNum()) : "";
+        pendingTargetEpisodeName = safe(state.getEpisodeName());
+        applyPendingNavigation();
+    }
+
+    protected void navigateToEpisodeTarget(String season, String episodeId, String episodeNumber, String episodeName) {
+        // Optional in subclasses.
+    }
+
+    protected EpisodeItem findBestEpisodeMatch(String season, String episodeId, String episodeNumber, String episodeName) {
+        if (allEpisodeItems.isEmpty()) {
+            return null;
+        }
+
+        String normalizedSeason = normalizeNumber(season);
+        String normalizedEpisodeNo = normalizeNumber(episodeNumber);
+        String normalizedEpisodeId = safe(episodeId).trim();
+        String normalizedEpisodeName = normalizeTitle(cleanEpisodeTitle(episodeName));
+
+        // Strongest signal: the currently watched marker computed by the same matching rules.
+        if (!isBlank(normalizedSeason)) {
+            for (EpisodeItem item : allEpisodeItems) {
+                if (item.isWatched() && normalizedSeason.equals(normalizeNumber(item.getSeason()))) {
+                    return item;
+                }
+            }
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            if (item.isWatched()) {
+                return item;
+            }
+        }
+
+        if (!isBlank(normalizedEpisodeId)) {
+            for (EpisodeItem item : allEpisodeItems) {
+                if (normalizedEpisodeId.equals(safe(item.getEpisodeId()).trim())) {
+                    return item;
+                }
+            }
+        }
+
+        if (!isBlank(normalizedSeason) && !isBlank(normalizedEpisodeNo)) {
+            for (EpisodeItem item : allEpisodeItems) {
+                if (normalizedSeason.equals(normalizeNumber(item.getSeason()))
+                        && normalizedEpisodeNo.equals(normalizeNumber(item.getEpisodeNumber()))) {
+                    return item;
+                }
+            }
+        }
+
+        if (!isBlank(normalizedEpisodeName)) {
+            for (EpisodeItem item : allEpisodeItems) {
+                String itemName = normalizeTitle(cleanEpisodeTitle(item.getEpisodeName()));
+                if (normalizedEpisodeName.equals(itemName)) {
+                    return item;
+                }
+            }
+        }
+
+        if (!isBlank(normalizedSeason)) {
+            for (EpisodeItem item : allEpisodeItems) {
+                if (normalizedSeason.equals(normalizeNumber(item.getSeason()))) {
+                    return item;
+                }
+            }
+        }
+
+        return allEpisodeItems.get(0);
+    }
+
+    private void applyPendingNavigation() {
+        if (allEpisodeItems.isEmpty()) {
+            return;
+        }
+        if (isBlank(pendingTargetSeason) && isBlank(pendingTargetEpisodeId)
+                && isBlank(pendingTargetEpisodeNumber) && isBlank(pendingTargetEpisodeName)) {
+            return;
+        }
+        runLater(() -> navigateToEpisodeTarget(
+                pendingTargetSeason,
+                pendingTargetEpisodeId,
+                pendingTargetEpisodeNumber,
+                pendingTargetEpisodeName
+        ));
     }
 
     protected void initBaseLayout() {

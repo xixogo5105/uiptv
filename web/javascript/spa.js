@@ -65,6 +65,9 @@ createApp({
             channels: [],
             episodes: [],
             selectedSeason: '',
+            selectedEpisodeId: '',
+            selectedEpisodeNum: '',
+            selectedEpisodeName: '',
             selectedSeriesId: '',
             selectedSeriesCategoryId: '',
             detail: null
@@ -149,6 +152,96 @@ createApp({
         const getEpisodeDisplayTitle = (episode, idx = 0) => {
             const cleaned = cleanEpisodeTitle(String(episode?.name || ''));
             return cleaned || `Episode ${idx + 1}`;
+        };
+
+        const digitsOnly = (value) => String(value || '').replace(/[^0-9]/g, '');
+
+        const findTargetSeriesEpisode = (episodeList, target = {}) => {
+            const list = Array.isArray(episodeList) ? episodeList : [];
+            if (!list.length) return null;
+            const targetId = String(target.episodeId || '').trim();
+            const targetSeason = digitsOnly(target.season);
+            const targetEpisodeNum = digitsOnly(target.episodeNum);
+            const targetName = normalizeTitle(cleanEpisodeTitle(target.episodeName || ''));
+
+            const byId = targetId ? list.filter(ep => String(ep?.channelId || ep?.id || '').trim() === targetId) : [];
+            if (byId.length) {
+                const byIdSeasonEp = byId.find(ep => {
+                    const season = digitsOnly(resolveEpisodeSeason(ep));
+                    const epNo = digitsOnly(resolveEpisodeNumber(ep));
+                    return (!targetSeason || season === targetSeason) && (!targetEpisodeNum || epNo === targetEpisodeNum);
+                });
+                if (byIdSeasonEp) return byIdSeasonEp;
+                const byIdSeason = targetSeason ? byId.find(ep => digitsOnly(resolveEpisodeSeason(ep)) === targetSeason) : null;
+                if (byIdSeason) return byIdSeason;
+                return byId[0];
+            }
+
+            if (targetSeason && targetEpisodeNum) {
+                const bySeasonEpisode = list.find(ep =>
+                    digitsOnly(resolveEpisodeSeason(ep)) === targetSeason
+                    && digitsOnly(resolveEpisodeNumber(ep)) === targetEpisodeNum
+                );
+                if (bySeasonEpisode) return bySeasonEpisode;
+            }
+
+            if (targetName) {
+                const byName = list.find(ep => normalizeTitle(cleanEpisodeTitle(ep?.name || '')) === targetName);
+                if (byName) return byName;
+            }
+
+            const watchedInSeason = targetSeason
+                ? list.find(ep => ep?.watched && digitsOnly(resolveEpisodeSeason(ep)) === targetSeason)
+                : null;
+            if (watchedInSeason) return watchedInSeason;
+
+            const watchedAny = list.find(ep => ep?.watched);
+            if (watchedAny) return watchedAny;
+
+            if (targetSeason) {
+                const firstInSeason = list.find(ep => digitsOnly(resolveEpisodeSeason(ep)) === targetSeason);
+                if (firstInSeason) return firstInSeason;
+            }
+
+            return list[0];
+        };
+
+        const resolvePreferredSeriesSeason = (episodeList, fallbackSeason = '', target = {}) => {
+            const targetSeason = digitsOnly(target.season);
+            if (targetSeason) return targetSeason;
+            const watchedEpisode = (Array.isArray(episodeList) ? episodeList : []).find(ep => ep?.watched);
+            const watchedSeason = resolveEpisodeSeason(watchedEpisode);
+            if (watchedSeason) return watchedSeason;
+            return String(fallbackSeason || '');
+        };
+
+        const getSeriesEpisodeAnchorId = (episode) => {
+            const idPart = String(episode?.channelId || episode?.id || episode?.dbId || '').trim();
+            const season = resolveEpisodeSeason(episode) || '0';
+            const epNum = resolveEpisodeNumber(episode) || '0';
+            return `series-ep-${idPart || `${season}-${epNum}`}-${season}-${epNum}`;
+        };
+
+        const scrollToSelectedWatchedEpisode = async () => {
+            if (contentMode.value !== 'series' || viewState.value !== 'episodes') return;
+            const modeState = getModeState('series');
+            const targetEpisode = findTargetSeriesEpisode(filteredSeriesEpisodes.value, {
+                episodeId: modeState.selectedEpisodeId,
+                season: modeState.selectedSeason || selectedSeriesSeason.value,
+                episodeNum: modeState.selectedEpisodeNum,
+                episodeName: modeState.selectedEpisodeName
+            });
+            if (!targetEpisode) return;
+            const anchorId = getSeriesEpisodeAnchorId(targetEpisode);
+            if (!anchorId) return;
+            for (let i = 0; i < 4; i++) {
+                await nextTick();
+            }
+            requestAnimationFrame(() => {
+                const node = document.getElementById(anchorId);
+                if (!node) return;
+                node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            });
         };
 
         const seriesSeasonTabs = computed(() => {
@@ -531,6 +624,9 @@ createApp({
                 modeState.categoryId = null;
                 modeState.viewState = 'categories';
                 modeState.selectedSeason = '';
+                modeState.selectedEpisodeId = '';
+                modeState.selectedEpisodeNum = '';
+                modeState.selectedEpisodeName = '';
                 modeState.selectedSeriesId = '';
                 modeState.selectedSeriesCategoryId = '';
                 modeState.detail = null;
@@ -577,6 +673,9 @@ createApp({
                 modeState.episodes = [];
                 modeState.viewState = 'channels';
                 modeState.selectedSeason = '';
+                modeState.selectedEpisodeId = '';
+                modeState.selectedEpisodeNum = '';
+                modeState.selectedEpisodeName = '';
                 modeState.selectedSeriesId = '';
                 modeState.detail = null;
                 if (contentMode.value === 'series') {
@@ -612,8 +711,14 @@ createApp({
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
                 searchQuery.value = '';
-                selectedSeriesSeason.value = modeState.selectedSeason || '';
+                selectedSeriesSeason.value = resolvePreferredSeriesSeason(episodes.value, modeState.selectedSeason || '', {
+                    season: modeState.selectedSeason,
+                    episodeId: modeState.selectedEpisodeId,
+                    episodeNum: modeState.selectedEpisodeNum,
+                    episodeName: modeState.selectedEpisodeName
+                });
                 ensureSeriesSeasonSelected();
+                await scrollToSelectedWatchedEpisode();
             } catch (e) {
                 console.error('Failed to load series episodes', e);
             } finally {
@@ -637,8 +742,14 @@ createApp({
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
                 searchQuery.value = '';
-                selectedSeriesSeason.value = modeState.selectedSeason || '';
+                selectedSeriesSeason.value = resolvePreferredSeriesSeason(episodes.value, modeState.selectedSeason || '', {
+                    season: modeState.selectedSeason,
+                    episodeId: modeState.selectedEpisodeId,
+                    episodeNum: modeState.selectedEpisodeNum,
+                    episodeName: modeState.selectedEpisodeName
+                });
                 ensureSeriesSeasonSelected();
+                await scrollToSelectedWatchedEpisode();
             } catch (e) {
                 console.error('Failed to load series children', e);
             } finally {
@@ -795,6 +906,10 @@ createApp({
             ...row,
             key: String(row.key || `${row.accountId || ''}|${row.seriesId || ''}`),
             categoryDbId: String(row.categoryDbId || ''),
+            episodeId: String(row.episodeId || ''),
+            episodeName: String(row.episodeName || ''),
+            season: String(row.season || ''),
+            episodeNum: String(row.episodeNum || ''),
             seriesPoster: resolveLogoUrl(row.seriesPoster),
             episodes: Array.isArray(row.episodes) ? row.episodes.map(normalizeChannel) : []
         });
@@ -993,6 +1108,11 @@ createApp({
             currentContext.value.accountId = row.accountId || null;
             currentContext.value.accountType = row.accountType || null;
             currentContext.value.categoryId = row.categoryDbId || row.categoryId || '';
+            const seriesState = getModeState('series');
+            seriesState.selectedSeason = String(row.season || '');
+            seriesState.selectedEpisodeId = String(row.episodeId || '');
+            seriesState.selectedEpisodeNum = String(row.episodeNum || '');
+            seriesState.selectedEpisodeName = String(row.episodeName || '');
             viewState.value = 'channels';
             await handleChannelSelection({
                 channelId: row.seriesId || '',
@@ -1332,6 +1452,12 @@ createApp({
                 const modeState = getModeState('series');
                 modeState.selectedSeriesId = String(seriesId || '');
                 modeState.selectedSeriesCategoryId = String(channel?.categoryId || currentContext.value.categoryId || '');
+                if (!watchingNowDrilldown.value) {
+                    modeState.selectedSeason = '';
+                    modeState.selectedEpisodeId = '';
+                    modeState.selectedEpisodeNum = '';
+                    modeState.selectedEpisodeName = '';
+                }
                 modeState.detail = {
                     name: channel.name || 'Series',
                     cover: resolveLogoUrl(channel.logo),
@@ -2143,6 +2269,7 @@ createApp({
             selectSeriesSeason,
             getEpisodeDisplayTitle,
             getEpisodeSubtitle,
+            getSeriesEpisodeAnchorId,
             getImdbUrl,
             formatShortDate,
             playVodFromDetail,

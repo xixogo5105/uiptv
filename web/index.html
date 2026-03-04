@@ -341,7 +341,14 @@
                                     <div class="title">{{ listLoadingMessage }}</div>
                                 </div>
                             </div>
-                            <div v-if="!listLoading" v-for="(episode, idx) in filteredSeriesEpisodes" :key="episode.dbId || episode.channelId || episode.id" class="card-item episode-row-card" @click="playChannel(episode)">
+                            <div
+                                    v-if="!listLoading"
+                                    v-for="(episode, idx) in filteredSeriesEpisodes"
+                                    :key="episode.dbId || episode.channelId || episode.id"
+                                    :id="getSeriesEpisodeAnchorId(episode)"
+                                    :data-watched="episode.watched ? '1' : '0'"
+                                    class="card-item episode-row-card"
+                                    @click="playChannel(episode)">
                                 <img v-if="episode.logo" :src="episode.logo" @load="imageLoad" @error="imageError" alt="logo" class="episode-row-thumb">
                                 <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
                                 <div class="content-wrapper">
@@ -526,7 +533,7 @@
     </div>
 </div>
 
-<script src="/javascript/spa.js?v=20260224a"></script>
+<script src="/javascript/spa.js?v=20260304d"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

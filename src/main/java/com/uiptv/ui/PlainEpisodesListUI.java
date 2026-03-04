@@ -147,6 +147,16 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         tableView.refresh();
     }
 
+    @Override
+    protected void navigateToEpisodeTarget(String season, String episodeId, String episodeNumber, String episodeName) {
+        EpisodeItem match = findBestEpisodeMatch(season, episodeId, episodeNumber, episodeName);
+        if (match == null) {
+            return;
+        }
+        tableView.getSelectionModel().select(match);
+        tableView.scrollTo(match);
+    }
+
     private void applyTableFilter() {
         if (allEpisodeItems.isEmpty()) {
             setEmptyState("No episodes found.", true);

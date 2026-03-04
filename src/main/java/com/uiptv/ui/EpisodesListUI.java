@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -12,6 +13,7 @@ public class EpisodesListUI extends HBox {
     private final String seriesCategoryId;
     private BaseEpisodesListUI delegate;
     private EpisodeList lastEpisodeList;
+    private SeriesWatchState lastWatchedState;
     private boolean loadingCompleteCalled = false;
     private boolean thumbnailListenerRegistered = false;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
@@ -48,6 +50,11 @@ public class EpisodesListUI extends HBox {
         if (delegate instanceof ThumbnailEpisodesListUI thumbnail) {
             thumbnail.applyWatchingNowDetailStyling();
         }
+    }
+
+    public void navigateToLastWatched(SeriesWatchState state) {
+        lastWatchedState = state;
+        delegate.navigateToLastWatched(state);
     }
 
     public boolean canReloadFromServer() {
@@ -89,6 +96,9 @@ public class EpisodesListUI extends HBox {
         delegate = next;
         if (lastEpisodeList != null) {
             delegate.setItems(lastEpisodeList);
+        }
+        if (lastWatchedState != null) {
+            delegate.navigateToLastWatched(lastWatchedState);
         }
         if (loadingCompleteCalled) {
             delegate.setLoadingComplete();

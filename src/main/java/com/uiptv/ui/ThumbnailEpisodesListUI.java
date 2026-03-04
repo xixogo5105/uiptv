@@ -59,6 +59,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private VBox selectedEpisodeCard;
     private boolean watchingNowDetailStylingApplied = false;
     private VBox bodyContainer;
+    private final Map<EpisodeItem, VBox> renderedCardsByItem = new HashMap<>();
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -147,6 +148,50 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void onWatchedStatesRefreshed() {
         applySeasonFilter();
+    }
+
+    @Override
+    protected void navigateToEpisodeTarget(String season, String episodeId, String episodeNumber, String episodeName) {
+        String requestedSeason = normalizeNumber(season);
+        if (!isBlank(requestedSeason)) {
+            Tab requestedSeasonTab = seasonTabPane.getTabs().stream()
+                    .filter(t -> requestedSeason.equals(normalizeNumber(String.valueOf(t.getUserData()))))
+                    .findFirst()
+                    .orElse(null);
+            if (requestedSeasonTab != null) {
+                seasonTabPane.getSelectionModel().select(requestedSeasonTab);
+            }
+        }
+
+        EpisodeItem match = findBestEpisodeMatch(season, episodeId, episodeNumber, episodeName);
+        if (match == null) {
+            return;
+        }
+
+        String targetSeason = normalizeNumber(match.getSeason());
+        if (!isBlank(targetSeason)) {
+            Tab seasonTab = seasonTabPane.getTabs().stream()
+                    .filter(t -> targetSeason.equals(normalizeNumber(String.valueOf(t.getUserData()))))
+                    .findFirst()
+                    .orElse(null);
+            if (seasonTab != null) {
+                seasonTabPane.getSelectionModel().select(seasonTab);
+            }
+        }
+
+        applySeasonFilter();
+        VBox card = renderedCardsByItem.get(match);
+        if (card == null) {
+            return;
+        }
+        setSelectedEpisodeCard(card);
+        int index = cardsContainer.getChildren().indexOf(card);
+        int size = cardsContainer.getChildren().size();
+        if (index >= 0 && size > 1) {
+            cardsScroll.setVvalue((double) index / (double) (size - 1));
+        } else {
+            cardsScroll.setVvalue(0.0);
+        }
     }
 
     private void initHeader() {
@@ -326,6 +371,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         setEmptyState("", false);
         selectedEpisodeCard = null;
+        renderedCardsByItem.clear();
         String season = selectedSeason();
         List<EpisodeItem> filtered;
         if (isBlank(season)) {
@@ -340,7 +386,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         for (EpisodeItem item : filtered) {
-            cardsContainer.getChildren().add(createEpisodeCard(item));
+            VBox card = createEpisodeCard(item);
+            renderedCardsByItem.put(item, card);
+            cardsContainer.getChildren().add(card);
         }
     }
 

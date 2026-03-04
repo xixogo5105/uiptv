@@ -616,6 +616,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data.episodeList != null) {
             episodesListUI.setItems(data.episodeList);
         }
+        episodesListUI.navigateToLastWatched(data.state);
         episodesListUI.setLoadingComplete();
         body.getChildren().add(episodesListUI);
         VBox.setVgrow(body, Priority.ALWAYS);
