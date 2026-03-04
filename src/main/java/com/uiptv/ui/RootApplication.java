@@ -7,19 +7,15 @@ import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
 import com.uiptv.ui.main.WideMainApplicationUI;
-import com.uiptv.widget.MainWindowDecorator;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
-import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -94,22 +90,16 @@ public class RootApplication extends Application {
 
         BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
         Scene scene = mainUiRoute.buildScene();
-        primaryStage.initStyle(StageStyle.TRANSPARENT);
-
-        Parent contentRoot = scene.getRoot();
-        scene.setRoot(MainWindowDecorator.wrap(primaryStage, "UIPTV", contentRoot));
-        scene.setFill(Color.TRANSPARENT);
-        configureFontStyles(scene);
 
         primaryStage.setOnCloseRequest(event -> {
             Platform.exit();
             System.exit(0);
         });
         primaryStage.setTitle("UIPTV");
+        primaryStage.setMaximized(true);
         primaryStage.setScene(scene);
         primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
         primaryStage.show();
-        primaryStage.setMaximized(true);
     }
 
     private BaseMainApplicationUI selectMainUiRoute(boolean embeddedEnabled, boolean embeddedWideViewEnabled) {
