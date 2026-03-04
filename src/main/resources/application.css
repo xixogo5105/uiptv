@@ -434,13 +434,13 @@
 }
 
 .dialog-pane {
-    -fx-background-color: #e6e8eb;
-    -fx-border-color: #bcc2c9;
+    -fx-background-color: #efefef;
+    -fx-border-color: #d6d6d6;
     -fx-border-width: 1;
 }
 
 .dialog-pane > .header-panel {
-    -fx-background-color: #d8dde3;
+    -fx-background-color: #e3e5e8;
 }
 
 .dialog-pane > .header-panel .label {
@@ -453,8 +453,8 @@
 }
 
 .custom-dialog-root {
-    -fx-background-color: #e6e8eb;
-    -fx-border-color: #bcc2c9;
+    -fx-background-color: #efefef;
+    -fx-border-color: #d6d6d6;
     -fx-border-width: 1;
     -fx-background-radius: 10;
     -fx-border-radius: 10;
@@ -463,6 +463,7 @@
 }
 
 .custom-dialog-header {
+    -fx-background-color: #e3e5e8;
     -fx-padding: 0 0 4 0;
 }
 
@@ -489,8 +490,8 @@
 }
 
 .custom-popup-root {
-    -fx-background-color: #e6e8eb;
-    -fx-border-color: #bcc2c9;
+    -fx-background-color: #efefef;
+    -fx-border-color: #d6d6d6;
     -fx-border-width: 1;
     -fx-background-radius: 10;
     -fx-border-radius: 10;
@@ -500,6 +501,7 @@
 }
 
 .custom-popup-header {
+    -fx-background-color: #e3e5e8;
     -fx-padding: 0 0 6 0;
 }
 
@@ -515,4 +517,37 @@
     -fx-min-height: 28;
     -fx-pref-height: 28;
     -fx-font-size: 12px;
+}
+
+.main-window-root {
+    -fx-background-color: #efefef;
+    -fx-border-color: #d6d6d6;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+}
+
+.main-window-header {
+    -fx-background-color: #e3e5e8;
+    -fx-padding: 6 10 6 10;
+    -fx-background-radius: 10 10 0 0;
+}
+
+.main-window-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.main-window-control {
+    -fx-min-width: 28;
+    -fx-pref-width: 28;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-font-size: 11px;
+}
+
+.main-window-control-close {
+    -fx-text-fill: #b71c1c;
 }
