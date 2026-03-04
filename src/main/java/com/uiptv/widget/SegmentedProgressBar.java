@@ -23,8 +23,6 @@ public class SegmentedProgressBar extends HBox {
         setMaxHeight(20);
         setAlignment(Pos.CENTER_LEFT);
         getStyleClass().add("progress-bar-container");
-        // Use theme-aware colors
-        setStyle("-fx-background-color: -fx-control-inner-background; -fx-padding: 2; -fx-border-color: -fx-box-border; -fx-border-width: 1; -fx-border-radius: 3;");
     }
 
     public void setTotal(int total) {
@@ -36,8 +34,7 @@ public class SegmentedProgressBar extends HBox {
                     Region segment = new Region();
                     HBox.setHgrow(segment, Priority.ALWAYS);
                     segment.getStyleClass().add("progress-bar-segment");
-                    // Use theme-aware colors
-                    segment.setStyle("-fx-background-color: derive(-fx-control-inner-background, -10%); -fx-background-radius: 0;");
+                    segment.getStyleClass().add("progress-bar-segment-default");
                     getChildren().add(segment);
                 }
             }
@@ -54,12 +51,7 @@ public class SegmentedProgressBar extends HBox {
                 Node node = getChildren().get(index);
                 if (node instanceof Region) {
                     SegmentStatus effective = status == null ? SegmentStatus.FAILURE : status;
-                    String color = switch (effective) {
-                        case SUCCESS -> "#4CAF50";
-                        case WARNING -> "#F59E0B";
-                        case FAILURE -> "#F44336";
-                    };
-                    node.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 0;");
+                    node.getStyleClass().removeAll("progress-bar-segment-default", "success", "warning", "failure");
                     node.getStyleClass().add(switch (effective) {
                         case SUCCESS -> "success";
                         case WARNING -> "warning";

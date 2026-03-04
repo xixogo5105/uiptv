@@ -6,6 +6,7 @@ UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Li
 Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64).
 
 A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
+CSS/theming guide: [CSS_APPLICATION_GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/CSS_APPLICATION_GUIDE.md)
 
 [![Download](https://img.shields.io/badge/Download-Latest%20Release-brightgreen)](https://github.com/xixogo5105/uiptv/releases/latest)
 
@@ -28,7 +29,7 @@ A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/
 - **Watching Now + Series Resume**: Track watched series/episodes and continue from where you left off on desktop and web.
 - **VOD/Series Metadata**: Enhanced details for movies/series including richer cards and IMDb-oriented metadata flows.
 - **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
-- **Dark Mode/Styling**: A limited set of built-in styling options is available, allowing users to change the font, size, and weight. A dark mode is also included, which applies to all components.
+- **Dark Mode/Styling**: Built-in light/dark themes are included, and users can override each theme with full CSS files from Settings. See [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 - **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.
   - **SPA Routes**: Main UI is served from `/` and `/index.html` with additional views (`/myflix.html`, `/player.html`).
   - **Extra Endpoints**: Includes playlist exports (`/iptv.m3u`, `/iptv.m3u8`) and bookmarks playlist (`/bookmarks.m3u8`).

@@ -18,8 +18,6 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -483,7 +481,7 @@ public class ReloadCachePopup extends VBox {
 
         Label warningLabel = new Label("The following accounts are flagged as BAD or YELLOW. Select the ones you want to delete.");
         warningLabel.setWrapText(true);
-        warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        warningLabel.getStyleClass().add("reload-warning-label");
 
         VBox accountsBox = new VBox(5);
         ScrollPane scrollPane = new ScrollPane(accountsBox);

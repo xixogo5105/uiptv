@@ -88,6 +88,10 @@
     -fx-background-color: #4CAF50; /* Green for success */
 }
 
+.progress-bar-segment.warning {
+    -fx-background-color: #F59E0B; /* Amber for warning */
+}
+
 .progress-bar-segment.failure {
     -fx-background-color: #F44336; /* Red for failure */
 }
@@ -515,4 +519,82 @@
     -fx-min-height: 28;
     -fx-pref-height: 28;
     -fx-font-size: 12px;
+}
+
+/* ==========================================================================
+   Global Style Hooks
+   Keep these selectors in both light and dark stylesheets so user overrides
+   can target every component class consistently.
+   ========================================================================== */
+
+.uiptv-node {}
+.uiptv-control {}
+.uiptv-v-box {}
+.uiptv-h-box {}
+.uiptv-border-pane {}
+.uiptv-stack-pane {}
+.uiptv-flow-pane {}
+.uiptv-tile-pane {}
+.uiptv-grid-pane {}
+.uiptv-region {}
+.uiptv-group {}
+.uiptv-label {}
+.uiptv-text {}
+.uiptv-text-flow {}
+.uiptv-button {}
+.uiptv-hyperlink {}
+.uiptv-text-field {}
+.uiptv-text-area {}
+.uiptv-password-field {}
+.uiptv-check-box {}
+.uiptv-radio-button {}
+.uiptv-combo-box {}
+.uiptv-list-view {}
+.uiptv-list-cell {}
+.uiptv-table-view {}
+.uiptv-table-row-cell {}
+.uiptv-table-cell {}
+.uiptv-tree-view {}
+.uiptv-tree-cell {}
+.uiptv-tree-table-view {}
+.uiptv-scroll-pane {}
+.uiptv-tab-pane {}
+.uiptv-split-pane {}
+.uiptv-accordion {}
+.uiptv-titled-pane {}
+.uiptv-menu-bar {}
+.uiptv-menu-button {}
+.uiptv-pagination {}
+.uiptv-slider {}
+.uiptv-progress-indicator {}
+.uiptv-progress-bar {}
+.uiptv-separator {}
+.uiptv-image-view {}
+.uiptv-svg-path {}
+
+/* Dedicated hooks used by custom widgets and player controls. */
+.progress-bar-segment-default {
+    -fx-background-color: derive(-fx-control-inner-background, -10%);
+    -fx-background-radius: 0;
+}
+
+.default-channel-icon-shape {
+    -fx-background-color: -fx-text-fill;
+}
+
+.player-stream-info-text {
+    -fx-fill: white;
+}
+
+.player-hiddenbar-close-icon {
+    -fx-stroke: white;
+    -fx-stroke-width: 2;
+}
+
+.player-pip-restore-button {
+}
+
+.reload-warning-label {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
 }

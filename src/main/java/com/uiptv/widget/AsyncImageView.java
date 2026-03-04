@@ -41,8 +41,7 @@ public class AsyncImageView extends StackPane {
         defaultIcon.setMaxSize(IMAGE_VIEW_WIDTH - 12, IMAGE_VIEW_HEIGHT - 12);
         defaultIcon.setMinSize(IMAGE_VIEW_WIDTH - 12, IMAGE_VIEW_HEIGHT - 12);
         defaultIcon.setPrefSize(IMAGE_VIEW_WIDTH - 12, IMAGE_VIEW_HEIGHT - 12);
-        // Set background color to apply to the shape
-        defaultIcon.setStyle("-fx-background-color: -fx-text-fill;");
+        defaultIcon.getStyleClass().add("default-channel-icon-shape");
 
         getChildren().addAll(defaultIcon, imageView);
     }

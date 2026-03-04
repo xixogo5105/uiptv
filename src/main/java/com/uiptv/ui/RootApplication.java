@@ -9,6 +9,8 @@ import com.uiptv.ui.main.MainApplicationUI;
 import com.uiptv.ui.main.WideMainApplicationUI;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.StyleClassDecorator;
+import com.uiptv.util.ThemeStylesheetResolver;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
@@ -21,7 +23,6 @@ import java.io.PrintStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
-import static com.uiptv.util.StringUtils.isNotBlank;
 import static java.lang.System.exit;
 
 public class RootApplication extends Application {
@@ -135,24 +136,12 @@ public class RootApplication extends Application {
 
     private void configureFontStyles(Scene scene) {
         Configuration configuration = configurationService.read();
-        StringBuilder customStylesheet = new StringBuilder();
-
-        if (isNotBlank(configuration.getFontFamily())) {
-            customStylesheet.append("-fx-font-family: ").append(configuration.getFontFamily()).append(";");
-        }
-        if (isNotBlank(configuration.getFontSize())) {
-            customStylesheet.append("-fx-font-size: ").append(configuration.getFontSize()).append(";");
-        }
-        if (isNotBlank(configuration.getFontWeight())) {
-            customStylesheet.append("-fx-font-weight: ").append(configuration.getFontWeight()).append(";");
-        }
 
         scene.getStylesheets().clear();
-        String themeFileName = configuration.isDarkTheme() ? "dark-application.css" : "application.css";
-        java.net.URL themeUrl = getClass().getResource("/" + themeFileName);
-        currentTheme = themeUrl != null ? themeUrl.toExternalForm() : themeFileName;
+        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), configuration.isDarkTheme());
         scene.getStylesheets().add(currentTheme);
         scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle(customStylesheet.toString());
+        scene.getRoot().setStyle("");
+        StyleClassDecorator.decorate(scene.getRoot());
     }
 }

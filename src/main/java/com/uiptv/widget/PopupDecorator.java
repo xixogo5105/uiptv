@@ -1,5 +1,6 @@
 package com.uiptv.widget;
 
+import com.uiptv.util.StyleClassDecorator;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -39,6 +40,7 @@ public final class PopupDecorator {
         }
 
         installDragSupport(stage, header);
+        StyleClassDecorator.decorate(root);
         return root;
     }
 
@@ -54,4 +56,3 @@ public final class PopupDecorator {
         });
     }
 }
-

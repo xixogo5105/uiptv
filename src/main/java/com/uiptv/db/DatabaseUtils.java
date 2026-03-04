@@ -7,6 +7,7 @@ public class DatabaseUtils {
 
     public enum DbTable {
         CONFIGURATION_TABLE("Configuration"),
+        THEME_CSS_OVERRIDE_TABLE("ThemeCssOverride"),
         ACCOUNT_TABLE("Account"),
         BOOKMARK_TABLE("Bookmark"),
         CATEGORY_TABLE("Category"),
@@ -53,9 +54,6 @@ public class DatabaseUtils {
                 new DataColumn("filterCategoriesList", "TEXT"),
                 new DataColumn("filterChannelsList", "TEXT"),
                 new DataColumn("pauseFiltering", "TEXT"),
-                new DataColumn("fontFamily", "TEXT"),
-                new DataColumn("fontSize", "TEXT"),
-                new DataColumn("fontWeight", "TEXT"),
                 new DataColumn("darkTheme", "TEXT"),
                 new DataColumn("serverPort", "TEXT"),
                 new DataColumn("embeddedPlayer", "TEXT"),
@@ -63,6 +61,14 @@ public class DatabaseUtils {
                 new DataColumn("cacheExpiryDays", "TEXT"),
                 new DataColumn("enableThumbnails", "TEXT"),
                 new DataColumn("wideView", "TEXT")
+        )));
+        dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("lightThemeCssName", "TEXT"),
+                new DataColumn("lightThemeCssContent", "TEXT"),
+                new DataColumn("darkThemeCssName", "TEXT"),
+                new DataColumn("darkThemeCssContent", "TEXT"),
+                new DataColumn("updatedAt", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

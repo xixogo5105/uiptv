@@ -98,9 +98,6 @@ public class ConfigurationDb extends BaseDb {
                 nullSafeString(resultSet, "filterCategoriesList"),
                 nullSafeString(resultSet, "filterChannelsList"),
                 safeBoolean(resultSet, "pauseFiltering"),
-                nullSafeString(resultSet, "fontFamily"),
-                nullSafeString(resultSet, "fontSize"),
-                nullSafeString(resultSet, "fontWeight"),
                 safeBoolean(resultSet, "darkTheme"),
                 nullSafeString(resultSet, "serverPort"),
                 safeBoolean(resultSet, "embeddedPlayer"),
@@ -127,7 +124,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(18, current.getDbId());
+                statement.setString(15, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new RuntimeException("Unable to execute update query", e);
@@ -152,15 +149,12 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(5, configuration.getFilterCategoriesList());
         statement.setString(6, configuration.getFilterChannelsList());
         statement.setString(7, configuration.isPauseFiltering() ? "1" : "0");
-        statement.setString(8, configuration.getFontFamily());
-        statement.setString(9, configuration.getFontSize());
-        statement.setString(10, configuration.getFontWeight());
-        statement.setString(11, configuration.isDarkTheme() ? "1" : "0");
-        statement.setString(12, configuration.getServerPort());
-        statement.setString(13, configuration.isEmbeddedPlayer() ? "1" : "0");
-        statement.setString(14, configuration.isEnableFfmpegTranscoding() ? "1" : "0");
-        statement.setString(15, configuration.getCacheExpiryDays());
-        statement.setString(16, configuration.isEnableThumbnails() ? "1" : "0");
-        statement.setString(17, configuration.isWideView() ? "1" : "0");
+        statement.setString(8, configuration.isDarkTheme() ? "1" : "0");
+        statement.setString(9, configuration.getServerPort());
+        statement.setString(10, configuration.isEmbeddedPlayer() ? "1" : "0");
+        statement.setString(11, configuration.isEnableFfmpegTranscoding() ? "1" : "0");
+        statement.setString(12, configuration.getCacheExpiryDays());
+        statement.setString(13, configuration.isEnableThumbnails() ? "1" : "0");
+        statement.setString(14, configuration.isWideView() ? "1" : "0");
     }
 }

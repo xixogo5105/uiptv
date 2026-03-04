@@ -43,3 +43,5 @@
 0163_add_series_watch_state_series_episode_snapshot.sql
 0164_add_configuration_enable_thumbnails.sql
 0165_add_configuration_wide_view.sql
+0166_create_theme_css_override_table.sql
+0167_drop_configuration_font_fields.sql

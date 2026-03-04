@@ -7,14 +7,22 @@ CREATE TABLE IF NOT EXISTS Configuration (
     filterCategoriesList TEXT,
     filterChannelsList TEXT,
     pauseFiltering TEXT,
-    fontFamily TEXT,
-    fontSize TEXT,
-    fontWeight TEXT,
     darkTheme TEXT,
     serverPort TEXT,
     embeddedPlayer TEXT,
     enableFfmpegTranscoding TEXT,
-    cacheExpiryDays TEXT
+    cacheExpiryDays TEXT,
+    enableThumbnails TEXT,
+    wideView TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ThemeCssOverride (
+    id INTEGER PRIMARY KEY,
+    lightThemeCssName TEXT,
+    lightThemeCssContent TEXT,
+    darkThemeCssName TEXT,
+    darkThemeCssContent TEXT,
+    updatedAt TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Account (

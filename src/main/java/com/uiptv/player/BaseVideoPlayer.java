@@ -5,6 +5,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.PlayerService;
+import com.uiptv.util.StyleClassDecorator;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -137,7 +138,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         nowShowingFlow = new TextFlow();
         nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
         streamInfoText = new Text();
-        streamInfoText.setFill(Color.WHITE);
+        streamInfoText.getStyleClass().add("player-stream-info-text");
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
@@ -191,7 +192,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         timeSlider.getStyleClass().add("video-player-slider");
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
         timeLabel = new Label("00:00 / 00:00");
-        timeLabel.setTextFill(Color.WHITE);
         timeLabel.getStyleClass().add("player-time-label");
 
         HBox timeRow = new HBox(5);
@@ -223,7 +223,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         loadingSpinner.setVisible(false);
 
         errorLabel = new Label();
-        errorLabel.setTextFill(Color.WHITE);
         errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("player-error-label");
         errorLabel.setVisible(false);
@@ -247,7 +246,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         Label msgLabel = new Label("Control bar is hidden. Right click mouse button or press 'B' on your keyboard to show it again");
         msgLabel.setWrapText(true);
-        msgLabel.setTextFill(Color.WHITE);
         msgLabel.getStyleClass().add("player-hiddenbar-message-label");
         
         messageBox.getChildren().add(msgLabel);
@@ -256,8 +254,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         Button msgCloseBtn = new Button();
         SVGPath closeIcon = new SVGPath();
         closeIcon.setContent("M 4 4 L 12 12 M 4 12 L 12 4"); // Simple X shape
-        closeIcon.setStroke(Color.WHITE);
-        closeIcon.setStrokeWidth(2);
+        closeIcon.getStyleClass().add("player-hiddenbar-close-icon");
         msgCloseBtn.setGraphic(closeIcon);
         msgCloseBtn.getStyleClass().add("player-round-control-button");
         msgCloseBtn.setPadding(new Insets(8)); // Bigger hit area
@@ -550,7 +547,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         nowShowingFlow.getChildren().clear();
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
             Text channelNameText = new Text(currentChannel.getName());
-            channelNameText.setFill(Color.YELLOW);
             channelNameText.getStyleClass().add("player-channel-title");
             streamInfoText.setText("");
             nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
@@ -808,6 +804,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
             Scene scene = new Scene(playerContainer, bounds.getWidth(), bounds.getHeight());
             scene.setFill(Color.BLACK);
+            StyleClassDecorator.decorate(playerContainer);
             fullscreenStage.setScene(scene);
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
@@ -878,6 +875,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
             StackPane pipRoot = new StackPane();
             pipRoot.getStyleClass().add("player-container");
+            StyleClassDecorator.decorate(pipRoot);
 
             Button restoreButton = new Button();
             if (pipExitIcon != null && pipExitIcon.getImage() != null) {
@@ -891,7 +889,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restoreButton.setGraphic(restoreIconView);
             } else {
                 restoreButton.setText("Restore");
-                restoreButton.setTextFill(Color.WHITE);
+                restoreButton.getStyleClass().add("player-pip-restore-button");
             }
             restoreButton.getStyleClass().add("player-round-control-button");
             restoreButton.setPadding(new Insets(15));

@@ -1,6 +1,7 @@
 package com.uiptv.widget;
 
 import com.uiptv.ui.RootApplication;
+import com.uiptv.util.StyleClassDecorator;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -134,6 +135,7 @@ public final class ThemedDialogs {
         VBox root = new VBox(10, header, contentLabel, buttonRow);
         root.setPadding(new Insets(12));
         root.getStyleClass().add("custom-dialog-root");
+        StyleClassDecorator.decorate(root);
 
         Scene scene = new Scene(root, 500, Region.USE_COMPUTED_SIZE);
         scene.setFill(Color.TRANSPARENT);

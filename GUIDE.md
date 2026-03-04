@@ -55,6 +55,8 @@ Key highlights include:
 - **Live TV + VOD + Series**: Unified content modes with watched-state/resume flows.
 - **Privacy & Control**: Robust filtering options to hide unwanted content and local caching for performance.
 
+For advanced desktop theming, see [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
+
 ---
 
 ## 2. Installation
@@ -141,8 +143,9 @@ Keep your channel list clean and safe:
 
 ### Appearance & Styling
 Make UIPTV look the way you want:
-- **Font Settings**: Adjust the font family, size, and weight to suit your readability preferences.
 - **Dark Theme**: Enable this for a modern, eye-friendly dark interface.
+- **Theme CSS Overrides**: Upload custom light/dark CSS files from Settings -> Theme.
+- **Template Export**: Download default light/dark CSS files and use them as baseline templates.
 - **Thumbnails**: Enable/disable thumbnail-heavy series and watching-now cards.
 
 ### Cache Management

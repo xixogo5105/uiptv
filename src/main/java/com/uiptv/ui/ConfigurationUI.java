@@ -3,12 +3,15 @@ package com.uiptv.ui;
 import com.uiptv.api.Callback;
 import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.ThemeCssOverrideService;
+import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.PopupDecorator;
@@ -34,6 +37,8 @@ import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
@@ -64,9 +69,15 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
     private final CheckBox enableThumbnailsCheckBox = new CheckBox("Enable thumbnails");
     private final CheckBox wideViewCheckBox = new CheckBox("Wide View");
-    private final UIptvText fontFamily = new UIptvText("fontFamily", "Font family. e.g. 'Helvetica', Arial, sans-serif.", 5);
-    private final UIptvText fontSize = new UIptvText("fontSize", "Font size. e.g. 13pt", 5);
-    private final UIptvText fontWeight = new UIptvText("fontWeight", "Font weight. e.g. bold", 5);
+    private final TextField lightThemeCssStatus = new TextField("Default resource in use");
+    private final TextField darkThemeCssStatus = new TextField("Default resource in use");
+    private final Button uploadLightThemeCssButton = new Button("Upload Light CSS");
+    private final Button uploadDarkThemeCssButton = new Button("Upload Dark CSS");
+    private final Hyperlink downloadLightThemeCssLink = new Hyperlink("Light Css");
+    private final Hyperlink downloadDarkThemeCssLink = new Hyperlink("Dark Css");
+    private final Button resetThemeOverridesButton = new Button("Reset Theme Overrides");
+    private final FileChooser cssFileChooser = new FileChooser();
+    private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
     private final UIptvText serverPort = new UIptvText("serverPort", "e.g. 8888", 3);
     private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "Cache expiry in days (numbers only, default 30)", 5);
 
@@ -79,6 +90,7 @@ public class ConfigurationUI extends VBox {
     private final ProminentButton saveButton = new ProminentButton("Save");
     private final Callback onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
+    private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private Timeline serverStatusTimeline;
     private Timeline saveSuccessTimeline;
@@ -94,6 +106,11 @@ public class ConfigurationUI extends VBox {
         startServerButton.getStyleClass().add("no-dim-disabled");
         contentContainer.setPadding(new Insets(5));
         contentContainer.setSpacing(10);
+        cssFileChooser.setTitle("Select CSS file");
+        cssFileChooser.getExtensionFilters().setAll(
+                new FileChooser.ExtensionFilter("CSS files", "*.css"),
+                new FileChooser.ExtensionFilter("All files", "*.*")
+        );
 
         ScrollPane scrollPane = new ScrollPane(contentContainer);
         scrollPane.setFitToWidth(true);
@@ -105,6 +122,7 @@ public class ConfigurationUI extends VBox {
         getChildren().setAll(scrollPane);
 
         Configuration configuration = service.read();
+        currentThemeCssOverride = themeCssOverrideService.read();
         defaultPlayer1.setToggleGroup(group);
         defaultPlayer2.setToggleGroup(group);
         defaultPlayer3.setToggleGroup(group);
@@ -138,9 +156,6 @@ public class ConfigurationUI extends VBox {
                 defaultEmbedPlayer.setSelected(true);
             }
             filterPausedCheckBox.setSelected(configuration.isPauseFiltering());
-            fontFamily.setText(configuration.getFontFamily());
-            fontWeight.setText(configuration.getFontWeight());
-            fontSize.setText(configuration.getFontSize());
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
             wideViewCheckBox.setSelected(configuration.isWideView());
@@ -188,7 +203,8 @@ public class ConfigurationUI extends VBox {
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
-        VBox fontGroup = new VBox(10, fontFamily, fontSize, fontWeight, darkThemeCheckBox, enableThumbnailsCheckBox);
+        VBox themeOverridesGroup = buildThemeOverrideGroup();
+        updateThemeCssStatusLabels();
 
         HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
@@ -204,7 +220,7 @@ public class ConfigurationUI extends VBox {
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane("Players", "Add player paths and select the matching radio button to set the default player.", playersGroup, false),
                 createCollapsibleGroupPane("Filters", null, filtersGroup, true),
-                createCollapsibleGroupPane("Font & Theme", null, fontGroup, false),
+                createCollapsibleGroupPane("Theme", "Dark mode and optional CSS file overrides.", themeOverridesGroup, true),
                 createCollapsibleGroupPane("Cache & Filtering", null, cacheGroup, false),
                 createCollapsibleGroupPane("FFmpeg & Web Server", null, serverGroup, false),
                 saveButton
@@ -270,6 +286,112 @@ public class ConfigurationUI extends VBox {
         pane.setPadding(new Insets(10));
         pane.getStyleClass().add("uiptv-card");
         return pane;
+    }
+
+    private VBox buildThemeOverrideGroup() {
+        lightThemeCssStatus.setEditable(false);
+        darkThemeCssStatus.setEditable(false);
+        lightThemeCssStatus.setFocusTraversable(false);
+        darkThemeCssStatus.setFocusTraversable(false);
+        lightThemeCssStatus.setMaxWidth(Double.MAX_VALUE);
+        darkThemeCssStatus.setMaxWidth(Double.MAX_VALUE);
+
+        HBox lightUploadRow = new HBox(8, lightThemeCssStatus, uploadLightThemeCssButton);
+        HBox.setHgrow(lightThemeCssStatus, Priority.ALWAYS);
+        lightUploadRow.setFillHeight(true);
+        lightUploadRow.setMaxWidth(Double.MAX_VALUE);
+        VBox lightBox = new VBox(6, new Label("Light Theme CSS Override"), lightUploadRow);
+
+        HBox darkUploadRow = new HBox(8, darkThemeCssStatus, uploadDarkThemeCssButton);
+        HBox.setHgrow(darkThemeCssStatus, Priority.ALWAYS);
+        darkUploadRow.setFillHeight(true);
+        darkUploadRow.setMaxWidth(Double.MAX_VALUE);
+        VBox darkBox = new VBox(6, new Label("Dark Theme CSS Override"), darkUploadRow);
+
+        Label downloadLabel = new Label("Download:");
+        HBox downloadRow = new HBox(8, downloadLabel, downloadLightThemeCssLink, downloadDarkThemeCssLink);
+        downloadRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        downloadRow.setMaxWidth(Double.MAX_VALUE);
+
+        VBox themeCssSection = new VBox(10, lightBox, darkBox, downloadRow, resetThemeOverridesButton);
+        themeCssSection.getStyleClass().add("uiptv-outline-pane");
+        themeCssSection.setMaxWidth(Double.MAX_VALUE);
+
+        addThemeCssButtonHandlers();
+        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeCssSection);
+    }
+
+    private void addThemeCssButtonHandlers() {
+        uploadLightThemeCssButton.setOnAction(event -> uploadThemeCss(false));
+        uploadDarkThemeCssButton.setOnAction(event -> uploadThemeCss(true));
+        downloadLightThemeCssLink.setOnAction(event -> downloadDefaultThemeCss(false));
+        downloadDarkThemeCssLink.setOnAction(event -> downloadDefaultThemeCss(true));
+        resetThemeOverridesButton.setOnAction(event -> resetThemeOverrides());
+    }
+
+    private void uploadThemeCss(boolean darkTheme) {
+        File file = cssFileChooser.showOpenDialog(RootApplication.primaryStage);
+        if (file == null) {
+            return;
+        }
+        try {
+            String cssContents = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            if (darkTheme) {
+                currentThemeCssOverride.setDarkThemeCssName(file.getName());
+                currentThemeCssOverride.setDarkThemeCssContent(cssContents);
+            } else {
+                currentThemeCssOverride.setLightThemeCssName(file.getName());
+                currentThemeCssOverride.setLightThemeCssContent(cssContents);
+            }
+            updateThemeCssStatusLabels();
+        } catch (Exception e) {
+            showErrorAlert("Unable to read CSS file.");
+        }
+    }
+
+    private void clearThemeCssOverride(boolean darkTheme) {
+        if (darkTheme) {
+            currentThemeCssOverride.setDarkThemeCssName(null);
+            currentThemeCssOverride.setDarkThemeCssContent(null);
+        } else {
+            currentThemeCssOverride.setLightThemeCssName(null);
+            currentThemeCssOverride.setLightThemeCssContent(null);
+        }
+        updateThemeCssStatusLabels();
+    }
+
+    private void resetThemeOverrides() {
+        clearThemeCssOverride(false);
+        clearThemeCssOverride(true);
+    }
+
+    private void downloadDefaultThemeCss(boolean darkTheme) {
+        try {
+            String cssContent = ThemeStylesheetResolver.readDefaultStylesheetContent(getClass(), darkTheme);
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Save CSS template");
+            chooser.getExtensionFilters().setAll(new FileChooser.ExtensionFilter("CSS files", "*.css"));
+            chooser.setInitialFileName(darkTheme ? "dark-application.css" : "application.css");
+            File target = chooser.showSaveDialog(RootApplication.primaryStage);
+            if (target == null) {
+                return;
+            }
+            Files.writeString(target.toPath(), cssContent, StandardCharsets.UTF_8);
+            showMessageAlert("CSS template exported successfully.");
+        } catch (Exception e) {
+            showErrorAlert("Unable to export CSS template.");
+        }
+    }
+
+    private void updateThemeCssStatusLabels() {
+        String lightName = currentThemeCssOverride.getLightThemeCssName();
+        String darkName = currentThemeCssOverride.getDarkThemeCssName();
+        lightThemeCssStatus.setText(lightName == null || lightName.isBlank()
+                ? "Default resource in use"
+                : "Using override: " + lightName);
+        darkThemeCssStatus.setText(darkName == null || darkName.isBlank()
+                ? "Default resource in use"
+                : "Using override: " + darkName);
     }
 
     private void addReloadCacheButtonClickHandler() {
@@ -426,9 +548,7 @@ public class ConfigurationUI extends VBox {
                         playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), defaultPlayer,
                         filterCategoriesWithTextContains.getText(), filterChannelWithTextContains.getText(),
                         filterPausedCheckBox.isSelected(),
-                        fontFamily.getText(), fontSize.getText(), fontWeight.getText(),
                         darkThemeCheckBox.isSelected(), serverPort.getText(),
-
                         defaultEmbedPlayer.isSelected(),
                         enableFfmpegCheckBox.isSelected(),
                         sanitizeCacheExpiryDaysText(),
@@ -437,6 +557,8 @@ public class ConfigurationUI extends VBox {
                 newConfiguration.setDbId(dbId);
                 newConfiguration.setWideView(wideViewCheckBox.isSelected());
                 service.save(newConfiguration);
+                currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
+                themeCssOverrideService.save(currentThemeCssOverride);
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);
                 }
@@ -483,21 +605,27 @@ public class ConfigurationUI extends VBox {
     private void addBrowserButton1ClickHandler() {
         browserButtonPlayerPath1.setOnAction(actionEvent -> {
             File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
-            playerPath1.setText(file.getAbsolutePath());
+            if (file != null) {
+                playerPath1.setText(file.getAbsolutePath());
+            }
         });
     }
 
     private void addBrowserButton2ClickHandler() {
         browserButtonPlayerPath2.setOnAction(actionEvent -> {
             File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
-            playerPath2.setText(file.getAbsolutePath());
+            if (file != null) {
+                playerPath2.setText(file.getAbsolutePath());
+            }
         });
     }
 
     private void addBrowserButton3ClickHandler() {
         browserButtonPlayerPath3.setOnAction(actionEvent -> {
             File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
-            playerPath3.setText(file.getAbsolutePath());
+            if (file != null) {
+                playerPath3.setText(file.getAbsolutePath());
+            }
         });
     }
 
