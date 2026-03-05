@@ -810,6 +810,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
             fullscreenRoot.getStyleClass().add("player-fullscreen-root");
             StyleClassDecorator.decorate(fullscreenRoot);
+            // Ensure video container fills fullscreen root instead of staying at computed pref size.
+            playerContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+            playerContainer.prefWidthProperty().bind(fullscreenRoot.widthProperty());
+            playerContainer.prefHeightProperty().bind(fullscreenRoot.heightProperty());
             Scene scene = new Scene(fullscreenRoot, bounds.getWidth(), bounds.getHeight());
             scene.setFill(Color.BLACK);
             if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
@@ -838,6 +842,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void exitFullscreen() {
         if (fullscreenStage == null) return;
         Platform.runLater(() -> {
+            playerContainer.prefWidthProperty().unbind();
+            playerContainer.prefHeightProperty().unbind();
             if (fullscreenStage != null) fullscreenStage.close();
             fullscreenStage = null;
             if (fullscreenRoot != null) {

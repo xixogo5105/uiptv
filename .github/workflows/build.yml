@@ -1,6 +1,8 @@
 name: Build, Package and Release
 permissions:
   contents: read
+env:
+  ARTIFACT_RETENTION_DAYS: 7
 
 on:
   push:
@@ -35,6 +37,7 @@ jobs:
         with:
           name: surefire-reports
           path: target/surefire-reports/**
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_windows:
     if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
@@ -63,6 +66,7 @@ jobs:
         with:
           name: UIPTV-windows-${{ matrix.arch }}
           path: target/dist/*
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
 
   build_mac:
@@ -94,6 +98,7 @@ jobs:
         with:
           name: UIPTV-macos-${{ matrix.arch }}
           path: target/dist/*
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
 
   build_linux:
@@ -133,6 +138,7 @@ jobs:
         with:
           name: UIPTV-linux-x86_64-deb
           path: target/dist/*.deb
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
@@ -147,6 +153,7 @@ jobs:
         with:
           name: UIPTV-linux-x86_64-rpm
           path: target/dist/*.rpm
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
@@ -164,6 +171,7 @@ jobs:
         with:
           name: UIPTV-linux-x86_64-app-image
           path: target/UIPTV-linux-x86_64-app-image.tar.gz
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
@@ -199,3 +207,4 @@ jobs:
         with:
           name: UIPTV-linux-aarch64-app-image
           path: target/UIPTV-linux-aarch64-app-image.tar.gz
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
