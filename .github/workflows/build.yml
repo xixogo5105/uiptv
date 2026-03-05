@@ -157,13 +157,13 @@ jobs:
       - name: Archive app-image artifact (x86_64)
         shell: bash
         run: |
-          tar -C target/dist -czf target/dist/UIPTV-linux-x86_64-app-image.tar.gz .
+          tar -C target/dist -czf target/UIPTV-linux-x86_64-app-image.tar.gz .
 
       - name: Upload AppImage artifact (x86_64)
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-app-image
-          path: target/dist/UIPTV-linux-x86_64-app-image.tar.gz
+          path: target/UIPTV-linux-x86_64-app-image.tar.gz
 
       - name: Clean dist directory
         run: rm -rf target/dist/*
@@ -174,10 +174,10 @@ jobs:
       - name: Archive app-image artifact (aarch64)
         shell: bash
         run: |
-          tar -C target/dist -czf target/dist/UIPTV-linux-aarch64-app-image.tar.gz .
+          tar -C target/dist -czf target/UIPTV-linux-aarch64-app-image.tar.gz .
 
       - name: Upload AppImage artifact (aarch64)
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-aarch64-app-image
-          path: target/dist/UIPTV-linux-aarch64-app-image.tar.gz
+          path: target/UIPTV-linux-aarch64-app-image.tar.gz
