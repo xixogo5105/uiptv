@@ -8,6 +8,7 @@ import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -664,15 +665,34 @@ public class ReloadCachePopup extends VBox {
             if (currentPanel != null) {
                 currentPanel.setExpanded(true);
                 currentPanel.setStatus(AccountRunStatus.RUNNING, current, total);
+                scrollPanelIntoView(currentPanel);
             }
             currentRunningAccountId = nextAccountId;
-
-            if (total > 1) {
-                logScrollPane.setVvalue((double) (current - 1) / (double) (total - 1));
-            } else {
-                logScrollPane.setVvalue(0);
-            }
         });
+    }
+
+    private void scrollPanelIntoView(AccountLogPanel panel) {
+        if (panel == null) {
+            return;
+        }
+        logVBox.applyCss();
+        logVBox.layout();
+
+        Bounds panelBounds = panel.getRoot().getBoundsInParent();
+        double contentHeight = logVBox.getBoundsInLocal().getHeight();
+        double viewportHeight = logScrollPane.getViewportBounds().getHeight();
+        if (contentHeight <= 0 || viewportHeight <= 0) {
+            return;
+        }
+
+        double targetY = panelBounds.getMinY() - Math.max(0, (viewportHeight - panelBounds.getHeight()) / 2.0);
+        double maxScroll = contentHeight - viewportHeight;
+        if (maxScroll <= 0) {
+            logScrollPane.setVvalue(0);
+            return;
+        }
+        double vValue = Math.max(0, Math.min(1, targetY / maxScroll));
+        logScrollPane.setVvalue(vValue);
     }
 
     private void updateAccountStatus(Account account, AccountRunStatus status, Integer channelCount) {
