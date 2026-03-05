@@ -1,29 +1,35 @@
 # Release Notes
 
-## New Features
+> [!WARNING]
+> Before upgrading to 0.1.9, back up your database files first (at minimum `uiptv.db`, and preferably `uiptv.db`, `uiptv.db-wal`, and `uiptv.db-shm` while UIPTV is closed).
 
-*   **Embedded Media Player:** The application now includes an embedded media player. VLC is the default player, but requires VLC to be installed and in the system's PATH. A lite/limited player is available as a fallback.
-*   **About Page and Update Mechanism:** A new "About" page has been added, which includes a mechanism to check for updates. (This will be improved in future releases).
-*   **ARM and x86 Releases:** We now provide separate releases for ARM and x86 architectures.
+Default DB path:
+- Windows/macOS: `<user.home>/uiptv/uiptv.db` (for example `C:\Users\<you>\uiptv\uiptv.db` or `/Users/<you>/uiptv/uiptv.db`)
+- Linux: `<user.home>/.config/uiptv/uiptv.db`
 
-## Improvements
+If `uiptv.ini` exists at `<user.home>/uiptv.ini` and contains `db.path=...`, that configured value is used instead of the default path.
 
-*   **UI Changes:** Collapsible/expandable panels have been replaced with tabs to improve user experience and save horizontal space.
-*   **YouTube and RSS Fixes:** Fixes for RSS and YouTube have been implemented. Playing YouTube videos/streams now requires `yt-dlp` to be installed and in the system's PATH.
-*   When there is only one category, the channels of this category are now automatically loaded.
+## 0.1.9
 
-## Fixes
+### Highlights Since `v0.1.8`
 
-*   Miscellaneous bug fixes since release 7.
-*   Fixed some SQL sync issues.
-*   Fixed some volume slider issues.
-*   Fixed Null Pointer Exception.
-*   Fixed an issue with passing arguments to an external player.
-*   Hardware decoding fixes for VLC, and some mute/unmute fixes.
+- Added a full web app refresh (SPA + PWA style flow) and expanded web API endpoints.
+- Added in-memory HLS/TS streaming support and related FFmpeg-backed web playback paths.
+- Added DRM-related playback metadata handling for web playback flows.
+- Added M3U/M3U8 publication flow for combining local/remote playlists into downloadable output.
+- Expanded Stalker/Xtreme parsing with improved attribute detection (serial/device/signature), account isolation, and MAC management improvements.
+- Added VOD/Series data model and persistence layers (new DB tables/migrations, watch-state tracking, and richer category/channel structures).
+- Added wide/embedded player UX improvements, including placeholder state, overlay behavior tweaks, and restart-required prompts when needed.
+- Added keyboard/accessibility improvements (Enter-key reliability, tab focus in Watching Now/episodes, and better actions discoverability).
+- Improved bookmarks and watching-now flows (matching reliability, remove actions, reduced UI flicker on refresh, and state preservation).
 
-## Build
+### Build, CI, and Maintenance
 
-*   **GraalVM Support Removed:** GraalVM support has been removed from the project.
-*   **JPackage Builder:** The project now uses `jpackage` to create application bundles.
-*   The project now requires JDK 17 to compile.
-*   Updated various dependencies.
+- Updated GitHub Actions workflows and dependency update automation.
+- Continued dependency updates across Maven and GitHub Actions.
+- Added and updated tests.
+
+### Notes
+
+- This release includes a large internal refactor and database migration set since `v0.1.8`.
+- No release/tag actions were performed while preparing these notes.

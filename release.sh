@@ -1,8 +1,5 @@
 #!/bin/bash
-set -e
-
-PROJECT_DIR="" #add you projected path
-cd "$PROJECT_DIR" || error_exit "Could not change to project directory: $PROJECT_DIR"
+set -euo pipefail
 
 
 # ===============================
@@ -23,6 +20,9 @@ error() {
 info() {
   echo "▶ $1"
 }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR" || error "Could not change to project directory: $SCRIPT_DIR"
 
 # ===============================
 # Validate input
@@ -57,15 +57,29 @@ if [ -n "$(git status --porcelain)" ]; then
   error "Working tree is not clean. Commit or stash changes first."
 fi
 
+info "Fetching latest refs from $REMOTE"
+git fetch "$REMOTE" --tags
+
+LOCAL_HEAD=$(git rev-parse "$DEFAULT_BRANCH")
+REMOTE_HEAD=$(git rev-parse "$REMOTE/$DEFAULT_BRANCH")
+
+if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+  error "Local '$DEFAULT_BRANCH' is behind/diverged from '$REMOTE/$DEFAULT_BRANCH'. Pull/rebase first."
+fi
+
 if git rev-parse "$TAG" >/dev/null 2>&1; then
   error "Tag '$TAG' already exists."
+fi
+
+if git ls-remote --tags "$REMOTE" "refs/tags/$TAG" | grep -q "$TAG"; then
+  error "Tag '$TAG' already exists on remote '$REMOTE'."
 fi
 
 # ===============================
 # Update version in pom.xml
 # ===============================
 info "Updating pom.xml to version $VERSION"
-mvn versions:set -DnewVersion="$VERSION"
+mvn versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
 git add pom.xml
 
 # ===============================
