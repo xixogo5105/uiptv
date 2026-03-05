@@ -2,7 +2,7 @@ name: Build, Package and Release
 permissions:
   contents: read
 env:
-  ARTIFACT_RETENTION_DAYS: 7
+  ARTIFACT_RETENTION_DAYS: 1
 
 on:
   push:
