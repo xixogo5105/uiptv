@@ -23,7 +23,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
-        LogDisplayUI.addLog("Resolving playback URL for Stalker Portal account: " + account.getAccountName());
+        com.uiptv.util.AppLog.addLog("Resolving playback URL for Stalker Portal account: " + account.getAccountName());
         ensureStalkerSession(account);
 
         String rawUrl;
@@ -35,8 +35,8 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         }
 
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
-        LogDisplayUI.addLog("Final resolved URL: " + finalUrl);
-        LogDisplayUI.addLog("Playback URL resolved.");
+        com.uiptv.util.AppLog.addLog("Final resolved URL: " + finalUrl);
+        com.uiptv.util.AppLog.addLog("Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
@@ -69,21 +69,21 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             candidates.add(fallbackCmd);
         }
 
-        LogDisplayUI.addLog("live create_link candidates: " + candidates.size());
+        com.uiptv.util.AppLog.addLog("live create_link candidates: " + candidates.size());
         for (String cmd : candidates) {
             String resolved = fetchStalkerPortalUrl(account, series, cmd);
             if (isUsableResolvedLiveUrl(resolved)) {
-                LogDisplayUI.addLog("live create_link selected usable URL");
+                com.uiptv.util.AppLog.addLog("live create_link selected usable URL");
                 return resolved;
             }
             String rescued = rescueResolvedLiveUrlWithCandidates(resolved, candidates);
             if (isUsableResolvedLiveUrl(rescued)) {
-                LogDisplayUI.addLog("live create_link recovered URL by merging stream param from alternate cmd");
+                com.uiptv.util.AppLog.addLog("live create_link recovered URL by merging stream param from alternate cmd");
                 return rescued;
             }
         }
 
-        LogDisplayUI.addLog("live create_link fallback to original cmd");
+        com.uiptv.util.AppLog.addLog("live create_link fallback to original cmd");
         return isBlank(fallbackCmd) ? channel.getCmd() : fallbackCmd;
     }
 
@@ -92,25 +92,25 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             return originalCmd;
         }
 
-        LogDisplayUI.addLog("create_link start");
+        com.uiptv.util.AppLog.addLog("create_link start");
         String resolvedCmd = resolveCreateLink(account, series, originalCmd);
         if (isBlank(resolvedCmd)) {
-            LogDisplayUI.addLog("create_link returned empty cmd. Refreshing token and retrying once.");
+            com.uiptv.util.AppLog.addLog("create_link returned empty cmd. Refreshing token and retrying once.");
             HandshakeService.getInstance().hardTokenRefresh(account);
             resolvedCmd = resolveCreateLink(account, series, originalCmd);
         }
 
         if (isBlank(resolvedCmd)) {
-            LogDisplayUI.addLog("create_link failed after retry. Using original channel cmd.");
+            com.uiptv.util.AppLog.addLog("create_link failed after retry. Using original channel cmd.");
             return originalCmd;
         }
 
         resolvedCmd = normalizeSeriesStreamPlaceholder(resolvedCmd, series);
         String mergedCmd = mergeMissingQueryParams(resolvedCmd, originalCmd);
         if (!mergedCmd.equals(resolvedCmd)) {
-            LogDisplayUI.addLog("create_link had missing query params. Merged missing values from original channel cmd.");
+            com.uiptv.util.AppLog.addLog("create_link had missing query params. Merged missing values from original channel cmd.");
         }
-        LogDisplayUI.addLog("create_link resolved URL: " + mergedCmd);
+        com.uiptv.util.AppLog.addLog("create_link resolved URL: " + mergedCmd);
         return mergedCmd;
     }
 
@@ -118,7 +118,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         String json = FetchAPI.fetch(getParams(account, cmd, series), account);
         String resolved = parseUrl(json);
         if (isBlank(resolved)) {
-            LogDisplayUI.addLog("create_link unresolved for provided cmd.");
+            com.uiptv.util.AppLog.addLog("create_link unresolved for provided cmd.");
         }
         return resolved;
     }

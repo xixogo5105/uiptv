@@ -67,14 +67,14 @@ public class YoutubeDL {
             return streamUrl;
         }
 
-        LogDisplayUI.addLog("Neither yt-dlp nor youtube-dl found or failed. Falling back to original URL.");
+        com.uiptv.util.AppLog.addLog("Neither yt-dlp nor youtube-dl found or failed. Falling back to original URL.");
         return videoUrl; // Fallback to original URL if both attempts fail
     }
 
     private static String tryGetStreamUrl(String command, String videoUrl) {
         // Validate and trim the video URL before attempting to execute the command
         if (videoUrl == null || videoUrl.trim().isEmpty()) {
-            LogDisplayUI.addLog("Error: Video URL is null or empty. Cannot execute " + command);
+            com.uiptv.util.AppLog.addLog("Error: Video URL is null or empty. Cannot execute " + command);
             return null;
         }
         String trimmedVideoUrl = videoUrl.trim();
@@ -95,7 +95,7 @@ public class YoutubeDL {
 
             if (!process.waitFor(30, TimeUnit.SECONDS)) { // Increased timeout to 30 seconds
                 process.destroyForcibly(); // Forcefully terminate if timed out
-                LogDisplayUI.addLog(command + " process timed out for: " + trimmedVideoUrl);
+                com.uiptv.util.AppLog.addLog(command + " process timed out for: " + trimmedVideoUrl);
                 return null;
             }
 
@@ -105,16 +105,16 @@ public class YoutubeDL {
                     return streamUrl;
                 }
             } else {
-                LogDisplayUI.addLog(command + " failed for: " + trimmedVideoUrl);
-                LogDisplayUI.addLog("Exit code: " + process.exitValue());
-                LogDisplayUI.addLog("Output/Error: " + output);
+                com.uiptv.util.AppLog.addLog(command + " failed for: " + trimmedVideoUrl);
+                com.uiptv.util.AppLog.addLog("Exit code: " + process.exitValue());
+                com.uiptv.util.AppLog.addLog("Output/Error: " + output);
             }
         } catch (IOException e) {
-            LogDisplayUI.addLog("Error: The command '" + command + "' was not found. Please ensure yt-dlp or youtube-dl is installed and accessible in your system's PATH, or set the executable path using YoutubeDL.setYtDlpPath() or YoutubeDL.setYoutubeDlPath().");
-            LogDisplayUI.addLog("Details: " + e.getMessage());
+            com.uiptv.util.AppLog.addLog("Error: The command '" + command + "' was not found. Please ensure yt-dlp or youtube-dl is installed and accessible in your system's PATH, or set the executable path using YoutubeDL.setYtDlpPath() or YoutubeDL.setYoutubeDlPath().");
+            com.uiptv.util.AppLog.addLog("Details: " + e.getMessage());
         } catch (Exception e) {
             // This catch block will handle other runtime exceptions.
-            LogDisplayUI.addLog("An unexpected error occurred while executing " + command + " for " + trimmedVideoUrl + ": " + e.getMessage());
+            com.uiptv.util.AppLog.addLog("An unexpected error occurred while executing " + command + " for " + trimmedVideoUrl + ": " + e.getMessage());
         }
         return null; // Return null if this command failed
     }

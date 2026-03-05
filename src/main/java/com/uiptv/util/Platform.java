@@ -17,7 +17,7 @@ public class Platform {
         try {
             new CmdLineRunner().exec(command + " " + args);
         } catch (CmdLineRunner.CmdLineException e) {
-            LogDisplayUI.addLog("Error occurred while executing commands. Error Description: " + e.getMessage());
+            com.uiptv.util.AppLog.addLog("Error occurred while executing commands. Error Description: " + e.getMessage());
         }
     }
 

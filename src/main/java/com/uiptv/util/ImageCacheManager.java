@@ -428,7 +428,7 @@ public class ImageCacheManager {
             return;
         }
         HOST_LOG_UNTIL.put(key, now + HOST_LOG_WINDOW_MS);
-        LogDisplayUI.addLog(message + (host.isBlank() ? "" : " (" + host + ")"));
+        com.uiptv.util.AppLog.addLog(message + (host.isBlank() ? "" : " (" + host + ")"));
     }
 
     private static boolean isHostBackedOff(String url) {

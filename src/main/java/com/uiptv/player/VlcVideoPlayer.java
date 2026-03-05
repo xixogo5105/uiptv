@@ -118,7 +118,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             public void error(MediaPlayer mp) {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
-                    LogDisplayUI.addLog("VlcVideoPlayer: An error occurred in the media player.");
+                    com.uiptv.util.AppLog.addLog("VlcVideoPlayer: An error occurred in the media player.");
                     errorLabel.setText("Could not play video.\nUnsupported format or network error.");
                     errorLabel.setVisible(true);
                     if (isRepeating && isRetrying.get()) {

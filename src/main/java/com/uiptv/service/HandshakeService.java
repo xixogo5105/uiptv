@@ -86,7 +86,7 @@ public class HandshakeService {
         account.setToken(null);
         AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
@@ -94,7 +94,7 @@ public class HandshakeService {
         AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> LogDisplayUI.addLog("Unable to retrieve a token:\n\n" + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to retrieve a token:\n\n" + finalJson));
             return;
         }
         json = fetch(getProfileParams(account), account);
@@ -107,14 +107,14 @@ public class HandshakeService {
         account.setToken(null);
         AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> LogDisplayUI.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));
         AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
-            Platform.runLater(() -> LogDisplayUI.addLog("Unable to retrieve a token:\n\n" + json));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to retrieve a token:\n\n" + json));
         }
         fetch(getProfileParams(account), account);
     }
@@ -122,7 +122,7 @@ public class HandshakeService {
     public String parseJasonToken(String json) {
         if (isBlank(json) || new JSONObject(json).getJSONObject("js") == null
                 || isBlank(new JSONObject(json).getJSONObject("js").getString("token"))) {
-            Platform.runLater(() -> LogDisplayUI.addLog("Error while establishing connection to server"));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Error while establishing connection to server"));
             return StringUtils.EMPTY;
         }
         return new JSONObject(json).getJSONObject("js").getString("token");

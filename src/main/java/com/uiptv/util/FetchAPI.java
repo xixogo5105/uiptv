@@ -39,7 +39,7 @@ public class FetchAPI {
                 return response.body();
             }
         } catch (Exception ex) {
-            Platform.runLater(() -> LogDisplayUI.addLog("Network Error: " + ex.getMessage()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Network Error: " + ex.getMessage()));
         }
         return StringUtils.EMPTY;
     }

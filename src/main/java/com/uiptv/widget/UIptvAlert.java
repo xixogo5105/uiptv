@@ -25,15 +25,15 @@ public class UIptvAlert {
     }
 
     public static void showMessage(String contents) {
-        LogDisplayUI.addLog(contents);
+        com.uiptv.util.AppLog.addLog(contents);
     }
     public static void showError(String contents) {
         showError(contents, null);
     }
     public static void showError(String contents, Exception ex) {
         if (ex != null) {
-            LogDisplayUI.addLog(contents);
-            LogDisplayUI.addLog(ex.getMessage());
+            com.uiptv.util.AppLog.addLog(contents);
+            com.uiptv.util.AppLog.addLog(ex.getMessage());
         }
     }
 
@@ -42,7 +42,7 @@ public class UIptvAlert {
     }
     public static void showErrorAlert(String contents, Exception ex) {
         if (ex != null) {
-            LogDisplayUI.addLog(ex.getMessage());
+            com.uiptv.util.AppLog.addLog(ex.getMessage());
         }
         Alert alert = new Alert(Alert.AlertType.ERROR, contents, ButtonType.CLOSE);
         alert.initModality(Modality.NONE);

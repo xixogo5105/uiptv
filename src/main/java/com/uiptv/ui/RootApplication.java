@@ -62,16 +62,16 @@ public class RootApplication extends Application {
 
     private static void handleSync(String[] args) {
         if (args.length != 3) {
-            LogDisplayUI.addLog("Usage: sync <first_db_path> <second_db_path>");
+            com.uiptv.util.AppLog.addLog("Usage: sync <first_db_path> <second_db_path>");
             exit(1);
         }
         String firstDB = args[1].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         String secondDB = args[2].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
         try {
             syncDatabases(firstDB, secondDB);
-            LogDisplayUI.addLog("Sync complete!");
+            com.uiptv.util.AppLog.addLog("Sync complete!");
         } catch (SQLException e) {
-            LogDisplayUI.addLog("Error syncing tables: " + e.getMessage());
+            com.uiptv.util.AppLog.addLog("Error syncing tables: " + e.getMessage());
         }
     }
 

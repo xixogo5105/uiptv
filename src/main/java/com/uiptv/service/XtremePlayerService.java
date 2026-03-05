@@ -15,13 +15,13 @@ public class XtremePlayerService implements AccountPlayerService {
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
-        LogDisplayUI.addLog("Resolving playback URL for Xtreme account: " + account.getAccountName());
+        com.uiptv.util.AppLog.addLog("Resolving playback URL for Xtreme account: " + account.getAccountName());
         String rawUrl = constructXtremeUrl(account, channel, parentSeriesId);
-        LogDisplayUI.addLog("Constructed fresh Xtreme URL for " + account.getAction());
+        com.uiptv.util.AppLog.addLog("Constructed fresh Xtreme URL for " + account.getAction());
         
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
-        LogDisplayUI.addLog("Final resolved URL: " + finalUrl);
-        LogDisplayUI.addLog("Playback URL resolved.");
+        com.uiptv.util.AppLog.addLog("Final resolved URL: " + finalUrl);
+        com.uiptv.util.AppLog.addLog("Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
@@ -32,7 +32,7 @@ public class XtremePlayerService implements AccountPlayerService {
         if (channel == null) return "";
         String fallbackCmd = PlayerUrlUtils.resolveBestChannelCmd(account, channel);
         if (isNotBlank(fallbackCmd)) {
-            LogDisplayUI.addLog("Found channel cmd: " + fallbackCmd);
+            com.uiptv.util.AppLog.addLog("Found channel cmd: " + fallbackCmd);
         }
 
         String baseUrl = account.getM3u8Path();
@@ -40,7 +40,7 @@ public class XtremePlayerService implements AccountPlayerService {
             baseUrl = account.getUrl();
         }
         if (isBlank(baseUrl)) {
-            LogDisplayUI.addLog("Xtreme base URL is blank. Falling back to channel cmd.");
+            com.uiptv.util.AppLog.addLog("Xtreme base URL is blank. Falling back to channel cmd.");
             return fallbackCmd;
         }
 
@@ -56,7 +56,7 @@ public class XtremePlayerService implements AccountPlayerService {
         String password = account.getPassword();
         String id = channel.getChannelId();
         if (isBlank(username) || isBlank(password) || isBlank(id)) {
-            LogDisplayUI.addLog("Xtreme URL parts missing (username/password/channelId). Falling back to channel cmd.");
+            com.uiptv.util.AppLog.addLog("Xtreme URL parts missing (username/password/channelId). Falling back to channel cmd.");
             return fallbackCmd;
         }
         String extension = inferExtensionFromCmd(fallbackCmd);

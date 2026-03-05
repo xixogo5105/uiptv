@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.AppLog;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -26,6 +27,7 @@ public class LogDisplayUI extends VBox {
     private static boolean forceLoggingEnabled = false;
     private static boolean detached = false;
     private static Stage detachedStage;
+    private static boolean listenerRegistered = false;
     private final VBox contentBox = new VBox(5);
 
     public LogDisplayUI() {
@@ -33,6 +35,10 @@ public class LogDisplayUI extends VBox {
         setSpacing(5);
         if (logArea == null) {
             logArea = new TextArea();
+        }
+        if (!listenerRegistered) {
+            AppLog.registerListener(LogDisplayUI::appendToLogArea);
+            listenerRegistered = true;
         }
         logArea.setEditable(false);
         logArea.setWrapText(true);
@@ -59,16 +65,26 @@ public class LogDisplayUI extends VBox {
     }
 
     public static void addLog(String log) {
-        System.out.println(log);
-        if (isLoggingEnabled || forceLoggingEnabled) {
-            Platform.runLater(() -> logArea.appendText(log + "\n"));
-        }
+        com.uiptv.util.AppLog.addLog(log);
     }
 
     public static void setLoggingEnabled(boolean enabled) {
         isLoggingEnabled = enabled;
         if (!enabled && !forceLoggingEnabled && logArea != null) {
             Platform.runLater(() -> logArea.clear());
+        }
+    }
+
+    private static void appendToLogArea(String log) {
+        if (!(isLoggingEnabled || forceLoggingEnabled) || logArea == null) {
+            return;
+        }
+
+        Runnable append = () -> logArea.appendText(log + "\n");
+        if (Platform.isFxApplicationThread()) {
+            append.run();
+        } else {
+            Platform.runLater(append);
         }
     }
 

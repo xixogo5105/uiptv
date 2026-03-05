@@ -8,30 +8,30 @@ import static com.uiptv.util.StringUtils.EMPTY;
 
 public class LogUtil {
     public static void httpLog(String url, HttpUtil.HttpResult response, Map<String, String> params) {
-        LogDisplayUI.addLog("URL: " + url);
-        LogDisplayUI.addLog("==========================================Request Headers==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog(String.valueOf(response.requestHeaders()));
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================End Request Headers==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================Request Body==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog(params.toString());
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================End Request Body==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================Response Headers==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog(String.valueOf(response.responseHeaders()));
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================End Response Headers==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================Response Body==========================================");
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog(response.body());
-        LogDisplayUI.addLog(EMPTY);
-        LogDisplayUI.addLog("==========================================End Response Body==========================================");
-        LogDisplayUI.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("URL: " + url);
+        com.uiptv.util.AppLog.addLog("==========================================Request Headers==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog(String.valueOf(response.requestHeaders()));
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================End Request Headers==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================Request Body==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog(params.toString());
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================End Request Body==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================Response Headers==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog(String.valueOf(response.responseHeaders()));
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================End Response Headers==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================Response Body==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog(response.body());
+        com.uiptv.util.AppLog.addLog(EMPTY);
+        com.uiptv.util.AppLog.addLog("==========================================End Response Body==========================================");
+        com.uiptv.util.AppLog.addLog(EMPTY);
     }
 }

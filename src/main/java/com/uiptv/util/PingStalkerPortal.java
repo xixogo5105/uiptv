@@ -43,7 +43,7 @@ public class PingStalkerPortal {
         final String timezone = account.getTimezone() != null ? account.getTimezone() : "Europe/London";
         final String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
         // Try reading and parsing xpcom.common.js first.
-        LogDisplayUI.addLog("Attempting to download xpcom.common.js from portal base URL: " + url);
+        com.uiptv.util.AppLog.addLog("Attempting to download xpcom.common.js from portal base URL: " + url);
         try {
             String pingUrl = !url.endsWith("/") ? url + "/" + "xpcom.common.js" : url + "xpcom.common.js";
 
@@ -56,31 +56,31 @@ public class PingStalkerPortal {
                 String discoveredApi = parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
                 String defaultApi = getDefaultApiEndpoint(url);
                 if (isNotBlank(discoveredApi) && !discoveredApi.equalsIgnoreCase(defaultApi)) {
-                    LogDisplayUI.addLog("Successfully parsed xpcom.common.js and resolved a specific API endpoint: " + discoveredApi);
+                    com.uiptv.util.AppLog.addLog("Successfully parsed xpcom.common.js and resolved a specific API endpoint: " + discoveredApi);
                     return discoveredApi;
                 }
-                LogDisplayUI.addLog("xpcom.common.js was accessible, but did not yield a specific API endpoint. Trying known API paths next.");
+                com.uiptv.util.AppLog.addLog("xpcom.common.js was accessible, but did not yield a specific API endpoint. Trying known API paths next.");
             } else {
-                LogDisplayUI.addLog("Unable to access xpcom.common.js (HTTP " + response.statusCode() + "). Trying known API paths next.");
+                com.uiptv.util.AppLog.addLog("Unable to access xpcom.common.js (HTTP " + response.statusCode() + "). Trying known API paths next.");
             }
         } catch (Exception ex) {
             if (isNetworkFailure(ex)) {
-                LogDisplayUI.addLog("Network/connection issue while requesting xpcom.common.js: " + rootCauseMessage(ex) + ". Skipping endpoint probing.");
+                com.uiptv.util.AppLog.addLog("Network/connection issue while requesting xpcom.common.js: " + rootCauseMessage(ex) + ". Skipping endpoint probing.");
                 return getDefaultApiEndpoint(url);
             }
-            LogDisplayUI.addLog("Error while requesting xpcom.common.js: " + ex.getMessage() + ". Trying known API paths next.");
+            com.uiptv.util.AppLog.addLog("Error while requesting xpcom.common.js: " + ex.getMessage() + ". Trying known API paths next.");
         }
 
         // If xpcom.common.js parsing does not resolve an endpoint, probe known API paths.
-        LogDisplayUI.addLog("Probing known Stalker API endpoints.");
+        com.uiptv.util.AppLog.addLog("Probing known Stalker API endpoints.");
         String verifiedApi = probeKnownPaths(url, account.getMacAddress(), timezone, httpMethod);
         if (verifiedApi != null) {
-            LogDisplayUI.addLog("Successfully discovered working API endpoint via direct handshake probing: " + verifiedApi);
+            com.uiptv.util.AppLog.addLog("Successfully discovered working API endpoint via direct handshake probing: " + verifiedApi);
             return verifiedApi;
         }
 
         // Return standard endpoint if all discovery attempts fail.
-        LogDisplayUI.addLog("No working endpoint discovered from xpcom.common.js or probing. Falling back to default API endpoint.");
+        com.uiptv.util.AppLog.addLog("No working endpoint discovered from xpcom.common.js or probing. Falling back to default API endpoint.");
         return getDefaultApiEndpoint(url);
     }
 
@@ -108,7 +108,7 @@ public class PingStalkerPortal {
                 return targetUrl;
             }
             if (result == ProbeStatus.NETWORK_ERROR) {
-                LogDisplayUI.addLog("Stopping endpoint probing after connection-level failure at: " + targetUrl);
+                com.uiptv.util.AppLog.addLog("Stopping endpoint probing after connection-level failure at: " + targetUrl);
                 return null;
             }
         }
@@ -126,7 +126,7 @@ public class PingStalkerPortal {
      */
     private static ProbeStatus checkHandshake(String apiUrl, String macAddress, String timezone, String httpMethod) {
         try {
-            LogDisplayUI.addLog("Checking handshake for : " + apiUrl);
+            com.uiptv.util.AppLog.addLog("Checking handshake for : " + apiUrl);
             
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
@@ -145,7 +145,7 @@ public class PingStalkerPortal {
             }
         } catch (Exception e) {
             if (isNetworkFailure(e)) {
-                LogDisplayUI.addLog("Network/connection issue while checking " + apiUrl + ": " + rootCauseMessage(e));
+                com.uiptv.util.AppLog.addLog("Network/connection issue while checking " + apiUrl + ": " + rootCauseMessage(e));
                 return ProbeStatus.NETWORK_ERROR;
             }
         }
