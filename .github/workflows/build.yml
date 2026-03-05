@@ -168,16 +168,6 @@ jobs:
       - name: Clean dist directory
         run: rm -rf target/dist/*
 
-      - name: Build AppImage package (aarch64)
-        run: mvn -B clean package -P linux-aarch64,pkg-app-image
-
-      - name: Archive app-image artifact (aarch64)
-        shell: bash
-        run: |
-          tar -C target/dist -czf target/UIPTV-linux-aarch64-app-image.tar.gz .
-
-      - name: Upload AppImage artifact (aarch64)
-        uses: actions/upload-artifact@v7
-        with:
-          name: UIPTV-linux-aarch64-app-image
-          path: target/UIPTV-linux-aarch64-app-image.tar.gz
+      # NOTE:
+      # Do not build linux-aarch64 app-image on an x86_64 runner.
+      # jpackage app-image launchers are native and not cross-compiled.
