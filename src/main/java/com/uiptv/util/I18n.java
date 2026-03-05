@@ -1,7 +1,14 @@
 package com.uiptv.util;
 
 import javafx.geometry.NodeOrientation;
+import javafx.collections.ListChangeListener;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Control;
+import javafx.scene.control.Labeled;
+import javafx.scene.control.TextInputControl;
+import javafx.scene.text.Font;
 
 import java.text.MessageFormat;
 import java.time.LocalDate;
@@ -65,6 +72,8 @@ public final class I18n {
     private static final Object LOCK = new Object();
     private static final Pattern TOKEN_ARTIFACT_PATTERN =
             Pattern.compile("(?:__\\s*T\\s*K\\d+_+|__\\d+__|ForTK\\d+__)");
+    private static final String LOCALE_FONT_FAMILY_KEY = "uiptv.locale.font.family";
+    private static final String LOCALE_FONT_CHILDREN_KEY = "uiptv.locale.font.children";
     private static Locale currentLocale = Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG);
     private static ResourceBundle bundle = loadBundle(currentLocale);
 
@@ -129,6 +138,7 @@ public final class I18n {
         scene.getRoot().setNodeOrientation(isCurrentLocaleRtl()
                 ? NodeOrientation.RIGHT_TO_LEFT
                 : NodeOrientation.LEFT_TO_RIGHT);
+        applyLocaleTypography(scene.getRoot());
     }
 
     public static String tr(String key, Object... args) {
@@ -233,6 +243,132 @@ public final class I18n {
 
         normalized = TOKEN_ARTIFACT_PATTERN.matcher(normalized).replaceAll("\n");
         return normalized;
+    }
+
+    private static void applyLocaleTypography(Node node) {
+        if (node == null) {
+            return;
+        }
+        String preferredFamily = resolvePreferredFontFamily();
+        if (!preferredFamily.isBlank()) {
+            applyPreferredFont(node, preferredFamily);
+        }
+        if (node instanceof Parent parent) {
+            attachTypographyListener(parent);
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                applyLocaleTypography(child);
+            }
+        }
+    }
+
+    private static void attachTypographyListener(Parent parent) {
+        if (parent == null || Boolean.TRUE.equals(parent.getProperties().get(LOCALE_FONT_CHILDREN_KEY))) {
+            return;
+        }
+        parent.getProperties().put(LOCALE_FONT_CHILDREN_KEY, Boolean.TRUE);
+        parent.getChildrenUnmodifiable().addListener((ListChangeListener<Node>) change -> {
+            while (change.next()) {
+                if (!change.wasAdded()) {
+                    continue;
+                }
+                for (Node node : change.getAddedSubList()) {
+                    applyLocaleTypography(node);
+                }
+            }
+        });
+    }
+
+    private static void applyPreferredFont(Node node, String family) {
+        if (node == null || family == null || family.isBlank()) {
+            return;
+        }
+        Object previousFamily = node.getProperties().get(LOCALE_FONT_FAMILY_KEY);
+        if (family.equals(previousFamily)) {
+            return;
+        }
+        node.getProperties().put(LOCALE_FONT_FAMILY_KEY, family);
+
+        if (node instanceof Labeled labeled) {
+            labeled.setStyle(appendInlineFontFamily(labeled.getStyle(), family));
+        } else if (node instanceof TextInputControl textInputControl) {
+            textInputControl.setStyle(appendInlineFontFamily(textInputControl.getStyle(), family));
+        } else if (node instanceof Control control) {
+            control.setStyle(appendInlineFontFamily(control.getStyle(), family));
+        }
+    }
+
+    private static String appendInlineFontFamily(String existingStyle, String family) {
+        String fontRule = "-fx-font-family: \"" + family.replace("\"", "") + "\";";
+        if (existingStyle == null || existingStyle.isBlank()) {
+            return fontRule;
+        }
+        if (existingStyle.contains("-fx-font-family")) {
+            return existingStyle;
+        }
+        return existingStyle.trim() + (existingStyle.trim().endsWith(";") ? " " : "; ") + fontRule;
+    }
+
+    private static String resolvePreferredFontFamily() {
+        String language = getCurrentLocale().getLanguage().toLowerCase(Locale.ROOT);
+        return switch (language) {
+            case "hi", "mr", "ne", "sa" -> firstAvailableFontFamily(
+                    "Devanagari Sangam MN",
+                    "Kohinoor Devanagari",
+                    "Devanagari MT",
+                    "ITF Devanagari",
+                    "ITF Devanagari Marathi",
+                    "Shree Devanagari 714",
+                    "Noto Sans Devanagari",
+                    "Arial Unicode MS"
+            );
+            case "bn" -> firstAvailableFontFamily(
+                    "Bangla Sangam MN",
+                    "Bangla MN",
+                    "Kohinoor Bangla",
+                    "Noto Sans Bengali",
+                    "Arial Unicode MS"
+            );
+            case "pa" -> firstAvailableFontFamily(
+                    "Gurmukhi Sangam MN",
+                    "Gurmukhi MN",
+                    "Raavi",
+                    "Noto Sans Gurmukhi",
+                    "Arial Unicode MS"
+            );
+            case "ta" -> firstAvailableFontFamily(
+                    "Tamil Sangam MN",
+                    "Tamil MN",
+                    "Noto Sans Tamil",
+                    "Arial Unicode MS"
+            );
+            case "te" -> firstAvailableFontFamily(
+                    "Kohinoor Telugu",
+                    "Telugu Sangam MN",
+                    "Telugu MN",
+                    "Noto Sans Telugu",
+                    "Arial Unicode MS"
+            );
+            case "ml" -> firstAvailableFontFamily(
+                    "Malayalam Sangam MN",
+                    "Malayalam MN",
+                    "Noto Sans Malayalam",
+                    "Arial Unicode MS"
+            );
+            default -> "";
+        };
+    }
+
+    private static String firstAvailableFontFamily(String... candidates) {
+        if (candidates == null || candidates.length == 0) {
+            return "";
+        }
+        List<String> families = Font.getFamilies();
+        for (String candidate : candidates) {
+            if (candidate != null && families.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return "";
     }
 
     private static Locale resolveLocale(String languageTag) {

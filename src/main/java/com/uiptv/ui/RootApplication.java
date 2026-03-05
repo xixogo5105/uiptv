@@ -55,8 +55,6 @@ public class RootApplication extends Application {
         } else if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
             ServerUrlUtil.startServer();
         } else {
-            System.setProperty("file.encoding", "UTF-8");
-            java.nio.charset.Charset.defaultCharset();
             launch();
         }
     }
