@@ -210,8 +210,8 @@ public class CategoryListUI extends HBox {
         // This is critical because modeStates holds ChannelListUI instances with data
         modeStates.clear();
 
-        // Clear table items
-        table.getItems().clear();
+        // SearchableTableView wraps items in SortedList/FilteredList, which is not directly mutable.
+        table.setItems(FXCollections.observableArrayList());
     }
 
     private void setupModeTabs() {
