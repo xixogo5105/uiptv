@@ -173,7 +173,7 @@ jobs:
       # jpackage app-image launchers are native and not cross-compiled.
 
   build_linux_arm64_appimage:
-    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch' && vars.ENABLE_ARM64_RUNNER == 'true'
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Checkout source
