@@ -171,3 +171,31 @@ jobs:
       # NOTE:
       # Do not build linux-aarch64 app-image on an x86_64 runner.
       # jpackage app-image launchers are native and not cross-compiled.
+
+  build_linux_arm64_appimage:
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, Linux, ARM64]
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build AppImage package (aarch64)
+        run: mvn -B clean package -P linux-aarch64,pkg-app-image
+
+      - name: Archive app-image artifact (aarch64)
+        shell: bash
+        run: |
+          tar -C target/dist -czf target/UIPTV-linux-aarch64-app-image.tar.gz .
+
+      - name: Upload AppImage artifact (aarch64)
+        uses: actions/upload-artifact@v7
+        with:
+          name: UIPTV-linux-aarch64-app-image
+          path: target/UIPTV-linux-aarch64-app-image.tar.gz
