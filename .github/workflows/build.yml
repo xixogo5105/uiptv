@@ -113,6 +113,18 @@ jobs:
       - name: Install RPM tools
         run: sudo apt-get update && sudo apt-get install -y rpm
 
+      - name: Detect RPM packaging support
+        id: rpm_support
+        shell: bash
+        run: |
+          if jpackage --type rpm --help >/dev/null 2>&1; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+            echo "RPM packaging is supported on this runner."
+          else
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "RPM packaging is NOT supported on this runner. Skipping RPM artifact."
+          fi
+
       - name: Build DEB package
         run: mvn -B clean package -P linux-x86_64,pkg-deb
 
@@ -126,9 +138,11 @@ jobs:
         run: rm -rf target/dist/*
 
       - name: Build RPM package
+        if: steps.rpm_support.outputs.supported == 'true'
         run: mvn -B clean package -P linux-x86_64,pkg-rpm
 
       - name: Upload RPM artifact
+        if: steps.rpm_support.outputs.supported == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-rpm
