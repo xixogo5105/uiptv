@@ -1,5 +1,7 @@
 package com.uiptv.player;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -44,7 +46,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                     case HALTED:
                         loadingSpinner.setVisible(false);
                         if (!errorLabel.isVisible()) {
-                            errorLabel.setText("An error occurred during playback.");
+                            errorLabel.setText(I18n.tr("autoAnErrorOccurredDuringPlayback"));
                             errorLabel.setVisible(true);
                         }
                         break;
@@ -117,7 +119,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                             final MediaException me = mediaPlayer.getError();
                             Platform.runLater(() -> {
                                 com.uiptv.util.AppLog.addLog("MediaPlayer Error: " + me.getMessage() + " (" + me.getType() + ")");
-                                errorLabel.setText("Could not play video.\nUnsupported format or network error.");
+                                errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
                                 errorLabel.setVisible(true);
                                 loadingSpinner.setVisible(false);
                                 if (isRepeating && isRetrying.get()) {
@@ -264,7 +266,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             boolean seekable = hasKnownTotal;
             updatePlaybackTimeUi((long) currentTime.toMillis(), totalMs, seekable);
         } else {
-            timeLabel.setText("00:00 / 00:00");
+            timeLabel.setText(I18n.tr("auto00000000"));
             timeSlider.setDisable(false);
             if (!isUserSeeking) {
                 timeSlider.setValue(0);
@@ -276,7 +278,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         Platform.runLater(() -> {
             com.uiptv.util.AppLog.addLog(message + ": " + e.getMessage());
             loadingSpinner.setVisible(false);
-            errorLabel.setText("Could not load video.\nInvalid path or network issue.");
+            errorLabel.setText(I18n.tr("autoCouldNotLoadVideoInvalidPathOrNetworkIssue"));
             errorLabel.setVisible(true);
         });
     }

@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS Configuration (
     enableFfmpegTranscoding TEXT,
     cacheExpiryDays TEXT,
     enableThumbnails TEXT,
-    wideView TEXT
+    wideView TEXT,
+    languageLocale TEXT,
+    tmdbReadAccessToken TEXT
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride (

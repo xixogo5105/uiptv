@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
@@ -65,7 +67,7 @@ public class ReloadCachePopup extends VBox {
     private final ScrollPane accountsScrollPane = new ScrollPane();
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
-    private final ProminentButton reloadButton = new ProminentButton("Reload Selected");
+    private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountService accountService = AccountService.getInstance();
     private final List<CheckBox> checkBoxes = new ArrayList<>();
@@ -96,7 +98,8 @@ public class ReloadCachePopup extends VBox {
         }
         ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts, onAccountsDeleted);
         Scene scene = new Scene(popup, 1368, 720);
-        popupStage.setTitle("Reload Accounts Cache");
+        I18n.applySceneOrientation(scene);
+        popupStage.setTitle(I18n.tr("autoReloadAccountsCache"));
         popupStage.setScene(scene);
         popupStage.showAndWait();
     }
@@ -148,12 +151,12 @@ public class ReloadCachePopup extends VBox {
             checkBoxes.add(accountCheckBox);
         }
 
-        MenuButton selectMenu = new MenuButton("Select by types");
-        CheckMenuItem allItem = new CheckMenuItem("ALL");
-        CheckMenuItem stalkerItem = new CheckMenuItem("Stalker Portal Accounts");
-        CheckMenuItem xtremeItem = new CheckMenuItem("Xtreme Account");
-        CheckMenuItem m3uLocalItem = new CheckMenuItem("M3U Local Playlist");
-        CheckMenuItem m3uRemoteItem = new CheckMenuItem("M3U Remote Playlist");
+        MenuButton selectMenu = new MenuButton(I18n.tr("autoSelectByTypes"));
+        CheckMenuItem allItem = new CheckMenuItem(I18n.tr("commonAll"));
+        CheckMenuItem stalkerItem = new CheckMenuItem(I18n.tr("reloadStalkerPortalAccounts"));
+        CheckMenuItem xtremeItem = new CheckMenuItem(I18n.tr("reloadXtremeAccount"));
+        CheckMenuItem m3uLocalItem = new CheckMenuItem(I18n.tr("reloadM3uLocalPlaylist"));
+        CheckMenuItem m3uRemoteItem = new CheckMenuItem(I18n.tr("reloadM3uRemotePlaylist"));
 
         allItem.setOnAction(e -> {
             boolean selected = allItem.isSelected();
@@ -219,7 +222,7 @@ public class ReloadCachePopup extends VBox {
         // Ensure proper layout when toggling visibility
         reloadButton.managedProperty().bind(reloadButton.visibleProperty());
 
-        Button copyLogButton = new Button("Copy Log");
+        Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
         copyLogButton.setOnAction(event -> {
             final Clipboard clipboard = Clipboard.getSystemClipboard();
             final ClipboardContent content = new ClipboardContent();
@@ -233,16 +236,21 @@ public class ReloadCachePopup extends VBox {
                 panel.getLogs().forEach(line -> sb.append("  ").append(line).append("\n"));
                 SummaryStatus status = latestAccountSummaries.get(accountId);
                 if (status != null) {
-                    sb.append("  Summary: ").append(status.level.name())
-                            .append(" (channels=").append(status.channelsLoaded).append(")\n");
+                    sb.append("  ").append(I18n.tr("reloadSummaryLabel")).append(": ")
+                            .append(summaryLevelLabel(status.level))
+                            .append(" (")
+                            .append(I18n.tr("autoChannels").toLowerCase())
+                            .append("=")
+                            .append(I18n.formatNumber(String.valueOf(status.channelsLoaded)))
+                            .append(")\n");
                     if (!status.reasons.isEmpty()) {
-                        sb.append("  Reasons: ").append(String.join(" | ", status.reasons)).append("\n");
+                        sb.append("  ").append(I18n.tr("reloadReasonsLabel")).append(": ").append(String.join(" | ", status.reasons)).append("\n");
                     }
                 }
                 sb.append("\n");
             }
             if (!latestSummaryLines.isEmpty()) {
-                sb.append("Run Summary\n");
+                sb.append(I18n.tr("autoRunSummary")).append("\n");
                 latestSummaryLines.forEach(line -> sb.append("  ").append(line).append("\n"));
                 sb.append("\n");
             }
@@ -250,7 +258,7 @@ public class ReloadCachePopup extends VBox {
             clipboard.setContent(content);
         });
 
-        Button closeButton = new Button("Close");
+        Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.setOnAction(event -> stage.close());
 
         Region spacer = new Region();
@@ -404,16 +412,16 @@ public class ReloadCachePopup extends VBox {
                 fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
                 if (fetchedChannelCount <= 0) {
                     logMessage(account, "No channels found.");
-                    addIssue(accountIssues, "No channels loaded.");
+                    addIssue(accountIssues, I18n.tr("reloadNoChannelsLoaded"));
                 }
             } catch (SkipAccountReloadException e) {
                 failed = true;
                 logMessage(account, "Marked bad and skipped after global call failure.");
-                addIssue(accountIssues, "Marked bad by user after global call failure.");
+                addIssue(accountIssues, I18n.tr("reloadMarkedBadByUser"));
             } catch (Exception e) {
                 failed = true;
                 logMessage(account, "Reload failed: " + shortFailure(e.getMessage()));
-                addIssue(accountIssues, "Exception: " + shortFailure(e.getMessage()));
+                addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));
             }
 
             if (runOutcomeTracker.hasCriticalFailure(account.getDbId())) {
@@ -470,12 +478,12 @@ public class ReloadCachePopup extends VBox {
     private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
         Stage popupStage = new Stage();
         popupStage.initModality(Modality.APPLICATION_MODAL);
-        popupStage.setTitle("Delete Problematic Accounts");
+        popupStage.setTitle(I18n.tr("autoDeleteProblematicAccounts"));
 
         VBox root = new VBox(10);
         root.setPadding(new Insets(20));
 
-        Label warningLabel = new Label("The following accounts are flagged as BAD or YELLOW. Select the ones you want to delete.");
+        Label warningLabel = new Label(I18n.tr("autoTheFollowingAccountsAreFlaggedAsBADOrYELLOWSelectTheOnesYouWantToDelete"));
         warningLabel.setWrapText(true);
         warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
 
@@ -484,7 +492,7 @@ public class ReloadCachePopup extends VBox {
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefHeight(300);
 
-        CheckBox selectAll = new CheckBox("Select All");
+        CheckBox selectAll = new CheckBox(I18n.tr("autoSelectAll"));
         selectAll.setOnAction(e -> accountsBox.getChildren().forEach(node -> {
             if (node instanceof CheckBox) ((CheckBox) node).setSelected(selectAll.isSelected());
         }));
@@ -499,19 +507,19 @@ public class ReloadCachePopup extends VBox {
                 .collect(Collectors.toList());
 
         if (!badAccounts.isEmpty()) {
-            Label badLabel = new Label("BAD (Red)");
+            Label badLabel = new Label(I18n.tr("autoBadRed"));
             badLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
             accountsBox.getChildren().add(badLabel);
             addProblemAccountsToDeleteBox(accountsBox, badAccounts, problematicAccounts);
         }
         if (!yellowAccounts.isEmpty()) {
-            Label yellowLabel = new Label("YELLOW (Partially successful)");
+            Label yellowLabel = new Label(I18n.tr("autoYellowPartiallySuccessful"));
             yellowLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
             accountsBox.getChildren().add(yellowLabel);
             addProblemAccountsToDeleteBox(accountsBox, yellowAccounts, problematicAccounts);
         }
 
-        Button deleteButton = new Button("Delete Selected");
+        Button deleteButton = new Button(I18n.tr("autoDeleteSelected"));
         deleteButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-weight: bold;");
         deleteButton.setOnAction(e -> {
             List<Account> toDelete = accountsBox.getChildren().stream()
@@ -521,10 +529,18 @@ public class ReloadCachePopup extends VBox {
 
             if (toDelete.isEmpty()) return;
 
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to delete " + toDelete.size() + " accounts?", ButtonType.YES, ButtonType.NO);
+            Alert alert = new Alert(
+                    Alert.AlertType.CONFIRMATION,
+                    I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),
+                    ButtonType.YES,
+                    ButtonType.NO
+            );
             if (RootApplication.currentTheme != null) {
                 alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
             }
+            alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
+                    ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
+                    : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
             alert.showAndWait().ifPresent(response -> {
                 if (response == ButtonType.YES) {
                     toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
@@ -536,7 +552,7 @@ public class ReloadCachePopup extends VBox {
             });
         });
 
-        Button cancelButton = new Button("Cancel");
+        Button cancelButton = new Button(I18n.tr("autoCancel"));
         cancelButton.setOnAction(e -> popupStage.close());
 
         HBox buttons = new HBox(10, deleteButton, cancelButton);
@@ -545,6 +561,7 @@ public class ReloadCachePopup extends VBox {
         root.getChildren().addAll(warningLabel, selectAll, scrollPane, buttons);
 
         Scene scene = new Scene(root, 500, 500);
+        I18n.applySceneOrientation(scene);
         if (RootApplication.currentTheme != null) {
             scene.getStylesheets().add(RootApplication.currentTheme);
         }
@@ -556,7 +573,7 @@ public class ReloadCachePopup extends VBox {
         for (Account account : accounts) {
             SummaryStatus status = problematicAccounts.get(account.getDbId());
             String reasons = status == null || status.reasons.isEmpty()
-                    ? "No reason captured."
+                    ? I18n.tr("reloadNoReasonCaptured")
                     : String.join(" | ", status.reasons);
             CheckBox cb = new CheckBox(account.getAccountName() + " (" + account.getType().getDisplay() + ") - " + reasons);
             cb.setWrapText(true);
@@ -623,16 +640,16 @@ public class ReloadCachePopup extends VBox {
         }
 
         latestSummaryLines.clear();
-        latestSummaryLines.add("Completed: " + processedAccounts.size() + "/" + processedAccounts.size());
-        latestSummaryLines.add("Good: " + successCount);
-        latestSummaryLines.add("Yellow (Partial): " + yellowCount);
-        latestSummaryLines.add("Bad: " + badCount);
-        latestSummaryLines.add("Channels loaded: " + totalSuccessChannels);
+        latestSummaryLines.add(I18n.tr("reloadSummaryCompleted", processedAccounts.size(), processedAccounts.size()));
+        latestSummaryLines.add(I18n.tr("reloadSummaryGood", successCount));
+        latestSummaryLines.add(I18n.tr("reloadSummaryYellow", yellowCount));
+        latestSummaryLines.add(I18n.tr("reloadSummaryBad", badCount));
+        latestSummaryLines.add(I18n.tr("reloadSummaryChannelsLoaded", totalSuccessChannels));
         if (!yellowNames.isEmpty()) {
-            latestSummaryLines.add("Yellow accounts: " + String.join(", ", yellowNames));
+            latestSummaryLines.add(I18n.tr("reloadSummaryYellowAccounts", String.join(", ", yellowNames)));
         }
         if (!badNames.isEmpty()) {
-            latestSummaryLines.add("Bad accounts: " + String.join(", ", badNames));
+            latestSummaryLines.add(I18n.tr("reloadSummaryBadAccounts", String.join(", ", badNames)));
         }
 
         VBox summaryBox = new VBox(4);
@@ -642,7 +659,7 @@ public class ReloadCachePopup extends VBox {
                 + "-fx-border-radius: 6;"
                 + "-fx-background-radius: 6;");
 
-        Label title = new Label("Run Summary");
+        Label title = new Label(I18n.tr("autoRunSummary"));
         title.setStyle("-fx-font-weight: bold;");
         summaryBox.getChildren().add(title);
 
@@ -727,74 +744,92 @@ public class ReloadCachePopup extends VBox {
             return "";
         }
         if (trimmed.startsWith("Loaded channels from local cache")) {
-            return "Loaded channels from local cache.";
+            return I18n.tr("reloadLoadedChannelsFromLocalCache");
         }
         if (trimmed.startsWith("No fresh cache found for category")) {
-            return trimmed.replace("No fresh cache found for category", "Cache miss:")
-                    .replace(". Fetching from portal...", " -> fetching.");
+            String category = trimmed.replace("No fresh cache found for category", "")
+                    .replace(". Fetching from portal...", "")
+                    .trim();
+            return I18n.tr("reloadCacheMissFetchingCategory", category);
         }
         if (trimmed.startsWith("No fresh cached categories found")) {
-            String mode = modeLabel(account);
-            if ("VOD".equals(mode) || "SERIES".equals(mode)) {
+            String modeCode = modeCode(account);
+            if ("VOD".equals(modeCode) || "SERIES".equals(modeCode)) {
                 return "";
             }
-            return mode == null ? "Categories cache miss -> fetching."
-                    : mode + " Categories: cache miss, fetching.";
+            String mode = modeLabel(account);
+            return mode == null
+                    ? I18n.tr("reloadCategoriesCacheMissFetching")
+                    : I18n.tr("reloadModeCategoriesCacheMissFetching", mode);
         }
         if (trimmed.startsWith("No cached categories found")) {
-            String mode = modeLabel(account);
-            if ("VOD".equals(mode) || "SERIES".equals(mode)) {
+            String modeCode = modeCode(account);
+            if ("VOD".equals(modeCode) || "SERIES".equals(modeCode)) {
                 return "";
             }
-            return mode == null ? "No cached categories -> fetching."
-                    : mode + " Categories: no cache, fetching.";
+            String mode = modeLabel(account);
+            return mode == null
+                    ? I18n.tr("reloadNoCachedCategoriesFetching")
+                    : I18n.tr("reloadModeNoCachedCategoriesFetching", mode);
         }
         if (trimmed.startsWith("Fetching categories from Xtreme API")) {
             String mode = modeLabel(account);
-            return mode == null ? "Fetching categories (Xtreme API)..."
-                    : "Fetching " + mode + " categories (Xtreme API)...";
+            return mode == null
+                    ? I18n.tr("reloadFetchingCategoriesFromProvider", "Xtreme API")
+                    : I18n.tr("reloadFetchingModeCategoriesFromProvider", mode, "Xtreme API");
         }
         if (trimmed.startsWith("Fetching categories from Stalker Portal")) {
             String mode = modeLabel(account);
-            return mode == null ? "Fetching categories (Stalker Portal)..."
-                    : "Fetching " + mode + " categories (Stalker Portal)...";
+            return mode == null
+                    ? I18n.tr("reloadFetchingCategoriesFromProvider", "Stalker Portal")
+                    : I18n.tr("reloadFetchingModeCategoriesFromProvider", mode, "Stalker Portal");
         }
         if (trimmed.startsWith("Found Categories")) {
             Integer count = extractFirstNumber(trimmed);
             if (count != null) {
                 String mode = modeLabel(account);
-                if (mode == null) {
-                    mode = "ITV";
-                }
-                return mode + " Categories: " + count;
+                return mode == null
+                        ? I18n.tr("reloadCategoriesCount", I18n.formatNumber(String.valueOf(count)))
+                        : I18n.tr("reloadModeCategoriesCount", mode, I18n.formatNumber(String.valueOf(count)));
             }
-            return trimmed.replace("Found Categories", "Categories:");
+            return I18n.tr("autoCategories") + ":";
         }
         if (trimmed.startsWith("Found Channels")) {
             Integer count = extractFirstNumber(trimmed);
             if (count != null) {
                 String mode = modeLabel(account);
-                if (mode == null) {
-                    mode = "ITV";
-                }
-                return mode + " Channels: " + count;
+                return mode == null
+                        ? I18n.tr("reloadChannelsCount", I18n.formatNumber(String.valueOf(count)))
+                        : I18n.tr("reloadModeChannelsCount", mode, I18n.formatNumber(String.valueOf(count)));
             }
-            return trimmed.replace("Found Channels", "Channels:");
+            return I18n.tr("autoChannels") + ":";
         }
         if (trimmed.endsWith("saved Successfully ✓")) {
-            return "Saved.";
+            return I18n.tr("reloadSaved");
         }
         if (trimmed.startsWith("Fetching page")) {
-            return trimmed.replace("Fetching page", "Page")
-                    .replace(" for category ", " (category ")
-                    .replace("...", ")");
+            Matcher matcher = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+(.+)\\.\\.\\.")
+                    .matcher(trimmed);
+            if (matcher.matches()) {
+                return I18n.tr("reloadPageCategory",
+                        I18n.formatNumber(matcher.group(1)),
+                        matcher.group(2).trim());
+            }
         }
         if (trimmed.startsWith("Fetched")) {
-            return trimmed.replace(" channels from page ", " channels (page ")
-                    .replace(".", ")");
+            Matcher matcher = Pattern.compile("Fetched\\s+(\\d+)\\s+channels from page\\s+(\\d+)\\.?")
+                    .matcher(trimmed);
+            if (matcher.matches()) {
+                return I18n.tr("reloadChannelsPage",
+                        I18n.formatNumber(matcher.group(1)),
+                        I18n.formatNumber(matcher.group(2)));
+            }
         }
         if (trimmed.startsWith("Page ") && trimmed.endsWith(" returned no channels.")) {
-            return trimmed.replace(" returned no channels.", " -> no channels.");
+            Integer page = extractFirstNumber(trimmed);
+            return page == null
+                    ? I18n.tr("reloadNoChannelsLoaded")
+                    : I18n.tr("reloadPageNoChannels", I18n.formatNumber(String.valueOf(page)));
         }
         if (trimmed.startsWith("Saved ")) {
             if (trimmed.contains(" to local VOD/Series cache.")) {
@@ -802,67 +837,70 @@ public class ReloadCachePopup extends VBox {
                 if (count != null) {
                     String mode = modeLabel(account);
                     if (mode != null) {
-                        return mode + " Categories: " + count;
+                        return I18n.tr("reloadModeCategoriesCount", mode, I18n.formatNumber(String.valueOf(count)));
                     }
-                    return "Categories saved: " + count;
+                    return I18n.tr("reloadCategoriesSaved", I18n.formatNumber(String.valueOf(count)));
                 }
             }
-            return trimmed.replace(" to local cache.", " to cache.");
+            return I18n.tr("reloadSavedToCache");
         }
         if (trimmed.equals("No categories found. Keeping existing cache.")) {
             String mode = modeLabel(account);
-            return mode == null ? "No categories found. Cache kept."
-                    : mode + " Categories: none found.";
+            return mode == null
+                    ? I18n.tr("reloadNoCategoriesFoundCacheKept")
+                    : I18n.tr("reloadModeCategoriesNoneFound", mode);
         }
         if (trimmed.equals("No channels found in any category. Keeping existing cache.")) {
             String mode = modeLabel(account);
-            if (mode == null) {
-                mode = "ITV";
-            }
-            return mode + " Channels: none found.";
+            return mode == null
+                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
+                    : I18n.tr("reloadModeChannelsNoneFound", mode);
         }
         if (trimmed.startsWith("Reload failed:")) {
-            return "Failed: " + shortFailure(trimmed.substring("Reload failed:".length()).trim());
+            return I18n.tr("reloadFailedReason",
+                    shortFailure(trimmed.substring("Reload failed:".length()).trim()));
         }
         if (trimmed.equals("Handshake failed.") || trimmed.startsWith("Handshake failed for")) {
-            return "Failed: handshake.";
+            return I18n.tr("reloadFailedHandshake");
         }
         if (trimmed.startsWith("Network error while loading categories")) {
-            return "Failed: network error.";
+            return I18n.tr("reloadFailedNetworkError");
         }
         if (trimmed.startsWith("Failed to parse channels")) {
-            return "Failed: channel parse error.";
+            return I18n.tr("reloadFailedChannelParseError");
         }
         if (trimmed.startsWith("Last-resort fetch failed for category")) {
-            return "Failed: fallback category fetch.";
+            return I18n.tr("reloadFailedFallbackCategoryFetch");
         }
         if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
-            return "Global lookup failed, using category fetch.";
+            return I18n.tr("reloadGlobalLookupFailedUsingCategoryFetch");
         }
         if (trimmed.startsWith("Global Xtreme channel lookup returned no channels")) {
-            return "Global lookup empty, using category fetch.";
+            return I18n.tr("reloadGlobalLookupEmptyUsingCategoryFetch");
         }
         if (trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
-            return "Global lookup uncategorized, using category fetch.";
+            return I18n.tr("reloadGlobalLookupUncategorizedUsingCategoryFetch");
         }
         if (trimmed.startsWith("No channels returned by get_all_channels")) {
-            return "Global channel list empty, trying fallback.";
+            return I18n.tr("reloadGlobalChannelListEmptyTryingFallback");
         }
         if (trimmed.startsWith("Global Stalker get_all_channels failed")) {
-            return "Global channel list failed, trying fallback.";
+            return I18n.tr("reloadGlobalChannelListFailedTryingFallback");
         }
         if (trimmed.startsWith("Last-resort fetch succeeded. Collected")) {
             Integer count = extractFirstNumber(trimmed);
-            return count == null ? "Fallback fetch succeeded." : "Fallback fetch succeeded: " + count + " channels.";
+            return count == null
+                    ? I18n.tr("reloadFallbackFetchSucceeded")
+                    : I18n.tr("reloadFallbackFetchSucceededWithChannels", I18n.formatNumber(String.valueOf(count)));
         }
         if (trimmed.startsWith("Global VOD category list failed:")) {
-            return "VOD category list failed.";
+            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabVideoOnDemand"));
         }
         if (trimmed.startsWith("Global SERIES category list failed:")) {
-            return "SERIES category list failed.";
+            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabTvSeries"));
         }
         if (trimmed.equals("Marked bad and skipped after global call failure.")) {
-            return "Marked bad and moved to next account.";
+            return I18n.tr("reloadMarkedBadMovedNext");
         }
         return trimmed;
     }
@@ -876,21 +914,24 @@ public class ReloadCachePopup extends VBox {
         }
         String trimmed = message.trim();
         if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
-            return "ITV global call failed for Xtreme.";
+            return I18n.tr("reloadLiveTvGlobalCallFailedForXtreme");
         }
         if (trimmed.startsWith("Global Stalker get_all_channels failed")) {
-            return "ITV get_all_channels failed for Stalker Portal.";
+            return I18n.tr("reloadLiveTvGetAllChannelsFailedForStalker");
         }
         if (trimmed.startsWith("Global VOD category list failed:")) {
-            return "VOD category list call failed.";
+            return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabVideoOnDemand"));
         }
         if (trimmed.startsWith("Global SERIES category list failed:")) {
-            return "SERIES category list call failed.";
+            return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabTvSeries"));
         }
         if (trimmed.startsWith("Network error while loading categories")) {
-            String mode = modeLabel(account);
-            if ("VOD".equals(mode) || "SERIES".equals(mode)) {
-                return mode + " category list call failed.";
+            String modeCode = modeCode(account);
+            if ("VOD".equals(modeCode)) {
+                return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabVideoOnDemand"));
+            }
+            if ("SERIES".equals(modeCode)) {
+                return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabTvSeries"));
             }
         }
         return null;
@@ -905,7 +946,7 @@ public class ReloadCachePopup extends VBox {
             return new SummaryStatus(SummaryLevel.YELLOW, fetchedChannelCount, normalizedReasons);
         }
         if (normalizedReasons.isEmpty()) {
-            normalizedReasons.add("No channels loaded.");
+            normalizedReasons.add(I18n.tr("reloadNoChannelsLoaded"));
         }
         return new SummaryStatus(SummaryLevel.BAD, fetchedChannelCount, normalizedReasons);
     }
@@ -928,42 +969,44 @@ public class ReloadCachePopup extends VBox {
             return null;
         }
         if (trimmed.startsWith("Reload failed:")) {
-            return "Reload failed.";
+            return I18n.tr("reloadReloadFailed");
         }
         if (trimmed.equals("Handshake failed.") || trimmed.startsWith("Handshake failed for")) {
-            return "Handshake failed.";
+            return I18n.tr("reloadHandshakeFailed");
         }
         if (trimmed.startsWith("Network error while loading categories")) {
-            return "Network error while loading categories.";
+            return I18n.tr("reloadNetworkErrorLoadingCategories");
         }
         if (trimmed.startsWith("Failed to parse channels")) {
-            return "Failed to parse channels.";
+            return I18n.tr("reloadFailedToParseChannels");
         }
         if (trimmed.startsWith("Last-resort fetch failed for category")) {
-            return "Fallback category fetch failed.";
+            return I18n.tr("reloadFallbackCategoryFetchFailed");
         }
         if (trimmed.startsWith("No channels returned by get_all_channels")
                 || trimmed.startsWith("Global Stalker get_all_channels failed")) {
-            return "Global ITV channel call failed.";
+            return I18n.tr("reloadGlobalLiveTvChannelCallFailed");
         }
         if (trimmed.startsWith("Global Xtreme channel lookup failed")
                 || trimmed.startsWith("Global Xtreme channel lookup returned no channels")
                 || trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
-            return "Global Xtreme lookup failed.";
+            return I18n.tr("reloadGlobalXtremeLookupFailed");
         }
         if (trimmed.startsWith("Global VOD category list failed:")) {
-            return "VOD category list failed.";
+            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabVideoOnDemand"));
         }
         if (trimmed.startsWith("Global SERIES category list failed:")) {
-            return "SERIES category list failed.";
+            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabTvSeries"));
         }
         if (trimmed.equals("No channels found in any category. Keeping existing cache.")
                 || trimmed.equals("No channels found.")) {
             String mode = modeLabel(account);
-            return (mode == null ? "No channels found." : mode + " no channels found.");
+            return mode == null
+                    ? I18n.tr("reloadNoChannelsFound")
+                    : I18n.tr("reloadModeNoChannelsFound", mode);
         }
         if (trimmed.equals("Marked bad and skipped after global call failure.")) {
-            return "Marked bad by user.";
+            return I18n.tr("reloadMarkedBadByUser");
         }
         return null;
     }
@@ -971,19 +1014,21 @@ public class ReloadCachePopup extends VBox {
     private boolean promptCarryOnAfterGlobalFailure(Account account, String reason) {
         final boolean[] carryOn = {true};
         runOnFxThreadAndWait(() -> {
-            ButtonType carryOnButton = new ButtonType("Carry On", ButtonBar.ButtonData.YES);
-            ButtonType markBadButton = new ButtonType("Mark Bad & Next", ButtonBar.ButtonData.CANCEL_CLOSE);
+            ButtonType carryOnButton = new ButtonType(I18n.tr("reloadCarryOn"), ButtonBar.ButtonData.YES);
+            ButtonType markBadButton = new ButtonType(I18n.tr("reloadMarkBadAndNext"), ButtonBar.ButtonData.CANCEL_CLOSE);
             Alert alert = new Alert(
                     Alert.AlertType.CONFIRMATION,
-                    "Account: \"" + account.getAccountName() + "\"\n"
-                            + reason + "\n\nDo you want to continue this account run?",
+                    I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason),
                     carryOnButton,
                     markBadButton
             );
-            alert.setHeaderText("Global Call Failure");
+            alert.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
             if (RootApplication.currentTheme != null) {
                 alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
             }
+            alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
+                    ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
+                    : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
             carryOn[0] = alert.showAndWait().orElse(markBadButton) == carryOnButton;
         });
         return carryOn[0];
@@ -1004,7 +1049,7 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
-    private String modeLabel(Account account) {
+    private String modeCode(Account account) {
         if (account == null || account.getAction() == null) {
             return null;
         }
@@ -1020,13 +1065,37 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
+    private String modeLabel(Account account) {
+        String code = modeCode(account);
+        if (code == null) {
+            return null;
+        }
+        return switch (code) {
+            case "ITV" -> I18n.tr("categoryTabLiveTv");
+            case "VOD" -> I18n.tr("categoryTabVideoOnDemand");
+            case "SERIES" -> I18n.tr("categoryTabTvSeries");
+            default -> null;
+        };
+    }
+
+    private String summaryLevelLabel(SummaryLevel level) {
+        if (level == null) {
+            return "";
+        }
+        return switch (level) {
+            case GOOD -> I18n.tr("reloadSummaryLevelGood");
+            case YELLOW -> I18n.tr("reloadSummaryLevelYellow");
+            case BAD -> I18n.tr("reloadSummaryLevelBad");
+        };
+    }
+
     private String shortFailure(String message) {
         if (message == null) {
-            return "unknown error.";
+            return I18n.tr("reloadUnknownError");
         }
         String compact = message.trim();
         if (compact.isEmpty()) {
-            return "unknown error.";
+            return I18n.tr("reloadUnknownError");
         }
         int lineBreak = compact.indexOf('\n');
         if (lineBreak >= 0) {
@@ -1126,32 +1195,36 @@ public class ReloadCachePopup extends VBox {
             switch (status) {
                 case QUEUED:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText("Queued");
+                    statusLabel.setText(I18n.tr("autoQueued"));
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
                     break;
                 case RUNNING:
                     runningIndicator.setVisible(true);
-                    statusLabel.setText("Running");
+                    statusLabel.setText(I18n.tr("autoRunning"));
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
                     break;
                 case DONE:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(channelCount == null ? "Done" : "Done (" + channelCount + " channels)");
+                    statusLabel.setText(channelCount == null
+                            ? I18n.tr("reloadDone")
+                            : I18n.tr("reloadDoneWithChannels", channelCount));
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
                     break;
                 case YELLOW:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(channelCount == null ? "Partial" : "Partial (" + channelCount + " channels)");
+                    statusLabel.setText(channelCount == null
+                            ? I18n.tr("reloadPartial")
+                            : I18n.tr("reloadPartialWithChannels", channelCount));
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
                     break;
                 case EMPTY:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText("Empty (0 channels)");
+                    statusLabel.setText(I18n.tr("autoEmpty0Channels"));
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
                     break;
                 case FAILED:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText("Failed");
+                    statusLabel.setText(I18n.tr("autoFailed2"));
                     statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
                     break;
                 default:
@@ -1164,7 +1237,7 @@ public class ReloadCachePopup extends VBox {
         private void setStatus(AccountRunStatus status, Integer current, Integer total) {
             if (status == AccountRunStatus.RUNNING && current != null && total != null) {
                 runningIndicator.setVisible(true);
-                statusLabel.setText("Running (" + current + "/" + total + ")");
+                statusLabel.setText(I18n.tr("autoRunningProgress", current, total));
                 statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
             } else {
                 setStatus(status, (Integer) null);

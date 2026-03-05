@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
@@ -38,7 +40,7 @@ public final class PlaybackUIService {
 
         if (playerPathIsBrowser) {
             if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-                showErrorAlert("Unable to start local web server for browser playback.");
+                showErrorAlert(I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"));
                 return;
             }
             String browserUrl = PlayerService.getInstance()
@@ -50,13 +52,13 @@ public final class PlaybackUIService {
         if (request.allowDrmBrowserFallback && PlayerService.getInstance().isDrmProtected(request.channel)) {
             if (!browserIsDefaultConfig) {
                 String localServerUrl = ServerUrlUtil.getLocalServerUrl();
-                boolean confirmed = showConfirmationAlert("This channel has DRM-protected content and can only play in the browser. Local server: " + localServerUrl + ". Open it now?");
+                boolean confirmed = showConfirmationAlert(I18n.tr("autoDrmBrowserOnlyConfirm", localServerUrl));
                 if (!confirmed) {
                     return;
                 }
             }
             if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-                showErrorAlert("Unable to start local web server for DRM playback.");
+                showErrorAlert(I18n.tr("autoUnableToStartLocalWebServerForDRMPlayback"));
                 return;
             }
             String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
@@ -87,13 +89,13 @@ public final class PlaybackUIService {
                             getPlayer().stopForReload();
                             getPlayer().play(response);
                         } else {
-                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                            showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
                         }
                     } else if (isBlank(request.playerPath) && useEmbeddedPlayerConfig) {
                         getPlayer().stopForReload();
                         getPlayer().play(response);
                     } else if (isBlank(request.playerPath)) {
-                        showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                        showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
                     } else {
                         com.uiptv.util.Platform.executeCommand(request.playerPath, evaluatedStreamUrl);
                     }

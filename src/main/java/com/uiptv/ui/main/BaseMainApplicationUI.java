@@ -1,5 +1,7 @@
 package com.uiptv.ui.main;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
@@ -104,6 +106,7 @@ public abstract class BaseMainApplicationUI {
         VBox.setVgrow(mainContent, Priority.ALWAYS);
 
         Scene scene = new Scene(rootLayout, guidedMaxWidthPixels, guidedMaxHeightPixels);
+        I18n.applySceneOrientation(scene);
         fontStyleConfigurer.accept(scene);
         return scene;
     }
@@ -162,11 +165,11 @@ public abstract class BaseMainApplicationUI {
         MenuBar menuBar = new MenuBar();
         menuBar.setUseSystemMenuBar(!configurationService.read().isDarkTheme());
 
-        Menu helpMenu = new Menu("Help");
-        MenuItem aboutItem = new MenuItem("About");
+        Menu helpMenu = new Menu(I18n.tr("autoHelp"));
+        MenuItem aboutItem = new MenuItem(I18n.tr("autoAbout"));
         aboutItem.setOnAction(e -> new AboutUI(hostServices));
 
-        MenuItem updateItem = new MenuItem("Check for updates...");
+        MenuItem updateItem = new MenuItem(I18n.tr("autoCheckForUpdates2"));
         updateItem.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
 
         helpMenu.getItems().addAll(aboutItem, updateItem);
@@ -177,12 +180,12 @@ public abstract class BaseMainApplicationUI {
     private TabPane createTabPane(ManageAccountUI manageAccountUI, AccountListUI accountListUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI) {
         TabPane tabPane = new TabPane();
 
-        Tab manageAccountTab = new Tab("Account", useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : manageAccountUI);
-        Tab parseMultipleAccountTab = new Tab("Import Bulk Accounts", parseMultipleAccountUI);
-        Tab bookmarkChannelListTab = new Tab("Favorite", bookmarkChannelListUI);
-        Tab watchingNowTab = new Tab("Watching Now", watchingNowUI);
-        Tab logDisplayTab = new Tab("Logs", logDisplayUI);
-        Tab configurationTab = new Tab("Settings", configurationUI);
+        Tab manageAccountTab = new Tab(I18n.tr("autoAccount"), useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : manageAccountUI);
+        Tab parseMultipleAccountTab = new Tab(I18n.tr("autoImportBulkAccounts"), parseMultipleAccountUI);
+        Tab bookmarkChannelListTab = new Tab(I18n.tr("autoFavorite"), bookmarkChannelListUI);
+        Tab watchingNowTab = new Tab(I18n.tr("autoWatchingNow"), watchingNowUI);
+        Tab logDisplayTab = new Tab(I18n.tr("autoLogs"), logDisplayUI);
+        Tab configurationTab = new Tab(I18n.tr("autoSettings"), configurationUI);
 
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);

@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
@@ -49,8 +50,6 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected static final Pattern MONTH_DATE_PATTERN = Pattern.compile("(?i)\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},\\s+\\d{4}\\b");
     protected static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b");
     protected static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2}\\b");
-    protected static final DateTimeFormatter UI_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-
     protected final Account account;
     protected final String categoryTitle;
     protected final String seriesId;
@@ -96,7 +95,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         configureEmptyStateOverlay();
         registerBookmarkListener();
         registerWatchStateListener();
-        showPlaceholder("Loading episodes for '" + categoryTitle + "'...");
+        showPlaceholder(I18n.tr("autoLoadingEpisodesFor", categoryTitle));
     }
 
     protected abstract void initWidgets();
@@ -149,7 +148,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                         watchedState, i.getId(), season, episodeNo, i.getTitle());
                 String plot = i.getInfo() != null ? safe(i.getInfo().getPlot()) : "";
                 String cleanTitle = cleanEpisodeTitleWithPlot(i.getTitle(), plot);
-                String displayTitle = isBlank(episodeNo) ? cleanTitle : "E" + episodeNo + "  " + cleanTitle;
+                String displayTitle = buildEpisodeDisplayTitle(season, episodeNo, cleanTitle);
                 String releaseDate = i.getInfo() != null ? safe(i.getInfo().getReleaseDate()) : "";
                 String rating = i.getInfo() != null ? safe(i.getInfo().getRating()) : "";
 
@@ -181,7 +180,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     public void setLoadingComplete() {
         runLater(() -> {
             if (!itemsLoaded.get()) {
-                setEmptyState("Nothing found for '" + categoryTitle + "'", true);
+                setEmptyState(I18n.tr("autoNothingFoundFor", categoryTitle), true);
             }
         });
     }
@@ -479,7 +478,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                 .series(seriesId, seriesCategoryId)
                 .channelId(item.getEpisodeId())
                 .categoryId(seriesCategoryId)
-                .errorPrefix("Error playing episode: "));
+                .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
     }
 
     protected String inferSeason(Episode episode) {
@@ -516,10 +515,18 @@ public abstract class BaseEpisodesListUI extends HBox {
 
     protected String cleanEpisodeTitle(String title) {
         String value = safe(title);
-        return value
-                .replaceAll("(?i)^\\s*season\\s*\\d+\\s*[-:]\\s*", "")
-                .replaceAll("(?i)^\\s*s\\d+\\s*[-:]\\s*", "")
-                .trim();
+        String previous;
+        do {
+            previous = value;
+            value = value
+                    .replaceAll("(?i)^\\s*season\\s*\\d+\\s*[-:]?\\s*", "")
+                    .replaceAll("(?i)^\\s*s\\d+\\s*[-:]?\\s*", "")
+                    .replaceAll("(?i)^\\s*episode\\s*\\d+\\s*[-:]?\\s*", "")
+                    .replaceAll("(?i)^\\s*ep\\.?\\s*\\d+\\s*[-:]?\\s*", "")
+                    .replaceAll("(?i)^\\s*e\\d+\\s*[-:]?\\s*", "")
+                    .trim();
+        } while (!value.equals(previous));
+        return isGenericEpisodeTitle(value) ? "" : value;
     }
 
     protected String cleanEpisodeTitleWithPlot(String title, String plot) {
@@ -585,7 +592,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         }
         LocalDate parsed = parseDate(v);
         if (parsed != null) {
-            return UI_DATE_FORMATTER.format(parsed);
+            return I18n.formatDate(parsed);
         }
         if (v.matches("^\\d{4}-\\d{2}-\\d{2}.*")) {
             return v.substring(0, 10);
@@ -616,6 +623,28 @@ public abstract class BaseEpisodesListUI extends HBox {
             }
         }
         return v;
+    }
+
+    protected String buildEpisodeDisplayTitle(String season, String episodeNo, String title) {
+        String seasonLabel = I18n.tr("autoSeasonNumber",
+                I18n.formatNumber(isBlank(season) ? "1" : season));
+        String episodeLabel = I18n.tr("autoEpisodeNumber",
+                isBlank(episodeNo) ? "-" : I18n.formatNumber(episodeNo));
+        String cleanTitle = isGenericEpisodeTitle(title) ? "" : safe(title).trim();
+        if (isBlank(cleanTitle)) {
+            return seasonLabel + " - " + episodeLabel;
+        }
+        return seasonLabel + " - " + episodeLabel + ": " + cleanTitle;
+    }
+
+    protected boolean isGenericEpisodeTitle(String title) {
+        String value = safe(title).trim();
+        if (isBlank(value)) {
+            return true;
+        }
+        return value.matches("(?i)^episode\\s*\\d+\\s*[:\\-]?\\s*$")
+                || value.matches("(?i)^ep\\.?\\s*\\d+\\s*[:\\-]?\\s*$")
+                || value.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$");
     }
 
     protected LocalDate parseDate(String value) {

@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
@@ -36,32 +38,32 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ManageAccountUI extends VBox {
-    public static final String PRIMARY_MAC_ADDRESS_HINT = "Primary MAC Address";
+    public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
     final FileChooser fileChooser = new FileChooser();
-    final Button browserButtonM3u8Path = new Button("Browse...");
-    final UIptvText m3u8Path = new UIptvText("m3u8Path", "M3u8 file path/url", 5);
+    final Button browserButtonM3u8Path = new Button(I18n.tr("autoBrowse"));
+    final UIptvText m3u8Path = new UIptvText("m3u8Path", "manageM3u8FilePathUrlPrompt", 5);
     private final ComboBox accountType = new ComboBox();
-    private final UIptvText name = new UIptvText("name", "Account Name (must be unique)", 5);
-    private final UIptvText username = new UIptvText("username", "User Name", 5);
-    private final UIptvText password = new UIptvText("password", "Password", 5);
-    private final UIptvText url = new UIptvText("url", "URL", 5);
-    private final UIptvText epg = new UIptvText("epg", "EPG", 5);
-    private final UIptvCombo macAddress = new UIptvCombo("macAddress", PRIMARY_MAC_ADDRESS_HINT, 350);
-    private final UIptvTextArea macAddressList = new UIptvTextArea("macAddress", "Your Comma separated MAC Addresses.", 5);
-    private final Hyperlink verifyMacsLink = new Hyperlink("Verify");
-    private final Hyperlink manageMacsLink = new Hyperlink("Manage");
+    private final UIptvText name = new UIptvText("name", "manageAccountNameMustBeUniquePrompt", 5);
+    private final UIptvText username = new UIptvText("username", "manageUserNamePrompt", 5);
+    private final UIptvText password = new UIptvText("password", "managePasswordPrompt", 5);
+    private final UIptvText url = new UIptvText("url", "manageUrlPrompt", 5);
+    private final UIptvText epg = new UIptvText("epg", "manageEpgPrompt", 5);
+    private final UIptvCombo macAddress = new UIptvCombo("macAddress", PRIMARY_MAC_ADDRESS_HINT_KEY, 350);
+    private final UIptvTextArea macAddressList = new UIptvTextArea("macAddress", "manageMacAddressListPrompt", 5);
+    private final Hyperlink verifyMacsLink = new Hyperlink(I18n.tr("autoVerify"));
+    private final Hyperlink manageMacsLink = new Hyperlink(I18n.tr("autoManage"));
     private final Label pipeLabel = new Label("|");
-    private final UIptvText serialNumber = new UIptvText("serialNumber", "Serial Number (SN)", 5);
-    private final UIptvText deviceId1 = new UIptvText("deviceId1", "Device ID 1", 5);
-    private final UIptvText deviceId2 = new UIptvText("deviceId2", "Device ID 2", 5);
-    private final UIptvText signature = new UIptvText("signature", "Signature", 5);
-    private final CheckBox pinToTopCheckBox = new CheckBox("Pin Account on Top");
-    private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "HTTP Method", 150);
-    private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "Timezone", 250);
-    private final ProminentButton saveButton = new ProminentButton("Save");
-    private final DangerousButton deleteButton = new DangerousButton("Delete");
-    private final Button clearButton = new Button("Clear Data");
-    private final Button refreshChannelsButton = new Button("Reload Cache");
+    private final UIptvText serialNumber = new UIptvText("serialNumber", "manageSerialNumberPrompt", 5);
+    private final UIptvText deviceId1 = new UIptvText("deviceId1", "manageDeviceId1Prompt", 5);
+    private final UIptvText deviceId2 = new UIptvText("deviceId2", "manageDeviceId2Prompt", 5);
+    private final UIptvText signature = new UIptvText("signature", "manageSignaturePrompt", 5);
+    private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
+    private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
+    private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
+    private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
+    private final DangerousButton deleteButton = new DangerousButton(I18n.tr("autoDeleteAccount"));
+    private final Button clearButton = new Button(I18n.tr("autoClearData"));
+    private final Button refreshChannelsButton = new Button(I18n.tr("autoReloadCache"));
     private final CacheService cacheService = new CacheServiceImpl();
     private final VBox formContainer = new VBox();
     AccountService service = AccountService.getInstance();
@@ -225,7 +227,7 @@ public class ManageAccountUI extends VBox {
     private void verifyMacAddresses() {
         String macs = macAddressList.getText();
         if (isBlank(macs)) {
-            showErrorAlert("No MAC addresses to verify.");
+            showErrorAlert(I18n.tr("autoNoMACAddressesToVerify"));
             return;
         }
 
@@ -249,16 +251,16 @@ public class ManageAccountUI extends VBox {
                     if (isCancelled() || stopRequested.get()) break;
 
                     String mac = macList.get(i);
-                    progressDialog.addProgressText("Verifying (" + (i + 1) + "/" + total + "): " + mac + "...");
+                    progressDialog.addProgressText(I18n.tr("manageVerifyingMacProgress", i + 1, total, mac));
 
                     boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac);
                     progressDialog.addResult(isValid);
 
                     if (isValid) {
-                        progressDialog.addProgressText("Result: [VALID]VALID");
+                        progressDialog.addProgressText(I18n.tr("manageResultValid"));
                     } else {
                         invalidMacs.add(mac);
-                        progressDialog.addProgressText("Result: [INVALID]INVALID");
+                        progressDialog.addProgressText(I18n.tr("manageResultInvalid"));
                     }
 
                     if (isCancelled() || stopRequested.get()) break;
@@ -290,12 +292,12 @@ public class ManageAccountUI extends VBox {
 
         task.setOnFailed(e -> {
             progressDialog.close();
-            showErrorAlert("Verification failed: " + task.getException().getMessage());
+            showErrorAlert(I18n.tr("autoVerificationFailed", task.getException().getMessage()));
         });
 
         task.setOnCancelled(e -> {
             progressDialog.close();
-            showMessageAlert("Verification cancelled.");
+            showMessageAlert(I18n.tr("autoVerificationCancelled"));
         });
 
         new Thread(task).start();
@@ -304,13 +306,13 @@ public class ManageAccountUI extends VBox {
     private void handleVerificationResults(List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {
         if (invalidMacs.isEmpty()) {
             if (!wasStopped) {
-                showMessageAlert("All MAC addresses are valid.");
+                showMessageAlert(I18n.tr("autoAllMACAddressesAreValid"));
             }
             return;
         }
 
         if (!wasStopped && invalidMacs.size() == allMacs.size()) {
-            ButtonType result = showDialog("No valid MAC addresses found. Delete this account?");
+            ButtonType result = showDialog(I18n.tr("manageNoValidMacAddressesFoundDeleteAccount"));
             if (result == ButtonType.YES) {
                 deleteAccount(name.getText(), accountId);
             }
@@ -318,16 +320,16 @@ public class ManageAccountUI extends VBox {
         }
 
         String invalidMacsStr = String.join(", ", invalidMacs);
-        StringBuilder message = new StringBuilder("Found invalid MAC addresses: " + invalidMacsStr + "\n");
+        StringBuilder message = new StringBuilder(I18n.tr("manageFoundInvalidMacAddresses", invalidMacsStr)).append("\n");
 
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : "";
         boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
 
         if (defaultIsInvalid) {
-            message.append("\nNote: The default MAC address is invalid and will be removed.\nThe first valid MAC address will be set as the new default.\n");
+            message.append("\n").append(I18n.tr("manageDefaultMacAddressInvalidAndWillBeRemoved")).append("\n");
         }
 
-        message.append("\nDelete them?");
+        message.append("\n").append(I18n.tr("manageDeleteInvalidMacAddressesQuestion"));
         ButtonType result = showDialog(message.toString());
         if (result == ButtonType.YES) {
             List<String> validMacs = new ArrayList<>(allMacs);
@@ -367,10 +369,10 @@ public class ManageAccountUI extends VBox {
 
     private void addClearButtonClickHandler() {
         clearButton.setOnAction(event -> {
-            ButtonType result = showDialog("Clear all cached data for this account?");
+            ButtonType result = showDialog(I18n.tr("manageClearAllCachedDataForThisAccount"));
             if (result == ButtonType.YES) {
                 cacheService.clearCache(getAccountFromForm());
-                showMessageAlert("Cache cleared.");
+                showMessageAlert(I18n.tr("autoCacheCleared"));
             }
         });
     }
@@ -379,7 +381,7 @@ public class ManageAccountUI extends VBox {
         refreshChannelsButton.setOnAction(event -> {
             Account account = getAccountFromForm();
             if (account == null || isBlank(account.getDbId())) {
-                showErrorAlert("Please save the account before reloading the cache.");
+                showErrorAlert(I18n.tr("autoPleaseSaveTheAccountBeforeReloadingTheCache"));
                 return;
             }
             ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged);
@@ -404,7 +406,7 @@ public class ManageAccountUI extends VBox {
         macAddressList.clear();
         macAddress.getItems().clear();
         macAddress.setValue(null);
-        macAddress.setPromptText(PRIMARY_MAC_ADDRESS_HINT);
+        macAddress.setPromptText(I18n.tr(PRIMARY_MAC_ADDRESS_HINT_KEY));
         accountType.setValue(STALKER_PORTAL.getDisplay());
         pinToTopCheckBox.setSelected(false);
         httpMethodCombo.setValue("GET");
@@ -441,7 +443,7 @@ public class ManageAccountUI extends VBox {
 
         try {
             if (isBlank(name.getText())) {
-                showErrorAlert("Name cannot be empty");
+                showErrorAlert(I18n.tr("autoNameCannotBeEmpty"));
                 return;
             }
 
@@ -465,7 +467,7 @@ public class ManageAccountUI extends VBox {
                 saveButton.setDisable(false);
             }
         } catch (Exception e) {
-            showErrorAlert("Failed to save account. Please try again!");
+            showErrorAlert(I18n.tr("autoFailedToSaveAccountPleaseTryAgain"));
             saveButton.setDisable(false);
         }
     }
@@ -508,7 +510,7 @@ public class ManageAccountUI extends VBox {
         if (isBlank(name) || isBlank(accountId)) {
             return;
         }
-        ButtonType result = showDialog("Delete This account " + name + "?");
+        ButtonType result = showDialog(I18n.tr("manageDeleteThisAccount", name));
         if (result == ButtonType.YES) {
             Task<Void> task = new Task<>() {
                 @Override
@@ -523,7 +525,7 @@ public class ManageAccountUI extends VBox {
                 clearAll();
             });
 
-            task.setOnFailed(event -> showErrorAlert("Failed!"));
+            task.setOnFailed(event -> showErrorAlert(I18n.tr("autoFailed")));
 
             new Thread(task).start();
         }

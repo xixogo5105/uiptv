@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.EpisodeList;
@@ -48,7 +50,7 @@ public class ChannelListUI extends HBox {
     private final String categoryTitle;
     private final String categoryId;
     private final SearchableTableView table = new SearchableTableView();
-    private final TableColumn<ChannelItem, String> channelName = new TableColumn<>("Channels");
+    private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
     private final Set<String> seenChannelKeys = new HashSet<>();
@@ -98,7 +100,7 @@ public class ChannelListUI extends HBox {
         initWidgets();
         registerBookmarkListener();
         registerThumbnailModeListener();
-        table.setPlaceholder(new Label("Loading channels for '" + categoryTitle + "'..."));
+        table.setPlaceholder(new Label(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
     }
 
     public void setEmbeddedMode(boolean embeddedMode, Runnable onHome) {
@@ -159,7 +161,7 @@ public class ChannelListUI extends HBox {
     public void setLoadingComplete() {
         runLater(() -> {
             if (!itemsLoaded.get()) {
-                table.setPlaceholder(new Label("Nothing found for '" + categoryTitle + "'"));
+                table.setPlaceholder(new Label(I18n.tr("autoNothingFoundFor", categoryTitle)));
             }
         });
     }
@@ -217,7 +219,7 @@ public class ChannelListUI extends HBox {
         Button button = new Button();
         button.getStyleClass().add("nav-back-button");
         button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip("Home"));
+        button.setTooltip(new Tooltip(I18n.tr("autoHome")));
         SVGPath icon = new SVGPath();
         icon.setContent("M4 10 L12 4 L20 10 V20 H14 V13 H10 V20 H4 Z");
         icon.getStyleClass().add("nav-back-icon");
@@ -226,9 +228,9 @@ public class ChannelListUI extends HBox {
     }
 
     private Button createBackButton() {
-        Button button = new Button("Back");
+        Button button = new Button(I18n.tr("autoBack"));
         button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip("Back"));
+        button.setTooltip(new Tooltip(I18n.tr("autoBack")));
         return button;
     }
 
@@ -277,8 +279,8 @@ public class ChannelListUI extends HBox {
 
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Label drmBadge = new Label("DRM");
-            private final Label progressBadge = new Label("IN PROGRESS");
+            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
+            private final Label progressBadge = new Label(I18n.tr("autoInPROGRESS"));
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = new SVGPath();
             private final AsyncImageView imageView = new AsyncImageView();
@@ -337,8 +339,8 @@ public class ChannelListUI extends HBox {
 
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Label drmBadge = new Label("DRM");
-            private final Label progressBadge = new Label("IN PROGRESS");
+            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
+            private final Label progressBadge = new Label(I18n.tr("autoInPROGRESS"));
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = new SVGPath();
 
@@ -843,7 +845,7 @@ public class ChannelListUI extends HBox {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (Exception e) {
-                    runLater(() -> showErrorAlert("Error loading series: " + e.getMessage()));
+                    runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
                 } finally {
                     runLater(() -> getScene().setCursor(Cursor.DEFAULT));
                 }
@@ -885,7 +887,7 @@ public class ChannelListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
-        Menu bookmarkMenu = new Menu("Bookmark");
+        Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
         rowMenu.getItems().add(bookmarkMenu);
 
         rowMenu.setOnShowing(event -> {
@@ -899,7 +901,7 @@ public class ChannelListUI extends HBox {
                 List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
 
                 Platform.runLater(() -> {
-                    MenuItem allItem = new MenuItem("All");
+                    MenuItem allItem = new MenuItem(I18n.tr("autoAll"));
                     allItem.setOnAction(e -> {
                         saveBookmark(item, null);
                     });
@@ -916,7 +918,7 @@ public class ChannelListUI extends HBox {
 
                     if (existingBookmark != null) {
                         bookmarkMenu.getItems().add(new SeparatorMenuItem());
-                        MenuItem unbookmarkItem = new MenuItem("Remove Bookmark");
+                        MenuItem unbookmarkItem = new MenuItem(I18n.tr("autoRemoveBookmark"));
                         unbookmarkItem.getStyleClass().add("danger-menu-item");
                         unbookmarkItem.setOnAction(e -> {
                             new Thread(() -> {
@@ -934,22 +936,22 @@ public class ChannelListUI extends HBox {
             }).start();
         });
 
-        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
         playerEmbeddedItem.setOnAction(event -> {
             rowMenu.hide();
             play(row.getItem(), "embedded");
         });
-        MenuItem player1Item = new MenuItem("Player 1");
+        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
         player1Item.setOnAction(event -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
         });
-        MenuItem player2Item = new MenuItem("Player 2");
+        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
         player2Item.setOnAction(event -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
         });
-        MenuItem player3Item = new MenuItem("Player 3");
+        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
         player3Item.setOnAction(event -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
@@ -1007,7 +1009,7 @@ public class ChannelListUI extends HBox {
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(account, channelForPlayback, playerPath)
                 .categoryId(categoryId)
                 .channelId(item.getChannelId())
-                .errorPrefix("Error playing channel: "));
+                .errorPrefix(I18n.tr("autoErrorPlayingChannelPrefix")));
     }
 
     private Channel resolveChannelForPlayback(ChannelItem item) {

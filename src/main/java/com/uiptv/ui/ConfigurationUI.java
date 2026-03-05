@@ -11,6 +11,7 @@ import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.ThemeCssOverrideService;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.ProminentButton;
@@ -36,6 +37,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Objects;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
@@ -43,6 +45,8 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 public class ConfigurationUI extends VBox {
     private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     private static final String EMBEDDED_PLAYER_PATH = PlaybackUIService.EMBEDDED_PLAYER_PATH;
+    private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
+    private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private String dbId;
     private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
@@ -54,38 +58,42 @@ public class ConfigurationUI extends VBox {
     private final RadioButton defaultPlayer2 = new RadioButton("");
     private final RadioButton defaultPlayer3 = new RadioButton("");
     private final RadioButton defaultEmbedPlayer = new RadioButton();
-    private final RadioButton defaultWebBrowserPlayer = new RadioButton("Web Browser Player");
+    private final RadioButton defaultWebBrowserPlayer = new RadioButton(I18n.tr("configDefaultWebBrowserPlayer"));
     private boolean ignorePlayerSelectionPrompt = false;
 
-    private final UIptvText playerPath1 = new UIptvText("playerPath1", "Enter your favorite player's Path here.", 5);
-    private final UIptvText playerPath2 = new UIptvText("playerPath2", "Enter your second favorite player's Path here.", 5);
-    private final UIptvText playerPath3 = new UIptvText("playerPath3", "Enter your third favorite player's Path here.", 5);
-    private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "Enter comma separated list. All categories containing this would be filtered out.", 5);
-    private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "Enter comma separated list. All Channels containing this would be filtered out.", 5);
-    private final CheckBox filterPausedCheckBox = new CheckBox("Pause filtering");
-    private final CheckBox darkThemeCheckBox = new CheckBox("Use Dark Theme");
-    private final CheckBox enableFfmpegCheckBox = new CheckBox("Enable FFmpeg Transcoding (High CPU Usage)");
-    private final CheckBox enableThumbnailsCheckBox = new CheckBox("Enable thumbnails");
-    private final CheckBox wideViewCheckBox = new CheckBox("Wide View");
-    private final TextField lightThemeCssStatus = new TextField("Default resource in use");
-    private final TextField darkThemeCssStatus = new TextField("Default resource in use");
-    private final Button uploadLightThemeCssButton = new Button("Upload Light CSS");
-    private final Button uploadDarkThemeCssButton = new Button("Upload Dark CSS");
-    private final Hyperlink downloadLightThemeCssLink = new Hyperlink("Light Css");
-    private final Hyperlink downloadDarkThemeCssLink = new Hyperlink("Dark Css");
-    private final Button resetThemeOverridesButton = new Button("Reset Theme Overrides");
+    private final UIptvText playerPath1 = new UIptvText("playerPath1", "configPlayerPath1Prompt", 5);
+    private final UIptvText playerPath2 = new UIptvText("playerPath2", "configPlayerPath2Prompt", 5);
+    private final UIptvText playerPath3 = new UIptvText("playerPath3", "configPlayerPath3Prompt", 5);
+    private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "configFilterCategoriesPrompt", 5);
+    private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "configFilterChannelsPrompt", 5);
+    private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
+    private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
+    private final CheckBox enableFfmpegCheckBox = new CheckBox(I18n.tr("configEnableFfmpeg"));
+    private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
+    private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
+    private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
+    private final TextField lightThemeCssStatus = new TextField(I18n.tr("configDefaultResourceInUse"));
+    private final TextField darkThemeCssStatus = new TextField(I18n.tr("configDefaultResourceInUse"));
+    private final Button uploadLightThemeCssButton = new Button(I18n.tr("configCssUploadLight"));
+    private final Button uploadDarkThemeCssButton = new Button(I18n.tr("configCssUploadDark"));
+    private final Hyperlink downloadLightThemeCssLink = new Hyperlink(I18n.tr("configLightCss"));
+    private final Hyperlink downloadDarkThemeCssLink = new Hyperlink(I18n.tr("configDarkCss"));
+    private final Button resetThemeOverridesButton = new Button(I18n.tr("configResetThemeOverrides"));
     private final FileChooser cssFileChooser = new FileChooser();
     private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
-    private final UIptvText serverPort = new UIptvText("serverPort", "e.g. 8888", 3);
-    private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "Cache expiry in days (numbers only, default 30)", 5);
+    private final UIptvText serverPort = new UIptvText("serverPort", "configServerPortPrompt", 3);
+    private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "configCacheExpiryPrompt", 5);
+    private final PasswordField tmdbReadAccessToken = new PasswordField();
+    private final Hyperlink tmdbApiGuideLink = new Hyperlink(I18n.tr("configTmdbApiGuideLink"));
+    private final Hyperlink tmdbApiKeyPageLink = new Hyperlink(I18n.tr("configTmdbApiKeyPageLink"));
 
-    private final Button startServerButton = new Button("Start Server");
-    private final Hyperlink openServerLink = new Hyperlink("Open Web App");
-    private final Button publishM3u8Button = new Button("Publish M3U8");
-    private final Button clearCacheButton = new Button("Clear Cache");
-    private final Button clearWatchingNowButton = new Button("Clear Watching Now");
-    private final Button reloadCacheButton = new Button("Reload Accounts Cache");
-    private final ProminentButton saveButton = new ProminentButton("Save");
+    private final Button startServerButton = new Button(I18n.tr("configStartServer"));
+    private final Hyperlink openServerLink = new Hyperlink(I18n.tr("configOpenWebApp"));
+    private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
+    private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
+    private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
+    private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
+    private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
     private final Callback onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
@@ -104,10 +112,10 @@ public class ConfigurationUI extends VBox {
         startServerButton.getStyleClass().add("no-dim-disabled");
         contentContainer.setPadding(new Insets(5));
         contentContainer.setSpacing(10);
-        cssFileChooser.setTitle("Select CSS file");
+        cssFileChooser.setTitle(I18n.tr("configCssSelectFile"));
         cssFileChooser.getExtensionFilters().setAll(
-                new FileChooser.ExtensionFilter("CSS files", "*.css"),
-                new FileChooser.ExtensionFilter("All files", "*.*")
+                new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"),
+                new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
         );
 
         ScrollPane scrollPane = new ScrollPane(contentContainer);
@@ -120,6 +128,7 @@ public class ConfigurationUI extends VBox {
         getChildren().setAll(scrollPane);
 
         Configuration configuration = service.read();
+        initializeLanguageSelection(configuration);
         currentThemeCssOverride = themeCssOverrideService.read();
         defaultPlayer1.setToggleGroup(group);
         defaultPlayer2.setToggleGroup(group);
@@ -160,6 +169,7 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
+            tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
         }
         if (cacheExpiryDays.getText() == null || cacheExpiryDays.getText().isBlank()) {
             cacheExpiryDays.setText(String.valueOf(ConfigurationService.DEFAULT_CACHE_EXPIRY_DAYS));
@@ -185,22 +195,34 @@ public class ConfigurationUI extends VBox {
         filterPausedCheckBox.setMinWidth(250);
         cacheExpiryDays.setPrefColumnCount(4);
         cacheExpiryDays.setMaxWidth(70);
-        Label cacheExpiryLabel = new Label("Cache Expires in days:");
+        Label cacheExpiryLabel = new Label(I18n.tr("configCacheExpiresInDays"));
         HBox cacheExpiryRow = new HBox(8, cacheExpiryLabel, cacheExpiryDays);
         saveButton.setMinWidth(40);
         saveButton.setPrefWidth(440);
         saveButton.setMinHeight(50);
         saveButton.setPrefHeight(50);
-        fileChooser.setTitle("Select your favorite streaming player");
+        fileChooser.setTitle(I18n.tr("configSelectStreamingPlayer"));
+        tmdbReadAccessToken.setPromptText(I18n.tr("configTmdbReadAccessTokenPrompt"));
+        tmdbReadAccessToken.setMinWidth(295);
+        tmdbReadAccessToken.setPrefWidth(295);
+        tmdbReadAccessToken.setMaxWidth(Double.MAX_VALUE);
         HBox box1 = new HBox(6, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
         HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
         HBox box4 = new HBox(6, defaultEmbedPlayer, wideViewCheckBox);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
+        Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
+        Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
+        tmdbHelpLabel.setWrapText(true);
+        tmdbHelpLabel.getStyleClass().add("dim-label");
+        HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
+        VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
+        tmdbConfigSection.getStyleClass().add("uiptv-outline-pane");
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
+        HBox languageRow = buildLanguageRow();
         VBox themeOverridesGroup = buildThemeOverrideGroup();
         updateThemeCssStatusLabels();
 
@@ -216,11 +238,13 @@ public class ConfigurationUI extends VBox {
         VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
 
         contentContainer.getChildren().addAll(
-                createCollapsibleGroupPane("Players", "Add player paths and select the matching radio button to set the default player.", playersGroup, false),
-                createCollapsibleGroupPane("Filters", null, filtersGroup, true),
-                createCollapsibleGroupPane("Theme", "Dark mode and optional CSS file overrides.", themeOverridesGroup, true),
-                createCollapsibleGroupPane("Cache & Filtering", null, cacheGroup, false),
-                createCollapsibleGroupPane("FFmpeg & Web Server", null, serverGroup, false),
+                languageRow,
+                createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
+                createCollapsibleGroupPane(I18n.tr("configFilters"), null, filtersGroup, true),
+                createCollapsibleGroupPane(I18n.tr("configDarkTheme"), I18n.tr("configThemeDescription"), themeOverridesGroup, true),
+                createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), null, cacheGroup, true),
+                createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), null, serverGroup, true),
+                createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, true),
                 saveButton
         );
         addSaveButtonClickHandler();
@@ -233,6 +257,7 @@ public class ConfigurationUI extends VBox {
         addPublishM3u8ButtonClickHandler();
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
+        addTmdbGuideLinkClickHandler();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
     }
@@ -263,7 +288,7 @@ public class ConfigurationUI extends VBox {
 
         final Runnable refreshToggleLabel = () -> {
             boolean expanded = content.isVisible() && content.isManaged();
-            toggleLink.setText(expanded ? "Hide" : "Show");
+            toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
             if (descriptionLabel != null) {
                 descriptionLabel.setVisible(expanded);
                 descriptionLabel.setManaged(expanded);
@@ -286,6 +311,16 @@ public class ConfigurationUI extends VBox {
         return pane;
     }
 
+    private HBox buildLanguageRow() {
+        languageComboBox.getStyleClass().add("uiptv-combo-box");
+        languageComboBox.setMaxWidth(Double.MAX_VALUE);
+        Label languageLabel = new Label(I18n.tr("configLanguage"));
+        HBox languageRow = new HBox(8, languageLabel, languageComboBox);
+        HBox.setHgrow(languageComboBox, Priority.ALWAYS);
+        languageRow.setMaxWidth(Double.MAX_VALUE);
+        return languageRow;
+    }
+
     private VBox buildThemeOverrideGroup() {
         lightThemeCssStatus.setEditable(false);
         darkThemeCssStatus.setEditable(false);
@@ -298,15 +333,15 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(lightThemeCssStatus, Priority.ALWAYS);
         lightUploadRow.setFillHeight(true);
         lightUploadRow.setMaxWidth(Double.MAX_VALUE);
-        VBox lightBox = new VBox(6, new Label("Light Theme CSS Override"), lightUploadRow);
+        VBox lightBox = new VBox(6, new Label(I18n.tr("configLightThemeCssOverride")), lightUploadRow);
 
         HBox darkUploadRow = new HBox(8, darkThemeCssStatus, uploadDarkThemeCssButton);
         HBox.setHgrow(darkThemeCssStatus, Priority.ALWAYS);
         darkUploadRow.setFillHeight(true);
         darkUploadRow.setMaxWidth(Double.MAX_VALUE);
-        VBox darkBox = new VBox(6, new Label("Dark Theme CSS Override"), darkUploadRow);
+        VBox darkBox = new VBox(6, new Label(I18n.tr("configDarkThemeCssOverride")), darkUploadRow);
 
-        Label downloadLabel = new Label("Download:");
+        Label downloadLabel = new Label(I18n.tr("configCssDownload"));
         HBox downloadRow = new HBox(8, downloadLabel, downloadLightThemeCssLink, downloadDarkThemeCssLink);
         downloadRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         downloadRow.setMaxWidth(Double.MAX_VALUE);
@@ -317,6 +352,32 @@ public class ConfigurationUI extends VBox {
 
         addThemeCssButtonHandlers();
         return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeCssSection);
+    }
+
+    private void initializeLanguageSelection(Configuration configuration) {
+        languageComboBox.getItems().setAll(I18n.getSupportedLanguages());
+        languageComboBox.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(I18n.SupportedLanguage item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.nativeDisplayName());
+            }
+        });
+        languageComboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(I18n.SupportedLanguage item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.nativeDisplayName());
+            }
+        });
+
+        I18n.SupportedLanguage selected = I18n.resolveSupportedLanguage(configuration == null ? null : configuration.getLanguageLocale());
+        languageComboBox.getSelectionModel().select(selected);
+    }
+
+    private String getSelectedLanguageTag() {
+        I18n.SupportedLanguage selected = languageComboBox.getSelectionModel().getSelectedItem();
+        return selected == null ? I18n.DEFAULT_LANGUAGE_TAG : selected.languageTag();
     }
 
     private void addThemeCssButtonHandlers() {
@@ -343,7 +404,7 @@ public class ConfigurationUI extends VBox {
             }
             updateThemeCssStatusLabels();
         } catch (Exception e) {
-            showErrorAlert("Unable to read CSS file.");
+            showErrorAlert(I18n.tr("configUnableToReadCss"));
         }
     }
 
@@ -367,17 +428,17 @@ public class ConfigurationUI extends VBox {
         try {
             String cssContent = ThemeStylesheetResolver.readDefaultStylesheetContent(getClass(), darkTheme);
             FileChooser chooser = new FileChooser();
-            chooser.setTitle("Save CSS template");
-            chooser.getExtensionFilters().setAll(new FileChooser.ExtensionFilter("CSS files", "*.css"));
+            chooser.setTitle(I18n.tr("configCssTemplateSave"));
+            chooser.getExtensionFilters().setAll(new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"));
             chooser.setInitialFileName(darkTheme ? "dark-application.css" : "application.css");
             File target = chooser.showSaveDialog(RootApplication.primaryStage);
             if (target == null) {
                 return;
             }
             Files.writeString(target.toPath(), cssContent, StandardCharsets.UTF_8);
-            showMessageAlert("CSS template exported successfully.");
+            showMessageAlert(I18n.tr("configCssExportSuccess"));
         } catch (Exception e) {
-            showErrorAlert("Unable to export CSS template.");
+            showErrorAlert(I18n.tr("configCssExportFailed"));
         }
     }
 
@@ -385,11 +446,11 @@ public class ConfigurationUI extends VBox {
         String lightName = currentThemeCssOverride.getLightThemeCssName();
         String darkName = currentThemeCssOverride.getDarkThemeCssName();
         lightThemeCssStatus.setText(lightName == null || lightName.isBlank()
-                ? "Default resource in use"
-                : "Using override: " + lightName);
+                ? I18n.tr("configDefaultResourceInUse")
+                : I18n.tr("configUsingOverridePrefix") + " " + lightName);
         darkThemeCssStatus.setText(darkName == null || darkName.isBlank()
-                ? "Default resource in use"
-                : "Using override: " + darkName);
+                ? I18n.tr("configDefaultResourceInUse")
+                : I18n.tr("configUsingOverridePrefix") + " " + darkName);
     }
 
     private void addReloadCacheButtonClickHandler() {
@@ -404,23 +465,23 @@ public class ConfigurationUI extends VBox {
 
     private void updateEmbeddedPlayerTitle() {
         VideoPlayerInterface.PlayerType playerType = MediaPlayerFactory.getPlayerType();
-        String title = "Embedded Player";
+        String title = I18n.tr("configEmbeddedPlayer");
         if (playerType == VideoPlayerInterface.PlayerType.VLC) {
-            title = "Embedded Player (Using VLC)";
+            title = I18n.tr("configEmbeddedPlayerVlc");
         } else if (playerType == VideoPlayerInterface.PlayerType.LITE) {
-            title = "Embedded Player (Using Lite)";
+            title = I18n.tr("configEmbeddedPlayerLite");
         }
         defaultEmbedPlayer.setText(title);
     }
 
     private void addClearCacheButtonClickHandler() {
         clearCacheButton.setOnAction(event -> {
-            if (UIptvAlert.showConfirmationAlert("Are you sure you want to clear the cache?")) {
+            if (UIptvAlert.showConfirmationAlert(I18n.tr("configCacheClearConfirm"))) {
                 try {
                     cacheService.clearAllCache();
-                    showMessageAlert("Cache cleared");
+                    showMessageAlert(I18n.tr("configCacheCleared"));
                 } catch (Exception ignored) {
-                    showMessageAlert("Error has occurred while clearing cache");
+                    showMessageAlert(I18n.tr("configCacheClearFailed"));
                 }
             }
         });
@@ -428,12 +489,12 @@ public class ConfigurationUI extends VBox {
 
     private void addClearWatchingNowButtonClickHandler() {
         clearWatchingNowButton.setOnAction(event -> {
-            if (UIptvAlert.showConfirmationAlert("Are you sure you want to clear Watching Now data?")) {
+            if (UIptvAlert.showConfirmationAlert(I18n.tr("configWatchNowConfirm"))) {
                 try {
                     SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
-                    showMessageAlert("Watching Now data cleared");
+                    showMessageAlert(I18n.tr("configWatchNowCleared"));
                 } catch (Exception ignored) {
-                    showMessageAlert("Error has occurred while clearing Watching Now data");
+                    showMessageAlert(I18n.tr("configWatchNowClearFailed"));
                 }
             }
         });
@@ -461,8 +522,9 @@ public class ConfigurationUI extends VBox {
             Stage popupStage = new Stage();
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
             Scene scene = new Scene(popup, 400, 300);
+            I18n.applySceneOrientation(scene);
             scene.getStylesheets().add(RootApplication.currentTheme);
-            popupStage.setTitle("Publish M3U8");
+            popupStage.setTitle(I18n.tr("configPublishM3u8"));
             popupStage.setScene(scene);
             popupStage.showAndWait();
         });
@@ -495,7 +557,7 @@ public class ConfigurationUI extends VBox {
         } else {
             startServerButton.getStyleClass().remove("dangerous");
         }
-        startServerButton.setText(running ? "Stop Server" : "Start Server");
+        startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
     }
@@ -504,6 +566,11 @@ public class ConfigurationUI extends VBox {
         openServerLink.setOnAction(event -> {
             ServerUrlUtil.openInBrowser(ServerUrlUtil.getLocalServerUrl() + "/");
         });
+    }
+
+    private void addTmdbGuideLinkClickHandler() {
+        tmdbApiGuideLink.setOnAction(event -> ServerUrlUtil.openInBrowser(TMDB_API_GUIDE_URL));
+        tmdbApiKeyPageLink.setOnAction(event -> ServerUrlUtil.openInBrowser(TMDB_API_KEY_URL));
     }
 
     private String resolveServerPort() {
@@ -552,7 +619,10 @@ public class ConfigurationUI extends VBox {
                 );
                 newConfiguration.setDbId(dbId);
                 newConfiguration.setWideView(wideViewCheckBox.isSelected());
+                newConfiguration.setLanguageLocale(getSelectedLanguageTag());
+                newConfiguration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
                 service.save(newConfiguration);
+                I18n.setLocale(newConfiguration.getLanguageLocale());
                 currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
                 themeCssOverrideService.save(currentThemeCssOverride);
                 if (onSaveCallback != null) {
@@ -564,12 +634,13 @@ public class ConfigurationUI extends VBox {
                 }
 
                 boolean restartRequired = previousEmbeddedPlayer != newConfiguration.isEmbeddedPlayer()
-                        || previousWideView != newConfiguration.isWideView();
+                        || previousWideView != newConfiguration.isWideView()
+                        || !Objects.equals(previous == null ? null : previous.getLanguageLocale(), newConfiguration.getLanguageLocale());
                 if (restartRequired) {
-                    showMessageAlert("Please restart the application for Embedded Player/Wide View changes to take effect.");
+                    showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
                 }
             } catch (Exception e) {
-                showErrorAlert("Failed to save configuration. Please try again!");
+                showErrorAlert(I18n.tr("configFailedToSave"));
                 saveButton.setDisable(false);
             }
         });
@@ -632,7 +703,7 @@ public class ConfigurationUI extends VBox {
             }
             if (newToggle == defaultWebBrowserPlayer) {
                 boolean proceed = UIptvAlert.showConfirmationAlert(
-                        "Browser playback may not support every stream. Enabling FFmpeg transcoding can improve compatibility. Continue?"
+                        I18n.tr("configBrowserCompatibilityWarning")
                 );
                 if (!proceed) {
                     restorePreviousPlayerSelection(oldToggle);
@@ -641,7 +712,7 @@ public class ConfigurationUI extends VBox {
             }
             if (newToggle == defaultEmbedPlayer) {
                 boolean proceed = UIptvAlert.showConfirmationAlert(
-                        "For best embedded playback, install the standard VLC desktop app. Without VLC, a limited built-in player is used and many codecs may fail. Continue?"
+                        I18n.tr("configEmbedPlayerVlcWarning")
                 );
                 if (!proceed) {
                     restorePreviousPlayerSelection(oldToggle);

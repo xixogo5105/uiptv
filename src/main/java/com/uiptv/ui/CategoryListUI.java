@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -38,10 +40,11 @@ import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class CategoryListUI extends HBox {
+    private static final String ALL_CATEGORY_SENTINEL = "all";
     private final Account account;
     private final boolean embeddedMode;
     SearchableTableView table = new SearchableTableView();
-    TableColumn<CategoryItem, String> categoryTitle = new TableColumn("Categories");
+    TableColumn<CategoryItem, String> categoryTitle = new TableColumn(I18n.tr("autoCategories"));
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
     private volatile Thread currentLoadingThread;
     private AtomicBoolean currentRequestCancelled;
@@ -52,9 +55,9 @@ public class CategoryListUI extends HBox {
     private final VBox detailContent = new VBox();
     private final TabPane modeTabs = new TabPane();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
-    private final Tab itvTab = new Tab("Channels");
-    private final Tab vodTab = new Tab("VOD");
-    private final Tab seriesTab = new Tab("Series");
+    private final Tab itvTab = new Tab(I18n.tr("categoryTabLiveTv"));
+    private final Tab vodTab = new Tab(I18n.tr("categoryTabVideoOnDemand"));
+    private final Tab seriesTab = new Tab(I18n.tr("categoryTabTvSeries"));
     private Account.AccountAction activeMode;
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
@@ -77,7 +80,7 @@ public class CategoryListUI extends HBox {
         this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;
         initWidgets();
         refreshCategoryColumnTitle();
-        table.setPlaceholder(new Label("Loading categories..."));
+        table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
     }
 
     public void setItems(List<Category> list) {
@@ -97,10 +100,14 @@ public class CategoryListUI extends HBox {
         }
 
         List<CategoryItem> catList = new ArrayList<>();
-        boolean hasAllCategory = processedList.stream().anyMatch(c -> "All".equalsIgnoreCase(c.getTitle()));
+        boolean hasAllCategory = processedList.stream().anyMatch(this::isAllCategory);
         boolean shouldAddAll = !(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) || processedList.size() >= 2;
         if (!hasAllCategory && shouldAddAll) {
-            catList.add(new CategoryItem(new SimpleStringProperty("all"), new SimpleStringProperty("All"), new SimpleStringProperty("all")));
+            catList.add(new CategoryItem(
+                    new SimpleStringProperty(ALL_CATEGORY_SENTINEL),
+                    new SimpleStringProperty("All"),
+                    new SimpleStringProperty(ALL_CATEGORY_SENTINEL)
+            ));
         }
         processedList.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
         ModeState state = modeStates.computeIfAbsent(activeMode, k -> new ModeState());
@@ -146,10 +153,10 @@ public class CategoryListUI extends HBox {
     }
 
     private Button createBackButton() {
-        Button button = new Button("Back");
+        Button button = new Button(I18n.tr("autoBack"));
         button.getStyleClass().add("nav-back-button");
         button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip("Back"));
+        button.setTooltip(new Tooltip(I18n.tr("autoBack")));
         return button;
     }
 
@@ -264,7 +271,7 @@ public class CategoryListUI extends HBox {
         }
 
         table.setItems(FXCollections.observableArrayList());
-        table.setPlaceholder(new Label("Loading categories..."));
+        table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
         if (embeddedMode) {
             showListView();
         } else {
@@ -282,7 +289,7 @@ public class CategoryListUI extends HBox {
                     }
                 });
             } catch (Exception e) {
-                Platform.runLater(() -> showErrorAlert("Failed to load categories: " + e.getMessage()));
+                Platform.runLater(() -> showErrorAlert(I18n.tr("autoFailedToLoadCategories", e.getMessage())));
             }
         }).start();
     }
@@ -300,13 +307,7 @@ public class CategoryListUI extends HBox {
     }
 
     private void refreshCategoryColumnTitle() {
-        categoryTitle.setText(account.getAccountName() + " - " + modeLabel(activeMode));
-    }
-
-    private String modeLabel(Account.AccountAction mode) {
-        if (mode == Account.AccountAction.vod) return "VOD";
-        if (mode == Account.AccountAction.series) return "Series";
-        return "Channels";
+        categoryTitle.setText(I18n.tr("autoCategories"));
     }
 
     private void maybeShowCachedChannelPane(ModeState state) {
@@ -438,7 +439,7 @@ public class CategoryListUI extends HBox {
                 removeChannelPane();
                 getChildren().add(ui);
             }
-            if ("All".equalsIgnoreCase(item.getCategoryTitle())) {
+            if (isAllCategory(item)) {
                  allItems.addAll(table.getItems());
             }
             latch.countDown();
@@ -451,11 +452,11 @@ public class CategoryListUI extends HBox {
             try {
                 boolean cachingNeeded = !noCachingNeeded;
 
-                if (cachingNeeded && "All".equalsIgnoreCase(item.getCategoryTitle())) {
+                if (cachingNeeded && isAllCategory(item)) {
                     if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
                         return;
                     }
-                    if (allItems.size() == 1 && "All".equalsIgnoreCase(allItems.get(0).getCategoryTitle())) {
+                    if (allItems.size() == 1 && isAllCategory(allItems.get(0))) {
                          ChannelService.getInstance().get(
                                 account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),
                                 account, 
@@ -467,7 +468,7 @@ public class CategoryListUI extends HBox {
                     } else {
                         for (CategoryItem categoryItem : allItems) {
                             if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
-                            if (!"All".equalsIgnoreCase(categoryItem.getCategoryTitle())) {
+                            if (!isAllCategory(categoryItem)) {
                                 ChannelService.getInstance().get(
                                     account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
                                     account, 
@@ -489,7 +490,7 @@ public class CategoryListUI extends HBox {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            Platform.runLater(() -> showErrorAlert("Error loading channels: " + e.getMessage()));
+            Platform.runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingChannels", e.getMessage())));
         }
     }
 
@@ -497,6 +498,30 @@ public class CategoryListUI extends HBox {
         private List<Category> categories = new ArrayList<>();
         private CategoryItem selectedCategory;
         private ChannelListUI channelListUI;
+    }
+
+    private boolean isAllCategory(Category category) {
+        if (category == null) {
+            return false;
+        }
+        String categoryId = category.getCategoryId();
+        String title = category.getTitle();
+        return (categoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(categoryId.trim()))
+                || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
+                || (title != null && title.equalsIgnoreCase("All"));
+    }
+
+    private boolean isAllCategory(CategoryItem item) {
+        if (item == null) {
+            return false;
+        }
+        String id = item.getId();
+        String categoryId = item.getCategoryId();
+        String title = item.getCategoryTitle();
+        return (id != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(id.trim()))
+                || (categoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(categoryId.trim()))
+                || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
+                || (title != null && title.equalsIgnoreCase("All"));
     }
 
     private boolean sameCategorySelection(CategoryItem left, CategoryItem right) {

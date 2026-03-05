@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.util.TextParserService;
@@ -17,21 +19,40 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ParseMultipleAccountUI extends VBox {
-    private final String newLine = "\r" + System.lineSeparator();
-
-    private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "Enter Data to parse multiple stalker portal accounts" + newLine + "e.g." + newLine + "http://website1.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website2.com/c" + newLine + "00:00:00:00:00:00" + newLine + "http://website3.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "http://website4.com/c" + newLine + "00:00:00:00:00:00" + newLine + "00:00:00:00:00:01" + newLine + "00:00:00:00:00:02" + newLine + "For M3U play list use the following format:" + newLine + "http://somewebsiteurl.iptv:8080/get.php?username=username&password=password&type=m3u" + newLine + "http://somewebsiteurl2.iptv:8080/get.php.iptv:8080/get.php?username=username2&password=password2&type=m3u", 5);
+    private static final Pattern TOKEN_ARTIFACT_PATTERN = Pattern.compile("__\\s*T\\s*K\\d+__|__TK\\d+__");
+    private static final String BULK_HINT_FALLBACK = """
+            Enter data to parse multiple stalker portal accounts
+            e.g.
+            http://website1.com/c
+            00:00:00:00:00:00
+            http://website2.com/c
+            00:00:00:00:00:00
+            http://website3.com/c
+            00:00:00:00:00:00
+            00:00:00:00:00:01
+            00:00:00:00:00:02
+            http://website4.com/c
+            00:00:00:00:00:00
+            00:00:00:00:00:01
+            00:00:00:00:00:02
+            For M3U playlist use the following format:
+            http://somewebsiteurl.iptv:8080/get.php?username=username&password=password&type=m3u
+            http://somewebsiteurl2.iptv:8080/get.php?username=username2&password=password2&type=m3u
+            """;
+    private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "parseMultipleAccountsInputHint", 5);
     private final ComboBox<String> parseModeComboBox = new ComboBox<>();
-    private final CheckBox groupAccountsCheckBox = new CheckBox("Group Account(s) by MAC Address");
-    private final CheckBox convertM3uToXtremeCheckBox = new CheckBox("Where Possible, Convert M3U to Xtreme");
-    private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox("Start verification after parsing");
-    private final ProminentButton saveButton = new ProminentButton("Parse & Save");
-    private final Button clearButton = new Button("Clear");
+    private final CheckBox groupAccountsCheckBox = new CheckBox(I18n.tr("autoGroupAccountSByMACAddress"));
+    private final CheckBox convertM3uToXtremeCheckBox = new CheckBox(I18n.tr("autoWherePossibleConvertM3UToXtreme"));
+    private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox(I18n.tr("autoStartVerificationAfterParsing"));
+    private final ProminentButton saveButton = new ProminentButton(I18n.tr("parseAndSave"));
+    private final Button clearButton = new Button(I18n.tr("autoClear"));
     private final VBox contentContainer = new VBox();
     private Callback<Void> onSaveCallback;
 
@@ -62,6 +83,7 @@ public class ParseMultipleAccountUI extends VBox {
         saveButton.setPrefHeight(50);
         multipleSPAccounts.setMinHeight(400);
         multipleSPAccounts.setPrefHeight(400);
+        multipleSPAccounts.setPromptText(resolveBulkHintPrompt());
 
         parseModeComboBox.getItems().addAll(TextParserService.MODE_STALKER, TextParserService.MODE_XTREME, TextParserService.MODE_M3U);
         parseModeComboBox.setValue(TextParserService.MODE_STALKER);
@@ -140,7 +162,7 @@ public class ParseMultipleAccountUI extends VBox {
         saveButton.setOnAction(actionEvent -> {
             try {
                 if (isBlank(multipleSPAccounts.getText())) {
-                    showErrorAlert("Input cannot be empty.");
+                    showErrorAlert(I18n.tr("autoInputCannotBeEmpty"));
                     return;
                 }
                 String selectedMode = parseModeComboBox.getValue();
@@ -150,12 +172,12 @@ public class ParseMultipleAccountUI extends VBox {
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);
                 }
-                showMessageAlert("Accounts parsed and saved.");
+                showMessageAlert(I18n.tr("autoAccountsParsedAndSaved"));
                 if (startVerificationAfterParsing && createdAccounts != null && !createdAccounts.isEmpty()) {
                     openVerificationPopup(createdAccounts);
                 }
             } catch (Exception e) {
-                showErrorAlert("Error parsing or saving accounts.");
+                showErrorAlert(I18n.tr("autoErrorParsingOrSavingAccounts"));
             }
         });
     }
@@ -171,5 +193,22 @@ public class ParseMultipleAccountUI extends VBox {
         if (onSaveCallback != null) {
             onSaveCallback.call(null);
         }
+    }
+
+    private String resolveBulkHintPrompt() {
+        String raw = I18n.tr("parseMultipleAccountsInputHint");
+        if (raw == null || raw.isBlank()) {
+            return BULK_HINT_FALLBACK;
+        }
+        if (TOKEN_ARTIFACT_PATTERN.matcher(raw).find()) {
+            return BULK_HINT_FALLBACK;
+        }
+        return raw
+                .replace("\\\\n", "\n")
+                .replace("\\n", "\n")
+                .replace("\\:", ":")
+                .replace("\\=", "=")
+                .replace("\\/", "/")
+                .replaceAll("https?\\s+://", "http://");
     }
 }

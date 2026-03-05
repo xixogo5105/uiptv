@@ -1,5 +1,6 @@
 package com.uiptv.widget;
 
+import com.uiptv.util.I18n;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.transformation.FilteredList;
@@ -17,13 +18,13 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 public class SearchableTableViewWithButton<T> extends VBox { // Made generic
     private final TextField searchTextField = new TextField();
-    private final Button manageCategoriesButton = new Button("Add");
+    private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
     private final TableView<T> tableView = new TableView<>(); // Made generic
 
     public SearchableTableViewWithButton() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        searchTextField.setPromptText("Search");
+        searchTextField.setPromptText(I18n.tr("commonSearch"));
         searchTextField.setMaxWidth(Double.MAX_VALUE);
         searchTextField.setOnMousePressed(event -> searchTextField.clear());
 

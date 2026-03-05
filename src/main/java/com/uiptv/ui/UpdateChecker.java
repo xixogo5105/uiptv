@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.util.VersionManager;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.HostServices;
@@ -22,19 +24,19 @@ public class UpdateChecker {
 
                 if (isUpdateAvailable(updateInfo.getVersion())) {
                     Platform.runLater(() -> {
-                        if (UIptvAlert.showConfirmationAlert("Update Available: " + updateInfo.getVersion() + "\n\nRelease notes: " + updateInfo.getDescription() + "\n\nClick 'OK' to download.")) {
+                        if (UIptvAlert.showConfirmationAlert(I18n.tr("autoUpdateAvailablePrompt", updateInfo.getVersion(), updateInfo.getDescription()))) {
                             openWebpage(hostServices, updateInfo.getUrl());
                         }
                     });
                 } else {
                     Platform.runLater(() -> {
-                        UIptvAlert.showMessageAlert("You are currently on the latest version.");
+                        UIptvAlert.showMessageAlert(I18n.tr("autoYouAreCurrentlyOnTheLatestVersion"));
                     });
                 }
             } catch (Exception e) {
                 e.printStackTrace();
                 Platform.runLater(() -> {
-                    UIptvAlert.showErrorAlert("Update Check Failed: " + e.getMessage());
+                    UIptvAlert.showErrorAlert(I18n.tr("autoUpdateCheckFailed", e.getMessage()));
                 });
             }
         }).start();

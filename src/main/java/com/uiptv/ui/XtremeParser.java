@@ -7,6 +7,7 @@ import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.shared.SeasonInfo;
 import com.uiptv.util.HttpUtil;
+import com.uiptv.util.I18n;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -72,7 +73,7 @@ public class XtremeParser {
                 categoryList.add(category);
             }
         } catch (Exception e) {
-            showError("Error while processing response data" + e.getMessage());
+            showError(I18n.tr("xtremeErrorProcessingResponseData", e.getMessage()));
         }
         return categoryList;
     }
@@ -106,7 +107,7 @@ public class XtremeParser {
                 categoryList.add(channel);
             }
         } catch (Exception e) {
-            showError("Error while processing response data" + e.getMessage());
+            showError(I18n.tr("xtremeErrorProcessingResponseData", e.getMessage()));
         }
         return categoryList;
     }
@@ -125,7 +126,7 @@ public class XtremeParser {
                 }
             }
         } catch (Exception e) {
-            showError("Error while processing response data" + e.getMessage());
+            showError(I18n.tr("xtremeErrorProcessingResponseData", e.getMessage()));
         }
         return episodeList;
     }

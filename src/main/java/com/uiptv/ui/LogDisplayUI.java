@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.util.AppLog;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -19,10 +21,10 @@ import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 
 public class LogDisplayUI extends VBox {
     private static TextArea logArea;
-    private final Button clearLogButton= new Button("Clear");
-    private final Button copyLogButton = new Button("Copy");
-    private final Button detachButton = new Button("Detach");
-    private final Button attachButton = new Button("Attach");
+    private final Button clearLogButton= new Button(I18n.tr("autoClear"));
+    private final Button copyLogButton = new Button(I18n.tr("autoCopy"));
+    private final Button detachButton = new Button(I18n.tr("autoDetach"));
+    private final Button attachButton = new Button(I18n.tr("autoAttach"));
     private static boolean isLoggingEnabled = false;
     private static boolean forceLoggingEnabled = false;
     private static boolean detached = false;
@@ -99,7 +101,7 @@ public class LogDisplayUI extends VBox {
 
     private void renderDetachedPlaceholder() {
         contentBox.getChildren().clear();
-        Label info = new Label("Logs detached in a separate window.");
+        Label info = new Label(I18n.tr("autoLogsDetachedInASeparateWindow"));
         VBox placeholder = new VBox(10, info, attachButton);
         contentBox.getChildren().add(placeholder);
     }
@@ -114,15 +116,17 @@ public class LogDisplayUI extends VBox {
 
         VBox popupRoot = new VBox(5);
         popupRoot.setPadding(new Insets(8));
-        Button popupAttachButton = new Button("Attach");
+        Button popupAttachButton = new Button(I18n.tr("autoAttach"));
         popupAttachButton.setOnAction(event -> attachWindow());
         HBox controlBox = new HBox(10, copyLogButton, clearLogButton, popupAttachButton);
         popupRoot.getChildren().addAll(logArea, controlBox);
         VBox.setVgrow(logArea, Priority.ALWAYS);
 
         detachedStage = new Stage();
-        detachedStage.setTitle("UIPTV Logs");
-        detachedStage.setScene(new Scene(popupRoot, 800, 600));
+        detachedStage.setTitle(I18n.tr("autoUiptvLogs"));
+        Scene detachedScene = new Scene(popupRoot, 800, 600);
+        I18n.applySceneOrientation(detachedScene);
+        detachedStage.setScene(detachedScene);
         detachedStage.setOnCloseRequest(event -> attachWindow());
         detachedStage.show();
     }

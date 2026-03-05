@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import com.uiptv.ui.AccountListUI;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
@@ -17,8 +18,8 @@ import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 
 public class SearchableFilterableTableView extends TableView {
-    private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "Search", 10);
-    private final MenuButton menuButton = new MenuButton("All");
+    private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
+    private final MenuButton menuButton = new MenuButton(I18n.tr("commonAll"));
     private final List<CheckMenuItem> typeCheckMenuItems = new ArrayList<>();
     private final CheckMenuItem allMenuItem;
     private boolean isUpdating = false;
@@ -30,7 +31,7 @@ public class SearchableFilterableTableView extends TableView {
         menuButton.setPrefWidth(175);
         textField.setPrefWidth(275);
 
-        allMenuItem = new CheckMenuItem("All");
+        allMenuItem = new CheckMenuItem(I18n.tr("commonAll"));
         allMenuItem.setSelected(true);
         allMenuItem.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
             if (isUpdating) return;
@@ -63,7 +64,7 @@ public class SearchableFilterableTableView extends TableView {
 
     private void updateMenuButtonText() {
         if (allMenuItem.isSelected()) {
-            menuButton.setText("All");
+            menuButton.setText(I18n.tr("commonAll"));
             return;
         }
 
@@ -76,7 +77,7 @@ public class SearchableFilterableTableView extends TableView {
             isUpdating = true;
             allMenuItem.setSelected(true);
             isUpdating = false;
-            menuButton.setText("All");
+            menuButton.setText(I18n.tr("commonAll"));
         } else {
             menuButton.setText(selectedItemsText);
         }

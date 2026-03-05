@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
@@ -46,7 +48,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class AccountListUI extends HBox {
-    private final TableColumn<AccountItem, String> accountName = new TableColumn<>("Account List");
+    private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final CacheService cacheService = new CacheServiceImpl();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
@@ -58,7 +60,7 @@ public class AccountListUI extends HBox {
     private final Button homeButton = createHomeButton();
     private final VBox detailContent = new VBox();
     private ManageAccountUI manageAccountUI;
-    private final Button newAccountButton = new Button("Add");
+    private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private Node currentContent;
     private final VBox embeddedContainer = new VBox();
@@ -149,17 +151,17 @@ public class AccountListUI extends HBox {
         newAccountButton.setPrefWidth(64);
         newAccountButton.setMinHeight(26);
         newAccountButton.setPrefHeight(26);
-        newAccountButton.setTooltip(new Tooltip("New Account"));
+        newAccountButton.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
         newAccountButton.setOnAction(event -> {
             if (!embeddedMode) {
                 return;
             }
             if (manageAccountUI == null) {
-                showErrorAlert("Manage Account UI is not available.");
+                showErrorAlert(I18n.tr("autoManageAccountUIIsNotAvailable"));
                 return;
             }
             manageAccountUI.clearAll();
-            showDetailView(manageAccountUI, "New Account");
+            showDetailView(manageAccountUI, I18n.tr("autoNewAccount"));
         });
     }
 
@@ -176,7 +178,7 @@ public class AccountListUI extends HBox {
     }
 
     private Button createBackButton() {
-        Button button = new Button("Back");
+        Button button = new Button(I18n.tr("autoBack"));
         button.setFocusTraversable(false);
         return button;
     }
@@ -185,7 +187,7 @@ public class AccountListUI extends HBox {
         Button button = new Button();
         button.getStyleClass().add("nav-back-button");
         button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip("Home"));
+        button.setTooltip(new Tooltip(I18n.tr("autoHome")));
         SVGPath icon = new SVGPath();
         icon.setContent("M4 10 L12 4 L20 10 V20 H14 V13 H10 V20 H4 Z");
         icon.setScaleX(1.25);
@@ -315,46 +317,46 @@ public class AccountListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
-        MenuItem editAccount = new MenuItem("Edit/Manage Account");
+        MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
         editAccount.setOnAction(actionEvent -> {
             if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 openManageAccount(row.getItem());
             }
         });
 
-        MenuItem itv = new MenuItem("TV Channels");
+        MenuItem itv = new MenuItem(I18n.tr("autoTvChannels"));
         itv.setOnAction(actionEvent -> {
             if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv);
             }
         });
 
-        MenuItem vod = new MenuItem("VOD");
+        MenuItem vod = new MenuItem(I18n.tr("autoVod"));
         vod.setOnAction(actionEvent -> {
             if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod);
             }
         });
 
-        MenuItem series = new MenuItem("Series");
+        MenuItem series = new MenuItem(I18n.tr("autoSeries"));
         series.setOnAction(actionEvent -> {
             if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series);
             }
         });
 
-        MenuItem reloadCache = new MenuItem("Reload Cache");
+        MenuItem reloadCache = new MenuItem(I18n.tr("autoReloadCache"));
         reloadCache.setOnAction(actionEvent -> handleReloadCache(row.getItem()));
 
-        MenuItem deleteItem = new MenuItem("Delete Account");
+        MenuItem deleteItem = new MenuItem(I18n.tr("autoDeleteAccount"));
         deleteItem.getStyleClass().add("danger-menu-item");
         deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
 
@@ -387,7 +389,7 @@ public class AccountListUI extends HBox {
     private void handleReloadCache(AccountItem contextItem) {
         List<Account> accounts = resolveAccountsForReload(contextItem);
         if (accounts.isEmpty()) {
-            showErrorAlert("No cache-supported account selected.");
+            showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
         }
         ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
@@ -423,12 +425,15 @@ public class AccountListUI extends HBox {
 
     private void handleDeleteAccounts() {
         int selectedCount = table.getSelectionModel().getSelectedItems().size();
-        String message = "Are you sure you want to remove " + selectedCount + " account(s)? Account(s) to be deleted:\n" +
+        String localizedMessage = I18n.tr(
+                "accountListDeleteAccountsConfirm",
+                selectedCount,
                 table.getSelectionModel().getSelectedItems().stream()
                         .map(accountItem -> ((AccountItem) accountItem).getAccountName())
-                        .collect(Collectors.joining(", "));
+                        .collect(Collectors.joining(", "))
+        );
         isPromptShowing = true;
-        if (showConfirmationAlert(message)) {
+        if (showConfirmationAlert(localizedMessage)) {
             for (AccountItem selectedItem : (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems()) {
                 AccountService.getInstance().delete(selectedItem.getAccountId());
                 if (onDeleteCallback != null) {
@@ -442,7 +447,7 @@ public class AccountListUI extends HBox {
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
         Account account = accountService.getById(item.getAccountId());
         if (account == null) {
-            showErrorAlert("Unable to find account.");
+            showErrorAlert(I18n.tr("autoUnableToFindAccount"));
             return;
         }
         account.setAction(accountAction);
@@ -472,7 +477,7 @@ public class AccountListUI extends HBox {
                     categoryListUI.setItems(list);
                 });
             } catch (Exception e) {
-                Platform.runLater(() -> showErrorAlert("Failed to refresh channels: " + e.getMessage()));
+                Platform.runLater(() -> showErrorAlert(I18n.tr("autoFailedRefreshChannels", e.getMessage())));
             } finally {
                 Platform.runLater(() -> {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
@@ -494,12 +499,12 @@ public class AccountListUI extends HBox {
         }
         Account account = accountService.getById(item.getAccountId());
         if (account == null) {
-            showErrorAlert("Unable to find account.");
+            showErrorAlert(I18n.tr("autoUnableToFindAccount"));
             return;
         }
         if (embeddedMode && manageAccountUI != null) {
             manageAccountUI.editAccount(account);
-            showDetailView(manageAccountUI, "Manage Account");
+            showDetailView(manageAccountUI, I18n.tr("autoEditManageAccount"));
             return;
         }
         if (!embeddedMode && manageAccountUI != null) {
@@ -517,12 +522,12 @@ public class AccountListUI extends HBox {
 
     private String resolveDetailTitle(Account.AccountAction action) {
         if (action == Account.AccountAction.vod) {
-            return "Video On Demand";
+            return I18n.tr("autoVod");
         }
         if (action == Account.AccountAction.series) {
-            return "Series";
+            return I18n.tr("autoSeries");
         }
-        return "Live Channels";
+        return I18n.tr("autoTvChannels");
     }
 
     public class AccountItem {

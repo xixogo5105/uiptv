@@ -7,6 +7,7 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.CategoryService;
+import com.uiptv.util.I18n;
 import com.uiptv.shared.Episode;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -100,7 +102,7 @@ public class BookmarkChannelListUI extends HBox {
                 return;
             }
             if (allBookmarkItems.isEmpty()) {
-                bookmarkTable.getTableView().setPlaceholder(new Label("Loading bookmarks..."));
+                bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoLoadingBookmarks")));
             }
         });
         new Thread(() -> {
@@ -118,7 +120,7 @@ public class BookmarkChannelListUI extends HBox {
                 }
 
                 List<BookmarkCategory> categories = new ArrayList<>();
-                categories.add(new BookmarkCategory(null, "All"));
+                categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
                 categories.addAll(BookmarkService.getInstance().getAllCategories());
                 long revision = BookmarkService.getInstance().getChangeRevision();
 
@@ -129,7 +131,7 @@ public class BookmarkChannelListUI extends HBox {
                         return;
                     }
                     reloadInProgress = false;
-                    bookmarkTable.getTableView().setPlaceholder(new Label("Unable to load bookmarks"));
+                    bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoUnableToLoadBookmarks")));
                 });
             }
         }).start();
@@ -155,7 +157,7 @@ public class BookmarkChannelListUI extends HBox {
                     .ifPresent(item -> bookmarkTable.getTableView().getSelectionModel().select(item));
         }
         if (allBookmarkItems.isEmpty()) {
-            bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
+            bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoNoBookmarksFound")));
         } else {
             bookmarkTable.getTableView().setPlaceholder(null);
         }
@@ -219,7 +221,7 @@ public class BookmarkChannelListUI extends HBox {
         bookmarkColumn.setVisible(true);
         bookmarkColumn.setCellValueFactory(cellData -> cellData.getValue().channelAccountNameProperty());
         bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
-        bookmarkColumn.setText("Bookmarked Channels");
+        bookmarkColumn.setText(I18n.tr("autoBookmarkedChannels"));
 
         applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
     }
@@ -259,7 +261,7 @@ public class BookmarkChannelListUI extends HBox {
         return new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Label drmBadge = new Label("DRM");
+            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
             private final Pane spacer = new Pane();
             private final AsyncImageView imageView = new AsyncImageView();
 
@@ -307,7 +309,7 @@ public class BookmarkChannelListUI extends HBox {
         return new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Label drmBadge = new Label("DRM");
+            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
             private final Pane spacer = new Pane();
 
             {
@@ -362,13 +364,13 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void setupManageCategoriesButton() {
-        bookmarkTable.getManageCategoriesButton().setText("Manage Tabs");
+        bookmarkTable.getManageCategoriesButton().setText(I18n.tr("searchableTableManageTabs"));
         bookmarkTable.getManageCategoriesButton().setOnAction(event -> openCategoryManagementPopup());
     }
 
     void populateCategoryTabPane() {
         List<BookmarkCategory> categories = new ArrayList<>();
-        categories.add(new BookmarkCategory(null, "All"));
+        categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
         categories.addAll(BookmarkService.getInstance().getAllCategories());
         populateCategoryTabPane(categories);
     }
@@ -581,8 +583,9 @@ public class BookmarkChannelListUI extends HBox {
         Stage popupStage = new Stage();
         CategoryManagementPopup popup = new CategoryManagementPopup(this);
         Scene scene = new Scene(popup, 300, 400);
+        I18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.currentTheme);
-        popupStage.setTitle("Manage Categories");
+        popupStage.setTitle(I18n.tr("autoManageCategories"));
         popupStage.setScene(scene);
         popupStage.showAndWait();
         forceReload();
@@ -683,53 +686,53 @@ public class BookmarkChannelListUI extends HBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
-        MenuItem editItem = new MenuItem("Remove from favorite");
+        MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
 
         editItem.setOnAction(actionEvent -> {
             handleDeleteMultipleBookmarks();
         });
 
-        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
         playerEmbeddedItem.setOnAction(event -> {
             if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 rowMenu.hide();
                 play(row.getItem(), "embedded");
             }
         });
 
-        MenuItem player1Item = new MenuItem("Player 1");
+        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
         player1Item.setOnAction(event -> {
             if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 rowMenu.hide();
                 play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
             }
         });
 
-        MenuItem player2Item = new MenuItem("Player 2");
+        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
         player2Item.setOnAction(event -> {
             if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 rowMenu.hide();
                 play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
             }
         });
 
-        MenuItem player3Item = new MenuItem("Player 3");
+        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
         player3Item.setOnAction(event -> {
             if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert("This action is disabled for multiple selections.");
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
             } else {
                 rowMenu.hide();
                 play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
             }
         });
 
-        Menu addToMenu = new Menu("Add to");
+        Menu addToMenu = new Menu(I18n.tr("autoAddTo"));
         List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
         for (BookmarkCategory category : categories) {
             MenuItem categoryItem = new MenuItem(category.getName());
@@ -755,49 +758,48 @@ public class BookmarkChannelListUI extends HBox {
     private void handleDeleteMultipleBookmarks() {
         int selectedCount = bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size();
 
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Confirmation");
-        alert.setHeaderText(null);
-        alert.setContentText("Are you sure you want to remove " + selectedCount + " bookmark(s) from favorite? Bookmark(s) to be deleted:\n" +
+        String message = I18n.tr(
+                "autoRemoveBookmarksFromFavoriteConfirm",
+                selectedCount,
                 bookmarkTable.getTableView().getSelectionModel().getSelectedItems().stream()
                         .map(BookmarkItem::getChannelName)
-                        .collect(Collectors.joining(", ")));
+                        .collect(Collectors.joining(", "))
+        );
 
         isPromptShowing = true;
-        alert.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                List<BookmarkItem> selectedItems = new ArrayList<>(bookmarkTable.getTableView().getSelectionModel().getSelectedItems());
-                if (selectedItems.isEmpty()) {
-                    return;
+        if (!showConfirmationAlert(message)) {
+            return;
+        }
+        List<BookmarkItem> selectedItems = new ArrayList<>(bookmarkTable.getTableView().getSelectionModel().getSelectedItems());
+        if (selectedItems.isEmpty()) {
+            return;
+        }
+        suppressAutoReloadOnBookmarkChange = true;
+        new Thread(() -> {
+            List<String> removedBookmarkIds = new ArrayList<>();
+            for (BookmarkItem selectedItem : selectedItems) {
+                try {
+                    BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
+                    removedBookmarkIds.add(selectedItem.getBookmarkId());
+                } catch (Exception ignored) {
                 }
-                suppressAutoReloadOnBookmarkChange = true;
-                new Thread(() -> {
-                    List<String> removedBookmarkIds = new ArrayList<>();
-                    for (BookmarkItem selectedItem : selectedItems) {
-                        try {
-                            BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
-                            removedBookmarkIds.add(selectedItem.getBookmarkId());
-                        } catch (Exception ignored) {
+            }
+            runLater(() -> {
+                try {
+                    if (!removedBookmarkIds.isEmpty()) {
+                        allBookmarkItems.removeIf(item -> removedBookmarkIds.contains(item.getBookmarkId()));
+                        filterView();
+                        bookmarkTable.getTableView().getSelectionModel().clearSelection();
+                        if (allBookmarkItems.isEmpty()) {
+                            bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoNoBookmarksFound")));
                         }
                     }
-                    runLater(() -> {
-                        try {
-                            if (!removedBookmarkIds.isEmpty()) {
-                                allBookmarkItems.removeIf(item -> removedBookmarkIds.contains(item.getBookmarkId()));
-                                filterView();
-                                bookmarkTable.getTableView().getSelectionModel().clearSelection();
-                                if (allBookmarkItems.isEmpty()) {
-                                    bookmarkTable.getTableView().setPlaceholder(new Label("No bookmarks found"));
-                                }
-                            }
-                            lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
-                        } finally {
-                            suppressAutoReloadOnBookmarkChange = false;
-                        }
-                    });
-                }, "bookmark-delete").start();
-            }
-        });
+                    lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
+                } finally {
+                    suppressAutoReloadOnBookmarkChange = false;
+                }
+            });
+        }, "bookmark-delete").start();
     }
 
     private void play(BookmarkItem item, String playerPath) {
@@ -808,17 +810,17 @@ public class BookmarkChannelListUI extends HBox {
         try {
             playbackContext = resolvePlaybackContext(item);
         } catch (Exception e) {
-            showErrorAlert("Error preparing bookmark: " + e.getMessage());
+            showErrorAlert(I18n.tr("autoErrorPreparingBookmark", e.getMessage()));
             return;
         }
         if (playbackContext == null || playbackContext.account == null || playbackContext.channel == null) {
-            showErrorAlert("Unable to load account/channel for this bookmark.");
+            showErrorAlert(I18n.tr("autoUnableToLoadAccountChannelForThisBookmark"));
             return;
         }
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.account, playbackContext.channel, playerPath)
                 .categoryId(playbackContext.sourceCategoryDbId)
                 .channelId(item.getChannelId())
-                .errorPrefix("Error playing bookmark: "));
+                .errorPrefix(I18n.tr("autoErrorPlayingBookmarkPrefix")));
     }
 
     private PlaybackContext resolvePlaybackContext(BookmarkItem item) {

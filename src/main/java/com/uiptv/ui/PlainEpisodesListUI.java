@@ -1,9 +1,10 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.ContextMenu;
@@ -18,8 +19,6 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-
-import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final TableView<EpisodeItem> tableView = new TableView<>();
@@ -47,18 +46,8 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void initWidgets() {
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        TableColumn<EpisodeItem, String> nameCol = new TableColumn<>("Episodes");
-        nameCol.setCellValueFactory(cellData -> {
-            EpisodeItem item = cellData.getValue();
-            String season = item.getSeason();
-            String episode = item.getEpisodeNumber();
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("Season ").append(isBlank(season) ? "1" : season);
-            sb.append(" - ");
-            sb.append("Episode ").append(isBlank(episode) ? "-" : episode);
-            return new SimpleStringProperty(sb.toString());
-        });
+        TableColumn<EpisodeItem, String> nameCol = new TableColumn<>(I18n.tr("autoEpisodes"));
+        nameCol.setCellValueFactory(cellData -> cellData.getValue().episodeNameProperty());
         nameCol.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -73,7 +62,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
                     box.getChildren().add(new Label(item));
 
                     if (row.isWatched()) {
-                        Label watched = new Label("WATCHING");
+                        Label watched = new Label(I18n.tr("autoWatching"));
                         watched.getStyleClass().add("drm-badge");
                         box.getChildren().add(watched);
                     }
@@ -159,7 +148,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     private void applyTableFilter() {
         if (allEpisodeItems.isEmpty()) {
-            setEmptyState("No episodes found.", true);
+            setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             return;
         }
         setEmptyState("", false);
@@ -170,24 +159,24 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-        MenuItem watchingToggleItem = new MenuItem("Watching Now");
+        MenuItem watchingToggleItem = new MenuItem(I18n.tr("autoWatchingNow"));
 
-        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
+        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
         playerEmbeddedItem.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), "embedded");
         });
-        MenuItem player1Item = new MenuItem("Player 1");
+        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
         player1Item.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
         });
-        MenuItem player2Item = new MenuItem("Player 2");
+        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
         player2Item.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
         });
-        MenuItem player3Item = new MenuItem("Player 3");
+        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
         player3Item.setOnAction(e -> {
             rowMenu.hide();
             play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
@@ -198,17 +187,17 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             EpisodeItem item = row.getItem();
             if (item == null) {
                 watchingToggleItem.setDisable(true);
-                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
                 watchingToggleItem.setOnAction(null);
                 return;
             }
             watchingToggleItem.setDisable(false);
 
             if (item.isWatched()) {
-                watchingToggleItem.setText("Remove Watching Now");
+                watchingToggleItem.setText(I18n.tr("autoRemoveWatchingNow"));
                 watchingToggleItem.setOnAction(e -> clearWatchedMarker());
             } else {
-                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
                 watchingToggleItem.setOnAction(e -> markEpisodeAsWatched(item));
             }
         });

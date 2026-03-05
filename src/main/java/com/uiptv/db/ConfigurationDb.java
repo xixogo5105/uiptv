@@ -106,6 +106,8 @@ public class ConfigurationDb extends BaseDb {
                 safeBoolean(resultSet, "enableThumbnails")
         );
         c.setWideView(safeBoolean(resultSet, "wideView"));
+        c.setLanguageLocale(nullSafeString(resultSet, "languageLocale"));
+        c.setTmdbReadAccessToken(nullSafeString(resultSet, "tmdbReadAccessToken"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -124,7 +126,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(15, current.getDbId());
+                statement.setString(17, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new RuntimeException("Unable to execute update query", e);
@@ -156,5 +158,7 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(12, configuration.getCacheExpiryDays());
         statement.setString(13, configuration.isEnableThumbnails() ? "1" : "0");
         statement.setString(14, configuration.isWideView() ? "1" : "0");
+        statement.setString(15, configuration.getLanguageLocale());
+        statement.setString(16, configuration.getTmdbReadAccessToken());
     }
 }

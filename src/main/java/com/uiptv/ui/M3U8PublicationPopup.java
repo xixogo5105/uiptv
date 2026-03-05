@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.M3U8PublicationService;
@@ -24,7 +26,7 @@ public class M3U8PublicationPopup extends VBox {
         setPadding(new Insets(10));
         setSpacing(10);
 
-        Label label = new Label("Select M3U8 accounts to publish:");
+        Label label = new Label(I18n.tr("autoSelectM3U8AccountsToPublish"));
         ListView<CheckBox> listView = new ListView<>();
 
         List<Account> accounts = AccountService.getInstance().getAll().values().stream()
@@ -42,7 +44,7 @@ public class M3U8PublicationPopup extends VBox {
             listView.getItems().add(checkBox);
         }
 
-        Button okButton = new Button("OK");
+        Button okButton = new Button(I18n.tr("autoOk"));
         okButton.setOnAction(e -> {
             Set<String> selectedIds = new HashSet<>();
             for (CheckBox checkBox : listView.getItems()) {
@@ -54,7 +56,7 @@ public class M3U8PublicationPopup extends VBox {
             stage.close();
         });
 
-        Button cancelButton = new Button("Cancel");
+        Button cancelButton = new Button(I18n.tr("autoCancel"));
         cancelButton.setOnAction(e -> stage.close());
 
         HBox buttons = new HBox(10, okButton, cancelButton);
