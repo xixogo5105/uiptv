@@ -17,6 +17,7 @@ import static com.uiptv.util.FetchAPI.ServerType.PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
+import static com.uiptv.widget.UIptvAlert.showErrorKey;
 
 public class PingStalkerPortal {
     private enum ProbeStatus {
@@ -213,7 +214,7 @@ public class PingStalkerPortal {
                 }
             }
         } catch (Exception ignored) {
-            showError(I18n.tr("pingParseError"), ignored);
+            showErrorKey("pingParseError", ignored);
         }
 
         if (isBlank(portal_api_server)) {

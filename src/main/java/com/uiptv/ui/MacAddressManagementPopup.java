@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static com.uiptv.widget.UIptvAlert.okButtonType;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -213,7 +214,7 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private void showAlert(String message) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, message);
+        Alert alert = new Alert(Alert.AlertType.WARNING, message, okButtonType());
         alert.initOwner(stage);
         alert.showAndWait();
     }

@@ -149,6 +149,10 @@ public final class I18n {
         return normalizeResolvedText(MessageFormat.format(pattern, args));
     }
 
+    public static String trEnglish(String key, Object... args) {
+        return trForLocale(Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), key, args);
+    }
+
     public static String formatDate(LocalDate date) {
         if (date == null) {
             return "";
@@ -251,6 +255,28 @@ public final class I18n {
             if (bundle != null && bundle.containsKey(key)) {
                 return bundle.getString(key);
             }
+        }
+        return key;
+    }
+
+    private static String trForLocale(Locale locale, String key, Object... args) {
+        String pattern = normalizeResolvedText(lookupOrFallback(locale, key));
+        if (args == null || args.length == 0) {
+            return pattern;
+        }
+        return normalizeResolvedText(MessageFormat.format(pattern, args));
+    }
+
+    private static String lookupOrFallback(Locale locale, String key) {
+        if (key == null || key.isBlank()) {
+            return "";
+        }
+        try {
+            ResourceBundle localeBundle = loadBundle(locale == null ? Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG) : locale);
+            if (localeBundle != null && localeBundle.containsKey(key)) {
+                return localeBundle.getString(key);
+            }
+        } catch (Exception ignored) {
         }
         return key;
     }

@@ -1,8 +1,11 @@
 package com.uiptv.player;
 
+import com.uiptv.model.Account;
+import com.uiptv.model.Configuration;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.LitePlayerFfmpegService;
 import com.uiptv.util.I18n;
-
-import com.uiptv.ui.LogDisplayUI;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.scene.Node;
@@ -19,12 +22,17 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private MediaView mediaView; // Removed final and initializer
     private final ChangeListener<Duration> progressListener;
     private final ChangeListener<MediaPlayer.Status> statusListener;
+    private volatile boolean usingFfmpegFallback;
+    private volatile boolean attemptedCompatibilityFallback;
+    private volatile String currentPlaybackModeLabel = "Lite direct";
+    private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
         super(); // Calls buildUI -> getVideoView
 
         // Apply initial mute state from BaseVideoPlayer
         setMute(isMuted);
+        compatibilityFallbackTimer.setOnFinished(e -> triggerCompatibilityFallbackIfNeeded());
 
         // --- JAVAFX MEDIA PLAYER LISTENERS ---
         statusListener = (obs, oldStatus, newStatus) -> {
@@ -34,6 +42,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                         onPlaybackStarted();
                         btnPlayPause.setGraphic(pauseIcon);
                         updateVideoSize();
+                        scheduleCompatibilityFallbackCheck();
                         break;
                     case PAUSED:
                         btnPlayPause.setGraphic(playIcon);
@@ -42,9 +51,15 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                         btnPlayPause.setGraphic(playIcon);
                         timeSlider.setValue(0);
                         loadingSpinner.setVisible(false);
+                        compatibilityFallbackTimer.stop();
                         break;
                     case HALTED:
                         loadingSpinner.setVisible(false);
+                        compatibilityFallbackTimer.stop();
+                        if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
+                            startPlayback(currentMediaUri, true);
+                            return;
+                        }
                         if (!errorLabel.isVisible()) {
                             errorLabel.setText(I18n.tr("autoAnErrorOccurredDuringPlayback"));
                             errorLabel.setVisible(true);
@@ -59,6 +74,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                             m.widthProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
                             m.heightProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
                         }
+                        scheduleCompatibilityFallbackCheck();
                         break;
                     case DISPOSED:
                     case STALLED:
@@ -88,26 +104,35 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
+        attemptedCompatibilityFallback = false;
+        startPlayback(uri, false);
+    }
+
+    private void startPlayback(String uri, boolean forceCompatibilityFallback) {
         if (isBlank(uri)) {
             stop();
             return;
         }
-        this.currentMediaUri = uri.replace("extension=ts", "extension=m3u8");
+        compatibilityFallbackTimer.stop();
+        this.currentMediaUri = uri;
 
         if (mediaPlayer != null) {
             mediaPlayer.stop();
             mediaPlayer.dispose();
         }
+        if (usingFfmpegFallback) {
+            LitePlayerFfmpegService.getInstance().stopPlayback();
+            usingFfmpegFallback = false;
+        }
 
         new Thread(() -> {
             try {
-                String sourceUrl = currentMediaUri.trim();
-                if (!sourceUrl.startsWith("http") && !sourceUrl.startsWith("file:")) {
-                    File f = new File(sourceUrl);
-                    if (f.exists()) sourceUrl = f.toURI().toString();
-                }
+                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback);
+                usingFfmpegFallback = preparedPlayback.usesFfmpeg();
+                attemptedCompatibilityFallback = forceCompatibilityFallback || preparedPlayback.usesFfmpeg();
+                currentPlaybackModeLabel = preparedPlayback.displayModeLabel();
 
-                final String finalSourceUrl = sourceUrl;
+                final String finalSourceUrl = preparedPlayback.playbackUrl();
 
                 Platform.runLater(() -> {
                     try {
@@ -118,6 +143,13 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                         mediaPlayer.setOnError(() -> {
                             final MediaException me = mediaPlayer.getError();
                             Platform.runLater(() -> {
+                                if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
+                                    com.uiptv.util.AppLog.addLog("LiteVideoPlayer: direct playback failed, retrying with FFmpeg compatibility path.");
+                                    loadingSpinner.setVisible(true);
+                                    errorLabel.setVisible(false);
+                                    startPlayback(currentMediaUri, true);
+                                    return;
+                                }
                                 com.uiptv.util.AppLog.addLog("MediaPlayer Error: " + me.getMessage() + " (" + me.getType() + ")");
                                 errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
                                 errorLabel.setVisible(true);
@@ -164,6 +196,12 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             mediaPlayer.stop();
             mediaView.setMediaPlayer(null);
         }
+        if (usingFfmpegFallback) {
+            LitePlayerFfmpegService.getInstance().stopPlayback();
+            usingFfmpegFallback = false;
+        }
+        currentPlaybackModeLabel = "Lite direct";
+        compatibilityFallbackTimer.stop();
     }
 
     @Override
@@ -172,6 +210,12 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             mediaPlayer.dispose();
             mediaPlayer = null;
         }
+        if (usingFfmpegFallback) {
+            LitePlayerFfmpegService.getInstance().stopPlayback();
+            usingFfmpegFallback = false;
+        }
+        currentPlaybackModeLabel = "Lite direct";
+        compatibilityFallbackTimer.stop();
     }
 
     @Override
@@ -251,7 +295,10 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                         }
                     }
                 }
-                streamInfoText.setText(String.format("\n%dx%d %s (Lite)", m.getWidth(), m.getHeight(), encoding));
+                if (m.getWidth() > 0 && m.getHeight() > 0) {
+                    compatibilityFallbackTimer.stop();
+                }
+                streamInfoText.setText(String.format("\n%dx%d %s (%s)", m.getWidth(), m.getHeight(), encoding, currentPlaybackModeLabel));
             }
         });
     }
@@ -295,6 +342,67 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected boolean supportsTrackSelection() {
+        return false;
+    }
+
+    private LitePlayerFfmpegService.PreparedPlayback resolvePlayback(String rawUri, boolean forceCompatibilityFallback) {
+        if (!forceCompatibilityFallback && !isLitePlayerFfmpegEnabled()) {
+            return LitePlayerFfmpegService.getInstance().prepareDirectPlayback(rawUri);
+        }
+        return LitePlayerFfmpegService.getInstance().preparePlayback(rawUri, currentAccount, forceCompatibilityFallback);
+    }
+
+    private boolean canUseCompatibilityFallback(String sourceUrl) {
+        if (isBlank(sourceUrl) || LitePlayerFfmpegService.getInstance().isManagedPlaybackUrl(sourceUrl)) {
+            return false;
+        }
+        return isLitePlayerFfmpegEnabled();
+    }
+
+    private boolean isLitePlayerFfmpegEnabled() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        return configuration != null && configuration.isEnableLitePlayerFfmpeg();
+    }
+
+    private void scheduleCompatibilityFallbackCheck() {
+        if (usingFfmpegFallback || attemptedCompatibilityFallback || !canUseCompatibilityFallback(currentMediaUri)) {
+            compatibilityFallbackTimer.stop();
+            return;
+        }
+        compatibilityFallbackTimer.playFromStart();
+    }
+
+    private void triggerCompatibilityFallbackIfNeeded() {
+        if (usingFfmpegFallback || attemptedCompatibilityFallback || !canUseCompatibilityFallback(currentMediaUri)) {
+            return;
+        }
+        if (!hasUsableVideoSignal()) {
+            com.uiptv.util.AppLog.addLog("LiteVideoPlayer: no usable video signal detected, retrying with FFmpeg compatibility path.");
+            loadingSpinner.setVisible(true);
+            errorLabel.setVisible(false);
+            startPlayback(currentMediaUri, true);
+        }
+    }
+
+    private boolean hasUsableVideoSignal() {
+        if (mediaPlayer == null) {
+            return false;
+        }
+        Media media = mediaPlayer.getMedia();
+        if (media == null) {
+            return false;
+        }
+        if (media.getWidth() > 0 && media.getHeight() > 0) {
+            return true;
+        }
+        if (media.getTracks() == null) {
+            return false;
+        }
+        for (Track track : media.getTracks()) {
+            if (track instanceof VideoTrack) {
+                return media.getWidth() > 0 && media.getHeight() > 0;
+            }
+        }
         return false;
     }
 }

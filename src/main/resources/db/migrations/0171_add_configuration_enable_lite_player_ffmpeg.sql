@@ -1,0 +1,1 @@
+--@add_column Configuration enableLitePlayerFfmpeg TEXT default '0'

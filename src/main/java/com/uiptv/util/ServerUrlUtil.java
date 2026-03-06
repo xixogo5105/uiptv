@@ -52,7 +52,7 @@ public class ServerUrlUtil {
             UIptvServer.ensureStarted();
             return true;
         } catch (Exception e) {
-            UIptvAlert.showError(I18n.tr("serverUnableToStartLocalWebServerForPlayback"), e);
+            UIptvAlert.showErrorKey("serverUnableToStartLocalWebServerForPlayback", e);
             return false;
         }
     }
@@ -60,7 +60,7 @@ public class ServerUrlUtil {
     public static void stopServerWithShutdownMessage() {
         try {
             UIptvServer.stop();
-            UIptvAlert.showMessage(I18n.tr("serverShuttingDown"));
+            UIptvAlert.showMessageKey("serverShuttingDown");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -71,6 +71,6 @@ public class ServerUrlUtil {
             hostServices.showDocument(url);
             return;
         }
-        UIptvAlert.showError(I18n.tr("serverUnableToOpenBrowserForDrmPlayback"));
+        UIptvAlert.showErrorKey("serverUnableToOpenBrowserForDrmPlayback");
     }
 }
