@@ -1038,6 +1038,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void enterPip() {
         if (pipStage != null) return;
         Platform.runLater(() -> {
+            Scene originalScene = playerContainer.getScene();
             originalParent = (Pane) playerContainer.getParent();
             if (originalParent != null) {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
@@ -1069,6 +1070,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restoreButton.getStyleClass().add("player-pip-restore-button");
             }
             restoreButton.getStyleClass().add("player-round-control-button");
+            restoreButton.getStyleClass().add("player-pip-overlay-button");
             restoreButton.setPadding(new Insets(15));
             restoreButton.setVisible(false);
             restoreButton.setOnAction(e -> exitPip());
@@ -1082,6 +1084,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipMuteIcon.setEffect(whiteColorAdjust);
             pipMuteButton.setGraphic(pipMuteIcon);
             pipMuteButton.getStyleClass().add("player-round-control-button");
+            pipMuteButton.getStyleClass().add("player-pip-overlay-button");
             pipMuteButton.setPadding(new Insets(8));
             pipMuteButton.setVisible(false);
             pipMuteButton.setOnAction(e -> {
@@ -1096,6 +1099,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipReloadIcon.setEffect(whiteColorAdjust);
             pipReloadButton.setGraphic(pipReloadIcon);
             pipReloadButton.getStyleClass().add("player-round-control-button");
+            pipReloadButton.getStyleClass().add("player-pip-overlay-button");
             pipReloadButton.setPadding(new Insets(8));
             pipReloadButton.setVisible(false);
             pipReloadButton.setOnAction(e -> refreshAndPlay());
@@ -1134,6 +1138,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             Scene scene = new Scene(pipRoot, 480, 270);
             I18n.applySceneOrientation(scene);
             scene.setFill(Color.TRANSPARENT);
+            if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
+                scene.getStylesheets().setAll(originalScene.getStylesheets());
+            }
             pipStage.setScene(scene);
             installPipSceneInputRecovery(scene);
 
