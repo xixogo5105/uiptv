@@ -10,7 +10,7 @@ public class ConfigurationService {
     public static final int DEFAULT_CACHE_EXPIRY_DAYS = 30;
     public static final int DEFAULT_UI_ZOOM_PERCENT = 100;
     public static final List<Integer> FIREFOX_ZOOM_PERCENT_OPTIONS =
-            List.of(50, 75, 80, 90, 100, 110, 115, 120, 125, 133, 140, 150, 170, 200, 250, 300);
+            List.of(50, 75, 80, 90, 95, 100, 105, 110, 115, 120, 125, 133, 140, 150, 170, 200, 250, 300);
     private static final long MILLIS_PER_DAY = 24L * 60L * 60L * 1000L;
 
     private static ConfigurationService instance;

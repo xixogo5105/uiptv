@@ -27,6 +27,8 @@ import javafx.scene.Scene;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -326,26 +328,20 @@ public class ConfigurationUI extends VBox {
         pane.getStyleClass().add("uiptv-card");
         return pane;
     }
-
-    private HBox buildLanguageRow() {
+    private VBox buildThemeOverrideGroup() {
         languageComboBox.getStyleClass().add("uiptv-combo-box");
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         Label languageLabel = new Label(I18n.tr("configLanguage"));
-        HBox languageRow = new HBox(8, languageLabel, languageComboBox);
         HBox.setHgrow(languageComboBox, Priority.ALWAYS);
-        languageRow.setMaxWidth(Double.MAX_VALUE);
-        return languageRow;
-    }
 
-    private VBox buildThemeOverrideGroup() {
-        HBox languageRow = buildLanguageRow();
         themeZoomComboBox.getStyleClass().add("uiptv-combo-box");
         themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
         Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
+        HBox.setHgrow(themeZoomComboBox, Priority.ALWAYS);
+
         Label themeZoomHelpLabel = new Label(I18n.tr("configThemeZoomHelp"));
         themeZoomHelpLabel.setWrapText(true);
         themeZoomHelpLabel.getStyleClass().add("dim-label");
-        VBox themeZoomBox = new VBox(6, themeZoomLabel, themeZoomComboBox, themeZoomHelpLabel);
 
         lightThemeCssStatus.setEditable(false);
         darkThemeCssStatus.setEditable(false);
@@ -375,8 +371,30 @@ public class ConfigurationUI extends VBox {
         themeCssSection.getStyleClass().add("uiptv-outline-pane");
         themeCssSection.setMaxWidth(Double.MAX_VALUE);
 
+        GridPane languageAndZoomGrid = new GridPane();
+        languageAndZoomGrid.setHgap(8);
+        languageAndZoomGrid.setVgap(10);
+        languageAndZoomGrid.setMaxWidth(Double.MAX_VALUE);
+
+        ColumnConstraints labelColumn = new ColumnConstraints();
+        ColumnConstraints controlColumn = new ColumnConstraints();
+        controlColumn.setHgrow(Priority.ALWAYS);
+        controlColumn.setFillWidth(true);
+        languageAndZoomGrid.getColumnConstraints().addAll(labelColumn, controlColumn);
+
+        languageAndZoomGrid.add(languageLabel, 0, 0);
+        languageAndZoomGrid.add(languageComboBox, 1, 0);
+        languageAndZoomGrid.add(themeZoomLabel, 0, 1);
+        languageAndZoomGrid.add(themeZoomComboBox, 1, 1);
+        GridPane.setHgrow(languageComboBox, Priority.ALWAYS);
+        GridPane.setHgrow(themeZoomComboBox, Priority.ALWAYS);
+
+        VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid, themeZoomHelpLabel);
+        languageAndZoomSection.getStyleClass().add("uiptv-outline-pane");
+        languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
+
         addThemeCssButtonHandlers();
-        return new VBox(10, languageRow, darkThemeCheckBox, enableThumbnailsCheckBox, themeZoomBox, themeCssSection);
+        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeCssSection, languageAndZoomSection);
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
