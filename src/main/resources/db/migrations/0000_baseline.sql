@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS Configuration (
     wideView TEXT,
     languageLocale TEXT,
     tmdbReadAccessToken TEXT,
-    uiZoomPercent TEXT
+    uiZoomPercent TEXT,
+    enableLitePlayerFfmpeg TEXT default '0'
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride (
