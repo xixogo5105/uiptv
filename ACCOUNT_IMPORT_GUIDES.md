@@ -2,6 +2,13 @@
 
 This collection contains comprehensive guides for importing all three account types supported by the application.
 
+## What's New
+
+- Bulk import guidance is aligned with the current parser behavior used by `Parse Multiple Accounts`.
+- Stalker examples include current optional fields such as HTTP method, timezone, serial/device IDs, and signature handling.
+- M3U guidance covers optional M3U-to-Xtreme conversion when compatible credentials are present.
+- Cross-links in this file point to the current in-repo guides instead of version-specific release notes.
+
 ## 📚 Quick Navigation
 
 ### Choose Your Account Type:
@@ -347,4 +354,3 @@ These guides are designed for:
 
 *Last Updated: February 20, 2026*  
 *Complete Reference for Account Import Features*
-

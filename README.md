@@ -3,22 +3,24 @@
 # UIPTV - A Universal IPTV Player for Windows, Linux & macOS
 UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. It provides both a desktop experience and a full local-network web experience (SPA/PWA) for Live TV, VOD, and Series.
 
-Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64).
+Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64). Linux builds are provided as `.deb`, optional `.rpm`, and a portable app bundle archive.
 
-A detailed user guide is available at: [GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md)
-CSS/theming guide: [CSS_APPLICATION_GUIDE.md](https://github.com/xixogo5105/uiptv/blob/main/CSS_APPLICATION_GUIDE.md)
+A detailed user guide is available at: [GUIDE.md](GUIDE.md)
+CSS/theming guide: [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md)
+Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
+What's new notes: [release_notes.md](release_notes.md)
 
 [![Download](https://img.shields.io/badge/Download-Latest%20Release-brightgreen)](https://github.com/xixogo5105/uiptv/releases/latest)
 
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
 
-## What's New in v0.1.9
-- **Web app rewrite**: Replaced legacy web pages with a responsive SPA (`/`, `/index.html`, `/myflix.html`, `/player.html`) and PWA support.
-- **Watching Now + Series tracking**: Added series watch-state tracking across desktop/web with richer episode flows.
-- **DRM + playback metadata**: Added DRM-aware playback payloads and improved web playback compatibility paths.
-- **FFmpeg in-memory HLS path**: Optional web transmuxing for TS-like streams when FFmpeg transcoding is enabled.
-- **Published playlist export**: Added server endpoints for `/iptv.m3u` and `/iptv.m3u8`.
-- **Import/parser improvements**: Better Stalker parsing, MAC management/verification, and expanded import guides.
+## What's New
+- **Localized UI**: Multiple bundled UI languages are available, including RTL support and localized season/episode/tab numbering for supported locales.
+- **Theme controls**: Built-in light/dark themes now support saved zoom scaling and live preview from Configuration -> Theme.
+- **Desktop + web parity**: Watching Now, series resume state, bookmarks, and published playlists are available across desktop and the local-network web app.
+- **Browser playback path**: A web-browser player route is available alongside embedded and external player options, including DRM-aware web playback fallback.
+- **Import tooling refresh**: Bulk Stalker, M3U, and Xtreme import flows have clearer guides, better parser behavior, and stronger account maintenance tools.
+- **CSS customization**: Theme overrides, exported baseline CSS templates, and a documented JavaFX styling contract are available for deeper customization.
 
 
 ## Features:
@@ -29,7 +31,7 @@ CSS/theming guide: [CSS_APPLICATION_GUIDE.md](https://github.com/xixogo5105/uipt
 - **Watching Now + Series Resume**: Track watched series/episodes and continue from where you left off on desktop and web.
 - **VOD/Series Metadata**: Enhanced details for movies/series including richer cards and IMDb-oriented metadata flows.
 - **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
-- **Dark Mode/Styling**: Built-in light/dark themes are included, and users can override each theme with full CSS files from Settings. See [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
+- **Theme Modes & Styling**: Built-in light/dark themes are included, theme zoom can be saved from Settings, and users can override each theme with full CSS files. See [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 - **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.
   - **SPA Routes**: Main UI is served from `/` and `/index.html` with additional views (`/myflix.html`, `/player.html`).
   - **Extra Endpoints**: Includes playlist exports (`/iptv.m3u`, `/iptv.m3u8`) and bookmarks playlist (`/bookmarks.m3u8`).
@@ -99,7 +101,7 @@ For Linux, you combine an OS/architecture profile with a packaging profile.
     ```sh
     mvn clean package -P linux-x86_64,pkg-rpm
     ```
-  - **AppImage:**
+  - **Portable app bundle archive:**
     ```sh
     mvn clean package -P linux-x86_64,pkg-app-image
     ```
@@ -113,7 +115,7 @@ For Linux, you combine an OS/architecture profile with a packaging profile.
     ```sh
     mvn clean package -P linux-aarch64,pkg-rpm
     ```
-  - **AppImage:**
+  - **Portable app bundle archive:**
     ```sh
     mvn clean package -P linux-aarch64,pkg-app-image
     ```
@@ -160,7 +162,7 @@ open -a Kodi --args "$STREAM_URL"
 ```
 
 ## Disclaimer
-This is a personal project developed for fun. EPG support is not yet implemented. While it is currently only available in English, it may become a multilingual project in the future if there is sufficient demand.
+This is a personal project developed for fun. EPG support is not yet implemented.
 
 Merge requests for bug fixes or new features are always welcome.
 

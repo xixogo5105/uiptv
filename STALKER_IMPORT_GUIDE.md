@@ -2,7 +2,7 @@
 
 This file demonstrates the format for bulk importing Stalker Portal accounts with MAC addresses and optional device parameters.
 
-## v0.1.9 Import Notes
+## What's New
 
 - Parser now supports smarter attribute extraction for Stalker details (`serial`, `device id 1/2`, `signature`) with flexible labels.
 - `HTTP Method` and `Timezone` can be provided in import text and are stored per account.
