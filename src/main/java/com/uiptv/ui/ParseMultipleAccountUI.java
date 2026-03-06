@@ -48,7 +48,7 @@ public class ParseMultipleAccountUI extends VBox {
             """;
     private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "parseMultipleAccountsInputHint", 5);
     private final ComboBox<String> parseModeComboBox = new ComboBox<>();
-    private final CheckBox groupAccountsCheckBox = new CheckBox(I18n.tr("autoGroupAccountSByMACAddress"));
+    private final CheckBox groupAccountsCheckBox = new CheckBox(I18n.tr("autoGroupAccountsByMACAddress"));
     private final CheckBox convertM3uToXtremeCheckBox = new CheckBox(I18n.tr("autoWherePossibleConvertM3UToXtreme"));
     private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox(I18n.tr("autoStartVerificationAfterParsing"));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("parseAndSave"));
