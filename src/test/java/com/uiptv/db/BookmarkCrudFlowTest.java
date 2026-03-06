@@ -100,15 +100,16 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
 
         bookmarkService.saveBookmarkOrder(null, List.of(reordered.get(0).getDbId(), reordered.get(1).getDbId(), reordered.get(2).getDbId()));
         List<Bookmark> allBookmarks = bookmarkService.read();
-        assertEquals(6, allBookmarks.size());
+        assertEquals(3, allBookmarks.size());
+        assertEquals(List.of("Three", "Two", "One"), allBookmarks.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
 
         bookmarkDb.deleteBookmarkOrder(reordered.get(0).getDbId(), "cat-order");
-        assertEquals(2, bookmarkService.getBookmarksByCategory("cat-order").size());
+        assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
         bookmarkDb.saveBookmarkOrder(reordered.get(0).getDbId(), "cat-order", 0);
         assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
 
         bookmarkDb.deleteBookmarkOrdersByCategory("cat-order");
-        assertTrue(bookmarkService.getBookmarksByCategory("cat-order").isEmpty());
+        assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
 
         bookmarkDb.saveBookmarkOrder(reordered.get(0).getDbId(), null, 0);
         bookmarkDb.deleteBookmarkOrder(reordered.get(0).getDbId(), null);

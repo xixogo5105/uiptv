@@ -456,13 +456,14 @@
 }
 
 .player-controls-container {
-    -fx-background-color: rgba(0, 0, 0, 0.75);
+    -fx-background-color: rgba(26, 26, 26, 0.84);
     -fx-background-radius: 10;
 }
 
 .player-time-label {
     -fx-font-family: monospace;
     -fx-font-weight: bold;
+    -fx-text-fill: white;
 }
 
 .player-error-label {
@@ -510,6 +511,7 @@
 .player-channel-title {
     -fx-font-size: 1.231em;
     -fx-font-weight: bold;
+    -fx-fill: #e4c86a;
 }
 
 .watching-now-view-link {
