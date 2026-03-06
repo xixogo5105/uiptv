@@ -356,7 +356,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         seasonTabPane.getTabs().clear();
         for (String season : seasons) {
-            Tab tab = new Tab(season);
+            Tab tab = new Tab(I18n.formatTabNumberLabel(season));
             tab.setClosable(false);
             tab.setUserData(season);
             seasonTabPane.getTabs().add(tab);
@@ -457,7 +457,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         HBox.setHgrow(actionSpacer, Priority.ALWAYS);
         actionRow.getChildren().addAll(actionSpacer, badges);
 
-        Label title = new Label(row.getEpisodeName());
+        Label title = new Label(buildEpisodeDisplayTitle(row.getSeason(), row.getEpisodeNumber(), row.getEpisodeName()));
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
@@ -549,27 +549,15 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
         MenuItem watchingToggleItem = new MenuItem(I18n.tr("autoWatchingNow"));
-        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
-        playerEmbeddedItem.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, "embedded");
-        });
-        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
-        player1Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, ConfigurationService.getInstance().read().getPlayerPath1());
-        });
-        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
-        player2Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, ConfigurationService.getInstance().read().getPlayerPath2());
-        });
-        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
-        player3Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, ConfigurationService.getInstance().read().getPlayerPath3());
-        });
-        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
+        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem());
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(e -> {
+                rowMenu.hide();
+                play(item, option.playerPath());
+            });
+            rowMenu.getItems().add(playerItem);
+        }
 
         rowMenu.setOnShowing(event -> {
             if (item == null) {

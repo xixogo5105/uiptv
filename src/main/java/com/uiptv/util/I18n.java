@@ -185,6 +185,33 @@ public final class I18n {
         return out.toString();
     }
 
+    public static String formatSeasonLabel(String seasonNumber) {
+        String localized = LocalizedNumberLabelResolver.formatSeasonLabel(seasonNumber, getCurrentLocale());
+        if (!localized.isBlank()) {
+            return localized;
+        }
+        return tr("autoSeasonNumber", formatNumber(seasonNumber == null || seasonNumber.isBlank() ? "1" : seasonNumber));
+    }
+
+    public static String formatEpisodeLabel(String episodeNumber) {
+        if (episodeNumber == null || episodeNumber.isBlank()) {
+            return tr("autoEpisodeNumber", "-");
+        }
+        String localized = LocalizedNumberLabelResolver.formatEpisodeLabel(episodeNumber, getCurrentLocale());
+        if (!localized.isBlank()) {
+            return localized;
+        }
+        return tr("autoEpisodeNumber", formatNumber(episodeNumber));
+    }
+
+    public static String formatTabNumberLabel(String rawNumber) {
+        String localized = LocalizedNumberLabelResolver.formatTabLabel(rawNumber, getCurrentLocale());
+        if (!localized.isBlank()) {
+            return localized;
+        }
+        return formatNumber(rawNumber == null || rawNumber.isBlank() ? "1" : rawNumber);
+    }
+
     private static String englishOrdinal(int dayOfMonth) {
         int mod100 = dayOfMonth % 100;
         if (mod100 >= 11 && mod100 <= 13) {

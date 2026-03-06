@@ -936,28 +936,14 @@ public class ChannelListUI extends HBox {
             }).start();
         });
 
-        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
-        playerEmbeddedItem.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), "embedded");
-        });
-        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
-        player1Item.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
-        });
-        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
-        player2Item.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
-        });
-        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
-        player3Item.setOnAction(event -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
-        });
-
-        rowMenu.getItems().addAll(playerEmbeddedItem, player1Item, player2Item, player3Item);
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(event -> {
+                rowMenu.hide();
+                play(row.getItem(), option.playerPath());
+            });
+            rowMenu.getItems().add(playerItem);
+        }
 
         row.contextMenuProperty().bind(
                 Bindings.when(

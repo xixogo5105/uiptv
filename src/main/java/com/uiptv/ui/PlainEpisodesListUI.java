@@ -59,7 +59,11 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
                     EpisodeItem row = getTableView().getItems().get(getIndex());
                     HBox box = new HBox(10);
                     box.setAlignment(Pos.CENTER_LEFT);
-                    box.getChildren().add(new Label(item));
+                    box.getChildren().add(new Label(buildEpisodeDisplayTitle(
+                            row.getSeason(),
+                            row.getEpisodeNumber(),
+                            item
+                    )));
 
                     if (row.isWatched()) {
                         Label watched = new Label(I18n.tr("autoWatching"));
@@ -161,27 +165,15 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         rowMenu.setAutoHide(true);
         MenuItem watchingToggleItem = new MenuItem(I18n.tr("autoWatchingNow"));
 
-        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
-        playerEmbeddedItem.setOnAction(e -> {
-            rowMenu.hide();
-            play(row.getItem(), "embedded");
-        });
-        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
-        player1Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
-        });
-        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
-        player2Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
-        });
-        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
-        player3Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
-        });
-        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
+        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem());
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(e -> {
+                rowMenu.hide();
+                play(row.getItem(), option.playerPath());
+            });
+            rowMenu.getItems().add(playerItem);
+        }
 
         rowMenu.setOnShowing(event -> {
             EpisodeItem item = row.getItem();

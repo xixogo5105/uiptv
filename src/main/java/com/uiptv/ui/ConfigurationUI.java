@@ -44,7 +44,6 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ConfigurationUI extends VBox {
-    private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     private static final String EMBEDDED_PLAYER_PATH = PlaybackUIService.EMBEDDED_PLAYER_PATH;
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
@@ -160,7 +159,7 @@ public class ConfigurationUI extends VBox {
                 defaultPlayer2.setSelected(true);
             } else if (playerPath3.getText() != null && playerPath3.getText().equals(configuration.getDefaultPlayerPath())) {
                 defaultPlayer3.setSelected(true);
-            } else if (WEB_BROWSER_PLAYER_PATH.equals(configuration.getDefaultPlayerPath())) {
+            } else if (PlaybackUIService.WEB_BROWSER_PLAYER_PATH.equals(configuration.getDefaultPlayerPath())) {
                 defaultWebBrowserPlayer.setSelected(true);
             } else {
                 defaultEmbedPlayer.setSelected(true);
@@ -225,7 +224,6 @@ public class ConfigurationUI extends VBox {
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
-        HBox languageRow = buildLanguageRow();
         VBox themeOverridesGroup = buildThemeOverrideGroup();
         updateThemeCssStatusLabels();
 
@@ -241,7 +239,6 @@ public class ConfigurationUI extends VBox {
         VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
 
         contentContainer.getChildren().addAll(
-                languageRow,
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
                 createCollapsibleGroupPane(I18n.tr("configFilters"), null, filtersGroup, true),
                 createCollapsibleGroupPane(I18n.tr("configDarkTheme"), I18n.tr("configThemeDescription"), themeOverridesGroup, true),
@@ -326,6 +323,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private VBox buildThemeOverrideGroup() {
+        HBox languageRow = buildLanguageRow();
         themeZoomComboBox.getStyleClass().add("uiptv-combo-box");
         themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
         Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
@@ -363,7 +361,7 @@ public class ConfigurationUI extends VBox {
         themeCssSection.setMaxWidth(Double.MAX_VALUE);
 
         addThemeCssButtonHandlers();
-        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeZoomBox, themeCssSection);
+        return new VBox(10, languageRow, darkThemeCheckBox, enableThumbnailsCheckBox, themeZoomBox, themeCssSection);
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
@@ -659,7 +657,7 @@ public class ConfigurationUI extends VBox {
                 } else if (defaultPlayer3.isSelected()) {
                     defaultPlayer = playerPath3.getText();
                 } else if (defaultWebBrowserPlayer.isSelected()) {
-                    defaultPlayer = WEB_BROWSER_PLAYER_PATH;
+                    defaultPlayer = PlaybackUIService.WEB_BROWSER_PLAYER_PATH;
                 }
                 Configuration newConfiguration = new Configuration(
                         playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), defaultPlayer,

@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
+import com.uiptv.util.EpisodeTitleFormatter;
 
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.SeriesChannelDb;
@@ -690,13 +691,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         String selectedSeason = "";
         if (data.seasonTabs != null && data.seasonTabs.getSelectionModel() != null && data.seasonTabs.getSelectionModel().getSelectedItem() != null) {
-            selectedSeason = safe(data.seasonTabs.getSelectionModel().getSelectedItem().getText());
+            selectedSeason = safe(String.valueOf(data.seasonTabs.getSelectionModel().getSelectedItem().getUserData()));
         }
         data.seasonCardsBySeason.clear();
         TabPane refreshed = createSeasonTabs(data);
         if (!isBlank(selectedSeason)) {
             for (Tab tab : refreshed.getTabs()) {
-                if (selectedSeason.equals(safe(tab.getText()))) {
+                if (selectedSeason.equals(safe(String.valueOf(tab.getUserData())))) {
                     refreshed.getSelectionModel().select(tab);
                     break;
                 }
@@ -876,7 +877,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         seasons.sort(Comparator.comparingInt(s -> parseNumberOrDefault(s, 1)));
 
         for (String season : seasons) {
-            Tab tab = new Tab(season);
+            Tab tab = new Tab(I18n.formatTabNumberLabel(season));
+            tab.setUserData(season);
             VBox cards = buildEpisodeCards(data, FXCollections.observableArrayList(bySeason.getOrDefault(season, List.of())));
             ScrollPane cardsScroll = new ScrollPane(cards);
             cardsScroll.setFitToWidth(true);
@@ -888,7 +890,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         if (!tabPane.getTabs().isEmpty()) {
             Tab toSelect = tabPane.getTabs().stream()
-                    .filter(t -> safe(t.getText()).equals(selectedSeason))
+                    .filter(t -> safe(String.valueOf(t.getUserData())).equals(selectedSeason))
                     .findFirst()
                     .orElse(tabPane.getTabs().get(0));
             tabPane.getSelectionModel().select(toSelect);
@@ -1092,15 +1094,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
-        MenuItem embedded = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
-        embedded.setOnAction(e -> playEpisode(data, item, "embedded"));
-        MenuItem p1 = new MenuItem(I18n.tr("autoPlayer1"));
-        p1.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath1()));
-        MenuItem p2 = new MenuItem(I18n.tr("autoPlayer2"));
-        p2.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath2()));
-        MenuItem p3 = new MenuItem(I18n.tr("autoPlayer3"));
-        p3.setOnAction(e -> playEpisode(data, item, ConfigurationService.getInstance().read().getPlayerPath3()));
-
         rowMenu.setOnShowing(event -> {
             rowMenu.getItems().clear();
             if (item.watched) {
@@ -1118,7 +1111,12 @@ public abstract class BaseWatchingNowUI extends VBox {
                 });
                 rowMenu.getItems().add(watchingNow);
             }
-            rowMenu.getItems().addAll(new SeparatorMenuItem(), embedded, p1, p2, p3);
+            rowMenu.getItems().add(new SeparatorMenuItem());
+            for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+                MenuItem playerItem = new MenuItem(option.label());
+                playerItem.setOnAction(e -> playEpisode(data, item, option.playerPath()));
+                rowMenu.getItems().add(playerItem);
+            }
         });
         target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
     }
@@ -1874,25 +1872,11 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private String buildEpisodeDisplayTitle(String season, String episodeNum, String title) {
-        String seasonLabel = I18n.tr("autoSeasonNumber",
-                I18n.formatNumber(isBlank(season) ? "1" : season));
-        String episodeLabel = I18n.tr("autoEpisodeNumber",
-                isBlank(episodeNum) ? "-" : I18n.formatNumber(episodeNum));
-        String cleanTitle = isGenericEpisodeTitle(title) ? "" : safe(title).trim();
-        if (isBlank(cleanTitle)) {
-            return seasonLabel + " - " + episodeLabel;
-        }
-        return seasonLabel + " - " + episodeLabel + ": " + cleanTitle;
+        return EpisodeTitleFormatter.buildEpisodeDisplayTitle(season, episodeNum, title);
     }
 
     private boolean isGenericEpisodeTitle(String title) {
-        String value = safe(title).trim();
-        if (isBlank(value)) {
-            return true;
-        }
-        return value.matches("(?i)^episode\\s*\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^ep\\.?\\s*\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$");
+        return EpisodeTitleFormatter.isGenericEpisodeTitle(title);
     }
 
     private LocalDate parseDate(String value) {

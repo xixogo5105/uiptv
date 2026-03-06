@@ -144,6 +144,47 @@ class I18nTest {
         assertEquals("۱۹۹۶", I18n.formatNumber("1996"), "Urdu numbers should use localized numerals.");
     }
 
+    @Test
+    void seasonAndEpisodeLabelsUseOrdinalWordsForSupportedLanguages() {
+        I18n.setLocale("ur-PK");
+        assertEquals("پہلا سیزن", I18n.formatSeasonLabel("1"));
+        assertEquals("پہلی قسط", I18n.formatEpisodeLabel("1"));
+        assertEquals("گیارہواں سیزن", I18n.formatSeasonLabel("11"));
+        assertEquals("گیارہویں قسط", I18n.formatEpisodeLabel("11"));
+        assertEquals("پچاسواں سیزن", I18n.formatSeasonLabel("50"));
+        assertEquals("پچاسویں قسط", I18n.formatEpisodeLabel("50"));
+        assertEquals("ایک", I18n.formatTabNumberLabel("1"));
+        assertEquals("دو", I18n.formatTabNumberLabel("2"));
+        assertEquals("پچاس", I18n.formatTabNumberLabel("50"));
+
+        I18n.setLocale("hi-IN");
+        assertEquals("पहला सीज़न", I18n.formatSeasonLabel("1"));
+        assertEquals("पहली कड़ी", I18n.formatEpisodeLabel("1"));
+        assertEquals("ग्यारहवाँ सीज़न", I18n.formatSeasonLabel("11"));
+        assertEquals("ग्यारहवीं कड़ी", I18n.formatEpisodeLabel("11"));
+        assertEquals("पचासवाँ सीज़न", I18n.formatSeasonLabel("50"));
+        assertEquals("पचासवीं कड़ी", I18n.formatEpisodeLabel("50"));
+        assertEquals("एक", I18n.formatTabNumberLabel("1"));
+        assertEquals("दो", I18n.formatTabNumberLabel("2"));
+        assertEquals("पचास", I18n.formatTabNumberLabel("50"));
+
+        I18n.setLocale("ar-SA");
+        assertEquals("الموسم الأول", I18n.formatSeasonLabel("1"));
+        assertEquals("الحلقة الأولى", I18n.formatEpisodeLabel("1"));
+        assertEquals("الموسم الحادي عشر", I18n.formatSeasonLabel("11"));
+        assertEquals("الحلقة الحادية عشرة", I18n.formatEpisodeLabel("11"));
+        assertEquals("الموسم الخمسون", I18n.formatSeasonLabel("50"));
+        assertEquals("الحلقة الخمسون", I18n.formatEpisodeLabel("50"));
+        assertEquals("واحد", I18n.formatTabNumberLabel("1"));
+        assertEquals("اثنان", I18n.formatTabNumberLabel("2"));
+        assertEquals("خمسون", I18n.formatTabNumberLabel("50"));
+
+        I18n.setLocale("en-US");
+        assertEquals("Season 1", I18n.formatSeasonLabel("1"));
+        assertEquals("Episode 1", I18n.formatEpisodeLabel("1"));
+        assertEquals("1", I18n.formatTabNumberLabel("1"));
+    }
+
     private Properties loadBundle(String fileName) throws IOException {
         Properties properties = new Properties();
         try (Reader reader = Files.newBufferedReader(I18N_DIR.resolve(fileName), StandardCharsets.UTF_8)) {

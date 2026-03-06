@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
@@ -626,25 +627,11 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     protected String buildEpisodeDisplayTitle(String season, String episodeNo, String title) {
-        String seasonLabel = I18n.tr("autoSeasonNumber",
-                I18n.formatNumber(isBlank(season) ? "1" : season));
-        String episodeLabel = I18n.tr("autoEpisodeNumber",
-                isBlank(episodeNo) ? "-" : I18n.formatNumber(episodeNo));
-        String cleanTitle = isGenericEpisodeTitle(title) ? "" : safe(title).trim();
-        if (isBlank(cleanTitle)) {
-            return seasonLabel + " - " + episodeLabel;
-        }
-        return seasonLabel + " - " + episodeLabel + ": " + cleanTitle;
+        return EpisodeTitleFormatter.buildEpisodeDisplayTitle(season, episodeNo, title);
     }
 
     protected boolean isGenericEpisodeTitle(String title) {
-        String value = safe(title).trim();
-        if (isBlank(value)) {
-            return true;
-        }
-        return value.matches("(?i)^episode\\s*\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^ep\\.?\\s*\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$");
+        return EpisodeTitleFormatter.isGenericEpisodeTitle(title);
     }
 
     protected LocalDate parseDate(String value) {

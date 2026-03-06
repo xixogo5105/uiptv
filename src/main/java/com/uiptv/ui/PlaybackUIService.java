@@ -12,6 +12,8 @@ import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 
+import java.util.List;
+
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
@@ -19,10 +21,24 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
-    private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
+    static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
 
     private PlaybackUIService() {
+    }
+
+    public static List<PlayerOption> getConfiguredPlayerOptions() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        String player1 = configuration == null ? "" : configuration.getPlayerPath1();
+        String player2 = configuration == null ? "" : configuration.getPlayerPath2();
+        String player3 = configuration == null ? "" : configuration.getPlayerPath3();
+        return List.of(
+                new PlayerOption(I18n.tr("autoEmbeddedPlayer"), EMBEDDED_PLAYER_PATH),
+                new PlayerOption(I18n.tr("configDefaultWebBrowserPlayer"), WEB_BROWSER_PLAYER_PATH),
+                new PlayerOption(I18n.tr("autoPlayer1"), player1),
+                new PlayerOption(I18n.tr("autoPlayer2"), player2),
+                new PlayerOption(I18n.tr("autoPlayer3"), player3)
+        );
     }
 
     public static void play(Node source, PlaybackRequest request) {
@@ -163,5 +179,8 @@ public final class PlaybackUIService {
             this.errorPrefix = isBlank(errorPrefix) ? "Playback failed: " : errorPrefix;
             return this;
         }
+    }
+
+    public record PlayerOption(String label, String playerPath) {
     }
 }

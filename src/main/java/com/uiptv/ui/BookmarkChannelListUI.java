@@ -692,45 +692,19 @@ public class BookmarkChannelListUI extends HBox {
             handleDeleteMultipleBookmarks();
         });
 
-        MenuItem playerEmbeddedItem = new MenuItem(I18n.tr("autoEmbeddedPlayer"));
-        playerEmbeddedItem.setOnAction(event -> {
-            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                rowMenu.hide();
-                play(row.getItem(), "embedded");
-            }
-        });
-
-        MenuItem player1Item = new MenuItem(I18n.tr("autoPlayer1"));
-        player1Item.setOnAction(event -> {
-            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                rowMenu.hide();
-                play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath1());
-            }
-        });
-
-        MenuItem player2Item = new MenuItem(I18n.tr("autoPlayer2"));
-        player2Item.setOnAction(event -> {
-            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                rowMenu.hide();
-                play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath2());
-            }
-        });
-
-        MenuItem player3Item = new MenuItem(I18n.tr("autoPlayer3"));
-        player3Item.setOnAction(event -> {
-            if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                rowMenu.hide();
-                play(row.getItem(), ConfigurationService.getInstance().read().getPlayerPath3());
-            }
-        });
+        List<MenuItem> playerItems = new ArrayList<>();
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(event -> {
+                if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+                    showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
+                } else {
+                    rowMenu.hide();
+                    play(row.getItem(), option.playerPath());
+                }
+            });
+            playerItems.add(playerItem);
+        }
 
         Menu addToMenu = new Menu(I18n.tr("autoAddTo"));
         List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
@@ -748,7 +722,9 @@ public class BookmarkChannelListUI extends HBox {
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().addAll(editItem, playerEmbeddedItem, player1Item, player2Item, player3Item, addToMenu);
+        rowMenu.getItems().add(editItem);
+        rowMenu.getItems().addAll(playerItems);
+        rowMenu.getItems().add(addToMenu);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)
