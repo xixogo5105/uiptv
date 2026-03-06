@@ -1,5 +1,6 @@
 # IDE files
 .idea/
+.idea/compiler.xml
 *.iml
 
 # macOS files
