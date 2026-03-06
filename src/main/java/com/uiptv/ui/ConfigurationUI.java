@@ -14,6 +14,7 @@ import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -72,6 +73,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
+    private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
     private final TextField lightThemeCssStatus = new TextField(I18n.tr("configDefaultResourceInUse"));
     private final TextField darkThemeCssStatus = new TextField(I18n.tr("configDefaultResourceInUse"));
     private final Button uploadLightThemeCssButton = new Button(I18n.tr("configCssUploadLight"));
@@ -129,6 +131,7 @@ public class ConfigurationUI extends VBox {
 
         Configuration configuration = service.read();
         initializeLanguageSelection(configuration);
+        initializeThemeZoomSelection(configuration);
         currentThemeCssOverride = themeCssOverrideService.read();
         defaultPlayer1.setToggleGroup(group);
         defaultPlayer2.setToggleGroup(group);
@@ -258,6 +261,7 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
+        addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
     }
@@ -322,6 +326,14 @@ public class ConfigurationUI extends VBox {
     }
 
     private VBox buildThemeOverrideGroup() {
+        themeZoomComboBox.getStyleClass().add("uiptv-combo-box");
+        themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
+        Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
+        Label themeZoomHelpLabel = new Label(I18n.tr("configThemeZoomHelp"));
+        themeZoomHelpLabel.setWrapText(true);
+        themeZoomHelpLabel.getStyleClass().add("dim-label");
+        VBox themeZoomBox = new VBox(6, themeZoomLabel, themeZoomComboBox, themeZoomHelpLabel);
+
         lightThemeCssStatus.setEditable(false);
         darkThemeCssStatus.setEditable(false);
         lightThemeCssStatus.setFocusTraversable(false);
@@ -351,7 +363,7 @@ public class ConfigurationUI extends VBox {
         themeCssSection.setMaxWidth(Double.MAX_VALUE);
 
         addThemeCssButtonHandlers();
-        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeCssSection);
+        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeZoomBox, themeCssSection);
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
@@ -375,6 +387,26 @@ public class ConfigurationUI extends VBox {
         languageComboBox.getSelectionModel().select(selected);
     }
 
+    private void initializeThemeZoomSelection(Configuration configuration) {
+        themeZoomComboBox.getItems().setAll(ConfigurationService.FIREFOX_ZOOM_PERCENT_OPTIONS);
+        themeZoomComboBox.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item + "%");
+            }
+        });
+        themeZoomComboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item + "%");
+            }
+        });
+        int selected = service.normalizeUiZoomPercent(configuration == null ? null : configuration.getUiZoomPercent());
+        themeZoomComboBox.getSelectionModel().select(Integer.valueOf(selected));
+    }
+
     private String getSelectedLanguageTag() {
         I18n.SupportedLanguage selected = languageComboBox.getSelectionModel().getSelectedItem();
         return selected == null ? I18n.DEFAULT_LANGUAGE_TAG : selected.languageTag();
@@ -386,6 +418,28 @@ public class ConfigurationUI extends VBox {
         downloadLightThemeCssLink.setOnAction(event -> downloadDefaultThemeCss(false));
         downloadDarkThemeCssLink.setOnAction(event -> downloadDefaultThemeCss(true));
         resetThemeOverridesButton.setOnAction(event -> resetThemeOverrides());
+    }
+
+    private void addThemePreviewHandlers() {
+        themeZoomComboBox.valueProperty().addListener((obs, oldValue, newValue) -> applyThemePreview());
+    }
+
+    private void applyThemePreview() {
+        Scene scene = getScene();
+        if (scene == null || scene.getRoot() == null) {
+            return;
+        }
+        RootApplication.currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+                getClass(),
+                darkThemeCheckBox.isSelected(),
+                getSelectedThemeZoomPercent()
+        );
+        scene.getStylesheets().clear();
+        scene.getStylesheets().add(RootApplication.currentTheme);
+        scene.getRoot().styleProperty().unbind();
+        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(getSelectedThemeZoomPercent()));
+        I18n.applySceneOrientation(scene);
+        StyleClassDecorator.decorate(scene.getRoot());
     }
 
     private void uploadThemeCss(boolean darkTheme) {
@@ -621,6 +675,7 @@ public class ConfigurationUI extends VBox {
                 newConfiguration.setWideView(wideViewCheckBox.isSelected());
                 newConfiguration.setLanguageLocale(getSelectedLanguageTag());
                 newConfiguration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
+                newConfiguration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
                 service.save(newConfiguration);
                 I18n.setLocale(newConfiguration.getLanguageLocale());
                 currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
@@ -741,5 +796,10 @@ public class ConfigurationUI extends VBox {
             cacheExpiryDays.setText(normalizedText);
         }
         return normalizedText;
+    }
+
+    private int getSelectedThemeZoomPercent() {
+        Integer selected = themeZoomComboBox.getSelectionModel().getSelectedItem();
+        return selected == null ? ConfigurationService.DEFAULT_UI_ZOOM_PERCENT : selected;
     }
 }

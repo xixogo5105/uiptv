@@ -140,10 +140,14 @@ public class RootApplication extends Application {
         Configuration configuration = configurationService.read();
 
         scene.getStylesheets().clear();
-        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), configuration.isDarkTheme());
+        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+                getClass(),
+                configuration.isDarkTheme(),
+                configurationService.getUiZoomPercent()
+        );
         scene.getStylesheets().add(currentTheme);
         scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle("");
+        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(configurationService.getUiZoomPercent()));
         I18n.applySceneOrientation(scene);
         StyleClassDecorator.decorate(scene.getRoot());
     }

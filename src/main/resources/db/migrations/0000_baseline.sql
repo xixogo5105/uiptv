@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS Configuration (
     enableThumbnails TEXT,
     wideView TEXT,
     languageLocale TEXT,
-    tmdbReadAccessToken TEXT
+    tmdbReadAccessToken TEXT,
+    uiZoomPercent TEXT
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride (
