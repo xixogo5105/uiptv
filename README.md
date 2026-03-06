@@ -1,5 +1,8 @@
 <img src="https://github.com/xixogo5105/uiptv/assets/161976171/5563a042-157e-4ae7-bb6e-a72b38c8aa62"  width="64" height="64"  alt=""/>
 
+> [!IMPORTANT]
+> **Attention!!!** Volunteers are needed for translations. [Click here](TRANSLATIONS.md).
+
 # UIPTV - A Universal IPTV Player for Windows, Linux & macOS
 UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. It provides both a desktop experience and a full local-network web experience (SPA/PWA) for Live TV, VOD, and Series.
 
