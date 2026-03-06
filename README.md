@@ -8,10 +8,11 @@ UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Li
 
 Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64). Linux builds are provided as `.deb`, optional `.rpm`, and a portable app bundle archive.
 
-A detailed user guide is available at: [GUIDE.md](GUIDE.md)
-CSS/theming guide: [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md)
-Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
-What's new notes: [release_notes.md](release_notes.md)
+## Documentation
+
+- User guide: [GUIDE.md](GUIDE.md)
+- CSS/theming guide: [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md)
+- Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
 
 [![Download](https://img.shields.io/badge/Download-Latest%20Release-brightgreen)](https://github.com/xixogo5105/uiptv/releases/latest)
 
