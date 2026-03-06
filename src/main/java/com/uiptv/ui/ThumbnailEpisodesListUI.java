@@ -447,6 +447,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         playButton.setOnAction(event -> {
             event.consume();
             rowMenu.hide();
+            populateEpisodeContextMenu(rowMenu, row);
             rowMenu.show(playButton, Side.BOTTOM, 0, 0);
         });
         badges.getChildren().add(playButton);
@@ -546,10 +547,32 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private ContextMenu addRightClickContextMenu(EpisodeItem item, Pane target) {
         final ContextMenu rowMenu = new ContextMenu();
+        I18n.preparePopupControl(rowMenu, target);
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-        MenuItem watchingToggleItem = new MenuItem(I18n.tr("autoWatchingNow"));
-        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem());
+        target.setOnContextMenuRequested(event -> {
+            populateEpisodeContextMenu(rowMenu, item);
+            if (!rowMenu.getItems().isEmpty()) {
+                rowMenu.show(target, event.getScreenX(), event.getScreenY());
+            }
+            event.consume();
+        });
+        return rowMenu;
+    }
+
+    private void populateEpisodeContextMenu(ContextMenu rowMenu, EpisodeItem item) {
+        rowMenu.getItems().clear();
+        if (item == null) {
+            return;
+        }
+
+        if (!item.isWatched()) {
+            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+            watchingNowItem.setOnAction(e -> markEpisodeAsWatched(item));
+            rowMenu.getItems().add(watchingNowItem);
+            rowMenu.getItems().add(new SeparatorMenuItem());
+        }
+
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
             MenuItem playerItem = new MenuItem(option.label());
             playerItem.setOnAction(e -> {
@@ -559,25 +582,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             rowMenu.getItems().add(playerItem);
         }
 
-        rowMenu.setOnShowing(event -> {
-            if (item == null) {
-                watchingToggleItem.setDisable(true);
-                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
-                watchingToggleItem.setOnAction(null);
-                return;
-            }
-            watchingToggleItem.setDisable(false);
-
-            if (item.isWatched()) {
-                watchingToggleItem.setText(I18n.tr("autoRemoveWatchingNow"));
-                watchingToggleItem.setOnAction(e -> clearWatchedMarker());
-            } else {
-                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
-                watchingToggleItem.setOnAction(e -> markEpisodeAsWatched(item));
-            }
-        });
-        target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
-        return rowMenu;
+        if (item.isWatched()) {
+            rowMenu.getItems().add(new SeparatorMenuItem());
+            MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+            removeWatchingNowItem.setOnAction(e -> clearWatchedMarker());
+            rowMenu.getItems().add(removeWatchingNowItem);
+        }
     }
 
     private void triggerImdbLazyLoad() {

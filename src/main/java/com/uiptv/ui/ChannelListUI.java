@@ -884,6 +884,7 @@ public class ChannelListUI extends HBox {
 
     private void addRightClickContextMenu(TableRow<ChannelItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
+        I18n.preparePopupControl(rowMenu, row);
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 

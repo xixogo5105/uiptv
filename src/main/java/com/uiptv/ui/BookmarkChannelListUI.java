@@ -802,10 +802,12 @@ public class BookmarkChannelListUI extends HBox {
 
     private void addRightClickContextMenu(TableRow<BookmarkItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
+        I18n.preparePopupControl(rowMenu, row);
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
 
         MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
+        editItem.getStyleClass().add("danger-menu-item");
 
         editItem.setOnAction(actionEvent -> {
             handleDeleteMultipleBookmarks();
@@ -841,9 +843,10 @@ public class BookmarkChannelListUI extends HBox {
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().add(editItem);
         rowMenu.getItems().addAll(playerItems);
         rowMenu.getItems().add(addToMenu);
+        rowMenu.getItems().add(new SeparatorMenuItem());
+        rowMenu.getItems().add(editItem);
         row.contextMenuProperty().bind(
                 Bindings.when(row.emptyProperty())
                         .then((ContextMenu) null)

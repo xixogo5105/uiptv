@@ -7,8 +7,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Control;
 import javafx.scene.control.Labeled;
+import javafx.scene.control.PopupControl;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.text.Font;
+import javafx.stage.WindowEvent;
 
 import java.text.MessageFormat;
 import java.time.LocalDate;
@@ -72,6 +74,8 @@ public final class I18n {
     private static final Object LOCK = new Object();
     private static final Pattern TOKEN_ARTIFACT_PATTERN =
             Pattern.compile("(?:__\\s*T\\s*K\\d+_+|__\\d+__|ForTK\\d+__)");
+    private static final Pattern INLINE_FONT_FAMILY_RULE_PATTERN =
+            Pattern.compile("-fx-font-family\\s*:\\s*[^;]+;?");
     private static final String LOCALE_FONT_FAMILY_KEY = "uiptv.locale.font.family";
     private static final String LOCALE_FONT_CHILDREN_KEY = "uiptv.locale.font.children";
     private static Locale currentLocale = Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG);
@@ -139,6 +143,14 @@ public final class I18n {
                 ? NodeOrientation.RIGHT_TO_LEFT
                 : NodeOrientation.LEFT_TO_RIGHT);
         applyLocaleTypography(scene.getRoot());
+    }
+
+    public static void preparePopupControl(PopupControl popupControl, Node ownerNode) {
+        if (popupControl == null || ownerNode == null) {
+            return;
+        }
+        popupControl.addEventHandler(WindowEvent.WINDOW_SHOWING, event -> applyPopupSceneFormatting(popupControl, ownerNode));
+        popupControl.addEventHandler(WindowEvent.WINDOW_SHOWN, event -> applyPopupSceneFormatting(popupControl, ownerNode));
     }
 
     public static String tr(String key, Object... args) {
@@ -314,6 +326,30 @@ public final class I18n {
         }
     }
 
+    private static void applyPopupSceneFormatting(PopupControl popupControl, Node ownerNode) {
+        if (popupControl == null || ownerNode == null) {
+            return;
+        }
+        Scene popupScene = popupControl.getScene();
+        if (popupScene == null || popupScene.getRoot() == null) {
+            return;
+        }
+        Scene ownerScene = ownerNode.getScene();
+        if (ownerScene != null) {
+            String ownerRootStyle = ownerScene.getRoot() == null ? "" : ownerScene.getRoot().getStyle();
+            popupControl.setStyle(ownerRootStyle);
+            popupScene.getStylesheets().setAll(ownerScene.getStylesheets());
+            if (ownerScene.getRoot() != null) {
+                popupScene.getRoot().setStyle(ownerRootStyle);
+                popupScene.getRoot().setNodeOrientation(ownerScene.getRoot().getNodeOrientation());
+            }
+        } else {
+            popupScene.getRoot().setNodeOrientation(isCurrentLocaleRtl()
+                    ? NodeOrientation.RIGHT_TO_LEFT
+                    : NodeOrientation.LEFT_TO_RIGHT);
+        }
+    }
+
     private static void attachTypographyListener(Parent parent) {
         if (parent == null || Boolean.TRUE.equals(parent.getProperties().get(LOCALE_FONT_CHILDREN_KEY))) {
             return;
@@ -333,6 +369,9 @@ public final class I18n {
 
     private static void applyPreferredFont(Node node, String family) {
         if (node == null || family == null || family.isBlank()) {
+            return;
+        }
+        if (node.styleProperty().isBound()) {
             return;
         }
         Object previousFamily = node.getProperties().get(LOCALE_FONT_FAMILY_KEY);
@@ -356,7 +395,7 @@ public final class I18n {
             return fontRule;
         }
         if (existingStyle.contains("-fx-font-family")) {
-            return existingStyle;
+            return INLINE_FONT_FAMILY_RULE_PATTERN.matcher(existingStyle).replaceFirst(fontRule);
         }
         return existingStyle.trim() + (existingStyle.trim().endsWith(";") ? " " : "; ") + fontRule;
     }
@@ -379,6 +418,17 @@ public final class I18n {
                     "Bangla MN",
                     "Kohinoor Bangla",
                     "Noto Sans Bengali",
+                    "Arial Unicode MS"
+            );
+            case "ur" -> firstAvailableFontFamily(
+                    "Noto Nastaliq Urdu UI",
+                    "DecoType Nastaleeq Urdu UI",
+                    "Nafees Naskh",
+                    "Nafees Pakistani Naskh",
+                    "Geeza Pro",
+                    "Geeza Pro Interface",
+                    "Noto Naskh Arabic UI",
+                    "Noto Sans Arabic UI",
                     "Arial Unicode MS"
             );
             case "pa" -> firstAvailableFontFamily(

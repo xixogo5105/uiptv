@@ -176,6 +176,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (supportsTrackSelection()) {
             btnTracks = createTrackRootButton();
             tracksContextMenu = new ContextMenu();
+            I18n.preparePopupControl(tracksContextMenu, btnTracks);
             tracksContextMenu.getStyleClass().add("player-tracks-menu");
             tracksContextMenu.setOnHidden(e -> isTracksMenuOpen = false);
             btnTracks.setOnAction(e -> {

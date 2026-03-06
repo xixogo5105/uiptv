@@ -1,7 +1,6 @@
 package com.uiptv.ui.main;
 
 import com.uiptv.util.I18n;
-
 import com.uiptv.model.Account;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
@@ -14,6 +13,7 @@ import com.uiptv.ui.ManageAccountUI;
 import com.uiptv.ui.ParseMultipleAccountUI;
 import com.uiptv.ui.UpdateChecker;
 import com.uiptv.ui.WatchingNowUI;
+import com.uiptv.util.SystemUtils;
 import javafx.application.HostServices;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
@@ -163,7 +163,8 @@ public abstract class BaseMainApplicationUI {
 
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
-        menuBar.setUseSystemMenuBar(!configurationService.read().isDarkTheme());
+        boolean useNativeSystemMenuBar = SystemUtils.IS_OS_MAC_OSX || !configurationService.read().isDarkTheme();
+        menuBar.setUseSystemMenuBar(useNativeSystemMenuBar);
 
         Menu helpMenu = new Menu(I18n.tr("autoHelp"));
         MenuItem aboutItem = new MenuItem(I18n.tr("autoAbout"));

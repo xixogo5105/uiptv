@@ -9,6 +9,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -48,10 +49,7 @@ public class AboutUI {
         Label overviewLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvOverview"));
         Label webSyncLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvWebSync"));
 
-        String releaseDescription = VersionManager.getReleaseDescription();
-        if ("N/A".equals(releaseDescription)) {
-            releaseDescription = VersionManager.getCurrentVersion();
-        }
+        String releaseDescription = resolveReleaseSummary();
         Label releaseNotesLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvReleaseNotes", releaseDescription));
 
         Label authorLabel = createMetaLabel(I18n.tr("autoAuthorXixogo5105"));
@@ -84,6 +82,9 @@ public class AboutUI {
 
         VBox infoBox = new VBox(8);
         infoBox.setAlignment(Pos.TOP_LEFT);
+        infoBox.setFillWidth(true);
+        infoBox.setPrefWidth(520);
+        infoBox.setMinWidth(520);
         infoBox.getChildren().addAll(
                 titleLabel,
                 subtitleLabel,
@@ -133,6 +134,9 @@ public class AboutUI {
     private static Label createBodyLabel(String text) {
         Label label = new Label(text);
         label.setWrapText(true);
+        label.setTextOverrun(OverrunStyle.CLIP);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setMinHeight(Region.USE_PREF_SIZE);
         label.setMaxWidth(520);
         return label;
     }
@@ -140,6 +144,9 @@ public class AboutUI {
     private static Label createDescriptionLabel(String text) {
         Label label = new Label(text);
         label.setWrapText(true);
+        label.setTextOverrun(OverrunStyle.CLIP);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setMinHeight(Region.USE_PREF_SIZE);
         label.setMaxWidth(520);
         label.setStyle("-fx-opacity: 0.96;");
         return label;
@@ -148,6 +155,9 @@ public class AboutUI {
     private static Label createMetaLabel(String text) {
         Label label = new Label(text);
         label.setWrapText(true);
+        label.setTextOverrun(OverrunStyle.CLIP);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setMinHeight(Region.USE_PREF_SIZE);
         label.setStyle("-fx-opacity: 0.88;");
         return label;
     }
@@ -157,5 +167,18 @@ public class AboutUI {
         spacer.setMinHeight(height);
         spacer.setPrefHeight(height);
         return spacer;
+    }
+
+    private static String resolveReleaseSummary() {
+        String currentVersion = VersionManager.getCurrentVersion();
+        String releaseDescription = VersionManager.getReleaseDescription();
+        if ("N/A".equals(releaseDescription) || releaseDescription.isBlank()) {
+            return currentVersion;
+        }
+        String language = I18n.getCurrentLocale().getLanguage();
+        if (!"en".equalsIgnoreCase(language)) {
+            return currentVersion;
+        }
+        return releaseDescription;
     }
 }

@@ -1088,37 +1088,47 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
         ContextMenu rowMenu = new ContextMenu();
+        I18n.preparePopupControl(rowMenu, target);
         if (item == null) {
             return;
         }
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-
-        rowMenu.setOnShowing(event -> {
-            rowMenu.getItems().clear();
-            if (item.watched) {
-                MenuItem removeWatchingNow = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
-                removeWatchingNow.setOnAction(e -> {
-                    clearWatchedMarker(item);
-                    clearWatchingStatusUI(data);
-                });
-                rowMenu.getItems().add(removeWatchingNow);
-            } else {
-                MenuItem watchingNow = new MenuItem(I18n.tr("autoWatchingNow"));
-                watchingNow.setOnAction(e -> {
-                    markEpisodeAsWatched(item);
-                    updateWatchingStatusUI(data, item);
-                });
-                rowMenu.getItems().add(watchingNow);
+        target.setOnContextMenuRequested(event -> {
+            populateEpisodeContextMenu(rowMenu, data, item);
+            if (!rowMenu.getItems().isEmpty()) {
+                rowMenu.show(target, event.getScreenX(), event.getScreenY());
             }
-            rowMenu.getItems().add(new SeparatorMenuItem());
-            for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
-                MenuItem playerItem = new MenuItem(option.label());
-                playerItem.setOnAction(e -> playEpisode(data, item, option.playerPath()));
-                rowMenu.getItems().add(playerItem);
-            }
+            event.consume();
         });
-        target.setOnContextMenuRequested(event -> rowMenu.show(target, event.getScreenX(), event.getScreenY()));
+    }
+
+    private void populateEpisodeContextMenu(ContextMenu rowMenu, SeriesPanelData data, WatchingEpisode item) {
+        rowMenu.getItems().clear();
+        if (!item.watched) {
+            MenuItem watchingNow = new MenuItem(I18n.tr("autoWatchingNow"));
+            watchingNow.setOnAction(e -> {
+                markEpisodeAsWatched(item);
+                updateWatchingStatusUI(data, item);
+            });
+            rowMenu.getItems().add(watchingNow);
+            rowMenu.getItems().add(new SeparatorMenuItem());
+        }
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(e -> playEpisode(data, item, option.playerPath()));
+            rowMenu.getItems().add(playerItem);
+        }
+        if (item.watched) {
+            rowMenu.getItems().add(new SeparatorMenuItem());
+            MenuItem removeWatchingNow = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+            removeWatchingNow.getStyleClass().add("danger-menu-item");
+            removeWatchingNow.setOnAction(e -> {
+                clearWatchedMarker(item);
+                clearWatchingStatusUI(data);
+            });
+            rowMenu.getItems().add(removeWatchingNow);
+        }
     }
 
     private void markEpisodeAsWatched(WatchingEpisode item) {

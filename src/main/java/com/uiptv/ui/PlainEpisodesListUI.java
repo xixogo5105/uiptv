@@ -161,38 +161,46 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     private void addRightClickContextMenu(TableRow<EpisodeItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
+        I18n.preparePopupControl(rowMenu, row);
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-        MenuItem watchingToggleItem = new MenuItem(I18n.tr("autoWatchingNow"));
+        row.setOnContextMenuRequested(event -> {
+            populateEpisodeContextMenu(rowMenu, row.getItem());
+            if (!rowMenu.getItems().isEmpty()) {
+                rowMenu.show(row, event.getScreenX(), event.getScreenY());
+            }
+            event.consume();
+        });
+    }
 
-        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem());
+    private void populateEpisodeContextMenu(ContextMenu rowMenu, EpisodeItem item) {
+        rowMenu.getItems().clear();
+        if (item == null) {
+            return;
+        }
+
+        if (!item.isWatched()) {
+            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+            watchingNowItem.setOnAction(e -> markEpisodeAsWatched(item));
+            rowMenu.getItems().add(watchingNowItem);
+            rowMenu.getItems().add(new SeparatorMenuItem());
+        }
+
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
             MenuItem playerItem = new MenuItem(option.label());
             playerItem.setOnAction(e -> {
                 rowMenu.hide();
-                play(row.getItem(), option.playerPath());
+                play(item, option.playerPath());
             });
             rowMenu.getItems().add(playerItem);
         }
 
-        rowMenu.setOnShowing(event -> {
-            EpisodeItem item = row.getItem();
-            if (item == null) {
-                watchingToggleItem.setDisable(true);
-                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
-                watchingToggleItem.setOnAction(null);
-                return;
-            }
-            watchingToggleItem.setDisable(false);
-
-            if (item.isWatched()) {
-                watchingToggleItem.setText(I18n.tr("autoRemoveWatchingNow"));
-                watchingToggleItem.setOnAction(e -> clearWatchedMarker());
-            } else {
-                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
-                watchingToggleItem.setOnAction(e -> markEpisodeAsWatched(item));
-            }
-        });
-        row.setContextMenu(rowMenu);
+        if (item.isWatched()) {
+            rowMenu.getItems().add(new SeparatorMenuItem());
+            MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+            removeWatchingNowItem.setOnAction(e -> clearWatchedMarker());
+            rowMenu.getItems().add(removeWatchingNowItem);
+        }
     }
 }
