@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.BookmarkCategory;
 import com.uiptv.service.BookmarkService;
 import javafx.collections.FXCollections;
@@ -14,8 +16,8 @@ import java.util.List;
 public class CategoryManagementPopup extends VBox {
     private ListView<BookmarkItem> categoryListView = new ListView<>();
     private TextField categoryNameField = new TextField();
-    private Button addButton = new Button("Add");
-    private Button removeButton = new Button("Remove");
+    private Button addButton = new Button(I18n.tr("autoAdd"));
+    private Button removeButton = new Button(I18n.tr("autoRemove"));
     private BookmarkChannelListUI parent;
 
     public CategoryManagementPopup(BookmarkChannelListUI parent) {
@@ -24,7 +26,7 @@ public class CategoryManagementPopup extends VBox {
         setSpacing(10);
 
         categoryListView.setItems(FXCollections.observableArrayList(getBookmarkItems()));
-        categoryNameField.setPromptText("Category Name");
+        categoryNameField.setPromptText(I18n.tr("autoCategoryName"));
 
         addButton.setOnAction(event -> addCategory());
         removeButton.setOnAction(event -> removeCategory());
@@ -44,7 +46,7 @@ public class CategoryManagementPopup extends VBox {
                 };
             }
         });
-        getChildren().addAll(new Label("Manage Categories"), categoryListView, categoryNameField, addButton, removeButton);
+        getChildren().addAll(new Label(I18n.tr("autoManageCategories")), categoryListView, categoryNameField, addButton, removeButton);
     }
 
     private void addCategory() {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="UIPTV is an open-source IPTV player for Windows, Linux, and macOS with desktop + web SPA support, Live/VOD/Series modes, and powerful account import tools.">
-    <meta name="keywords" content="UIPTV, IPTV Player, Stalker Portal, Xtream Codes, M3U, HLS, FFmpeg, VLC, JavaFX, Open Source">
+    <meta name="keywords" content="UIPTV, IPTV Player, Stalker Portal, Xtreme Codes, M3U, HLS, FFmpeg, VLC, JavaFX, Open Source">
     <meta name="author" content="UIPTV">
 
     <meta property="og:type" content="website">
@@ -39,9 +39,14 @@
         </a>
         <div class="nav-links">
             <a href="#features">Features</a>
-            <a href="#release">v0.1.9</a>
+            <a href="#whats-new">What's New</a>
             <a href="#imports">Import Guides</a>
             <a href="#requirements">Requirements</a>
+            <div class="theme-switcher" role="group" aria-label="Theme">
+                <button type="button" class="theme-btn" data-theme-choice="system" aria-pressed="true">System</button>
+                <button type="button" class="theme-btn" data-theme-choice="light" aria-pressed="false">Light</button>
+                <button type="button" class="theme-btn" data-theme-choice="dark" aria-pressed="false">Dark</button>
+            </div>
             <a href="https://github.com/xixogo5105/uiptv" target="_blank" rel="noreferrer">
                 <i class="fab fa-github"></i> GitHub
             </a>
@@ -57,8 +62,8 @@
             <span class="hero-line">Web freedom.</span>
         </h1>
         <p class="hero-text">
-            UIPTV brings Live TV, VOD, and Series into one cross-platform player with a modern browser experience,
-            robust account parsing, and practical streaming tools.
+            UIPTV unifies Live TV, VOD, and Series in one cross-platform player with a local-network web app,
+            flexible playback routes, and import tooling built for real IPTV account sets.
         </p>
         <div class="hero-ctas">
             <a class="btn btn-primary" href="https://github.com/xixogo5105/uiptv/releases/latest" id="download-btn">
@@ -71,7 +76,7 @@
         </div>
         <ul class="hero-badges">
             <li><i class="fas fa-circle-check"></i> Desktop + Web SPA</li>
-            <li><i class="fas fa-circle-check"></i> Stalker, Xtream, M3U, RSS</li>
+            <li><i class="fas fa-circle-check"></i> Stalker, Xtreme, M3U, RSS</li>
             <li><i class="fas fa-circle-check"></i> Live / VOD / Series</li>
         </ul>
     </div>
@@ -82,18 +87,18 @@
     </div>
 </header>
 
-<section class="section section-release reveal" id="release">
+<section class="section section-release reveal" id="whats-new">
     <div class="section-head">
-        <p class="eyebrow">Release Snapshot</p>
-        <h2>What changed in v0.1.9</h2>
+        <p class="eyebrow">What's New</p>
+        <h2>Current platform highlights</h2>
     </div>
     <div class="release-grid">
-        <article class="release-card"><i class="fas fa-window-maximize"></i><h3>Web SPA + PWA</h3><p>Legacy web pages replaced by a responsive SPA with modern routes.</p></article>
-        <article class="release-card"><i class="fas fa-clock-rotate-left"></i><h3>Watching Now</h3><p>Series watch-state, resume flows, and richer episode navigation.</p></article>
-        <article class="release-card"><i class="fas fa-shield-halved"></i><h3>DRM-Aware Playback</h3><p>Expanded player payload with DRM fields and better web handling.</p></article>
-        <article class="release-card"><i class="fas fa-wand-magic-sparkles"></i><h3>FFmpeg HLS Path</h3><p>Optional in-memory transmuxing flow for TS-style browser playback.</p></article>
-        <article class="release-card"><i class="fas fa-list-check"></i><h3>Playlist Publishing</h3><p>Published exports available via <code>/iptv.m3u</code> and <code>/iptv.m3u8</code>.</p></article>
-        <article class="release-card"><i class="fas fa-file-import"></i><h3>Import Improvements</h3><p>Stronger parsing for Stalker/Xtream/M3U and improved account tools.</p></article>
+        <article class="release-card"><i class="fas fa-language"></i><h3>Localized UI</h3><p>Bundled language support, RTL handling, and localized season and episode numbering for supported locales.</p></article>
+        <article class="release-card"><i class="fas fa-palette"></i><h3>Theme Controls</h3><p>Desktop light/dark themes, saved zoom, and per-theme CSS overrides are managed from Configuration.</p></article>
+        <article class="release-card"><i class="fas fa-window-maximize"></i><h3>Desktop + Web</h3><p>The JavaFX app and local-network web UI share bookmarks, watching-now state, and published playlists.</p></article>
+        <article class="release-card"><i class="fas fa-globe"></i><h3>Browser Playback</h3><p>Embedded, external, and browser-based playback routes coexist, including the web-browser player path.</p></article>
+        <article class="release-card"><i class="fas fa-clock-rotate-left"></i><h3>Series Resume</h3><p>Watching-now progress and richer series navigation now carry across desktop and web flows.</p></article>
+        <article class="release-card"><i class="fas fa-file-import"></i><h3>Import Workflow</h3><p>Stalker, Xtreme, and M3U guides now match the current parser behavior, options, and account tooling.</p></article>
     </div>
 </section>
 
@@ -103,8 +108,8 @@
         <h2>Built for real IPTV workflows</h2>
     </div>
     <div class="feature-grid">
-        <article class="feature-card"><i class="fas fa-tv"></i><h3>Multi-Protocol Core</h3><p>Stalker Portal, Xtream Codes, M3U (local/remote), and RSS including YouTube feeds.</p></article>
-        <article class="feature-card"><i class="fas fa-play-circle"></i><h3>Player Flexibility</h3><p>Embedded VLC/Lite, up to 3 external players, and browser-player routing options.</p></article>
+        <article class="feature-card"><i class="fas fa-tv"></i><h3>Multi-Protocol Core</h3><p>Stalker Portal, Xtreme Codes, M3U (local/remote), and RSS including YouTube feeds.</p></article>
+        <article class="feature-card"><i class="fas fa-play-circle"></i><h3>Player Flexibility</h3><p>Embedded VLC/Lite, up to 3 external players, and a browser-player route from the same playback flows.</p></article>
         <article class="feature-card"><i class="fas fa-filter"></i><h3>Smart Filtering</h3><p>Category and channel filtering with pause toggle, also respected by web routes.</p></article>
         <article class="feature-card"><i class="fas fa-server"></i><h3>Network Streaming</h3><p>Run the built-in HTTP server and access channels from phones, tablets, and TVs.</p></article>
         <article class="feature-card"><i class="fas fa-bookmark"></i><h3>Bookmarks + Ordering</h3><p>Favorites, categories, and playlist-style export endpoints for remote players.</p></article>
@@ -124,13 +129,13 @@
             <a href="https://github.com/xixogo5105/uiptv/blob/main/STALKER_IMPORT_GUIDE.md" target="_blank" rel="noreferrer">Open Stalker Guide</a>
         </article>
         <article>
-            <h3><i class="fas fa-key"></i> Xtream Codes</h3>
-            <p>Labeled and unlabeled username/password parsing with automatic unique account naming.</p>
-            <a href="https://github.com/xixogo5105/uiptv/blob/main/XTREME_IMPORT_GUIDE.md" target="_blank" rel="noreferrer">Open Xtream Guide</a>
+            <h3><i class="fas fa-key"></i> Xtreme Codes</h3>
+            <p>Labeled and unlabeled credential parsing with automatic unique account naming and reload support.</p>
+            <a href="https://github.com/xixogo5105/uiptv/blob/main/XTREME_IMPORT_GUIDE.md" target="_blank" rel="noreferrer">Open Xtreme Guide</a>
         </article>
         <article>
             <h3><i class="fas fa-link"></i> M3U / M3U8</h3>
-            <p>Bulk playlist import with optional M3U-to-Xtream conversion for compatible URLs.</p>
+            <p>Bulk playlist import with optional M3U-to-Xtreme conversion when compatible credentials are present.</p>
             <a href="https://github.com/xixogo5105/uiptv/blob/main/M3U_IMPORT_GUIDE.md" target="_blank" rel="noreferrer">Open M3U Guide</a>
         </article>
     </div>
@@ -142,7 +147,7 @@
         <h2>System requirements</h2>
     </div>
     <div class="req-panel">
-        <p class="req-intro">Current published packages: Windows <strong>x86_64</strong>, Linux <strong>x86_64</strong>, macOS <strong>x86_64 + aarch64</strong>.</p>
+        <p class="req-intro">Current published targets: Windows <strong>x86_64</strong>, Linux <strong>x86_64</strong>, macOS <strong>x86_64 + aarch64</strong>. Linux releases are distributed as <strong>.deb</strong>, optional <strong>.rpm</strong>, and a portable app bundle archive.</p>
         <ul>
             <li><i class="fab fa-java"></i><span><strong>Java 25</strong> bundled in installers</span></li>
             <li><i class="fas fa-file-video"></i><span><strong>VLC</strong> recommended for best embedded playback</span></li>
@@ -154,8 +159,8 @@
 
 <section class="section section-cta reveal">
     <h2>Ready to test it?</h2>
-    <p>Grab the latest release or dive into setup docs.</p>
-    <p style="margin-top:8px;opacity:.78;font-size:.92rem;">Tip: Desktop settings also support optional light/dark CSS file overrides for small UI customization.</p>
+    <p>Grab the latest release or go straight to the setup docs.</p>
+    <p style="margin-top:8px;opacity:.78;font-size:.92rem;">Linux users can choose between package installs and the portable app bundle archive. Theme settings also support optional light/dark CSS overrides.</p>
     <div class="hero-ctas">
         <a class="btn btn-primary" href="https://github.com/xixogo5105/uiptv/releases/latest" target="_blank" rel="noreferrer">Download Release</a>
         <a class="btn btn-ghost" href="https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md" target="_blank" rel="noreferrer">Read User Guide</a>

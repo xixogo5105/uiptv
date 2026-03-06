@@ -1,10 +1,10 @@
 ## Xtreme Codes Import Guide
 
-This guide explains how to bulk import Xtream Codes accounts.
+This guide explains how to bulk import Xtreme Codes accounts.
 
-## v0.1.9 Import Notes
+## What's New
 
-- Imported Xtream accounts support Live TV, VOD, and Series flows in both desktop and web views.
+- Imported Xtreme accounts support Live TV, VOD, and Series flows in both desktop and web views.
 - If multiple accounts share the same host URL, UIPTV auto-suffixes account names (`name`, `name (2)`, `name (3)`, ...).
 - Account cache reload is available after import from the **Manage Account** screen.
 

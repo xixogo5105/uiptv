@@ -1,5 +1,7 @@
 package com.uiptv.player;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -149,10 +151,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnFullscreen = createIconButton(fullscreenIcon);
         btnPip = createIconButton(pipIcon);
         btnAspectRatio = createIconButton(aspectRatioIcon);
-        btnAspectRatio.setTooltip(new Tooltip("Fit"));
+        btnAspectRatio.setTooltip(new Tooltip(I18n.tr("autoFit")));
 
         btnHideBar = createIconButton(hideBarIcon);
-        btnHideBar.setTooltip(new Tooltip("Hide this bar"));
+        btnHideBar.setTooltip(new Tooltip(I18n.tr("autoHideThisBar")));
 
         if (supportsTrackSelection()) {
             btnTracks = createTrackRootButton();
@@ -192,7 +194,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
-        timeLabel = new Label("00:00 / 00:00");
+        timeLabel = new Label(I18n.tr("auto00000000"));
         timeLabel.getStyleClass().add("player-time-label");
 
         HBox timeRow = new HBox(5);
@@ -245,7 +247,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         messageBox.getStyleClass().add("player-hiddenbar-message-box");
         messageBox.setMinHeight(90); // Minimum height
 
-        Label msgLabel = new Label("Control bar is hidden. Right click mouse button or press 'B' on your keyboard to show it again");
+        Label msgLabel = new Label(I18n.tr("autoControlBarHiddenMessage"));
         msgLabel.setWrapText(true);
         msgLabel.getStyleClass().add("player-hiddenbar-message-label");
         
@@ -543,7 +545,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer.setVisible(false);
         timeSlider.setDisable(false);
         timeSlider.setValue(0);
-        timeLabel.setText("00:00 / 00:00");
+        timeLabel.setText(I18n.tr("auto00000000"));
 
         nowShowingFlow.getChildren().clear();
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
@@ -677,7 +679,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         } else {
             stop();
             Platform.runLater(() -> {
-                errorLabel.setText("Failed to reconnect after 5 attempts.");
+                errorLabel.setText(I18n.tr("autoFailedToReconnectAfter5Attempts"));
                 errorLabel.setVisible(true);
             });
         }
@@ -695,7 +697,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     e.printStackTrace();
                     Platform.runLater(() -> {
                         loadingSpinner.setVisible(false);
-                        errorLabel.setText("Could not refresh stream.");
+                        errorLabel.setText(I18n.tr("autoCouldNotRefreshStream"));
                         errorLabel.setVisible(true);
                         if (isRepeating && isRetrying.get()) handleRepeat();
                     });
@@ -815,6 +817,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.prefWidthProperty().bind(fullscreenRoot.widthProperty());
             playerContainer.prefHeightProperty().bind(fullscreenRoot.heightProperty());
             Scene scene = new Scene(fullscreenRoot, bounds.getWidth(), bounds.getHeight());
+            I18n.applySceneOrientation(scene);
             scene.setFill(Color.BLACK);
             if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
                 scene.getStylesheets().setAll(originalScene.getStylesheets());
@@ -909,7 +912,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restoreIconView.setEffect(whiteColorAdjust);
                 restoreButton.setGraphic(restoreIconView);
             } else {
-                restoreButton.setText("Restore");
+                restoreButton.setText(I18n.tr("autoRestore"));
                 restoreButton.getStyleClass().add("player-pip-restore-button");
             }
             restoreButton.getStyleClass().add("player-round-control-button");
@@ -975,6 +978,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
 
             Scene scene = new Scene(pipRoot, 480, 270);
+            I18n.applySceneOrientation(scene);
             scene.setFill(Color.TRANSPARENT);
             pipStage.setScene(scene);
 

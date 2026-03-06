@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
@@ -10,6 +12,8 @@ import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 
+import java.util.List;
+
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
@@ -17,10 +21,24 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
-    private static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
+    static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
 
     private PlaybackUIService() {
+    }
+
+    public static List<PlayerOption> getConfiguredPlayerOptions() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        String player1 = configuration == null ? "" : configuration.getPlayerPath1();
+        String player2 = configuration == null ? "" : configuration.getPlayerPath2();
+        String player3 = configuration == null ? "" : configuration.getPlayerPath3();
+        return List.of(
+                new PlayerOption(I18n.tr("autoEmbeddedPlayer"), EMBEDDED_PLAYER_PATH),
+                new PlayerOption(I18n.tr("configDefaultWebBrowserPlayer"), WEB_BROWSER_PLAYER_PATH),
+                new PlayerOption(I18n.tr("autoPlayer1"), player1),
+                new PlayerOption(I18n.tr("autoPlayer2"), player2),
+                new PlayerOption(I18n.tr("autoPlayer3"), player3)
+        );
     }
 
     public static void play(Node source, PlaybackRequest request) {
@@ -38,7 +56,7 @@ public final class PlaybackUIService {
 
         if (playerPathIsBrowser) {
             if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-                showErrorAlert("Unable to start local web server for browser playback.");
+                showErrorAlert(I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"));
                 return;
             }
             String browserUrl = PlayerService.getInstance()
@@ -50,13 +68,13 @@ public final class PlaybackUIService {
         if (request.allowDrmBrowserFallback && PlayerService.getInstance().isDrmProtected(request.channel)) {
             if (!browserIsDefaultConfig) {
                 String localServerUrl = ServerUrlUtil.getLocalServerUrl();
-                boolean confirmed = showConfirmationAlert("This channel has DRM-protected content and can only play in the browser. Local server: " + localServerUrl + ". Open it now?");
+                boolean confirmed = showConfirmationAlert(I18n.tr("autoDrmBrowserOnlyConfirm", localServerUrl));
                 if (!confirmed) {
                     return;
                 }
             }
             if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-                showErrorAlert("Unable to start local web server for DRM playback.");
+                showErrorAlert(I18n.tr("autoUnableToStartLocalWebServerForDRMPlayback"));
                 return;
             }
             String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
@@ -87,13 +105,13 @@ public final class PlaybackUIService {
                             getPlayer().stopForReload();
                             getPlayer().play(response);
                         } else {
-                            showErrorAlert("Embedded player is not enabled in settings. Please enable it or choose an external player.");
+                            showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
                         }
                     } else if (isBlank(request.playerPath) && useEmbeddedPlayerConfig) {
                         getPlayer().stopForReload();
                         getPlayer().play(response);
                     } else if (isBlank(request.playerPath)) {
-                        showErrorAlert("No default player configured and embedded player is not enabled. Please configure a player in settings.");
+                        showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
                     } else {
                         com.uiptv.util.Platform.executeCommand(request.playerPath, evaluatedStreamUrl);
                     }
@@ -161,5 +179,8 @@ public final class PlaybackUIService {
             this.errorPrefix = isBlank(errorPrefix) ? "Playback failed: " : errorPrefix;
             return this;
         }
+    }
+
+    public record PlayerOption(String label, String playerPath) {
     }
 }

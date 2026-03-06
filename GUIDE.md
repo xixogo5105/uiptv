@@ -20,7 +20,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Updates & About](#updates--about)
 4. [Managing Accounts](#4-managing-accounts)
    - [Stalker Portal](#stalker-portal)
-   - [Xtream Codes](#xtream-codes)
+   - [Xtreme Codes](#xtreme-codes)
    - [M3U Playlists (Remote & Local)](#m3u-playlists-remote--local)
    - [RSS Feeds (YouTube Support)](#rss-feeds-youtube-support)
    - [Account Maintenance](#account-maintenance)
@@ -46,7 +46,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
 
 ## 1. Introduction
 
-**UIPTV** is an open-source IPTV player built with Java and JavaFX. It is designed to be lightweight yet powerful, offering support for multiple IPTV protocols including Stalker Portal, Xtream Codes, and M3U playlists.
+**UIPTV** is an open-source IPTV player built with Java and JavaFX. It is designed to be lightweight yet powerful, offering support for multiple IPTV protocols including Stalker Portal, Xtreme Codes, and M3U playlists.
 
 Key highlights include:
 - **Cross-Platform**: Runs natively on Windows, Linux, and macOS.
@@ -54,6 +54,14 @@ Key highlights include:
 - **Web SPA/PWA**: Stream your content to any device on your local network via a modern browser-first interface.
 - **Live TV + VOD + Series**: Unified content modes with watched-state/resume flows.
 - **Privacy & Control**: Robust filtering options to hide unwanted content and local caching for performance.
+
+### What's New
+
+- **Localized UI**: UIPTV now ships with multiple language bundles, RTL layout support, and localized season/episode numbering where supported.
+- **Theme zoom + overrides**: The Theme section supports saved zoom, live preview, and light/dark CSS overrides.
+- **Browser player path**: Desktop context menus and default playback settings can route playback through the local web player when needed.
+- **Watching Now improvements**: Series watch-state and resume flows are available in both desktop and web experiences.
+- **Import tooling refresh**: The Stalker, M3U, and Xtreme import guides have been aligned with current parser behavior.
 
 For advanced desktop theming, see [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 
@@ -87,11 +95,11 @@ To enable YouTube support and web streaming of TS files, you need to install the
 ### Installing on Linux
 **Important for DEB users:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV.
 
-1. Download the appropriate package for your distribution (`.deb` for Debian/Ubuntu, `.rpm` for Fedora/RHEL, or `.AppImage`).
+1. Download the appropriate package for your distribution (`.deb` for Debian/Ubuntu, `.rpm` for Fedora/RHEL, or the portable Linux app bundle archive).
 2. Install using your package manager:
    - **Debian/Ubuntu**: `sudo dpkg -i uiptv_*.deb`
    - **Fedora**: `sudo rpm -i uiptv_*.rpm`
-   - **AppImage**: `chmod +x uiptv_*.AppImage && ./uiptv_*.AppImage`
+   - **Portable app bundle archive**: Extract the archive and run `UIPTV/bin/UIPTV`
 3. Launch the application from your application menu or terminal.
 
 #### Installing Dependencies
@@ -143,13 +151,15 @@ Keep your channel list clean and safe:
 
 ### Appearance & Styling
 Make UIPTV look the way you want:
+- **Language**: Choose the UI language from the Theme section.
 - **Dark Theme**: Enable this for a modern, eye-friendly dark interface.
+- **Zoom**: Save a browser-style font zoom value for the desktop UI and preview it immediately from the Theme section.
 - **Theme CSS Overrides**: Upload custom light/dark CSS files from Settings -> Theme.
 - **Template Export**: Download default light/dark CSS files and use them as baseline templates.
 - **Thumbnails**: Enable/disable thumbnail-heavy series and watching-now cards.
 
 ### Cache Management
-UIPTV uses a local SQLite database to cache channel lists and EPG data for faster loading.
+UIPTV uses a local SQLite database to cache account, category, channel, bookmark, and watch-state data for faster loading.
 - **Clear Cache**: If you experience missing channels or outdated data, click this to reset the local database.
 - **Reload Cache**: Refresh account caches on demand from the account management screen.
 - **Cache Expiry**: Configure cache lifetime in days in the Configuration tab.
@@ -183,10 +193,10 @@ Used by many IPTV providers. See [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.
 5. Optional: set `Serial`, `Device ID 1/2`, and `Signature`.
 6. Click **Add Account**.
 
-### Xtream Codes
+### Xtreme Codes
 A popular API-based method. See [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) for bulk import examples.
 
-1. Select **Xtream Codes API**.
+1. Select **Xtreme Codes API**.
 2. Enter the **Host URL**, **Username**, and **Password**.
 3. Click **Add Account**.
 
@@ -216,10 +226,10 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
 
 **Format References:**
 - [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.md) - Stalker Portal format and advanced parameter examples
-- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtream Codes format examples
+- [XTREME_IMPORT_GUIDE.md](XTREME_IMPORT_GUIDE.md) - Xtreme Codes format examples
 - [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) - M3U format examples and conversion feature
 
-1. **Select Mode**: Choose between `Stalker Portal`, `Xtream Codes`, or `M3U`.
+1. **Select Mode**: Choose between `Stalker Portal`, `Xtreme Codes`, or `M3U`.
 2. **Enter Data**: Paste your account details in the text area.
    - **Stalker Portal Format**:
      ```
@@ -237,7 +247,7 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
      - When enabled, this option groups multiple portal URLs under a single MAC address entry if they share the same MAC.
      - **Note**: This option is **not applicable** if the account details include unique attributes such as `signature`, `device_id`, etc., as these are bound to a specific portal/MAC combination.
    - **Convert M3U to Xtreme** (M3U Mode only):
-     - When enabled, the parser attempts to convert M3U URLs into Xtream Codes API accounts (Host, Username, Password) for better compatibility and performance.
+     - When enabled, the parser attempts to convert M3U URLs into Xtreme Codes API accounts (Host, Username, Password) for better compatibility and performance.
      - This is only available when parsing M3U links.
    - **Start verification after parsing**:
      - Runs verification/reload flow for newly imported accounts.

@@ -213,7 +213,7 @@ public class PingStalkerPortal {
                 }
             }
         } catch (Exception ignored) {
-            showError("Parse Error", ignored);
+            showError(I18n.tr("pingParseError"), ignored);
         }
 
         if (isBlank(portal_api_server)) {

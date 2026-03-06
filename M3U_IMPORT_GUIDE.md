@@ -1,14 +1,14 @@
 ## M3U Import Guide
 
-This guide explains how to bulk import M3U/M3U8 playlist URLs and optionally convert supported URLs into Xtream-style accounts.
+This guide explains how to bulk import M3U/M3U8 playlist URLs and optionally convert supported URLs into Xtreme-style accounts.
 
-## v0.1.9 Import Notes
+## What's New
 
 - Imported M3U accounts can be used in desktop and web modes.
 - You can publish merged playlists from Configuration and consume them via:
   - `/iptv.m3u`
   - `/iptv.m3u8`
-- Conversion to Xtream remains optional and only applies when URL requirements are met.
+- Conversion to Xtreme remains optional and only applies when URL requirements are met.
 - Import parser accepts valid URLs only (invalid tokens are ignored).
 
 ## Format Overview

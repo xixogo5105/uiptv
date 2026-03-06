@@ -15,7 +15,7 @@ import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class SearchableTableView extends TableView {
-    private final UIptvText searchTextField = new UIptvText("search" + new Date().getTime(), "Search", 10);
+    private final UIptvText searchTextField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
 
     public SearchableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);

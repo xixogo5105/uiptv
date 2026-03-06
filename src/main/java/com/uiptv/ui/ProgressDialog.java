@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -34,8 +36,8 @@ public class ProgressDialog extends Stage {
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final VBox messageContainer = new VBox();
     private final ScrollPane scrollPane = new ScrollPane(messageContainer);
-    private final Button cancelButton = new Button("Cancel");
-    private final Button stopButton = new Button("Stop");
+    private final Button cancelButton = new Button(I18n.tr("autoCancel"));
+    private final Button stopButton = new Button(I18n.tr("autoStop"));
     private final ComboBox<String> delayDropdown = new ComboBox<>();
     
     // Pause Widget Components
@@ -46,7 +48,7 @@ public class ProgressDialog extends Stage {
     public ProgressDialog(Stage owner) {
         initOwner(owner);
         initModality(Modality.APPLICATION_MODAL);
-        setTitle("Verifying MAC Addresses...");
+        setTitle(I18n.tr("autoVerifyingMacAddresses"));
 
         // Root Layout
         BorderPane root = new BorderPane();
@@ -87,7 +89,7 @@ public class ProgressDialog extends Stage {
         HBox buttonBox = new HBox(10, stopButton, cancelButton);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
         
-        bottomBar.getChildren().addAll(pauseWidget, new Label("Delay:"), delayDropdown, spacer, buttonBox);
+        bottomBar.getChildren().addAll(pauseWidget, new Label(I18n.tr("autoDelay")), delayDropdown, spacer, buttonBox);
 
         // Assemble Root
         root.setTop(progressBar);
@@ -95,6 +97,7 @@ public class ProgressDialog extends Stage {
         root.setBottom(bottomBar);
 
         Scene scene = new Scene(root, 600, 450); // Increased width for dropdown
+        I18n.applySceneOrientation(scene);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
@@ -144,7 +147,7 @@ public class ProgressDialog extends Stage {
         Platform.runLater(() -> {
             if (secondsRemaining > 0) {
                 pauseWidget.setVisible(true);
-                pauseLabel.setText("Paused: " + secondsRemaining + "s");
+                pauseLabel.setText(I18n.tr("autoPausedSeconds", secondsRemaining));
                 double rotation = ((double)(totalSeconds - secondsRemaining) / totalSeconds) * 360;
                 clockHand.setRotate(rotation);
             } else {

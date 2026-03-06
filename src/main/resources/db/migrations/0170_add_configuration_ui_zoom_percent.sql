@@ -1,0 +1,1 @@
+--@add_column Configuration uiZoomPercent TEXT default '100'

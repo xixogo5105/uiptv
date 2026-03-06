@@ -45,3 +45,6 @@
 0165_add_configuration_wide_view.sql
 0166_create_theme_css_override_table.sql
 0167_drop_configuration_font_fields.sql
+0168_add_configuration_language_locale.sql
+0169_add_configuration_tmdb_read_access_token.sql
+0170_add_configuration_ui_zoom_percent.sql

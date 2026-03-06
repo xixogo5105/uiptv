@@ -60,7 +60,10 @@ public class DatabaseUtils {
                 new DataColumn("enableFfmpegTranscoding", "TEXT"),
                 new DataColumn("cacheExpiryDays", "TEXT"),
                 new DataColumn("enableThumbnails", "TEXT"),
-                new DataColumn("wideView", "TEXT")
+                new DataColumn("wideView", "TEXT"),
+                new DataColumn("languageLocale", "TEXT"),
+                new DataColumn("tmdbReadAccessToken", "TEXT"),
+                new DataColumn("uiZoomPercent", "TEXT")
         )));
         dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", "INTEGER PRIMARY KEY"),

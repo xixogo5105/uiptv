@@ -8,6 +8,7 @@ import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
 import com.uiptv.ui.main.WideMainApplicationUI;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.util.ThemeStylesheetResolver;
@@ -54,8 +55,6 @@ public class RootApplication extends Application {
         } else if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
             ServerUrlUtil.startServer();
         } else {
-            System.setProperty("file.encoding", "UTF-8");
-            java.nio.charset.Charset.defaultCharset();
             launch();
         }
     }
@@ -83,18 +82,21 @@ public class RootApplication extends Application {
     public final void start(Stage primaryStage) throws IOException {
         RootApplication.primaryStage = primaryStage;
         ServerUrlUtil.setHostServices(getHostServices());
+        Configuration bootConfiguration = configurationService.read();
+        I18n.initialize(bootConfiguration == null ? null : bootConfiguration.getLanguageLocale());
 
-        boolean embeddedEnabled = configurationService.read().isEmbeddedPlayer();
+        boolean embeddedEnabled = bootConfiguration != null && bootConfiguration.isEmbeddedPlayer();
         boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
 
         BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
         Scene scene = mainUiRoute.buildScene();
+        I18n.applySceneOrientation(scene);
 
         primaryStage.setOnCloseRequest(event -> {
             Platform.exit();
             System.exit(0);
         });
-        primaryStage.setTitle("UIPTV");
+        primaryStage.setTitle(I18n.tr("appTitle"));
         primaryStage.setMaximized(true);
         primaryStage.setScene(scene);
         primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
@@ -138,10 +140,15 @@ public class RootApplication extends Application {
         Configuration configuration = configurationService.read();
 
         scene.getStylesheets().clear();
-        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), configuration.isDarkTheme());
+        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+                getClass(),
+                configuration.isDarkTheme(),
+                configurationService.getUiZoomPercent()
+        );
         scene.getStylesheets().add(currentTheme);
         scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle("");
+        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(configurationService.getUiZoomPercent()));
+        I18n.applySceneOrientation(scene);
         StyleClassDecorator.decorate(scene.getRoot());
     }
 }

@@ -1,5 +1,7 @@
 package com.uiptv.player;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -109,7 +111,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     btnPlayPause.setGraphic(playIcon);
                     timeSlider.setValue(0);
                     timeSlider.setDisable(false);
-                    timeLabel.setText("00:00 / 00:00");
+                    timeLabel.setText(I18n.tr("auto00000000"));
                     loadingSpinner.setVisible(false);
                 });
             }
@@ -119,7 +121,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 Platform.runLater(() -> {
                     loadingSpinner.setVisible(false);
                     com.uiptv.util.AppLog.addLog("VlcVideoPlayer: An error occurred in the media player.");
-                    errorLabel.setText("Could not play video.\nUnsupported format or network error.");
+                    errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
                     errorLabel.setVisible(true);
                     if (isRepeating && isRetrying.get()) {
                         handleRepeat();

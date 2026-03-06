@@ -1,7 +1,9 @@
 package com.uiptv.service;
 
+import com.uiptv.model.Configuration;
 import com.uiptv.ui.ThumbnailAwareUI;
 import com.uiptv.util.HttpUtil;
+import com.uiptv.util.I18n;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -11,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -21,6 +24,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class ImdbMetadataService {
     private static final ImdbMetadataService INSTANCE = new ImdbMetadataService();
+    private static final String TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
     public static ImdbMetadataService getInstance() {
         return INSTANCE;
@@ -118,6 +122,8 @@ public class ImdbMetadataService {
         if (!details.has("episodesMeta") && secondaryMeta.has("episodesMeta")) {
             details.put("episodesMeta", secondaryMeta.getJSONArray("episodesMeta"));
         }
+
+        applyTmdbLocalization(details, primaryMeta, secondaryMeta, moviePreferred);
         return details;
     }
 
@@ -225,7 +231,7 @@ public class ImdbMetadataService {
     private JSONObject fetchImdbTitleDetails(String imdbId) {
         JSONObject result = new JSONObject();
         try {
-            String html = httpGet("https://www.imdb.com/title/" + imdbId + "/");
+            String html = httpGet(withLanguageQuery("https://www.imdb.com/title/" + imdbId + "/"));
             if (isBlank(html)) return result;
 
             String jsonLd = extractJsonLd(html);
@@ -284,7 +290,7 @@ public class ImdbMetadataService {
                     JSONObject video = videos.optJSONObject(i);
                     if (video == null) continue;
                     JSONObject e = new JSONObject();
-                    e.put("title", video.optString("title", ""));
+                    e.put("title", sanitizeEpisodeTitle(video.optString("title", "")));
                     e.put("plot", video.optString("overview", ""));
                     e.put("logo", video.optString("thumbnail", ""));
                     e.put("releaseDate", video.optString("released", ""));
@@ -476,6 +482,9 @@ public class ImdbMetadataService {
         result.put("cover", meta.optString("poster", ""));
         result.put("plot", meta.optString("description", ""));
         result.put("imdbUrl", isNotBlank(meta.optString("imdb_id", "")) ? "https://www.imdb.com/title/" + meta.optString("imdb_id", "") + "/" : "");
+        if (meta.has("moviedb_id")) {
+            result.put("tmdbMediaId", String.valueOf(meta.opt("moviedb_id")));
+        }
 
         JSONArray genres = meta.optJSONArray("genres");
         if (genres != null) {
@@ -506,6 +515,190 @@ public class ImdbMetadataService {
             result.put("releaseDate", released.substring(0, Math.min(10, released.length())));
         }
         result.put("rating", meta.optString("imdbRating", ""));
+    }
+
+    private void applyTmdbLocalization(JSONObject details, JSONObject primaryMeta, JSONObject secondaryMeta, boolean moviePreferred) {
+        String localeTag = I18n.getCurrentLanguageTag();
+        if (isBlank(localeTag) || localeTag.toLowerCase(Locale.ROOT).startsWith("en")) {
+            return;
+        }
+
+        String tmdbId = firstNonBlank(
+                primaryMeta.optString("tmdbMediaId", ""),
+                secondaryMeta.optString("tmdbMediaId", "")
+        );
+        if (isBlank(tmdbId)) {
+            return;
+        }
+
+        JSONObject primaryLocalized = fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "movie" : "tv", localeTag);
+        JSONObject secondaryLocalized = fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "tv" : "movie", localeTag);
+        JSONObject localized = !primaryLocalized.isEmpty() ? primaryLocalized : secondaryLocalized;
+        if (localized.isEmpty()) {
+            return;
+        }
+
+        // Prefer localized text for user-facing metadata when available.
+        replaceIfPresent(details, localized, "name");
+        replaceIfPresent(details, localized, "plot");
+        replaceIfPresent(details, localized, "genre");
+        replaceIfPresent(details, localized, "releaseDate");
+        mergeMissing(details, localized, "cover");
+        mergeMissing(details, localized, "rating");
+        if (!moviePreferred) {
+            enrichEpisodesMetaWithTmdb(details.optJSONArray("episodesMeta"), tmdbId, localeTag);
+        }
+    }
+
+    private JSONObject fetchTmdbLocalizedDetails(String tmdbId, String mediaType, String localeTag) {
+        JSONObject result = new JSONObject();
+        if (isBlank(tmdbId) || isBlank(mediaType)) {
+            return result;
+        }
+        String bearerToken = resolveConfiguredTmdbBearerToken();
+        if (isBlank(bearerToken)) {
+            return result;
+        }
+
+        try {
+            StringBuilder url = new StringBuilder(TMDB_BASE_URL)
+                    .append("/")
+                    .append(mediaType)
+                    .append("/")
+                    .append(URLEncoder.encode(tmdbId, StandardCharsets.UTF_8))
+                    .append("?language=")
+                    .append(URLEncoder.encode(localeTag, StandardCharsets.UTF_8));
+
+            Map<String, String> headers = new HashMap<>();
+            headers.put("User-Agent", "Mozilla/5.0");
+            headers.put("Accept-Language", buildAcceptLanguageHeader());
+            headers.put("Authorization", "Bearer " + bearerToken.trim());
+
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(url.toString(), headers, "GET");
+            if (response.statusCode() != HttpUtil.STATUS_OK || isBlank(response.body())) {
+                return result;
+            }
+
+            JSONObject payload = new JSONObject(response.body());
+            result.put("name", firstNonBlank(payload.optString("name", ""), payload.optString("title", "")));
+            result.put("plot", payload.optString("overview", ""));
+            result.put("rating", String.valueOf(payload.optDouble("vote_average", 0)));
+            result.put("releaseDate", firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
+            JSONArray genres = payload.optJSONArray("genres");
+            if (genres != null && !genres.isEmpty()) {
+                List<String> names = new ArrayList<>();
+                for (int i = 0; i < genres.length(); i++) {
+                    JSONObject g = genres.optJSONObject(i);
+                    if (g == null) continue;
+                    String name = g.optString("name", "");
+                    if (isNotBlank(name)) {
+                        names.add(name);
+                    }
+                    if (names.size() >= 6) break;
+                }
+                if (!names.isEmpty()) {
+                    result.put("genre", String.join(", ", names));
+                }
+            }
+            String posterPath = payload.optString("poster_path", "");
+            if (isNotBlank(posterPath)) {
+                result.put("cover", "https://image.tmdb.org/t/p/w500" + posterPath);
+            }
+        } catch (Exception ignored) {
+            // best effort
+        }
+        return result;
+    }
+
+    private void enrichEpisodesMetaWithTmdb(JSONArray episodesMeta, String tmdbId, String localeTag) {
+        if (episodesMeta == null || episodesMeta.isEmpty() || isBlank(tmdbId) || isBlank(localeTag)) {
+            return;
+        }
+
+        Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
+        Set<String> seasons = new LinkedHashSet<>();
+        for (int i = 0; i < episodesMeta.length(); i++) {
+            JSONObject row = episodesMeta.optJSONObject(i);
+            if (row == null) continue;
+            String season = safeNumeric(row.optString("season", ""));
+            String episode = safeNumeric(row.optString("episodeNum", ""));
+            if (isBlank(season) || isBlank(episode)) {
+                continue;
+            }
+            bySeasonEpisode.put(season + ":" + episode, row);
+            seasons.add(season);
+        }
+
+        for (String season : seasons) {
+            JSONArray localizedEpisodes = fetchTmdbSeasonEpisodes(tmdbId, season, localeTag);
+            for (int i = 0; i < localizedEpisodes.length(); i++) {
+                JSONObject episode = localizedEpisodes.optJSONObject(i);
+                if (episode == null) continue;
+                String episodeNum = safeNumeric(String.valueOf(episode.optInt("episode_number", 0)));
+                if (isBlank(episodeNum)) {
+                    continue;
+                }
+                JSONObject target = bySeasonEpisode.get(season + ":" + episodeNum);
+                if (target == null) {
+                    continue;
+                }
+                JSONObject mapped = mapTmdbEpisodeMeta(episode);
+                replaceIfPresent(target, mapped, "title");
+                replaceIfPresent(target, mapped, "plot");
+                replaceIfPresent(target, mapped, "releaseDate");
+                mergeMissing(target, mapped, "logo");
+            }
+        }
+    }
+
+    private JSONArray fetchTmdbSeasonEpisodes(String tmdbId, String season, String localeTag) {
+        if (isBlank(tmdbId) || isBlank(season)) {
+            return new JSONArray();
+        }
+        String bearerToken = resolveConfiguredTmdbBearerToken();
+        if (isBlank(bearerToken)) {
+            return new JSONArray();
+        }
+
+        try {
+            String url = TMDB_BASE_URL + "/tv/"
+                    + URLEncoder.encode(tmdbId, StandardCharsets.UTF_8)
+                    + "/season/"
+                    + URLEncoder.encode(season, StandardCharsets.UTF_8)
+                    + "?language="
+                    + URLEncoder.encode(localeTag, StandardCharsets.UTF_8);
+
+            Map<String, String> headers = new HashMap<>();
+            headers.put("User-Agent", "Mozilla/5.0");
+            headers.put("Accept-Language", buildAcceptLanguageHeader());
+            headers.put("Authorization", "Bearer " + bearerToken.trim());
+
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(url, headers, "GET");
+            if (response.statusCode() != HttpUtil.STATUS_OK || isBlank(response.body())) {
+                return new JSONArray();
+            }
+
+            JSONObject payload = new JSONObject(response.body());
+            JSONArray episodes = payload.optJSONArray("episodes");
+            return episodes == null ? new JSONArray() : episodes;
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    private JSONObject mapTmdbEpisodeMeta(JSONObject episode) {
+        JSONObject mapped = new JSONObject();
+        if (episode == null) {
+            return mapped;
+        }
+        mapped.put("title", sanitizeEpisodeTitle(episode.optString("name", "")));
+        mapped.put("plot", episode.optString("overview", ""));
+        mapped.put("releaseDate", episode.optString("air_date", ""));
+        String stillPath = episode.optString("still_path", "");
+        if (isNotBlank(stillPath)) {
+            mapped.put("logo", "https://image.tmdb.org/t/p/w500" + stillPath);
+        }
+        return mapped;
     }
 
     private String joinPersonNames(JSONArray people) {
@@ -570,6 +763,20 @@ public class ImdbMetadataService {
                 .replaceAll("[^a-z0-9 ]", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private String sanitizeEpisodeTitle(String title) {
+        String value = title == null ? "" : title.trim();
+        return isGenericEpisodeTitle(value) ? "" : value;
+    }
+
+    private boolean isGenericEpisodeTitle(String title) {
+        if (isBlank(title)) {
+            return true;
+        }
+        return title.matches("(?i)^episode\\s*\\d+\\s*[:\\-]?\\s*$")
+                || title.matches("(?i)^ep\\.?\\s*\\d+\\s*[:\\-]?\\s*$")
+                || title.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$");
     }
 
     private List<String> buildSearchQueries(String rawTitle, List<String> fuzzyHints) {
@@ -676,6 +883,7 @@ public class ImdbMetadataService {
         try {
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0");
+            headers.put("Accept-Language", buildAcceptLanguageHeader());
             HttpUtil.HttpResult response = HttpUtil.sendRequest(url, headers, "GET");
             if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return "";
@@ -700,6 +908,52 @@ public class ImdbMetadataService {
         String incoming = source.optString(key, "");
         if (isNotBlank(incoming)) {
             target.put(key, incoming);
+        }
+    }
+
+    private void replaceIfPresent(JSONObject target, JSONObject source, String key) {
+        String value = source.optString(key, "");
+        if (isNotBlank(value)) {
+            target.put(key, value);
+        }
+    }
+
+    private String buildAcceptLanguageHeader() {
+        Locale locale = Locale.forLanguageTag(I18n.getCurrentLanguageTag());
+        String tag = locale.toLanguageTag();
+        String language = locale.getLanguage();
+        if (isBlank(language)) {
+            return "en-US,en;q=0.8";
+        }
+        if (isBlank(tag)) {
+            tag = language;
+        }
+        return tag + "," + language + ";q=0.9,en-US;q=0.8,en;q=0.7";
+    }
+
+    private String withLanguageQuery(String url) {
+        if (isBlank(url)) {
+            return "";
+        }
+        Locale locale = Locale.forLanguageTag(I18n.getCurrentLanguageTag());
+        String tag = locale.toLanguageTag();
+        if (isBlank(tag)) {
+            return url;
+        }
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + "language=" + URLEncoder.encode(tag, StandardCharsets.UTF_8);
+    }
+
+    private String resolveConfiguredTmdbBearerToken() {
+        try {
+            Configuration configuration = ConfigurationService.getInstance().read();
+            if (configuration == null) {
+                return "";
+            }
+            String token = configuration.getTmdbReadAccessToken();
+            return token == null ? "" : token.trim();
+        } catch (Exception ignored) {
+            return "";
         }
     }
 }

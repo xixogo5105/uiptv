@@ -1,4 +1,6 @@
 .root {
+    -uiptv-base-font-size: 13px;
+    -fx-font-size: 13px;
     -fx-accent: #0078D7;
     -fx-focus-color: -fx-accent;
     -fx-base: #1c1c1c; /* Near-black background */
@@ -31,7 +33,7 @@
 
 .titulo {
     -fx-font-weight: bold;
-    -fx-font-size: 18px;
+    -fx-font-size: 1.385em;
     -fx-text-fill: #e0e0e0;
 }
 
@@ -221,6 +223,21 @@
     -fx-fill: #4CAF50;
 }
 
+.hyperlink {
+    -fx-text-fill: #8ec5ff;
+    -fx-border-color: transparent;
+}
+
+.hyperlink:hover {
+    -fx-text-fill: #b8dcff;
+}
+
+.hyperlink:visited,
+.hyperlink:armed,
+.hyperlink:focused {
+    -fx-text-fill: #8ec5ff;
+}
+
 .channel-logo-view {
     /*-fx-background-color: #cccccc;*/
     -fx-background-radius: 5;
@@ -230,7 +247,7 @@
 .drm-badge {
     -fx-background-color: #0d6efd;
     -fx-text-fill: white;
-    -fx-font-size: 10px;
+    -fx-font-size: 0.769em;
     -fx-font-weight: bold;
     -fx-padding: 2 6 2 6;
     -fx-background-radius: 6;
@@ -290,7 +307,7 @@
 }
 
 .embedded-player-placeholder-icon {
-    -fx-font-size: 64px;
+    -fx-font-size: 4.923em;
     -fx-opacity: 0.24;
 }
 
@@ -350,7 +367,7 @@
 }
 
 .small-pill-button {
-    -fx-font-size: 10px;
+    -fx-font-size: 0.769em;
     -fx-font-weight: bold;
     -fx-padding: 2 6 2 6;
     -fx-background-radius: 6;
@@ -373,7 +390,7 @@
 }
 
 .imdb-pill-value {
-    -fx-font-size: 12px;
+    -fx-font-size: 0.923em;
     -fx-font-weight: 800;
     -fx-text-fill: #111111;
 }
@@ -449,7 +466,7 @@
 }
 
 .player-error-label {
-    -fx-font-size: 14px;
+    -fx-font-size: 1.077em;
     -fx-background-color: rgba(0, 0, 0, 0.6);
     -fx-padding: 10;
     -fx-background-radius: 5;
@@ -462,7 +479,7 @@
 }
 
 .player-hiddenbar-message-label {
-    -fx-font-size: 18px;
+    -fx-font-size: 1.385em;
 }
 
 .player-round-control-button {
@@ -482,7 +499,7 @@
 }
 
 .player-tracks-menu {
-    -fx-font-size: 14px;
+    -fx-font-size: 1.077em;
     -fx-padding: 4;
 }
 
@@ -491,7 +508,7 @@
 }
 
 .player-channel-title {
-    -fx-font-size: 16px;
+    -fx-font-size: 1.231em;
     -fx-font-weight: bold;
 }
 
@@ -550,7 +567,7 @@
 }
 
 .custom-dialog-title {
-    -fx-font-size: 14px;
+    -fx-font-size: 1.077em;
     -fx-font-weight: bold;
     -fx-text-fill: #e8e8e8;
 }
@@ -568,7 +585,7 @@
     -fx-pref-width: 28;
     -fx-min-height: 28;
     -fx-pref-height: 28;
-    -fx-font-size: 12px;
+    -fx-font-size: 0.923em;
 }
 
 .custom-popup-root {
@@ -587,7 +604,7 @@
 }
 
 .custom-popup-title {
-    -fx-font-size: 14px;
+    -fx-font-size: 1.077em;
     -fx-font-weight: bold;
     -fx-text-fill: #e8e8e8;
 }
@@ -597,7 +614,7 @@
     -fx-pref-width: 28;
     -fx-min-height: 28;
     -fx-pref-height: 28;
-    -fx-font-size: 12px;
+    -fx-font-size: 0.923em;
 }
 
 /* ==========================================================================
@@ -674,6 +691,6 @@
 }
 
 .reload-warning-label {
-    -fx-font-size: 14px;
+    -fx-font-size: 1.077em;
     -fx-font-weight: bold;
 }

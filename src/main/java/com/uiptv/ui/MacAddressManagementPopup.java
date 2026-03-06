@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -31,12 +33,12 @@ public class MacAddressManagementPopup extends VBox {
     private final Stage stage;
     private final ListView<MacItem> macListView = new ListView<>();
     private final TextField addMacField = new TextField();
-    private final Button addButton = new Button("Add");
-    private final Button removeButton = new Button("Remove Selected");
-    private final Button setDefaultButton = new Button("Set as Default");
-    private final Button saveButton = new Button("Save & Close");
-    private final Button closeButton = new Button("Cancel");
-    private final CheckBox selectAllCheckBox = new CheckBox("Select All");
+    private final Button addButton = new Button(I18n.tr("autoAdd"));
+    private final Button removeButton = new Button(I18n.tr("autoRemoveSelected"));
+    private final Button setDefaultButton = new Button(I18n.tr("autoSetAsDefault"));
+    private final Button saveButton = new Button(I18n.tr("autoSaveClose"));
+    private final Button closeButton = new Button(I18n.tr("autoCancel"));
+    private final CheckBox selectAllCheckBox = new CheckBox(I18n.tr("autoSelectAll"));
 
     private ObservableList<MacItem> macItems;
     private String defaultMac;
@@ -52,7 +54,7 @@ public class MacAddressManagementPopup extends VBox {
         stage = new Stage();
         stage.initOwner(owner);
         stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle("Manage MAC Addresses");
+        stage.setTitle(I18n.tr("autoManageMACAddresses"));
 
         setPadding(new Insets(10));
         setSpacing(10);
@@ -105,7 +107,7 @@ public class MacAddressManagementPopup extends VBox {
         });
         VBox.setVgrow(macListView, Priority.ALWAYS);
 
-        addMacField.setPromptText("Add MAC Address(es) (comma separated)");
+        addMacField.setPromptText(I18n.tr("autoAddMACAddressEsCommaSeparated"));
 
         addButton.setOnAction(e -> addMacs());
         removeButton.setOnAction(e -> removeMacs());
@@ -120,9 +122,10 @@ public class MacAddressManagementPopup extends VBox {
         HBox bottomBox = new HBox(10, saveButton, closeButton);
         bottomBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
 
-        getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label("Add New:"), addBox, new Separator(), bottomBox);
+        getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label(I18n.tr("autoAddNew")), addBox, new Separator(), bottomBox);
 
         Scene scene = new Scene(this, 450, 500);
+        I18n.applySceneOrientation(scene);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
@@ -154,12 +157,12 @@ public class MacAddressManagementPopup extends VBox {
         List<MacItem> selectedItems = macItems.stream().filter(MacItem::isSelected).collect(Collectors.toList());
 
         if (selectedItems.isEmpty()) {
-            showAlert("No items selected for removal.");
+            showAlert(I18n.tr("autoNoItemsSelectedForRemoval"));
             return;
         }
 
         if (selectedItems.size() == macItems.size()) {
-            showAlert("Cannot remove all MAC addresses. At least one must remain.");
+            showAlert(I18n.tr("autoCannotRemoveAllMacAddresses"));
             return;
         }
 
@@ -167,7 +170,7 @@ public class MacAddressManagementPopup extends VBox {
 
         if (removingDefault) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-                    "You are removing the default MAC address. The first available MAC will become the new default. Continue?",
+                    I18n.tr("autoRemovingDefaultMacWarning"),
                     ButtonType.YES, ButtonType.NO);
             alert.initOwner(stage);
             if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
@@ -197,7 +200,7 @@ public class MacAddressManagementPopup extends VBox {
             defaultMac = selected.getMac();
             macListView.refresh();
         } else {
-            showAlert("Please select a MAC address from the list to set as default.");
+            showAlert(I18n.tr("autoPleaseSelectMacAddressToSetDefault"));
         }
     }
 

@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;
@@ -51,7 +53,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label genreNode = new Label();
     private final Label releaseNode = new Label();
     private final Label plotNode = new Label();
-    private final Button reloadEpisodesButton = new Button("Reload from server");
+    private final Button reloadEpisodesButton = new Button(I18n.tr("autoReloadFromServer"));
     private final HBox imdbLoadingNode = new HBox(6);
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
@@ -227,7 +229,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbProgress.setPrefSize(14, 14);
         imdbProgress.setMinSize(14, 14);
         imdbProgress.setMaxSize(14, 14);
-        Label imdbLoadingLabel = new Label("Loading IMDb details...");
+        Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
         imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
         reloadEpisodesButton.setFocusTraversable(true);
         reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
@@ -264,7 +266,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         String rating = seasonInfo.optString("rating", "");
         if (!isBlank(rating)) {
-            ratingNode.setText("IMDb: " + rating);
+            ratingNode.setText(I18n.tr("autoImdbPrefix", rating));
         }
 
         String imdbUrl = seasonInfo.optString("imdbUrl", "");
@@ -278,13 +280,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         String genre = seasonInfo.optString("genre", "");
         if (!isBlank(genre)) {
-            genreNode.setText("Genre: " + genre);
+            genreNode.setText(I18n.tr("autoGenrePrefix", genre));
             headerDetails.getChildren().add(genreNode);
         }
 
         String releaseDate = seasonInfo.optString("releaseDate", "");
         if (!isBlank(releaseDate)) {
-            releaseNode.setText("Release: " + releaseDate);
+            releaseNode.setText(I18n.tr("autoReleasePrefix", shortDateOnly(releaseDate)));
             headerDetails.getChildren().add(releaseNode);
         }
 
@@ -317,7 +319,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         reloadEpisodesButton.setDisable(true);
-        reloadEpisodesButton.setText("Reloading...");
+        reloadEpisodesButton.setText(I18n.tr("autoReloading"));
         new Thread(() -> {
             EpisodeList refreshed = SeriesEpisodeService.getInstance()
                     .reloadEpisodesFromPortal(account, seriesCategoryId, seriesId, () -> false);
@@ -330,7 +332,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 } else {
                     setEmptyState("No episodes found.", true);
                 }
-                reloadEpisodesButton.setText("Reload from server");
+                reloadEpisodesButton.setText(I18n.tr("autoReloadFromServer"));
                 reloadEpisodesButton.setDisable(false);
             });
         }, "episodes-portal-reload").start();
@@ -354,7 +356,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         seasonTabPane.getTabs().clear();
         for (String season : seasons) {
-            Tab tab = new Tab(season);
+            Tab tab = new Tab(I18n.formatTabNumberLabel(season));
             tab.setClosable(false);
             tab.setUserData(season);
             seasonTabPane.getTabs().add(tab);
@@ -391,7 +393,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         cardsContainer.getChildren().clear();
         if (filtered.isEmpty()) {
-            cardsContainer.getChildren().add(new Label("No episodes found."));
+            cardsContainer.getChildren().add(new Label(I18n.tr("autoNoEpisodesFound")));
             return;
         }
         for (EpisodeItem item : filtered) {
@@ -428,14 +430,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         HBox badges = new HBox(4);
         badges.setAlignment(Pos.TOP_RIGHT);
         if (row.isWatched()) {
-            Label watched = new Label("WATCHING");
+            Label watched = new Label(I18n.tr("autoWatching"));
             watched.getStyleClass().add("drm-badge");
             watched.setMinWidth(Region.USE_PREF_SIZE);
             watched.setMaxWidth(Double.MAX_VALUE);
             badges.getChildren().add(watched);
         }
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
-        Button playButton = new Button("Play ...");
+        Button playButton = new Button(I18n.tr("autoPlay2"));
         playButton.getStyleClass().setAll("button");
         playButton.getStyleClass().add("small-pill-button");
         playButton.setMinWidth(Region.USE_PREF_SIZE);
@@ -455,7 +457,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         HBox.setHgrow(actionSpacer, Priority.ALWAYS);
         actionRow.getChildren().addAll(actionSpacer, badges);
 
-        Label title = new Label(row.getEpisodeName());
+        Label title = new Label(buildEpisodeDisplayTitle(row.getSeason(), row.getEpisodeNumber(), row.getEpisodeName()));
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
@@ -464,12 +466,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         if (!isBlank(row.getReleaseDate())) {
-            Label release = new Label("Release: " + shortDateOnly(row.getReleaseDate()));
+            Label release = new Label(I18n.tr("autoReleasePrefix", shortDateOnly(row.getReleaseDate())));
             text.getChildren().add(release);
             cardLabels.add(release);
         }
         if (!isBlank(row.getRating())) {
-            Label rating = new Label("Rating: " + row.getRating());
+            Label rating = new Label(I18n.tr("autoRatingPrefix", row.getRating()));
             text.getChildren().add(rating);
             cardLabels.add(rating);
         }
@@ -546,43 +548,31 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         final ContextMenu rowMenu = new ContextMenu();
         rowMenu.hideOnEscapeProperty();
         rowMenu.setAutoHide(true);
-        MenuItem watchingToggleItem = new MenuItem("Watching Now");
-        MenuItem playerEmbeddedItem = new MenuItem("Embedded Player");
-        playerEmbeddedItem.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, "embedded");
-        });
-        MenuItem player1Item = new MenuItem("Player 1");
-        player1Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, ConfigurationService.getInstance().read().getPlayerPath1());
-        });
-        MenuItem player2Item = new MenuItem("Player 2");
-        player2Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, ConfigurationService.getInstance().read().getPlayerPath2());
-        });
-        MenuItem player3Item = new MenuItem("Player 3");
-        player3Item.setOnAction(e -> {
-            rowMenu.hide();
-            play(item, ConfigurationService.getInstance().read().getPlayerPath3());
-        });
-        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem(), playerEmbeddedItem, player1Item, player2Item, player3Item);
+        MenuItem watchingToggleItem = new MenuItem(I18n.tr("autoWatchingNow"));
+        rowMenu.getItems().addAll(watchingToggleItem, new SeparatorMenuItem());
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(e -> {
+                rowMenu.hide();
+                play(item, option.playerPath());
+            });
+            rowMenu.getItems().add(playerItem);
+        }
 
         rowMenu.setOnShowing(event -> {
             if (item == null) {
                 watchingToggleItem.setDisable(true);
-                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
                 watchingToggleItem.setOnAction(null);
                 return;
             }
             watchingToggleItem.setDisable(false);
 
             if (item.isWatched()) {
-                watchingToggleItem.setText("Remove Watching Now");
+                watchingToggleItem.setText(I18n.tr("autoRemoveWatchingNow"));
                 watchingToggleItem.setOnAction(e -> clearWatchedMarker());
             } else {
-                watchingToggleItem.setText("Watching Now");
+                watchingToggleItem.setText(I18n.tr("autoWatchingNow"));
                 watchingToggleItem.setOnAction(e -> markEpisodeAsWatched(item));
             }
         });
