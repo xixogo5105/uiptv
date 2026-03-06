@@ -48,3 +48,4 @@
 0168_add_configuration_language_locale.sql
 0169_add_configuration_tmdb_read_access_token.sql
 0170_add_configuration_ui_zoom_percent.sql
+0171_add_configuration_enable_lite_player_ffmpeg.sql

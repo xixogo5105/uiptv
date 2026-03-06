@@ -28,10 +28,13 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -53,6 +56,12 @@ public class BookmarkChannelListUI extends HBox {
     private volatile boolean reloadInProgress = false;
     private volatile boolean loadedOnce = false;
     private final AtomicLong reloadGeneration = new AtomicLong(0);
+    private final AtomicLong bookmarkOrderSaveGeneration = new AtomicLong(0);
+    private final ExecutorService bookmarkOrderSaveExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "bookmark-order-save");
+        thread.setDaemon(true);
+        return thread;
+    });
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
@@ -109,14 +118,14 @@ public class BookmarkChannelListUI extends HBox {
             try {
                 List<Bookmark> bookmarks = BookmarkService.getInstance().read();
                 Map<String, Account> accountByName = AccountService.getInstance().getAll();
-                Map<String, String> logoByAccountAndChannel = new HashMap<>();
+                Map<String, Channel> channelByAccountAndChannel = new HashMap<>();
                 List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
 
                 for (Bookmark bookmark : bookmarks) {
                     if (generation != reloadGeneration.get()) {
                         return;
                     }
-                    loadedItems.add(createBookmarkItem(bookmark, accountByName, logoByAccountAndChannel));
+                    loadedItems.add(createBookmarkItem(bookmark, accountByName, channelByAccountAndChannel));
                 }
 
                 List<BookmarkCategory> categories = new ArrayList<>();
@@ -509,51 +518,36 @@ public class BookmarkChannelListUI extends HBox {
                 && Objects.equals(left.getLogo(), right.getLogo());
     }
 
-    private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, String> logoByAccountAndChannel) {
+    private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, Channel> channelByAccountAndChannel) {
         Account account = accountByName.get(bookmark.getAccountName());
-        String logo = "";
-        Channel channel = null;
-
-        if (account != null) {
-            String key = account.getDbId() + "|" + bookmark.getChannelId();
-            if (logoByAccountAndChannel.containsKey(key)) {
-                logo = logoByAccountAndChannel.get(key);
-            } else {
-                channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
-                logo = channel != null ? channel.getLogo() : "";
-                logoByAccountAndChannel.put(key, logo);
-            }
-            if (channel == null) {
-                channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
-            }
-        }
-
+        String logo = bookmark.getLogo();
         String drmType = bookmark.getDrmType();
         String drmLicenseUrl = bookmark.getDrmLicenseUrl();
         String clearKeysJson = bookmark.getClearKeysJson();
         String inputstreamaddon = bookmark.getInputstreamaddon();
         String manifestType = bookmark.getManifestType();
 
-        if (channel != null) {
-            if (isBlank(drmType)) drmType = channel.getDrmType();
-            if (isBlank(drmLicenseUrl)) drmLicenseUrl = channel.getDrmLicenseUrl();
-            if (isBlank(clearKeysJson)) clearKeysJson = channel.getClearKeysJson();
-            if (isBlank(inputstreamaddon)) inputstreamaddon = channel.getInputstreamaddon();
-            if (isBlank(manifestType)) manifestType = channel.getManifestType();
-        }
-
-        Channel jsonChannel = null;
-        if (isBlank(drmType) && isNotBlank(bookmark.getChannelJson())) {
-            jsonChannel = Channel.fromJson(bookmark.getChannelJson());
-        } else if (isBlank(drmType) && isNotBlank(bookmark.getVodJson())) {
-            jsonChannel = Channel.fromJson(bookmark.getVodJson());
-        }
+        Channel jsonChannel = resolveBookmarkChannelSnapshot(bookmark);
         if (jsonChannel != null) {
+            if (isBlank(logo)) logo = jsonChannel.getLogo();
             if (isBlank(drmType)) drmType = jsonChannel.getDrmType();
             if (isBlank(drmLicenseUrl)) drmLicenseUrl = jsonChannel.getDrmLicenseUrl();
             if (isBlank(clearKeysJson)) clearKeysJson = jsonChannel.getClearKeysJson();
             if (isBlank(inputstreamaddon)) inputstreamaddon = jsonChannel.getInputstreamaddon();
             if (isBlank(manifestType)) manifestType = jsonChannel.getManifestType();
+        }
+
+        Channel channel = null;
+        if (needsChannelFallback(logo, drmType, drmLicenseUrl, clearKeysJson, inputstreamaddon, manifestType)) {
+            channel = lookupFallbackChannel(account, bookmark.getChannelId(), channelByAccountAndChannel);
+        }
+        if (channel != null) {
+            if (isBlank(logo)) logo = channel.getLogo();
+            if (isBlank(drmType)) drmType = channel.getDrmType();
+            if (isBlank(drmLicenseUrl)) drmLicenseUrl = channel.getDrmLicenseUrl();
+            if (isBlank(clearKeysJson)) clearKeysJson = channel.getClearKeysJson();
+            if (isBlank(inputstreamaddon)) inputstreamaddon = channel.getInputstreamaddon();
+            if (isBlank(manifestType)) manifestType = channel.getManifestType();
         }
 
         Account.AccountAction accountAction = bookmark.getAccountAction() != null
@@ -577,6 +571,60 @@ public class BookmarkChannelListUI extends HBox {
                 inputstreamaddon,
                 manifestType
         );
+    }
+
+    private Channel resolveBookmarkChannelSnapshot(Bookmark bookmark) {
+        if (bookmark == null) {
+            return null;
+        }
+        if (isNotBlank(bookmark.getChannelJson())) {
+            Channel channel = Channel.fromJson(bookmark.getChannelJson());
+            if (channel != null) {
+                return channel;
+            }
+        }
+        if (isNotBlank(bookmark.getVodJson())) {
+            Channel channel = Channel.fromJson(bookmark.getVodJson());
+            if (channel != null) {
+                return channel;
+            }
+        }
+        if (isNotBlank(bookmark.getSeriesJson())) {
+            Episode episode = Episode.fromJson(bookmark.getSeriesJson());
+            if (episode != null) {
+                Channel channel = new Channel();
+                channel.setLogo(episode.getInfo() != null ? episode.getInfo().getMovieImage() : "");
+                return channel;
+            }
+        }
+        return null;
+    }
+
+    private boolean needsChannelFallback(String logo, String drmType, String drmLicenseUrl, String clearKeysJson, String inputstreamaddon, String manifestType) {
+        return isBlank(logo)
+                || isBlank(drmType)
+                || isBlank(drmLicenseUrl)
+                || isBlank(clearKeysJson)
+                || isBlank(inputstreamaddon)
+                || isBlank(manifestType);
+    }
+
+    private Channel lookupFallbackChannel(Account account, String channelId, Map<String, Channel> channelByAccountAndChannel) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(channelId)) {
+            return null;
+        }
+        String key = account.getDbId() + "|" + channelId;
+        if (channelByAccountAndChannel.containsKey(key)) {
+            return channelByAccountAndChannel.get(key);
+        }
+        Channel channel = null;
+        try {
+            channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(channelId, account.getDbId());
+        } catch (Exception ignored) {
+            // Best-effort fallback only. UI reload should never fail on an auxiliary channel lookup.
+        }
+        channelByAccountAndChannel.put(key, channel);
+        return channel;
     }
 
     private void openCategoryManagementPopup() {
@@ -650,6 +698,11 @@ public class BookmarkChannelListUI extends HBox {
                 Dragboard db = event.getDragboard();
                 if (db.hasContent(SERIALIZED_MIME_TYPE)) {
                     int draggedIndex = (Integer) db.getContent(SERIALIZED_MIME_TYPE);
+                    if (draggedIndex < 0 || draggedIndex >= bookmarkTable.getTableView().getItems().size()) {
+                        event.setDropCompleted(false);
+                        event.consume();
+                        return;
+                    }
                     BookmarkItem draggedItem = bookmarkTable.getTableView().getItems().remove(draggedIndex);
 
                     int dropIndex = row.isEmpty() ? bookmarkTable.getTableView().getItems().size() : row.getIndex();
@@ -669,8 +722,8 @@ public class BookmarkChannelListUI extends HBox {
                             categoryId = category.getId();
                         }
                     }
-                    final String finalCategoryId = categoryId;
-                    new Thread(() -> BookmarkService.getInstance().saveBookmarkOrder(finalCategoryId, orderedDbIds)).start();
+                    applyLocalBookmarkOrder(categoryId, orderedDbIds);
+                    persistBookmarkOrderAsync(categoryId, buildPersistedBookmarkOrder(categoryId));
 
                     event.consume();
                 }
@@ -679,6 +732,72 @@ public class BookmarkChannelListUI extends HBox {
             addRightClickContextMenu(row);
             return row;
         });
+    }
+
+    private void persistBookmarkOrderAsync(String categoryId, List<String> orderedDbIds) {
+        final long saveGeneration = bookmarkOrderSaveGeneration.incrementAndGet();
+        final String finalCategoryId = categoryId;
+        final List<String> finalOrderedDbIds = List.copyOf(orderedDbIds);
+        suppressAutoReloadOnBookmarkChange = true;
+        bookmarkOrderSaveExecutor.execute(() -> {
+            if (saveGeneration != bookmarkOrderSaveGeneration.get()) {
+                return;
+            }
+            try {
+                BookmarkService.getInstance().saveBookmarkOrder(finalCategoryId, finalOrderedDbIds);
+                long revision = BookmarkService.getInstance().getChangeRevision();
+                runLater(() -> {
+                    lastKnownBookmarkRevision = revision;
+                    if (saveGeneration == bookmarkOrderSaveGeneration.get()) {
+                        suppressAutoReloadOnBookmarkChange = false;
+                    }
+                });
+            } catch (Exception e) {
+                runLater(() -> {
+                    if (saveGeneration == bookmarkOrderSaveGeneration.get()) {
+                        suppressAutoReloadOnBookmarkChange = false;
+                    }
+                    forceReload();
+                    showErrorAlert("Unable to save bookmark order.");
+                });
+            }
+        });
+    }
+
+    private void applyLocalBookmarkOrder(String categoryId, List<String> orderedDbIds) {
+        Map<String, Integer> orderByBookmarkId = new HashMap<>();
+        for (int i = 0; i < orderedDbIds.size(); i++) {
+            orderByBookmarkId.put(orderedDbIds.get(i), i);
+        }
+
+        if (categoryId == null) {
+            allBookmarkItems.sort(Comparator.comparingInt(item -> orderByBookmarkId.getOrDefault(item.getBookmarkId(), Integer.MAX_VALUE)));
+            return;
+        }
+
+        List<BookmarkItem> reorderedCategoryItems = allBookmarkItems.stream()
+                .filter(item -> Objects.equals(categoryId, item.getCategoryId()))
+                .sorted(Comparator.comparingInt(item -> orderByBookmarkId.getOrDefault(item.getBookmarkId(), Integer.MAX_VALUE)))
+                .collect(Collectors.toList());
+
+        if (reorderedCategoryItems.isEmpty()) {
+            return;
+        }
+
+        int categoryItemIndex = 0;
+        for (int i = 0; i < allBookmarkItems.size(); i++) {
+            BookmarkItem current = allBookmarkItems.get(i);
+            if (Objects.equals(categoryId, current.getCategoryId())) {
+                allBookmarkItems.set(i, reorderedCategoryItems.get(categoryItemIndex++));
+            }
+        }
+    }
+
+    private List<String> buildPersistedBookmarkOrder(String categoryId) {
+        return allBookmarkItems.stream()
+                .filter(item -> categoryId == null || Objects.equals(categoryId, item.getCategoryId()))
+                .map(BookmarkItem::getBookmarkId)
+                .collect(Collectors.toList());
     }
 
     private void addRightClickContextMenu(TableRow<BookmarkItem> row) {

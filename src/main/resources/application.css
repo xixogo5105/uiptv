@@ -370,13 +370,14 @@
 }
 
 .player-controls-container {
-    -fx-background-color: rgba(0, 0, 0, 0.75);
+    -fx-background-color: rgba(26, 26, 26, 0.84);
     -fx-background-radius: 10;
 }
 
 .player-time-label {
     -fx-font-family: monospace;
     -fx-font-weight: bold;
+    -fx-text-fill: white;
 }
 
 .player-error-label {
@@ -402,6 +403,31 @@
     -fx-cursor: hand;
 }
 
+.player-pip-overlay-button {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-background-radius: 50em;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 50em;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.player-pip-overlay-button:hover,
+.player-pip-overlay-button:armed,
+.player-pip-overlay-button:focused {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-background-radius: 50em;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 50em;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
 .player-icon-button {
     -fx-background-color: transparent;
     -fx-cursor: hand;
@@ -424,6 +450,7 @@
 .player-channel-title {
     -fx-font-size: 1.231em;
     -fx-font-weight: bold;
+    -fx-fill: #e4c86a;
 }
 
 .watching-now-view-link {

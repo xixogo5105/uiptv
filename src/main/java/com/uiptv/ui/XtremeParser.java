@@ -24,6 +24,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.nullSafeEncode;
 import static com.uiptv.util.StringUtils.safeGetString;
 import static com.uiptv.widget.UIptvAlert.showError;
+import static com.uiptv.widget.UIptvAlert.showErrorKey;
 
 public class XtremeParser {
     public static List<Category> parseCategories(Account account) {
@@ -73,7 +74,7 @@ public class XtremeParser {
                 categoryList.add(category);
             }
         } catch (Exception e) {
-            showError(I18n.tr("xtremeErrorProcessingResponseData", e.getMessage()));
+            showErrorKey("xtremeErrorProcessingResponseData", e, e.getMessage());
         }
         return categoryList;
     }
@@ -107,7 +108,7 @@ public class XtremeParser {
                 categoryList.add(channel);
             }
         } catch (Exception e) {
-            showError(I18n.tr("xtremeErrorProcessingResponseData", e.getMessage()));
+            showErrorKey("xtremeErrorProcessingResponseData", e, e.getMessage());
         }
         return categoryList;
     }
@@ -126,7 +127,7 @@ public class XtremeParser {
                 }
             }
         } catch (Exception e) {
-            showError(I18n.tr("xtremeErrorProcessingResponseData", e.getMessage()));
+            showErrorKey("xtremeErrorProcessingResponseData", e, e.getMessage());
         }
         return episodeList;
     }

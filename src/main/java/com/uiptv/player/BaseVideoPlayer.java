@@ -11,6 +11,7 @@ import com.uiptv.util.StyleClassDecorator;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.NodeOrientation;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.geometry.Side;
@@ -21,7 +22,9 @@ import javafx.scene.control.*;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.InputEvent;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
@@ -29,11 +32,13 @@ import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
+import javafx.scene.text.TextAlignment;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import javafx.event.EventHandler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -91,10 +96,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected int originalIndex = -1;
     protected PauseTransition idleTimer;
     protected boolean isControlBarHiddenByUser = false;
+    protected boolean isPointerInsidePlayer = false;
     protected StackPane hiddenBarMessage; // Changed from HBox to StackPane
     protected PauseTransition hiddenBarMessageHideTimer;
     protected static boolean hasShownHiddenBarMessage = false;
     protected boolean isTracksMenuOpen = false;
+    protected Scene activeInputRecoveryScene;
+    protected Scene pipInputRecoveryScene;
+    private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
 
     // Resizing Logic
     protected boolean isResizing = false;
@@ -121,6 +130,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buildUI();
         setupEventHandlers();
         setupFadeAndIdleLogic();
+        playerContainer.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (oldScene != newScene) {
+                uninstallSceneInputRecovery(oldScene);
+                installSceneInputRecovery(newScene);
+            }
+        });
     }
 
     // --- Abstract Methods ---
@@ -140,8 +155,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void buildUI() {
         nowShowingFlow = new TextFlow();
         nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
+        nowShowingFlow.setTextAlignment(TextAlignment.LEFT);
         streamInfoText = new Text();
         streamInfoText.getStyleClass().add("player-stream-info-text");
+        applyFixedControlBarOrientation(nowShowingFlow, streamInfoText);
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
@@ -200,6 +217,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         HBox timeRow = new HBox(5);
         timeRow.setAlignment(Pos.CENTER_LEFT);
         timeRow.getChildren().addAll(timeSlider, timeLabel);
+        applyFixedControlBarOrientation(buttonRow, timeRow, volumeSlider, timeSlider);
 
         controlsContainer = new VBox(4);
         controlsContainer.setPadding(new Insets(5));
@@ -207,7 +225,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(576);
         controlsContainer.setPrefWidth(36);
-        controlsContainer.setMaxHeight(60);
+        controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
+        applyFixedControlBarOrientation(controlsContainer, nowShowingFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
 
         playerContainer.getStyleClass().add("player-container");
         playerContainer.setFocusTraversable(true);
@@ -341,29 +360,45 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         volumeSlider.valueProperty().addListener((e, t, newVal) -> setVolume(newVal.doubleValue()));
 
         timeSlider.setOnMousePressed(e -> {
+            restoreVisibleCursor();
             isUserSeeking = true;
             if (isFullscreen) idleTimer.stop();
         });
         timeSlider.setOnMouseReleased(e -> {
+            restoreVisibleCursor();
             seek((float) timeSlider.getValue());
             isUserSeeking = false;
-            if (isFullscreen) idleTimer.playFromStart();
+            restartIdleTimerForActivePlayer();
         });
 
         volumeSlider.setOnMousePressed(e -> {
+            restoreVisibleCursor();
             if (isFullscreen) idleTimer.stop();
         });
         volumeSlider.setOnMouseReleased(e -> {
-            if (isFullscreen) idleTimer.playFromStart();
+            restoreVisibleCursor();
+            restartIdleTimerForActivePlayer();
         });
 
         playerContainer.setOnMouseClicked(e -> {
+            restoreVisibleCursor();
+            if (!isControlBarHiddenByUser) {
+                controlsContainer.setVisible(true);
+            }
+            if (playerContainer.isVisible() && playerContainer.isManaged()) {
+                idleTimer.playFromStart();
+            }
             if (e.getButton() == MouseButton.PRIMARY) {
                 if (e.getClickCount() == 1) playerContainer.requestFocus();
                 else if (e.getClickCount() == 2) toggleFullscreen();
             } else if (e.getButton() == MouseButton.SECONDARY) {
                 showControlBar();
             }
+        });
+
+        playerContainer.addEventFilter(KeyEvent.ANY, e -> {
+            restoreVisibleCursor();
+            restartIdleTimerForActivePlayer();
         });
 
         playerContainer.setOnKeyPressed(e -> {
@@ -373,7 +408,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             else if (e.getCode() == KeyCode.B) showControlBar();
         });
 
+        playerContainer.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> restoreVisibleCursor());
+        playerContainer.addEventFilter(MouseEvent.MOUSE_RELEASED, e -> restoreVisibleCursor());
+        playerContainer.addEventFilter(MouseEvent.MOUSE_DRAGGED, e -> {
+            isPointerInsidePlayer = true;
+            restoreVisibleCursor();
+            if (!isControlBarHiddenByUser) {
+                controlsContainer.setVisible(true);
+            }
+            restartIdleTimerForActivePlayer();
+        });
+
         playerContainer.setOnScroll(e -> {
+            restoreVisibleCursor();
             double delta = e.getDeltaY();
             if (delta == 0) return;
             double change = Math.signum(delta) * 5;
@@ -384,51 +431,141 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void setupFadeAndIdleLogic() {
         controlsContainer.setVisible(false);
         idleTimer = new PauseTransition(Duration.seconds(5));
-        idleTimer.setOnFinished(e -> {
-            if (isFullscreen) {
-                controlsContainer.setVisible(false);
-                playerContainer.setCursor(Cursor.NONE);
-            }
-        });
+        idleTimer.setOnFinished(e -> handleIdleTimeout());
 
         playerContainer.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
-            playerContainer.setCursor(Cursor.DEFAULT);
-            if (isFullscreen) {
-                idleTimer.playFromStart();
-            }
-            if (!isControlBarHiddenByUser) {
-                controlsContainer.setVisible(true);
-            }
+            isPointerInsidePlayer = true;
+            handlePlayerInteraction();
         });
         playerContainer.addEventFilter(MouseEvent.MOUSE_ENTERED, e -> {
-            playerContainer.setCursor(Cursor.DEFAULT);
-            if (isFullscreen) {
-                idleTimer.playFromStart();
-            }
-            if (!isControlBarHiddenByUser) {
-                controlsContainer.setVisible(true);
-            }
+            isPointerInsidePlayer = true;
+            handlePlayerInteraction();
         });
 
         playerContainer.setOnMouseExited(e -> {
-            if (isFullscreen) {
-                idleTimer.playFromStart();
-            } else if (!isTracksMenuOpen) {
+            isPointerInsidePlayer = false;
+            idleTimer.stop();
+            restoreVisibleCursor();
+            if (!isTracksMenuOpen) {
                 controlsContainer.setVisible(false);
             }
         });
 
         controlsContainer.setOnMouseEntered(e -> {
-            if (isFullscreen) {
-                idleTimer.stop();
-            }
+            isPointerInsidePlayer = true;
+            handlePlayerInteraction();
         });
         controlsContainer.setOnMouseExited(e -> {
-            if (isFullscreen) {
+            if (isPointerInsidePlayer) {
                 idleTimer.playFromStart();
             }
         });
-        controlsContainer.setOnMouseMoved(e -> e.consume());
+        controlsContainer.setOnMouseMoved(e -> {
+            isPointerInsidePlayer = true;
+            handlePlayerInteraction();
+            e.consume();
+        });
+    }
+
+    private void applyFixedControlBarOrientation(Node... nodes) {
+        if (nodes == null) {
+            return;
+        }
+        for (Node node : nodes) {
+            if (node != null) {
+                node.setNodeOrientation(NodeOrientation.LEFT_TO_RIGHT);
+            }
+        }
+    }
+
+    private void handlePlayerInteraction() {
+        restoreVisibleCursor();
+        if (!isControlBarHiddenByUser) {
+            controlsContainer.setVisible(true);
+        }
+        restartIdleTimerForActivePlayer();
+    }
+
+    private void handleIdleTimeout() {
+        if (!playerContainer.isVisible() || !playerContainer.isManaged() || !isPointerInsidePlayer || isTracksMenuOpen) {
+            restoreVisibleCursor();
+            return;
+        }
+        if (!isControlBarHiddenByUser) {
+            controlsContainer.setVisible(false);
+        }
+        if (isFullscreen) {
+            playerContainer.setCursor(Cursor.NONE);
+        } else {
+            restoreVisibleCursor();
+        }
+    }
+
+    private void restoreVisibleCursor() {
+        if (playerContainer != null) {
+            playerContainer.setCursor(Cursor.DEFAULT);
+            if (playerContainer.getScene() != null) {
+                playerContainer.getScene().setCursor(Cursor.DEFAULT);
+            }
+        }
+        if (fullscreenStage != null && fullscreenStage.getScene() != null) {
+            fullscreenStage.getScene().setCursor(Cursor.DEFAULT);
+        }
+        if (originalParent != null && originalParent.getScene() != null) {
+            originalParent.getScene().setCursor(Cursor.DEFAULT);
+        }
+        if (pipStage != null && pipStage.getScene() != null) {
+            pipStage.getScene().setCursor(Cursor.DEFAULT);
+        }
+    }
+
+    private void handleSceneInputRecovery(InputEvent event) {
+        restoreVisibleCursor();
+        Scene eventScene = event == null || !(event.getSource() instanceof Scene) ? null : (Scene) event.getSource();
+        if (eventScene == null || eventScene != playerContainer.getScene() || !playerContainer.isVisible() || !playerContainer.isManaged()) {
+            return;
+        }
+        restartIdleTimerForActivePlayer();
+    }
+
+    private void restartIdleTimerForActivePlayer() {
+        if (idleTimer == null || !playerContainer.isVisible() || !playerContainer.isManaged()) {
+            return;
+        }
+        if (!isFullscreen && !isPointerInsidePlayer) {
+            return;
+        }
+        idleTimer.playFromStart();
+    }
+
+    private void installSceneInputRecovery(Scene scene) {
+        if (scene == null || scene == pipInputRecoveryScene || scene == activeInputRecoveryScene) {
+            return;
+        }
+        scene.addEventFilter(InputEvent.ANY, sceneInputRecoveryHandler);
+        activeInputRecoveryScene = scene;
+    }
+
+    private void uninstallSceneInputRecovery(Scene scene) {
+        if (scene == null) {
+            return;
+        }
+        scene.removeEventFilter(InputEvent.ANY, sceneInputRecoveryHandler);
+        if (scene == activeInputRecoveryScene) {
+            activeInputRecoveryScene = null;
+        }
+        if (scene == pipInputRecoveryScene) {
+            pipInputRecoveryScene = null;
+        }
+    }
+
+    private void installPipSceneInputRecovery(Scene scene) {
+        if (scene == null || scene == pipInputRecoveryScene) {
+            return;
+        }
+        uninstallSceneInputRecovery(scene);
+        scene.addEventFilter(InputEvent.ANY, sceneInputRecoveryHandler);
+        pipInputRecoveryScene = scene;
     }
 
     protected boolean supportsTrackSelection() {
@@ -540,17 +677,20 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerContainer.setVisible(true);
         playerContainer.setManaged(true);
         playerContainer.setMinHeight(275);
+        isPointerInsidePlayer = false;
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
         controlsContainer.setVisible(false);
         timeSlider.setDisable(false);
         timeSlider.setValue(0);
         timeLabel.setText(I18n.tr("auto00000000"));
+        restoreVisibleCursor();
 
         nowShowingFlow.getChildren().clear();
         if (currentChannel != null && isNotBlank(currentChannel.getName())) {
             Text channelNameText = new Text(currentChannel.getName());
             channelNameText.getStyleClass().add("player-channel-title");
+            applyFixedControlBarOrientation(channelNameText);
             streamInfoText.setText("");
             nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
             nowShowingFlow.setVisible(true);
@@ -565,11 +705,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void stop() {
         retryCount = 0;
         isRetrying.set(false);
+        idleTimer.stop();
+        isPointerInsidePlayer = false;
         stopMedia();
         playerContainer.setMinHeight(0);
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
         btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
+        restoreVisibleCursor();
     }
 
     @Override
@@ -636,6 +779,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             // Remove any fullscreen stage
             if (fullscreenStage != null) {
                 try {
+                    uninstallSceneInputRecovery(fullscreenStage.getScene());
                     fullscreenStage.close();
                 } catch (Exception ignored) {
                 }
@@ -645,6 +789,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             // Remove any PiP stage
             if (pipStage != null) {
                 try {
+                    uninstallSceneInputRecovery(pipStage.getScene());
                     pipStage.close();
                 } catch (Exception ignored) {
                 }
@@ -659,6 +804,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (hiddenBarMessageHideTimer != null) {
                 hiddenBarMessageHideTimer.stop();
             }
+            restoreVisibleCursor();
         } catch (Exception ignored) {
         }
     }
@@ -713,11 +859,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected void showControlBar() {
         if (isControlBarHiddenByUser) {
             isControlBarHiddenByUser = false;
-            controlsContainer.setVisible(true);
-            hiddenBarMessage.setVisible(false);
-            hiddenBarMessage.setManaged(false);
-            if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
-            if (isFullscreen) idleTimer.playFromStart();
+        }
+        controlsContainer.setVisible(true);
+        hiddenBarMessage.setVisible(false);
+        hiddenBarMessage.setManaged(false);
+        if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
+        restoreVisibleCursor();
+        if (isPointerInsidePlayer) {
+            idleTimer.playFromStart();
         }
     }
 
@@ -824,6 +973,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
             StyleClassDecorator.decorate(playerContainer);
             fullscreenStage.setScene(scene);
+            installSceneInputRecovery(scene);
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
             fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
@@ -837,8 +987,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
             isFullscreen = true;
             if (!isControlBarHiddenByUser) controlsContainer.setVisible(true);
-            playerContainer.setCursor(Cursor.DEFAULT);
-            idleTimer.playFromStart();
+            restoreVisibleCursor();
+            if (isPointerInsidePlayer) {
+                idleTimer.playFromStart();
+            }
         });
     }
 
@@ -872,7 +1024,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             isFullscreen = false;
             idleTimer.stop();
             controlsContainer.setVisible(false);
-            playerContainer.setCursor(Cursor.DEFAULT);
+            isPointerInsidePlayer = false;
+            restoreVisibleCursor();
         });
     }
 
@@ -885,6 +1038,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void enterPip() {
         if (pipStage != null) return;
         Platform.runLater(() -> {
+            Scene originalScene = playerContainer.getScene();
             originalParent = (Pane) playerContainer.getParent();
             if (originalParent != null) {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
@@ -916,6 +1070,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restoreButton.getStyleClass().add("player-pip-restore-button");
             }
             restoreButton.getStyleClass().add("player-round-control-button");
+            restoreButton.getStyleClass().add("player-pip-overlay-button");
             restoreButton.setPadding(new Insets(15));
             restoreButton.setVisible(false);
             restoreButton.setOnAction(e -> exitPip());
@@ -929,6 +1084,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipMuteIcon.setEffect(whiteColorAdjust);
             pipMuteButton.setGraphic(pipMuteIcon);
             pipMuteButton.getStyleClass().add("player-round-control-button");
+            pipMuteButton.getStyleClass().add("player-pip-overlay-button");
             pipMuteButton.setPadding(new Insets(8));
             pipMuteButton.setVisible(false);
             pipMuteButton.setOnAction(e -> {
@@ -943,6 +1099,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipReloadIcon.setEffect(whiteColorAdjust);
             pipReloadButton.setGraphic(pipReloadIcon);
             pipReloadButton.getStyleClass().add("player-round-control-button");
+            pipReloadButton.getStyleClass().add("player-pip-overlay-button");
             pipReloadButton.setPadding(new Insets(8));
             pipReloadButton.setVisible(false);
             pipReloadButton.setOnAction(e -> refreshAndPlay());
@@ -952,6 +1109,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipControls.setPadding(new Insets(10));
             pipControls.getChildren().addAll(pipReloadButton, pipMuteButton);
             pipControls.setPickOnBounds(false);
+            applyFixedControlBarOrientation(pipControls);
 
             StackPane.setAlignment(pipControls, Pos.TOP_RIGHT);
 
@@ -980,7 +1138,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             Scene scene = new Scene(pipRoot, 480, 270);
             I18n.applySceneOrientation(scene);
             scene.setFill(Color.TRANSPARENT);
+            if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
+                scene.getStylesheets().setAll(originalScene.getStylesheets());
+            }
             pipStage.setScene(scene);
+            installPipSceneInputRecovery(scene);
 
             Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
             pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20);
@@ -1002,6 +1164,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void exitPip() {
         if (pipStage == null) return;
         Platform.runLater(() -> {
+            uninstallSceneInputRecovery(pipStage.getScene());
             pipStage.close();
             pipStage = null;
 

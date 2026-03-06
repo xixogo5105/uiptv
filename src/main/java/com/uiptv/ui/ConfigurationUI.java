@@ -22,6 +22,7 @@ import com.uiptv.widget.UIptvTextArea;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -69,6 +70,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final CheckBox enableFfmpegCheckBox = new CheckBox(I18n.tr("configEnableFfmpeg"));
+    private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(I18n.tr("configEnableLitePlayerFfmpeg"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
@@ -170,6 +172,7 @@ public class ConfigurationUI extends VBox {
             wideViewCheckBox.setSelected(configuration.isWideView());
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
+            enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
         }
@@ -236,7 +239,10 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
-        VBox serverGroup = new VBox(10, enableFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
+        VBox serverGroup = new VBox(10, enableFfmpegCheckBox, enableLitePlayerFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
+        serverGroup.setFillWidth(true);
+        configureWrappingCheckBox(enableFfmpegCheckBox, serverGroup);
+        configureWrappingCheckBox(enableLitePlayerFfmpegCheckBox, serverGroup);
 
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
@@ -261,6 +267,15 @@ public class ConfigurationUI extends VBox {
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
+    }
+
+    private void configureWrappingCheckBox(CheckBox checkBox, VBox container) {
+        checkBox.setWrapText(true);
+        checkBox.setAlignment(Pos.TOP_LEFT);
+        checkBox.setMaxWidth(Double.MAX_VALUE);
+        checkBox.setMinHeight(Region.USE_PREF_SIZE);
+        checkBox.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        checkBox.prefWidthProperty().bind(container.widthProperty().subtract(4));
     }
 
     private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
@@ -674,6 +689,7 @@ public class ConfigurationUI extends VBox {
                 newConfiguration.setLanguageLocale(getSelectedLanguageTag());
                 newConfiguration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
                 newConfiguration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
+                newConfiguration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
                 service.save(newConfiguration);
                 I18n.setLocale(newConfiguration.getLanguageLocale());
                 currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));

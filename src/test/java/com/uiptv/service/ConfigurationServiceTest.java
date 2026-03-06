@@ -4,6 +4,8 @@ import com.uiptv.model.Configuration;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigurationServiceTest extends DbBackedTest {
 
@@ -37,5 +39,17 @@ class ConfigurationServiceTest extends DbBackedTest {
         zero.setCacheExpiryDays("0");
         service.save(zero);
         assertEquals(30, service.getCacheExpiryDays());
+    }
+
+    @Test
+    void litePlayerFfmpegFlag_defaultsToFalse_andPersistsWhenEnabled() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertFalse(service.read().isEnableLitePlayerFfmpeg());
+
+        Configuration configuration = service.read();
+        configuration.setEnableLitePlayerFfmpeg(true);
+        service.save(configuration);
+
+        assertTrue(service.read().isEnableLitePlayerFfmpeg());
     }
 }

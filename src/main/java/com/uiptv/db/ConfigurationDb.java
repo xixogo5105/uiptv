@@ -109,6 +109,7 @@ public class ConfigurationDb extends BaseDb {
         c.setLanguageLocale(nullSafeString(resultSet, "languageLocale"));
         c.setTmdbReadAccessToken(nullSafeString(resultSet, "tmdbReadAccessToken"));
         c.setUiZoomPercent(nullSafeString(resultSet, "uiZoomPercent"));
+        c.setEnableLitePlayerFfmpeg(safeBoolean(resultSet, "enableLitePlayerFfmpeg"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -127,7 +128,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(18, current.getDbId());
+                statement.setString(19, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new RuntimeException("Unable to execute update query", e);
@@ -162,5 +163,6 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(15, configuration.getLanguageLocale());
         statement.setString(16, configuration.getTmdbReadAccessToken());
         statement.setString(17, configuration.getUiZoomPercent());
+        statement.setString(18, configuration.isEnableLitePlayerFfmpeg() ? "1" : "0");
     }
 }

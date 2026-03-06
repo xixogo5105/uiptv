@@ -40,14 +40,28 @@ public class BookmarkDb extends BaseDb {
 
     private List<Bookmark> getBookmarksOrdered(String categoryId) {
         List<Bookmark> bookmarks = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT b.*, bo.display_order FROM ")
-                .append(BOOKMARK_TABLE.getTableName()).append(" b ")
-                .append("LEFT JOIN ").append(BOOKMARK_ORDER_TABLE.getTableName()).append(" bo ON b.id = bo.bookmark_db_id ");
+        StringBuilder sql = new StringBuilder();
 
         if (categoryId == null) { // "All" category
-            sql.append("WHERE bo.category_id IS NULL OR bo.category_id = b.categoryId ORDER BY bo.display_order ASC");
+            sql.append("SELECT b.*, COALESCE(bo_all.display_order, bo_category.display_order) AS display_order FROM ")
+                    .append(BOOKMARK_TABLE.getTableName()).append(" b ")
+                    .append("LEFT JOIN (SELECT bookmark_db_id, MIN(display_order) AS display_order FROM ")
+                    .append(BOOKMARK_ORDER_TABLE.getTableName())
+                    .append(" WHERE category_id IS NULL GROUP BY bookmark_db_id) bo_all ON b.id = bo_all.bookmark_db_id ")
+                    .append("LEFT JOIN (SELECT bookmark_db_id, category_id, MIN(display_order) AS display_order FROM ")
+                    .append(BOOKMARK_ORDER_TABLE.getTableName())
+                    .append(" WHERE category_id IS NOT NULL GROUP BY bookmark_db_id, category_id) bo_category ")
+                    .append("ON b.id = bo_category.bookmark_db_id AND bo_category.category_id = b.categoryId ")
+                    .append("ORDER BY CASE WHEN COALESCE(bo_all.display_order, bo_category.display_order) IS NULL THEN 1 ELSE 0 END, ")
+                    .append("COALESCE(bo_all.display_order, bo_category.display_order) ASC, b.id ASC");
         } else {
-            sql.append("WHERE b.categoryId = ? AND bo.category_id = ? ORDER BY bo.display_order ASC");
+            sql.append("SELECT b.*, bo.display_order FROM ")
+                    .append(BOOKMARK_TABLE.getTableName()).append(" b ")
+                    .append("LEFT JOIN (SELECT bookmark_db_id, category_id, MIN(display_order) AS display_order FROM ")
+                    .append(BOOKMARK_ORDER_TABLE.getTableName())
+                    .append(" WHERE category_id = ? GROUP BY bookmark_db_id, category_id) bo ")
+                    .append("ON b.id = bo.bookmark_db_id AND bo.category_id = b.categoryId ")
+                    .append("WHERE b.categoryId = ? ORDER BY CASE WHEN bo.display_order IS NULL THEN 1 ELSE 0 END, bo.display_order ASC, b.id ASC");
         }
 
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql.toString())) {

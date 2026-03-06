@@ -5,6 +5,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.scene.Node;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
@@ -25,6 +26,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private MediaPlayerEventAdapter mediaPlayerEvents;
     private ImageView videoImageView;
     private int videoSourceWidth, videoSourceHeight;
+    private String lastStreamInfoLabel = "";
 
     public VlcVideoPlayer() {
         super(); // Must be the first call
@@ -32,6 +34,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (videoImageView == null) {
             videoImageView = new ImageView();
             videoImageView.setPreserveRatio(true);
+            videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> onRenderedImageChanged(newImage));
         }
         ensurePlayerInitialized();
     }
@@ -92,6 +95,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     long totalTime = mp.status().length();
                     boolean seekable = mp.status().isSeekable();
                     updatePlaybackTimeUi(newTime, totalTime, seekable);
+                    refreshRenderedImageStreamInfo();
                 });
             }
 
@@ -113,6 +117,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     timeSlider.setDisable(false);
                     timeLabel.setText(I18n.tr("auto00000000"));
                     loadingSpinner.setVisible(false);
+                    videoSourceWidth = 0;
+                    videoSourceHeight = 0;
+                    lastStreamInfoLabel = "";
                 });
             }
 
@@ -159,6 +166,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (videoImageView == null) {
             videoImageView = new ImageView();
             videoImageView.setPreserveRatio(true);
+            videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> onRenderedImageChanged(newImage));
         }
         return videoImageView;
     }
@@ -167,6 +175,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     protected void playMedia(String uri) {
         new Thread(() -> {
             ensurePlayerInitialized();
+            videoSourceWidth = 0;
+            videoSourceHeight = 0;
+            lastStreamInfoLabel = "";
             EmbeddedMediaPlayer player;
             synchronized (playerLock) {
                 player = mediaPlayer;
@@ -187,6 +198,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             player.controls().stop();
         }
         videoImageView.setImage(null);
+        videoSourceWidth = 0;
+        videoSourceHeight = 0;
+        lastStreamInfoLabel = "";
     }
 
     @Override
@@ -223,6 +237,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             }
         }
         videoImageView.setImage(null);
+        videoSourceWidth = 0;
+        videoSourceHeight = 0;
+        lastStreamInfoLabel = "";
     }
 
     @Override
@@ -325,7 +342,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 }
             }
         }
-        updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        if (!refreshRenderedImageStreamInfo() && videoSourceWidth > 0 && videoSourceHeight > 0) {
+            updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        }
     }
 
     protected void updateStreamInfo(int width, int height) {
@@ -347,7 +366,43 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 codec = bestTrack.codecName();
             }
         }
-        streamInfoText.setText(String.format("\n%dx%d %s (vlc)", width, height, codec));
+        String newLabel = String.format("\n%dx%d %s (vlc)", width, height, codec);
+        if (!newLabel.equals(lastStreamInfoLabel)) {
+            lastStreamInfoLabel = newLabel;
+            streamInfoText.setText(newLabel);
+        }
+    }
+
+    private boolean refreshRenderedImageStreamInfo() {
+        if (!captureRenderedImageDimensions()) {
+            return false;
+        }
+        updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        return true;
+    }
+
+    private void onRenderedImageChanged(Image image) {
+        if (captureRenderedImageDimensions(image)) {
+            updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        }
+    }
+
+    private boolean captureRenderedImageDimensions() {
+        return captureRenderedImageDimensions(videoImageView != null ? videoImageView.getImage() : null);
+    }
+
+    private boolean captureRenderedImageDimensions(Image image) {
+        if (image == null) {
+            return false;
+        }
+        int renderedWidth = (int) Math.round(image.getWidth());
+        int renderedHeight = (int) Math.round(image.getHeight());
+        if (renderedWidth <= 0 || renderedHeight <= 0) {
+            return false;
+        }
+        videoSourceWidth = renderedWidth;
+        videoSourceHeight = renderedHeight;
+        return true;
     }
 
     @Override
