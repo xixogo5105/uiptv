@@ -92,6 +92,21 @@ To enable YouTube support and web streaming of TS files, you need to install the
   ```
 - **Manual Installation**: Download the executables from their official websites, place them in a permanent folder (e.g., `C:\Tools`), and add that folder to your System Environment Variables (PATH).
 
+#### Windows Installer Build Dependency (WiX Toolset)
+If you build Windows `.exe`/`.msi` installers locally with `jpackage`, install WiX Toolset and ensure `candle.exe` and `light.exe` are on `PATH`.
+
+- **Using Winget (Recommended)**:
+  ```powershell
+  winget install --id WiXToolset.WiXToolset -e --source winget
+  ```
+- **Verify tools are available**:
+  ```powershell
+  where.exe candle
+  where.exe light
+  ```
+- **If not found**: Add the WiX `bin` folder to `PATH` (then open a new terminal), for example:
+  - `C:\Program Files (x86)\WiX Toolset v3.14\bin`
+
 ### Installing on Linux
 **Important for DEB users:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV.
 
