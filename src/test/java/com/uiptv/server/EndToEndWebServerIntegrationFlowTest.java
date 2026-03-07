@@ -720,6 +720,11 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse deleteSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "DELETE", null, null);
         assertEquals(200, deleteSegment.statusCode());
 
+        HttpTextResponse recentlyDeletedSegmentFetch = get("/hls/segment-1.ts");
+        assertEquals(200, recentlyDeletedSegmentFetch.statusCode());
+
+        Thread.sleep(hlsTsDeleteGraceMillis() + 250);
+
         HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(404, deletedSegmentFetch.statusCode());
 
@@ -730,6 +735,16 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
         assertEquals(200, proxyStream.statusCode());
         assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
+    }
+
+    private long hlsTsDeleteGraceMillis() {
+        try {
+            var field = com.uiptv.service.InMemoryHlsService.class.getDeclaredField("TS_DELETE_GRACE_MILLIS");
+            field.setAccessible(true);
+            return field.getLong(null);
+        } catch (Exception ignored) {
+            return 12_000L;
+        }
     }
 
     private void assertWebChannelJsonServerApi() throws Exception {
