@@ -6,6 +6,8 @@
 # UIPTV - A Universal IPTV Player for Windows, Linux & macOS
 UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. It provides both a desktop experience and a full local-network web experience (SPA/PWA) for Live TV, VOD, and Series.
 
+Core principle: keep the app simple, plain, and practical so everyday playback and account management stay fast and predictable.
+
 Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64). Linux builds are provided as `.deb`, optional `.rpm`, and a portable app bundle archive.
 
 ## Documentation
@@ -28,6 +30,7 @@ Native installers and packages are currently published for Windows (x86_64), Lin
 
 
 ## Features:
+- **Simple by Design**: UIPTV prioritizes a plain, low-friction interface and practical defaults over visual clutter or complex workflows.
 - **Embedded & External Player Support**: UIPTV now includes two embedded video players: a full-featured player powered by **VLC** and a limited, lightweight alternative.
   - For the best experience, it is highly recommended to have **VLC** installed on your system and available in the system's PATH.
   - If VLC is not found, the player will fall back to a basic, lightweight player with fewer features.
