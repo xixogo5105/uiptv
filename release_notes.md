@@ -1,7 +1,7 @@
 # Release Notes
 
 > [!WARNING]
-> Before upgrading to 0.1.9, back up your database files first (at minimum `uiptv.db`, and preferably `uiptv.db`, `uiptv.db-wal`, and `uiptv.db-shm` while UIPTV is closed).
+> Before upgrading to 0.1.10, back up your database files first (at minimum `uiptv.db`, and preferably `uiptv.db`, `uiptv.db-wal`, and `uiptv.db-shm` while UIPTV is closed).
 
 > [!NOTE]
 > This release includes multi-language support. At this stage, non-English resources were generated with AI-assisted translation and may contain inaccuracies. Contributions and corrections are welcome: [TRANSLATIONS.md](TRANSLATIONS.md).
