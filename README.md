@@ -66,6 +66,20 @@ Before compiling, please ensure you have:
 2.  Apache Maven installed.
 3.  **Windows only:** The WiX Toolset build tools must be installed and available on `PATH` when building Windows installers. `jpackage` requires `candle.exe` and `light.exe` for `.exe`/`.msi` packaging.
 
+    Install WiX Toolset with `winget` (PowerShell):
+    ```powershell
+    winget install --id WiXToolset.WiXToolset -e --source winget
+    ```
+
+    Verify both tools are available:
+    ```powershell
+    where.exe candle
+    where.exe light
+    ```
+
+    If either command is not found, add the WiX `bin` directory to `PATH` (then open a new terminal), for example:
+    - `C:\Program Files (x86)\WiX Toolset v3.14\bin`
+
 To compile the project, you can use Maven profiles to target specific operating systems and package formats. The final application will be generated in the `target/dist` directory.
 
 ### Build Commands
