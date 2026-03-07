@@ -83,6 +83,9 @@ Before compiling, please ensure you have:
     If either command is not found, add the WiX `bin` directory to `PATH` (then open a new terminal), for example:
     - `C:\Program Files (x86)\WiX Toolset v3.14\bin`
 
+4.  **Linux DEB packaging (Debian/Ubuntu):** `fakeroot` must be installed for `.deb` builds.
+
+
 To compile the project, you can use Maven profiles to target specific operating systems and package formats. The final application will be generated in the `target/dist` directory.
 
 ### Build Commands
@@ -114,7 +117,7 @@ Here are some examples of how to build the application for different targets.
 For Linux, you combine an OS/architecture profile with a packaging profile.
 
 - **Linux (x86_64):**
-  - **DEB Package:**
+  - **DEB Package:** (Requires `fakeroot` to be installed on Debian/Ubuntu)
     ```sh
     mvn clean package -P linux-x86_64,pkg-deb
     ```
@@ -128,7 +131,7 @@ For Linux, you combine an OS/architecture profile with a packaging profile.
     ```
 
 - **Linux (ARM64/aarch64):**
-  - **DEB Package:**
+  - **DEB Package:** (Requires `fakeroot` to be installed on Debian/Ubuntu)
     ```sh
     mvn clean package -P linux-aarch64,pkg-deb
     ```

@@ -121,6 +121,8 @@ If you build Windows `.exe`/`.msi` installers locally with `jpackage`, install W
 - **FFmpeg**:
   - **Debian/Ubuntu**: `sudo apt install ffmpeg`
   - **Fedora**: `sudo dnf install ffmpeg`
+- **fakeroot** (required for Debian/Ubuntu `.deb` packaging workflows):
+  - **Debian/Ubuntu**: `sudo apt install fakeroot`
 - **yt-dlp**:
   It is recommended to install the latest binary directly to ensure compatibility with YouTube's latest changes:
   ```bash
