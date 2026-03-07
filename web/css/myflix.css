@@ -1,27 +1,29 @@
 :root {
-    --bg: #080b10;
-    --surface: #0b0b0b;
-    --surface-soft: #1a1a1a;
-    --text: #f5f5f1;
-    --muted: #b3b3b3;
-    --brand: #e50914;
-    --line: rgba(255, 255, 255, 0.12);
-    --card: #202020;
-    --card-hover: #2a2a2a;
-    --chip: rgba(255, 255, 255, 0.08);
+    --bg: #1a1a1a;
+    --accent-rgb: 110, 168, 254;
+    --surface: #212529;
+    --surface-soft: #2c2c2c;
+    --text: #f8f9fa;
+    --muted: #adb5bd;
+    --brand: #0d6efd;
+    --line: #333;
+    --card: #2c2c2c;
+    --card-hover: #383838;
+    --chip: rgba(108, 117, 125, 0.24);
 }
 
 [data-theme="light"] {
-    --bg: #f4f5f7;
+    --bg: #f8f9fa;
+    --accent-rgb: 13, 110, 253;
     --surface: #ffffff;
-    --surface-soft: #f1f3f5;
-    --text: #171a1f;
-    --muted: #5f6874;
-    --brand: #c11119;
-    --line: rgba(0, 0, 0, 0.12);
+    --surface-soft: #f1f1f1;
+    --text: #212529;
+    --muted: #6c757d;
+    --brand: #0d6efd;
+    --line: #dee2e6;
     --card: #ffffff;
-    --card-hover: #f5f7fa;
-    --chip: rgba(0, 0, 0, 0.06);
+    --card-hover: #f8f9fa;
+    --chip: rgba(108, 117, 125, 0.12);
 }
 
 * {
@@ -38,7 +40,7 @@ body {
     font-family: "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
     background:
             linear-gradient(180deg, rgba(12, 14, 20, 0.7), rgba(7, 8, 12, 0.95)),
-            radial-gradient(1200px 700px at 20% -20%, rgba(229, 9, 20, 0.22), transparent 60%),
+            radial-gradient(1200px 700px at 20% -20%, rgba(var(--accent-rgb), 0.22), transparent 60%),
             var(--bg);
     color: var(--text);
 }
@@ -46,7 +48,7 @@ body {
 [data-theme="light"] body {
     background:
             linear-gradient(180deg, rgba(249, 251, 255, 0.96), rgba(240, 245, 251, 0.98)),
-            radial-gradient(1000px 560px at 8% -14%, rgba(193, 17, 25, 0.1), transparent 60%),
+            radial-gradient(1000px 560px at 8% -14%, rgba(var(--accent-rgb), 0.1), transparent 60%),
             var(--bg);
 }
 
@@ -64,13 +66,13 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 14px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(8, 8, 8, 0.95);
+    border-bottom: 1px solid var(--line);
+    background: rgba(33, 37, 41, 0.92);
     backdrop-filter: blur(8px);
 }
 
 [data-theme="light"] .nf-topbar {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.78));
+    background: rgba(255, 255, 255, 0.92);
 }
 
 .nf-brand {
@@ -88,7 +90,7 @@ body {
 }
 
 .nf-brand span {
-    color: var(--brand);
+    color: var(--text);
     font-size: 1.35rem;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -122,8 +124,8 @@ body {
 
 .nf-action-btn:hover {
     color: var(--text);
-    background: rgba(229, 9, 20, 0.2);
-    border-color: rgba(229, 9, 20, 0.4);
+    background: rgba(var(--accent-rgb), 0.2);
+    border-color: rgba(var(--accent-rgb), 0.4);
 }
 
 .nf-main {
@@ -151,7 +153,7 @@ body {
     position: relative;
     background:
             linear-gradient(to bottom, rgba(4, 4, 4, 0.2), rgba(4, 4, 4, 0.95)),
-            linear-gradient(to right, rgba(229, 9, 20, 0.25), transparent 55%);
+            linear-gradient(to right, rgba(var(--accent-rgb), 0.25), transparent 55%);
 }
 
 #player-placeholder {
@@ -284,16 +286,14 @@ body {
     padding: 12px 0 10px;
     border-radius: 14px;
     border: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    background: rgba(33, 37, 41, 0.36);
 }
 
 [data-theme="light"] .nf-row-pinned,
 [data-theme="light"] .nf-row-shell {
-    border-color: rgba(15, 23, 42, 0.11);
-    background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.97)),
-            radial-gradient(420px 170px at 12% 0%, rgba(193, 17, 25, 0.08), transparent 72%);
-    box-shadow: 0 8px 24px rgba(30, 41, 59, 0.08);
+    border-color: var(--line);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 8px 20px rgba(33, 37, 41, 0.06);
 }
 
 [data-theme="light"] .nf-row-pinned .nf-card,
@@ -367,8 +367,8 @@ body {
 }
 
 .nf-strip .nf-card.active {
-    border-color: rgba(229, 9, 20, 0.7);
-    box-shadow: 0 0 0 1px rgba(229, 9, 20, 0.55);
+    border-color: rgba(var(--accent-rgb), 0.7);
+    box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.55);
 }
 
 .nf-bookmark-tab {
@@ -384,13 +384,13 @@ body {
 }
 
 .nf-bookmark-tab:hover {
-    background: rgba(229, 9, 20, 0.18);
-    border-color: rgba(229, 9, 20, 0.38);
+    background: rgba(var(--accent-rgb), 0.18);
+    border-color: rgba(var(--accent-rgb), 0.38);
 }
 
 .nf-bookmark-tab.active {
-    background: rgba(229, 9, 20, 0.3);
-    border-color: rgba(229, 9, 20, 0.7);
+    background: rgba(var(--accent-rgb), 0.3);
+    border-color: rgba(var(--accent-rgb), 0.7);
 }
 
 .nf-title-with-back {
@@ -480,8 +480,8 @@ body {
 }
 
 .nf-mode-btn.active {
-    background: rgba(229, 9, 20, 0.3);
-    border-color: rgba(229, 9, 20, 0.65);
+    background: rgba(var(--accent-rgb), 0.3);
+    border-color: rgba(var(--accent-rgb), 0.65);
 }
 
 .nf-link-btn {
@@ -926,8 +926,8 @@ body {
 }
 
 .nf-season-tab.active {
-    border-color: rgba(229, 9, 20, 0.7);
-    background: rgba(229, 9, 20, 0.25);
+    border-color: rgba(var(--accent-rgb), 0.7);
+    background: rgba(var(--accent-rgb), 0.25);
 }
 
 .nf-episode-list {
@@ -1083,7 +1083,7 @@ body {
     height: 56px;
     border-radius: 999px;
     border: 2px solid rgba(255, 255, 255, 0.4);
-    background: #e50914;
+    background: var(--brand);
     color: #fff;
     display: inline-flex;
     align-items: center;
