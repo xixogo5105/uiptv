@@ -635,3 +635,39 @@
     -fx-font-size: 1.077em;
     -fx-font-weight: bold;
 }
+
+.about-root {
+    -fx-background-color: -fx-base;
+}
+
+.about-title {
+    -fx-font-size: 1.6em;
+    -fx-font-weight: bold;
+}
+
+.about-subtitle {
+    -fx-font-size: 0.95em;
+    -fx-opacity: 0.92;
+}
+
+.about-body {
+    -fx-font-size: 0.9em;
+}
+
+.about-description {
+    -fx-font-size: 0.9em;
+    -fx-opacity: 0.96;
+}
+
+.about-meta {
+    -fx-font-size: 0.9em;
+    -fx-opacity: 0.88;
+}
+
+.about-link {
+    -fx-padding: 0;
+}
+
+.about-actions {
+    -fx-padding: 10 0 0 0;
+}

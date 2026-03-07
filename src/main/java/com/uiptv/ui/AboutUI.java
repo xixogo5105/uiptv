@@ -41,10 +41,10 @@ public class AboutUI {
 
         Label titleLabel = new Label(I18n.tr("autoAboutUiptvTitle", VersionManager.getCurrentVersion()));
         titleLabel.setWrapText(true);
-        titleLabel.setStyle("-fx-font-size: 1.8em; -fx-font-weight: bold;");
+        titleLabel.getStyleClass().add("about-title");
 
         Label subtitleLabel = createBodyLabel(I18n.tr("autoAboutUiptvTagline"));
-        subtitleLabel.setStyle("-fx-font-size: 1.05em; -fx-opacity: 0.92;");
+        subtitleLabel.getStyleClass().add("about-subtitle");
 
         Label overviewLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvOverview"));
         Label webSyncLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvWebSync"));
@@ -68,23 +68,23 @@ public class AboutUI {
 
         Hyperlink link = new Hyperlink(I18n.tr("autoHttpsGithubComXixogo5105Uiptv"));
         link.setOnAction(e -> hostServices.showDocument(FALLBACK_PROJECT_URL));
-        link.setStyle("-fx-padding: 0;");
+        link.getStyleClass().add("about-link");
 
-        FlowPane creditsRow = new FlowPane(14, 4, authorLabel, platformLabel);
+        FlowPane creditsRow = new FlowPane(10, 4, authorLabel, platformLabel);
         creditsRow.setAlignment(Pos.CENTER_LEFT);
         creditsRow.setRowValignment(javafx.geometry.VPos.CENTER);
-        creditsRow.setPrefWrapLength(520);
+        creditsRow.setPrefWrapLength(500);
 
         FlowPane footerRow = new FlowPane(10, 4, poweredByLabel, link);
         footerRow.setAlignment(Pos.CENTER_LEFT);
         footerRow.setRowValignment(javafx.geometry.VPos.CENTER);
-        footerRow.setPrefWrapLength(520);
+        footerRow.setPrefWrapLength(500);
 
         VBox infoBox = new VBox(8);
         infoBox.setAlignment(Pos.TOP_LEFT);
         infoBox.setFillWidth(true);
-        infoBox.setPrefWidth(520);
-        infoBox.setMinWidth(520);
+        infoBox.setPrefWidth(500);
+        infoBox.setMinWidth(500);
         infoBox.getChildren().addAll(
                 titleLabel,
                 subtitleLabel,
@@ -108,21 +108,21 @@ public class AboutUI {
         closeButton.setCancelButton(true);
         closeButton.setOnAction(e -> stage.close());
 
-        HBox content = new HBox(18, imageView, infoBox);
+        HBox content = new HBox(10, imageView, infoBox);
         content.setAlignment(Pos.TOP_LEFT);
         HBox.setHgrow(content, Priority.ALWAYS);
 
         HBox actions = new HBox(8, closeButton, updateButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
-        actions.setPadding(new Insets(14, 0, 0, 0));
+        actions.getStyleClass().add("about-actions");
 
         BorderPane root = new BorderPane();
-        root.setPadding(new Insets(20));
-        root.setStyle("-fx-background-color: -fx-base;");
+        root.setPadding(new Insets(10));
+        root.getStyleClass().add("about-root");
         root.setCenter(content);
         root.setBottom(actions);
 
-        Scene scene = new Scene(root, 700, 420);
+        Scene scene = new Scene(root, 720, 450);
         I18n.applySceneOrientation(scene);
         if (RootApplication.currentTheme != null) {
             scene.getStylesheets().add(RootApplication.currentTheme);
@@ -137,7 +137,8 @@ public class AboutUI {
         label.setTextOverrun(OverrunStyle.CLIP);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setMinHeight(Region.USE_PREF_SIZE);
-        label.setMaxWidth(520);
+        label.setMaxWidth(500);
+        label.getStyleClass().add("about-body");
         return label;
     }
 
@@ -147,8 +148,8 @@ public class AboutUI {
         label.setTextOverrun(OverrunStyle.CLIP);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setMinHeight(Region.USE_PREF_SIZE);
-        label.setMaxWidth(520);
-        label.setStyle("-fx-opacity: 0.96;");
+        label.setMaxWidth(500);
+        label.getStyleClass().add("about-description");
         return label;
     }
 
@@ -158,7 +159,7 @@ public class AboutUI {
         label.setTextOverrun(OverrunStyle.CLIP);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setMinHeight(Region.USE_PREF_SIZE);
-        label.setStyle("-fx-opacity: 0.88;");
+        label.getStyleClass().add("about-meta");
         return label;
     }
 
