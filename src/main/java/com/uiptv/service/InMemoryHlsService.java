@@ -14,7 +14,7 @@ public class InMemoryHlsService {
     private final Map<String, Long> timestamps = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> pendingDeletes = new ConcurrentHashMap<>();
     private static final int MAX_SEGMENTS = 40;
-    private static final long TS_DELETE_GRACE_MILLIS = 12_000;
+    private static final long TS_DELETE_GRACE_MILLIS = Long.getLong("uiptv.hls.ts.delete.grace.millis", 3_000L);
     private final ScheduledExecutorService deleteScheduler = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable runnable) {

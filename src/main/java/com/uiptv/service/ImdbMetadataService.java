@@ -30,6 +30,10 @@ public class ImdbMetadataService {
     private static final String KEY_DIRECTOR = "director";
     private static final String KEY_GENRE = "genre";
     private static final String KEY_IMDB_URL = "imdbUrl";
+    private static final String KEY_CAST = "cast";
+    private static final String KEY_LOGO = "logo";
+    private static final String KEY_NAME = "name";
+    private static final String KEY_PLOT = "plot";
     private static final String KEY_RATING = "rating";
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_EPISODES_META = "episodesMeta";
@@ -109,19 +113,19 @@ public class ImdbMetadataService {
     }
 
     private void mergeSuggestedMetadata(JSONObject details, JSONObject candidate) {
-        mergeIfPresent(details, candidate, "name");
+        mergeIfPresent(details, candidate, KEY_NAME);
         mergeIfPresent(details, candidate, KEY_COVER);
-        mergeIfPresent(details, candidate, "cast");
+        mergeIfPresent(details, candidate, KEY_CAST);
         mergeIfPresent(details, candidate, KEY_GENRE);
         mergeIfPresent(details, candidate, KEY_RELEASE_DATE);
     }
 
     private void mergePageMetadata(JSONObject details, String imdbId) {
         JSONObject pageDetails = fetchImdbTitleDetails(imdbId);
-        mergeIfPresent(details, pageDetails, "name");
+        mergeIfPresent(details, pageDetails, KEY_NAME);
         mergeIfPresent(details, pageDetails, KEY_COVER);
-        mergeIfPresent(details, pageDetails, "plot");
-        mergeIfPresent(details, pageDetails, "cast");
+        mergeIfPresent(details, pageDetails, KEY_PLOT);
+        mergeIfPresent(details, pageDetails, KEY_CAST);
         mergeIfPresent(details, pageDetails, KEY_DIRECTOR);
         mergeIfPresent(details, pageDetails, KEY_GENRE);
         mergeIfPresent(details, pageDetails, KEY_RELEASE_DATE);
@@ -129,10 +133,10 @@ public class ImdbMetadataService {
     }
 
     private void mergeCinemetaMetadata(JSONObject details, JSONObject meta, boolean copyEpisodes) {
-        mergeMissing(details, meta, "name");
+        mergeMissing(details, meta, KEY_NAME);
         mergeMissing(details, meta, KEY_COVER);
-        mergeMissing(details, meta, "plot");
-        mergeMissing(details, meta, "cast");
+        mergeMissing(details, meta, KEY_PLOT);
+        mergeMissing(details, meta, KEY_CAST);
         mergeMissing(details, meta, KEY_DIRECTOR);
         mergeMissing(details, meta, KEY_GENRE);
         mergeMissing(details, meta, KEY_RELEASE_DATE);
@@ -254,9 +258,9 @@ public class ImdbMetadataService {
             if (isBlank(jsonLd)) return result;
 
             JSONObject data = new JSONObject(jsonLd);
-            result.put("name", data.optString("name", ""));
+            result.put(KEY_NAME, data.optString(KEY_NAME, ""));
             result.put(KEY_COVER, data.optString("image", ""));
-            result.put("plot", data.optString("description", ""));
+            result.put(KEY_PLOT, data.optString("description", ""));
             result.put(KEY_RELEASE_DATE, data.optString("datePublished", ""));
 
             JSONObject rating = data.optJSONObject("aggregateRating");
@@ -276,7 +280,7 @@ public class ImdbMetadataService {
                 result.put(KEY_GENRE, g);
             }
 
-            result.put("cast", joinPersonNames(data.optJSONArray("actor")));
+            result.put(KEY_CAST, joinPersonNames(data.optJSONArray("actor")));
             result.put(KEY_DIRECTOR, joinPersonNames(data.optJSONArray("director")));
         } catch (Exception _) {
             // best effort
@@ -307,8 +311,8 @@ public class ImdbMetadataService {
                     if (video == null) continue;
                     JSONObject e = new JSONObject();
                     e.put(KEY_TITLE, sanitizeEpisodeTitle(video.optString(KEY_TITLE, "")));
-                    e.put("plot", video.optString(KEY_OVERVIEW, ""));
-                    e.put("logo", video.optString("thumbnail", ""));
+                    e.put(KEY_PLOT, video.optString(KEY_OVERVIEW, ""));
+                    e.put(KEY_LOGO, video.optString("thumbnail", ""));
                     e.put(KEY_RELEASE_DATE, video.optString("released", ""));
                     e.put(KEY_SEASON, String.valueOf(video.optInt(KEY_SEASON, 0)));
                     e.put(KEY_EPISODE_NUMBER, String.valueOf(video.optInt("episode", 0)));
@@ -339,7 +343,7 @@ public class ImdbMetadataService {
         TvMazeEpisodeIndex index = buildTvMazeEpisodeIndex(tvMazeEpisodes);
         for (int i = 0; i < episodesMeta.length(); i++) {
             JSONObject row = episodesMeta.optJSONObject(i);
-            if (row == null || isNotBlank(row.optString("plot", ""))) {
+            if (row == null || isNotBlank(row.optString(KEY_PLOT, ""))) {
                 continue;
             }
             JSONObject match = matchTvMazeEpisode(index, row);
@@ -356,7 +360,7 @@ public class ImdbMetadataService {
         for (int i = 0; i < episodesMeta.length(); i++) {
             JSONObject row = episodesMeta.optJSONObject(i);
             if (row == null) continue;
-            if (isNotBlank(row.optString("plot", ""))) {
+            if (isNotBlank(row.optString(KEY_PLOT, ""))) {
                 return true;
             }
         }
@@ -463,7 +467,7 @@ public class ImdbMetadataService {
         if (cast != null) {
             result.put("cast", joinStringArray(cast, 8));
         } else {
-            result.put("cast", meta.optString("cast", ""));
+            result.put(KEY_CAST, meta.optString(KEY_CAST, ""));
         }
 
         JSONArray director = meta.optJSONArray("director");
@@ -549,7 +553,7 @@ public class ImdbMetadataService {
     private void applyTvMazeEpisodeMeta(JSONObject row, JSONObject match) {
         String summary = stripHtml(match.optString("summary", ""));
         if (isNotBlank(summary)) {
-            row.put("plot", summary);
+            row.put(KEY_PLOT, summary);
         }
         if (isBlank(row.optString(KEY_RELEASE_DATE, ""))) {
             row.put(KEY_RELEASE_DATE, match.optString("airdate", ""));
@@ -605,9 +609,9 @@ public class ImdbMetadataService {
     }
 
     private void applyLocalizedTmdbFields(JSONObject details, JSONObject localized) {
-        replaceIfPresent(details, localized, "name");
-        replaceIfPresent(details, localized, "plot");
-        replaceIfPresent(details, localized, "genre");
+        replaceIfPresent(details, localized, KEY_NAME);
+        replaceIfPresent(details, localized, KEY_PLOT);
+        replaceIfPresent(details, localized, KEY_GENRE);
         replaceIfPresent(details, localized, KEY_RELEASE_DATE);
         mergeMissing(details, localized, KEY_COVER);
         mergeMissing(details, localized, KEY_RATING);
@@ -645,8 +649,8 @@ public class ImdbMetadataService {
             }
 
             JSONObject payload = new JSONObject(response.body());
-            result.put("name", firstNonBlank(payload.optString("name", ""), payload.optString(KEY_TITLE, "")));
-            result.put("plot", payload.optString(KEY_OVERVIEW, ""));
+            result.put(KEY_NAME, firstNonBlank(payload.optString(KEY_NAME, ""), payload.optString(KEY_TITLE, "")));
+            result.put(KEY_PLOT, payload.optString(KEY_OVERVIEW, ""));
             result.put(KEY_RATING, String.valueOf(payload.optDouble("vote_average", 0)));
             result.put(KEY_RELEASE_DATE, firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
             JSONArray genres = payload.optJSONArray("genres");
@@ -709,9 +713,9 @@ public class ImdbMetadataService {
                 }
                 JSONObject mapped = mapTmdbEpisodeMeta(episode);
                 replaceIfPresent(target, mapped, KEY_TITLE);
-                replaceIfPresent(target, mapped, "plot");
-                replaceIfPresent(target, mapped, "releaseDate");
-                mergeMissing(target, mapped, "logo");
+                replaceIfPresent(target, mapped, KEY_PLOT);
+                replaceIfPresent(target, mapped, KEY_RELEASE_DATE);
+                mergeMissing(target, mapped, KEY_LOGO);
             }
         }
     }
@@ -754,11 +758,11 @@ public class ImdbMetadataService {
             return mapped;
         }
         mapped.put(KEY_TITLE, sanitizeEpisodeTitle(episode.optString("name", "")));
-        mapped.put("plot", episode.optString(KEY_OVERVIEW, ""));
-        mapped.put("releaseDate", episode.optString("air_date", ""));
+        mapped.put(KEY_PLOT, episode.optString(KEY_OVERVIEW, ""));
+        mapped.put(KEY_RELEASE_DATE, episode.optString("air_date", ""));
         String stillPath = episode.optString("still_path", "");
         if (isNotBlank(stillPath)) {
-            mapped.put("logo", "https://image.tmdb.org/t/p/w500" + stillPath);
+            mapped.put(KEY_LOGO, "https://image.tmdb.org/t/p/w500" + stillPath);
         }
         return mapped;
     }
@@ -893,7 +897,7 @@ public class ImdbMetadataService {
             String resolved = firstNonBlank(
                     seriesMeta.optString("name", ""),
                     movieMeta.optString("name", ""),
-                    fetchImdbTitleDetails(imdbId).optString("name", "")
+                    fetchImdbTitleDetails(imdbId).optString(KEY_NAME, "")
             );
             if (isBlank(resolved)) {
                 return true;

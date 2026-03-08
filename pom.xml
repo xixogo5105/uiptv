@@ -262,6 +262,9 @@
                 <configuration>
                     <!-- Allow discovery of Jupiter tests and improved logging -->
                     <useModulePath>false</useModulePath>
+                    <systemPropertyVariables>
+                        <uiptv.hls.ts.delete.grace.millis>250</uiptv.hls.ts.delete.grace.millis>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>

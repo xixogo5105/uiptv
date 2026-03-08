@@ -827,6 +827,14 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void applySeasonInfoToHeader(SeriesPanelData data) {
         VBox details = (VBox) data.titleNode.getParent();
+        clearSeasonHeaderDetails(details, data);
+        data.titleNode.setText(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
+        addImdbHeaderNodes(details, data);
+        addSeasonMetadataText(details, data);
+        details.getChildren().add(resolveReloadEpisodesButton(data));
+    }
+
+    private void clearSeasonHeaderDetails(VBox details, SeriesPanelData data) {
         details.getChildren().removeAll(data.ratingNode, data.genreNode, data.releaseNode, data.plotNode, data.reloadEpisodesButton);
         if (data.imdbLoadingNode != null) {
             details.getChildren().remove(data.imdbLoadingNode);
@@ -834,14 +842,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data.imdbBadgeNode != null) {
             details.getChildren().remove(data.imdbBadgeNode);
         }
+    }
 
-        data.titleNode.setText(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
-
+    private void addImdbHeaderNodes(VBox details, SeriesPanelData data) {
         String ratingValue = data.seasonInfo.optString("rating", "");
         if (!isBlank(ratingValue)) {
             data.ratingNode.setText(I18n.tr("autoImdbPrefix", ratingValue));
         }
-
         String imdbUrl = data.seasonInfo.optString("imdbUrl", "");
         data.imdbBadgeNode = SeriesCardUiSupport.createImdbRatingPill(ratingValue, imdbUrl);
         if (data.imdbBadgeNode != null) {
@@ -849,39 +856,46 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         if (data.imdbLoading && !data.imdbLoaded) {
             if (data.imdbLoadingNode == null) {
-                ProgressIndicator imdbProgress = new ProgressIndicator();
-                imdbProgress.setPrefSize(14, 14);
-                imdbProgress.setMinSize(14, 14);
-                imdbProgress.setMaxSize(14, 14);
-                Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
-                data.imdbLoadingNode = new HBox(6, imdbProgress, imdbLoadingLabel);
+                data.imdbLoadingNode = createImdbLoadingNode();
             }
             details.getChildren().add(data.imdbLoadingNode);
         }
+    }
 
+    private HBox createImdbLoadingNode() {
+        ProgressIndicator imdbProgress = new ProgressIndicator();
+        imdbProgress.setPrefSize(14, 14);
+        imdbProgress.setMinSize(14, 14);
+        imdbProgress.setMaxSize(14, 14);
+        Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
+        return new HBox(6, imdbProgress, imdbLoadingLabel);
+    }
+
+    private void addSeasonMetadataText(VBox details, SeriesPanelData data) {
         String genre = data.seasonInfo.optString("genre", "");
         if (!isBlank(genre)) {
             data.genreNode.setText(I18n.tr("autoGenrePrefix", genre));
             details.getChildren().add(data.genreNode);
         }
-
         String releaseDate = data.seasonInfo.optString(KEY_RELEASE_DATE, "");
         if (!isBlank(releaseDate)) {
             data.releaseNode.setText(I18n.tr("autoReleasePrefix", shortDateOnly(releaseDate)));
             details.getChildren().add(data.releaseNode);
         }
-
         String plot = data.seasonInfo.optString("plot", "");
         if (!isBlank(plot)) {
             data.plotNode.setText(plot);
             details.getChildren().add(data.plotNode);
         }
+    }
+
+    private Button resolveReloadEpisodesButton(SeriesPanelData data) {
         if (data.reloadEpisodesButton == null) {
             data.reloadEpisodesButton = new Button(I18n.tr("autoReloadFromServer"));
             data.reloadEpisodesButton.setFocusTraversable(true);
             data.reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal(data));
         }
-        details.getChildren().add(data.reloadEpisodesButton);
+        return data.reloadEpisodesButton;
     }
 
     private TabPane createSeasonTabs(SeriesPanelData data) {
@@ -2057,44 +2071,27 @@ public abstract class BaseWatchingNowUI extends VBox {
             return "";
         }
         String value = imageUrl.trim().replace("\\/", "/");
-        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.substring(1, value.length() - 1).trim();
-        }
+        value = trimWrappedImageQuotes(value);
         if (isBlank(value)) {
             return "";
         }
-        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
-            return value;
-        }
-        if (value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:")) {
+        if (isAbsoluteImageUrl(value) || isInlineImageUrl(value)) {
             return value;
         }
         URI base = resolveBaseUri(account);
-        String scheme = "https";
-        String host = "";
-        int port = -1;
-        if (base != null) {
-            if (!isBlank(base.getScheme())) scheme = base.getScheme();
-            if (!isBlank(base.getHost())) host = base.getHost();
-            port = base.getPort();
-        }
+        String scheme = resolveBaseScheme(base);
+        String host = resolveBaseHost(base);
+        int port = base == null ? -1 : base.getPort();
         if (value.startsWith("//")) {
             return scheme + ":" + value;
         }
         if (value.startsWith("/")) {
-            if (!isBlank(host)) {
-                return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
-            }
-            return value;
+            return buildRootRelativeImageUrl(value, scheme, host, port);
         }
         if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
             return scheme + "://" + value;
         }
-        if (!isBlank(host)) {
-            String normalized = value.startsWith("./") ? value.substring(2) : value;
-            return scheme + "://" + host + (port > 0 ? ":" + port : "") + "/" + normalized;
-        }
-        return ServerUrlUtil.getLocalServerUrl() + "/" + value.replaceFirst("^\\./", "");
+        return buildRelativeImageUrl(value, scheme, host, port);
     }
 
     private URI resolveBaseUri(Account account) {
@@ -2103,20 +2100,72 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         List<String> candidates = List.of(account.getServerPortalUrl(), account.getUrl());
         for (String candidate : candidates) {
-            if (isBlank(candidate)) continue;
-            try {
-                URI uri = URI.create(candidate.trim());
-                if (!isBlank(uri.getHost())) {
-                    return uri;
-                }
-                if (isBlank(uri.getScheme())) {
-                    URI withScheme = URI.create("http://" + candidate.trim());
-                    if (!isBlank(withScheme.getHost())) {
-                        return withScheme;
-                    }
-                }
-            } catch (Exception _) {
+            URI resolved = parseCandidateBaseUri(candidate);
+            if (resolved != null) {
+                return resolved;
             }
+        }
+        return null;
+    }
+
+    private String trimWrappedImageQuotes(String value) {
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    private boolean isAbsoluteImageUrl(String value) {
+        return value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*");
+    }
+
+    private boolean isInlineImageUrl(String value) {
+        return value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:");
+    }
+
+    private String resolveBaseScheme(URI base) {
+        return base != null && !isBlank(base.getScheme()) ? base.getScheme() : "https";
+    }
+
+    private String resolveBaseHost(URI base) {
+        return base != null && !isBlank(base.getHost()) ? base.getHost() : "";
+    }
+
+    private String buildRootRelativeImageUrl(String value, String scheme, String host, int port) {
+        if (!isBlank(host)) {
+            return scheme + "://" + host + formatPort(port) + value;
+        }
+        return value;
+    }
+
+    private String buildRelativeImageUrl(String value, String scheme, String host, int port) {
+        String normalized = value.startsWith("./") ? value.substring(2) : value;
+        if (!isBlank(host)) {
+            return scheme + "://" + host + formatPort(port) + "/" + normalized;
+        }
+        return ServerUrlUtil.getLocalServerUrl() + "/" + normalized;
+    }
+
+    private String formatPort(int port) {
+        return port > 0 ? ":" + port : "";
+    }
+
+    private URI parseCandidateBaseUri(String candidate) {
+        if (isBlank(candidate)) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(candidate.trim());
+            if (!isBlank(uri.getHost())) {
+                return uri;
+            }
+            if (isBlank(uri.getScheme())) {
+                URI withScheme = URI.create("http://" + candidate.trim());
+                if (!isBlank(withScheme.getHost())) {
+                    return withScheme;
+                }
+            }
+        } catch (Exception _) {
         }
         return null;
     }
