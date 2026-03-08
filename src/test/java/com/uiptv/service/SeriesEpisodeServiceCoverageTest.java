@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
@@ -120,6 +121,40 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         assertEquals("123", extractEpisode.invoke(service, "E123"));
         assertEquals("1", extractSeason.invoke(service, "Unknown Title"));
         assertEquals("", extractEpisode.invoke(service, "Unknown Title"));
+    }
+
+    @Test
+    void reloadEpisodesFromPortal_usesAnyAgeCache_whenSpecificCategoryCacheExists() {
+        Account account = createSeriesAccount("reload-any-age-specific");
+        SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-4", List.of(channel("ep-4", "Season 2 Episode 8", "cmd://4")));
+
+        try (MockedStatic<XtremeParser> xtremeParser = Mockito.mockStatic(XtremeParser.class)) {
+            xtremeParser.when(() -> XtremeParser.parseEpisodes("series-4", account)).thenThrow(new RuntimeException("boom"));
+
+            EpisodeList list = SeriesEpisodeService.getInstance().reloadEpisodesFromPortal(account, "cat-a", "series-4", () -> false);
+
+            assertEquals(1, list.getEpisodes().size());
+            assertEquals("8", list.getEpisodes().get(0).getEpisodeNum());
+        }
+    }
+
+    @Test
+    void privateHelpers_coverFallbackCompatibilityAndNullLoads() throws Exception {
+        SeriesEpisodeService service = SeriesEpisodeService.getInstance();
+        Method isCompatible = SeriesEpisodeService.class.getDeclaredMethod("isParsedEpisodeCompatible", Episode.class, Channel.class);
+        isCompatible.setAccessible(true);
+        Method loadFromDbAnyAge = SeriesEpisodeService.class.getDeclaredMethod("loadFromDbAnyAge", Account.class, String.class, String.class);
+        loadFromDbAnyAge.setAccessible(true);
+
+        Channel channel = channel("ep-5", "Episode 5", "cmd://5");
+        Episode byCmd = new Episode();
+        byCmd.setCmd("cmd://5");
+        Episode mismatch = new Episode();
+        mismatch.setId("different");
+
+        assertTrue((Boolean) isCompatible.invoke(service, byCmd, channel));
+        assertTrue(!(Boolean) isCompatible.invoke(service, mismatch, channel));
+        assertNull(loadFromDbAnyAge.invoke(service, createStalkerAccount("stalker-no-cache"), "cat-x", "series-x"));
     }
 
     private static Channel channel(String id, String name, String cmd) {

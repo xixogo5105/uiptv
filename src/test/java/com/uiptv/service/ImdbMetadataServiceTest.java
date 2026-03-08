@@ -3,6 +3,8 @@ package com.uiptv.service;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -149,6 +151,65 @@ class ImdbMetadataServiceTest {
         assertTrue(invokeString("buildTmdbLocalizedUrl", "123", "movie", "fr-FR").contains("language=fr-FR"));
         assertTrue(((Map<?, ?>) invoke("buildTmdbHeaders", new Class[]{String.class}, "token-123")).containsKey("Authorization"));
         assertEquals("https://image.tmdb.org/t/p/w500/poster.png", extractPosterCover());
+    }
+
+    @Test
+    void tmdbFetchHelpers_coverBearerTokenLocalizedFetchAndEpisodeMerge() throws Exception {
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setTmdbReadAccessToken(" bearer-token ");
+
+        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
+                    Mockito.contains("/movie/123?language=fr-FR"),
+                    Mockito.anyMap(),
+                    Mockito.eq("GET")
+            )).thenReturn(new com.uiptv.util.HttpUtil.HttpResult(
+                    com.uiptv.util.HttpUtil.STATUS_OK,
+                    """
+                    {"name":"Nom Localise","overview":"Resume","vote_average":7.1,"release_date":"2024-05-01",
+                     "poster_path":"/poster.jpg","genres":[{"name":"Drama"}]}
+                    """,
+                    Map.of(), Map.of()
+            ));
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
+                    Mockito.contains("/tv/321/season/1?language=fr-FR"),
+                    Mockito.anyMap(),
+                    Mockito.eq("GET")
+            )).thenReturn(new com.uiptv.util.HttpUtil.HttpResult(
+                    com.uiptv.util.HttpUtil.STATUS_OK,
+                    """
+                    {"episodes":[
+                      {"episode_number":2,"name":"Episode 2 Local","overview":"Localized plot","air_date":"2024-02-02","still_path":"/still2.jpg"}
+                    ]}
+                    """,
+                    Map.of(), Map.of()
+            ));
+
+            JSONObject localized = (JSONObject) invoke("fetchTmdbLocalizedDetails",
+                    new Class[]{String.class, String.class, String.class}, "123", "movie", "fr-FR");
+            assertEquals("Nom Localise", localized.getString("name"));
+            assertEquals("Drama", localized.getString("genre"));
+
+            assertEquals("123", invoke("resolveTmdbMediaId",
+                    new Class[]{JSONObject.class, JSONObject.class},
+                    new JSONObject().put("tmdbMediaId", "123"), new JSONObject()));
+            assertTrue((Boolean) invoke("isSuccessfulTmdbResponse",
+                    new Class[]{com.uiptv.util.HttpUtil.HttpResult.class},
+                    new com.uiptv.util.HttpUtil.HttpResult(200, "{}", Map.of(), Map.of())));
+
+            JSONArray episodesMeta = new JSONArray()
+                    .put(new JSONObject().put("season", "1").put("episodeNum", "2").put("title", "Episode 2"));
+            invoke("enrichEpisodesMetaWithTmdb", new Class[]{JSONArray.class, String.class, String.class}, episodesMeta, "321", "fr-FR");
+            JSONObject merged = episodesMeta.getJSONObject(0);
+            assertEquals("Localized plot", merged.getString("plot"));
+            assertEquals("2024-02-02", merged.getString("releaseDate"));
+            assertTrue(merged.getString("logo").contains("still2.jpg"));
+        }
     }
 
     private String extractPosterCover() throws Exception {
