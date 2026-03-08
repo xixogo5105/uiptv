@@ -226,7 +226,7 @@ public class HttpChannelJsonServer implements HttpHandler {
                 if (item == null) continue;
                 item.put("watched", SeriesWatchStateService.getInstance().isMatchingEpisode(
                         state,
-                        item.optString("channelId", ""),
+                        item.optString(PARAM_CHANNEL_ID, ""),
                         item.optString("season", ""),
                         item.optString("episodeNum", ""),
                         item.optString("name", "")

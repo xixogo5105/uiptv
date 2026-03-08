@@ -543,97 +543,151 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
+        Stage popupStage = createProblemAccountsStage();
+        VBox accountsBox = new VBox(5);
+        VBox root = buildProblemAccountsPopupRoot(processedAccounts, problematicAccounts, popupStage, accountsBox);
+        popupStage.setScene(buildProblemAccountsScene(root));
+        popupStage.show();
+    }
+
+    private Stage createProblemAccountsStage() {
         Stage popupStage = new Stage();
         popupStage.initModality(Modality.APPLICATION_MODAL);
         popupStage.setTitle(I18n.tr("autoDeleteProblematicAccounts"));
+        return popupStage;
+    }
 
+    private VBox buildProblemAccountsPopupRoot(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts,
+                                               Stage popupStage, VBox accountsBox) {
         VBox root = new VBox(10);
         root.setPadding(new Insets(20));
+        root.getChildren().addAll(
+                createProblemAccountsWarningLabel(),
+                createSelectAllCheckBox(accountsBox),
+                buildProblemAccountsScrollPane(processedAccounts, problematicAccounts, accountsBox),
+                buildProblemAccountsButtons(popupStage, accountsBox)
+        );
+        return root;
+    }
 
+    private Label createProblemAccountsWarningLabel() {
         Label warningLabel = new Label(I18n.tr("autoTheFollowingAccountsAreFlaggedAsBADOrYELLOWSelectTheOnesYouWantToDelete"));
         warningLabel.setWrapText(true);
         warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        return warningLabel;
+    }
 
-        VBox accountsBox = new VBox(5);
+    private CheckBox createSelectAllCheckBox(VBox accountsBox) {
+        CheckBox selectAll = new CheckBox(I18n.tr("autoSelectAll"));
+        selectAll.setOnAction(e -> accountsBox.getChildren().forEach(node -> {
+            if (node instanceof CheckBox checkBox) {
+                checkBox.setSelected(selectAll.isSelected());
+            }
+        }));
+        return selectAll;
+    }
+
+    private ScrollPane buildProblemAccountsScrollPane(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts,
+                                                      VBox accountsBox) {
+        populateProblemAccountsBox(accountsBox, processedAccounts, problematicAccounts);
         ScrollPane scrollPane = new ScrollPane(accountsBox);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefHeight(300);
+        return scrollPane;
+    }
 
-        CheckBox selectAll = new CheckBox(I18n.tr("autoSelectAll"));
-        selectAll.setOnAction(e -> accountsBox.getChildren().forEach(node -> {
-            if (node instanceof CheckBox) ((CheckBox) node).setSelected(selectAll.isSelected());
-        }));
+    private void populateProblemAccountsBox(VBox accountsBox, List<Account> processedAccounts,
+                                            Map<String, SummaryStatus> problematicAccounts) {
+        addProblemAccountsSection(accountsBox, processedAccounts, problematicAccounts, SummaryLevel.BAD,
+                I18n.tr("autoBadRed"), "-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
+        addProblemAccountsSection(accountsBox, processedAccounts, problematicAccounts, SummaryLevel.YELLOW,
+                I18n.tr("autoYellowPartiallySuccessful"), STYLE_YELLOW_LABEL);
+    }
 
-        List<Account> badAccounts = processedAccounts.stream()
-                .filter(a -> problematicAccounts.containsKey(a.getDbId()))
-                .filter(a -> problematicAccounts.get(a.getDbId()).level == SummaryLevel.BAD)
-                .collect(Collectors.toList());
-        List<Account> yellowAccounts = processedAccounts.stream()
-                .filter(a -> problematicAccounts.containsKey(a.getDbId()))
-                .filter(a -> problematicAccounts.get(a.getDbId()).level == SummaryLevel.YELLOW)
-                .collect(Collectors.toList());
-
-        if (!badAccounts.isEmpty()) {
-            Label badLabel = new Label(I18n.tr("autoBadRed"));
-            badLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
-            accountsBox.getChildren().add(badLabel);
-            addProblemAccountsToDeleteBox(accountsBox, badAccounts, problematicAccounts);
+    private void addProblemAccountsSection(VBox accountsBox, List<Account> processedAccounts,
+                                           Map<String, SummaryStatus> problematicAccounts, SummaryLevel level,
+                                           String title, String style) {
+        List<Account> accounts = findProblemAccounts(processedAccounts, problematicAccounts, level);
+        if (accounts.isEmpty()) {
+            return;
         }
-        if (!yellowAccounts.isEmpty()) {
-            Label yellowLabel = new Label(I18n.tr("autoYellowPartiallySuccessful"));
-            yellowLabel.setStyle(STYLE_YELLOW_LABEL);
-            accountsBox.getChildren().add(yellowLabel);
-            addProblemAccountsToDeleteBox(accountsBox, yellowAccounts, problematicAccounts);
-        }
+        Label label = new Label(title);
+        label.setStyle(style);
+        accountsBox.getChildren().add(label);
+        addProblemAccountsToDeleteBox(accountsBox, accounts, problematicAccounts);
+    }
 
+    private List<Account> findProblemAccounts(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts,
+                                              SummaryLevel level) {
+        return processedAccounts.stream()
+                .filter(a -> problematicAccounts.containsKey(a.getDbId()))
+                .filter(a -> problematicAccounts.get(a.getDbId()).level == level)
+                .collect(Collectors.toList());
+    }
+
+    private HBox buildProblemAccountsButtons(Stage popupStage, VBox accountsBox) {
         Button deleteButton = new Button(I18n.tr("autoDeleteSelected"));
         deleteButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-weight: bold;");
-        deleteButton.setOnAction(e -> {
-            List<Account> toDelete = accountsBox.getChildren().stream()
-                    .filter(n -> n instanceof CheckBox && ((CheckBox) n).isSelected())
-                    .map(n -> (Account) n.getUserData())
-                    .collect(Collectors.toList());
-
-            if (toDelete.isEmpty()) return;
-
-            Alert alert = new Alert(
-                    Alert.AlertType.CONFIRMATION,
-                    I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),
-                    ButtonType.YES,
-                    ButtonType.NO
-            );
-            if (RootApplication.currentTheme != null) {
-                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
-            }
-            alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
-                    ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
-                    : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
-            alert.showAndWait().ifPresent(response -> {
-                if (response == ButtonType.YES) {
-                    toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
-                    if (onAccountsDeleted != null) {
-                        onAccountsDeleted.run();
-                    }
-                    popupStage.close();
-                }
-            });
-        });
+        deleteButton.setOnAction(e -> deleteSelectedProblemAccounts(popupStage, accountsBox));
 
         Button cancelButton = new Button(I18n.tr("autoCancel"));
         cancelButton.setOnAction(e -> popupStage.close());
 
         HBox buttons = new HBox(10, deleteButton, cancelButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
+        return buttons;
+    }
 
-        root.getChildren().addAll(warningLabel, selectAll, scrollPane, buttons);
+    private void deleteSelectedProblemAccounts(Stage popupStage, VBox accountsBox) {
+        List<Account> toDelete = selectedProblemAccounts(accountsBox);
+        if (toDelete.isEmpty()) {
+            return;
+        }
+        confirmDeleteProblemAccounts(toDelete).ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                deleteAccountsAndRefresh(toDelete);
+                popupStage.close();
+            }
+        });
+    }
 
+    private List<Account> selectedProblemAccounts(VBox accountsBox) {
+        return accountsBox.getChildren().stream()
+                .filter(n -> n instanceof CheckBox && ((CheckBox) n).isSelected())
+                .map(n -> (Account) n.getUserData())
+                .collect(Collectors.toList());
+    }
+
+    private java.util.Optional<ButtonType> confirmDeleteProblemAccounts(List<Account> toDelete) {
+        Alert alert = new Alert(
+                Alert.AlertType.CONFIRMATION,
+                I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),
+                ButtonType.YES,
+                ButtonType.NO
+        );
+        if (RootApplication.currentTheme != null) {
+            alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        }
+        alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
+                ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
+                : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
+        return alert.showAndWait();
+    }
+
+    private void deleteAccountsAndRefresh(List<Account> toDelete) {
+        toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
+        if (onAccountsDeleted != null) {
+            onAccountsDeleted.run();
+        }
+    }
+
+    private Scene buildProblemAccountsScene(VBox root) {
         Scene scene = new Scene(root, 500, 500);
         I18n.applySceneOrientation(scene);
         if (RootApplication.currentTheme != null) {
             scene.getStylesheets().add(RootApplication.currentTheme);
         }
-        popupStage.setScene(scene);
-        popupStage.show();
+        return scene;
     }
 
     private void addProblemAccountsToDeleteBox(VBox accountsBox, List<Account> accounts, Map<String, SummaryStatus> problematicAccounts) {
@@ -675,50 +729,62 @@ public class ReloadCachePopup extends VBox {
             latestSummaryLines.clear();
             return;
         }
-
-        int successCount = 0;
-        int yellowCount = 0;
-        int badCount = 0;
-
-        List<String> yellowNames = new ArrayList<>();
-        List<String> badNames = new ArrayList<>();
-
-        for (Account account : processedAccounts) {
-            SummaryStatus summary = latestAccountSummaries.get(account.getDbId());
-            if (summary == null) {
-                AccountRunStatus status = finalStatuses.get(account.getDbId());
-                if (status == AccountRunStatus.DONE) {
-                    successCount++;
-                } else {
-                    badCount++;
-                    badNames.add(account.getAccountName());
-                }
-                continue;
-            }
-            if (summary.level == SummaryLevel.GOOD) {
-                successCount++;
-            } else if (summary.level == SummaryLevel.YELLOW) {
-                yellowCount++;
-                yellowNames.add(account.getAccountName());
-            } else {
-                badCount++;
-                badNames.add(account.getAccountName());
-            }
-        }
-
+        RunSummary summary = buildRunSummary(processedAccounts, finalStatuses);
         latestSummaryLines.clear();
         latestSummaryLines.add(I18n.tr("reloadSummaryCompleted", processedAccounts.size(), processedAccounts.size()));
-        latestSummaryLines.add(I18n.tr("reloadSummaryGood", successCount));
-        latestSummaryLines.add(I18n.tr("reloadSummaryYellow", yellowCount));
-        latestSummaryLines.add(I18n.tr("reloadSummaryBad", badCount));
+        latestSummaryLines.add(I18n.tr("reloadSummaryGood", summary.successCount));
+        latestSummaryLines.add(I18n.tr("reloadSummaryYellow", summary.yellowCount));
+        latestSummaryLines.add(I18n.tr("reloadSummaryBad", summary.badCount));
         latestSummaryLines.add(I18n.tr("reloadSummaryChannelsLoaded", totalSuccessChannels));
-        if (!yellowNames.isEmpty()) {
-            latestSummaryLines.add(I18n.tr("reloadSummaryYellowAccounts", String.join(", ", yellowNames)));
+        if (!summary.yellowNames.isEmpty()) {
+            latestSummaryLines.add(I18n.tr("reloadSummaryYellowAccounts", String.join(", ", summary.yellowNames)));
         }
-        if (!badNames.isEmpty()) {
-            latestSummaryLines.add(I18n.tr("reloadSummaryBadAccounts", String.join(", ", badNames)));
+        if (!summary.badNames.isEmpty()) {
+            latestSummaryLines.add(I18n.tr("reloadSummaryBadAccounts", String.join(", ", summary.badNames)));
         }
+        VBox summaryBox = buildRunSummaryBox();
+        logVBox.getChildren().add(new Separator());
+        logVBox.getChildren().add(summaryBox);
+        logScrollPane.setVvalue(1.0);
+    }
 
+    private RunSummary buildRunSummary(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses) {
+        RunSummary summary = new RunSummary();
+        for (Account account : processedAccounts) {
+            applyAccountSummary(summary, account, finalStatuses.get(account.getDbId()));
+        }
+        return summary;
+    }
+
+    private void applyAccountSummary(RunSummary summary, Account account, AccountRunStatus fallbackStatus) {
+        SummaryStatus accountSummary = latestAccountSummaries.get(account.getDbId());
+        if (accountSummary == null) {
+            applyFallbackRunStatus(summary, account, fallbackStatus);
+            return;
+        }
+        if (accountSummary.level == SummaryLevel.GOOD) {
+            summary.successCount++;
+            return;
+        }
+        if (accountSummary.level == SummaryLevel.YELLOW) {
+            summary.yellowCount++;
+            summary.yellowNames.add(account.getAccountName());
+            return;
+        }
+        summary.badCount++;
+        summary.badNames.add(account.getAccountName());
+    }
+
+    private void applyFallbackRunStatus(RunSummary summary, Account account, AccountRunStatus fallbackStatus) {
+        if (fallbackStatus == AccountRunStatus.DONE) {
+            summary.successCount++;
+            return;
+        }
+        summary.badCount++;
+        summary.badNames.add(account.getAccountName());
+    }
+
+    private VBox buildRunSummaryBox() {
         VBox summaryBox = new VBox(4);
         summaryBox.setPadding(new Insets(10));
         summaryBox.setStyle("-fx-background-color: derive(-fx-control-inner-background, -2%);"
@@ -729,16 +795,20 @@ public class ReloadCachePopup extends VBox {
         Label title = new Label(I18n.tr("autoRunSummary"));
         title.setStyle("-fx-font-weight: bold;");
         summaryBox.getChildren().add(title);
-
         for (String line : latestSummaryLines) {
             Label label = new Label(line);
             label.setWrapText(true);
             summaryBox.getChildren().add(label);
         }
+        return summaryBox;
+    }
 
-        logVBox.getChildren().add(new Separator());
-        logVBox.getChildren().add(summaryBox);
-        logScrollPane.setVvalue(1.0);
+    private static final class RunSummary {
+        private int successCount;
+        private int yellowCount;
+        private int badCount;
+        private final List<String> yellowNames = new ArrayList<>();
+        private final List<String> badNames = new ArrayList<>();
     }
 
     private void setRunningAccount(Account currentAccount, int current, int total) {

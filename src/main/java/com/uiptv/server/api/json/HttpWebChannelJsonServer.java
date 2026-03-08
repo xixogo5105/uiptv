@@ -189,7 +189,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         response.put("items", items);
         response.put("nextPage", page + Math.max(prefetchPages, 1));
         response.put("hasMore", end < all.length());
-        response.put("apiOffset", 0);
+        response.put(PARAM_API_OFFSET, 0);
         return response.toString();
     }
 

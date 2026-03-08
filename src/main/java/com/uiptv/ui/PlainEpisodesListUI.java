@@ -46,61 +46,84 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void initWidgets() {
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        tableView.getColumns().add(createNameColumn());
+        configureRowInteractions();
+        contentStack.getChildren().add(buildTableBody());
+    }
+
+    private TableColumn<EpisodeItem, String> createNameColumn() {
         TableColumn<EpisodeItem, String> nameCol = new TableColumn<>(I18n.tr("autoEpisodes"));
         nameCol.setCellValueFactory(cellData -> cellData.getValue().episodeNameProperty());
         nameCol.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
+                updateEpisodeCell(item, empty);
+            }
+
+            private void updateEpisodeCell(String item, boolean empty) {
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
-                } else {
-                    EpisodeItem row = getTableView().getItems().get(getIndex());
-                    HBox box = new HBox(10);
-                    box.setAlignment(Pos.CENTER_LEFT);
-                    box.getChildren().add(new Label(buildEpisodeDisplayTitle(
-                            row.getSeason(),
-                            row.getEpisodeNumber(),
-                            item
-                    )));
-
-                    if (row.isWatched()) {
-                        Label watched = new Label(I18n.tr("autoWatching"));
-                        watched.getStyleClass().add("drm-badge");
-                        box.getChildren().add(watched);
-                    }
-                    setGraphic(box);
+                    return;
                 }
+                EpisodeItem row = getTableView().getItems().get(getIndex());
+                setGraphic(buildEpisodeCellGraphic(row, item));
             }
         });
+        return nameCol;
+    }
 
-        tableView.getColumns().add(nameCol);
+    private HBox buildEpisodeCellGraphic(EpisodeItem row, String item) {
+        HBox box = new HBox(10);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().add(new Label(buildEpisodeDisplayTitle(
+                row.getSeason(),
+                row.getEpisodeNumber(),
+                item
+        )));
+        if (row.isWatched()) {
+            Label watched = new Label(I18n.tr("autoWatching"));
+            watched.getStyleClass().add("drm-badge");
+            box.getChildren().add(watched);
+        }
+        return box;
+    }
+
+    private void configureRowInteractions() {
         tableView.setRowFactory(tv -> {
             TableRow<EpisodeItem> row = new TableRow<>();
-            row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
-                }
-            });
+            row.setOnMouseClicked(event -> handleEpisodeRowClick(row, event));
             addRightClickContextMenu(row);
             return row;
         });
         tableView.setOnKeyPressed(event -> {
             if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                EpisodeItem selected = tableView.getSelectionModel().getSelectedItem();
-                if (selected != null) {
-                    play(selected, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-                }
+                playSelectedEpisode();
             }
         });
+    }
 
+    private void handleEpisodeRowClick(TableRow<EpisodeItem> row, javafx.scene.input.MouseEvent event) {
+        if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+        }
+    }
+
+    private void playSelectedEpisode() {
+        EpisodeItem selected = tableView.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            play(selected, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+        }
+    }
+
+    private VBox buildTableBody() {
         VBox body = new VBox(0, tableView);
         body.setMaxWidth(Double.MAX_VALUE);
         body.setMaxHeight(Double.MAX_VALUE);
         HBox.setHgrow(body, Priority.ALWAYS);
         VBox.setVgrow(tableView, Priority.ALWAYS);
-        contentStack.getChildren().add(body);
+        return body;
     }
 
     @Override

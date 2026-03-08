@@ -343,46 +343,61 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
 
         String current = inputUrl;
-        String lower = current.toLowerCase();
-        boolean forceHttpChain = lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE);
+        boolean forceHttpChain = isForcedHttpChain(current);
         if (!forceHttpChain) {
             return current;
         }
 
         for (int i = 0; i < 5; i++) {
             try {
-                HttpUtil.HttpResult response = HttpUtil.sendRequest(
-                        current,
-                        Map.of("User-Agent", USER_AGENT),
-                        "GET",
-                        null,
-                        new HttpUtil.RequestOptions(false, false)
-                );
-                int status = response.statusCode();
-                if (status < 300 || status > 399) {
+                HttpUtil.HttpResult response = followRedirectResponse(current);
+                if (!isRedirect(response.statusCode())) {
                     return current;
                 }
-
-                String location = firstHeader(response.responseHeaders(), HEADER_LOCATION);
-                if (isBlank(location)) {
-                    return forceHttpChain && current.toLowerCase().startsWith(HTTPS_PREFIX)
-                            ? HTTP_PREFIX + current.substring(HTTPS_PREFIX.length())
-                            : current;
-                }
-
-                URI base = URI.create(current);
-                URI resolved = base.resolve(location);
-                current = resolved.toString();
-                if (forceHttpChain && current.toLowerCase().startsWith(HTTPS_PREFIX)) {
-                    current = HTTP_PREFIX + current.substring(HTTPS_PREFIX.length());
-                } else {
-                    current = downgradeHttpsToHttp(current);
-                }
+                current = resolveRedirectTarget(current, response, forceHttpChain);
             } catch (Exception _) {
                 return current;
             }
         }
         return current;
+    }
+
+    private boolean isForcedHttpChain(String url) {
+        String lower = url.toLowerCase();
+        return lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE);
+    }
+
+    private HttpUtil.HttpResult followRedirectResponse(String current) throws Exception {
+        return HttpUtil.sendRequest(
+                current,
+                Map.of("User-Agent", USER_AGENT),
+                "GET",
+                null,
+                new HttpUtil.RequestOptions(false, false)
+        );
+    }
+
+    private boolean isRedirect(int status) {
+        return status >= 300 && status <= 399;
+    }
+
+    private String resolveRedirectTarget(String current, HttpUtil.HttpResult response, boolean forceHttpChain) {
+        String location = firstHeader(response.responseHeaders(), HEADER_LOCATION);
+        if (isBlank(location)) {
+            return forceHttpChain && current.toLowerCase().startsWith(HTTPS_PREFIX)
+                    ? HTTP_PREFIX + current.substring(HTTPS_PREFIX.length())
+                    : current;
+        }
+        URI base = URI.create(current);
+        URI resolved = base.resolve(location);
+        return normalizeRedirectUrl(resolved.toString(), forceHttpChain);
+    }
+
+    private String normalizeRedirectUrl(String url, boolean forceHttpChain) {
+        if (forceHttpChain && url.toLowerCase().startsWith(HTTPS_PREFIX)) {
+            return HTTP_PREFIX + url.substring(HTTPS_PREFIX.length());
+        }
+        return downgradeHttpsToHttp(url);
     }
 
     private String firstHeader(Map<String, List<String>> headers, String name) {

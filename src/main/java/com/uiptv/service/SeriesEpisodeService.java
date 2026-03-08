@@ -168,40 +168,88 @@ public class SeriesEpisodeService {
             if (channel == null) {
                 continue;
             }
-            Episode parsed = Episode.fromJson(channel.getExtraJson());
-            Episode episode = new Episode();
-            if (isParsedEpisodeCompatible(parsed, channel)) {
-                episode = parsed;
-            } else {
-                episode.setId(channel.getChannelId());
-                episode.setTitle(channel.getName());
-                episode.setCmd(channel.getCmd());
-                episode.setSeason(isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason());
-                episode.setEpisodeNum(isBlank(channel.getEpisodeNum()) ? extractEpisode(channel.getName()) : channel.getEpisodeNum());
-            }
-            if (isBlank(episode.getId())) episode.setId(channel.getChannelId());
-            if (isBlank(episode.getTitle())) episode.setTitle(channel.getName());
-            if (isBlank(episode.getCmd())) episode.setCmd(channel.getCmd());
-            if (isBlank(episode.getSeason())) episode.setSeason(isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason());
-            if (isBlank(episode.getEpisodeNum())) episode.setEpisodeNum(isBlank(channel.getEpisodeNum()) ? extractEpisode(channel.getName()) : channel.getEpisodeNum());
-            EpisodeInfo info = new EpisodeInfo();
-            info.setMovieImage(channel.getLogo());
-            info.setPlot(channel.getDescription());
-            info.setReleaseDate(channel.getReleaseDate());
-            info.setRating(channel.getRating());
-            info.setDuration(channel.getDuration());
-            if (episode.getInfo() == null) {
-                episode.setInfo(info);
-            } else {
-                if (isBlank(episode.getInfo().getMovieImage())) episode.getInfo().setMovieImage(info.getMovieImage());
-                if (isBlank(episode.getInfo().getPlot())) episode.getInfo().setPlot(info.getPlot());
-                if (isBlank(episode.getInfo().getReleaseDate())) episode.getInfo().setReleaseDate(info.getReleaseDate());
-                if (isBlank(episode.getInfo().getRating())) episode.getInfo().setRating(info.getRating());
-                if (isBlank(episode.getInfo().getDuration())) episode.getInfo().setDuration(info.getDuration());
-            }
-            list.episodes.add(episode);
+            list.episodes.add(toEpisode(channel));
         }
         return list;
+    }
+
+    private Episode toEpisode(Channel channel) {
+        Episode episode = restoreEpisode(channel);
+        populateEpisodeFallbacks(episode, channel);
+        mergeEpisodeInfo(episode, buildEpisodeInfo(channel));
+        return episode;
+    }
+
+    private Episode restoreEpisode(Channel channel) {
+        Episode parsed = Episode.fromJson(channel.getExtraJson());
+        if (isParsedEpisodeCompatible(parsed, channel)) {
+            return parsed;
+        }
+        Episode episode = new Episode();
+        episode.setId(channel.getChannelId());
+        episode.setTitle(channel.getName());
+        episode.setCmd(channel.getCmd());
+        episode.setSeason(resolveEpisodeSeason(channel));
+        episode.setEpisodeNum(resolveEpisodeNumber(channel));
+        return episode;
+    }
+
+    private void populateEpisodeFallbacks(Episode episode, Channel channel) {
+        if (isBlank(episode.getId())) {
+            episode.setId(channel.getChannelId());
+        }
+        if (isBlank(episode.getTitle())) {
+            episode.setTitle(channel.getName());
+        }
+        if (isBlank(episode.getCmd())) {
+            episode.setCmd(channel.getCmd());
+        }
+        if (isBlank(episode.getSeason())) {
+            episode.setSeason(resolveEpisodeSeason(channel));
+        }
+        if (isBlank(episode.getEpisodeNum())) {
+            episode.setEpisodeNum(resolveEpisodeNumber(channel));
+        }
+    }
+
+    private String resolveEpisodeSeason(Channel channel) {
+        return isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason();
+    }
+
+    private String resolveEpisodeNumber(Channel channel) {
+        return isBlank(channel.getEpisodeNum()) ? extractEpisode(channel.getName()) : channel.getEpisodeNum();
+    }
+
+    private EpisodeInfo buildEpisodeInfo(Channel channel) {
+        EpisodeInfo info = new EpisodeInfo();
+        info.setMovieImage(channel.getLogo());
+        info.setPlot(channel.getDescription());
+        info.setReleaseDate(channel.getReleaseDate());
+        info.setRating(channel.getRating());
+        info.setDuration(channel.getDuration());
+        return info;
+    }
+
+    private void mergeEpisodeInfo(Episode episode, EpisodeInfo info) {
+        if (episode.getInfo() == null) {
+            episode.setInfo(info);
+            return;
+        }
+        if (isBlank(episode.getInfo().getMovieImage())) {
+            episode.getInfo().setMovieImage(info.getMovieImage());
+        }
+        if (isBlank(episode.getInfo().getPlot())) {
+            episode.getInfo().setPlot(info.getPlot());
+        }
+        if (isBlank(episode.getInfo().getReleaseDate())) {
+            episode.getInfo().setReleaseDate(info.getReleaseDate());
+        }
+        if (isBlank(episode.getInfo().getRating())) {
+            episode.getInfo().setRating(info.getRating());
+        }
+        if (isBlank(episode.getInfo().getDuration())) {
+            episode.getInfo().setDuration(info.getDuration());
+        }
     }
 
     private boolean isParsedEpisodeCompatible(Episode parsed, Channel channel) {

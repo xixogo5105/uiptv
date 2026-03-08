@@ -281,34 +281,53 @@ public class AccountListUI extends HBox {
     }
 
     private void addAccountClickHandler() {
-        table.setOnKeyReleased(event -> {
-            AccountItem focusedItem = (AccountItem) table.getFocusModel().getFocusedItem();
-            if (!embeddedMode && focusedItem != null && onEditCallback != null) {
-                onEditCallback.call(accountService.getById(focusedItem.accountId.get()));
-            }
-            if (event.getCode() == KeyCode.DELETE) {
-                handleDeleteAccounts();
-            } else if (event.getCode() == KeyCode.ENTER) {
-                if (isPromptShowing) {
-                    event.consume();
-                    isPromptShowing = false;
-                } else {
-                    retrieveThreadedAccountCategories((AccountItem) table.getFocusModel().getFocusedItem(), itv);
-                }
-            }
-        });
+        table.setOnKeyReleased(this::handleAccountKeyReleased);
         table.setRowFactory(tv -> {
             TableRow<AccountItem> row = new TableRow<>();
-            row.setOnMouseClicked(event -> {
-                if (!embeddedMode && !row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-                    openManageAccount(row.getItem());
-                } else if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    retrieveThreadedAccountCategories(row.getItem(), itv);
-                }
-            });
+            row.setOnMouseClicked(event -> handleAccountRowClick(row, event));
             addRightClickContextMenu(row);
             return row;
         });
+    }
+
+    private void handleAccountKeyReleased(javafx.scene.input.KeyEvent event) {
+        AccountItem focusedItem = (AccountItem) table.getFocusModel().getFocusedItem();
+        openFocusedAccountForEditing(focusedItem);
+        if (event.getCode() == KeyCode.DELETE) {
+            handleDeleteAccounts();
+            return;
+        }
+        if (event.getCode() == KeyCode.ENTER) {
+            handleEnterKey(event, focusedItem);
+        }
+    }
+
+    private void openFocusedAccountForEditing(AccountItem focusedItem) {
+        if (!embeddedMode && focusedItem != null && onEditCallback != null) {
+            onEditCallback.call(accountService.getById(focusedItem.accountId.get()));
+        }
+    }
+
+    private void handleEnterKey(javafx.scene.input.KeyEvent event, AccountItem focusedItem) {
+        if (isPromptShowing) {
+            event.consume();
+            isPromptShowing = false;
+            return;
+        }
+        retrieveThreadedAccountCategories(focusedItem, itv);
+    }
+
+    private void handleAccountRowClick(TableRow<AccountItem> row, javafx.scene.input.MouseEvent event) {
+        if (row.isEmpty() || event.getButton() != MouseButton.PRIMARY) {
+            return;
+        }
+        if (!embeddedMode && event.getClickCount() == 1) {
+            openManageAccount(row.getItem());
+            return;
+        }
+        if (event.getClickCount() == 2) {
+            retrieveThreadedAccountCategories(row.getItem(), itv);
+        }
     }
 
     private void addRightClickContextMenu(TableRow<AccountItem> row) {

@@ -262,48 +262,68 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private SeriesCacheInfo resolveSeriesInfoFromCache(Account account, SeriesWatchState state) {
-        String title = state.getSeriesId();
-        String poster = "";
-        boolean resolved = false;
+        SeriesCacheInfo directMatch = resolveSeriesInfoFromCandidateCategories(account, state);
+        if (!needsSeriesCacheFallback(directMatch, state)) {
+            return directMatch;
+        }
+        SeriesCacheInfo fallbackMatch = resolveSeriesInfoFromAllCategories(account, state, directMatch);
+        return fallbackMatch != null ? fallbackMatch : directMatch;
+    }
 
+    private SeriesCacheInfo resolveSeriesInfoFromCandidateCategories(Account account, SeriesWatchState state) {
+        String defaultTitle = state.getSeriesId();
+        for (String categoryCandidate : buildSeriesCategoryCandidates(account, state)) {
+            Channel match = findSeriesChannel(account, categoryCandidate, state.getSeriesId());
+            if (match != null) {
+                return buildSeriesCacheInfo(match, account, defaultTitle, true);
+            }
+        }
+        return new SeriesCacheInfo(firstNonBlank(defaultTitle, state.getSeriesId()), "", false);
+    }
+
+    private List<String> buildSeriesCategoryCandidates(Account account, SeriesWatchState state) {
         String categoryDbId = resolveSeriesCategoryDbId(account, state.getCategoryId());
         List<String> categoryCandidates = new ArrayList<>();
         categoryCandidates.add(safe(state.getCategoryId()));
         if (!isBlank(categoryDbId)) {
             categoryCandidates.add(categoryDbId);
         }
-        for (String categoryCandidate : categoryCandidates) {
-            if (isBlank(categoryCandidate)) {
-                continue;
-            }
-            List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryCandidate);
-            Channel match = channels.stream().filter(c -> safe(c.getChannelId()).equals(safe(state.getSeriesId()))).findFirst().orElse(null);
+        return categoryCandidates;
+    }
+
+    private boolean needsSeriesCacheFallback(SeriesCacheInfo cacheInfo, SeriesWatchState state) {
+        return cacheInfo == null
+                || isBlank(cacheInfo.seriesTitle)
+                || cacheInfo.seriesTitle.equals(state.getSeriesId());
+    }
+
+    private SeriesCacheInfo resolveSeriesInfoFromAllCategories(Account account, SeriesWatchState state, SeriesCacheInfo current) {
+        List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
+        for (Category category : categories) {
+            Channel match = findSeriesChannel(account, category.getDbId(), state.getSeriesId());
             if (match != null) {
-                if (!isBlank(match.getName())) {
-                    title = match.getName();
-                }
-                poster = firstNonBlank(normalizeImageUrl(match.getLogo(), account), poster);
-                resolved = true;
-                break;
+                String defaultTitle = current == null ? state.getSeriesId() : current.seriesTitle;
+                return buildSeriesCacheInfo(match, account, defaultTitle, true);
             }
         }
+        return null;
+    }
 
-        if (isBlank(title) || title.equals(state.getSeriesId())) {
-            // Fallback: try any cached category if state category mapping is missing.
-            List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
-            for (Category category : categories) {
-                List<Channel> channels = SeriesChannelDb.get().getChannels(account, category.getDbId());
-                Channel match = channels.stream().filter(c -> safe(c.getChannelId()).equals(safe(state.getSeriesId()))).findFirst().orElse(null);
-                if (match != null) {
-                    title = firstNonBlank(match.getName(), title);
-                    poster = firstNonBlank(normalizeImageUrl(match.getLogo(), account), poster);
-                    resolved = true;
-                    break;
-                }
-            }
+    private Channel findSeriesChannel(Account account, String categoryId, String seriesId) {
+        if (isBlank(categoryId)) {
+            return null;
         }
+        List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryId);
+        return channels.stream()
+                .filter(c -> safe(c.getChannelId()).equals(safe(seriesId)))
+                .findFirst()
+                .orElse(null);
+    }
 
-        return new SeriesCacheInfo(firstNonBlank(title, state.getSeriesId()), poster, resolved);
+    private SeriesCacheInfo buildSeriesCacheInfo(Channel match, Account account, String defaultTitle, boolean resolved) {
+        String title = firstNonBlank(match.getName(), defaultTitle);
+        String poster = firstNonBlank(normalizeImageUrl(match.getLogo(), account), "");
+        return new SeriesCacheInfo(firstNonBlank(title, defaultTitle), poster, resolved);
     }
 
     private SnapshotScope resolveSnapshotScope(SeriesWatchState state) {
@@ -1649,17 +1669,25 @@ public abstract class BaseWatchingNowUI extends VBox {
         SeriesPanelData renderedPanel = panelDataByKey.get(renderedDetailKey);
         String renderedAccountId = renderedPanel != null && renderedPanel.account != null ? safe(renderedPanel.account.getDbId()) : "";
         String renderedSeriesId = renderedPanel != null && renderedPanel.state != null ? safe(renderedPanel.state.getSeriesId()) : "";
-        boolean renderedPanelReused = false;
+        removeSeriesPanels(accountId, seriesId);
+        boolean renderedPanelReused = mergeUpdatedSeriesPanels(updated, renderedPanel, renderedAccountId, renderedSeriesId);
+        if (!refreshSelectedSeriesDetail(renderedPanel, renderedPanelReused)) {
+            renderCurrentView();
+        }
+    }
 
+    private void removeSeriesPanels(String accountId, String seriesId) {
         String prefix = safe(accountId) + "|";
         String suffix = "|" + safe(seriesId);
         panelDataByKey.keySet().removeIf(key -> key.startsWith(prefix) && key.endsWith(suffix));
+    }
+
+    private boolean mergeUpdatedSeriesPanels(List<SeriesPanelData> updated, SeriesPanelData renderedPanel,
+                                             String renderedAccountId, String renderedSeriesId) {
+        boolean renderedPanelReused = false;
         for (SeriesPanelData panel : updated) {
             String key = seriesPaneKey(panel);
-            boolean isRenderedSeries = renderedPanel != null
-                    && safe(panel.account.getDbId()).equals(renderedAccountId)
-                    && safe(panel.state.getSeriesId()).equals(renderedSeriesId);
-            if (isRenderedSeries) {
+            if (isRenderedSeriesPanel(panel, renderedPanel, renderedAccountId, renderedSeriesId)) {
                 mergePanelInPlace(renderedPanel, panel);
                 panelDataByKey.put(key, renderedPanel);
                 selectedSeriesKey = key;
@@ -1669,19 +1697,30 @@ public abstract class BaseWatchingNowUI extends VBox {
                 panelDataByKey.put(key, panel);
             }
         }
+        return renderedPanelReused;
+    }
 
-        if (!isBlank(selectedSeriesKey)) {
-            SeriesPanelData selected = panelDataByKey.get(selectedSeriesKey);
-            if (selected != null && selectedSeriesKey.equals(renderedDetailKey)) {
-                refreshSelectedDetailInPlace(selected);
-                return;
-            }
-            if (renderedPanelReused && renderedPanel != null && selectedSeriesKey.equals(renderedDetailKey)) {
-                refreshSelectedDetailInPlace(renderedPanel);
-                return;
-            }
+    private boolean isRenderedSeriesPanel(SeriesPanelData panel, SeriesPanelData renderedPanel,
+                                          String renderedAccountId, String renderedSeriesId) {
+        return renderedPanel != null
+                && safe(panel.account.getDbId()).equals(renderedAccountId)
+                && safe(panel.state.getSeriesId()).equals(renderedSeriesId);
+    }
+
+    private boolean refreshSelectedSeriesDetail(SeriesPanelData renderedPanel, boolean renderedPanelReused) {
+        if (isBlank(selectedSeriesKey)) {
+            return false;
         }
-        renderCurrentView();
+        SeriesPanelData selected = panelDataByKey.get(selectedSeriesKey);
+        if (selected != null && selectedSeriesKey.equals(renderedDetailKey)) {
+            refreshSelectedDetailInPlace(selected);
+            return true;
+        }
+        if (renderedPanelReused && renderedPanel != null && selectedSeriesKey.equals(renderedDetailKey)) {
+            refreshSelectedDetailInPlace(renderedPanel);
+            return true;
+        }
+        return false;
     }
 
     private void mergePanelInPlace(SeriesPanelData target, SeriesPanelData source) {
