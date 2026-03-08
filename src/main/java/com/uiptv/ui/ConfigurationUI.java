@@ -52,6 +52,7 @@ public class ConfigurationUI extends VBox {
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
+    private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private String dbId;
@@ -140,19 +141,9 @@ public class ConfigurationUI extends VBox {
         initializeLanguageSelection(configuration);
         initializeThemeZoomSelection(configuration);
         currentThemeCssOverride = themeCssOverrideService.read();
-        defaultPlayer1.setToggleGroup(group);
-        defaultPlayer2.setToggleGroup(group);
-        defaultPlayer3.setToggleGroup(group);
-        defaultEmbedPlayer.setToggleGroup(group);
-        defaultWebBrowserPlayer.setToggleGroup(group);
-
+        configurePlayerToggleGroup();
         updateEmbeddedPlayerTitle();
-
-        defaultPlayer1.setUserData("defaultPlayer1");
-        defaultPlayer2.setUserData("defaultPlayer2");
-        defaultPlayer3.setUserData("defaultPlayer3");
-        defaultEmbedPlayer.setUserData("defaultEmbedPlayer");
-        defaultWebBrowserPlayer.setUserData("defaultWebBrowserPlayer");
+        configurePlayerUserData();
         defaultEmbedPlayer.setSelected(true);
         if (configuration != null) {
             this.dbId = configuration.getDbId();
@@ -161,17 +152,6 @@ public class ConfigurationUI extends VBox {
             playerPath3.setText(configuration.getPlayerPath3());
             filterCategoriesWithTextContains.setText(configuration.getFilterCategoriesList());
             filterChannelWithTextContains.setText(configuration.getFilterChannelsList());
-            if (playerPath1.getText() != null && playerPath1.getText().equals(configuration.getDefaultPlayerPath())) {
-                defaultPlayer1.setSelected(true);
-            } else if (playerPath2.getText() != null && playerPath2.getText().equals(configuration.getDefaultPlayerPath())) {
-                defaultPlayer2.setSelected(true);
-            } else if (playerPath3.getText() != null && playerPath3.getText().equals(configuration.getDefaultPlayerPath())) {
-                defaultPlayer3.setSelected(true);
-            } else if (PlaybackUIService.WEB_BROWSER_PLAYER_PATH.equals(configuration.getDefaultPlayerPath())) {
-                defaultWebBrowserPlayer.setSelected(true);
-            } else {
-                defaultEmbedPlayer.setSelected(true);
-            }
             filterPausedCheckBox.setSelected(configuration.isPauseFiltering());
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
@@ -182,6 +162,7 @@ public class ConfigurationUI extends VBox {
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
         }
+        selectDefaultPlayer(configuration);
         if (cacheExpiryDays.getText() == null || cacheExpiryDays.getText().isBlank()) {
             cacheExpiryDays.setText(String.valueOf(ConfigurationService.DEFAULT_CACHE_EXPIRY_DAYS));
         }
@@ -345,7 +326,7 @@ public class ConfigurationUI extends VBox {
 
         Label themeZoomHelpLabel = new Label(I18n.tr("configThemeZoomHelp"));
         themeZoomHelpLabel.setWrapText(true);
-        themeZoomHelpLabel.getStyleClass().add("dim-label");
+        themeZoomHelpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
 
         lightThemeCssStatus.setEditable(false);
         darkThemeCssStatus.setEditable(false);
@@ -394,7 +375,7 @@ public class ConfigurationUI extends VBox {
         GridPane.setHgrow(themeZoomComboBox, Priority.ALWAYS);
 
         VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid, themeZoomHelpLabel);
-        languageAndZoomSection.getStyleClass().add("uiptv-outline-pane");
+        languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
         addThemeCssButtonHandlers();
@@ -632,15 +613,48 @@ public class ConfigurationUI extends VBox {
     private void refreshServerStatusUI() {
         boolean running = UIptvServer.isRunning();
         if (running) {
-            if (!startServerButton.getStyleClass().contains("dangerous")) {
-                startServerButton.getStyleClass().add("dangerous");
+            if (!startServerButton.getStyleClass().contains(STYLE_CLASS_DANGEROUS)) {
+                startServerButton.getStyleClass().add(STYLE_CLASS_DANGEROUS);
             }
         } else {
-            startServerButton.getStyleClass().remove("dangerous");
+            startServerButton.getStyleClass().remove(STYLE_CLASS_DANGEROUS);
         }
         startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
+    }
+
+    private void configurePlayerToggleGroup() {
+        defaultPlayer1.setToggleGroup(group);
+        defaultPlayer2.setToggleGroup(group);
+        defaultPlayer3.setToggleGroup(group);
+        defaultEmbedPlayer.setToggleGroup(group);
+        defaultWebBrowserPlayer.setToggleGroup(group);
+    }
+
+    private void configurePlayerUserData() {
+        defaultPlayer1.setUserData("defaultPlayer1");
+        defaultPlayer2.setUserData("defaultPlayer2");
+        defaultPlayer3.setUserData("defaultPlayer3");
+        defaultEmbedPlayer.setUserData("defaultEmbedPlayer");
+        defaultWebBrowserPlayer.setUserData("defaultWebBrowserPlayer");
+    }
+
+    private void selectDefaultPlayer(Configuration configuration) {
+        if (configuration == null) {
+            return;
+        }
+        if (playerPath1.getText() != null && playerPath1.getText().equals(configuration.getDefaultPlayerPath())) {
+            defaultPlayer1.setSelected(true);
+        } else if (playerPath2.getText() != null && playerPath2.getText().equals(configuration.getDefaultPlayerPath())) {
+            defaultPlayer2.setSelected(true);
+        } else if (playerPath3.getText() != null && playerPath3.getText().equals(configuration.getDefaultPlayerPath())) {
+            defaultPlayer3.setSelected(true);
+        } else if (PlaybackUIService.WEB_BROWSER_PLAYER_PATH.equals(configuration.getDefaultPlayerPath())) {
+            defaultWebBrowserPlayer.setSelected(true);
+        } else {
+            defaultEmbedPlayer.setSelected(true);
+        }
     }
 
     private void addOpenServerLinkClickHandler() {

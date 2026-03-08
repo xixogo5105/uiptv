@@ -38,6 +38,10 @@ public class ImdbMetadataService {
     private static final String KEY_SEASON = "season";
     private static final String KEY_EPISODE_NUMBER = "episodeNum";
     private static final String KEY_TMDB_MEDIA_ID = "tmdbMediaId";
+    private static final String HEADER_ACCEPT_LANGUAGE = "Accept-Language";
+    private static final String HEADER_USER_AGENT = "User-Agent";
+    private static final String JSON_SUFFIX = ".json";
+    private static final String USER_AGENT_BROWSER = "Mozilla/5.0";
 
     public static ImdbMetadataService getInstance() {
         return INSTANCE;
@@ -194,7 +198,7 @@ public class ImdbMetadataService {
             String first = Character.toString(Character.toLowerCase(queryTitle.charAt(0)));
             if (!first.matches("[a-z0-9]")) first = "x";
             String url = "https://v2.sg.media-imdb.com/suggestion/" + first + "/" +
-                    URLEncoder.encode(queryTitle, StandardCharsets.UTF_8) + ".json";
+                    URLEncoder.encode(queryTitle, StandardCharsets.UTF_8) + JSON_SUFFIX;
             String body = httpGet(url);
             if (isBlank(body)) return null;
             JSONObject json = new JSONObject(body);
@@ -252,9 +256,9 @@ public class ImdbMetadataService {
 
             JSONObject data = new JSONObject(jsonLd);
             result.put("name", data.optString("name", ""));
-            result.put("cover", data.optString("image", ""));
+            result.put(KEY_COVER, data.optString("image", ""));
             result.put("plot", data.optString("description", ""));
-            result.put("releaseDate", data.optString("datePublished", ""));
+            result.put(KEY_RELEASE_DATE, data.optString("datePublished", ""));
 
             JSONObject rating = data.optJSONObject("aggregateRating");
             if (rating != null) {
@@ -284,7 +288,7 @@ public class ImdbMetadataService {
     private JSONObject fetchCinemetaSeriesDetails(String imdbId) {
         JSONObject result = new JSONObject();
         try {
-            String json = httpGet("https://v3-cinemeta.strem.io/meta/series/" + imdbId + ".json");
+            String json = httpGet("https://v3-cinemeta.strem.io/meta/series/" + imdbId + JSON_SUFFIX);
             if (isBlank(json)) {
                 return result;
             }
@@ -312,7 +316,7 @@ public class ImdbMetadataService {
                     episodesMeta.put(e);
                 }
                 enrichEpisodeMetaWithTvMaze(episodesMeta, imdbId, meta.optString("name", ""));
-                result.put("episodesMeta", episodesMeta);
+                result.put(KEY_EPISODES_META, episodesMeta);
             }
         } catch (Exception _) {
             // best effort
@@ -339,7 +343,7 @@ public class ImdbMetadataService {
             JSONObject row = tvMazeEpisodes.optJSONObject(i);
             if (row == null) continue;
 
-            String season = safeNumeric(String.valueOf(row.optInt("season", 0)));
+            String season = safeNumeric(String.valueOf(row.optInt(KEY_SEASON, 0)));
             String episode = safeNumeric(String.valueOf(row.optInt("number", 0)));
             if (isNotBlank(season) && isNotBlank(episode)) {
                 bySeasonEpisode.put(season + ":" + episode, row);
@@ -474,7 +478,7 @@ public class ImdbMetadataService {
     private JSONObject fetchCinemetaMovieDetails(String imdbId) {
         JSONObject result = new JSONObject();
         try {
-            String json = httpGet("https://v3-cinemeta.strem.io/meta/movie/" + imdbId + ".json");
+            String json = httpGet("https://v3-cinemeta.strem.io/meta/movie/" + imdbId + JSON_SUFFIX);
             if (isBlank(json)) {
                 return result;
             }
@@ -492,9 +496,9 @@ public class ImdbMetadataService {
 
     private void applyCinemetaMeta(JSONObject result, JSONObject meta) {
         result.put("name", meta.optString("name", ""));
-        result.put("cover", meta.optString("poster", ""));
+        result.put(KEY_COVER, meta.optString("poster", ""));
         result.put("plot", meta.optString("description", ""));
-        result.put("imdbUrl", isNotBlank(meta.optString("imdb_id", "")) ? "https://www.imdb.com/title/" + meta.optString("imdb_id", "") + "/" : "");
+        result.put(KEY_IMDB_URL, isNotBlank(meta.optString("imdb_id", "")) ? IMDB_TITLE_URL_PREFIX + meta.optString("imdb_id", "") + "/" : "");
         if (meta.has("moviedb_id")) {
             result.put(KEY_TMDB_MEDIA_ID, String.valueOf(meta.opt("moviedb_id")));
         }
@@ -523,11 +527,11 @@ public class ImdbMetadataService {
         String releaseInfo = meta.optString("releaseInfo", "");
         String released = meta.optString("released", "");
         if (isNotBlank(releaseInfo)) {
-            result.put("releaseDate", releaseInfo);
+            result.put(KEY_RELEASE_DATE, releaseInfo);
         } else if (isNotBlank(released)) {
-            result.put("releaseDate", released.substring(0, Math.min(10, released.length())));
+            result.put(KEY_RELEASE_DATE, released.substring(0, Math.min(10, released.length())));
         }
-        result.put("rating", meta.optString("imdbRating", ""));
+        result.put(KEY_RATING, meta.optString("imdbRating", ""));
     }
 
     private void applyTmdbLocalization(JSONObject details, JSONObject primaryMeta, JSONObject secondaryMeta, boolean moviePreferred) {
@@ -559,7 +563,7 @@ public class ImdbMetadataService {
         mergeMissing(details, localized, "cover");
         mergeMissing(details, localized, "rating");
         if (!moviePreferred) {
-            enrichEpisodesMetaWithTmdb(details.optJSONArray("episodesMeta"), tmdbId, localeTag);
+            enrichEpisodesMetaWithTmdb(details.optJSONArray(KEY_EPISODES_META), tmdbId, localeTag);
         }
     }
 
@@ -582,10 +586,7 @@ public class ImdbMetadataService {
                     .append("?language=")
                     .append(URLEncoder.encode(localeTag, StandardCharsets.UTF_8));
 
-            Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0");
-            headers.put("Accept-Language", buildAcceptLanguageHeader());
-            headers.put("Authorization", "Bearer " + bearerToken.trim());
+            Map<String, String> headers = buildTmdbHeaders(bearerToken);
 
             HttpUtil.HttpResult response = HttpUtil.sendRequest(url.toString(), headers, "GET");
             if (response.statusCode() != HttpUtil.STATUS_OK || isBlank(response.body())) {
@@ -681,10 +682,7 @@ public class ImdbMetadataService {
                     + "?language="
                     + URLEncoder.encode(localeTag, StandardCharsets.UTF_8);
 
-            Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0");
-            headers.put("Accept-Language", buildAcceptLanguageHeader());
-            headers.put("Authorization", "Bearer " + bearerToken.trim());
+            Map<String, String> headers = buildTmdbHeaders(bearerToken);
 
             HttpUtil.HttpResult response = HttpUtil.sendRequest(url, headers, "GET");
             if (response.statusCode() != HttpUtil.STATUS_OK || isBlank(response.body())) {
@@ -712,6 +710,14 @@ public class ImdbMetadataService {
             mapped.put("logo", "https://image.tmdb.org/t/p/w500" + stillPath);
         }
         return mapped;
+    }
+
+    private Map<String, String> buildTmdbHeaders(String bearerToken) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put(HEADER_USER_AGENT, USER_AGENT_BROWSER);
+        headers.put(HEADER_ACCEPT_LANGUAGE, buildAcceptLanguageHeader());
+        headers.put("Authorization", "Bearer " + bearerToken.trim());
+        return headers;
     }
 
     private String joinPersonNames(JSONArray people) {

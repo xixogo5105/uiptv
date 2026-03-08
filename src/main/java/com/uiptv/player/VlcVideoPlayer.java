@@ -311,46 +311,51 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return;
         }
 
-        videoImageView.fitWidthProperty().unbind();
-        videoImageView.fitHeightProperty().unbind();
-
         double containerWidth = playerContainer.getWidth();
         double containerHeight = playerContainer.getHeight();
-        videoImageView.setScaleX(1.0);
-        videoImageView.setScaleY(1.0);
-
-        if (aspectRatioMode == ASPECT_RATIO_STRETCH) { // Stretch to Fill
-            videoImageView.setFitWidth(containerWidth);
-            videoImageView.setFitHeight(containerHeight);
-            videoImageView.setPreserveRatio(false);
-        } else { // Fit or Fill (preserve aspect ratio)
-            videoImageView.setFitWidth(containerWidth);
-            videoImageView.setFitHeight(containerHeight);
-            videoImageView.setPreserveRatio(true);
-            if (aspectRatioMode == ASPECT_RATIO_FILL) {
-                applyFillZoom(containerWidth, containerHeight);
-            }
-        }
-
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null && player.media() != null && player.media().info() != null) {
-            List<VideoTrackInfo> tracks = player.media().info().videoTracks();
-            if (tracks != null && !tracks.isEmpty()) {
-                VideoTrackInfo track = tracks.get(0);
-                if (track.width() > 0 && track.height() > 0) {
-                    videoSourceWidth = track.width();
-                    videoSourceHeight = track.height();
-                }
-            }
-        }
+        resetVideoImageView(containerWidth, containerHeight);
+        refreshVideoSourceDimensions();
         if (aspectRatioMode == ASPECT_RATIO_FILL) {
             applyFillZoom(containerWidth, containerHeight);
         }
         if (!refreshRenderedImageStreamInfo() && videoSourceWidth > 0 && videoSourceHeight > 0) {
             updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        }
+    }
+
+    private void resetVideoImageView(double containerWidth, double containerHeight) {
+        videoImageView.fitWidthProperty().unbind();
+        videoImageView.fitHeightProperty().unbind();
+        videoImageView.setScaleX(1.0);
+        videoImageView.setScaleY(1.0);
+        videoImageView.setFitWidth(containerWidth);
+        videoImageView.setFitHeight(containerHeight);
+        if (aspectRatioMode == ASPECT_RATIO_STRETCH) {
+            videoImageView.setPreserveRatio(false);
+            return;
+        }
+        videoImageView.setPreserveRatio(true);
+        if (aspectRatioMode == ASPECT_RATIO_FILL) {
+            applyFillZoom(containerWidth, containerHeight);
+        }
+    }
+
+    private void refreshVideoSourceDimensions() {
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player == null || player.media() == null || player.media().info() == null) {
+            return;
+        }
+        List<VideoTrackInfo> tracks = player.media().info().videoTracks();
+        if (tracks == null || tracks.isEmpty()) {
+            return;
+        }
+        VideoTrackInfo track = tracks.get(0);
+        if (track.width() > 0 && track.height() > 0) {
+            videoSourceWidth = track.width();
+            videoSourceHeight = track.height();
         }
     }
 

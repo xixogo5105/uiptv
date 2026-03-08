@@ -46,6 +46,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class AccountListUI extends HBox {
+    private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final CacheService cacheService = new CacheServiceImpl();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
@@ -317,40 +318,16 @@ public class AccountListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
-        editAccount.setOnAction(actionEvent -> {
-            if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                openManageAccount(row.getItem());
-            }
-        });
+        editAccount.setOnAction(actionEvent -> runSingleSelectionAction(() -> openManageAccount(row.getItem())));
 
         MenuItem itv = new MenuItem(I18n.tr("autoTvChannels"));
-        itv.setOnAction(actionEvent -> {
-            if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv);
-            }
-        });
+        itv.setOnAction(actionEvent -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv)));
 
         MenuItem vod = new MenuItem(I18n.tr("autoVod"));
-        vod.setOnAction(actionEvent -> {
-            if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod);
-            }
-        });
+        vod.setOnAction(actionEvent -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod)));
 
         MenuItem series = new MenuItem(I18n.tr("autoSeries"));
-        series.setOnAction(actionEvent -> {
-            if (table.getSelectionModel().getSelectedItems().size() > 1) {
-                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-            } else {
-                retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series);
-            }
-        });
+        series.setOnAction(actionEvent -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series)));
 
         MenuItem reloadCache = new MenuItem(I18n.tr("autoReloadCache"));
         reloadCache.setOnAction(actionEvent -> handleReloadCache(row.getItem()));
@@ -392,6 +369,14 @@ public class AccountListUI extends HBox {
             return;
         }
         ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
+    }
+
+    private void runSingleSelectionAction(Runnable action) {
+        if (table.getSelectionModel().getSelectedItems().size() > 1) {
+            showErrorAlert(I18n.tr(MULTI_SELECTION_DISABLED_KEY));
+            return;
+        }
+        action.run();
     }
 
     private List<Account> resolveAccountsForReload(AccountItem contextItem) {
