@@ -98,41 +98,11 @@ public class ChannelService {
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
-            if (account.getType() == STALKER_PORTAL) {
-                ensureStalkerSession(account, logger);
-            }
-            if (shouldUseVodSeriesDbCache(account)) {
-                List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
-                if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
-                    log(logger, "Loaded channels from local cache for category " + categoryId + ".");
-                    List<Channel> result = maybeFilterChannels(dedupeChannels(cachedChannels), true);
-                    if (callback != null) callback.accept(result);
-                    return result;
-                }
-
-                log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
-                List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger);
-                boolean cancelled = Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
-                if (!fetchedChannels.isEmpty() && !cancelled) {
-                    saveVodSeriesToDbCache(account, dbId, fetchedChannels);
-                    log(logger, "Saved " + fetchedChannels.size() + " channels to local cache.");
-                }
-                List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
-                List<Channel> result = maybeFilterChannels(dedupeChannels(resolved), true);
-                if (callback != null) callback.accept(result);
-                return result;
-            }
-
-            // Existing behavior for non Stalker/Xtreme VOD/Series sources.
-            return getVodOrSeries(categoryId, account, callback, isCancelled, logger);
+            return getNonLiveChannels(categoryId, account, dbId, logger, callback, isCancelled);
         }
-        //no caching
         if (account.getType() == AccountType.RSS_FEED) {
-            List<Channel> channels = maybeFilterChannels(rssChannels(categoryId, account), true);
-            if (callback != null) callback.accept(channels);
-            return channels;
+            return publishChannels(maybeFilterChannels(rssChannels(categoryId, account), true), callback);
         }
-        //caching for everything else
         int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
         if (channelCount == 0) {
             cacheService.reloadCache(account, logger != null ? logger : log::info);
@@ -141,18 +111,56 @@ public class ChannelService {
         List<Channel> channels = resolveCachedLiveChannels(categoryId, dbId, account);
         channels.forEach(this::resolveLogoIfNeeded);
         if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
-            //if live TV channels for a category is empty then make a direct call to stream server for fetching the contents
-            log(logger, "No cached live channels for category " + categoryId + ". Fetching from portal...");
-            List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false, logger);
-            if (!fetchedChannels.isEmpty()) {
-                ChannelDb.get().saveAll(fetchedChannels, dbId, account);
-                channels.addAll(fetchedChannels);
-                log(logger, "Saved " + fetchedChannels.size() + " live channels to local cache.");
-            }
+            fetchAndCacheMissingLiveChannels(categoryId, account, dbId, callback, isCancelled, logger, channels);
         }
-        List<Channel> censoredChannels = maybeFilterChannels(dedupeChannels(channels), true);
-        if (callback != null) callback.accept(censoredChannels);
-        return censoredChannels;
+        return publishChannels(maybeFilterChannels(dedupeChannels(channels), true), callback);
+    }
+
+    private List<Channel> getNonLiveChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
+                                             Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
+        if (account.getType() == STALKER_PORTAL) {
+            ensureStalkerSession(account, logger);
+        }
+        if (shouldUseVodSeriesDbCache(account)) {
+            return getCachedVodSeriesChannels(categoryId, account, dbId, logger, callback, isCancelled);
+        }
+        return getVodOrSeries(categoryId, account, callback, isCancelled, logger);
+    }
+
+    private List<Channel> getCachedVodSeriesChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
+                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
+        List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
+        if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
+            log(logger, "Loaded channels from local cache for category " + categoryId + ".");
+            return publishChannels(maybeFilterChannels(dedupeChannels(cachedChannels), true), callback);
+        }
+        log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
+        List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger);
+        boolean cancelled = Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
+        if (!fetchedChannels.isEmpty() && !cancelled) {
+            saveVodSeriesToDbCache(account, dbId, fetchedChannels);
+            log(logger, "Saved " + fetchedChannels.size() + " channels to local cache.");
+        }
+        List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
+        return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true), callback);
+    }
+
+    private void fetchAndCacheMissingLiveChannels(String categoryId, Account account, String dbId, Consumer<List<Channel>> callback,
+                                                  Supplier<Boolean> isCancelled, LoggerCallback logger, List<Channel> channels) {
+        log(logger, "No cached live channels for category " + categoryId + ". Fetching from portal...");
+        List<Channel> fetchedChannels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, false, logger);
+        if (!fetchedChannels.isEmpty()) {
+            ChannelDb.get().saveAll(fetchedChannels, dbId, account);
+            channels.addAll(fetchedChannels);
+            log(logger, "Saved " + fetchedChannels.size() + " live channels to local cache.");
+        }
+    }
+
+    private List<Channel> publishChannels(List<Channel> channels, Consumer<List<Channel>> callback) {
+        if (callback != null) {
+            callback.accept(channels);
+        }
+        return channels;
     }
 
     private List<Channel> resolveCachedLiveChannels(String categoryId, String dbCategoryId, Account account) {
@@ -419,53 +427,57 @@ public class ChannelService {
         if (account.getType() == STALKER_PORTAL) {
             ensureStalkerSession(account, logger);
         }
-        log(logger, "Fetching page " + startPage + " for category " + category + "...");
-        String json = FetchAPI.fetch(getChannelOrSeriesParams(category, startPage, account.getAction(), movieId, seriesId), account);
-        Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
-        List<Channel> firstPage = account.getAction() == itv
-                ? ChannelService.getInstance().parseItvChannels(json, censor)
-                : ChannelService.getInstance().parseVodChannels(account, json, censor);
-
-        if ((firstPage == null || firstPage.isEmpty()) && account.getType() == STALKER_PORTAL) {
+        PageFetchResult firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
+        if ((firstPage.channels == null || firstPage.channels.isEmpty()) && account.getType() == STALKER_PORTAL) {
             log(logger, "No channels returned. Refreshing Stalker session and retrying page " + startPage + " once...");
             HandshakeService.getInstance().hardTokenRefresh(account);
-            json = FetchAPI.fetch(getChannelOrSeriesParams(category, startPage, account.getAction(), movieId, seriesId), account);
-            pagination = ChannelService.getInstance().parsePagination(json, null);
-            firstPage = account.getAction() == itv
-                    ? ChannelService.getInstance().parseItvChannels(json, censor)
-                    : ChannelService.getInstance().parseVodChannels(account, json, censor);
+            firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
         }
 
-        if (firstPage == null || firstPage.isEmpty()) {
+        if (firstPage.channels == null || firstPage.channels.isEmpty()) {
             log(logger, "Page " + startPage + " returned no channels.");
             return channelList;
         }
 
-        channelList.addAll(firstPage);
-        log(logger, "Fetched " + firstPage.size() + " channels from page " + startPage + ".");
-        if (callback != null) callback.accept(firstPage);
+        channelList.addAll(firstPage.channels);
+        log(logger, "Fetched " + firstPage.channels.size() + " channels from page " + startPage + ".");
+        if (callback != null) callback.accept(firstPage.channels);
 
-        int maxAdditionalPages = pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(pagination.getPageCount() + 1, 2);
+        int maxAdditionalPages = firstPage.pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(firstPage.pagination.getPageCount() + 1, 2);
         for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
-            if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
+            if (isPageFetchCancelled(isCancelled)) {
                 log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
                 break;
             }
 
-            log(logger, "Fetching page " + pageNumber + " for category " + category + "...");
-            json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
-            List<Channel> pagedChannels = account.getAction() == itv
-                    ? ChannelService.getInstance().parseItvChannels(json, censor)
-                    : ChannelService.getInstance().parseVodChannels(account, json, censor);
-            if (pagedChannels == null || pagedChannels.isEmpty()) {
+            PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
+            if (page.channels == null || page.channels.isEmpty()) {
                 log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
                 break;
             }
-            channelList.addAll(pagedChannels);
-            log(logger, "Fetched " + pagedChannels.size() + " channels from page " + pageNumber + ".");
-            if (callback != null) callback.accept(pagedChannels);
+            channelList.addAll(page.channels);
+            log(logger, "Fetched " + page.channels.size() + " channels from page " + pageNumber + ".");
+            if (callback != null) callback.accept(page.channels);
         }
         return dedupeChannels(channelList);
+    }
+
+    private PageFetchResult fetchStalkerPage(String category, Account account, String movieId, String seriesId,
+                                             boolean censor, int pageNumber, LoggerCallback logger) {
+        log(logger, "Fetching page " + pageNumber + " for category " + category + "...");
+        String json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.getAction(), movieId, seriesId), account);
+        Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
+        List<Channel> channels = account.getAction() == itv
+                ? ChannelService.getInstance().parseItvChannels(json, censor)
+                : ChannelService.getInstance().parseVodChannels(account, json, censor);
+        return new PageFetchResult(channels, pagination);
+    }
+
+    private boolean isPageFetchCancelled(Supplier<Boolean> isCancelled) {
+        return Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
+    }
+
+    private record PageFetchResult(List<Channel> channels, Pagination pagination) {
     }
 
     private void ensureStalkerSession(Account account, LoggerCallback logger) {

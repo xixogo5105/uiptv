@@ -47,40 +47,10 @@ public final class PlaybackUIService {
         }
 
         Configuration configuration = ConfigurationService.getInstance().read();
-        boolean useEmbeddedPlayerConfig = configuration != null && configuration.isEmbeddedPlayer();
-        boolean browserIsDefaultConfig = configuration != null
-                && WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(configuration.getDefaultPlayerPath()).trim());
-        boolean playerPathIsEmbedded = isEmbeddedPlayerPath(request.playerPath);
-        boolean playerPathIsBrowser = WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(request.playerPath).trim());
-        String mode = request.account.getAction() == null ? "itv" : request.account.getAction().name();
+        PlaybackModeContext context = buildPlaybackModeContext(configuration, request);
 
-        if (playerPathIsBrowser) {
-            if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-                showErrorAlert(I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"));
-                return;
-            }
-            String browserUrl = PlayerService.getInstance()
-                    .buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
-            ServerUrlUtil.openInBrowser(browserUrl);
-            return;
-        }
-
-        if (request.allowDrmBrowserFallback && PlayerService.getInstance().isDrmProtected(request.channel)) {
-            if (!browserIsDefaultConfig) {
-                String localServerUrl = ServerUrlUtil.getLocalServerUrl();
-                boolean confirmed = showConfirmationAlert(I18n.tr("autoDrmBrowserOnlyConfirm", localServerUrl));
-                if (!confirmed) {
-                    return;
-                }
-            }
-            if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-                showErrorAlert(I18n.tr("autoUnableToStartLocalWebServerForDRMPlayback"));
-                return;
-            }
-            String browserUrl = PlayerService.getInstance().buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
-            ServerUrlUtil.openInBrowser(browserUrl);
-            return;
-        }
+        if (handleBrowserPlayback(context)) return;
+        if (handleDrmBrowserFallback(context, request)) return;
 
         Scene scene = source.getScene();
         if (scene != null) {
@@ -89,33 +59,9 @@ public final class PlaybackUIService {
 
         new Thread(() -> {
             try {
-                String channelId = isBlank(request.channelId) ? request.channel.getChannelId() : request.channelId;
-                PlayerResponse response;
-                if (isBlank(request.seriesId)) {
-                    response = PlayerService.getInstance().get(request.account, request.channel, channelId);
-                } else {
-                    response = PlayerService.getInstance().get(request.account, request.channel, channelId, request.seriesId, request.seriesCategoryId);
-                }
+                PlayerResponse response = resolvePlayerResponse(request);
                 response.setFromChannel(request.channel, request.account);
-                String evaluatedStreamUrl = response.getUrl();
-
-                runLater(() -> {
-                    if (playerPathIsEmbedded) {
-                        if (useEmbeddedPlayerConfig) {
-                            getPlayer().stopForReload();
-                            getPlayer().play(response);
-                        } else {
-                            showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
-                        }
-                    } else if (isBlank(request.playerPath) && useEmbeddedPlayerConfig) {
-                        getPlayer().stopForReload();
-                        getPlayer().play(response);
-                    } else if (isBlank(request.playerPath)) {
-                        showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
-                    } else {
-                        com.uiptv.util.Platform.executeCommand(request.playerPath, evaluatedStreamUrl);
-                    }
-                });
+                runLater(() -> launchResolvedPlayback(context, request, response));
             } catch (Exception e) {
                 runLater(() -> showErrorAlert(request.errorPrefix + e.getMessage()));
             } finally {
@@ -124,6 +70,83 @@ public final class PlaybackUIService {
                 }
             }
         }).start();
+    }
+
+    private static PlaybackModeContext buildPlaybackModeContext(Configuration configuration, PlaybackRequest request) {
+        boolean useEmbeddedPlayerConfig = configuration != null && configuration.isEmbeddedPlayer();
+        boolean browserIsDefaultConfig = configuration != null
+                && WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(configuration.getDefaultPlayerPath()).trim());
+        boolean playerPathIsEmbedded = isEmbeddedPlayerPath(request.playerPath);
+        boolean playerPathIsBrowser = WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(request.playerPath).trim());
+        String mode = request.account.getAction() == null ? "itv" : request.account.getAction().name();
+        return new PlaybackModeContext(useEmbeddedPlayerConfig, browserIsDefaultConfig, playerPathIsEmbedded, playerPathIsBrowser, mode);
+    }
+
+    private static boolean handleBrowserPlayback(PlaybackModeContext context) {
+        if (!context.playerPathIsBrowser()) {
+            return false;
+        }
+        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"), null);
+    }
+
+    private static boolean handleDrmBrowserFallback(PlaybackModeContext context, PlaybackRequest request) {
+        if (!request.allowDrmBrowserFallback || !PlayerService.getInstance().isDrmProtected(request.channel)) {
+            return false;
+        }
+        if (!context.browserIsDefaultConfig()) {
+            String localServerUrl = ServerUrlUtil.getLocalServerUrl();
+            boolean confirmed = showConfirmationAlert(I18n.tr("autoDrmBrowserOnlyConfirm", localServerUrl));
+            if (!confirmed) {
+                return true;
+            }
+        }
+        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForDRMPlayback"), request);
+    }
+
+    private static boolean openBrowserPlayback(String mode, String startupFailureMessage, PlaybackRequest request) {
+        if (!ServerUrlUtil.ensureServerForWebPlayback()) {
+            showErrorAlert(startupFailureMessage);
+            return true;
+        }
+        if (request != null) {
+            String browserUrl = PlayerService.getInstance()
+                    .buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
+            ServerUrlUtil.openInBrowser(browserUrl);
+        }
+        return true;
+    }
+
+    private static PlayerResponse resolvePlayerResponse(PlaybackRequest request) throws Exception {
+        String channelId = isBlank(request.channelId) ? request.channel.getChannelId() : request.channelId;
+        if (isBlank(request.seriesId)) {
+            return PlayerService.getInstance().get(request.account, request.channel, channelId);
+        }
+        return PlayerService.getInstance().get(request.account, request.channel, channelId, request.seriesId, request.seriesCategoryId);
+    }
+
+    private static void launchResolvedPlayback(PlaybackModeContext context, PlaybackRequest request, PlayerResponse response) {
+        if (context.playerPathIsEmbedded()) {
+            playEmbedded(response, context.useEmbeddedPlayerConfig());
+            return;
+        }
+        if (isBlank(request.playerPath)) {
+            if (context.useEmbeddedPlayerConfig()) {
+                playEmbedded(response, true);
+            } else {
+                showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
+            }
+            return;
+        }
+        com.uiptv.util.Platform.executeCommand(request.playerPath, response.getUrl());
+    }
+
+    private static void playEmbedded(PlayerResponse response, boolean enabled) {
+        if (!enabled) {
+            showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
+            return;
+        }
+        getPlayer().stopForReload();
+        getPlayer().play(response);
     }
 
     static boolean isEmbeddedPlayerPath(String playerPath) {
@@ -182,5 +205,14 @@ public final class PlaybackUIService {
     }
 
     public record PlayerOption(String label, String playerPath) {
+    }
+
+    private record PlaybackModeContext(
+            boolean useEmbeddedPlayerConfig,
+            boolean browserIsDefaultConfig,
+            boolean playerPathIsEmbedded,
+            boolean playerPathIsBrowser,
+            String mode
+    ) {
     }
 }

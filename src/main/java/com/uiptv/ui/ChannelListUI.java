@@ -1069,45 +1069,65 @@ public class ChannelListUI extends HBox {
         if (isBlank(imageUrl)) {
             return "";
         }
-        String value = imageUrl.trim().replace("\\/", "/");
-        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.substring(1, value.length() - 1).trim();
-        }
+        String value = trimWrappedImageUrl(imageUrl.trim().replace("\\/", "/"));
         if (isBlank(value)) {
             return "";
         }
-        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+        if (isAbsoluteImageUrl(value) || isInlineImageUrl(value)) {
             return value;
         }
-        if (value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:")) {
-            return value;
-        }
-        URI base = resolveBaseUri();
-        String scheme = "https";
-        String host = "";
-        int port = -1;
-        if (base != null) {
-            if (!isBlank(base.getScheme())) scheme = base.getScheme();
-            if (!isBlank(base.getHost())) host = base.getHost();
-            port = base.getPort();
-        }
+        BaseUriParts base = baseUriParts();
         if (value.startsWith("//")) {
-            return scheme + ":" + value;
+            return base.scheme() + ":" + value;
         }
         if (value.startsWith("/")) {
-            if (!isBlank(host)) {
-                return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+            if (!isBlank(base.host())) {
+                return buildBaseUrl(base) + value;
             }
             return value;
         }
         if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
-            return scheme + "://" + value;
+            return base.scheme() + "://" + value;
         }
-        if (!isBlank(host)) {
-            String normalized = value.startsWith("./") ? value.substring(2) : value;
-            return scheme + "://" + host + (port > 0 ? ":" + port : "") + "/" + normalized;
+        if (!isBlank(base.host())) {
+            return buildBaseUrl(base) + "/" + stripLeadingRelativePrefix(value);
         }
-        return localServerOrigin() + "/" + value.replaceFirst("^\\./", "");
+        return localServerOrigin() + "/" + stripLeadingRelativePrefix(value);
+    }
+
+    private String trimWrappedImageUrl(String value) {
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    private boolean isAbsoluteImageUrl(String value) {
+        return value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*");
+    }
+
+    private boolean isInlineImageUrl(String value) {
+        return value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:");
+    }
+
+    private BaseUriParts baseUriParts() {
+        URI base = resolveBaseUri();
+        if (base == null) {
+            return new BaseUriParts("https", "", -1);
+        }
+        return new BaseUriParts(
+                isBlank(base.getScheme()) ? "https" : base.getScheme(),
+                isBlank(base.getHost()) ? "" : base.getHost(),
+                base.getPort()
+        );
+    }
+
+    private String buildBaseUrl(BaseUriParts base) {
+        return base.scheme() + "://" + base.host() + (base.port() > 0 ? ":" + base.port() : "");
+    }
+
+    private String stripLeadingRelativePrefix(String value) {
+        return value.replaceFirst("^\\./", "");
     }
 
     private URI resolveBaseUri() {
@@ -1134,6 +1154,9 @@ public class ChannelListUI extends HBox {
 
     private String localServerOrigin() {
         return ServerUrlUtil.getLocalServerUrl();
+    }
+
+    private record BaseUriParts(String scheme, String host, int port) {
     }
 
     public static class ChannelItem {

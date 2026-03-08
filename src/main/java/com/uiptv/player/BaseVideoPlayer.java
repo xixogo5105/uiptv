@@ -320,6 +320,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupEventHandlers() {
+        wirePlaybackButtons();
+        wireSliderInteractions();
+        wireContainerInteractions();
+    }
+
+    private void wirePlaybackButtons() {
         btnPlayPause.setOnAction(e -> {
             if (isPlaying()) {
                 pauseMedia();
@@ -327,49 +333,29 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 resumeMedia();
             }
         });
-
         btnStop.setOnAction(e -> stop());
-
         btnRepeat.setOnAction(e -> {
             isRepeating = !isRepeating;
             btnRepeat.setGraphic(isRepeating ? repeatOnIcon : repeatOffIcon);
             btnRepeat.setOpacity(isRepeating ? 1.0 : 0.7);
         });
-
         btnReload.setOnAction(e -> {
             retryCount = 0;
             refreshAndPlay();
         });
-
         btnFullscreen.setOnAction(e -> toggleFullscreen());
         btnPip.setOnAction(e -> togglePip());
         btnAspectRatio.setOnAction(e -> toggleAspectRatio());
-
-        btnHideBar.setOnAction(e -> {
-            isControlBarHiddenByUser = true;
-            controlsContainer.setVisible(false);
-            if (!hasShownHiddenBarMessage) {
-                hiddenBarMessage.setVisible(true);
-                hiddenBarMessage.setManaged(true);
-                markHiddenBarMessageShown();
-                if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
-                hiddenBarMessageHideTimer = new PauseTransition(Duration.seconds(10));
-                hiddenBarMessageHideTimer.setOnFinished(ev -> {
-                    hiddenBarMessage.setVisible(false);
-                    hiddenBarMessage.setManaged(false);
-                });
-                hiddenBarMessageHideTimer.play();
-            }
-        });
-
+        btnHideBar.setOnAction(e -> hideControlBarByUser());
         btnMute.setOnAction(e -> {
             isMuted = !isMuted;
             setMute(isMuted);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
         });
-
         volumeSlider.valueProperty().addListener((e, t, newVal) -> setVolume(newVal.doubleValue()));
+    }
 
+    private void wireSliderInteractions() {
         timeSlider.setOnMousePressed(e -> {
             restoreVisibleCursor();
             isUserSeeking = true;
@@ -390,7 +376,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             restoreVisibleCursor();
             restartIdleTimerForActivePlayer();
         });
+    }
 
+    private void wireContainerInteractions() {
         playerContainer.setOnMouseClicked(e -> {
             restoreVisibleCursor();
             if (!isControlBarHiddenByUser) {
@@ -437,6 +425,27 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             double change = Math.signum(delta) * 5;
             volumeSlider.setValue(volumeSlider.getValue() + change);
         });
+    }
+
+    private void hideControlBarByUser() {
+        isControlBarHiddenByUser = true;
+        controlsContainer.setVisible(false);
+        if (!hasShownHiddenBarMessage) {
+            showHiddenBarMessage();
+        }
+    }
+
+    private void showHiddenBarMessage() {
+        hiddenBarMessage.setVisible(true);
+        hiddenBarMessage.setManaged(true);
+        markHiddenBarMessageShown();
+        if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
+        hiddenBarMessageHideTimer = new PauseTransition(Duration.seconds(10));
+        hiddenBarMessageHideTimer.setOnFinished(ev -> {
+            hiddenBarMessage.setVisible(false);
+            hiddenBarMessage.setManaged(false);
+        });
+        hiddenBarMessageHideTimer.play();
     }
 
     private void setupFadeAndIdleLogic() {
@@ -1053,125 +1062,26 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (pipStage != null) return;
         Platform.runLater(() -> {
             Scene originalScene = playerContainer.getScene();
-            originalParent = (Pane) playerContainer.getParent();
-            if (originalParent != null) {
-                originalIndex = originalParent.getChildren().indexOf(playerContainer);
-                originalParent.getChildren().remove(playerContainer);
-            }
-
+            detachPlayerContainer();
             Node videoView = getVideoView();
             playerContainer.getChildren().remove(videoView);
 
-            pipStage = new Stage(StageStyle.UNDECORATED);
-            pipStage.setAlwaysOnTop(true);
+            pipStage = createPipStage();
+            StackPane pipRoot = createPipRoot();
+            Button restoreButton = createPipRestoreButton();
+            PipControlButtons buttons = createPipControlButtons();
+            HBox pipControls = buildPipControls(buttons);
+            attachPipContent(pipRoot, videoView, restoreButton, pipControls);
+            wirePipHoverState(pipRoot, restoreButton, buttons);
+            bindPipVideoView(videoView, pipRoot);
 
-            StackPane pipRoot = new StackPane();
-            pipRoot.getStyleClass().add("player-container");
-            StyleClassDecorator.decorate(pipRoot);
-
-            Button restoreButton = new Button();
-            if (pipExitIcon != null && pipExitIcon.getImage() != null) {
-                ImageView restoreIconView = new ImageView(pipExitIcon.getImage());
-                restoreIconView.setFitHeight(64);
-                restoreIconView.setFitWidth(64);
-                ColorAdjust whiteColorAdjust = new ColorAdjust();
-                whiteColorAdjust.setBrightness(1.0);
-                whiteColorAdjust.setSaturation(-1.0);
-                restoreIconView.setEffect(whiteColorAdjust);
-                restoreButton.setGraphic(restoreIconView);
-            } else {
-                restoreButton.setText(I18n.tr("autoRestore"));
-                restoreButton.getStyleClass().add("player-pip-restore-button");
-            }
-            restoreButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
-            restoreButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
-            restoreButton.setPadding(new Insets(15));
-            restoreButton.setVisible(false);
-            restoreButton.setOnAction(e -> exitPip());
-
-            Button pipMuteButton = new Button();
-            ImageView pipMuteIcon = new ImageView(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
-            pipMuteIcon.setFitHeight(20);
-            pipMuteIcon.setFitWidth(20);
-            ColorAdjust whiteColorAdjust = new ColorAdjust();
-            whiteColorAdjust.setBrightness(1.0);
-            pipMuteIcon.setEffect(whiteColorAdjust);
-            pipMuteButton.setGraphic(pipMuteIcon);
-            pipMuteButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
-            pipMuteButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
-            pipMuteButton.setPadding(new Insets(8));
-            pipMuteButton.setVisible(false);
-            pipMuteButton.setOnAction(e -> {
-                btnMute.fire();
-                pipMuteIcon.setImage(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
-            });
-
-            Button pipReloadButton = new Button();
-            ImageView pipReloadIcon = new ImageView(reloadIcon.getImage());
-            pipReloadIcon.setFitHeight(20);
-            pipReloadIcon.setFitWidth(20);
-            pipReloadIcon.setEffect(whiteColorAdjust);
-            pipReloadButton.setGraphic(pipReloadIcon);
-            pipReloadButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
-            pipReloadButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
-            pipReloadButton.setPadding(new Insets(8));
-            pipReloadButton.setVisible(false);
-            pipReloadButton.setOnAction(e -> refreshAndPlay());
-
-            HBox pipControls = new HBox(10);
-            pipControls.setAlignment(Pos.TOP_RIGHT);
-            pipControls.setPadding(new Insets(10));
-            pipControls.getChildren().addAll(pipReloadButton, pipMuteButton);
-            pipControls.setPickOnBounds(false);
-            applyFixedControlBarOrientation(pipControls);
-
-            StackPane.setAlignment(pipControls, Pos.TOP_RIGHT);
-
-            pipRoot.getChildren().addAll(videoView, restoreButton, pipControls);
-            StackPane.setAlignment(restoreButton, Pos.CENTER);
-
-            pipRoot.setOnMouseEntered(e -> {
-                restoreButton.setVisible(true);
-                pipMuteButton.setVisible(true);
-                pipReloadButton.setVisible(true);
-            });
-            pipRoot.setOnMouseExited(e -> {
-                restoreButton.setVisible(false);
-                pipMuteButton.setVisible(false);
-                pipReloadButton.setVisible(false);
-            });
-
-            if (videoView instanceof ImageView) {
-                ((ImageView) videoView).fitWidthProperty().bind(pipRoot.widthProperty());
-                ((ImageView) videoView).fitHeightProperty().bind(pipRoot.heightProperty());
-            } else if (videoView instanceof MediaView) {
-                ((MediaView) videoView).fitWidthProperty().bind(pipRoot.widthProperty());
-                ((MediaView) videoView).fitHeightProperty().bind(pipRoot.heightProperty());
-            }
-
-            Scene scene = new Scene(pipRoot, 480, 270);
-            I18n.applySceneOrientation(scene);
-            scene.setFill(Color.TRANSPARENT);
-            if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
-                scene.getStylesheets().setAll(originalScene.getStylesheets());
-            }
+            Scene scene = createPipScene(pipRoot, originalScene);
             pipStage.setScene(scene);
             installPipSceneInputRecovery(scene);
-
-            Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
-            pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20);
-            pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20);
-
+            positionPipStage();
             setupPipResizing(pipRoot);
-
             pipStage.show();
-            controlsContainer.setVisible(false);
-            controlsContainer.setManaged(false);
-            btnPlayPause.setVisible(false);
-            btnPlayPause.setManaged(false);
-            btnStop.setVisible(false);
-            btnStop.setManaged(false);
-            btnPip.setGraphic(pipIcon);
+            applyPipUiState();
         });
     }
 
@@ -1218,135 +1128,285 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupPipResizing(StackPane pipRoot) {
-        pipRoot.setOnMouseMoved(event -> {
-            if (isResizing) return;
-            double x = event.getX();
-            double y = event.getY();
-            double width = pipStage.getWidth();
-            double height = pipStage.getHeight();
-            Cursor cursor = Cursor.DEFAULT;
-            resizeDirection = 0;
-            if (y < RESIZE_BORDER) {
-                cursor = Cursor.N_RESIZE;
-                resizeDirection = 1;
-            } else if (y > height - RESIZE_BORDER) {
-                cursor = Cursor.S_RESIZE;
-                resizeDirection = 5;
-            }
-            if (x < RESIZE_BORDER) {
-                if (resizeDirection == 1) {
-                    cursor = Cursor.NW_RESIZE;
-                    resizeDirection = 8;
-                } else if (resizeDirection == 5) {
-                    cursor = Cursor.SW_RESIZE;
-                    resizeDirection = 6;
-                } else {
-                    cursor = Cursor.W_RESIZE;
-                    resizeDirection = 7;
-                }
-            } else if (x > width - RESIZE_BORDER) {
-                if (resizeDirection == 1) {
-                    cursor = Cursor.NE_RESIZE;
-                    resizeDirection = 2;
-                } else if (resizeDirection == 5) {
-                    cursor = Cursor.SE_RESIZE;
-                    resizeDirection = 4;
-                } else {
-                    cursor = Cursor.E_RESIZE;
-                    resizeDirection = 3;
-                }
-            }
-            pipStage.getScene().setCursor(cursor);
+        pipRoot.setOnMouseMoved(event -> updatePipResizeCursor(event));
+        pipRoot.setOnMousePressed(event -> handlePipMousePressed(event));
+        pipRoot.setOnMouseDragged(event -> handlePipMouseDragged(event));
+        pipRoot.setOnMouseReleased(event -> finishPipInteraction());
+    }
+
+    private void detachPlayerContainer() {
+        originalParent = (Pane) playerContainer.getParent();
+        if (originalParent != null) {
+            originalIndex = originalParent.getChildren().indexOf(playerContainer);
+            originalParent.getChildren().remove(playerContainer);
+        }
+    }
+
+    private Stage createPipStage() {
+        Stage stage = new Stage(StageStyle.UNDECORATED);
+        stage.setAlwaysOnTop(true);
+        return stage;
+    }
+
+    private StackPane createPipRoot() {
+        StackPane pipRoot = new StackPane();
+        pipRoot.getStyleClass().add("player-container");
+        StyleClassDecorator.decorate(pipRoot);
+        return pipRoot;
+    }
+
+    private Button createPipRestoreButton() {
+        Button restoreButton = new Button();
+        if (pipExitIcon != null && pipExitIcon.getImage() != null) {
+            ImageView restoreIconView = createWhiteIconView(pipExitIcon.getImage(), 64);
+            restoreButton.setGraphic(restoreIconView);
+        } else {
+            restoreButton.setText(I18n.tr("autoRestore"));
+            restoreButton.getStyleClass().add("player-pip-restore-button");
+        }
+        restoreButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+        restoreButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
+        restoreButton.setPadding(new Insets(15));
+        restoreButton.setVisible(false);
+        restoreButton.setOnAction(e -> exitPip());
+        return restoreButton;
+    }
+
+    private PipControlButtons createPipControlButtons() {
+        Button pipMuteButton = createPipIconButton(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage(), 20, null);
+        pipMuteButton.setOnAction(e -> {
+            btnMute.fire();
+            ((ImageView) pipMuteButton.getGraphic()).setImage(isMuted ? muteOnIcon.getImage() : muteOffIcon.getImage());
         });
+        Button pipReloadButton = createPipIconButton(reloadIcon.getImage(), 20, e -> refreshAndPlay());
+        return new PipControlButtons(pipMuteButton, pipReloadButton);
+    }
 
-        pipRoot.setOnMousePressed(event -> {
-            if (event.getButton() == MouseButton.PRIMARY) {
-                if (resizeDirection != 0) {
-                    isResizing = true;
-                    initialX = event.getScreenX();
-                    initialY = event.getScreenY();
-                    initialWidth = pipStage.getWidth();
-                    initialHeight = pipStage.getHeight();
-                } else {
-                    xOffset = pipStage.getX() - event.getScreenX();
-                    yOffset = pipStage.getY() - event.getScreenY();
-                }
+    private Button createPipIconButton(Image image, int size, EventHandler<javafx.event.ActionEvent> handler) {
+        Button button = new Button();
+        button.setGraphic(createWhiteIconView(image, size));
+        button.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+        button.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
+        button.setPadding(new Insets(8));
+        button.setVisible(false);
+        button.setOnAction(handler);
+        return button;
+    }
+
+    private ImageView createWhiteIconView(Image image, int size) {
+        ImageView iconView = new ImageView(image);
+        iconView.setFitHeight(size);
+        iconView.setFitWidth(size);
+        ColorAdjust whiteColorAdjust = new ColorAdjust();
+        whiteColorAdjust.setBrightness(1.0);
+        if (size == 64) {
+            whiteColorAdjust.setSaturation(-1.0);
+        }
+        iconView.setEffect(whiteColorAdjust);
+        return iconView;
+    }
+
+    private HBox buildPipControls(PipControlButtons buttons) {
+        HBox pipControls = new HBox(10);
+        pipControls.setAlignment(Pos.TOP_RIGHT);
+        pipControls.setPadding(new Insets(10));
+        pipControls.getChildren().addAll(buttons.reloadButton(), buttons.muteButton());
+        pipControls.setPickOnBounds(false);
+        applyFixedControlBarOrientation(pipControls);
+        StackPane.setAlignment(pipControls, Pos.TOP_RIGHT);
+        return pipControls;
+    }
+
+    private void attachPipContent(StackPane pipRoot, Node videoView, Button restoreButton, HBox pipControls) {
+        pipRoot.getChildren().addAll(videoView, restoreButton, pipControls);
+        StackPane.setAlignment(restoreButton, Pos.CENTER);
+    }
+
+    private void wirePipHoverState(StackPane pipRoot, Button restoreButton, PipControlButtons buttons) {
+        pipRoot.setOnMouseEntered(e -> setPipButtonsVisible(true, restoreButton, buttons));
+        pipRoot.setOnMouseExited(e -> setPipButtonsVisible(false, restoreButton, buttons));
+    }
+
+    private void setPipButtonsVisible(boolean visible, Button restoreButton, PipControlButtons buttons) {
+        restoreButton.setVisible(visible);
+        buttons.muteButton().setVisible(visible);
+        buttons.reloadButton().setVisible(visible);
+    }
+
+    private void bindPipVideoView(Node videoView, StackPane pipRoot) {
+        if (videoView instanceof ImageView imageView) {
+            imageView.fitWidthProperty().bind(pipRoot.widthProperty());
+            imageView.fitHeightProperty().bind(pipRoot.heightProperty());
+        } else if (videoView instanceof MediaView mediaView) {
+            mediaView.fitWidthProperty().bind(pipRoot.widthProperty());
+            mediaView.fitHeightProperty().bind(pipRoot.heightProperty());
+        }
+    }
+
+    private Scene createPipScene(StackPane pipRoot, Scene originalScene) {
+        Scene scene = new Scene(pipRoot, 480, 270);
+        I18n.applySceneOrientation(scene);
+        scene.setFill(Color.TRANSPARENT);
+        if (originalScene != null && !originalScene.getStylesheets().isEmpty()) {
+            scene.getStylesheets().setAll(originalScene.getStylesheets());
+        }
+        return scene;
+    }
+
+    private void positionPipStage() {
+        Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
+        pipStage.setX(primaryScreenBounds.getMaxX() - 480 - 20);
+        pipStage.setY(primaryScreenBounds.getMaxY() - 270 - 20);
+    }
+
+    private void applyPipUiState() {
+        controlsContainer.setVisible(false);
+        controlsContainer.setManaged(false);
+        btnPlayPause.setVisible(false);
+        btnPlayPause.setManaged(false);
+        btnStop.setVisible(false);
+        btnStop.setManaged(false);
+        btnPip.setGraphic(pipIcon);
+    }
+
+    private void updatePipResizeCursor(MouseEvent event) {
+        if (isResizing) return;
+        ResizeState state = resolveResizeState(event.getX(), event.getY(), pipStage.getWidth(), pipStage.getHeight());
+        resizeDirection = state.direction();
+        pipStage.getScene().setCursor(state.cursor());
+    }
+
+    private ResizeState resolveResizeState(double x, double y, double width, double height) {
+        Cursor cursor = Cursor.DEFAULT;
+        int direction = 0;
+        if (y < RESIZE_BORDER) {
+            cursor = Cursor.N_RESIZE;
+            direction = 1;
+        } else if (y > height - RESIZE_BORDER) {
+            cursor = Cursor.S_RESIZE;
+            direction = 5;
+        }
+        if (x < RESIZE_BORDER) {
+            return resolveLeftResize(cursor, direction);
+        }
+        if (x > width - RESIZE_BORDER) {
+            return resolveRightResize(cursor, direction);
+        }
+        return new ResizeState(cursor, direction);
+    }
+
+    private ResizeState resolveLeftResize(Cursor currentCursor, int direction) {
+        if (direction == 1) return new ResizeState(Cursor.NW_RESIZE, 8);
+        if (direction == 5) return new ResizeState(Cursor.SW_RESIZE, 6);
+        return new ResizeState(Cursor.W_RESIZE, 7);
+    }
+
+    private ResizeState resolveRightResize(Cursor currentCursor, int direction) {
+        if (direction == 1) return new ResizeState(Cursor.NE_RESIZE, 2);
+        if (direction == 5) return new ResizeState(Cursor.SE_RESIZE, 4);
+        return new ResizeState(Cursor.E_RESIZE, 3);
+    }
+
+    private void handlePipMousePressed(MouseEvent event) {
+        if (event.getButton() != MouseButton.PRIMARY) {
+            return;
+        }
+        if (resizeDirection != 0) {
+            isResizing = true;
+            initialX = event.getScreenX();
+            initialY = event.getScreenY();
+            initialWidth = pipStage.getWidth();
+            initialHeight = pipStage.getHeight();
+            return;
+        }
+        xOffset = pipStage.getX() - event.getScreenX();
+        yOffset = pipStage.getY() - event.getScreenY();
+    }
+
+    private void handlePipMouseDragged(MouseEvent event) {
+        if (!isResizing) {
+            pipStage.setX(event.getScreenX() + xOffset);
+            pipStage.setY(event.getScreenY() + yOffset);
+            return;
+        }
+        applyResizeState(calculatePipBounds(event));
+    }
+
+    private ResizedBounds calculatePipBounds(MouseEvent event) {
+        double newWidth = initialWidth;
+        double newHeight = initialHeight;
+        double newX = pipStage.getX();
+        double newY = pipStage.getY();
+        double deltaX = event.getScreenX() - initialX;
+        double deltaY = event.getScreenY() - initialY;
+        switch (resizeDirection) {
+            case 1 -> {
+                newHeight = initialHeight - deltaY;
+                newY = initialY + deltaY;
             }
-        });
-
-        pipRoot.setOnMouseDragged(event -> {
-            if (isResizing) {
-                double newWidth = initialWidth;
-                double newHeight = initialHeight;
-                double newX = pipStage.getX();
-                double newY = pipStage.getY();
-                double deltaX = event.getScreenX() - initialX;
-                double deltaY = event.getScreenY() - initialY;
-
-                switch (resizeDirection) {
-                    case 1:
-                        newHeight = initialHeight - deltaY;
-                        newY = initialY + deltaY;
-                        break;
-                    case 2:
-                        newWidth = initialWidth + deltaX;
-                        newHeight = initialHeight - deltaY;
-                        newY = initialY + deltaY;
-                        break;
-                    case 3:
-                        newWidth = initialWidth + deltaX;
-                        break;
-                    case 4:
-                        newWidth = initialWidth + deltaX;
-                        newHeight = initialHeight + deltaY;
-                        break;
-                    case 5:
-                        newHeight = initialHeight + deltaY;
-                        break;
-                    case 6:
-                        newWidth = initialWidth - deltaX;
-                        newX = initialX + deltaX;
-                        newHeight = initialHeight + deltaY;
-                        break;
-                    case 7:
-                        newWidth = initialWidth - deltaX;
-                        newX = initialX + deltaX;
-                        break;
-                    case 8:
-                        newWidth = initialWidth - deltaX;
-                        newX = initialX + deltaX;
-                        newHeight = initialHeight - deltaY;
-                        newY = initialY + deltaY;
-                        break;
-                    default:
-                        break;
-                }
-
-                if (newWidth < MIN_WIDTH) {
-                    if (resizeDirection == 7 || resizeDirection == 6 || resizeDirection == 8)
-                        newX = pipStage.getX() + (pipStage.getWidth() - MIN_WIDTH);
-                    newWidth = MIN_WIDTH;
-                }
-                if (newHeight < MIN_HEIGHT) {
-                    if (resizeDirection == 1 || resizeDirection == 2 || resizeDirection == 8)
-                        newY = pipStage.getY() + (pipStage.getHeight() - MIN_HEIGHT);
-                    newHeight = MIN_HEIGHT;
-                }
-                pipStage.setWidth(newWidth);
-                pipStage.setHeight(newHeight);
-                pipStage.setX(newX);
-                pipStage.setY(newY);
-            } else {
-                pipStage.setX(event.getScreenX() + xOffset);
-                pipStage.setY(event.getScreenY() + yOffset);
+            case 2 -> {
+                newWidth = initialWidth + deltaX;
+                newHeight = initialHeight - deltaY;
+                newY = initialY + deltaY;
             }
-        });
+            case 3 -> newWidth = initialWidth + deltaX;
+            case 4 -> {
+                newWidth = initialWidth + deltaX;
+                newHeight = initialHeight + deltaY;
+            }
+            case 5 -> newHeight = initialHeight + deltaY;
+            case 6 -> {
+                newWidth = initialWidth - deltaX;
+                newX = initialX + deltaX;
+                newHeight = initialHeight + deltaY;
+            }
+            case 7 -> {
+                newWidth = initialWidth - deltaX;
+                newX = initialX + deltaX;
+            }
+            case 8 -> {
+                newWidth = initialWidth - deltaX;
+                newX = initialX + deltaX;
+                newHeight = initialHeight - deltaY;
+                newY = initialY + deltaY;
+            }
+            default -> {
+            }
+        }
+        return enforceMinPipBounds(new ResizedBounds(newWidth, newHeight, newX, newY));
+    }
 
-        pipRoot.setOnMouseReleased(event -> {
-            isResizing = false;
-            resizeDirection = 0;
-            pipStage.getScene().setCursor(Cursor.DEFAULT);
-        });
+    private ResizedBounds enforceMinPipBounds(ResizedBounds bounds) {
+        double newWidth = bounds.width();
+        double newHeight = bounds.height();
+        double newX = bounds.x();
+        double newY = bounds.y();
+        if (newWidth < MIN_WIDTH) {
+            if (resizeDirection == 7 || resizeDirection == 6 || resizeDirection == 8) {
+                newX = pipStage.getX() + (pipStage.getWidth() - MIN_WIDTH);
+            }
+            newWidth = MIN_WIDTH;
+        }
+        if (newHeight < MIN_HEIGHT) {
+            if (resizeDirection == 1 || resizeDirection == 2 || resizeDirection == 8) {
+                newY = pipStage.getY() + (pipStage.getHeight() - MIN_HEIGHT);
+            }
+            newHeight = MIN_HEIGHT;
+        }
+        return new ResizedBounds(newWidth, newHeight, newX, newY);
+    }
+
+    private void applyResizeState(ResizedBounds bounds) {
+        pipStage.setWidth(bounds.width());
+        pipStage.setHeight(bounds.height());
+        pipStage.setX(bounds.x());
+        pipStage.setY(bounds.y());
+    }
+
+    private void finishPipInteraction() {
+        isResizing = false;
+        resizeDirection = 0;
+        pipStage.getScene().setCursor(Cursor.DEFAULT);
     }
 
     private void loadIcons() {
@@ -1366,6 +1426,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         aspectRatioFillIcon = createIconView("aspect-ratio-fill.png", true);
         aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
         hideBarIcon = createIconView("arrow-down.png", true);
+    }
+
+    private record PipControlButtons(Button muteButton, Button reloadButton) {
+    }
+
+    private record ResizeState(Cursor cursor, int direction) {
+    }
+
+    private record ResizedBounds(double width, double height, double x, double y) {
     }
 
     private ImageView createIconView(String iconName, boolean applyColorAdjust) {

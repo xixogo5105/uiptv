@@ -29,73 +29,12 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     public LiteVideoPlayer() {
         super(); // Calls buildUI -> getVideoView
 
-        // Apply initial mute state from BaseVideoPlayer
         setMute(isMuted);
         compatibilityFallbackTimer.setOnFinished(e -> triggerCompatibilityFallbackIfNeeded());
-
-        // --- JAVAFX MEDIA PLAYER LISTENERS ---
-        statusListener = (obs, oldStatus, newStatus) -> {
-            Platform.runLater(() -> {
-                switch (newStatus) {
-                    case PLAYING:
-                        onPlaybackStarted();
-                        btnPlayPause.setGraphic(pauseIcon);
-                        updateVideoSize();
-                        scheduleCompatibilityFallbackCheck();
-                        break;
-                    case PAUSED:
-                        btnPlayPause.setGraphic(playIcon);
-                        break;
-                    case STOPPED:
-                        btnPlayPause.setGraphic(playIcon);
-                        timeSlider.setValue(0);
-                        loadingSpinner.setVisible(false);
-                        compatibilityFallbackTimer.stop();
-                        break;
-                    case HALTED:
-                        loadingSpinner.setVisible(false);
-                        compatibilityFallbackTimer.stop();
-                        if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
-                            startPlayback(currentMediaUri, true);
-                            return;
-                        }
-                        if (!errorLabel.isVisible()) {
-                            errorLabel.setText(I18n.tr("autoAnErrorOccurredDuringPlayback"));
-                            errorLabel.setVisible(true);
-                        }
-                        break;
-                    case READY:
-                        updateTimeLabel();
-                        updateVideoSize();
-                        Media m = mediaPlayer.getMedia();
-                        if (m != null) {
-                            updateStreamInfo(m);
-                            m.widthProperty().addListener((obs2, old, newVal) -> {
-                                updateStreamInfo(m);
-                                updateVideoSize();
-                            });
-                            m.heightProperty().addListener((obs2, old, newVal) -> {
-                                updateStreamInfo(m);
-                                updateVideoSize();
-                            });
-                        }
-                        scheduleCompatibilityFallbackCheck();
-                        break;
-                    case DISPOSED:
-                    case STALLED:
-                        loadingSpinner.setVisible(true);
-                        break;
-                    default:
-                        break;
-                }
-            });
-        };
-
+        statusListener = (obs, oldStatus, newStatus) -> Platform.runLater(() -> handleStatusChange(newStatus));
         progressListener = (obs, oldTime, newTime) -> {
             if (!isUserSeeking) {
-                Platform.runLater(() -> {
-                    updateTimeLabel();
-                });
+                Platform.runLater(this::updateTimeLabel);
             }
         };
     }
@@ -122,75 +61,13 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         }
         compatibilityFallbackTimer.stop();
         this.currentMediaUri = uri;
-
-        if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaPlayer.dispose();
-        }
-        if (usingFfmpegFallback) {
-            LitePlayerFfmpegService.getInstance().stopPlayback();
-            usingFfmpegFallback = false;
-        }
+        releaseExistingPlayback();
 
         new Thread(() -> {
             try {
                 LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback);
-                usingFfmpegFallback = preparedPlayback.usesFfmpeg();
-                attemptedCompatibilityFallback = forceCompatibilityFallback || preparedPlayback.usesFfmpeg();
-                currentPlaybackModeLabel = preparedPlayback.displayModeLabel();
-
-                final String finalSourceUrl = preparedPlayback.playbackUrl();
-
-                Platform.runLater(() -> {
-                    try {
-                        Media media = new Media(finalSourceUrl);
-                        mediaPlayer = new MediaPlayer(media);
-                        mediaView.setMediaPlayer(mediaPlayer);
-
-                        mediaPlayer.setOnError(() -> {
-                            final MediaException me = mediaPlayer.getError();
-                            Platform.runLater(() -> {
-                                if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
-                                    com.uiptv.util.AppLog.addLog("LiteVideoPlayer: direct playback failed, retrying with FFmpeg compatibility path.");
-                                    loadingSpinner.setVisible(true);
-                                    errorLabel.setVisible(false);
-                                    startPlayback(currentMediaUri, true);
-                                    return;
-                                }
-                                com.uiptv.util.AppLog.addLog("MediaPlayer Error: " + me.getMessage() + " (" + me.getType() + ")");
-                                errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
-                                errorLabel.setVisible(true);
-                                loadingSpinner.setVisible(false);
-                                if (isRepeating && isRetrying.get()) {
-                                    handleRepeat();
-                                }
-                            });
-                        });
-
-                        setVolume(volumeSlider.getValue());
-                        setMute(isMuted);
-                        mediaPlayer.muteProperty().addListener((obs, oldMute, newMute) -> {
-                            isMuted = newMute;
-                            btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
-                        });
-
-                        mediaPlayer.statusProperty().addListener(statusListener);
-                        mediaPlayer.currentTimeProperty().addListener(progressListener);
-                        mediaPlayer.setOnEndOfMedia(() -> {
-                            if (isRepeating && isRetrying.get()) {
-                                handleRepeat();
-                            } else {
-                                btnPlayPause.setGraphic(playIcon);
-                                mediaPlayer.seek(Duration.ZERO);
-                                mediaPlayer.pause();
-                            }
-                        });
-
-                        mediaPlayer.play();
-                    } catch (Exception e) {
-                        handlePlaybackError("Error creating media player.", e);
-                    }
-                });
+                applyPreparedPlayback(preparedPlayback, forceCompatibilityFallback);
+                Platform.runLater(() -> createAndPlayMediaPlayer(preparedPlayback.playbackUrl()));
             } catch (Exception e) {
                 handlePlaybackError("Error resolving media URL.", e);
             }
@@ -326,25 +203,161 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     protected void updateStreamInfo(Media m) {
         Platform.runLater(() -> {
-            if (m != null) {
-                String encoding = "";
-                if (m.getTracks() != null) {
-                    for (Track track : m.getTracks()) {
-                        if (track instanceof VideoTrack) {
-                            Object enc = track.getMetadata().get("encoding");
-                            if (enc != null) {
-                                encoding = String.valueOf(enc);
-                            }
-                            break;
-                        }
-                    }
-                }
-                if (m.getWidth() > 0 && m.getHeight() > 0) {
-                    compatibilityFallbackTimer.stop();
-                }
-                streamInfoText.setText(String.format("\n%dx%d %s (%s)", m.getWidth(), m.getHeight(), encoding, currentPlaybackModeLabel));
+            if (m == null) {
+                return;
+            }
+            String encoding = resolveVideoEncoding(m);
+            if (m.getWidth() > 0 && m.getHeight() > 0) {
+                compatibilityFallbackTimer.stop();
+            }
+            streamInfoText.setText(String.format("\n%dx%d %s (%s)", m.getWidth(), m.getHeight(), encoding, currentPlaybackModeLabel));
+        });
+    }
+
+    private void handleStatusChange(MediaPlayer.Status status) {
+        switch (status) {
+            case PLAYING -> onPlayingStatus();
+            case PAUSED -> btnPlayPause.setGraphic(playIcon);
+            case STOPPED -> onStoppedStatus();
+            case HALTED -> onHaltedStatus();
+            case READY -> onReadyStatus();
+            case DISPOSED, STALLED -> loadingSpinner.setVisible(true);
+            default -> {
+            }
+        }
+    }
+
+    private void onPlayingStatus() {
+        onPlaybackStarted();
+        btnPlayPause.setGraphic(pauseIcon);
+        updateVideoSize();
+        scheduleCompatibilityFallbackCheck();
+    }
+
+    private void onStoppedStatus() {
+        btnPlayPause.setGraphic(playIcon);
+        timeSlider.setValue(0);
+        loadingSpinner.setVisible(false);
+        compatibilityFallbackTimer.stop();
+    }
+
+    private void onHaltedStatus() {
+        loadingSpinner.setVisible(false);
+        compatibilityFallbackTimer.stop();
+        if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
+            startPlayback(currentMediaUri, true);
+            return;
+        }
+        if (!errorLabel.isVisible()) {
+            errorLabel.setText(I18n.tr("autoAnErrorOccurredDuringPlayback"));
+            errorLabel.setVisible(true);
+        }
+    }
+
+    private void onReadyStatus() {
+        updateTimeLabel();
+        updateVideoSize();
+        Media media = mediaPlayer == null ? null : mediaPlayer.getMedia();
+        if (media != null) {
+            updateStreamInfo(media);
+            wireMediaDimensionListeners(media);
+        }
+        scheduleCompatibilityFallbackCheck();
+    }
+
+    private void wireMediaDimensionListeners(Media media) {
+        media.widthProperty().addListener((obs2, old, newVal) -> {
+            updateStreamInfo(media);
+            updateVideoSize();
+        });
+        media.heightProperty().addListener((obs2, old, newVal) -> {
+            updateStreamInfo(media);
+            updateVideoSize();
+        });
+    }
+
+    private void releaseExistingPlayback() {
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.dispose();
+        }
+        if (usingFfmpegFallback) {
+            LitePlayerFfmpegService.getInstance().stopPlayback();
+            usingFfmpegFallback = false;
+        }
+    }
+
+    private void applyPreparedPlayback(LitePlayerFfmpegService.PreparedPlayback preparedPlayback, boolean forceCompatibilityFallback) {
+        usingFfmpegFallback = preparedPlayback.usesFfmpeg();
+        attemptedCompatibilityFallback = forceCompatibilityFallback || preparedPlayback.usesFfmpeg();
+        currentPlaybackModeLabel = preparedPlayback.displayModeLabel();
+    }
+
+    private void createAndPlayMediaPlayer(String sourceUrl) {
+        try {
+            Media media = new Media(sourceUrl);
+            mediaPlayer = new MediaPlayer(media);
+            mediaView.setMediaPlayer(mediaPlayer);
+            wireMediaPlayer(mediaPlayer);
+            mediaPlayer.play();
+        } catch (Exception e) {
+            handlePlaybackError("Error creating media player.", e);
+        }
+    }
+
+    private void wireMediaPlayer(MediaPlayer player) {
+        player.setOnError(() -> handleMediaPlayerError(player.getError()));
+        setVolume(volumeSlider.getValue());
+        setMute(isMuted);
+        player.muteProperty().addListener((obs, oldMute, newMute) -> {
+            isMuted = newMute;
+            btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
+        });
+        player.statusProperty().addListener(statusListener);
+        player.currentTimeProperty().addListener(progressListener);
+        player.setOnEndOfMedia(() -> handleEndOfMedia(player));
+    }
+
+    private void handleMediaPlayerError(MediaException mediaException) {
+        Platform.runLater(() -> {
+            if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
+                com.uiptv.util.AppLog.addLog("LiteVideoPlayer: direct playback failed, retrying with FFmpeg compatibility path.");
+                loadingSpinner.setVisible(true);
+                errorLabel.setVisible(false);
+                startPlayback(currentMediaUri, true);
+                return;
+            }
+            com.uiptv.util.AppLog.addLog("MediaPlayer Error: " + mediaException.getMessage() + " (" + mediaException.getType() + ")");
+            errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
+            errorLabel.setVisible(true);
+            loadingSpinner.setVisible(false);
+            if (isRepeating && isRetrying.get()) {
+                handleRepeat();
             }
         });
+    }
+
+    private void handleEndOfMedia(MediaPlayer player) {
+        if (isRepeating && isRetrying.get()) {
+            handleRepeat();
+            return;
+        }
+        btnPlayPause.setGraphic(playIcon);
+        player.seek(Duration.ZERO);
+        player.pause();
+    }
+
+    private String resolveVideoEncoding(Media media) {
+        if (media.getTracks() == null) {
+            return "";
+        }
+        for (Track track : media.getTracks()) {
+            if (track instanceof VideoTrack) {
+                Object encoding = track.getMetadata().get("encoding");
+                return encoding == null ? "" : String.valueOf(encoding);
+            }
+        }
+        return "";
     }
 
     protected void updateTimeLabel() {

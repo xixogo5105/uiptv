@@ -649,6 +649,21 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (episodes == null || episodes.isEmpty() || metaRows == null || metaRows.isEmpty()) {
             return;
         }
+        EpisodeMetaIndex index = buildEpisodeMetaIndex(metaRows);
+
+        for (EpisodeItem episode : episodes) {
+            try {
+                JSONObject meta = findEpisodeMeta(index, episode);
+                if (meta == null) {
+                    continue;
+                }
+                applyEpisodeMeta(episode, meta);
+            } catch (Exception _) {
+            }
+        }
+    }
+
+    private EpisodeMetaIndex buildEpisodeMetaIndex(JSONArray metaRows) {
         Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
         Map<String, JSONObject> byTitle = new HashMap<>();
         Map<String, JSONObject> byLooseTitle = new HashMap<>();
@@ -657,56 +672,68 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             JSONObject row = metaRows.optJSONObject(i);
             if (row == null) continue;
             String season = normalizeNumber(row.optString("season", ""));
-            String episodeNum = normalizeNumber(row.optString("episodeNum", ""));
-            if (isBlank(episodeNum)) {
-                episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString(KEY_TITLE, "")));
-            }
+            String episodeNum = normalizedEpisodeNumber(row);
             if (!isBlank(season) && !isBlank(episodeNum)) {
                 bySeasonEpisode.put(season + ":" + episodeNum, row);
             }
             if (!isBlank(episodeNum)) {
                 byEpisodeOnly.putIfAbsent(episodeNum, row);
             }
-            String title = normalizeTitle(cleanEpisodeTitle(row.optString(KEY_TITLE, "")));
-            if (!isBlank(title)) {
-                byTitle.put(title, row);
-            }
-            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString(KEY_TITLE, "")));
-            if (!isBlank(looseTitle)) {
-                byLooseTitle.put(looseTitle, row);
-            }
+            indexEpisodeTitle(byTitle, normalizeTitle(cleanEpisodeTitle(row.optString(KEY_TITLE, ""))), row);
+            indexEpisodeTitle(byLooseTitle, normalizeTitle(extractLooseEpisodeTitle(row.optString(KEY_TITLE, ""))), row);
         }
+        return new EpisodeMetaIndex(bySeasonEpisode, byTitle, byLooseTitle, byEpisodeOnly);
+    }
 
-        for (EpisodeItem episode : episodes) {
-            try {
-                String normalizedSeason = normalizeNumber(episode.getSeason());
-                String normalizedEpisode = normalizeNumber(firstNonBlank(episode.getEpisodeNumber(), inferEpisodeNumberFromTitle(episode.getEpisodeName())));
-                JSONObject meta = bySeasonEpisode.get(normalizedSeason + ":" + normalizedEpisode);
-                if (meta == null) {
-                    meta = byTitle.get(normalizeTitle(cleanEpisodeTitle(episode.getEpisodeName())));
-                }
-                if (meta == null) {
-                    meta = byLooseTitle.get(normalizeTitle(extractLooseEpisodeTitle(episode.getEpisodeName())));
-                }
-                if (meta == null && !isBlank(normalizedEpisode)) {
-                    meta = byEpisodeOnly.get(normalizedEpisode);
-                }
-                if (meta == null) {
-                    continue;
-                }
-                String metaLogo = normalizeImageUrl(meta.optString("logo", ""));
-                episode.setLogo(firstNonBlank(metaLogo, episode.getLogo()));
-                episode.setPlot(firstNonBlank(
-                        meta.optString("plot", ""),
-                        meta.optString("description", ""),
-                        meta.optString("overview", ""),
-                        episode.getPlot()
-                ));
-                episode.setReleaseDate(firstNonBlank(episode.getReleaseDate(), meta.optString(KEY_RELEASE_DATE, "")));
-                episode.setRating(firstNonBlank(episode.getRating(), meta.optString(KEY_RATING, "")));
-            } catch (Exception _) {
-            }
+    private void indexEpisodeTitle(Map<String, JSONObject> index, String key, JSONObject row) {
+        if (!isBlank(key)) {
+            index.put(key, row);
         }
+    }
+
+    private String normalizedEpisodeNumber(JSONObject row) {
+        String episodeNum = normalizeNumber(row.optString("episodeNum", ""));
+        if (isBlank(episodeNum)) {
+            episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString(KEY_TITLE, "")));
+        }
+        return episodeNum;
+    }
+
+    private JSONObject findEpisodeMeta(EpisodeMetaIndex index, EpisodeItem episode) {
+        String normalizedSeason = normalizeNumber(episode.getSeason());
+        String normalizedEpisode = normalizeNumber(firstNonBlank(episode.getEpisodeNumber(), inferEpisodeNumberFromTitle(episode.getEpisodeName())));
+        JSONObject meta = index.bySeasonEpisode().get(normalizedSeason + ":" + normalizedEpisode);
+        if (meta == null) {
+            meta = index.byTitle().get(normalizeTitle(cleanEpisodeTitle(episode.getEpisodeName())));
+        }
+        if (meta == null) {
+            meta = index.byLooseTitle().get(normalizeTitle(extractLooseEpisodeTitle(episode.getEpisodeName())));
+        }
+        if (meta == null && !isBlank(normalizedEpisode)) {
+            meta = index.byEpisodeOnly().get(normalizedEpisode);
+        }
+        return meta;
+    }
+
+    private void applyEpisodeMeta(EpisodeItem episode, JSONObject meta) {
+        String metaLogo = normalizeImageUrl(meta.optString("logo", ""));
+        episode.setLogo(firstNonBlank(metaLogo, episode.getLogo()));
+        episode.setPlot(firstNonBlank(
+                meta.optString("plot", ""),
+                meta.optString("description", ""),
+                meta.optString("overview", ""),
+                episode.getPlot()
+        ));
+        episode.setReleaseDate(firstNonBlank(episode.getReleaseDate(), meta.optString(KEY_RELEASE_DATE, "")));
+        episode.setRating(firstNonBlank(episode.getRating(), meta.optString(KEY_RATING, "")));
+    }
+
+    private record EpisodeMetaIndex(
+            Map<String, JSONObject> bySeasonEpisode,
+            Map<String, JSONObject> byTitle,
+            Map<String, JSONObject> byLooseTitle,
+            Map<String, JSONObject> byEpisodeOnly
+    ) {
     }
 
     private String extractLooseEpisodeTitle(String title) {

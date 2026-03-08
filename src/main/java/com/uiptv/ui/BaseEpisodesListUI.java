@@ -115,67 +115,21 @@ public abstract class BaseEpisodesListUI extends HBox {
 
     public void setItems(EpisodeList newChannelList) {
         if (newChannelList == null) return;
-
-        if (newChannelList.episodes != null && !newChannelList.episodes.isEmpty()) {
-            itemsLoaded.set(true);
-            this.channelList.episodes.clear();
-            this.channelList.episodes.addAll(newChannelList.episodes);
-            this.channelList.seasonInfo = newChannelList.seasonInfo;
-            if (newChannelList.seasonInfo == null) {
-                this.seasonInfo = new JSONObject();
-            } else {
-                try {
-                    this.seasonInfo = new JSONObject(newChannelList.seasonInfo.toJson());
-                } catch (Exception _) {
-                    this.seasonInfo = new JSONObject();
-                }
-            }
-            if (isBlank(this.seasonInfo.optString("name", ""))) {
-                this.seasonInfo.put("name", categoryTitle);
-            }
-
-            Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
-            SeriesWatchState watchedState = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
-            navigateToLastWatched(watchedState);
-
-            List<EpisodeItem> catList = new ArrayList<>();
-            newChannelList.episodes.forEach(i -> {
-                boolean isBookmarked = bookmarkKeys.contains(bookmarkKey(categoryTitle, i.getId(), i.getTitle()));
-                String logo = i.getInfo() != null ? normalizeImageUrl(i.getInfo().getMovieImage()) : "";
-                String tmdbId = i.getInfo() != null ? i.getInfo().getTmdbId() : "";
-                String season = inferSeason(i);
-                String episodeNo = inferEpisodeNumber(i);
-                boolean isWatched = SeriesWatchStateService.getInstance().isMatchingEpisode(
-                        watchedState, i.getId(), season, episodeNo, i.getTitle());
-                String plot = i.getInfo() != null ? safe(i.getInfo().getPlot()) : "";
-                String cleanTitle = cleanEpisodeTitleWithPlot(i.getTitle(), plot);
-                String displayTitle = buildEpisodeDisplayTitle(season, episodeNo, cleanTitle);
-                String releaseDate = i.getInfo() != null ? safe(i.getInfo().getReleaseDate()) : "";
-                String rating = i.getInfo() != null ? safe(i.getInfo().getRating()) : "";
-
-                catList.add(new EpisodeItem(
-                        new SimpleStringProperty(displayTitle),
-                        new SimpleStringProperty(i.getId()),
-                        new SimpleStringProperty(i.getCmd()),
-                        isBookmarked,
-                        isWatched,
-                        new SimpleStringProperty(logo),
-                        new SimpleStringProperty(tmdbId),
-                        new SimpleStringProperty(season),
-                        new SimpleStringProperty(episodeNo),
-                        new SimpleStringProperty(plot),
-                        new SimpleStringProperty(releaseDate),
-                        new SimpleStringProperty(rating),
-                        i
-                ));
-            });
-
-            runLater(() -> {
-                allEpisodeItems.setAll(catList);
-                onItemsLoaded();
-                applyPendingNavigation();
-            });
+        if (newChannelList.episodes == null || newChannelList.episodes.isEmpty()) {
+            return;
         }
+        itemsLoaded.set(true);
+        syncEpisodeList(newChannelList);
+        syncSeasonInfo(newChannelList);
+        Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
+        SeriesWatchState watchedState = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+        navigateToLastWatched(watchedState);
+        List<EpisodeItem> items = buildEpisodeItems(newChannelList, bookmarkKeys, watchedState);
+        runLater(() -> {
+            allEpisodeItems.setAll(items);
+            onItemsLoaded();
+            applyPendingNavigation();
+        });
     }
 
     public void setLoadingComplete() {
@@ -215,55 +169,16 @@ public abstract class BaseEpisodesListUI extends HBox {
         String normalizedEpisodeId = safe(episodeId).trim();
         String normalizedEpisodeName = normalizeTitle(cleanEpisodeTitle(episodeName));
 
-        // Strongest signal: the currently watched marker computed by the same matching rules.
-        if (!isBlank(normalizedSeason)) {
-            for (EpisodeItem item : allEpisodeItems) {
-                if (item.isWatched() && normalizedSeason.equals(normalizeNumber(item.getSeason()))) {
-                    return item;
-                }
-            }
-        }
-        for (EpisodeItem item : allEpisodeItems) {
-            if (item.isWatched()) {
-                return item;
-            }
-        }
-
-        if (!isBlank(normalizedEpisodeId)) {
-            for (EpisodeItem item : allEpisodeItems) {
-                if (normalizedEpisodeId.equals(safe(item.getEpisodeId()).trim())) {
-                    return item;
-                }
-            }
-        }
-
-        if (!isBlank(normalizedSeason) && !isBlank(normalizedEpisodeNo)) {
-            for (EpisodeItem item : allEpisodeItems) {
-                if (normalizedSeason.equals(normalizeNumber(item.getSeason()))
-                        && normalizedEpisodeNo.equals(normalizeNumber(item.getEpisodeNumber()))) {
-                    return item;
-                }
-            }
-        }
-
-        if (!isBlank(normalizedEpisodeName)) {
-            for (EpisodeItem item : allEpisodeItems) {
-                String itemName = normalizeTitle(cleanEpisodeTitle(item.getEpisodeName()));
-                if (normalizedEpisodeName.equals(itemName)) {
-                    return item;
-                }
-            }
-        }
-
-        if (!isBlank(normalizedSeason)) {
-            for (EpisodeItem item : allEpisodeItems) {
-                if (normalizedSeason.equals(normalizeNumber(item.getSeason()))) {
-                    return item;
-                }
-            }
-        }
-
-        return allEpisodeItems.get(0);
+        EpisodeItem match = findWatchedEpisodeMatch(normalizedSeason);
+        if (match != null) return match;
+        match = findEpisodeById(normalizedEpisodeId);
+        if (match != null) return match;
+        match = findEpisodeBySeasonAndNumber(normalizedSeason, normalizedEpisodeNo);
+        if (match != null) return match;
+        match = findEpisodeByName(normalizedEpisodeName);
+        if (match != null) return match;
+        match = findEpisodeBySeason(normalizedSeason);
+        return match != null ? match : allEpisodeItems.get(0);
     }
 
     private void applyPendingNavigation() {
@@ -688,45 +603,191 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (isBlank(imageUrl)) {
             return "";
         }
-        String value = imageUrl.trim().replace("\\/", "/");
-        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.substring(1, value.length() - 1).trim();
-        }
+        String value = trimWrappedImageUrl(imageUrl.trim().replace("\\/", "/"));
         if (isBlank(value)) {
             return "";
         }
-        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+        if (isAbsoluteImageUrl(value) || isInlineImageUrl(value)) {
             return value;
         }
-        if (value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:")) {
-            return value;
-        }
-        URI base = resolveBaseUri();
-        String scheme = "https";
-        String host = "";
-        int port = -1;
-        if (base != null) {
-            if (!isBlank(base.getScheme())) scheme = base.getScheme();
-            if (!isBlank(base.getHost())) host = base.getHost();
-            port = base.getPort();
-        }
+        BaseUriParts base = baseUriParts();
         if (value.startsWith("//")) {
-            return scheme + ":" + value;
+            return base.scheme() + ":" + value;
         }
         if (value.startsWith("/")) {
-            if (!isBlank(host)) {
-                return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
+            if (!isBlank(base.host())) {
+                return buildBaseUrl(base) + value;
             }
             return value;
         }
         if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
-            return scheme + "://" + value;
+            return base.scheme() + "://" + value;
         }
-        if (!isBlank(host)) {
-            String normalized = value.startsWith("./") ? value.substring(2) : value;
-            return scheme + "://" + host + (port > 0 ? ":" + port : "") + "/" + normalized;
+        if (!isBlank(base.host())) {
+            return buildBaseUrl(base) + "/" + stripLeadingRelativePrefix(value);
         }
-        return localServerOrigin() + "/" + value.replaceFirst("^\\./", "");
+        return localServerOrigin() + "/" + stripLeadingRelativePrefix(value);
+    }
+
+    private void syncEpisodeList(EpisodeList newChannelList) {
+        this.channelList.episodes.clear();
+        this.channelList.episodes.addAll(newChannelList.episodes);
+        this.channelList.seasonInfo = newChannelList.seasonInfo;
+    }
+
+    private void syncSeasonInfo(EpisodeList newChannelList) {
+        this.seasonInfo = cloneSeasonInfo(newChannelList.seasonInfo);
+        if (isBlank(this.seasonInfo.optString("name", ""))) {
+            this.seasonInfo.put("name", categoryTitle);
+        }
+    }
+
+    private JSONObject cloneSeasonInfo(com.uiptv.shared.SeasonInfo value) {
+        if (value == null) {
+            return new JSONObject();
+        }
+        try {
+            return new JSONObject(value.toJson());
+        } catch (Exception _) {
+            return new JSONObject();
+        }
+    }
+
+    private List<EpisodeItem> buildEpisodeItems(EpisodeList newChannelList, Set<String> bookmarkKeys, SeriesWatchState watchedState) {
+        List<EpisodeItem> items = new ArrayList<>();
+        newChannelList.episodes.forEach(episode -> items.add(buildEpisodeItem(episode, bookmarkKeys, watchedState)));
+        return items;
+    }
+
+    private EpisodeItem buildEpisodeItem(Episode episode, Set<String> bookmarkKeys, SeriesWatchState watchedState) {
+        boolean isBookmarked = bookmarkKeys.contains(bookmarkKey(categoryTitle, episode.getId(), episode.getTitle()));
+        String logo = episode.getInfo() != null ? normalizeImageUrl(episode.getInfo().getMovieImage()) : "";
+        String tmdbId = episode.getInfo() != null ? episode.getInfo().getTmdbId() : "";
+        String season = inferSeason(episode);
+        String episodeNo = inferEpisodeNumber(episode);
+        boolean isWatched = SeriesWatchStateService.getInstance().isMatchingEpisode(
+                watchedState, episode.getId(), season, episodeNo, episode.getTitle());
+        String plot = episode.getInfo() != null ? safe(episode.getInfo().getPlot()) : "";
+        String cleanTitle = cleanEpisodeTitleWithPlot(episode.getTitle(), plot);
+        String displayTitle = buildEpisodeDisplayTitle(season, episodeNo, cleanTitle);
+        String releaseDate = episode.getInfo() != null ? safe(episode.getInfo().getReleaseDate()) : "";
+        String rating = episode.getInfo() != null ? safe(episode.getInfo().getRating()) : "";
+        return new EpisodeItem(
+                new SimpleStringProperty(displayTitle),
+                new SimpleStringProperty(episode.getId()),
+                new SimpleStringProperty(episode.getCmd()),
+                isBookmarked,
+                isWatched,
+                new SimpleStringProperty(logo),
+                new SimpleStringProperty(tmdbId),
+                new SimpleStringProperty(season),
+                new SimpleStringProperty(episodeNo),
+                new SimpleStringProperty(plot),
+                new SimpleStringProperty(releaseDate),
+                new SimpleStringProperty(rating),
+                episode
+        );
+    }
+
+    private EpisodeItem findWatchedEpisodeMatch(String normalizedSeason) {
+        if (!isBlank(normalizedSeason)) {
+            for (EpisodeItem item : allEpisodeItems) {
+                if (item.isWatched() && normalizedSeason.equals(normalizeNumber(item.getSeason()))) {
+                    return item;
+                }
+            }
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            if (item.isWatched()) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private EpisodeItem findEpisodeById(String normalizedEpisodeId) {
+        if (isBlank(normalizedEpisodeId)) {
+            return null;
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            if (normalizedEpisodeId.equals(safe(item.getEpisodeId()).trim())) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private EpisodeItem findEpisodeBySeasonAndNumber(String normalizedSeason, String normalizedEpisodeNo) {
+        if (isBlank(normalizedSeason) || isBlank(normalizedEpisodeNo)) {
+            return null;
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            if (normalizedSeason.equals(normalizeNumber(item.getSeason()))
+                    && normalizedEpisodeNo.equals(normalizeNumber(item.getEpisodeNumber()))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private EpisodeItem findEpisodeByName(String normalizedEpisodeName) {
+        if (isBlank(normalizedEpisodeName)) {
+            return null;
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            String itemName = normalizeTitle(cleanEpisodeTitle(item.getEpisodeName()));
+            if (normalizedEpisodeName.equals(itemName)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private EpisodeItem findEpisodeBySeason(String normalizedSeason) {
+        if (isBlank(normalizedSeason)) {
+            return null;
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            if (normalizedSeason.equals(normalizeNumber(item.getSeason()))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private String trimWrappedImageUrl(String value) {
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    private boolean isAbsoluteImageUrl(String value) {
+        return value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*");
+    }
+
+    private boolean isInlineImageUrl(String value) {
+        return value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:");
+    }
+
+    private BaseUriParts baseUriParts() {
+        URI base = resolveBaseUri();
+        if (base == null) {
+            return new BaseUriParts("https", "", -1);
+        }
+        return new BaseUriParts(
+                isBlank(base.getScheme()) ? "https" : base.getScheme(),
+                isBlank(base.getHost()) ? "" : base.getHost(),
+                base.getPort()
+        );
+    }
+
+    private String buildBaseUrl(BaseUriParts base) {
+        return base.scheme() + "://" + base.host() + (base.port() > 0 ? ":" + base.port() : "");
+    }
+
+    private String stripLeadingRelativePrefix(String value) {
+        return value.replaceFirst("^\\./", "");
     }
 
     protected URI resolveBaseUri() {
@@ -752,6 +813,9 @@ public abstract class BaseEpisodesListUI extends HBox {
 
     protected String localServerOrigin() {
         return ServerUrlUtil.getLocalServerUrl();
+    }
+
+    private record BaseUriParts(String scheme, String host, int port) {
     }
 
     protected String firstNonBlank(String... values) {

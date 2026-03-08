@@ -688,52 +688,11 @@ public class ConfigurationUI extends VBox {
                 saveButton.setDisable(true);
 
                 Configuration previous = service.read();
-                boolean previousThumbnailsEnabled = previous != null && previous.isEnableThumbnails();
-                boolean previousEmbeddedPlayer = previous != null && previous.isEmbeddedPlayer();
-                boolean previousWideView = previous != null && previous.isWideView();
-
-                String defaultPlayer = EMBEDDED_PLAYER_PATH;
-                if (defaultPlayer1.isSelected()) {
-                    defaultPlayer = playerPath1.getText();
-                } else if (defaultPlayer2.isSelected()) {
-                    defaultPlayer = playerPath2.getText();
-                } else if (defaultPlayer3.isSelected()) {
-                    defaultPlayer = playerPath3.getText();
-                } else if (defaultWebBrowserPlayer.isSelected()) {
-                    defaultPlayer = PlaybackUIService.WEB_BROWSER_PLAYER_PATH;
-                }
-                Configuration newConfiguration = new Configuration(
-                        playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), defaultPlayer,
-                        filterCategoriesWithTextContains.getText(), filterChannelWithTextContains.getText(),
-                        filterPausedCheckBox.isSelected(),
-                        darkThemeCheckBox.isSelected(), serverPort.getText(),
-                        defaultEmbedPlayer.isSelected(),
-                        enableFfmpegCheckBox.isSelected(),
-                        sanitizeCacheExpiryDaysText(),
-                        enableThumbnailsCheckBox.isSelected()
-                );
-                newConfiguration.setDbId(dbId);
-                newConfiguration.setWideView(wideViewCheckBox.isSelected());
-                newConfiguration.setLanguageLocale(getSelectedLanguageTag());
-                newConfiguration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
-                newConfiguration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
-                newConfiguration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
-                service.save(newConfiguration);
-                I18n.setLocale(newConfiguration.getLanguageLocale());
-                currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
-                themeCssOverrideService.save(currentThemeCssOverride);
-                if (onSaveCallback != null) {
-                    onSaveCallback.call(null);
-                }
+                Configuration newConfiguration = buildConfigurationToSave();
+                saveConfiguration(newConfiguration);
+                applyPostSaveEffects(previous, newConfiguration);
                 showSaveSuccessAnimation();
-                if (previousThumbnailsEnabled != newConfiguration.isEnableThumbnails()) {
-                    ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
-                }
-
-                boolean restartRequired = previousEmbeddedPlayer != newConfiguration.isEmbeddedPlayer()
-                        || previousWideView != newConfiguration.isWideView()
-                        || !Objects.equals(previous == null ? null : previous.getLanguageLocale(), newConfiguration.getLanguageLocale());
-                if (restartRequired) {
+                if (restartRequired(previous, newConfiguration)) {
                     showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
                 }
             } catch (Exception _) {
@@ -741,6 +700,63 @@ public class ConfigurationUI extends VBox {
                 saveButton.setDisable(false);
             }
         });
+    }
+
+    private Configuration buildConfigurationToSave() {
+        Configuration configuration = new Configuration(
+                playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), resolveDefaultPlayerPath(),
+                filterCategoriesWithTextContains.getText(), filterChannelWithTextContains.getText(),
+                filterPausedCheckBox.isSelected(),
+                darkThemeCheckBox.isSelected(), serverPort.getText(),
+                defaultEmbedPlayer.isSelected(),
+                enableFfmpegCheckBox.isSelected(),
+                sanitizeCacheExpiryDaysText(),
+                enableThumbnailsCheckBox.isSelected()
+        );
+        configuration.setDbId(dbId);
+        configuration.setWideView(wideViewCheckBox.isSelected());
+        configuration.setLanguageLocale(getSelectedLanguageTag());
+        configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
+        configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
+        configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
+        return configuration;
+    }
+
+    private String resolveDefaultPlayerPath() {
+        if (defaultPlayer1.isSelected()) return playerPath1.getText();
+        if (defaultPlayer2.isSelected()) return playerPath2.getText();
+        if (defaultPlayer3.isSelected()) return playerPath3.getText();
+        if (defaultWebBrowserPlayer.isSelected()) return PlaybackUIService.WEB_BROWSER_PLAYER_PATH;
+        return EMBEDDED_PLAYER_PATH;
+    }
+
+    private void saveConfiguration(Configuration configuration) {
+        service.save(configuration);
+        I18n.setLocale(configuration.getLanguageLocale());
+        currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
+        themeCssOverrideService.save(currentThemeCssOverride);
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
+    }
+
+    private void applyPostSaveEffects(Configuration previous, Configuration newConfiguration) {
+        if (thumbnailModeChanged(previous, newConfiguration)) {
+            ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
+        }
+    }
+
+    private boolean thumbnailModeChanged(Configuration previous, Configuration current) {
+        boolean previousThumbnailsEnabled = previous != null && previous.isEnableThumbnails();
+        return previousThumbnailsEnabled != current.isEnableThumbnails();
+    }
+
+    private boolean restartRequired(Configuration previous, Configuration current) {
+        boolean previousEmbeddedPlayer = previous != null && previous.isEmbeddedPlayer();
+        boolean previousWideView = previous != null && previous.isWideView();
+        return previousEmbeddedPlayer != current.isEmbeddedPlayer()
+                || previousWideView != current.isWideView()
+                || !Objects.equals(previous == null ? null : previous.getLanguageLocale(), current.getLanguageLocale());
     }
 
     private void showSaveSuccessAnimation() {

@@ -43,24 +43,35 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (mediaPlayer != null) {
                 return;
             }
-
-            List<String> vlcArgs = new ArrayList<>();
-            String osName = System.getProperty("os.name").toLowerCase();
-            String defaultHw = osName.contains("mac") ? "none" : "auto";
-            String hwDecode = System.getProperty("uiptv.vlc.hwdec", defaultHw).trim().toLowerCase();
-            if (hwDecode.isBlank()) {
-                hwDecode = defaultHw;
-            }
-            vlcArgs.add("--avcodec-hw=" + hwDecode);
-            vlcArgs.add("--network-caching=1000");
-
-            mediaPlayerFactory = new MediaPlayerFactory(vlcArgs.toArray(new String[0]));
+            mediaPlayerFactory = new MediaPlayerFactory(createVlcArgs().toArray(new String[0]));
             mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
-            mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
-            mediaPlayer.controls().setRepeat(false);
-            mediaPlayer.audio().setMute(isMuted);
+            configureEmbeddedPlayer();
+            mediaPlayerEvents = createMediaPlayerEvents();
+            mediaPlayer.events().addMediaPlayerEventListener(mediaPlayerEvents);
+        }
+    }
 
-            mediaPlayerEvents = new MediaPlayerEventAdapter() {
+    private List<String> createVlcArgs() {
+        List<String> vlcArgs = new ArrayList<>();
+        String osName = System.getProperty("os.name").toLowerCase();
+        String defaultHw = osName.contains("mac") ? "none" : "auto";
+        String hwDecode = System.getProperty("uiptv.vlc.hwdec", defaultHw).trim().toLowerCase();
+        if (hwDecode.isBlank()) {
+            hwDecode = defaultHw;
+        }
+        vlcArgs.add("--avcodec-hw=" + hwDecode);
+        vlcArgs.add("--network-caching=1000");
+        return vlcArgs;
+    }
+
+    private void configureEmbeddedPlayer() {
+        mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
+        mediaPlayer.controls().setRepeat(false);
+        mediaPlayer.audio().setMute(isMuted);
+    }
+
+    private MediaPlayerEventAdapter createMediaPlayerEvents() {
+        return new MediaPlayerEventAdapter() {
             @Override
             public void playing(MediaPlayer mp) {
                 Platform.runLater(() -> {
@@ -137,26 +148,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
             @Override
             public void elementaryStreamAdded(MediaPlayer mp, TrackType type, int id) {
-                if (type == TrackType.AUDIO) {
-                    Platform.runLater(() -> refreshTrackMenus());
-                }
+                refreshTrackMenusIfAudio(type);
             }
 
             @Override
             public void elementaryStreamDeleted(MediaPlayer mp, TrackType type, int id) {
-                if (type == TrackType.AUDIO) {
-                    Platform.runLater(() -> refreshTrackMenus());
-                }
+                refreshTrackMenusIfAudio(type);
             }
 
             @Override
             public void elementaryStreamSelected(MediaPlayer mp, TrackType type, int id) {
-                if (type == TrackType.AUDIO) {
-                    Platform.runLater(() -> refreshTrackMenus());
-                }
+                refreshTrackMenusIfAudio(type);
             }
-            };
-            mediaPlayer.events().addMediaPlayerEventListener(mediaPlayerEvents);
+        };
+    }
+
+    private void refreshTrackMenusIfAudio(TrackType type) {
+        if (type == TrackType.AUDIO) {
+            Platform.runLater(this::refreshTrackMenus);
         }
     }
 

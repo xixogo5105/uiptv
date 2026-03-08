@@ -271,7 +271,7 @@ public class ImdbMetadataService {
             applyImdbGenre(result, data.opt(KEY_GENRE));
 
             result.put(KEY_CAST, joinPersonNames(data.optJSONArray("actor")));
-            result.put(KEY_DIRECTOR, joinPersonNames(data.optJSONArray("director")));
+            result.put(KEY_DIRECTOR, joinPersonNames(data.optJSONArray(KEY_DIRECTOR)));
         } catch (Exception _) {
             // best effort
         }

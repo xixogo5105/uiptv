@@ -158,11 +158,7 @@ public class ImageCacheManager {
     }
 
     private static Image fetchImageWithFallback(String url, String cacheKey, String caller) {
-        List<String> candidates = new ArrayList<>();
-        candidates.add(url);
-        if (url.startsWith("http://")) {
-            candidates.add("https://" + url.substring("http://".length()));
-        }
+        List<String> candidates = buildImageCandidates(url);
 
         for (String candidate : candidates) {
             try {
@@ -174,18 +170,7 @@ public class ImageCacheManager {
                     return payload.image;
                 }
             } catch (HttpStatusException e) {
-                if (e.statusCode == 404) {
-                    // Try next candidate (e.g. https fallback). If this was the last one, negative-cache it.
-                    if (candidate.equals(candidates.get(candidates.size() - 1))) {
-                        NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_404);
-                    }
-                } else if (e.statusCode == 429) {
-                    long retryAfterMs = e.retryAfterMs > 0 ? e.retryAfterMs : NEGATIVE_CACHE_MS_429_DEFAULT;
-                    NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + retryAfterMs);
-                    setHostBackoff(candidate, retryAfterMs);
-                } else {
-                    logImageIssue(candidate, "Image HTTP status: " + e.statusCode);
-                }
+                handleImageHttpStatus(candidate, cacheKey, e, candidate.equals(candidates.get(candidates.size() - 1)));
             } catch (Exception _) {
                 if (candidate.equals(candidates.get(candidates.size() - 1))) {
                     NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
@@ -193,6 +178,31 @@ public class ImageCacheManager {
             }
         }
         return null;
+    }
+
+    private static List<String> buildImageCandidates(String url) {
+        List<String> candidates = new ArrayList<>();
+        candidates.add(url);
+        if (url.startsWith("http://")) {
+            candidates.add("https://" + url.substring("http://".length()));
+        }
+        return candidates;
+    }
+
+    private static void handleImageHttpStatus(String candidate, String cacheKey, HttpStatusException e, boolean lastCandidate) {
+        if (e.statusCode == 404) {
+            if (lastCandidate) {
+                NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_404);
+            }
+            return;
+        }
+        if (e.statusCode == 429) {
+            long retryAfterMs = e.retryAfterMs > 0 ? e.retryAfterMs : NEGATIVE_CACHE_MS_429_DEFAULT;
+            NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + retryAfterMs);
+            setHostBackoff(candidate, retryAfterMs);
+            return;
+        }
+        logImageIssue(candidate, "Image HTTP status: " + e.statusCode);
     }
 
     private static ImagePayload fetchSingleImage(String url) throws Exception {

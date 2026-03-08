@@ -462,35 +462,59 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void showSeriesList(List<SeriesPanelData> rows) {
-        contentBox.getChildren().clear();
-        renderedDetailKey = "";
-        contentBox.setPadding(new Insets(5));
-        contentBox.setSpacing(10);
+        prepareSeriesListContainer();
         if (rows == null || rows.isEmpty()) {
             contentBox.getChildren().add(new Label(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES)));
             return;
         }
 
         if (thumbnailsEnabled()) {
-            for (SeriesPanelData data : rows) {
-                contentBox.getChildren().add(createSeriesListCard(data));
-            }
-            selectedSeriesCard = null;
-            VBox.setVgrow(contentBox, Priority.ALWAYS);
+            showThumbnailSeriesList(rows);
             return;
         }
 
+        TableView<SeriesListItem> table = buildSeriesListTable(rows);
+
+        contentBox.getChildren().add(table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private void prepareSeriesListContainer() {
+        contentBox.getChildren().clear();
+        renderedDetailKey = "";
+        contentBox.setPadding(new Insets(5));
+        contentBox.setSpacing(10);
+    }
+
+    private void showThumbnailSeriesList(List<SeriesPanelData> rows) {
+        for (SeriesPanelData data : rows) {
+            contentBox.getChildren().add(createSeriesListCard(data));
+        }
+        selectedSeriesCard = null;
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private TableView<SeriesListItem> buildSeriesListTable(List<SeriesPanelData> rows) {
         TableView<SeriesListItem> table = new TableView<>();
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setFocusTraversable(false);
+        table.getColumns().add(createSeriesListColumn());
+        table.setItems(buildSeriesListItems(rows));
+        wireSeriesListTableSelection(table);
+        return table;
+    }
 
+    private TableColumn<SeriesListItem, String> createSeriesListColumn() {
         TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>(I18n.tr("autoSeries"));
         seriesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
                 cellData.getValue().seriesTitleProperty().get() + " (" + cellData.getValue().accountNameProperty().get() + ")"
         ));
         seriesColumn.setReorderable(false);
-        table.getColumns().add(seriesColumn);
+        return seriesColumn;
+    }
 
+    private ObservableList<SeriesListItem> buildSeriesListItems(List<SeriesPanelData> rows) {
         ObservableList<SeriesListItem> items = FXCollections.observableArrayList();
         for (SeriesPanelData data : rows) {
             items.add(new SeriesListItem(
@@ -499,36 +523,33 @@ public abstract class BaseWatchingNowUI extends VBox {
                     seriesPaneKey(data)
             ));
         }
-        table.setItems(items);
+        return items;
+    }
 
+    private void wireSeriesListTableSelection(TableView<SeriesListItem> table) {
         table.setOnMousePressed(event -> {
             if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
-                SeriesListItem selected = table.getSelectionModel().getSelectedItem();
-                if (selected != null) {
-                    SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
-                    if (panelData != null) {
-                        selectedSeriesKey = selected.getPanelKey();
-                        renderCurrentView();
-                    }
-                }
+                openSelectedSeries(table);
             }
         });
         table.setOnKeyPressed(event -> {
             if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                SeriesListItem selected = table.getSelectionModel().getSelectedItem();
-                if (selected != null) {
-                    SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
-                    if (panelData != null) {
-                        selectedSeriesKey = selected.getPanelKey();
-                        renderCurrentView();
-                    }
-                }
+                openSelectedSeries(table);
             }
         });
+    }
 
-        contentBox.getChildren().add(table);
-        VBox.setVgrow(table, Priority.ALWAYS);
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
+    private void openSelectedSeries(TableView<SeriesListItem> table) {
+        SeriesListItem selected = table.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            return;
+        }
+        SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
+        if (panelData == null) {
+            return;
+        }
+        selectedSeriesKey = selected.getPanelKey();
+        renderCurrentView();
     }
 
     private HBox createSeriesListCard(SeriesPanelData data) {
@@ -1344,46 +1365,55 @@ public abstract class BaseWatchingNowUI extends VBox {
             try {
                 JSONObject imdb = findImdbWithRetry(data, 3);
                 if (imdb != null) {
-                    String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""), data.account);
-                    if (!isBlank(imdbCover)) {
-                        data.seasonInfo.put(KEY_COVER, imdbCover);
-                        imdb.put(KEY_COVER, imdbCover);
-                    }
-                    mergeMissing(data.seasonInfo, imdb, "name");
-                    mergeMissing(data.seasonInfo, imdb, "plot");
-                    mergeMissing(data.seasonInfo, imdb, "cast");
-                    mergeMissing(data.seasonInfo, imdb, "director");
-                    mergeMissing(data.seasonInfo, imdb, "genre");
-                    mergeMissing(data.seasonInfo, imdb, KEY_RELEASE_DATE);
-                    mergeMissing(data.seasonInfo, imdb, "rating");
-                    mergeMissing(data.seasonInfo, imdb, "tmdb");
-                    mergeMissing(data.seasonInfo, imdb, "imdbUrl");
-
-                    JSONArray episodesMeta = imdb.optJSONArray("episodesMeta");
-                    enrichEpisodesFromMeta(data.episodes, episodesMeta);
-                    imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
-                            new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString())));
+                    mergeImdbIntoPanel(data, imdb);
                 }
             } finally {
                 data.imdbLoaded = true;
                 data.imdbLoading = false;
-                Platform.runLater(() -> {
-                    if (pane != null) {
-                        pane.setText(buildSeriesPaneTitle(data));
-                    }
-                    applySeasonInfoToHeader(data);
-                    String cover = data.seasonInfo.optString(KEY_COVER, "");
-                    if (!isBlank(cover)) {
-                        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
-                            if (img != null) {
-                                Platform.runLater(() -> data.seriesPosterNode.setImage(img));
-                            }
-                        });
-                    }
-                    refreshSeasonTables(data);
-                });
+                Platform.runLater(() -> applyLoadedImdbToUi(data, pane));
             }
         }, "watching-now-imdb-loader").start();
+    }
+
+    private void mergeImdbIntoPanel(SeriesPanelData data, JSONObject imdb) {
+        String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""), data.account);
+        if (!isBlank(imdbCover)) {
+            data.seasonInfo.put(KEY_COVER, imdbCover);
+            imdb.put(KEY_COVER, imdbCover);
+        }
+        mergeMissing(data.seasonInfo, imdb, "name");
+        mergeMissing(data.seasonInfo, imdb, "plot");
+        mergeMissing(data.seasonInfo, imdb, "cast");
+        mergeMissing(data.seasonInfo, imdb, "director");
+        mergeMissing(data.seasonInfo, imdb, "genre");
+        mergeMissing(data.seasonInfo, imdb, KEY_RELEASE_DATE);
+        mergeMissing(data.seasonInfo, imdb, "rating");
+        mergeMissing(data.seasonInfo, imdb, "tmdb");
+        mergeMissing(data.seasonInfo, imdb, "imdbUrl");
+        enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));
+        imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
+                new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString())));
+    }
+
+    private void applyLoadedImdbToUi(SeriesPanelData data, TitledPane pane) {
+        if (pane != null) {
+            pane.setText(buildSeriesPaneTitle(data));
+        }
+        applySeasonInfoToHeader(data);
+        loadSeriesPosterImage(data);
+        refreshSeasonTables(data);
+    }
+
+    private void loadSeriesPosterImage(SeriesPanelData data) {
+        String cover = data.seasonInfo.optString(KEY_COVER, "");
+        if (isBlank(cover)) {
+            return;
+        }
+        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
+            if (img != null) {
+                Platform.runLater(() -> data.seriesPosterNode.setImage(img));
+            }
+        });
     }
 
     private JSONObject findImdbWithRetry(SeriesPanelData data, int maxAttempts) {
