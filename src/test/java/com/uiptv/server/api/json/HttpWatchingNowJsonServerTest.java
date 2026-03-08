@@ -181,6 +181,7 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
 
         @Override
         public void close() {
+            // No resources to release in the test double.
         }
 
         @Override
@@ -225,10 +226,12 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            // Attributes are not needed by these tests.
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // The test exchange uses in-memory streams created at construction time.
         }
 
         @Override
