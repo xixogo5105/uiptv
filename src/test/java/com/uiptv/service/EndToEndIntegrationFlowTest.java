@@ -11,10 +11,13 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import com.uiptv.util.LogUtil;
+import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.TextParserService;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -39,6 +42,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
+import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -204,12 +208,62 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         updated.setServerPort("10001");
         updated.setDarkTheme(true);
         updated.setEnableFfmpegTranscoding(true);
+        updated.setEnableThumbnails(true);
+        updated.setEmbeddedPlayer(true);
+        updated.setWideView(true);
+        updated.setCacheExpiryDays("14");
+        updated.setLanguageLocale("ar-SA");
+        updated.setTmdbReadAccessToken("tmdb-token-e2e");
+        updated.setUiZoomPercent("133");
+        updated.setEnableLitePlayerFfmpeg(true);
         configurationService.save(updated);
+
+        ThemeCssOverride themeOverride = new ThemeCssOverride();
+        themeOverride.setLightThemeCssName("light-e2e.css");
+        themeOverride.setLightThemeCssContent(".root { -fx-base: #fafafa; }");
+        themeOverride.setDarkThemeCssName("dark-e2e.css");
+        themeOverride.setDarkThemeCssContent(".root { -fx-base: #111111; }");
+        ThemeCssOverrideService.getInstance().save(themeOverride);
 
         Configuration persisted = configurationService.read();
         assertEquals("10001", persisted.getServerPort());
         assertTrue(persisted.isDarkTheme());
         assertTrue(persisted.isEnableFfmpegTranscoding());
+        assertTrue(persisted.isEnableThumbnails());
+        assertTrue(persisted.isEmbeddedPlayer());
+        assertTrue(persisted.isWideView());
+        assertEquals("14", persisted.getCacheExpiryDays());
+        assertEquals("ar-SA", persisted.getLanguageLocale());
+        assertEquals("tmdb-token-e2e", persisted.getTmdbReadAccessToken());
+        assertEquals("133", persisted.getUiZoomPercent());
+        assertTrue(persisted.isEnableLitePlayerFfmpeg());
+
+        assertEquals(14, configurationService.getCacheExpiryDays());
+        assertEquals(14L * 24L * 60L * 60L * 1000L, configurationService.getCacheExpiryMs());
+        assertEquals(133, configurationService.getUiZoomPercent());
+
+        I18n.initialize(persisted.getLanguageLocale());
+        assertEquals("ar-SA", I18n.getCurrentLanguageTag());
+        assertTrue(I18n.isCurrentLocaleRtl());
+        assertNotEquals("123", I18n.formatNumber("123"));
+        assertFalse(I18n.formatEpisodeLabel("7").isBlank());
+
+        ThemeCssOverride savedOverride = ThemeCssOverrideService.getInstance().read();
+        assertEquals("light-e2e.css", savedOverride.getLightThemeCssName());
+        assertEquals("dark-e2e.css", savedOverride.getDarkThemeCssName());
+
+        String resolvedStylesheet = ThemeStylesheetResolver.resolveStylesheetUrl(
+                getClass(),
+                persisted.isDarkTheme(),
+                configurationService.getUiZoomPercent()
+        );
+        assertTrue(resolvedStylesheet.startsWith("data:text/css;base64,"));
+        String decodedCss = new String(
+                Base64.getDecoder().decode(resolvedStylesheet.substring("data:text/css;base64,".length())),
+                StandardCharsets.UTF_8
+        );
+        assertTrue(decodedCss.contains(".root { -fx-base: #111111; }"));
+        assertTrue(decodedCss.contains("-fx-font-size: 17.290px;"));
     }
 
     private void seedAndImportAccounts() throws Exception {

@@ -54,6 +54,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -76,6 +77,9 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
     private int appPort;
     private String appBaseUrl;
+    private String watchedSeriesAccountId;
+    private String watchedSeriesId;
+    private String watchedEpisodeId;
 
     @BeforeEach
     void setUpServers() throws Exception {
@@ -144,6 +148,9 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 "", "", false,
                 false, String.valueOf(appPort), false, false
         );
+        cfg.setEnableThumbnails(false);
+        cfg.setLanguageLocale("ar-SA");
+        cfg.setUiZoomPercent("133");
         ConfigurationService.getInstance().save(cfg);
 
         saveAccounts();
@@ -168,10 +175,13 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertTrue(UIptvServer.isRunning());
 
             assertSpaPages();
+            assertStaticBootstrapApis();
             assertAccountsApi();
+            assertConfigApi();
             assertCategoriesApi();
             assertChannelsApi();
             assertSeriesApis();
+            assertWatchingNowApi();
             assertVodDetailsApi();
             assertBookmarksApis();
             assertPlayerApis();
@@ -333,6 +343,24 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         }
     }
 
+    private void assertStaticBootstrapApis() throws Exception {
+        HttpTextResponse manifest = get("/manifest.json");
+        assertEquals(200, manifest.statusCode());
+        assertTrue(manifest.body().contains("\"name\": \"UIPTV Web\""));
+        assertTrue(manifest.body().contains("\"start_url\": \"/index.html\""));
+
+        HttpTextResponse serviceWorker = get("/sw.js");
+        assertEquals(200, serviceWorker.statusCode());
+        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v10';"));
+        assertTrue(serviceWorker.body().contains("self.addEventListener('fetch'"));
+    }
+
+    private void assertConfigApi() throws Exception {
+        JSONObject config = jsonObjectBody(get("/config"));
+        assertTrue(config.has("enableThumbnails"));
+        assertFalse(config.getBoolean("enableThumbnails"));
+    }
+
     private void assertAccountsApi() throws Exception {
         HttpTextResponse response = get("/accounts");
         assertEquals(200, response.statusCode());
@@ -471,6 +499,9 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
                 + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
         assertEquals(episode3.optString("channelId"), watchedEpisodeId(afterEpisode3));
+        watchedSeriesAccountId = account.getDbId();
+        watchedSeriesId = seriesId;
+        watchedEpisodeId = episode3.optString("channelId");
     }
 
     private void assertSeriesRowWatched(Account account, String categoryDbId, String seriesId, boolean expectedWatched) throws Exception {
@@ -530,6 +561,27 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         }
         assertEquals(1, watchedCount);
         return watchedId;
+    }
+
+    private void assertWatchingNowApi() throws Exception {
+        JSONArray watchingNow = jsonArrayBody(get("/watchingNow"));
+        assertFalse(watchingNow.isEmpty());
+
+        JSONObject matched = null;
+        for (int i = 0; i < watchingNow.length(); i++) {
+            JSONObject row = watchingNow.getJSONObject(i);
+            if (Objects.equals(watchedSeriesAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedSeriesId, row.optString("seriesId"))) {
+                matched = row;
+                break;
+            }
+        }
+
+        assertNotNull(matched, "Expected watching-now row for watched series");
+        assertEquals(watchedEpisodeId, matched.optString("episodeId"));
+        assertFalse(matched.optString("seriesTitle").isBlank());
+        assertFalse(matched.optString("episodeName").isBlank());
+        assertFalse(matched.optString("categoryDbId").isBlank());
     }
 
     private boolean isWatchedFlag(JSONObject item) {
@@ -777,33 +829,33 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             String xtremeUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
                     + "&mode=itv&categoryId=" + xtremeCategory.getDbId() + "&page=0&pageSize=10&prefetchPages=1";
             JSONObject xtremeJson = jsonObjectBody(getAbsolute(xtremeUrl));
-            assertTrue(xtremeJson.getJSONArray("items").length() >= 1);
+            assertFalse(xtremeJson.getJSONArray("items").isEmpty());
 
             JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
-            assertTrue(xtremeSeriesCategories.length() >= 1);
+            assertFalse(xtremeSeriesCategories.isEmpty());
             String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
             String xtremeSeriesRowsUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
                     + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
                     + "&page=0&pageSize=50&prefetchPages=1";
             JSONObject xtremeSeriesRows = jsonObjectBody(getAbsolute(xtremeSeriesRowsUrl));
             JSONArray xtremeSeriesItems = xtremeSeriesRows.getJSONArray("items");
-            assertTrue(xtremeSeriesItems.length() >= 1);
+            assertFalse(xtremeSeriesItems.isEmpty());
             boolean hasWatchedSeries = false;
-            String watchedSeriesId = "";
+            String wsIdentity = "";
             for (int i = 0; i < xtremeSeriesItems.length(); i++) {
                 JSONObject row = xtremeSeriesItems.getJSONObject(i);
                 if (isWatchedFlag(row)) {
                     hasWatchedSeries = true;
-                    watchedSeriesId = row.optString("channelId");
+                    wsIdentity = row.optString("channelId");
                     break;
                 }
             }
             assertTrue(hasWatchedSeries);
-            assertFalse(watchedSeriesId.isBlank());
+            assertFalse(wsIdentity.isBlank());
 
             String xtremeSeriesEpisodesUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
                     + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
-                    + "&movieId=" + URLEncoder.encode(watchedSeriesId, StandardCharsets.UTF_8)
+                    + "&movieId=" + URLEncoder.encode(wsIdentity, StandardCharsets.UTF_8)
                     + "&page=0&pageSize=50&prefetchPages=1";
             JSONObject xtremeSeriesEpisodes = jsonObjectBody(getAbsolute(xtremeSeriesEpisodesUrl));
             assertFalse(watchedEpisodeId(xtremeSeriesEpisodes.getJSONArray("items")).isBlank());
