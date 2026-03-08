@@ -69,8 +69,10 @@ public abstract class BaseDb {
     }
 
     public void delete(String id) {
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(deleteByIdSql(table, id))) {
-            statement.execute();
+        String sql = "DELETE FROM " + table.getTableName() + " WHERE id=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, id);
+            statement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Unable to execute delete query");
         }

@@ -3,19 +3,20 @@ package com.uiptv.server;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.util.StringUtils;
-import org.apache.commons.io.IOUtils;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 
-import static com.uiptv.util.Platform.getWebServerRootPath;
 import static com.uiptv.util.ServerUtils.generateCssResponse;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class HttpCssServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        String fileId = getWebServerRootPath() + ex.getRequestURI().getPath();
-        generateCssResponse(ex, StringUtils.EMPTY + IOUtils.toString(new FileInputStream(fileId), UTF_8), fileId);
+        try {
+            Path filePath = StaticWebFileResolver.resolve(ex);
+            generateCssResponse(ex, StringUtils.EMPTY + StaticWebFileResolver.readUtf8(filePath), filePath.getFileName().toString());
+        } catch (IOException e) {
+            ex.sendResponseHeaders(404, -1);
+        }
     }
 }
