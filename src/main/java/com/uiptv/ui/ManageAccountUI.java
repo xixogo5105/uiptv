@@ -411,7 +411,7 @@ public class ManageAccountUI extends VBox {
         accountType.setValue(STALKER_PORTAL.getDisplay());
         pinToTopCheckBox.setSelected(false);
         httpMethodCombo.setValue("GET");
-        timezoneCombo.setValue("Europe/London");
+        timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
         accountId = null;
         updateButtonState();

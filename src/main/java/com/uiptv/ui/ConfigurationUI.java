@@ -294,7 +294,7 @@ public class ConfigurationUI extends VBox {
         if (description != null && !description.isBlank()) {
             Label label = new Label(description);
             label.setWrapText(true);
-            label.getStyleClass().add("dim-label");
+            label.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
             titleContainer.getChildren().add(label);
             descriptionLabel = label;
         } else {
@@ -371,7 +371,7 @@ public class ConfigurationUI extends VBox {
         downloadRow.setMaxWidth(Double.MAX_VALUE);
 
         VBox themeCssSection = new VBox(10, lightBox, darkBox, downloadRow, resetThemeOverridesButton);
-        themeCssSection.getStyleClass().add("uiptv-outline-pane");
+        themeCssSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         themeCssSection.setMaxWidth(Double.MAX_VALUE);
 
         GridPane languageAndZoomGrid = new GridPane();
@@ -534,10 +534,10 @@ public class ConfigurationUI extends VBox {
         String lightName = currentThemeCssOverride.getLightThemeCssName();
         String darkName = currentThemeCssOverride.getDarkThemeCssName();
         lightThemeCssStatus.setText(lightName == null || lightName.isBlank()
-                ? I18n.tr("configDefaultResourceInUse")
+                ? I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE)
                 : I18n.tr("configUsingOverridePrefix") + " " + lightName);
         darkThemeCssStatus.setText(darkName == null || darkName.isBlank()
-                ? I18n.tr("configDefaultResourceInUse")
+                ? I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE)
                 : I18n.tr("configUsingOverridePrefix") + " " + darkName);
     }
 

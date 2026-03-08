@@ -235,7 +235,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
             channel.setDescription(meta.optString("plot", ""));
         }
         if (isBlank(channel.getReleaseDate())) {
-            channel.setReleaseDate(meta.optString("releaseDate", ""));
+            channel.setReleaseDate(meta.optString(KEY_RELEASE_DATE, ""));
         }
         if (!isBlank(meta.optString("logo", ""))) {
             channel.setLogo(meta.optString("logo", ""));
@@ -280,8 +280,8 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         if (response == null) {
             return;
         }
-        JSONArray episodes = response.optJSONArray("episodes");
-        JSONArray episodesMeta = response.optJSONArray("episodesMeta");
+        JSONArray episodes = response.optJSONArray(KEY_EPISODES);
+        JSONArray episodesMeta = response.optJSONArray(KEY_EPISODES_META);
         if (episodes == null || episodes.isEmpty() || episodesMeta == null || episodesMeta.isEmpty()) {
             return;
         }

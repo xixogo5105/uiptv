@@ -9,5 +9,5 @@ import java.util.List;
 @Data
 public class EpisodeList extends BaseJson {
     public SeasonInfo seasonInfo;
-    public List<Episode> episodes = new ArrayList<>();
+    public transient List<Episode> episodes = new ArrayList<>();
 }

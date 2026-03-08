@@ -2,7 +2,6 @@ package com.uiptv.util;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -30,8 +29,7 @@ public interface StalkerAttributeParser {
         String normalized = Normalizer.normalize(line, Normalizer.Form.NFKC);
         String cleaned = normalized.replaceAll("[^\\x20-\\x7E]", " ").trim();
         List<String> tokens = new ArrayList<>(List.of(cleaned.split("\\s+")));
-        Collections.reverse(tokens);
-        for (String token : tokens) {
+        for (String token : tokens.reversed()) {
             if (Pattern.compile("^[0-9A-Fa-f]{6,}$").matcher(token).matches()) {
                 return token;
             }

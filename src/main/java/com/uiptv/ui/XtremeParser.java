@@ -75,7 +75,7 @@ public class XtremeParser {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonCategory = list.getJSONObject(i);
-                Category category = new Category(jsonCategory.getString("category_id"), jsonCategory.getString("category_name"), jsonCategory.getString("category_name"), true, 0);
+                Category category = new Category(jsonCategory.getString(PARAM_CATEGORY_ID), jsonCategory.getString("category_name"), jsonCategory.getString("category_name"), true, 0);
                 category.setExtraJson(jsonCategory.toString());
                 categoryList.add(category);
             }

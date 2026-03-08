@@ -8,7 +8,7 @@ import javafx.scene.layout.Pane;
 public class DummyVideoPlayer implements VideoPlayerInterface {
     @Override
     public void play(PlayerResponse response) {
-
+        // Intentionally empty: dummy player does not render media.
     }
 
     @Override
@@ -18,7 +18,7 @@ public class DummyVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stopForReload() {
-
+        // Intentionally empty: dummy player has no reload state.
     }
 
     @Override

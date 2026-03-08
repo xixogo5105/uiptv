@@ -126,9 +126,9 @@ public class ImdbMetadataService {
         mergeMissing(details, secondaryMeta, KEY_GENRE);
         mergeMissing(details, secondaryMeta, KEY_RELEASE_DATE);
         mergeMissing(details, secondaryMeta, KEY_RATING);
-        mergeMissing(details, secondaryMeta, "imdbUrl");
-        if (!details.has("episodesMeta") && secondaryMeta.has("episodesMeta")) {
-            details.put("episodesMeta", secondaryMeta.getJSONArray("episodesMeta"));
+        mergeMissing(details, secondaryMeta, KEY_IMDB_URL);
+        if (!details.has(KEY_EPISODES_META) && secondaryMeta.has(KEY_EPISODES_META)) {
+            details.put(KEY_EPISODES_META, secondaryMeta.getJSONArray(KEY_EPISODES_META));
         }
 
         applyTmdbLocalization(details, primaryMeta, secondaryMeta, moviePreferred);
@@ -168,7 +168,7 @@ public class ImdbMetadataService {
                 if (isBlank(q)) continue;
                 JSONObject found = findBestInSuggestions(querySuggestions(q), q);
                 if (isBlank(found.optString("tmdb", ""))) continue;
-                int score = scoreCandidate(primary, found.optString("name", ""), found.optString("genre", ""));
+                int score = scoreCandidate(primary, found.optString("name", ""), found.optString(KEY_GENRE, ""));
                 if (q.equals(primary)) {
                     score += 5;
                 }
@@ -226,12 +226,12 @@ public class ImdbMetadataService {
         JSONObject mapped = new JSONObject();
         mapped.put("tmdb", candidate.optString("id", ""));
         mapped.put("name", candidate.optString("l", ""));
-        mapped.put("genre", candidate.optString("q", ""));
-        mapped.put("releaseDate", candidate.optString("y", ""));
+        mapped.put(KEY_GENRE, candidate.optString("q", ""));
+        mapped.put(KEY_RELEASE_DATE, candidate.optString("y", ""));
         mapped.put("cast", candidate.optString("s", ""));
         JSONObject image = candidate.optJSONObject("i");
         if (image != null) {
-            mapped.put("cover", image.optString("imageUrl", ""));
+            mapped.put(KEY_COVER, image.optString("imageUrl", ""));
         }
         return mapped;
     }
@@ -239,7 +239,7 @@ public class ImdbMetadataService {
     private JSONObject fetchImdbTitleDetails(String imdbId) {
         JSONObject result = new JSONObject();
         try {
-            String html = httpGet(withLanguageQuery("https://www.imdb.com/title/" + imdbId + "/"));
+            String html = httpGet(withLanguageQuery(IMDB_TITLE_URL_PREFIX + imdbId + "/"));
             if (isBlank(html)) return result;
 
             String jsonLd = extractJsonLd(html);
@@ -253,7 +253,7 @@ public class ImdbMetadataService {
 
             JSONObject rating = data.optJSONObject("aggregateRating");
             if (rating != null) {
-                result.put("rating", rating.optString("ratingValue", ""));
+                result.put(KEY_RATING, rating.optString("ratingValue", ""));
             }
 
             Object genreValue = data.opt("genre");
@@ -263,13 +263,13 @@ public class ImdbMetadataService {
                     String g = genreArray.optString(i, "");
                     if (isNotBlank(g)) genres.add(g);
                 }
-                result.put("genre", String.join(", ", genres));
+                result.put(KEY_GENRE, String.join(", ", genres));
             } else if (genreValue instanceof String g) {
-                result.put("genre", g);
+                result.put(KEY_GENRE, g);
             }
 
             result.put("cast", joinPersonNames(data.optJSONArray("actor")));
-            result.put("director", joinPersonNames(data.optJSONArray("director")));
+            result.put(KEY_DIRECTOR, joinPersonNames(data.optJSONArray("director")));
         } catch (Exception _) {
             // best effort
         }

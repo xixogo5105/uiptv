@@ -190,6 +190,7 @@ class HttpBookmarksJsonServerTest extends DbBackedTest {
 
         @Override
         public void close() {
+            // No-op for the in-memory exchange test double.
         }
 
         @Override
@@ -233,10 +234,12 @@ class HttpBookmarksJsonServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            // No-op for the in-memory exchange test double.
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // No-op for the in-memory exchange test double.
         }
 
         @Override

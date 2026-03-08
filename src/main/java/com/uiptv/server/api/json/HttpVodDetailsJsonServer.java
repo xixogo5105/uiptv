@@ -108,7 +108,7 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
         if (vodInfo != null) {
             addHint(hints, vodInfo.optString("name", ""));
             addHint(hints, vodInfo.optString("plot", ""));
-            addHint(hints, vodInfo.optString("releaseDate", ""));
+            addHint(hints, vodInfo.optString(KEY_RELEASE_DATE, ""));
         }
         return hints;
     }

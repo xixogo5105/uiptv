@@ -72,7 +72,7 @@ public class ConfigurationDb extends BaseDb {
             return;
         }
 
-        String sql = "DELETE FROM " + table.getTableName() + " WHERE accountId=?";
+        String sql = DELETE_FROM + table.getTableName() + " WHERE accountId=?";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, accountId);
             pstmt.executeUpdate();

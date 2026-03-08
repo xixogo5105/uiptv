@@ -123,10 +123,10 @@ public class HandshakeService {
 
     public String parseJasonToken(String json) {
         if (isBlank(json) || new JSONObject(json).getJSONObject("js") == null
-                || isBlank(new JSONObject(json).getJSONObject("js").getString("token"))) {
+                || isBlank(new JSONObject(json).getJSONObject("js").getString(PARAM_TOKEN))) {
             Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Error while establishing connection to server"));
             return StringUtils.EMPTY;
         }
-        return new JSONObject(json).getJSONObject("js").getString("token");
+        return new JSONObject(json).getJSONObject("js").getString(PARAM_TOKEN);
     }
 }
