@@ -119,7 +119,7 @@ public class BookmarkChannelListUI extends HBox {
             try {
                 List<Bookmark> bookmarks = BookmarkService.getInstance().read();
                 Map<String, Account> accountByName = AccountService.getInstance().getAll();
-                Map<String, Channel> channelByAccountAndChannel = new HashMap<>();
+                Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName);
                 List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
 
                 for (Bookmark bookmark : bookmarks) {
@@ -522,8 +522,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, Channel> channelByAccountAndChannel) {
         Account account = accountByName.get(bookmark.getAccountName());
-        BookmarkRenderData renderData = BookmarkRenderData.fromBookmark(bookmark);
-        mergeRenderData(renderData, resolveBookmarkChannelSnapshot(bookmark));
+        BookmarkRenderData renderData = resolveBookmarkRenderData(bookmark);
         if (needsChannelFallback(renderData)) {
             mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), channelByAccountAndChannel));
         }
@@ -587,6 +586,67 @@ public class BookmarkChannelListUI extends HBox {
                 || isBlank(renderData.clearKeysJson)
                 || isBlank(renderData.inputstreamaddon)
                 || isBlank(renderData.manifestType);
+    }
+
+    private BookmarkRenderData resolveBookmarkRenderData(Bookmark bookmark) {
+        BookmarkRenderData renderData = BookmarkRenderData.fromBookmark(bookmark);
+        mergeRenderData(renderData, resolveBookmarkChannelSnapshot(bookmark));
+        return renderData;
+    }
+
+    private Map<String, Channel> preloadFallbackChannels(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
+        Map<String, Channel> channelByAccountAndChannel = new HashMap<>();
+        if (bookmarks == null || bookmarks.isEmpty() || accountByName == null || accountByName.isEmpty()) {
+            return channelByAccountAndChannel;
+        }
+
+        Map<String, List<String>> requestedChannelIdsByAccountId = collectFallbackChannelIds(bookmarks, accountByName);
+        loadFallbackChannelsIntoCache(requestedChannelIdsByAccountId, channelByAccountAndChannel);
+
+        return channelByAccountAndChannel;
+    }
+
+    private Map<String, List<String>> collectFallbackChannelIds(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
+        Map<String, List<String>> requestedChannelIdsByAccountId = new HashMap<>();
+        for (Bookmark bookmark : bookmarks) {
+            if (!requiresFallbackLookup(bookmark, accountByName)) {
+                continue;
+            }
+            Account account = accountByName.get(bookmark.getAccountName());
+            requestedChannelIdsByAccountId
+                    .computeIfAbsent(account.getDbId(), ignored -> new ArrayList<>())
+                    .add(bookmark.getChannelId());
+        }
+        return requestedChannelIdsByAccountId;
+    }
+
+    private boolean requiresFallbackLookup(Bookmark bookmark, Map<String, Account> accountByName) {
+        if (bookmark == null) {
+            return false;
+        }
+        BookmarkRenderData renderData = resolveBookmarkRenderData(bookmark);
+        if (!needsChannelFallback(renderData)) {
+            return false;
+        }
+        Account account = accountByName.get(bookmark.getAccountName());
+        return account != null && isNotBlank(account.getDbId()) && isNotBlank(bookmark.getChannelId());
+    }
+
+    private void loadFallbackChannelsIntoCache(Map<String, List<String>> requestedChannelIdsByAccountId,
+                                               Map<String, Channel> channelByAccountAndChannel) {
+        for (Map.Entry<String, List<String>> entry : requestedChannelIdsByAccountId.entrySet()) {
+            List<Channel> channels = ChannelService.getInstance().getChannelsByChannelIdsAndAccount(entry.getValue(), entry.getKey());
+            cacheChannelsByAccountAndId(entry.getKey(), channels, channelByAccountAndChannel);
+        }
+    }
+
+    private void cacheChannelsByAccountAndId(String accountId, List<Channel> channels, Map<String, Channel> channelByAccountAndChannel) {
+        for (Channel channel : channels) {
+            if (channel == null || isBlank(channel.getChannelId())) {
+                continue;
+            }
+            channelByAccountAndChannel.put(accountId + "|" + channel.getChannelId(), channel);
+        }
     }
 
     private Channel lookupFallbackChannel(Account account, String channelId, Map<String, Channel> channelByAccountAndChannel) {

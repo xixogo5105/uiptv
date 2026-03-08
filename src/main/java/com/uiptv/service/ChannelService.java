@@ -23,6 +23,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.util.Collection;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -40,6 +41,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 @Slf4j
+@SuppressWarnings("java:S6548")
 public class ChannelService {
     private static final String FIELD_CENSORED = "censored";
     private static final String FIELD_STATUS = "status";
@@ -293,6 +295,15 @@ public class ChannelService {
             resolveLogoIfNeeded(channel);
         }
         return channel;
+    }
+
+    public List<Channel> getChannelsByChannelIdsAndAccount(Collection<String> channelIds, String accountId) {
+        if (channelIds == null || channelIds.isEmpty() || StringUtils.isBlank(accountId)) {
+            return List.of();
+        }
+        List<Channel> channels = ChannelDb.get().getChannelsByChannelIdsAndAccount(channelIds, accountId);
+        channels.forEach(this::resolveLogoIfNeeded);
+        return channels;
     }
 
     public Channel findCachedLiveChannel(Account account, String channelId, String channelName) {

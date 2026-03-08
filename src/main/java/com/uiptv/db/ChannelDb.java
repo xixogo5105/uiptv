@@ -8,6 +8,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.CATEGORY_TABLE;
@@ -109,6 +111,43 @@ public class ChannelDb extends BaseDb {
             throw new DatabaseAccessException("Unable to execute getChannelByChannelIdAndAccount query", e);
         }
         return null;
+    }
+
+    @SuppressWarnings("java:S2077")
+    public List<Channel> getChannelsByChannelIdsAndAccount(Collection<String> channelIds, String accountId) {
+        if (channelIds == null || channelIds.isEmpty() || accountId == null || accountId.isBlank()) {
+            return List.of();
+        }
+
+        List<String> effectiveChannelIds = channelIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        if (effectiveChannelIds.isEmpty()) {
+            return List.of();
+        }
+
+        // The IN-clause shape is derived only from the number of validated ids; values are still bound safely.
+        String placeholders = String.join(",", java.util.Collections.nCopies(effectiveChannelIds.size(), "?"));
+        String sql = "SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c" +
+                " INNER JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id" +
+                " WHERE cat.accountId = ? AND c.channelId IN (" + placeholders + ")";
+
+        List<Channel> channels = new ArrayList<>();
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, accountId);
+            for (int i = 0; i < effectiveChannelIds.size(); i++) {
+                statement.setString(i + 2, effectiveChannelIds.get(i));
+            }
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    channels.add(populate(rs));
+                }
+            }
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to execute getChannelsByChannelIdsAndAccount query", e);
+        }
+        return channels;
     }
 
     @SuppressWarnings("java:S1141")
