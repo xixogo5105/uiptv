@@ -131,161 +131,14 @@ public class ReloadCachePopup extends VBox {
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
         this.stage = stage;
         this.onAccountsDeleted = onAccountsDeleted;
-        setSpacing(10);
-        setPadding(new Insets(10));
-        setPrefSize(1368, 720);
-        getStylesheets().add(RootApplication.currentTheme);
-
-        accountsVBox.setPadding(new Insets(10));
-        List<Account> supportedAccounts = accountService.getAll().values().stream()
-                .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
-                .collect(Collectors.toList());
-
-        // Define the sort order for AccountType
-        EnumMap<AccountType, Integer> order = new EnumMap<>(AccountType.class);
-        order.put(AccountType.STALKER_PORTAL, 1);
-        order.put(AccountType.XTREME_API, 2);
-        order.put(AccountType.M3U8_LOCAL, 3);
-        order.put(AccountType.M3U8_URL, 4);
-
-        // Sort the accounts based on the defined order
-        supportedAccounts.sort(Comparator.comparing(account -> order.getOrDefault(account.getType(), Integer.MAX_VALUE)));
-
-        for (int i = 0; i < supportedAccounts.size(); i++) {
-            Account account = supportedAccounts.get(i);
-            CheckBox accountCheckBox = new CheckBox(account.getAccountName());
-            accountCheckBox.setUserData(account);
-            accountCheckBox.setMaxWidth(Double.MAX_VALUE);
-            accountCheckBox.setPadding(new Insets(5));
-
-            if (i % 2 == 0) {
-                accountCheckBox.setStyle("-fx-background-color: derive(-fx-control-inner-background, -2%);");
-            } else {
-                accountCheckBox.setStyle("-fx-background-color: -fx-control-inner-background;");
-            }
-            accountsVBox.getChildren().add(accountCheckBox);
-            checkBoxes.add(accountCheckBox);
-        }
-
-        MenuButton selectMenu = new MenuButton(I18n.tr("autoSelectByTypes"));
-        CheckMenuItem allItem = new CheckMenuItem(I18n.tr("commonAll"));
-        CheckMenuItem stalkerItem = new CheckMenuItem(I18n.tr("reloadStalkerPortalAccounts"));
-        CheckMenuItem xtremeItem = new CheckMenuItem(I18n.tr("reloadXtremeAccount"));
-        CheckMenuItem m3uLocalItem = new CheckMenuItem(I18n.tr("reloadM3uLocalPlaylist"));
-        CheckMenuItem m3uRemoteItem = new CheckMenuItem(I18n.tr("reloadM3uRemotePlaylist"));
-
-        allItem.setOnAction(e -> {
-            boolean selected = allItem.isSelected();
-            checkBoxes.forEach(cb -> cb.setSelected(selected));
-            stalkerItem.setSelected(selected);
-            xtremeItem.setSelected(selected);
-            m3uLocalItem.setSelected(selected);
-            m3uRemoteItem.setSelected(selected);
-        });
-
-        stalkerItem.setOnAction(e -> updateCheckboxes(AccountType.STALKER_PORTAL, stalkerItem.isSelected()));
-        xtremeItem.setOnAction(e -> updateCheckboxes(AccountType.XTREME_API, xtremeItem.isSelected()));
-        m3uLocalItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_LOCAL, m3uLocalItem.isSelected()));
-        m3uRemoteItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_URL, m3uRemoteItem.isSelected()));
-        selectMenu.setPrefWidth(200);
-        selectMenu.getItems().addAll(allItem, new SeparatorMenuItem(), stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem);
-
-        accountsScrollPane.setContent(accountsVBox);
-        accountsScrollPane.setFitToWidth(true);
-        accountsScrollPane.setMinHeight(250);
-        accountsScrollPane.setMaxWidth(Double.MAX_VALUE);
-        VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
-
-        logVBox.setPadding(new Insets(5));
-        logScrollPane.setFitToWidth(true);
-        logScrollPane.setMinHeight(250);
-        logScrollPane.setMaxWidth(Double.MAX_VALUE);
-        VBox.setVgrow(logScrollPane, Priority.ALWAYS);
-
-        accountColumn = new VBox(10, selectMenu, accountsScrollPane);
-        accountColumn.setMaxWidth(Double.MAX_VALUE);
-        VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
-
-        GridPane mainContent = new GridPane();
-        mainContent.setHgap(10);
-        mainContent.setMaxWidth(Double.MAX_VALUE);
-
-        accountsColumn = new ColumnConstraints();
-        accountsColumn.setPercentWidth(35);
-        accountsColumn.setFillWidth(true);
-        accountsColumn.setHgrow(Priority.ALWAYS);
-
-        logsColumn = new ColumnConstraints();
-        logsColumn.setPercentWidth(65);
-        logsColumn.setFillWidth(true);
-        logsColumn.setHgrow(Priority.ALWAYS);
-
-        RowConstraints contentRow = new RowConstraints();
-        contentRow.setVgrow(Priority.ALWAYS);
-        contentRow.setFillHeight(true);
-
-        mainContent.getColumnConstraints().addAll(accountsColumn, logsColumn);
-        mainContent.getRowConstraints().add(contentRow);
-        mainContent.add(accountColumn, 0, 0);
-        mainContent.add(logScrollPane, 1, 0);
-        VBox.setVgrow(mainContent, Priority.ALWAYS);
-
-
-        reloadButton.setOnAction(event -> {
-            startReloadInBackground();
-        });
-
-        // Ensure proper layout when toggling visibility
-        reloadButton.managedProperty().bind(reloadButton.visibleProperty());
-
-        Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
-        copyLogButton.setOnAction(event -> {
-            final Clipboard clipboard = Clipboard.getSystemClipboard();
-            final ClipboardContent content = new ClipboardContent();
-            StringBuilder sb = new StringBuilder();
-            for (String accountId : runAccountOrder) {
-                AccountLogPanel panel = accountLogPanels.get(accountId);
-                if (panel == null) {
-                    continue;
-                }
-                sb.append(panel.getAccountLabel()).append("\n");
-                panel.getLogs().forEach(line -> sb.append("  ").append(line).append("\n"));
-                SummaryStatus status = latestAccountSummaries.get(accountId);
-                if (status != null) {
-                    sb.append("  ").append(I18n.tr("reloadSummaryLabel")).append(": ")
-                            .append(summaryLevelLabel(status.level))
-                            .append(" (")
-                            .append(I18n.tr("autoChannels").toLowerCase())
-                            .append("=")
-                            .append(I18n.formatNumber(String.valueOf(status.channelsLoaded)))
-                            .append(")\n");
-                    if (!status.reasons.isEmpty()) {
-                        sb.append("  ").append(I18n.tr("reloadReasonsLabel")).append(": ").append(String.join(" | ", status.reasons)).append("\n");
-                    }
-                }
-                sb.append("\n");
-            }
-            if (!latestSummaryLines.isEmpty()) {
-                sb.append(I18n.tr("autoRunSummary")).append("\n");
-                latestSummaryLines.forEach(line -> sb.append("  ").append(line).append("\n"));
-                sb.append("\n");
-            }
-            content.putString(sb.toString());
-            clipboard.setContent(content);
-        });
-
-        Button closeButton = new Button(I18n.tr("autoClose"));
-        closeButton.setOnAction(event -> stage.close());
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox buttonBox = new HBox(10, reloadButton, spacer, copyLogButton, closeButton);
-        buttonBox.setAlignment(Pos.CENTER_LEFT);
-        buttonBox.setPadding(new Insets(10, 0, 0, 0));
-
+        initializeLayout();
+        List<Account> supportedAccounts = loadSupportedAccounts();
+        populateAccountCheckboxes(supportedAccounts);
+        MenuButton selectMenu = buildSelectMenu();
+        configureScrollPanes();
+        GridPane mainContent = buildMainContent(selectMenu);
+        HBox buttonBox = buildButtonBox();
         getChildren().addAll(progressBar, mainContent, buttonBox);
-
-        // Register cleanup listener to release memory when stage closes
         registerStageCloseListener();
 
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
@@ -295,6 +148,182 @@ public class ReloadCachePopup extends VBox {
                 Platform.runLater(this::startReloadInBackground);
             }
         }
+    }
+
+    private void initializeLayout() {
+        setSpacing(10);
+        setPadding(new Insets(10));
+        setPrefSize(1368, 720);
+        getStylesheets().add(RootApplication.currentTheme);
+        accountsVBox.setPadding(new Insets(10));
+        logVBox.setPadding(new Insets(5));
+    }
+
+    private List<Account> loadSupportedAccounts() {
+        List<Account> supportedAccounts = accountService.getAll().values().stream()
+                .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
+                .collect(Collectors.toList());
+        supportedAccounts.sort(Comparator.comparing(account -> accountTypeOrder().getOrDefault(account.getType(), Integer.MAX_VALUE)));
+        return supportedAccounts;
+    }
+
+    private EnumMap<AccountType, Integer> accountTypeOrder() {
+        EnumMap<AccountType, Integer> order = new EnumMap<>(AccountType.class);
+        order.put(AccountType.STALKER_PORTAL, 1);
+        order.put(AccountType.XTREME_API, 2);
+        order.put(AccountType.M3U8_LOCAL, 3);
+        order.put(AccountType.M3U8_URL, 4);
+        return order;
+    }
+
+    private void populateAccountCheckboxes(List<Account> supportedAccounts) {
+        for (int i = 0; i < supportedAccounts.size(); i++) {
+            Account account = supportedAccounts.get(i);
+            CheckBox accountCheckBox = createAccountCheckBox(account, i);
+            accountsVBox.getChildren().add(accountCheckBox);
+            checkBoxes.add(accountCheckBox);
+        }
+    }
+
+    private CheckBox createAccountCheckBox(Account account, int index) {
+        CheckBox accountCheckBox = new CheckBox(account.getAccountName());
+        accountCheckBox.setUserData(account);
+        accountCheckBox.setMaxWidth(Double.MAX_VALUE);
+        accountCheckBox.setPadding(new Insets(5));
+        accountCheckBox.setStyle(index % 2 == 0
+                ? "-fx-background-color: derive(-fx-control-inner-background, -2%);"
+                : "-fx-background-color: -fx-control-inner-background;");
+        return accountCheckBox;
+    }
+
+    private MenuButton buildSelectMenu() {
+        MenuButton selectMenu = new MenuButton(I18n.tr("autoSelectByTypes"));
+        CheckMenuItem allItem = new CheckMenuItem(I18n.tr("commonAll"));
+        CheckMenuItem stalkerItem = new CheckMenuItem(I18n.tr("reloadStalkerPortalAccounts"));
+        CheckMenuItem xtremeItem = new CheckMenuItem(I18n.tr("reloadXtremeAccount"));
+        CheckMenuItem m3uLocalItem = new CheckMenuItem(I18n.tr("reloadM3uLocalPlaylist"));
+        CheckMenuItem m3uRemoteItem = new CheckMenuItem(I18n.tr("reloadM3uRemotePlaylist"));
+        configureSelectMenuHandlers(allItem, stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem);
+        selectMenu.setPrefWidth(200);
+        selectMenu.getItems().addAll(allItem, new SeparatorMenuItem(), stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem);
+        return selectMenu;
+    }
+
+    private void configureSelectMenuHandlers(CheckMenuItem allItem, CheckMenuItem stalkerItem, CheckMenuItem xtremeItem,
+                                             CheckMenuItem m3uLocalItem, CheckMenuItem m3uRemoteItem) {
+        allItem.setOnAction(e -> setAllSelectionStates(allItem.isSelected(), stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem));
+        stalkerItem.setOnAction(e -> updateCheckboxes(AccountType.STALKER_PORTAL, stalkerItem.isSelected()));
+        xtremeItem.setOnAction(e -> updateCheckboxes(AccountType.XTREME_API, xtremeItem.isSelected()));
+        m3uLocalItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_LOCAL, m3uLocalItem.isSelected()));
+        m3uRemoteItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_URL, m3uRemoteItem.isSelected()));
+    }
+
+    private void setAllSelectionStates(boolean selected, CheckMenuItem stalkerItem, CheckMenuItem xtremeItem,
+                                       CheckMenuItem m3uLocalItem, CheckMenuItem m3uRemoteItem) {
+        checkBoxes.forEach(cb -> cb.setSelected(selected));
+        stalkerItem.setSelected(selected);
+        xtremeItem.setSelected(selected);
+        m3uLocalItem.setSelected(selected);
+        m3uRemoteItem.setSelected(selected);
+    }
+
+    private void configureScrollPanes() {
+        accountsScrollPane.setContent(accountsVBox);
+        accountsScrollPane.setFitToWidth(true);
+        accountsScrollPane.setMinHeight(250);
+        accountsScrollPane.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
+        logScrollPane.setFitToWidth(true);
+        logScrollPane.setMinHeight(250);
+        logScrollPane.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(logScrollPane, Priority.ALWAYS);
+    }
+
+    private GridPane buildMainContent(MenuButton selectMenu) {
+        accountColumn = new VBox(10, selectMenu, accountsScrollPane);
+        accountColumn.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
+        GridPane mainContent = new GridPane();
+        mainContent.setHgap(10);
+        mainContent.setMaxWidth(Double.MAX_VALUE);
+        accountsColumn = createContentColumn(35);
+        logsColumn = createContentColumn(65);
+        RowConstraints contentRow = new RowConstraints();
+        contentRow.setVgrow(Priority.ALWAYS);
+        contentRow.setFillHeight(true);
+        mainContent.getColumnConstraints().addAll(accountsColumn, logsColumn);
+        mainContent.getRowConstraints().add(contentRow);
+        mainContent.add(accountColumn, 0, 0);
+        mainContent.add(logScrollPane, 1, 0);
+        VBox.setVgrow(mainContent, Priority.ALWAYS);
+        return mainContent;
+    }
+
+    private ColumnConstraints createContentColumn(double widthPercent) {
+        ColumnConstraints column = new ColumnConstraints();
+        column.setPercentWidth(widthPercent);
+        column.setFillWidth(true);
+        column.setHgrow(Priority.ALWAYS);
+        return column;
+    }
+
+    private HBox buildButtonBox() {
+        reloadButton.setOnAction(event -> startReloadInBackground());
+        reloadButton.managedProperty().bind(reloadButton.visibleProperty());
+        Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
+        copyLogButton.setOnAction(event -> copyLogsToClipboard());
+        Button closeButton = new Button(I18n.tr("autoClose"));
+        closeButton.setOnAction(event -> stage.close());
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox buttonBox = new HBox(10, reloadButton, spacer, copyLogButton, closeButton);
+        buttonBox.setAlignment(Pos.CENTER_LEFT);
+        buttonBox.setPadding(new Insets(10, 0, 0, 0));
+        return buttonBox;
+    }
+
+    private void copyLogsToClipboard() {
+        final Clipboard clipboard = Clipboard.getSystemClipboard();
+        final ClipboardContent content = new ClipboardContent();
+        content.putString(buildLogsClipboardText());
+        clipboard.setContent(content);
+    }
+
+    private String buildLogsClipboardText() {
+        StringBuilder sb = new StringBuilder();
+        for (String accountId : runAccountOrder) {
+            appendAccountLogSummary(sb, accountId);
+        }
+        if (!latestSummaryLines.isEmpty()) {
+            sb.append(I18n.tr("autoRunSummary")).append("\n");
+            latestSummaryLines.forEach(line -> sb.append("  ").append(line).append("\n"));
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    private void appendAccountLogSummary(StringBuilder sb, String accountId) {
+        AccountLogPanel panel = accountLogPanels.get(accountId);
+        if (panel == null) {
+            return;
+        }
+        sb.append(panel.getAccountLabel()).append("\n");
+        panel.getLogs().forEach(line -> sb.append("  ").append(line).append("\n"));
+        SummaryStatus status = latestAccountSummaries.get(accountId);
+        if (status != null) {
+            sb.append("  ").append(I18n.tr("reloadSummaryLabel")).append(": ")
+                    .append(summaryLevelLabel(status.level))
+                    .append(" (")
+                    .append(I18n.tr("autoChannels").toLowerCase())
+                    .append("=")
+                    .append(I18n.formatNumber(String.valueOf(status.channelsLoaded)))
+                    .append(")\n");
+            if (!status.reasons.isEmpty()) {
+                sb.append("  ").append(I18n.tr("reloadReasonsLabel")).append(": ")
+                        .append(String.join(" | ", status.reasons)).append("\n");
+            }
+        }
+        sb.append("\n");
     }
 
     private void registerStageCloseListener() {
@@ -370,125 +399,147 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void reloadSelectedAccounts() {
-        Platform.runLater(() -> {
-            reloadButton.setVisible(false);
-        });
-
         List<Account> selectedAccounts = checkBoxes.stream()
                 .filter(CheckBox::isSelected)
                 .map(checkBox -> (Account) checkBox.getUserData())
                 .collect(Collectors.toList());
-
-        int total = selectedAccounts.size();
-        progressBar.setTotal(total);
-        prepareAccountLogPanels(selectedAccounts);
-
-        if (total == 0) {
-            Platform.runLater(() -> {
-                reloadButton.setVisible(true);
-            });
+        prepareReloadRun(selectedAccounts);
+        if (selectedAccounts.isEmpty()) {
+            showReloadButton();
             return;
         }
-
         List<Account> processedAccounts = new ArrayList<>();
         Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
         Map<String, SummaryStatus> summaryStatusByAccountId = new LinkedHashMap<>();
         int totalFetchedChannels = 0;
-
-        for (int i = 0; i < total; i++) {
+        for (int i = 0; i < selectedAccounts.size(); i++) {
             Account account = selectedAccounts.get(i);
             processedAccounts.add(account);
-            setRunningAccount(account, i + 1, total);
-
-            boolean success = false;
-            boolean failed = false;
-            int fetchedChannelCount = 0;
-            List<String> accountIssues = new ArrayList<>();
-            final boolean[] globalFailurePrompted = {false};
-            try {
-                cacheService.reloadCache(account, message -> {
-                    logMessage(account, message);
-                    String issue = extractIssueReason(account, message);
-                    if (issue != null) {
-                        addIssue(accountIssues, issue);
-                    }
-                    if (globalFailurePrompted[0]) {
-                        return;
-                    }
-                    String failureReason = extractGlobalFailureReason(account, message);
-                    if (failureReason == null) {
-                        return;
-                    }
-                    globalFailurePrompted[0] = true;
-                    boolean carryOn = promptCarryOnAfterGlobalFailure(account, failureReason);
-                    if (!carryOn) {
-                        throw new SkipAccountReloadException();
-                    }
-                });
-                fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
-                if (fetchedChannelCount <= 0) {
-                    logMessage(account, LOG_NO_CHANNELS_FOUND);
-                    addIssue(accountIssues, I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
-                }
-            } catch (SkipAccountReloadException e) {
-                failed = true;
-                logMessage(account, LOG_MARKED_BAD_AND_SKIPPED);
-                addIssue(accountIssues, I18n.tr("reloadMarkedBadByUser"));
-            } catch (Exception e) {
-                failed = true;
-                logMessage(account, LOG_RELOAD_FAILED_PREFIX + " " + shortFailure(e.getMessage()));
-                addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));
-            }
-
-            if (runOutcomeTracker.hasCriticalFailure(account.getDbId())) {
-                failed = true;
-                success = false;
-            } else if (fetchedChannelCount > 0) {
-                success = true;
-                totalFetchedChannels += fetchedChannelCount;
-            }
-
-            int existingChannelCount = cacheService.getChannelCountForAccount(account.getDbId());
-            int availableChannelCount = Math.max(fetchedChannelCount, existingChannelCount);
-
-            SummaryStatus summaryStatus = buildSummaryStatus(availableChannelCount, failed, accountIssues);
+            setRunningAccount(account, i + 1, selectedAccounts.size());
+            AccountReloadResult result = reloadSingleAccount(account);
+            totalFetchedChannels += result.countedChannels;
+            SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed, result.accountIssues);
             summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
-
-            SegmentedProgressBar.SegmentStatus segmentStatus = switch (summaryStatus.level) {
-                case GOOD -> SegmentedProgressBar.SegmentStatus.SUCCESS;
-                case YELLOW -> SegmentedProgressBar.SegmentStatus.WARNING;
-                case BAD -> SegmentedProgressBar.SegmentStatus.FAILURE;
-            };
-            progressBar.updateSegment(i, segmentStatus);
-
-            AccountRunStatus finalStatus = switch (summaryStatus.level) {
-                case GOOD -> AccountRunStatus.DONE;
-                case YELLOW -> AccountRunStatus.YELLOW;
-                case BAD -> (availableChannelCount > 0 ? AccountRunStatus.YELLOW : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY));
-            };
+            progressBar.updateSegment(i, segmentStatus(summaryStatus));
+            AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
             finalStatuses.put(account.getDbId(), finalStatus);
-            updateAccountStatus(account, finalStatus, availableChannelCount);
+            updateAccountStatus(account, finalStatus, result.availableChannelCount);
         }
+        finishReloadRun(processedAccounts, finalStatuses, summaryStatusByAccountId, totalFetchedChannels);
+    }
 
-        int runTotalFetchedChannels = totalFetchedChannels;
+    private void prepareReloadRun(List<Account> selectedAccounts) {
+        Platform.runLater(() -> reloadButton.setVisible(false));
+        progressBar.setTotal(selectedAccounts.size());
+        prepareAccountLogPanels(selectedAccounts);
+    }
+
+    private void showReloadButton() {
+        Platform.runLater(() -> reloadButton.setVisible(true));
+    }
+
+    private AccountReloadResult reloadSingleAccount(Account account) {
+        boolean failed = false;
+        int fetchedChannelCount = 0;
+        List<String> accountIssues = new ArrayList<>();
+        final boolean[] globalFailurePrompted = {false};
+        try {
+            cacheService.reloadCache(account, message -> handleReloadLogMessage(account, message, accountIssues, globalFailurePrompted));
+            fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
+            if (fetchedChannelCount <= 0) {
+                logMessage(account, LOG_NO_CHANNELS_FOUND);
+                addIssue(accountIssues, I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
+            }
+        } catch (SkipAccountReloadException e) {
+            failed = true;
+            logMessage(account, LOG_MARKED_BAD_AND_SKIPPED);
+            addIssue(accountIssues, I18n.tr("reloadMarkedBadByUser"));
+        } catch (Exception e) {
+            failed = true;
+            logMessage(account, LOG_RELOAD_FAILED_PREFIX + " " + shortFailure(e.getMessage()));
+            addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));
+        }
+        boolean criticalFailure = runOutcomeTracker.hasCriticalFailure(account.getDbId());
+        int countedChannels = !criticalFailure && fetchedChannelCount > 0 ? fetchedChannelCount : 0;
+        int existingChannelCount = cacheService.getChannelCountForAccount(account.getDbId());
+        int availableChannelCount = Math.max(fetchedChannelCount, existingChannelCount);
+        return new AccountReloadResult(failed || criticalFailure, countedChannels, availableChannelCount, accountIssues);
+    }
+
+    private void handleReloadLogMessage(Account account, String message, List<String> accountIssues, boolean[] globalFailurePrompted) {
+        logMessage(account, message);
+        String issue = extractIssueReason(account, message);
+        if (issue != null) {
+            addIssue(accountIssues, issue);
+        }
+        if (globalFailurePrompted[0]) {
+            return;
+        }
+        String failureReason = extractGlobalFailureReason(account, message);
+        if (failureReason == null) {
+            return;
+        }
+        globalFailurePrompted[0] = true;
+        if (!promptCarryOnAfterGlobalFailure(account, failureReason)) {
+            throw new SkipAccountReloadException();
+        }
+    }
+
+    private SegmentedProgressBar.SegmentStatus segmentStatus(SummaryStatus summaryStatus) {
+        return switch (summaryStatus.level) {
+            case GOOD -> SegmentedProgressBar.SegmentStatus.SUCCESS;
+            case YELLOW -> SegmentedProgressBar.SegmentStatus.WARNING;
+            case BAD -> SegmentedProgressBar.SegmentStatus.FAILURE;
+        };
+    }
+
+    private AccountRunStatus finalAccountRunStatus(SummaryStatus summaryStatus, int availableChannelCount, boolean failed) {
+        return switch (summaryStatus.level) {
+            case GOOD -> AccountRunStatus.DONE;
+            case YELLOW -> AccountRunStatus.YELLOW;
+            case BAD -> (availableChannelCount > 0 ? AccountRunStatus.YELLOW : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY));
+        };
+    }
+
+    private void finishReloadRun(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses,
+                                 Map<String, SummaryStatus> summaryStatusByAccountId, int totalFetchedChannels) {
         Platform.runLater(() -> {
             com.uiptv.util.AppLog.addLog("Reload run completed.");
             reloadButton.setVisible(true);
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);
-            appendRunSummary(processedAccounts, finalStatuses, runTotalFetchedChannels);
-
-            Map<String, SummaryStatus> problematicAccounts = new LinkedHashMap<>();
-            for (Account account : processedAccounts) {
-                SummaryStatus status = summaryStatusByAccountId.get(account.getDbId());
-                if (status != null && status.level != SummaryLevel.GOOD) {
-                    problematicAccounts.put(account.getDbId(), status);
-                }
-            }
+            appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
+            Map<String, SummaryStatus> problematicAccounts = collectProblematicAccounts(processedAccounts, summaryStatusByAccountId);
             if (!problematicAccounts.isEmpty()) {
                 showDeleteProblemAccountsPopup(processedAccounts, problematicAccounts);
             }
         });
+    }
+
+    private Map<String, SummaryStatus> collectProblematicAccounts(List<Account> processedAccounts,
+                                                                  Map<String, SummaryStatus> summaryStatusByAccountId) {
+        Map<String, SummaryStatus> problematicAccounts = new LinkedHashMap<>();
+        for (Account account : processedAccounts) {
+            SummaryStatus status = summaryStatusByAccountId.get(account.getDbId());
+            if (status != null && status.level != SummaryLevel.GOOD) {
+                problematicAccounts.put(account.getDbId(), status);
+            }
+        }
+        return problematicAccounts;
+    }
+
+    private static final class AccountReloadResult {
+        private final boolean failed;
+        private final int countedChannels;
+        private final int availableChannelCount;
+        private final List<String> accountIssues;
+
+        private AccountReloadResult(boolean failed, int countedChannels, int availableChannelCount, List<String> accountIssues) {
+            this.failed = failed;
+            this.countedChannels = countedChannels;
+            this.availableChannelCount = availableChannelCount;
+            this.accountIssues = accountIssues;
+        }
     }
 
     private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {

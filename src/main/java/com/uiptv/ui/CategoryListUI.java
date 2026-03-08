@@ -19,6 +19,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -414,71 +415,19 @@ public class CategoryListUI extends HBox {
         }
         account.setAction(mode);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
-        final String selectedCategoryKey = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
+        final String selectedCategoryKey = selectedCategoryKey(item);
         final ChannelListUI[] channelListUIHolder = new ChannelListUI[1];
         final List<CategoryItem> allItems = new ArrayList<>();
-        
         CountDownLatch latch = new CountDownLatch(1);
 
-        Platform.runLater(() -> {
-            ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), selectedCategoryKey);
-            if (embeddedMode) {
-                ui.setEmbeddedMode(true, onHome);
-            } else {
-                ui.setInlineEpisodeNavigationEnabled(true);
-            }
-            channelListUIHolder[0] = ui;
-            state.channelListUI = ui;
-            state.selectedCategory = item;
-            if (embeddedMode) {
-                showDetailView(ui, item.getCategoryTitle());
-            } else {
-                removeChannelPane();
-                getChildren().add(ui);
-            }
-            if (isAllCategory(item)) allItems.addAll(table.getItems());
-            latch.countDown();
-        });
+        Platform.runLater(() -> initializeChannelListView(item, selectedCategoryKey, state, channelListUIHolder, allItems, latch));
 
         try {
             latch.await();
             ChannelListUI channelListUI = channelListUIHolder[0];
 
             try {
-                boolean cachingNeeded = !noCachingNeeded;
-
-                if (cachingNeeded && isAllCategory(item)) {
-                    if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
-                        return;
-                    }
-                    if (allItems.size() == 1 && isAllCategory(allItems.get(0))) {
-                         ChannelService.getInstance().get(
-                                account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle(),
-                                account, 
-                                item.getId(), 
-                                null,
-                                channelListUI::addItems,
-                                isCancelled::getAsBoolean
-                            );
-                    } else {
-                        for (CategoryItem categoryItem : allItems) {
-                            if (Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean()) return;
-                            if (!isAllCategory(categoryItem)) {
-                                ChannelService.getInstance().get(
-                                    account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
-                                    account, 
-                                    categoryItem.getId(), 
-                                    null,
-                                    channelListUI::addItems,
-                                    isCancelled::getAsBoolean
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    if (Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean()) return;
-                    ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(), null, channelListUI::addItems, isCancelled::getAsBoolean);
-                }
+                loadChannelsIntoUi(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems);
             } finally {
                 channelListUI.setLoadingComplete();
             }
@@ -487,6 +436,73 @@ public class CategoryListUI extends HBox {
         } catch (Exception e) {
             Platform.runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingChannels", e.getMessage())));
         }
+    }
+
+    private String selectedCategoryKey(CategoryItem item) {
+        return account.getType() == STALKER_PORTAL || account.getType() == XTREME_API
+                ? item.getCategoryId()
+                : item.getCategoryTitle();
+    }
+
+    private void initializeChannelListView(CategoryItem item, String selectedCategoryKey, ModeState state,
+                                           ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems, CountDownLatch latch) {
+        ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), selectedCategoryKey);
+        if (embeddedMode) {
+            ui.setEmbeddedMode(true, onHome);
+        } else {
+            ui.setInlineEpisodeNavigationEnabled(true);
+        }
+        channelListUIHolder[0] = ui;
+        state.channelListUI = ui;
+        state.selectedCategory = item;
+        if (embeddedMode) {
+            showDetailView(ui, item.getCategoryTitle());
+        } else {
+            removeChannelPane();
+            getChildren().add(ui);
+        }
+        if (isAllCategory(item)) {
+            allItems.addAll(table.getItems());
+        }
+        latch.countDown();
+    }
+
+    private void loadChannelsIntoUi(CategoryItem item, boolean noCachingNeeded, BooleanSupplier isCancelled,
+                                    String selectedCategoryKey, ChannelListUI channelListUI, List<CategoryItem> allItems) throws IOException {
+        boolean cachingNeeded = !noCachingNeeded;
+        if (cachingNeeded && isAllCategory(item)) {
+            loadAllCategoryChannels(item, isCancelled, channelListUI, allItems);
+            return;
+        }
+        if (isLoadingCancelled(isCancelled)) {
+            return;
+        }
+        ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(), null, channelListUI::addItems, isCancelled::getAsBoolean);
+    }
+
+    private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
+                                         ChannelListUI channelListUI, List<CategoryItem> allItems) throws IOException {
+        if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
+            return;
+        }
+        if (allItems.size() == 1 && isAllCategory(allItems.get(0))) {
+            ChannelService.getInstance().get(selectedCategoryKey(item), account, item.getId(), null,
+                    channelListUI::addItems, isCancelled::getAsBoolean);
+            return;
+        }
+        for (CategoryItem categoryItem : allItems) {
+            if (isLoadingCancelled(isCancelled)) {
+                return;
+            }
+            if (!isAllCategory(categoryItem)) {
+                ChannelService.getInstance().get(selectedCategoryKey(categoryItem), account, categoryItem.getId(), null,
+                        channelListUI::addItems, isCancelled::getAsBoolean);
+            }
+        }
+    }
+
+    private boolean isLoadingCancelled(BooleanSupplier isCancelled) {
+        return Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean();
     }
 
     private static class ModeState {

@@ -498,45 +498,68 @@ public class ChannelListUI extends HBox {
         if (channel == null || bookmarks == null || bookmarks.isEmpty()) {
             return null;
         }
-        String channelId = normalizeExact(channel.getChannelId());
-        String channelCmd = normalizeExact(channel.getCmd());
-        String channelName = normalizeLower(channel.getName());
-        String channelCategoryId = normalizeExact(context == null ? null : context.categoryId);
-        String channelCategoryTitle = normalizeLower(context == null ? null : context.categoryTitle);
         boolean allView = isAllCategoryView();
+        ChannelBookmarkIdentity channelIdentity = new ChannelBookmarkIdentity(
+                normalizeExact(channel.getChannelId()),
+                normalizeExact(channel.getCmd()),
+                normalizeLower(channel.getName()),
+                normalizeExact(context == null ? null : context.categoryId),
+                normalizeLower(context == null ? null : context.categoryTitle)
+        );
 
         for (Bookmark bookmark : bookmarks) {
-            if (bookmark == null) {
-                continue;
-            }
-
-            if (!allView) {
-                String bookmarkCategoryId = resolveBookmarkSourceCategoryId(bookmark);
-                String bookmarkCategoryTitle = resolveBookmarkSourceCategoryTitle(bookmark);
-                boolean sameCategoryById = !isBlank(channelCategoryId) && !isBlank(bookmarkCategoryId) && channelCategoryId.equals(bookmarkCategoryId);
-                boolean sameCategoryByTitle = !isBlank(channelCategoryTitle) && !isBlank(bookmarkCategoryTitle) && channelCategoryTitle.equals(bookmarkCategoryTitle);
-                if (!sameCategoryById && !sameCategoryByTitle) {
-                    continue;
-                }
-            }
-
-            String bookmarkId = normalizeExact(bookmark.getChannelId());
-            String bookmarkCmd = normalizeExact(bookmark.getCmd());
-            String bookmarkName = normalizeLower(bookmark.getChannelName());
-
-            boolean idMatch = !isBlank(channelId) && !isBlank(bookmarkId) && channelId.equals(bookmarkId);
-            boolean cmdMatch = !isBlank(channelCmd) && !isBlank(bookmarkCmd) && channelCmd.equals(bookmarkCmd);
-            if (idMatch || cmdMatch) {
-                return bookmark;
-            }
-
-            boolean bothWithoutStrongIdentity =
-                    isBlank(channelId) && isBlank(channelCmd) && isBlank(bookmarkId) && isBlank(bookmarkCmd);
-            if (bothWithoutStrongIdentity && !isBlank(channelName) && channelName.equals(bookmarkName)) {
+            if (bookmarkMatches(channelIdentity, bookmark, allView)) {
                 return bookmark;
             }
         }
         return null;
+    }
+
+    private boolean bookmarkMatches(ChannelBookmarkIdentity channelIdentity, Bookmark bookmark, boolean allView) {
+        if (bookmark == null) {
+            return false;
+        }
+        String bookmarkCategoryId = resolveBookmarkSourceCategoryId(bookmark);
+        String bookmarkCategoryTitle = resolveBookmarkSourceCategoryTitle(bookmark);
+        if (!allView && !sameBookmarkCategory(channelIdentity, bookmarkCategoryId, bookmarkCategoryTitle)) {
+            return false;
+        }
+        String bookmarkId = normalizeExact(bookmark.getChannelId());
+        String bookmarkCmd = normalizeExact(bookmark.getCmd());
+        if (matchesStrongIdentity(channelIdentity, bookmarkId, bookmarkCmd)) {
+            return true;
+        }
+        return matchesNameOnly(channelIdentity, bookmarkId, bookmarkCmd, normalizeLower(bookmark.getChannelName()));
+    }
+
+    private boolean sameBookmarkCategory(ChannelBookmarkIdentity channelIdentity, String bookmarkCategoryId, String bookmarkCategoryTitle) {
+        boolean sameCategoryById = !isBlank(channelIdentity.categoryId)
+                && !isBlank(bookmarkCategoryId)
+                && channelIdentity.categoryId.equals(bookmarkCategoryId);
+        boolean sameCategoryByTitle = !isBlank(channelIdentity.categoryTitle)
+                && !isBlank(bookmarkCategoryTitle)
+                && channelIdentity.categoryTitle.equals(bookmarkCategoryTitle);
+        return sameCategoryById || sameCategoryByTitle;
+    }
+
+    private boolean matchesStrongIdentity(ChannelBookmarkIdentity channelIdentity, String bookmarkId, String bookmarkCmd) {
+        boolean idMatch = !isBlank(channelIdentity.channelId)
+                && !isBlank(bookmarkId)
+                && channelIdentity.channelId.equals(bookmarkId);
+        boolean cmdMatch = !isBlank(channelIdentity.channelCmd)
+                && !isBlank(bookmarkCmd)
+                && channelIdentity.channelCmd.equals(bookmarkCmd);
+        return idMatch || cmdMatch;
+    }
+
+    private boolean matchesNameOnly(ChannelBookmarkIdentity channelIdentity, String bookmarkId, String bookmarkCmd, String bookmarkName) {
+        boolean bothWithoutStrongIdentity = isBlank(channelIdentity.channelId)
+                && isBlank(channelIdentity.channelCmd)
+                && isBlank(bookmarkId)
+                && isBlank(bookmarkCmd);
+        return bothWithoutStrongIdentity
+                && !isBlank(channelIdentity.channelName)
+                && channelIdentity.channelName.equals(bookmarkName);
     }
 
     private String normalizeExact(String value) {
@@ -746,31 +769,10 @@ public class ChannelListUI extends HBox {
 
     private void playOrShowSeries(ChannelItem item) {
         if (item == null) return;
-        if (account.getAction() == series) {
-            EpisodeList cachedEpisodes = seriesEpisodesCache.get(seriesEpisodeCacheKey(item));
-            if (cachedEpisodes != null) {
-                showEpisodesListUI(item, cachedEpisodes);
-                return;
-            }
+        if (showCachedEpisodesIfPresent(item)) {
+            return;
         }
-
-        if (currentRequestCancelled != null) {
-            currentRequestCancelled.set(true);
-        }
-
-        Thread runningThread = currentLoadingThread.get();
-        if (runningThread != null && runningThread.isAlive()) {
-            getScene().setCursor(Cursor.WAIT);
-            runningThread.interrupt();
-            try {
-                runningThread.join(2000);
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        currentRequestCancelled = new AtomicBoolean(false);
-        AtomicBoolean isCancelled = currentRequestCancelled;
+        AtomicBoolean isCancelled = preparePlaybackLoad();
 
         if (account.getAction() == series) {
             getScene().setCursor(Cursor.WAIT);
@@ -852,6 +854,57 @@ public class ChannelListUI extends HBox {
             loadingThread.start();
         } else {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+        }
+    }
+
+    private boolean showCachedEpisodesIfPresent(ChannelItem item) {
+        if (account.getAction() != series) {
+            return false;
+        }
+        EpisodeList cachedEpisodes = seriesEpisodesCache.get(seriesEpisodeCacheKey(item));
+        if (cachedEpisodes == null) {
+            return false;
+        }
+        showEpisodesListUI(item, cachedEpisodes);
+        return true;
+    }
+
+    private AtomicBoolean preparePlaybackLoad() {
+        if (currentRequestCancelled != null) {
+            currentRequestCancelled.set(true);
+        }
+        interruptRunningLoad();
+        currentRequestCancelled = new AtomicBoolean(false);
+        return currentRequestCancelled;
+    }
+
+    private void interruptRunningLoad() {
+        Thread runningThread = currentLoadingThread.get();
+        if (runningThread == null || !runningThread.isAlive()) {
+            return;
+        }
+        getScene().setCursor(Cursor.WAIT);
+        runningThread.interrupt();
+        try {
+            runningThread.join(2000);
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static final class ChannelBookmarkIdentity {
+        private final String channelId;
+        private final String channelCmd;
+        private final String channelName;
+        private final String categoryId;
+        private final String categoryTitle;
+
+        private ChannelBookmarkIdentity(String channelId, String channelCmd, String channelName, String categoryId, String categoryTitle) {
+            this.channelId = channelId;
+            this.channelCmd = channelCmd;
+            this.channelName = channelName;
+            this.categoryId = categoryId;
+            this.categoryTitle = categoryTitle;
         }
     }
 

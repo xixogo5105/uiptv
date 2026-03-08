@@ -47,43 +47,60 @@ public class HttpPlayerJsonServer implements HttpHandler {
         PlayerResponse response = isNotBlank(bookmarkId)
                 ? resolveBookmarkPlayback(bookmarkId, mode, seriesParentId)
                 : resolveDirectPlayback(ex, accountId, categoryId, channelId, mode, seriesParentId);
-
-        String originalUrl = response.getUrl();
-        response.setUrl(resolveWebPlaybackRedirects(mode, normalizeWebPlaybackUrl(mode, originalUrl)));
-
-        // Check if transmuxing is needed and enabled
-        boolean isFfmpegEnabled = ConfigurationService.getInstance().read().isEnableFfmpegTranscoding();
-        boolean forceWebHls = shouldForceWebHls(mode, response)
-                || shouldForceWebHlsForUrl(mode, originalUrl);
-        if ((isFfmpegEnabled && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl())) || forceWebHls) {
-            boolean hlsReady = false;
-            String sourceUrl = response.getUrl();
-            String transmuxInput = forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl;
-            try {
-                hlsReady = FfmpegService.getInstance().startTransmuxing(transmuxInput, forceWebHls);
-            } catch (Exception _) {
-                hlsReady = false;
-            }
-            if (!hlsReady && forceWebHls) {
-                String downgraded = downgradeHttpsToHttp(sourceUrl);
-                if (!downgraded.equals(sourceUrl)) {
-                    try {
-                        hlsReady = FfmpegService.getInstance().startTransmuxing(buildLocalProxyUrl(downgraded), true);
-                        sourceUrl = downgraded;
-                    } catch (Exception _) {
-                        hlsReady = false;
-                    }
-                }
-            }
-            if (hlsReady) {
-                response.setUrl(isHvecEnabled(hvec) ? "/hls/stream.m3u8?hvec=1" : "/hls/stream.m3u8");
-                response.setManifestType("hls");
-            } else {
-                response.setUrl(forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl);
-            }
-        }
+        applyWebPlaybackProcessing(response, mode, hvec);
 
         generateJsonResponse(ex, buildJsonResponse(response));
+    }
+
+    private void applyWebPlaybackProcessing(PlayerResponse response, String mode, String hvec) {
+        String originalUrl = response.getUrl();
+        String normalizedUrl = resolveWebPlaybackRedirects(mode, normalizeWebPlaybackUrl(mode, originalUrl));
+        response.setUrl(normalizedUrl);
+        if (!shouldStartTransmuxing(response, mode, originalUrl)) {
+            return;
+        }
+        applyTransmuxedPlayback(response, mode, originalUrl, hvec);
+    }
+
+    private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl) {
+        boolean forceWebHls = shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
+        return forceWebHls
+                || (ConfigurationService.getInstance().read().isEnableFfmpegTranscoding()
+                && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl()));
+    }
+
+    private void applyTransmuxedPlayback(PlayerResponse response, String mode, String originalUrl, String hvec) {
+        boolean forceWebHls = shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
+        String sourceUrl = response.getUrl();
+        if (startTransmuxing(sourceUrl, forceWebHls)) {
+            setHlsPlayback(response, hvec);
+            return;
+        }
+        String fallbackUrl = forceWebHls ? retryForcedWebHls(sourceUrl) : sourceUrl;
+        if (forceWebHls && !fallbackUrl.equals(sourceUrl) && startTransmuxing(fallbackUrl, true)) {
+            setHlsPlayback(response, hvec);
+            return;
+        }
+        response.setUrl(forceWebHls ? buildLocalProxyUrl(fallbackUrl) : fallbackUrl);
+    }
+
+    private boolean startTransmuxing(String sourceUrl, boolean forceWebHls) {
+        String transmuxInput = forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl;
+        try {
+            return FfmpegService.getInstance().startTransmuxing(transmuxInput, forceWebHls);
+        } catch (Exception _) {
+            return false;
+        }
+    }
+
+    private String retryForcedWebHls(String sourceUrl) {
+        String downgraded = downgradeHttpsToHttp(sourceUrl);
+        return downgraded.equals(sourceUrl) ? sourceUrl : downgraded;
+    }
+
+    private void setHlsPlayback(PlayerResponse response, String hvec) {
+        response.setUrl(isHvecEnabled(hvec) ? "/hls/stream.m3u8?hvec=1" : "/hls/stream.m3u8");
+        response.setManifestType("hls");
     }
 
     private PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {

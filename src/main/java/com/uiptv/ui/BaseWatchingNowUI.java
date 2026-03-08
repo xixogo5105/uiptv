@@ -162,30 +162,46 @@ public abstract class BaseWatchingNowUI extends VBox {
     private List<SeriesPanelData> buildPanelsFromCache() {
         List<SeriesPanelData> rows = new ArrayList<>();
         for (Account account : AccountService.getInstance().getAll().values()) {
-            if (account == null || isBlank(account.getDbId())) {
-                continue;
-            }
-            account.setAction(Account.AccountAction.series);
-            Map<String, SeriesWatchState> deduped = new LinkedHashMap<>();
-            for (SeriesWatchState state : SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(account.getDbId())) {
-                if (state == null || isBlank(state.getSeriesId())) {
-                    continue;
-                }
-                String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
-                SeriesWatchState existing = deduped.get(key);
-                if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
-                    deduped.put(key, state);
-                }
-            }
-            for (SeriesWatchState state : deduped.values()) {
-                SeriesPanelData panel = buildPanel(account, state);
-                if (panel != null) {
-                    rows.add(panel);
-                }
-            }
+            rows.addAll(buildPanelsForAccount(account));
         }
         rows.sort(Comparator.comparing((SeriesPanelData d) -> safe(d.seriesTitle), String.CASE_INSENSITIVE_ORDER));
         return rows;
+    }
+
+    private List<SeriesPanelData> buildPanelsForAccount(Account account) {
+        List<SeriesPanelData> rows = new ArrayList<>();
+        if (account == null || isBlank(account.getDbId())) {
+            return rows;
+        }
+        account.setAction(Account.AccountAction.series);
+        for (SeriesWatchState state : dedupeSeriesStates(account.getDbId(), null).values()) {
+            SeriesPanelData panel = buildPanel(account, state);
+            if (panel != null) {
+                rows.add(panel);
+            }
+        }
+        return rows;
+    }
+
+    private Map<String, SeriesWatchState> dedupeSeriesStates(String accountId, String seriesIdFilter) {
+        Map<String, SeriesWatchState> deduped = new LinkedHashMap<>();
+        for (SeriesWatchState state : SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountId)) {
+            if (!isEligibleSeriesState(state, seriesIdFilter)) {
+                continue;
+            }
+            String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+            SeriesWatchState existing = deduped.get(key);
+            if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
+                deduped.put(key, state);
+            }
+        }
+        return deduped;
+    }
+
+    private boolean isEligibleSeriesState(SeriesWatchState state, String seriesIdFilter) {
+        return state != null
+                && !isBlank(state.getSeriesId())
+                && (isBlank(seriesIdFilter) || safe(state.getSeriesId()).equals(safe(seriesIdFilter)));
     }
 
     private SeriesPanelData buildPanel(Account account, SeriesWatchState state) {
@@ -1460,47 +1476,9 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (episodes == null || episodes.isEmpty() || metaRows == null || metaRows.isEmpty()) {
             return;
         }
-        Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
-        Map<String, JSONObject> byTitle = new HashMap<>();
-        Map<String, JSONObject> byLooseTitle = new HashMap<>();
-        Map<String, JSONObject> byEpisodeOnly = new HashMap<>();
-        for (int i = 0; i < metaRows.length(); i++) {
-            JSONObject row = metaRows.optJSONObject(i);
-            if (row == null) continue;
-            String season = normalizeNumber(row.optString("season", ""));
-            String episodeNum = normalizeNumber(row.optString("episodeNum", ""));
-            if (isBlank(episodeNum)) {
-                episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString(KEY_TITLE, "")));
-            }
-            if (!isBlank(season) && !isBlank(episodeNum)) {
-                bySeasonEpisode.put(season + ":" + episodeNum, row);
-            }
-            if (!isBlank(episodeNum)) {
-                byEpisodeOnly.putIfAbsent(episodeNum, row);
-            }
-            String title = normalizeTitle(cleanEpisodeTitle(row.optString(KEY_TITLE, "")));
-            if (!isBlank(title)) {
-                byTitle.put(title, row);
-            }
-            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString(KEY_TITLE, "")));
-            if (!isBlank(looseTitle)) {
-                byLooseTitle.put(looseTitle, row);
-            }
-        }
-
+        EpisodeMetaIndex metaIndex = buildEpisodeMetaIndex(metaRows);
         for (WatchingEpisode episode : episodes) {
-            String normalizedSeason = normalizeNumber(episode.season);
-            String normalizedEpisode = normalizeNumber(firstNonBlank(episode.episodeNum, inferEpisodeNumberFromTitle(episode.title)));
-            JSONObject meta = bySeasonEpisode.get(normalizedSeason + ":" + normalizedEpisode);
-            if (meta == null) {
-                meta = byTitle.get(normalizeTitle(cleanEpisodeTitle(episode.title)));
-            }
-            if (meta == null) {
-                meta = byLooseTitle.get(normalizeTitle(extractLooseEpisodeTitle(episode.title)));
-            }
-            if (meta == null && !isBlank(normalizedEpisode)) {
-                meta = byEpisodeOnly.get(normalizedEpisode);
-            }
+            JSONObject meta = findEpisodeMeta(metaIndex, episode);
             if (meta == null) {
                 continue;
             }
@@ -1517,6 +1495,55 @@ public abstract class BaseWatchingNowUI extends VBox {
                 episode.channel.setLogo(episode.imageUrl);
             }
         }
+    }
+
+    private EpisodeMetaIndex buildEpisodeMetaIndex(JSONArray metaRows) {
+        EpisodeMetaIndex index = new EpisodeMetaIndex();
+        for (int i = 0; i < metaRows.length(); i++) {
+            JSONObject row = metaRows.optJSONObject(i);
+            if (row == null) continue;
+            String season = normalizeNumber(row.optString("season", ""));
+            String episodeNum = resolveMetaEpisodeNumber(row);
+            if (!isBlank(season) && !isBlank(episodeNum)) {
+                index.bySeasonEpisode.put(season + ":" + episodeNum, row);
+            }
+            if (!isBlank(episodeNum)) {
+                index.byEpisodeOnly.putIfAbsent(episodeNum, row);
+            }
+            String title = normalizeTitle(cleanEpisodeTitle(row.optString(KEY_TITLE, "")));
+            if (!isBlank(title)) {
+                index.byTitle.put(title, row);
+            }
+            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString(KEY_TITLE, "")));
+            if (!isBlank(looseTitle)) {
+                index.byLooseTitle.put(looseTitle, row);
+            }
+        }
+        return index;
+    }
+
+    private String resolveMetaEpisodeNumber(JSONObject row) {
+        String episodeNum = normalizeNumber(row.optString("episodeNum", ""));
+        if (isBlank(episodeNum)) {
+            episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString(KEY_TITLE, "")));
+        }
+        return episodeNum;
+    }
+
+    private JSONObject findEpisodeMeta(EpisodeMetaIndex metaIndex, WatchingEpisode episode) {
+        String normalizedSeason = normalizeNumber(episode.season);
+        String normalizedEpisode = normalizeNumber(firstNonBlank(episode.episodeNum, inferEpisodeNumberFromTitle(episode.title)));
+        JSONObject meta = metaIndex.bySeasonEpisode.get(normalizedSeason + ":" + normalizedEpisode);
+        if (meta == null) {
+            meta = metaIndex.byTitle.get(normalizeTitle(cleanEpisodeTitle(episode.title)));
+        }
+        if (meta == null) {
+            meta = metaIndex.byLooseTitle.get(normalizeTitle(extractLooseEpisodeTitle(episode.title)));
+        }
+        if (meta == null && !isBlank(normalizedEpisode)) {
+            meta = metaIndex.byEpisodeOnly.get(normalizedEpisode);
+        }
+        return meta;
     }
 
     private String extractLooseEpisodeTitle(String title) {
@@ -1584,28 +1611,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         reloadInProgress.set(true);
         new Thread(() -> {
             try {
-                Account account = AccountService.getInstance().getById(accountId);
-                List<SeriesPanelData> updated = new ArrayList<>();
-                if (account != null && !isBlank(account.getDbId())) {
-                    account.setAction(Account.AccountAction.series);
-                    Map<String, SeriesWatchState> deduped = new LinkedHashMap<>();
-                    for (SeriesWatchState state : SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(account.getDbId())) {
-                        if (state == null || isBlank(state.getSeriesId()) || !safe(state.getSeriesId()).equals(safe(seriesId))) {
-                            continue;
-                        }
-                        String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
-                        SeriesWatchState existing = deduped.get(key);
-                        if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
-                            deduped.put(key, state);
-                        }
-                    }
-                    for (SeriesWatchState state : deduped.values()) {
-                        SeriesPanelData panel = buildPanel(account, state);
-                        if (panel != null) {
-                            updated.add(panel);
-                        }
-                    }
-                }
+                List<SeriesPanelData> updated = buildUpdatedSeriesPanels(accountId, seriesId);
                 Platform.runLater(() -> applySeriesDelta(accountId, seriesId, updated));
             } finally {
                 reloadInProgress.set(false);
@@ -1614,6 +1620,29 @@ public abstract class BaseWatchingNowUI extends VBox {
                 }
             }
         }, "watching-now-delta-loader").start();
+    }
+
+    private List<SeriesPanelData> buildUpdatedSeriesPanels(String accountId, String seriesId) {
+        List<SeriesPanelData> updated = new ArrayList<>();
+        Account account = AccountService.getInstance().getById(accountId);
+        if (account == null || isBlank(account.getDbId())) {
+            return updated;
+        }
+        account.setAction(Account.AccountAction.series);
+        for (SeriesWatchState state : dedupeSeriesStates(account.getDbId(), seriesId).values()) {
+            SeriesPanelData panel = buildPanel(account, state);
+            if (panel != null) {
+                updated.add(panel);
+            }
+        }
+        return updated;
+    }
+
+    private static final class EpisodeMetaIndex {
+        private final Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
+        private final Map<String, JSONObject> byTitle = new HashMap<>();
+        private final Map<String, JSONObject> byLooseTitle = new HashMap<>();
+        private final Map<String, JSONObject> byEpisodeOnly = new HashMap<>();
     }
 
     private void applySeriesDelta(String accountId, String seriesId, List<SeriesPanelData> updated) {
