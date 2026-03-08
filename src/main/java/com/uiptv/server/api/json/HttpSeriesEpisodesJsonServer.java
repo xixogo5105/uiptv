@@ -81,10 +81,10 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
 
     private List<Channel> toChannels(EpisodeList episodes) {
         List<Channel> channels = new ArrayList<>();
-        if (episodes == null || episodes.episodes == null) {
+        if (episodes == null || episodes.getEpisodes() == null) {
             return channels;
         }
-        for (Episode episode : episodes.episodes) {
+        for (Episode episode : episodes.getEpisodes()) {
             Channel channel = toChannel(episode);
             if (channel != null) {
                 channels.add(channel);

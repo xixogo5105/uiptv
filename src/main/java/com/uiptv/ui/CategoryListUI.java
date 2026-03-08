@@ -31,7 +31,6 @@ import java.util.function.BooleanSupplier;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
-import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.util.AccountType.M3U8_LOCAL;
 import static com.uiptv.util.AccountType.M3U8_URL;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
@@ -377,7 +376,7 @@ public class CategoryListUI extends HBox {
         
         Thread runningThread = currentLoadingThread.get();
         if (runningThread != null && runningThread.isAlive()) {
-            primaryStage.getScene().setCursor(Cursor.WAIT);
+            RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
             runningThread.interrupt();
             try {
                 // Wait a bit for the thread to finish, but don't block forever
@@ -390,12 +389,12 @@ public class CategoryListUI extends HBox {
         currentRequestCancelled = new AtomicBoolean(false);
         AtomicBoolean isCancelled = currentRequestCancelled;
 
-        primaryStage.getScene().setCursor(Cursor.WAIT);
+        RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
         Thread loadingThread = new Thread(() -> {
             try {
                 retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
             } finally {
-                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
+                Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
                 currentLoadingThread.compareAndSet(Thread.currentThread(), null);
             }
         });

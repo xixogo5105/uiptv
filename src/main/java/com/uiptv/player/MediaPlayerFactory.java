@@ -9,7 +9,7 @@ import javafx.scene.layout.Region;
 
 public class MediaPlayerFactory {
     private static VideoPlayerInterface instance;
-    public static VideoPlayerInterface.PlayerType playerType;
+    private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();
     private static boolean hostConfigured = false;
 

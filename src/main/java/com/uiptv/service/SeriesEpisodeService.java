@@ -39,12 +39,12 @@ public class SeriesEpisodeService {
         }
 
         EpisodeList cached = loadFromDbCache(account, categoryId, seriesId);
-        if (cached != null && cached.episodes != null && !cached.episodes.isEmpty()) {
+        if (cached != null && cached.getEpisodes() != null && !cached.getEpisodes().isEmpty()) {
             return cached;
         }
 
         EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
-        if (fetched != null && fetched.episodes != null && !fetched.episodes.isEmpty()) {
+        if (fetched != null && fetched.getEpisodes() != null && !fetched.getEpisodes().isEmpty()) {
             return fetched;
         }
         return new EpisodeList();
@@ -55,11 +55,11 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
         EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
-        if (fetched != null && fetched.episodes != null && !fetched.episodes.isEmpty()) {
+        if (fetched != null && fetched.getEpisodes() != null && !fetched.getEpisodes().isEmpty()) {
             return fetched;
         }
         EpisodeList fallback = loadFromDbAnyAge(account, categoryId, seriesId);
-        if (fallback != null && fallback.episodes != null && !fallback.episodes.isEmpty()) {
+        if (fallback != null && fallback.getEpisodes() != null && !fallback.getEpisodes().isEmpty()) {
             return fallback;
         }
         return new EpisodeList();
@@ -69,7 +69,7 @@ public class SeriesEpisodeService {
         if (account.getType() == XTREME_API) {
             try {
                 EpisodeList episodes = XtremeParser.parseEpisodes(seriesId, account);
-                if (episodes != null && episodes.episodes != null && !episodes.episodes.isEmpty()) {
+                if (episodes != null && episodes.getEpisodes() != null && !episodes.getEpisodes().isEmpty()) {
                     saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
                     return episodes;
                 }
@@ -130,11 +130,11 @@ public class SeriesEpisodeService {
     }
 
     private void saveEpisodesToDbCache(Account account, String categoryId, String seriesId, EpisodeList episodes) {
-        if (account == null || isBlank(seriesId) || episodes == null || episodes.episodes == null || episodes.episodes.isEmpty()) {
+        if (account == null || isBlank(seriesId) || episodes == null || episodes.getEpisodes() == null || episodes.getEpisodes().isEmpty()) {
             return;
         }
         List<Channel> channels = new ArrayList<>();
-        for (Episode episode : episodes.episodes) {
+        for (Episode episode : episodes.getEpisodes()) {
             if (episode == null) {
                 continue;
             }
@@ -168,7 +168,7 @@ public class SeriesEpisodeService {
             if (channel == null) {
                 continue;
             }
-            list.episodes.add(toEpisode(channel));
+            list.getEpisodes().add(toEpisode(channel));
         }
         return list;
     }

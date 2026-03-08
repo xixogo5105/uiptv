@@ -148,7 +148,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void clearEpisodesAndRefreshTabs() {
         itemsLoaded.set(false);
-        channelList.episodes.clear();
+        channelList.getEpisodes().clear();
         allEpisodeItems.clear();
         applyTableFilter();
     }

@@ -29,8 +29,8 @@ import static java.lang.System.exit;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
-    public static Stage primaryStage;
-    public static String currentTheme;
+    private static Stage primaryStage;
+    private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
 
@@ -165,6 +165,10 @@ public class RootApplication extends Application {
 
     public static void setPrimaryStage(Stage stage) {
         primaryStage = stage;
+    }
+
+    public static Stage getPrimaryStage() {
+        return primaryStage;
     }
 
     public static String getCurrentTheme() {

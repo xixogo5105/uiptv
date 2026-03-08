@@ -35,13 +35,13 @@ import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
-import static com.uiptv.ui.RootApplication.primaryStage;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
@@ -98,7 +98,7 @@ public class AccountListUI extends HBox {
     public void refresh() {
         List<AccountItem> catList = new ArrayList<>();
 
-        LinkedHashMap<String, Account> spClients = accountService.getAll();
+        Map<String, Account> spClients = accountService.getAll();
         if (spClients != null) {
             spClients.keySet().forEach(k -> catList.add(new AccountItem(new SimpleStringProperty(spClients.get(k).getAccountName()), new SimpleStringProperty(spClients.get(k).getDbId()), new SimpleStringProperty(spClients.get(k).getType().name()))));
         }
@@ -470,7 +470,7 @@ public class AccountListUI extends HBox {
             ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::refresh);
         }
 
-        primaryStage.getScene().setCursor(Cursor.WAIT);
+        RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
 
         new Thread(() -> {
             try {
@@ -480,7 +480,7 @@ public class AccountListUI extends HBox {
             } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert(I18n.tr("autoFailedRefreshChannels", e.getMessage())));
             } finally {
-                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
+                Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
             }
         }).start();
     }
@@ -489,7 +489,7 @@ public class AccountListUI extends HBox {
         if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
             return stage;
         }
-        return primaryStage;
+        return RootApplication.getPrimaryStage();
     }
 
     private void openManageAccount(AccountItem item) {

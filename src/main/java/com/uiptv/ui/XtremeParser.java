@@ -122,11 +122,11 @@ public class XtremeParser {
         EpisodeList episodeList = new EpisodeList();
         try {
             JSONObject data = new JSONObject(json);
-            episodeList.seasonInfo = new SeasonInfo(data.getJSONObject("info"));
+            episodeList.setSeasonInfo(new SeasonInfo(data.getJSONObject("info")));
             for (Map.Entry<String, Object> entry : data.getJSONObject("episodes").toMap().entrySet()) {
                 List<?> seasonEpisodes = (List<?>) entry.getValue();
                 if (seasonEpisodes != null && !seasonEpisodes.isEmpty()) {
-                    seasonEpisodes.forEach(episode -> episodeList.episodes.add(new Episode(account, (Map<?, ?>) episode)));
+                    seasonEpisodes.forEach(episode -> episodeList.getEpisodes().add(new Episode(account, (Map<?, ?>) episode)));
                 }
             }
         } catch (Exception e) {

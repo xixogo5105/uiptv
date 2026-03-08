@@ -612,7 +612,7 @@ public class BookmarkChannelListUI extends HBox {
         CategoryManagementPopup popup = new CategoryManagementPopup(this);
         Scene scene = new Scene(popup, 300, 400);
         I18n.applySceneOrientation(scene);
-        scene.getStylesheets().add(RootApplication.currentTheme);
+        scene.getStylesheets().add(RootApplication.getCurrentTheme());
         popupStage.setTitle(I18n.tr("autoManageCategories"));
         popupStage.setScene(scene);
         popupStage.showAndWait();

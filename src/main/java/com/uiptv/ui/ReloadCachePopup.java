@@ -152,7 +152,7 @@ public class ReloadCachePopup extends VBox {
         setSpacing(10);
         setPadding(new Insets(10));
         setPrefSize(1368, 720);
-        getStylesheets().add(RootApplication.currentTheme);
+        getStylesheets().add(RootApplication.getCurrentTheme());
         accountsVBox.setPadding(new Insets(10));
         logVBox.setPadding(new Insets(5));
     }
@@ -671,8 +671,8 @@ public class ReloadCachePopup extends VBox {
                 ButtonType.YES,
                 ButtonType.NO
         );
-        if (RootApplication.currentTheme != null) {
-            alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        if (RootApplication.getCurrentTheme() != null) {
+            alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         }
         alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
                 ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
@@ -690,8 +690,8 @@ public class ReloadCachePopup extends VBox {
     private Scene buildProblemAccountsScene(VBox root) {
         Scene scene = new Scene(root, 500, 500);
         I18n.applySceneOrientation(scene);
-        if (RootApplication.currentTheme != null) {
-            scene.getStylesheets().add(RootApplication.currentTheme);
+        if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
         }
         return scene;
     }
@@ -1231,8 +1231,8 @@ public class ReloadCachePopup extends VBox {
                     markBadButton
             );
             alert.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
-            if (RootApplication.currentTheme != null) {
-                alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+            if (RootApplication.getCurrentTheme() != null) {
+                alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
             }
             alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
                     ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT

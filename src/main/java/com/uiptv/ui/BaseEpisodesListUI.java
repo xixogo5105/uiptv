@@ -116,7 +116,7 @@ public abstract class BaseEpisodesListUI extends HBox {
 
     public void setItems(EpisodeList newChannelList) {
         if (newChannelList == null) return;
-        if (newChannelList.episodes == null || newChannelList.episodes.isEmpty()) {
+        if (newChannelList.getEpisodes() == null || newChannelList.getEpisodes().isEmpty()) {
             return;
         }
         itemsLoaded.set(true);
@@ -261,8 +261,8 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected void releaseTransientState() {
         allEpisodeItems.clear();
         seasonInfo = new JSONObject();
-        channelList.episodes.clear();
-        channelList.seasonInfo = null;
+        channelList.getEpisodes().clear();
+        channelList.setSeasonInfo(null);
     }
 
     protected void unregisterBookmarkListener() {
@@ -638,13 +638,13 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     private void syncEpisodeList(EpisodeList newChannelList) {
-        this.channelList.episodes.clear();
-        this.channelList.episodes.addAll(newChannelList.episodes);
-        this.channelList.seasonInfo = newChannelList.seasonInfo;
+        this.channelList.getEpisodes().clear();
+        this.channelList.getEpisodes().addAll(newChannelList.getEpisodes());
+        this.channelList.setSeasonInfo(newChannelList.getSeasonInfo());
     }
 
     private void syncSeasonInfo(EpisodeList newChannelList) {
-        this.seasonInfo = cloneSeasonInfo(newChannelList.seasonInfo);
+        this.seasonInfo = cloneSeasonInfo(newChannelList.getSeasonInfo());
         if (isBlank(this.seasonInfo.optString("name", ""))) {
             this.seasonInfo.put("name", categoryTitle);
         }
@@ -664,7 +664,7 @@ public abstract class BaseEpisodesListUI extends HBox {
 
     private List<EpisodeItem> buildEpisodeItems(EpisodeList newChannelList, Set<String> bookmarkKeys, SeriesWatchState watchedState) {
         List<EpisodeItem> items = new ArrayList<>();
-        newChannelList.episodes.forEach(episode -> items.add(buildEpisodeItem(episode, bookmarkKeys, watchedState)));
+        newChannelList.getEpisodes().forEach(episode -> items.add(buildEpisodeItem(episode, bookmarkKeys, watchedState)));
         return items;
     }
 

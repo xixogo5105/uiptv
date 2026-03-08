@@ -13,7 +13,7 @@ public enum AccountType {
     XTREME_API("Xtreme API"),
     RSS_FEED("RSS Feed");
 
-    public String display;
+    private final String display;
 
     AccountType(String display) {
         this.display = display;

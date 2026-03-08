@@ -28,7 +28,7 @@ public class UIptvAlert {
         alert.setHeaderText(null);
         alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
         alert.initModality(Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         alert.showAndWait();
     }
 
@@ -40,7 +40,7 @@ public class UIptvAlert {
         alert.setHeaderText(null);
         alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
         alert.initModality(Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         Optional<ButtonType> result = alert.showAndWait();
         return result.isPresent() && result.get() == okButton;
     }
@@ -87,7 +87,7 @@ public class UIptvAlert {
         alert.setHeaderText(null);
         alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
         alert.initModality(Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         alert.showAndWait();
     }
 }

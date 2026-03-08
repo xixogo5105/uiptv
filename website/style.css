@@ -298,11 +298,12 @@ a {
 }
 
 .hero-status-badges {
-    margin-top: 1rem;
+    margin-top: 1.6rem;
     display: flex;
     flex-wrap: wrap;
     gap: 0.55rem;
     align-items: center;
+    justify-content: center;
 }
 
 .hero-status-badges a {

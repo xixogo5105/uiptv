@@ -27,8 +27,8 @@ public class DialogAlert {
         Button noButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.NO);
         noButton.setDefaultButton(true);
         confirmDialogue.initModality(Modality.NONE);
-        if (RootApplication.currentTheme != null) {
-            confirmDialogue.getDialogPane().getStylesheets().add(RootApplication.currentTheme);
+        if (RootApplication.getCurrentTheme() != null) {
+            confirmDialogue.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         }
         confirmDialogue.getDialogPane().setNodeOrientation(
                 I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT

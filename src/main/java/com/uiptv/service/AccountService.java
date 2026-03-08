@@ -57,7 +57,7 @@ public class AccountService {
         AccountDb.get().getAccounts().forEach(account -> AccountDb.get().delete(account.getDbId()));
     }
 
-    public LinkedHashMap<String, Account> getAll() {
+    public Map<String, Account> getAll() {
         LinkedHashMap<String, Account> accounts = new LinkedHashMap<>();
         AccountDb.get().getAccounts().forEach(a -> {
             applySessionToken(a);

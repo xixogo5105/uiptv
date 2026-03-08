@@ -124,8 +124,8 @@ public class AboutUI {
 
         Scene scene = new Scene(root, 720, 450);
         I18n.applySceneOrientation(scene);
-        if (RootApplication.currentTheme != null) {
-            scene.getStylesheets().add(RootApplication.currentTheme);
+        if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
         }
         stage.setScene(scene);
         stage.showAndWait();

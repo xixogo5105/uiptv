@@ -146,7 +146,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void clearEpisodesAndRefreshTabs() {
         itemsLoaded.set(false);
-        channelList.episodes.clear();
+        channelList.getEpisodes().clear();
         allEpisodeItems.clear();
         refreshSeasonTabs();
         applySeasonFilter();
@@ -333,7 +333,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 imdbLoaded = false;
                 imdbLoading = false;
                 clearEpisodesAndRefreshTabs();
-                if (refreshed != null && refreshed.episodes != null && !refreshed.episodes.isEmpty()) {
+                if (refreshed != null && refreshed.getEpisodes() != null && !refreshed.getEpisodes().isEmpty()) {
                     setItems(refreshed);
                 } else {
                     setEmptyState("No episodes found.", true);

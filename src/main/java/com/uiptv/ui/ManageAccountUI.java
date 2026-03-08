@@ -374,7 +374,7 @@ public class ManageAccountUI extends VBox {
 
     private void addBrowserButton1ClickHandler() {
         browserButtonM3u8Path.setOnAction(actionEvent -> {
-            File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
+            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             m3u8Path.setText(file.getAbsolutePath());
         });
     }
@@ -410,7 +410,7 @@ public class ManageAccountUI extends VBox {
         if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
             return stage;
         }
-        return RootApplication.primaryStage;
+        return RootApplication.getPrimaryStage();
     }
 
     public void clearAll() {

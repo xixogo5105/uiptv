@@ -23,11 +23,14 @@ public class SystemUtils {
     private SystemUtils() {
     }
 
-    public static boolean IS_OS_WINDOWS;
-    public static boolean IS_OS_LINUX;
-    public static boolean IS_OS_MAC_OSX;
+    public static final boolean IS_OS_WINDOWS;
+    public static final boolean IS_OS_LINUX;
+    public static final boolean IS_OS_MAC_OSX;
 
     static {
+        boolean isWindows = false;
+        boolean isLinux = false;
+        boolean isMacOsx = false;
         try {
             String osName = System.getProperty("os.name");
             if (osName == null) {
@@ -36,7 +39,7 @@ public class SystemUtils {
             osName = osName.toLowerCase(Locale.ENGLISH);
             // match
             if (osName.contains("windows")) {
-                IS_OS_WINDOWS = true;
+                isWindows = true;
             } else if (osName.contains("linux") ||
                     osName.contains("mpe/ix") ||
                     osName.contains("freebsd") ||
@@ -45,9 +48,9 @@ public class SystemUtils {
                     osName.contains("digital unix") ||
                     osName.contains("unix")
             ) {
-                IS_OS_LINUX = true;
+                isLinux = true;
             } else if (osName.contains("mac os x")) {
-                IS_OS_MAC_OSX = true;
+                isMacOsx = true;
             } else if (osName.contains("sun os") ||
                     osName.contains("sunos") ||
                     osName.contains("solaris")) {
@@ -59,5 +62,8 @@ public class SystemUtils {
         } catch (final Exception _) {
             // Leave OS flags false if detection fails.
         }
+        IS_OS_WINDOWS = isWindows;
+        IS_OS_LINUX = isLinux;
+        IS_OS_MAC_OSX = isMacOsx;
     }
 }

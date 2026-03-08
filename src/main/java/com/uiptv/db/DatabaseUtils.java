@@ -58,7 +58,7 @@ public class DatabaseUtils {
 
     }
 
-    public static final EnumSet<DbTable> Cacheable = EnumSet.of(
+    public static final Set<DbTable> Cacheable = Collections.unmodifiableSet(EnumSet.of(
             DbTable.CATEGORY_TABLE,
             DbTable.CHANNEL_TABLE,
             DbTable.VOD_CATEGORY_TABLE,
@@ -66,8 +66,13 @@ public class DatabaseUtils {
             DbTable.SERIES_CATEGORY_TABLE,
             DbTable.SERIES_CHANNEL_TABLE,
             DbTable.SERIES_EPISODE_TABLE
-    );
-    public static final EnumSet<DbTable> Syncable = EnumSet.of(DbTable.ACCOUNT_TABLE, DbTable.BOOKMARK_TABLE, DbTable.BOOKMARK_CATEGORY_TABLE, DbTable.BOOKMARK_ORDER_TABLE);
+    ));
+    public static final Set<DbTable> Syncable = Collections.unmodifiableSet(EnumSet.of(
+            DbTable.ACCOUNT_TABLE,
+            DbTable.BOOKMARK_TABLE,
+            DbTable.BOOKMARK_CATEGORY_TABLE,
+            DbTable.BOOKMARK_ORDER_TABLE
+    ));
 
     static {
         dbStructure.put(DbTable.CONFIGURATION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(

@@ -27,7 +27,7 @@ public class ServerUtils {
     public static final String CONTENT_TYPE_JSON = "application/json";
     public static final String CONTENT_TYPE_M3U8 = "vnd.apple.mpegurl";
     // Removed CONTENT_TYPE_JAVASCRIPT and CONTENT_TYPE_CSS from DOWNLOADABLE to allow inline execution/rendering
-    public static final List<String> DOWNLOADABLE = Arrays.asList(CONTENT_TYPE_TS);
+    private static final List<String> DOWNLOADABLE = Arrays.asList(CONTENT_TYPE_TS);
 
     private static Map<String, String> queryToMap(String query) {
         if (query == null) {

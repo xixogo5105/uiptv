@@ -451,7 +451,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void uploadThemeCss(boolean darkTheme) {
-        File file = cssFileChooser.showOpenDialog(RootApplication.primaryStage);
+        File file = cssFileChooser.showOpenDialog(RootApplication.getPrimaryStage());
         if (file == null) {
             return;
         }
@@ -493,7 +493,7 @@ public class ConfigurationUI extends VBox {
             chooser.setTitle(I18n.tr("configCssTemplateSave"));
             chooser.getExtensionFilters().setAll(new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"));
             chooser.setInitialFileName(darkTheme ? "dark-application.css" : "application.css");
-            File target = chooser.showSaveDialog(RootApplication.primaryStage);
+            File target = chooser.showSaveDialog(RootApplication.getPrimaryStage());
             if (target == null) {
                 return;
             }
@@ -771,7 +771,7 @@ public class ConfigurationUI extends VBox {
 
     private void addBrowserButton1ClickHandler() {
         browserButtonPlayerPath1.setOnAction(actionEvent -> {
-            File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
+            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             if (file != null) {
                 playerPath1.setText(file.getAbsolutePath());
             }
@@ -780,7 +780,7 @@ public class ConfigurationUI extends VBox {
 
     private void addBrowserButton2ClickHandler() {
         browserButtonPlayerPath2.setOnAction(actionEvent -> {
-            File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
+            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             if (file != null) {
                 playerPath2.setText(file.getAbsolutePath());
             }
@@ -789,7 +789,7 @@ public class ConfigurationUI extends VBox {
 
     private void addBrowserButton3ClickHandler() {
         browserButtonPlayerPath3.setOnAction(actionEvent -> {
-            File file = fileChooser.showOpenDialog(RootApplication.primaryStage);
+            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             if (file != null) {
                 playerPath3.setText(file.getAbsolutePath());
             }
