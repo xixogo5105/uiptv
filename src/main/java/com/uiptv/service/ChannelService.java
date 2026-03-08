@@ -441,17 +441,20 @@ public class ChannelService {
         appendFetchedPage(channelList, firstPage, startPage, callback, logger);
 
         int maxAdditionalPages = firstPage.pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(firstPage.pagination.getPageCount() + 1, 2);
-        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
+        boolean continuePaging = true;
+        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages && continuePaging; pageNumber++) {
             if (isPageFetchCancelled(isCancelled)) {
                 log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
-                break;
+                continuePaging = false;
+                continue;
             }
             PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
             if (isEmptyChannelPage(page)) {
                 log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
-                break;
+                continuePaging = false;
+            } else {
+                appendFetchedPage(channelList, page, pageNumber, callback, logger);
             }
-            appendFetchedPage(channelList, page, pageNumber, callback, logger);
         }
         return dedupeChannels(channelList);
     }
