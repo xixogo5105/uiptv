@@ -5,8 +5,11 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -17,6 +20,7 @@ import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerService {
+    private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
     private static PlayerService instance;
     private final Set<PlaybackResolvedListener> playbackResolvedListeners = new CopyOnWriteArraySet<>();
 
@@ -51,8 +55,87 @@ public class PlayerService {
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
         AccountPlayerService service = getPlayerService(account);
         PlayerResponse response = service.get(account, channel, series, parentSeriesId, categoryId);
+        if (response != null && response.getUrl() != null) {
+            String originalUrl = response.getUrl();
+            String sanitizedUrl = sanitizeAndEncodeUrl(originalUrl);
+            if (!originalUrl.equals(sanitizedUrl)) {
+                log.info("Original URL contained invalid characters. Re-encoding.");
+                log.info("Original: {}", originalUrl);
+                log.info("Encoded:  {}", sanitizedUrl);
+                response.setUrl(sanitizedUrl);
+            }
+        }
         notifyPlaybackResolved(account, channel, series, parentSeriesId, categoryId);
         return response;
+    }
+
+    /**
+     * Sanitizes and re-encodes a URL's query string to ensure all characters are valid.
+     * This method decodes each parameter's key and value to prevent double-encoding,
+     * then re-encodes them to safely handle special characters like '[', ']', ' ', etc.
+     */
+    String sanitizeAndEncodeUrl(String url) {
+        if (isBlank(url)) {
+            return url;
+        }
+        int questionMarkIndex = url.indexOf('?');
+        if (questionMarkIndex == -1) {
+            return url; // No query string, nothing to do.
+        }
+
+        String baseUrl = url.substring(0, questionMarkIndex);
+        String query = url.substring(questionMarkIndex + 1);
+
+        if (isBlank(query)) {
+            return url;
+        }
+
+        StringBuilder newQuery = new StringBuilder();
+        String[] params = query.split("&");
+
+        for (String param : params) {
+            if (isBlank(param)) {
+                continue;
+            }
+
+            int eqIndex = param.indexOf("=");
+            String key, value;
+
+            if (eqIndex >= 0) {
+                key = param.substring(0, eqIndex);
+                value = param.substring(eqIndex + 1);
+            } else {
+                key = param;
+                value = null;
+            }
+
+            try {
+                // Decode first to handle any existing encoding, then re-encode.
+                String decodedKey = URLDecoder.decode(key, StandardCharsets.UTF_8);
+                String encodedKey = URLEncoder.encode(decodedKey, StandardCharsets.UTF_8);
+
+                if (newQuery.length() > 0) {
+                    newQuery.append("&");
+                }
+                newQuery.append(encodedKey);
+
+                if (value != null) {
+                    String decodedValue = URLDecoder.decode(value, StandardCharsets.UTF_8);
+                    String encodedValue = URLEncoder.encode(decodedValue, StandardCharsets.UTF_8);
+                    newQuery.append("=");
+                    newQuery.append(encodedValue);
+                }
+            } catch (Exception e) {
+                // This can happen with malformed percent-encoding.
+                // In this case, we append the original parameter as a fallback.
+                if (newQuery.length() > 0) {
+                    newQuery.append("&");
+                }
+                newQuery.append(param);
+            }
+        }
+
+        return baseUrl + "?" + newQuery.toString();
     }
 
     private AccountPlayerService getPlayerService(Account account) {

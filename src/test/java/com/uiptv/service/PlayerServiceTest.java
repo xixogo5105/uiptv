@@ -35,4 +35,35 @@ class PlayerServiceTest {
 
         assertEquals(resolved, merged);
     }
+
+    @Test
+    void sanitizeAndEncodeUrl_encodesInvalidCharacters() {
+        PlayerService service = PlayerService.getInstance();
+
+        // Case 1: URL with unencoded brackets
+        String urlWithBrackets = "http://host/path?ads.deviceid=[DEVICE_ID]&coppa=0";
+        String expectedEncodedUrl = "http://host/path?ads.deviceid=%5BDEVICE_ID%5D&coppa=0";
+        assertEquals(expectedEncodedUrl, service.sanitizeAndEncodeUrl(urlWithBrackets));
+
+        // Case 2: URL with spaces and other characters
+        // Note: 'hello world' becomes 'hello+world'
+        // 'a@b' becomes 'a%40b' (using @ to verify encoding without +/space ambiguity)
+        String urlWithSpaces = "http://host/path?q=hello world&filter=a@b";
+        String expectedUrlWithSpaces = "http://host/path?q=hello+world&filter=a%40b";
+        assertEquals(expectedUrlWithSpaces, service.sanitizeAndEncodeUrl(urlWithSpaces));
+
+        // Case 3: URL that is already partially encoded
+        String partiallyEncodedUrl = "http://host/path?data=%5B1,2%5D&q=test";
+        String expectedPartiallyEncodedUrl = "http://host/path?data=%5B1%2C2%5D&q=test";
+        assertEquals(expectedPartiallyEncodedUrl, service.sanitizeAndEncodeUrl(partiallyEncodedUrl));
+
+        // Case 4: The full user-provided URL
+        String userUrl = "https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01605-ndtvconvergence-ndtvindia-lgin/playlist.m3u8?ads.deviceid=[DEVICE_ID]&ads.ifa=[IFA]&coppa=0";
+        String expectedUserUrl = "https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01605-ndtvconvergence-ndtvindia-lgin/playlist.m3u8?ads.deviceid=%5BDEVICE_ID%5D&ads.ifa=%5BIFA%5D&coppa=0";
+        assertEquals(expectedUserUrl, service.sanitizeAndEncodeUrl(userUrl));
+
+        // Case 5: No query string
+        String noQueryUrl = "http://host/path";
+        assertEquals(noQueryUrl, service.sanitizeAndEncodeUrl(noQueryUrl));
+    }
 }

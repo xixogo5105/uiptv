@@ -1925,35 +1925,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (parsed != null) {
             return I18n.formatDate(parsed);
         }
-        if (v.matches("^\\d{4}-\\d{2}-\\d{2}.*")) {
-            return v.substring(0, 10);
-        }
-        int t = v.indexOf('T');
-        if (t > 0) {
-            String left = v.substring(0, t);
-            if (left.matches("\\d{4}-\\d{2}-\\d{2}")) {
-                return left;
-            }
-        }
-        Matcher monthMatcher = MONTH_DATE_PATTERN.matcher(v);
-        if (monthMatcher.find()) {
-            return monthMatcher.group();
-        }
-        Matcher slashMatcher = SLASH_DATE_PATTERN.matcher(v);
-        if (slashMatcher.find()) {
-            return slashMatcher.group();
-        }
-        Matcher isoMatcher = ISO_DATE_PATTERN.matcher(v);
-        if (isoMatcher.find()) {
-            return isoMatcher.group();
-        }
-        if (v.contains(",")) {
-            String[] parts = v.split(",");
-            if (parts.length >= 2) {
-                return parts[0].trim() + ", " + parts[1].trim();
-            }
-        }
-        return v;
+        String extracted = extractDateSubstring(v);
+        return !isBlank(extracted) ? extracted : collapseCommaSeparatedDate(v);
     }
 
     private String buildEpisodeDisplayTitle(String season, String episodeNum, String title) {
@@ -1969,11 +1942,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (isBlank(input)) {
             return null;
         }
-        try {
-            return OffsetDateTime.parse(input).toLocalDate();
-        } catch (Exception _) {
+        LocalDate offsetDate = parseOffsetDate(input);
+        if (offsetDate != null) {
+            return offsetDate;
         }
-        String[] patterns = new String[]{
+        LocalDate exactPatternDate = parseDateWithPatterns(input, new String[]{
                 "yyyy-MM-dd",
                 "yyyy-MM-dd HH:mm:ss",
                 "yyyy-MM-dd HH:mm",
@@ -1985,33 +1958,98 @@ public abstract class BaseWatchingNowUI extends VBox {
                 "MM/dd/yyyy",
                 "d/M/yyyy",
                 "dd/MM/yyyy"
-        };
+        });
+        if (exactPatternDate != null) {
+            return exactPatternDate;
+        }
+        LocalDate embeddedIsoDate = parseEmbeddedIsoDate(input);
+        if (embeddedIsoDate != null) {
+            return embeddedIsoDate;
+        }
+        return parseEmbeddedMonthDate(input);
+    }
+
+    private String extractDateSubstring(String value) {
+        String leadingIso = extractLeadingIsoDate(value);
+        if (!isBlank(leadingIso)) {
+            return leadingIso;
+        }
+        String matchedDate = firstMatchedDate(value, MONTH_DATE_PATTERN, SLASH_DATE_PATTERN, ISO_DATE_PATTERN);
+        return !isBlank(matchedDate) ? matchedDate : "";
+    }
+
+    private String extractLeadingIsoDate(String value) {
+        if (value.matches("^\\d{4}-\\d{2}-\\d{2}.*")) {
+            return value.substring(0, 10);
+        }
+        int t = value.indexOf('T');
+        if (t > 0) {
+            String left = value.substring(0, t);
+            if (left.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                return left;
+            }
+        }
+        return "";
+    }
+
+    private String firstMatchedDate(String value, Pattern... patterns) {
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(value);
+            if (matcher.find()) {
+                return matcher.group();
+            }
+        }
+        return "";
+    }
+
+    private String collapseCommaSeparatedDate(String value) {
+        if (value.contains(",")) {
+            String[] parts = value.split(",");
+            if (parts.length >= 2) {
+                return parts[0].trim() + ", " + parts[1].trim();
+            }
+        }
+        return value;
+    }
+
+    private LocalDate parseOffsetDate(String input) {
+        try {
+            return OffsetDateTime.parse(input).toLocalDate();
+        } catch (Exception _) {
+            return null;
+        }
+    }
+
+    private LocalDate parseDateWithPatterns(String input, String[] patterns) {
         for (String pattern : patterns) {
             try {
                 return LocalDate.parse(input, DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH));
             } catch (DateTimeParseException _) {
             }
         }
-        Matcher iso = ISO_DATE_PATTERN.matcher(input);
-        if (iso.find()) {
-            try {
-                return LocalDate.parse(iso.group(), DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH));
-            } catch (DateTimeParseException _) {
-            }
-        }
-        Matcher month = MONTH_DATE_PATTERN.matcher(input);
-        if (month.find()) {
-            String candidate = month.group();
-            try {
-                return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException _) {
-            }
-            try {
-                return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException _) {
-            }
-        }
         return null;
+    }
+
+    private LocalDate parseEmbeddedIsoDate(String input) {
+        Matcher iso = ISO_DATE_PATTERN.matcher(input);
+        if (!iso.find()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(iso.group(), DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH));
+        } catch (DateTimeParseException _) {
+            return null;
+        }
+    }
+
+    private LocalDate parseEmbeddedMonthDate(String input) {
+        Matcher month = MONTH_DATE_PATTERN.matcher(input);
+        if (!month.find()) {
+            return null;
+        }
+        String candidate = month.group();
+        LocalDate shortMonth = parseDateWithPatterns(candidate, new String[]{"MMM d, yyyy"});
+        return shortMonth != null ? shortMonth : parseDateWithPatterns(candidate, new String[]{"MMMM d, yyyy"});
     }
 
     private String normalizeImageUrl(String imageUrl, Account account) {

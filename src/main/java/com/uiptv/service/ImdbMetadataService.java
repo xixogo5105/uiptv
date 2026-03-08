@@ -336,46 +336,15 @@ public class ImdbMetadataService {
             return;
         }
 
-        Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
-        Map<String, JSONObject> byTitle = new HashMap<>();
-        for (int i = 0; i < tvMazeEpisodes.length(); i++) {
-            JSONObject row = tvMazeEpisodes.optJSONObject(i);
-            if (row == null) continue;
-
-            String season = safeNumeric(String.valueOf(row.optInt(KEY_SEASON, 0)));
-            String episode = safeNumeric(String.valueOf(row.optInt("number", 0)));
-            if (isNotBlank(season) && isNotBlank(episode)) {
-                bySeasonEpisode.put(season + ":" + episode, row);
-            }
-
-            String title = normalizeTitle(row.optString("name", ""));
-            if (isNotBlank(title)) {
-                byTitle.put(title, row);
-            }
-        }
-
+        TvMazeEpisodeIndex index = buildTvMazeEpisodeIndex(tvMazeEpisodes);
         for (int i = 0; i < episodesMeta.length(); i++) {
             JSONObject row = episodesMeta.optJSONObject(i);
-            if (row == null) continue;
-            if (isNotBlank(row.optString("plot", ""))) continue;
-
-            String season = safeNumeric(row.optString(KEY_SEASON, ""));
-            String episode = safeNumeric(row.optString(KEY_EPISODE_NUMBER, ""));
-            JSONObject match = null;
-            if (isNotBlank(season) && isNotBlank(episode)) {
-                match = bySeasonEpisode.get(season + ":" + episode);
+            if (row == null || isNotBlank(row.optString("plot", ""))) {
+                continue;
             }
-            if (match == null) {
-                match = byTitle.get(normalizeTitle(row.optString(KEY_TITLE, "")));
-            }
-            if (match == null) continue;
-
-            String summary = stripHtml(match.optString("summary", ""));
-            if (isNotBlank(summary)) {
-                row.put("plot", summary);
-            }
-            if (isBlank(row.optString(KEY_RELEASE_DATE, ""))) {
-                row.put(KEY_RELEASE_DATE, match.optString("airdate", ""));
+            JSONObject match = matchTvMazeEpisode(index, row);
+            if (match != null) {
+                applyTvMazeEpisodeMeta(row, match);
             }
         }
     }
@@ -424,30 +393,11 @@ public class ImdbMetadataService {
                 return -1;
             }
 
-            for (int i = 0; i < rows.length(); i++) {
-                JSONObject wrapper = rows.optJSONObject(i);
-                JSONObject show = wrapper == null ? null : wrapper.optJSONObject("show");
-                JSONObject externals = show == null ? null : show.optJSONObject("externals");
-                if (show == null || externals == null) continue;
-                if (imdbId.equalsIgnoreCase(externals.optString("imdb", ""))) {
-                    return show.optInt("id", -1);
-                }
+            int exactImdbMatch = findTvMazeShowIdByImdb(rows, imdbId);
+            if (exactImdbMatch > 0) {
+                return exactImdbMatch;
             }
-
-            String normalizedSeries = normalizeTitle(seriesName);
-            int bestId = -1;
-            int bestScore = Integer.MIN_VALUE;
-            for (int i = 0; i < rows.length(); i++) {
-                JSONObject wrapper = rows.optJSONObject(i);
-                JSONObject show = wrapper == null ? null : wrapper.optJSONObject("show");
-                if (show == null) continue;
-                int score = scoreCandidate(normalizedSeries, show.optString("name", ""), show.optString("type", ""));
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestId = show.optInt("id", -1);
-                }
-            }
-            return bestId;
+            return findBestTvMazeShowId(rows, seriesName);
         } catch (Exception _) {
             return -1;
         }
@@ -539,31 +489,133 @@ public class ImdbMetadataService {
             return;
         }
 
-        String tmdbId = firstNonBlank(
-                primaryMeta.optString(KEY_TMDB_MEDIA_ID, ""),
-                secondaryMeta.optString(KEY_TMDB_MEDIA_ID, "")
-        );
+        String tmdbId = resolveTmdbMediaId(primaryMeta, secondaryMeta);
         if (isBlank(tmdbId)) {
             return;
         }
 
-        JSONObject primaryLocalized = fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "movie" : "tv", localeTag);
-        JSONObject secondaryLocalized = fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "tv" : "movie", localeTag);
+        JSONObject primaryLocalized = fetchPrimaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
+        JSONObject secondaryLocalized = fetchSecondaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
         JSONObject localized = !primaryLocalized.isEmpty() ? primaryLocalized : secondaryLocalized;
         if (localized.isEmpty()) {
             return;
         }
 
-        // Prefer localized text for user-facing metadata when available.
+        applyLocalizedTmdbFields(details, localized);
+        if (!moviePreferred) {
+            enrichEpisodesMetaWithTmdb(details.optJSONArray(KEY_EPISODES_META), tmdbId, localeTag);
+        }
+    }
+
+    private TvMazeEpisodeIndex buildTvMazeEpisodeIndex(JSONArray tvMazeEpisodes) {
+        TvMazeEpisodeIndex index = new TvMazeEpisodeIndex();
+        for (int i = 0; i < tvMazeEpisodes.length(); i++) {
+            JSONObject row = tvMazeEpisodes.optJSONObject(i);
+            if (row == null) {
+                continue;
+            }
+            indexSeasonEpisode(index, row);
+            indexTitle(index.byTitle, normalizeTitle(row.optString("name", "")), row);
+        }
+        return index;
+    }
+
+    private void indexSeasonEpisode(TvMazeEpisodeIndex index, JSONObject row) {
+        String season = safeNumeric(String.valueOf(row.optInt(KEY_SEASON, 0)));
+        String episode = safeNumeric(String.valueOf(row.optInt("number", 0)));
+        if (isNotBlank(season) && isNotBlank(episode)) {
+            index.bySeasonEpisode.put(season + ":" + episode, row);
+        }
+    }
+
+    private void indexTitle(Map<String, JSONObject> byTitle, String title, JSONObject row) {
+        if (isNotBlank(title)) {
+            byTitle.put(title, row);
+        }
+    }
+
+    private JSONObject matchTvMazeEpisode(TvMazeEpisodeIndex index, JSONObject row) {
+        String season = safeNumeric(row.optString(KEY_SEASON, ""));
+        String episode = safeNumeric(row.optString(KEY_EPISODE_NUMBER, ""));
+        if (isNotBlank(season) && isNotBlank(episode)) {
+            JSONObject match = index.bySeasonEpisode.get(season + ":" + episode);
+            if (match != null) {
+                return match;
+            }
+        }
+        return index.byTitle.get(normalizeTitle(row.optString(KEY_TITLE, "")));
+    }
+
+    private void applyTvMazeEpisodeMeta(JSONObject row, JSONObject match) {
+        String summary = stripHtml(match.optString("summary", ""));
+        if (isNotBlank(summary)) {
+            row.put("plot", summary);
+        }
+        if (isBlank(row.optString(KEY_RELEASE_DATE, ""))) {
+            row.put(KEY_RELEASE_DATE, match.optString("airdate", ""));
+        }
+    }
+
+    private int findTvMazeShowIdByImdb(JSONArray rows, String imdbId) {
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject show = extractTvMazeShow(rows.optJSONObject(i));
+            JSONObject externals = show == null ? null : show.optJSONObject("externals");
+            if (show != null && externals != null && imdbId.equalsIgnoreCase(externals.optString("imdb", ""))) {
+                return show.optInt("id", -1);
+            }
+        }
+        return -1;
+    }
+
+    private int findBestTvMazeShowId(JSONArray rows, String seriesName) {
+        String normalizedSeries = normalizeTitle(seriesName);
+        int bestId = -1;
+        int bestScore = Integer.MIN_VALUE;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject show = extractTvMazeShow(rows.optJSONObject(i));
+            if (show == null) {
+                continue;
+            }
+            int score = scoreCandidate(normalizedSeries, show.optString("name", ""), show.optString("type", ""));
+            if (score > bestScore) {
+                bestScore = score;
+                bestId = show.optInt("id", -1);
+            }
+        }
+        return bestId;
+    }
+
+    private JSONObject extractTvMazeShow(JSONObject wrapper) {
+        return wrapper == null ? null : wrapper.optJSONObject("show");
+    }
+
+    private String resolveTmdbMediaId(JSONObject primaryMeta, JSONObject secondaryMeta) {
+        return firstNonBlank(
+                primaryMeta.optString(KEY_TMDB_MEDIA_ID, ""),
+                secondaryMeta.optString(KEY_TMDB_MEDIA_ID, "")
+        );
+    }
+
+    private JSONObject fetchPrimaryLocalizedTmdbDetails(String tmdbId, String localeTag, boolean moviePreferred) {
+        return fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "movie" : "tv", localeTag);
+    }
+
+    private JSONObject fetchSecondaryLocalizedTmdbDetails(String tmdbId, String localeTag, boolean moviePreferred) {
+        return fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "tv" : "movie", localeTag);
+    }
+
+    private void applyLocalizedTmdbFields(JSONObject details, JSONObject localized) {
         replaceIfPresent(details, localized, "name");
         replaceIfPresent(details, localized, "plot");
         replaceIfPresent(details, localized, "genre");
         replaceIfPresent(details, localized, KEY_RELEASE_DATE);
         mergeMissing(details, localized, KEY_COVER);
         mergeMissing(details, localized, KEY_RATING);
-        if (!moviePreferred) {
-            enrichEpisodesMetaWithTmdb(details.optJSONArray(KEY_EPISODES_META), tmdbId, localeTag);
-        }
+    }
+
+    private static final class TvMazeEpisodeIndex {
+        private final Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
+        private final Map<String, JSONObject> byTitle = new HashMap<>();
     }
 
     private JSONObject fetchTmdbLocalizedDetails(String tmdbId, String mediaType, String localeTag) {
