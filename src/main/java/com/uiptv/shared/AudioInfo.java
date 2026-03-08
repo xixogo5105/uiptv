@@ -14,7 +14,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 public class AudioInfo extends BaseJson {
     private String codecName, codecLongName, codecType, codecTagString, sampleRate, channels, bitRate, bitsPerSample, channelLayout;
 
-    public AudioInfo(Map map) {
+    public AudioInfo(Map<?, ?> map) {
         if (map == null) return;
         this.codecName = safeGetString(map, "codec_name");
         this.codecLongName = safeGetString(map, "codec_long_name");

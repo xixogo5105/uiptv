@@ -467,7 +467,7 @@ public class BookmarkChannelListUI extends HBox {
                             || item.getAccountName().toLowerCase().contains(searchText);
                     return categoryMatch && searchMatch;
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         if (!sameFilteredItems(filteredList)) {
             filteredItems.setAll(filteredList);
@@ -719,7 +719,7 @@ public class BookmarkChannelListUI extends HBox {
     private void applyDraggedBookmarkOrder() {
         List<String> orderedDbIds = bookmarkTable.getTableView().getItems().stream()
                 .map(BookmarkItem::getBookmarkId)
-                .collect(Collectors.toList());
+                .toList();
         applyLocalBookmarkOrder(selectedCategoryId(), orderedDbIds);
         persistBookmarkOrderAsync(buildPersistedBookmarkOrders());
     }
@@ -808,7 +808,7 @@ public class BookmarkChannelListUI extends HBox {
         List<BookmarkItem> reorderedCategoryItems = allBookmarkItems.stream()
                 .filter(item -> Objects.equals(categoryId, item.getCategoryId()))
                 .sorted(Comparator.comparingInt(item -> orderByBookmarkId.getOrDefault(item.getBookmarkId(), Integer.MAX_VALUE)))
-                .collect(Collectors.toList());
+                .toList();
 
         if (reorderedCategoryItems.isEmpty()) {
             return;

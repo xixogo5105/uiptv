@@ -19,7 +19,7 @@ public class Episode extends BaseJson {
     String id, episodeNum, title, containerExtension, custom_sid, added, season, direct_source, cmd;
     EpisodeInfo info;
 
-    public Episode(Account account, Map map) {
+    public Episode(Account account, Map<?, ?> map) {
         if (map == null) return;
         this.id = safeGetString(map, "id");
         this.episodeNum = safeGetString(map, "episode_num");
@@ -29,7 +29,7 @@ public class Episode extends BaseJson {
         this.added = safeGetString(map, "added");
         this.season = safeGetString(map, "season");
         this.direct_source = safeGetString(map, "direct_source");
-        this.info = new EpisodeInfo((Map) map.get("info"));
+        this.info = new EpisodeInfo(asStringMap(map.get("info")));
         mergeEpisodeLevelArtwork(map);
         this.cmd = getXtremeStreamUrl(account, id, containerExtension);
     }
@@ -57,7 +57,7 @@ public class Episode extends BaseJson {
         }
     }
 
-    private void mergeEpisodeLevelArtwork(Map map) {
+    private void mergeEpisodeLevelArtwork(Map<?, ?> map) {
         if (map == null) return;
         if (this.info == null) {
             this.info = new EpisodeInfo();
@@ -83,13 +83,21 @@ public class Episode extends BaseJson {
         }
     }
 
-    private String firstNonBlank(Map map, String... keys) {
+    private String firstNonBlank(Map<?, ?> map, String... keys) {
         if (map == null || keys == null) return "";
         for (String key : keys) {
             String value = safeGetString(map, key);
             if (!isBlankLike(value)) return value.trim();
         }
         return "";
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asStringMap(Object value) {
+        if (value instanceof Map<?, ?> nestedMap) {
+            return (Map<String, Object>) nestedMap;
+        }
+        return null;
     }
 
     private boolean isBlankLike(String value) {

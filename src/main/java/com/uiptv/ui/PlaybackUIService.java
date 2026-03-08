@@ -12,6 +12,7 @@ import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 
+import java.io.IOException;
 import java.util.List;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
@@ -117,7 +118,7 @@ public final class PlaybackUIService {
         return true;
     }
 
-    private static PlayerResponse resolvePlayerResponse(PlaybackRequest request) throws Exception {
+    private static PlayerResponse resolvePlayerResponse(PlaybackRequest request) throws IOException {
         String channelId = isBlank(request.channelId) ? request.channel.getChannelId() : request.channelId;
         if (isBlank(request.seriesId)) {
             return PlayerService.getInstance().get(request.account, request.channel, channelId);

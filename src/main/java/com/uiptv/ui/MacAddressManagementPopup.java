@@ -47,7 +47,7 @@ public class MacAddressManagementPopup extends VBox {
     public MacAddressManagementPopup(Stage owner, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
         this.defaultMac = currentDefaultMac;
         this.onSave = onSave;
-        this.macItems = FXCollections.observableArrayList(initialMacs.stream().map(MacItem::new).collect(Collectors.toList()));
+        this.macItems = FXCollections.observableArrayList(initialMacs.stream().map(MacItem::new).toList());
         stage = createStage(owner);
         configureLayout();
         configureSelectionHandling();
@@ -134,7 +134,7 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private void removeMacs() {
-        List<MacItem> selectedItems = macItems.stream().filter(MacItem::isSelected).collect(Collectors.toList());
+        List<MacItem> selectedItems = macItems.stream().filter(MacItem::isSelected).toList();
 
         if (selectedItems.isEmpty()) {
             showAlert(I18n.tr("autoNoItemsSelectedForRemoval"));
@@ -186,7 +186,7 @@ public class MacAddressManagementPopup extends VBox {
 
     private void saveAndClose() {
         if (onSave != null) {
-            List<String> macStrings = macItems.stream().map(MacItem::getMac).collect(Collectors.toList());
+            List<String> macStrings = macItems.stream().map(MacItem::getMac).toList();
             onSave.accept(macStrings, defaultMac);
         }
         stage.close();

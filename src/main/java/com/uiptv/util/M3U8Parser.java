@@ -117,19 +117,21 @@ public class M3U8Parser {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
             List<String> lines = readLines(reader);
-            for (int index = 0; index < lines.size(); index++) {
+            int index = 0;
+            while (index < lines.size()) {
                 String line = lines.get(index);
                 if (!line.startsWith(EXTINF)) {
+                    index++;
                     continue;
                 }
 
                 EntryHeader header = parseEntryHeader(line);
                 ParsedEntry parsed = parseEntryState(lines, index + 1);
                 EntryState state = parsed.state();
-                index = parsed.lastIndex();
                 if (isNotBlank(state.url)) {
                     playlistEntries.add(new PlaylistEntry(header.tvgId, header.groupTitle, header.title, state.url, header.logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
                 }
+                index = parsed.lastIndex() + 1;
             }
         } catch (IOException e) {
             UIptvAlert.showError(e.getMessage());

@@ -43,7 +43,7 @@ public class ManageAccountUI extends VBox {
     final FileChooser fileChooser = new FileChooser();
     final Button browserButtonM3u8Path = new Button(I18n.tr("autoBrowse"));
     final UIptvText m3u8Path = new UIptvText("m3u8Path", "manageM3u8FilePathUrlPrompt", 5);
-    private final ComboBox accountType = new ComboBox();
+    private final ComboBox<String> accountType = new ComboBox<>();
     private final UIptvText name = new UIptvText("name", "manageAccountNameMustBeUniquePrompt", 5);
     private final UIptvText username = new UIptvText("username", "manageUserNamePrompt", 5);
     private final UIptvText password = new UIptvText("password", "managePasswordPrompt", 5);

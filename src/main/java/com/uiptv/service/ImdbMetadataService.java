@@ -326,7 +326,7 @@ public class ImdbMetadataService {
         }
 
         JSONArray tvMazeEpisodes = fetchTvMazeEpisodes(imdbId, seriesName);
-        if (tvMazeEpisodes == null || tvMazeEpisodes.isEmpty()) {
+        if (tvMazeEpisodes.isEmpty()) {
             return;
         }
 

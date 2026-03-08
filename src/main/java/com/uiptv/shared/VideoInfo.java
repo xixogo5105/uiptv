@@ -18,7 +18,7 @@ public class VideoInfo extends BaseJson {
             startTime, durationTs, duration, bitRate, bitsPerRawSample, nbFrames, extradataSize;
 
 
-    public VideoInfo(Map map) {
+    public VideoInfo(Map<?, ?> map) {
         if (map == null) return;
         this.index = safeGetString(map, "index");
         this.codecName = safeGetString(map, "codec_name");

@@ -598,7 +598,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         }
         JSONObject reorderPayload = new JSONObject();
         JSONObject bookmarkOrders = new JSONObject();
-        List<String> reorderedIds = ids.stream().sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+        List<String> reorderedIds = ids.stream().sorted(Comparator.reverseOrder()).toList();
         for (int i = 0; i < reorderedIds.size(); i++) {
             bookmarkOrders.put(reorderedIds.get(i), i + 1);
         }

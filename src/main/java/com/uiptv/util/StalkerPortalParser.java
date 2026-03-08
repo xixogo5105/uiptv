@@ -106,7 +106,7 @@ public class StalkerPortalParser implements AccountParser {
 
         List<Account> validAccounts = accounts.stream()
                 .filter(acc -> isNotBlank(acc.getUrl()) && isNotBlank(acc.getMacAddress()))
-                .collect(Collectors.toList());
+                .toList();
 
         for (Account currentAccount : validAccounts) {
             if (groupAccountsByMac && !hasExtraParams(currentAccount)) {

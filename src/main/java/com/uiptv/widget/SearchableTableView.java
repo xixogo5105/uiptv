@@ -14,7 +14,7 @@ import java.util.List;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 
-public class SearchableTableView extends TableView {
+public class SearchableTableView<T> extends TableView<T> {
     private final UIptvText searchTextField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
 
     public SearchableTableView() {
@@ -27,7 +27,7 @@ public class SearchableTableView extends TableView {
         return searchTextField;
     }
 
-    public <T> void addTextFilter() {
+    public void addTextFilter() {
         TextField filterField = getSearchTextField();
         final List<TableColumn<T, ?>> columns = getColumns();
         FilteredList<T> filteredData = new FilteredList<>(getItems());

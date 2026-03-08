@@ -148,7 +148,7 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
                 .map(this::safe)
                 .filter(id -> !StringUtils.isBlank(id))
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private void indexSeriesChannels(Account account, List<String> watchedSeriesIds, AccountSeriesIndex index) {

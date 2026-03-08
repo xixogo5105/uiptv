@@ -31,7 +31,7 @@ public class M3U8PublicationPopup extends VBox {
 
         List<Account> accounts = AccountService.getInstance().getAll().values().stream()
                 .filter(a -> a.getType() == AccountType.M3U8_LOCAL || a.getType() == AccountType.M3U8_URL)
-                .collect(Collectors.toList());
+                .toList();
 
         Set<String> previouslySelected = M3U8PublicationService.getInstance().getSelectedAccountIds();
 

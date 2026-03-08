@@ -22,7 +22,6 @@ import org.json.JSONObject;
 
 import java.text.Normalizer;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static java.net.URLEncoder.encode;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -147,12 +146,6 @@ public class StringUtils {
      */
     public static final int INDEX_NOT_FOUND = -1;
     /**
-     * The maximum size to which the padding constant(s) can expand.
-     */
-    private static final int PAD_LIMIT = 8192;
-    private static final Pattern STRIP_ACCENTS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+"); //$NON-NLS-1$
-
-    /**
      * {@link StringUtils} instances should NOT be constructed in
      * standard programming. Instead, the class should be used as
      * {@code StringUtils.trim(" foo ");}.
@@ -198,7 +191,7 @@ public class StringUtils {
         return null;
     }
 
-    public static String safeGetString(Map map, String key) {
+    public static String safeGetString(Map<?, ?> map, String key) {
         try {
             return String.valueOf(map.get(key));
         } catch (Exception _) {

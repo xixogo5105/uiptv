@@ -18,7 +18,7 @@ public class EpisodeInfo extends BaseJson {
     VideoInfo video;
     AudioInfo audio;
 
-    public EpisodeInfo(Map map) {
+    public EpisodeInfo(Map<?, ?> map) {
         if (map == null) return;
 
         this.tmdbId = firstNonBlank(map, "tmdb_id", "tmdb", "imdb_id");
@@ -42,11 +42,11 @@ public class EpisodeInfo extends BaseJson {
         this.bitrate = firstNonBlank(map, "bitrate");
         this.rating = firstNonBlank(map, "rating", "rating_imdb", "imdb_rating");
         this.season = firstNonBlank(map, "season");
-        this.video = new VideoInfo((Map) map.get("video"));
-        this.audio = new AudioInfo((Map) map.get("audio"));
+        this.video = new VideoInfo(asStringMap(map.get("video")));
+        this.audio = new AudioInfo(asStringMap(map.get("audio")));
     }
 
-    private String firstNonBlank(Map map, String... keys) {
+    private String firstNonBlank(Map<?, ?> map, String... keys) {
         if (map == null || keys == null) return "";
         for (String key : keys) {
             String value = safeGetString(map, key);
@@ -58,5 +58,13 @@ public class EpisodeInfo extends BaseJson {
             }
         }
         return "";
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asStringMap(Object value) {
+        if (value instanceof Map<?, ?> nestedMap) {
+            return (Map<String, Object>) nestedMap;
+        }
+        return null;
     }
 }

@@ -53,7 +53,7 @@ public class ChannelListUI extends HBox {
     private final Account account;
     private final String categoryTitle;
     private final String categoryId;
-    private final SearchableTableView table = new SearchableTableView();
+    private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
@@ -106,7 +106,7 @@ public class ChannelListUI extends HBox {
         table.setPlaceholder(new Label(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
     }
 
-    public void setEmbeddedMode(boolean embeddedMode, Runnable onHome) {
+    public void setEmbeddedMode(boolean embeddedMode) {
         this.embeddedMode = embeddedMode;
         if (embeddedMode) {
             showListView();

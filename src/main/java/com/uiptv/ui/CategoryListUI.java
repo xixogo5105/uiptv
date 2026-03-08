@@ -42,7 +42,7 @@ public class CategoryListUI extends HBox {
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private final Account account;
     private final boolean embeddedMode;
-    SearchableTableView table = new SearchableTableView();
+    SearchableTableView<CategoryItem> table = new SearchableTableView<>();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr("autoCategories"));
     TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
@@ -448,7 +448,7 @@ public class CategoryListUI extends HBox {
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems, CountDownLatch latch) {
         ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), selectedCategoryKey);
         if (embeddedMode) {
-            ui.setEmbeddedMode(true, onHome);
+            ui.setEmbeddedMode(true);
         } else {
             ui.setInlineEpisodeNavigationEnabled(true);
         }

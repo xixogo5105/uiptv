@@ -94,18 +94,18 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
         List<Bookmark> initial = bookmarkService.getBookmarksByCategory("cat-order");
         assertEquals(3, initial.size());
-        assertEquals(List.of("One", "Two", "Three"), initial.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+        assertEquals(List.of("One", "Two", "Three"), initial.stream().map(Bookmark::getChannelName).toList());
 
         List<String> reversedIds = List.of(initial.get(2).getDbId(), initial.get(1).getDbId(), initial.get(0).getDbId());
         bookmarkService.saveBookmarkOrder(reversedIds);
         List<Bookmark> reordered = bookmarkService.getBookmarksByCategory("cat-order");
-        assertEquals(List.of("Three", "Two", "One"), reordered.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+        assertEquals(List.of("Three", "Two", "One"), reordered.stream().map(Bookmark::getChannelName).toList());
 
         bookmarkService.saveBookmarkOrder(List.of(reordered.get(0).getDbId(), reordered.get(1).getDbId(), reordered.get(2).getDbId()));
         List<Bookmark> allBookmarks = bookmarkService.read();
         assertEquals(3, allBookmarks.size());
-        assertEquals(List.of("Three", "Two", "One"), allBookmarks.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
-        assertEquals(List.of(1, 2, 3), readDisplayOrders(allBookmarks.stream().map(Bookmark::getDbId).collect(Collectors.toList())));
+        assertEquals(List.of("Three", "Two", "One"), allBookmarks.stream().map(Bookmark::getChannelName).toList());
+        assertEquals(List.of(1, 2, 3), readDisplayOrders(allBookmarks.stream().map(Bookmark::getDbId).toList()));
 
         bookmarkDb.deleteBookmarkOrder(reordered.get(0).getDbId(), "cat-order");
         assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
@@ -115,7 +115,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         Bookmark b4 = new Bookmark("acc-order", "Other", "ch-4", "Four", "cmd://4", "http://portal", "cat-other");
         bookmarkService.save(b4);
         List<Bookmark> globalOrder = bookmarkService.read();
-        assertEquals(List.of("Three", "Two", "One", "Four"), globalOrder.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+        assertEquals(List.of("Three", "Two", "One", "Four"), globalOrder.stream().map(Bookmark::getChannelName).toList());
 
         bookmarkService.removeCategory(savedCategory);
         assertFalse(bookmarkService.getAllCategories().stream().anyMatch(c -> "My Favorites".equals(c.getName())));
@@ -166,7 +166,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         bookmarkService.save(second);
 
         List<Bookmark> initial = bookmarkService.read();
-        assertEquals(List.of("One", "Two"), initial.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+        assertEquals(List.of("One", "Two"), initial.stream().map(Bookmark::getChannelName).toList());
 
         Bookmark savedFirst = bookmarkService.getBookmark(first);
         assertNotNull(savedFirst);
@@ -174,8 +174,8 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         bookmarkService.save(savedFirst);
 
         List<Bookmark> afterUpdate = bookmarkService.read();
-        assertEquals(List.of("One", "Two"), afterUpdate.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
-        assertEquals(List.of(1, 2), readDisplayOrders(afterUpdate.stream().map(Bookmark::getDbId).collect(Collectors.toList())));
+        assertEquals(List.of("One", "Two"), afterUpdate.stream().map(Bookmark::getChannelName).toList());
+        assertEquals(List.of(1, 2), readDisplayOrders(afterUpdate.stream().map(Bookmark::getDbId).toList()));
     }
 
     @Test
@@ -209,15 +209,15 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
         assertEquals(
                 List.of("A Two", "B One", "A One"),
-                bookmarkService.read().stream().map(Bookmark::getChannelName).collect(Collectors.toList())
+                bookmarkService.read().stream().map(Bookmark::getChannelName).toList()
         );
         assertEquals(
                 List.of("A Two", "A One"),
-                bookmarkService.getBookmarksByCategory("cat-a").stream().map(Bookmark::getChannelName).collect(Collectors.toList())
+                bookmarkService.getBookmarksByCategory("cat-a").stream().map(Bookmark::getChannelName).toList()
         );
         assertEquals(
                 List.of("B One"),
-                bookmarkService.getBookmarksByCategory("cat-b").stream().map(Bookmark::getChannelName).collect(Collectors.toList())
+                bookmarkService.getBookmarksByCategory("cat-b").stream().map(Bookmark::getChannelName).toList()
         );
     }
 

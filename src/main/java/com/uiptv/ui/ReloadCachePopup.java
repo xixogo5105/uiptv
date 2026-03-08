@@ -96,7 +96,6 @@ public class ReloadCachePopup extends VBox {
     private VBox accountColumn;
     private ColumnConstraints accountsColumn;
     private ColumnConstraints logsColumn;
-    private String currentRunningAccountId;
 
     public static void showPopup(Stage owner) {
         showPopup(owner, null);
@@ -162,7 +161,7 @@ public class ReloadCachePopup extends VBox {
     private List<Account> loadSupportedAccounts() {
         List<Account> supportedAccounts = accountService.getAll().values().stream()
                 .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
-                .collect(Collectors.toList());
+                .toList();
         supportedAccounts.sort(Comparator.comparing(account -> accountTypeOrder().getOrDefault(account.getType(), Integer.MAX_VALUE)));
         return supportedAccounts;
     }
@@ -402,7 +401,7 @@ public class ReloadCachePopup extends VBox {
         List<Account> selectedAccounts = checkBoxes.stream()
                 .filter(CheckBox::isSelected)
                 .map(checkBox -> (Account) checkBox.getUserData())
-                .collect(Collectors.toList());
+                .toList();
         prepareReloadRun(selectedAccounts);
         if (selectedAccounts.isEmpty()) {
             showReloadButton();
@@ -622,7 +621,7 @@ public class ReloadCachePopup extends VBox {
         return processedAccounts.stream()
                 .filter(a -> problematicAccounts.containsKey(a.getDbId()))
                 .filter(a -> problematicAccounts.get(a.getDbId()).level == level)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private HBox buildProblemAccountsButtons(Stage popupStage, VBox accountsBox) {
@@ -655,7 +654,7 @@ public class ReloadCachePopup extends VBox {
         return accountsBox.getChildren().stream()
                 .filter(n -> n instanceof CheckBox && ((CheckBox) n).isSelected())
                 .map(n -> (Account) n.getUserData())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private java.util.Optional<ButtonType> confirmDeleteProblemAccounts(List<Account> toDelete) {
@@ -710,7 +709,6 @@ public class ReloadCachePopup extends VBox {
             latestSummaryLines.clear();
             latestAccountSummaries.clear();
             runOutcomeTracker.clear();
-            currentRunningAccountId = null;
             logVBox.getChildren().clear();
 
             for (Account account : selectedAccounts) {
@@ -821,7 +819,6 @@ public class ReloadCachePopup extends VBox {
                 currentPanel.setStatus(AccountRunStatus.RUNNING, current, total);
                 scrollPanelIntoView(currentPanel);
             }
-            currentRunningAccountId = nextAccountId;
         });
     }
 
@@ -860,7 +857,7 @@ public class ReloadCachePopup extends VBox {
 
     private void logMessage(Account account, String message) {
         String compact = compactLog(account, message);
-        if (compact == null || compact.isBlank()) {
+        if (compact.isBlank()) {
             return;
         }
         runOutcomeTracker.recordMessage(account.getDbId(), message, compact);

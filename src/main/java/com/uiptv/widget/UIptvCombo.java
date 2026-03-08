@@ -4,7 +4,7 @@ import com.uiptv.util.I18n;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ListCell;
 
-public class UIptvCombo extends ComboBox {
+public class UIptvCombo extends ComboBox<String> {
     public UIptvCombo(String id, String promptKey, int width) {
         super();
         this.setId(id);

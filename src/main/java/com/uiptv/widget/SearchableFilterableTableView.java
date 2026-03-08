@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 
-public class SearchableFilterableTableView extends TableView {
+public class SearchableFilterableTableView extends TableView<AccountListUI.AccountItem> {
     private static final String COMMON_ALL = "commonAll";
     private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
     private final MenuButton menuButton = new MenuButton(I18n.tr(COMMON_ALL));
@@ -92,7 +92,7 @@ public class SearchableFilterableTableView extends TableView {
         return menuButton;
     }
 
-    public <T> void filterByAccountType() {
+    public void filterByAccountType() {
         FilteredList<AccountListUI.AccountItem> filteredItems = new FilteredList<>(FXCollections.observableList(getItems()));
         setItems(filteredItems);
 
@@ -106,7 +106,7 @@ public class SearchableFilterableTableView extends TableView {
             List<String> selectedTypes = typeCheckMenuItems.stream()
                     .filter(CheckMenuItem::isSelected)
                     .map(item -> getAccountTypeByDisplay(item.getText()).name())
-                    .collect(Collectors.toList());
+                    .toList();
 
             return accountItem -> {
                 boolean matchesText = accountItem.getAccountName().toLowerCase().contains(searchText);

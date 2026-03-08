@@ -7,7 +7,7 @@ import javafx.scene.layout.VBox;
 
 public class AutoGrowPaneVBox extends VBox {
 
-    public AutoGrowPaneVBox(int i, Pane pane, TableView table) {
+    public AutoGrowPaneVBox(int i, Pane pane, TableView<?> table) {
         super(i, pane, table);
         autoGrow();
     }

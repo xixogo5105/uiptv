@@ -223,6 +223,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             case READY -> onReadyStatus();
             case DISPOSED, STALLED -> loadingSpinner.setVisible(true);
             default -> {
+                // no UI change needed for transitional statuses
             }
         }
     }

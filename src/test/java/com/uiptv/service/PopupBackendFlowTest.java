@@ -114,7 +114,7 @@ class PopupBackendFlowTest extends DbBackedTest {
 
         var remainingSports = bookmarkService.getAllCategories().stream()
                 .filter(c -> "Sports".equals(c.getName()))
-                .collect(Collectors.toList());
+                .toList();
         assertEquals(1, remainingSports.size());
         assertTrue(remainingSports.stream().noneMatch(c -> toRemove.getId().equals(c.getId())));
     }

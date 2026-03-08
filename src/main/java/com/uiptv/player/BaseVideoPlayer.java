@@ -1304,21 +1304,21 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             direction = 5;
         }
         if (x < RESIZE_BORDER) {
-            return resolveLeftResize(cursor, direction);
+            return resolveLeftResize(direction);
         }
         if (x > width - RESIZE_BORDER) {
-            return resolveRightResize(cursor, direction);
+            return resolveRightResize(direction);
         }
         return new ResizeState(cursor, direction);
     }
 
-    private ResizeState resolveLeftResize(Cursor currentCursor, int direction) {
+    private ResizeState resolveLeftResize(int direction) {
         if (direction == 1) return new ResizeState(Cursor.NW_RESIZE, 8);
         if (direction == 5) return new ResizeState(Cursor.SW_RESIZE, 6);
         return new ResizeState(Cursor.W_RESIZE, 7);
     }
 
-    private ResizeState resolveRightResize(Cursor currentCursor, int direction) {
+    private ResizeState resolveRightResize(int direction) {
         if (direction == 1) return new ResizeState(Cursor.NE_RESIZE, 2);
         if (direction == 5) return new ResizeState(Cursor.SE_RESIZE, 4);
         return new ResizeState(Cursor.E_RESIZE, 3);
@@ -1388,6 +1388,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 newY = initialY + deltaY;
             }
             default -> {
+                // keep the existing PiP bounds when no resize edge is active
             }
         }
         return enforceMinPipBounds(new ResizedBounds(newWidth, newHeight, newX, newY));

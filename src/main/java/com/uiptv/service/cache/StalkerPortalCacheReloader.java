@@ -182,7 +182,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
         return CategoryService.getInstance().parseCategories(jsonCategories, false).stream()
                 .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private List<Channel> parseGlobalLiveChannels(Account account, LoggerCallback logger) {

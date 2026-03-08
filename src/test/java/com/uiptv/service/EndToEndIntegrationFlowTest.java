@@ -708,7 +708,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         return AccountService.getInstance().getAll().values().stream()
                 .filter(a -> a.getType() == type)
                 .sorted(Comparator.comparing(Account::getDbId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private void assertTypeCounts(int stalker, int xtreme, int m3u, int rss) {
@@ -722,7 +722,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         return AccountService.getInstance().getAll().values().stream()
                 .filter(a -> a.getType() == AccountType.M3U8_LOCAL || a.getType() == AccountType.M3U8_URL)
                 .sorted(Comparator.comparing(Account::getDbId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private void assertAccountCacheTablesCleared(String accountId) {

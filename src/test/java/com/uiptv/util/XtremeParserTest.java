@@ -268,7 +268,7 @@ class XtremeParserTest {
             String[] tokens = remaining.trim().split("\\s+");
             List<String> unlabeled = java.util.Arrays.stream(tokens)
                     .filter(s -> !s.isEmpty() && s.length() > 1)
-                    .collect(Collectors.toList());
+                    .toList();
 
             if (username == null && !unlabeled.isEmpty()) username = unlabeled.remove(0);
             if (password == null && !unlabeled.isEmpty()) password = unlabeled.remove(0);

@@ -242,7 +242,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
                 List<String> lines = reader.lines().map(String::trim)
                         .filter(s -> !s.isEmpty())
                         .filter(s -> !s.startsWith("#"))
-                        .collect(Collectors.toList());
+                        .toList();
                 return lines.size();
             }
         }
