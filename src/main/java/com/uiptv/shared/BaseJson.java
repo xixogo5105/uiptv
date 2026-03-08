@@ -16,11 +16,7 @@ public class BaseJson implements Serializable, JsonCompliant {
         Map<String, Object> map = new HashMap<>();
         for (Field field : this.getClass().getDeclaredFields()) {
             boolean ignoredField = Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers());
-            if (ignoredField) {
-                continue;
-            }
-            boolean inaccessibleField = !field.canAccess(this) && !field.trySetAccessible();
-            if (inaccessibleField) {
+            if (ignoredField || (!field.canAccess(this) && !field.trySetAccessible())) {
                 continue;
             }
             try {

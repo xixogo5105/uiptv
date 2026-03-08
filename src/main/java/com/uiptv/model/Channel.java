@@ -6,7 +6,6 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.json.JSONObject;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -109,27 +108,6 @@ public class Channel extends BaseJson {
             // Treat malformed serialized channels as absent cached snapshots.
             return null;
         }
-    }
-
-    public Map<String, String> getClearKeys() {
-        if (this.clearKeysJson == null || this.clearKeysJson.isEmpty() || "{}".equals(this.clearKeysJson)) {
-            return Map.of();
-        }
-        Map<String, String> map = new HashMap<>();
-        try {
-            String json = this.clearKeysJson.substring(1, this.clearKeysJson.length() - 1);
-            String[] pairs = json.split(",");
-            for (String pair : pairs) {
-                String[] keyValue = pair.split(":", 2);
-                String key = keyValue[0].trim().replace("\"", "");
-                String value = keyValue[1].trim().replace("\"", "");
-                map.put(key, value);
-            }
-        } catch (Exception _) {
-            // Malformed clear-key JSON should behave like missing DRM keys.
-            return Map.of();
-        }
-        return map;
     }
 
     public void setClearKeys(Map<String, String> clearKeys) {

@@ -181,16 +181,18 @@ public class ImdbMetadataService {
             int bestScore = Integer.MIN_VALUE;
             for (String query : queryTitles) {
                 String q = normalizeTitle(query);
-                if (isBlank(q)) continue;
-                JSONObject found = findBestInSuggestions(querySuggestions(q), q);
-                if (isBlank(found.optString("tmdb", ""))) continue;
-                int score = scoreCandidate(primary, found.optString("name", ""), found.optString(KEY_GENRE, ""));
-                if (q.equals(primary)) {
-                    score += 5;
-                }
-                if (score > bestScore) {
-                    bestScore = score;
-                    best = found;
+                if (!isBlank(q)) {
+                    JSONObject found = findBestInSuggestions(querySuggestions(q), q);
+                    if (!isBlank(found.optString("tmdb", ""))) {
+                        int score = scoreCandidate(primary, found.optString("name", ""), found.optString(KEY_GENRE, ""));
+                        if (q.equals(primary)) {
+                            score += 5;
+                        }
+                        if (score > bestScore) {
+                            bestScore = score;
+                            best = found;
+                        }
+                    }
                 }
             }
             return best;
