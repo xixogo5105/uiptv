@@ -2,10 +2,12 @@ package com.uiptv.model;
 
 import com.uiptv.shared.BaseJson;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class Configuration extends BaseJson {
     private String dbId, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, serverPort, cacheExpiryDays, languageLocale, tmdbReadAccessToken, uiZoomPercent;
     private boolean darkTheme, pauseFiltering, pauseCaching, embeddedPlayer, wideView, enableFfmpegTranscoding, enableLitePlayerFfmpeg, enableThumbnails = true;

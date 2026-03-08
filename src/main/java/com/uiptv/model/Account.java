@@ -5,6 +5,7 @@ import com.uiptv.shared.BaseJson;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.StringUtils;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.json.JSONPropertyIgnore;
 
@@ -20,6 +21,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 @Data
 @NoArgsConstructor()
+@EqualsAndHashCode(callSuper = false)
 public class Account extends BaseJson {
 
     @SuppressWarnings("java:S115")

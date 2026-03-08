@@ -2,6 +2,7 @@ package com.uiptv.shared;
 
 import com.uiptv.model.Account;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.json.JSONObject;
 
@@ -12,6 +13,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 
 @Data
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class Episode extends BaseJson {
 
     String id, episodeNum, title, containerExtension, custom_sid, added, season, direct_source, cmd;

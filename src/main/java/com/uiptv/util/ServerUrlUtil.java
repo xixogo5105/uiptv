@@ -63,12 +63,8 @@ public class ServerUrlUtil {
     }
 
     public static void stopServerWithShutdownMessage() {
-        try {
-            UIptvServer.stop();
-            UIptvAlert.showMessageKey("serverShuttingDown");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        UIptvServer.stop();
+        UIptvAlert.showMessageKey("serverShuttingDown");
     }
 
     public static void openInBrowser(String url) {

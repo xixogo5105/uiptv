@@ -2,6 +2,7 @@ package com.uiptv.shared;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.util.Map;
@@ -11,6 +12,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class EpisodeInfo extends BaseJson {
     String tmdbId, releaseDate, plot, durationSecs, duration, movieImage, bitrate, rating, season;
     VideoInfo video;

@@ -1,6 +1,7 @@
 package com.uiptv.shared;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.util.Map;
@@ -9,6 +10,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 
 @Data
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class AudioInfo extends BaseJson {
     private String codecName, codecLongName, codecType, codecTagString, sampleRate, channels, bitRate, bitsPerSample, channelLayout;
 

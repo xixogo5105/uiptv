@@ -2,6 +2,7 @@ package com.uiptv.model;
 
 import com.uiptv.shared.BaseJson;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.json.JSONObject;
 
@@ -9,6 +10,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 
 @Data
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class Category extends BaseJson {
     private String dbId, accountId, accountType, categoryId, title, alias;
     private String extraJson;

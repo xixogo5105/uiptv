@@ -1,6 +1,7 @@
 package com.uiptv.shared;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.json.JSONObject;
 
@@ -8,6 +9,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 
 @Data
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class SeasonInfo extends BaseJson {
     String name, cover, plot, cast, director, genre, releaseDate, lastModified, rating, rating5Based, backdropPath,
             tmdb, youtubeTrailer, episodeRunTime, categoryId;
