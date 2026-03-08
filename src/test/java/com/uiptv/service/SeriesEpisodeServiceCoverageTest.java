@@ -117,6 +117,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         extractEpisode.setAccessible(true);
         assertEquals("08", extractSeason.invoke(service, "S08E03"));
         assertEquals("3", extractEpisode.invoke(service, "Season 8 Episode 3"));
+        assertEquals("123", extractEpisode.invoke(service, "E123"));
         assertEquals("1", extractSeason.invoke(service, "Unknown Title"));
         assertEquals("", extractEpisode.invoke(service, "Unknown Title"));
     }

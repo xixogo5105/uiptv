@@ -18,10 +18,14 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
 
-@SuppressWarnings("java:S5843")
+@SuppressWarnings("java:S6548")
 public class SeriesEpisodeService {
-    private static final Pattern SERIES_SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
-    private static final Pattern SERIES_EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
+    private static final Pattern SEASON_WORD_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b");
+    private static final Pattern SEASON_SHORT_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})(?=\\b|E\\d+)");
+    private static final Pattern SEASON_X_PATTERN = Pattern.compile("(?i)\\b(\\d{1,2})x\\d{1,3}\\b");
+    private static final Pattern EPISODE_WORD_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b");
+    private static final Pattern EPISODE_SHORT_PATTERN = Pattern.compile("(?i)\\bE(\\d{1,3})\\b");
+    private static final Pattern EPISODE_X_PATTERN = Pattern.compile("(?i)\\b\\d{1,2}x(\\d{1,3})\\b");
     private SeriesEpisodeService() {
     }
 
@@ -39,12 +43,12 @@ public class SeriesEpisodeService {
         }
 
         EpisodeList cached = loadFromDbCache(account, categoryId, seriesId);
-        if (cached != null && cached.getEpisodes() != null && !cached.getEpisodes().isEmpty()) {
+        if (hasEpisodes(cached)) {
             return cached;
         }
 
         EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
-        if (fetched != null && fetched.getEpisodes() != null && !fetched.getEpisodes().isEmpty()) {
+        if (hasEpisodes(fetched)) {
             return fetched;
         }
         return new EpisodeList();
@@ -55,11 +59,11 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
         EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
-        if (fetched != null && fetched.getEpisodes() != null && !fetched.getEpisodes().isEmpty()) {
+        if (hasEpisodes(fetched)) {
             return fetched;
         }
         EpisodeList fallback = loadFromDbAnyAge(account, categoryId, seriesId);
-        if (fallback != null && fallback.getEpisodes() != null && !fallback.getEpisodes().isEmpty()) {
+        if (hasEpisodes(fallback)) {
             return fallback;
         }
         return new EpisodeList();
@@ -70,7 +74,7 @@ public class SeriesEpisodeService {
         if (account.getType() == XTREME_API) {
             try {
                 EpisodeList episodes = XtremeParser.parseEpisodes(seriesId, account);
-                if (episodes != null && episodes.getEpisodes() != null && !episodes.getEpisodes().isEmpty()) {
+                if (hasEpisodes(episodes)) {
                     saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
                     return episodes;
                 }
@@ -131,7 +135,7 @@ public class SeriesEpisodeService {
     }
 
     private void saveEpisodesToDbCache(Account account, String categoryId, String seriesId, EpisodeList episodes) {
-        if (account == null || isBlank(seriesId) || episodes == null || episodes.getEpisodes() == null || episodes.getEpisodes().isEmpty()) {
+        if (account == null || isBlank(seriesId) || !hasEpisodes(episodes)) {
             return;
         }
         List<Channel> channels = new ArrayList<>();
@@ -179,6 +183,10 @@ public class SeriesEpisodeService {
         populateEpisodeFallbacks(episode, channel);
         mergeEpisodeInfo(episode, buildEpisodeInfo(channel));
         return episode;
+    }
+
+    private boolean hasEpisodes(EpisodeList episodes) {
+        return episodes != null && episodes.getEpisodes() != null && !episodes.getEpisodes().isEmpty();
     }
 
     private Episode restoreEpisode(Channel channel) {
@@ -273,28 +281,27 @@ public class SeriesEpisodeService {
 
     private String extractSeason(String title) {
         if (isBlank(title)) return "1";
-        Matcher matcher = SERIES_SEASON_PATTERN.matcher(title);
-        if (matcher.find()) {
-            String v1 = matcher.group(1);
-            if (!isBlank(v1)) return v1;
-            String v2 = matcher.group(2);
-            if (!isBlank(v2)) return v2;
-            String v3 = matcher.group(3);
-            if (!isBlank(v3)) return v3;
-        }
+        String matched = firstMatch(title, SEASON_WORD_PATTERN, SEASON_SHORT_PATTERN, SEASON_X_PATTERN);
+        if (!isBlank(matched)) return matched;
         return "1";
     }
 
     private String extractEpisode(String title) {
         if (isBlank(title)) return "";
-        Matcher matcher = SERIES_EPISODE_PATTERN.matcher(title);
-        if (matcher.find()) {
-            String v1 = matcher.group(1);
-            if (!isBlank(v1)) return v1;
-            String v2 = matcher.group(2);
-            if (!isBlank(v2)) return v2;
-            String v3 = matcher.group(3);
-            if (!isBlank(v3)) return v3;
+        String matched = firstMatch(title, EPISODE_WORD_PATTERN, EPISODE_SHORT_PATTERN, EPISODE_X_PATTERN);
+        if (!isBlank(matched)) return matched;
+        return "";
+    }
+
+    private String firstMatch(String title, Pattern... patterns) {
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(title);
+            if (matcher.find()) {
+                String value = matcher.group(1);
+                if (!isBlank(value)) {
+                    return value;
+                }
+            }
         }
         return "";
     }
