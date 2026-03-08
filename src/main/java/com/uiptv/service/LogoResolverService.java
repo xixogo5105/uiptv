@@ -161,6 +161,7 @@ public class LogoResolverService {
         return resolved;
     }
 
+    @SuppressWarnings("java:S135")
     private Map<String, String> loadLogosByChannelId() {
         ConcurrentHashMap<String, String> logoById = new ConcurrentHashMap<>();
         try {
@@ -261,6 +262,7 @@ public class LogoResolverService {
         return "";
     }
 
+    @SuppressWarnings("java:S135")
     private List<String> buildNameVariants(String originalName) {
         String base = makeLookupKey(originalName);
         String stripped = makeLookupKey(stripCommonSuffixes(originalName));

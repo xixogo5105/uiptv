@@ -845,6 +845,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         return send(appBaseUrl + path, "OPTIONS", null, null);
     }
 
+    @SuppressWarnings("java:S1874")
     private HttpTextResponse send(String url, String method, String body, String contentType) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod(method);

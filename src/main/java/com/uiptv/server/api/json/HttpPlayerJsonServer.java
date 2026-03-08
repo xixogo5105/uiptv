@@ -26,6 +26,7 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
+@SuppressWarnings("java:S1075")
 public class HttpPlayerJsonServer implements HttpHandler {
     private static final String HEADER_LOCATION = "Location";
     private static final String HTTP_PREFIX = "http://";

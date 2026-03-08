@@ -67,6 +67,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         generateJsonResponse(ex, sliceJson(fullJson, page, pageSize, prefetchPages));
     }
 
+    @SuppressWarnings("java:S135")
     private String buildStalkerPagedResponse(Account account, String categoryId, String movieId, int page, int pageSize, int prefetchPages, int requestedApiOffset) {
         String categoryApiId = resolveCategoryApiId(account, categoryId);
         int resolvedApiOffset = requestedApiOffset;

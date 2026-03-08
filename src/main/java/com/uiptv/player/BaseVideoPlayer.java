@@ -1492,7 +1492,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 imageView.setEffect(whiteColorAdjust);
             }
             return imageView;
-        } catch (Exception e) {
+        } catch (Exception _) {
             return new ImageView();
         }
     }

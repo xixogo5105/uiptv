@@ -108,7 +108,9 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
+    @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
+    @SuppressWarnings("java:S1450")
     private Timeline saveSuccessTimeline;
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {

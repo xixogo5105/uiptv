@@ -17,6 +17,7 @@ import java.util.Map;
 import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
+@SuppressWarnings({"java:S1075", "java:S135"})
 public class HttpProxyStreamServer implements HttpHandler {
     private static final String HEADER_ACCEPT = "Accept";
     private static final String HEADER_ACCEPT_RANGES = "Accept-Ranges";

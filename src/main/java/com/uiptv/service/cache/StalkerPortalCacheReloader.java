@@ -150,6 +150,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         return fetchStalkerCategoryChannelsFromPage(account, categoryId, 1, logger);
     }
 
+    @SuppressWarnings("java:S135")
     private List<Channel> fetchStalkerCategoryChannelsFromPage(Account account, String categoryId, int startPage, LoggerCallback logger) {
         List<Channel> aggregated = new ArrayList<>();
         int maxAdditionalPages = 2;

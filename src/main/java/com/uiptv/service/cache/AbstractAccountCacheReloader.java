@@ -143,12 +143,14 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return channels.stream().toList();
     }
 
+    @SuppressWarnings("java:S1874")
     private Set<PlaylistEntry> loadM3uCategories(Account account) throws MalformedURLException {
         return account.getType() == AccountType.M3U8_URL
                 ? M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
                 : M3U8Parser.parsePathCategory(account.getM3u8Path());
     }
 
+    @SuppressWarnings("java:S1874")
     private List<PlaylistEntry> loadM3uEntries(Account account) throws MalformedURLException {
         return account.getType() == AccountType.M3U8_URL
                 ? parseChannelUrlM3U8(new URL(account.getM3u8Path()))

@@ -19,6 +19,7 @@ public class HttpIconServer implements HttpHandler {
     // or I'll try to read the specific path provided if I can access it.
     // The user provided: /Volumes/backup/code/uiptv/src/main/resources/icon.ico
     
+    @SuppressWarnings("java:S1075")
     private static final String ICON_PATH = "/Volumes/backup/code/uiptv/src/main/resources/icon.ico";
 
     @Override
@@ -30,7 +31,7 @@ public class HttpIconServer implements HttpHandler {
             try (OutputStream os = ex.getResponseBody()) {
                 os.write(bytes);
             }
-        } catch (Exception e) {
+        } catch (Exception _) {
             // Fallback or 404
             ex.sendResponseHeaders(404, -1);
         }

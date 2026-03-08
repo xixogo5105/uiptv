@@ -307,6 +307,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         }
     }
 
+    @SuppressWarnings("java:S135")
     private void enrichEpisodesInResponse(JSONObject response) {
         if (response == null) {
             return;

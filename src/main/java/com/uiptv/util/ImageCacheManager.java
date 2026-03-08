@@ -34,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("java:S1874")
 public class ImageCacheManager {
     private ImageCacheManager() {
     }

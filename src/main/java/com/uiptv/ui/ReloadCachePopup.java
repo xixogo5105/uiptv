@@ -448,7 +448,7 @@ public class ReloadCachePopup extends VBox {
                 logMessage(account, LOG_NO_CHANNELS_FOUND);
                 addIssue(accountIssues, I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
             }
-        } catch (SkipAccountReloadException e) {
+        } catch (SkipAccountReloadException _) {
             failed = true;
             logMessage(account, LOG_MARKED_BAD_AND_SKIPPED);
             addIssue(accountIssues, I18n.tr("reloadMarkedBadByUser"));

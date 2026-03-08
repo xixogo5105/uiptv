@@ -647,6 +647,7 @@ public class ChannelListUI extends HBox {
         return id + "|" + cmd + "|" + name;
     }
 
+    @SuppressWarnings("java:S135")
     private Map<String, BookmarkContext> loadM3uAllSourceContextMap(List<Category> categories) {
         if (categories == null || categories.isEmpty()) {
             return Map.of();

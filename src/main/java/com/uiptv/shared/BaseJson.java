@@ -15,10 +15,12 @@ public class BaseJson implements Serializable, JsonCompliant {
     public String toJson() {
         Map<String, Object> map = new HashMap<>();
         for (Field field : this.getClass().getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers())) {
+            boolean ignoredField = Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers());
+            if (ignoredField) {
                 continue;
             }
-            if (!field.canAccess(this) && !field.trySetAccessible()) {
+            boolean inaccessibleField = !field.canAccess(this) && !field.trySetAccessible();
+            if (inaccessibleField) {
                 continue;
             }
             try {

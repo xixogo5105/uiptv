@@ -105,7 +105,7 @@ public class Channel extends BaseJson {
             channel.setInputstreamaddon(safeGetString(jsonObj, "inputstreamaddon"));
             channel.setManifestType(safeGetString(jsonObj, "manifestType"));
             return channel;
-        } catch (Exception e) {
+        } catch (Exception _) {
             // Treat malformed serialized channels as absent cached snapshots.
             return null;
         }
@@ -125,7 +125,7 @@ public class Channel extends BaseJson {
                 String value = keyValue[1].trim().replace("\"", "");
                 map.put(key, value);
             }
-        } catch (Exception e) {
+        } catch (Exception _) {
             // Malformed clear-key JSON should behave like missing DRM keys.
             return Map.of();
         }

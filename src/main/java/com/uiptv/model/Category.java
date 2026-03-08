@@ -44,7 +44,7 @@ public class Category extends BaseJson {
             category.setActiveSub(jsonObj.optBoolean("activeSub"));
             category.setCensored(jsonObj.optInt("censored"));
             return category;
-        } catch (Exception e) {
+        } catch (Exception _) {
             return null;
         }
     }

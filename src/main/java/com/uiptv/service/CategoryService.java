@@ -212,6 +212,7 @@ public class CategoryService {
         return XtremeParser.parseCategories(account);
     }
 
+    @SuppressWarnings("java:S1874")
     private List<Category> m3u8Categories(Account account) throws MalformedURLException {
         Set<Category> categories = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseUrlCategory(new URL(account.getM3u8Path())) : parsePathCategory(account.getM3u8Path());

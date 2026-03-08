@@ -128,7 +128,7 @@ public class ChannelService {
     }
 
     private List<Channel> getCachedVodSeriesChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
-                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
+                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
         if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
             log(logger, "Loaded channels from local cache for category " + categoryId + ".");
@@ -493,6 +493,7 @@ public class ChannelService {
         return new PageFetchResult(channels, pagination);
     }
 
+    @SuppressWarnings("java:S4276")
     private boolean isPageFetchCancelled(Supplier<Boolean> isCancelled) {
         return Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
     }

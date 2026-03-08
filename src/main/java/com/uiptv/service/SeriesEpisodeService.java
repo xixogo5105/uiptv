@@ -65,6 +65,7 @@ public class SeriesEpisodeService {
         return new EpisodeList();
     }
 
+    @SuppressWarnings("java:S4276")
     private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
         if (account.getType() == XTREME_API) {
             try {

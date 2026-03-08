@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isBlank;
 
+@SuppressWarnings("java:S1874")
 public class UiptUtils {
     private UiptUtils() {
     }

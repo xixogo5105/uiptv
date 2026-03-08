@@ -86,6 +86,7 @@ public class ImdbMetadataService {
         return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints);
     }
 
+    @SuppressWarnings("java:S135")
     private JSONObject findBestEffortInternal(String rawTitle, String preferredImdbId, boolean moviePreferred, List<String> fuzzyHints) {
         JSONObject details = new JSONObject();
         if (isBlank(rawTitle) && isBlank(preferredImdbId)) {
@@ -214,6 +215,7 @@ public class ImdbMetadataService {
         }
     }
 
+    @SuppressWarnings("java:S135")
     private JSONObject findBestInSuggestions(JSONArray d, String desiredTitle) {
         JSONObject best = new JSONObject();
         if (d == null || d.isEmpty()) {
@@ -845,6 +847,7 @@ public class ImdbMetadataService {
         return headers;
     }
 
+    @SuppressWarnings("java:S135")
     private String joinPersonNames(JSONArray people) {
         if (people == null) return "";
         List<String> names = new ArrayList<>();

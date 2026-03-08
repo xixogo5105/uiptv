@@ -61,7 +61,7 @@ public class Episode extends BaseJson {
             }
             episode.mergeEpisodeLevelArtwork(jsonObj.toMap());
             return episode;
-        } catch (Exception e) {
+        } catch (Exception _) {
             return null;
         }
     }

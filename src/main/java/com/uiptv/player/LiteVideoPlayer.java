@@ -311,8 +311,8 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         setVolume(volumeSlider.getValue());
         setMute(isMuted);
         player.muteProperty().addListener((obs, oldMute, newMute) -> {
-            isMuted = newMute;
-            btnMute.setGraphic(newMute ? muteOnIcon : muteOffIcon);
+            isMuted = Boolean.TRUE.equals(newMute);
+            btnMute.setGraphic(Boolean.TRUE.equals(newMute) ? muteOnIcon : muteOffIcon);
         });
         player.statusProperty().addListener(statusListener);
         player.currentTimeProperty().addListener(progressListener);

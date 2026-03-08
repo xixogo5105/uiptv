@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@SuppressWarnings("java:S1874")
 public class HttpUtil {
     private HttpUtil() {
     }

@@ -12,6 +12,7 @@ abstract class AbstractFfmpegHlsService {
     private static final Object PROCESS_LOCK = new Object();
     private static Process currentProcess;
 
+    @SuppressWarnings("java:S135")
     protected boolean startManagedHlsStream(List<String> command) throws IOException {
         Process process;
         synchronized (PROCESS_LOCK) {

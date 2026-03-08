@@ -140,7 +140,7 @@ public class FetchAPI {
         PORTAL(PORTAL_PHP),
 
         LOAD("load.php?");
-        private String loader;
+        private final String loader;
 
         ServerType(String loader) {
             this.loader = loader;
@@ -148,10 +148,6 @@ public class FetchAPI {
 
         public String getLoader() {
             return loader;
-        }
-
-        public void setLoader(String loader) {
-            this.loader = loader;
         }
     }
 }

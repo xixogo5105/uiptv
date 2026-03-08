@@ -83,6 +83,7 @@ public class M3U8PublicationService {
         }
     }
 
+    @SuppressWarnings("java:S1874")
     private String readUrl(String urlString) throws IOException {
         URL url = new URL(urlString);
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream(), StandardCharsets.UTF_8))) {

@@ -47,7 +47,7 @@ public class CacheServiceImpl implements CacheService {
 
             String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
             return !CategoryService.getInstance().parseCategories(jsonCategories, false).isEmpty();
-        } catch (Exception e) {
+        } catch (Exception _) {
             return false;
         } finally {
             account.setMacAddress(originalMac);

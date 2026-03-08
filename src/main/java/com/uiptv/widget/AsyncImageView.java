@@ -19,6 +19,7 @@ public class AsyncImageView extends StackPane {
 
     private final ImageView imageView = new ImageView();
     private final Region defaultIcon = new Region();
+    @SuppressWarnings("java:S1450")
     private String currentUrl;
 
     public AsyncImageView() {
