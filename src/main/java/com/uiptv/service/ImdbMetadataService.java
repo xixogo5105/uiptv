@@ -23,7 +23,6 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class ImdbMetadataService {
-    private static final ImdbMetadataService INSTANCE = new ImdbMetadataService();
     private static final String TMDB_BASE_URL = "https://api.themoviedb.org/3";
     private static final String IMDB_TITLE_URL_PREFIX = "https://www.imdb.com/title/";
     private static final String KEY_COVER = "cover";
@@ -47,8 +46,12 @@ public class ImdbMetadataService {
     private static final String JSON_SUFFIX = ".json";
     private static final String USER_AGENT_BROWSER = "Mozilla/5.0";
 
+    private static class SingletonHelper {
+        private static final ImdbMetadataService INSTANCE = new ImdbMetadataService();
+    }
+
     public static ImdbMetadataService getInstance() {
-        return INSTANCE;
+        return SingletonHelper.INSTANCE;
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId) {

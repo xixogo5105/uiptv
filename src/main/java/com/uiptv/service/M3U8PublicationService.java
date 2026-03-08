@@ -14,17 +14,17 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class M3U8PublicationService {
-    private static M3U8PublicationService instance;
     private final Set<String> selectedAccountIds = new HashSet<>();
 
     private M3U8PublicationService() {
     }
 
-    public static synchronized M3U8PublicationService getInstance() {
-        if (instance == null) {
-            instance = new M3U8PublicationService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final M3U8PublicationService INSTANCE = new M3U8PublicationService();
+    }
+
+    public static M3U8PublicationService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public void setSelectedAccountIds(Set<String> accountIds) {

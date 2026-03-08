@@ -55,16 +55,15 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         }
     }
 
-    private static LitePlayerFfmpegService instance;
-
     private LitePlayerFfmpegService() {
     }
 
-    public static synchronized LitePlayerFfmpegService getInstance() {
-        if (instance == null) {
-            instance = new LitePlayerFfmpegService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final LitePlayerFfmpegService INSTANCE = new LitePlayerFfmpegService();
+    }
+
+    public static LitePlayerFfmpegService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback) {

@@ -6,16 +6,15 @@ import java.io.IOException;
 import java.util.List;
 
 public class FfmpegService extends AbstractFfmpegHlsService {
-    private static FfmpegService instance;
-
     private FfmpegService() {
     }
 
-    public static synchronized FfmpegService getInstance() {
-        if (instance == null) {
-            instance = new FfmpegService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final FfmpegService INSTANCE = new FfmpegService();
+    }
+
+    public static FfmpegService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public boolean isTransmuxingNeeded(String url) {

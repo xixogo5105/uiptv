@@ -13,16 +13,15 @@ import java.util.stream.Collectors;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class ContentFilterService {
-    private static ContentFilterService instance;
-
     private ContentFilterService() {
     }
 
-    public static synchronized ContentFilterService getInstance() {
-        if (instance == null) {
-            instance = new ContentFilterService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final ContentFilterService INSTANCE = new ContentFilterService();
+    }
+
+    public static ContentFilterService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     @SuppressWarnings("java:S6204")

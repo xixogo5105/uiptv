@@ -13,16 +13,15 @@ public class ConfigurationService {
             List.of(50, 75, 80, 90, 95, 100, 105, 110, 115, 120, 125, 133, 140, 150, 170, 200, 250, 300);
     private static final long MILLIS_PER_DAY = 24L * 60L * 60L * 1000L;
 
-    private static ConfigurationService instance;
-
     private ConfigurationService() {
     }
 
-    public static synchronized ConfigurationService getInstance() {
-        if (instance == null) {
-            instance = new ConfigurationService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final ConfigurationService INSTANCE = new ConfigurationService();
+    }
+
+    public static ConfigurationService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
     public void clearCache(Account account) {
         ConfigurationDb.get().clearCache(account);

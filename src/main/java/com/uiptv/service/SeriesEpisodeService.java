@@ -22,16 +22,15 @@ import static com.uiptv.util.StringUtils.isBlank;
 public class SeriesEpisodeService {
     private static final Pattern SERIES_SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern SERIES_EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
-    private static SeriesEpisodeService instance;
-
     private SeriesEpisodeService() {
     }
 
-    public static synchronized SeriesEpisodeService getInstance() {
-        if (instance == null) {
-            instance = new SeriesEpisodeService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final SeriesEpisodeService INSTANCE = new SeriesEpisodeService();
+    }
+
+    public static SeriesEpisodeService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {

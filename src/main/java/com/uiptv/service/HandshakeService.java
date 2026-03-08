@@ -19,16 +19,16 @@ public class HandshakeService {
     private static final String PARAM_ACTION = "action";
     private static final String PARAM_JS_HTTP_REQUEST = "JsHttpRequest";
     private static final String PARAM_TOKEN = "token";
-    private static HandshakeService instance;
 
     private HandshakeService() {
     }
 
-    public static synchronized HandshakeService getInstance() {
-        if (instance == null) {
-            instance = new HandshakeService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final HandshakeService INSTANCE = new HandshakeService();
+    }
+
+    public static HandshakeService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     private static Map<String, String> getHandshakeParams() {

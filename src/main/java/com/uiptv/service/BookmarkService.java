@@ -21,7 +21,6 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class BookmarkService {
-    private static BookmarkService instance;
     private final LogoResolverService logoResolverService;
     private final AtomicLong changeRevision = new AtomicLong(1);
     private volatile long lastUpdatedEpochMs = System.currentTimeMillis();
@@ -31,11 +30,12 @@ public class BookmarkService {
         this.logoResolverService = LogoResolverService.getInstance();
     }
 
-    public static synchronized BookmarkService getInstance() {
-        if (instance == null) {
-            instance = new BookmarkService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final BookmarkService INSTANCE = new BookmarkService();
+    }
+
+    public static BookmarkService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public boolean isChannelBookmarked(Bookmark bookmark) {

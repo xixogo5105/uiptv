@@ -19,17 +19,17 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class AccountService {
-    private static AccountService instance;
     private final Map<String, String> sessionTokenByAccountKey = new ConcurrentHashMap<>();
 
     private AccountService() {
     }
 
-    public static synchronized AccountService getInstance() {
-        if (instance == null) {
-            instance = new AccountService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final AccountService INSTANCE = new AccountService();
+    }
+
+    public static AccountService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public void save(Account account) {

@@ -24,7 +24,6 @@ public class LogoResolverService {
     private static final String CHANNELS_CATALOG_URL = "https://iptv-org.github.io/api/channels.json";
     private static final String LOGOS_CATALOG_URL = "https://raw.githubusercontent.com/iptv-org/database/master/data/logos.csv";
     private static final long CATALOG_REFRESH_MS = 24L * 60L * 60L * 1000L;
-    private static final LogoResolverService INSTANCE = new LogoResolverService();
     private static final Set<String> NOISE_TOKENS = new HashSet<>(Arrays.asList(
             "uhd", "fhd", "hd", "sd", "hq", "4k", "8k",
             "hevc", "h264", "h265", "x264", "x265",
@@ -43,8 +42,12 @@ public class LogoResolverService {
         loadLocalCache();
     }
 
+    private static class SingletonHelper {
+        private static final LogoResolverService INSTANCE = new LogoResolverService();
+    }
+
     public static LogoResolverService getInstance() {
-        return INSTANCE;
+        return SingletonHelper.INSTANCE;
     }
 
     public String resolve(String channelName, String providerLogo) {

@@ -14,17 +14,16 @@ import static com.uiptv.db.DatabaseUtils.updateTableSql;
 import static com.uiptv.db.SQLConnection.connect;
 
 public class ThemeCssOverrideDb extends BaseDb {
-    private static ThemeCssOverrideDb instance;
-
-    public static synchronized ThemeCssOverrideDb get() {
-        if (instance == null) {
-            instance = new ThemeCssOverrideDb();
-        }
-        return instance;
-    }
-
     private ThemeCssOverrideDb() {
         super(THEME_CSS_OVERRIDE_TABLE);
+    }
+
+    private static class SingletonHelper {
+        private static final ThemeCssOverrideDb INSTANCE = new ThemeCssOverrideDb();
+    }
+
+    public static ThemeCssOverrideDb get() {
+        return SingletonHelper.INSTANCE;
     }
 
     @Override

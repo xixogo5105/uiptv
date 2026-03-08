@@ -44,7 +44,6 @@ public class ChannelService {
     private static final String FIELD_CENSORED = "censored";
     private static final String FIELD_STATUS = "status";
     private static final int MAX_PAGES_WITHOUT_PAGINATION = 200;
-    private static ChannelService instance;
     private final CacheService cacheService;
     private final ContentFilterService contentFilterService;
     private final LogoResolverService logoResolverService;
@@ -77,11 +76,12 @@ public class ChannelService {
         return params;
     }
 
-    public static synchronized ChannelService getInstance() {
-        if (instance == null) {
-            instance = new ChannelService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final ChannelService INSTANCE = new ChannelService();
+    }
+
+    public static ChannelService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId) throws IOException {

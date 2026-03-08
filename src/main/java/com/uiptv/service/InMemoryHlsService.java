@@ -8,7 +8,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class InMemoryHlsService {
-    private static InMemoryHlsService instance;
     private final Map<String, byte[]> storage = new ConcurrentHashMap<>();
     private final Map<String, Long> timestamps = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> pendingDeletes = new ConcurrentHashMap<>();
@@ -23,11 +22,12 @@ public class InMemoryHlsService {
     private InMemoryHlsService() {
     }
 
-    public static synchronized InMemoryHlsService getInstance() {
-        if (instance == null) {
-            instance = new InMemoryHlsService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final InMemoryHlsService INSTANCE = new InMemoryHlsService();
+    }
+
+    public static InMemoryHlsService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public void put(String name, byte[] data) {

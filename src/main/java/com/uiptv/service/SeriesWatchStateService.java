@@ -28,17 +28,17 @@ public class SeriesWatchStateService {
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b");
-    private static SeriesWatchStateService instance;
     private final Set<SeriesWatchStateChangeListener> listeners = new CopyOnWriteArraySet<>();
 
     private SeriesWatchStateService() {
     }
 
-    public static synchronized SeriesWatchStateService getInstance() {
-        if (instance == null) {
-            instance = new SeriesWatchStateService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final SeriesWatchStateService INSTANCE = new SeriesWatchStateService();
+    }
+
+    public static SeriesWatchStateService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public SeriesWatchState getSeriesLastWatched(String accountId, String seriesId) {

@@ -31,18 +31,18 @@ import static com.uiptv.util.M3U8Parser.parseUrlCategory;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class CategoryService {
-    private static CategoryService instance;
     private final ContentFilterService contentFilterService;
 
     private CategoryService() {
         this.contentFilterService = ContentFilterService.getInstance();
     }
 
-    public static synchronized CategoryService getInstance() {
-        if (instance == null) {
-            instance = new CategoryService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final CategoryService INSTANCE = new CategoryService();
+    }
+
+    public static CategoryService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     private static Map<String, String> getCategoryParams(Account.AccountAction accountAction) {

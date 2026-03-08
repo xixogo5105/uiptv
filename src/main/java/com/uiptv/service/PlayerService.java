@@ -21,7 +21,6 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerService {
     private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
-    private static PlayerService instance;
     private final Set<PlaybackResolvedListener> playbackResolvedListeners = new CopyOnWriteArraySet<>();
 
     private final XtremePlayerService xtremePlayerService = new XtremePlayerService();
@@ -33,11 +32,12 @@ public class PlayerService {
                 SeriesWatchStateService.getInstance().onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId));
     }
 
-    public static synchronized PlayerService getInstance() {
-        if (instance == null) {
-            instance = new PlayerService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final PlayerService INSTANCE = new PlayerService();
+    }
+
+    public static PlayerService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public PlayerResponse get(Account account, Channel channel) throws IOException {

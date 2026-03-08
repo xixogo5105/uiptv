@@ -7,16 +7,15 @@ import java.sql.SQLException;
 import static com.uiptv.util.SQLiteTableSync.syncTables;
 
 public class DatabaseSyncService {
-    private static DatabaseSyncService instance;
-
     private DatabaseSyncService() {
     }
 
-    public static synchronized DatabaseSyncService getInstance() {
-        if (instance == null) {
-            instance = new DatabaseSyncService();
-        }
-        return instance;
+    private static class SingletonHelper {
+        private static final DatabaseSyncService INSTANCE = new DatabaseSyncService();
+    }
+
+    public static DatabaseSyncService getInstance() {
+        return SingletonHelper.INSTANCE;
     }
 
     public void syncDatabases(String firstDB, String secondDB) throws SQLException {
