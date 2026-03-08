@@ -186,15 +186,15 @@ public class DatabasePatchesUtils {
                 }
             }
             return out.toString();
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to read migration resource: " + path, ex);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to read migration resource: " + path, e);
         }
     }
 
     private static boolean resourceExists(String path) {
         try (InputStream in = openResource(path)) {
             return in != null;
-        } catch (Exception ex) {
+        } catch (Exception _) {
             return false;
         }
     }

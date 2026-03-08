@@ -126,9 +126,7 @@ public class ManageAccountUI extends VBox {
         httpMethodCombo.setMaxWidth(Double.MAX_VALUE);
         timezoneCombo.setMaxWidth(Double.MAX_VALUE);
 
-        macAddressList.textProperty().addListener((observable, oldVal, newVal) -> {
-            setupMacAddressByList(newVal);
-        });
+        macAddressList.textProperty().addListener((observable, oldVal, newVal) -> setupMacAddressByList(newVal));
 
         verifyMacsLink.setVisible(false);
         verifyMacsLink.setOnAction(event -> verifyMacAddresses());
@@ -515,9 +513,7 @@ public class ManageAccountUI extends VBox {
     }
 
     private void addDeleteButtonClickHandler() {
-        deleteButton.setOnAction(actionEvent -> {
-            deleteAccount(name.getText(), accountId);
-        });
+        deleteButton.setOnAction(actionEvent -> deleteAccount(name.getText(), accountId));
     }
 
     private void deleteAccount(String name, String accountId) {

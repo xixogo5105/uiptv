@@ -126,9 +126,7 @@ public class XtremeParser {
             for (Map.Entry<String, Object> entry : data.getJSONObject("episodes").toMap().entrySet()) {
                 List<?> seasonEpisodes = (List<?>) entry.getValue();
                 if (seasonEpisodes != null && !seasonEpisodes.isEmpty()) {
-                    seasonEpisodes.forEach(episode -> {
-                        episodeList.episodes.add(new Episode(account, (Map<?, ?>) episode));
-                    });
+                    seasonEpisodes.forEach(episode -> episodeList.episodes.add(new Episode(account, (Map<?, ?>) episode)));
                 }
             }
         } catch (Exception e) {

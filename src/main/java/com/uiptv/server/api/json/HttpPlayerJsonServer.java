@@ -293,11 +293,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
         String url = response.getUrl().toLowerCase();
         boolean forcedPath = isForcedWebPath(url);
-        if (forcedPath) {
-            return true;
-        }
-        // Skip DRM-only flows for non-forced URLs; keep those in direct player path.
-        return false;
+        return forcedPath;
     }
 
     private String normalizeWebPlaybackUrl(String mode, String url) {

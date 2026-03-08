@@ -59,7 +59,7 @@ public abstract class BaseMainApplicationUI {
         this.guidedMaxHeightPixels = guidedMaxHeightPixels;
     }
 
-    public Scene buildScene() throws IOException {
+    public Scene buildScene() {
         ManageAccountUI manageAccountUI = new ManageAccountUI();
         ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();

@@ -98,7 +98,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     @AfterEach
-    void tearDownServers() throws Exception {
+    void tearDownServers() {
         try {
             UIptvServer.stop();
         } catch (Exception _) {

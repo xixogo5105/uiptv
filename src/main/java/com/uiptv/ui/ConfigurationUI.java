@@ -658,9 +658,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addOpenServerLinkClickHandler() {
-        openServerLink.setOnAction(event -> {
-            ServerUrlUtil.openInBrowser(ServerUrlUtil.getLocalServerUrl() + "/");
-        });
+        openServerLink.setOnAction(event -> ServerUrlUtil.openInBrowser(ServerUrlUtil.getLocalServerUrl() + "/"));
     }
 
     private void addTmdbGuideLinkClickHandler() {

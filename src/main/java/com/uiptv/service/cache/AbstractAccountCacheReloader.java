@@ -133,7 +133,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return channels.stream().toList();
     }
 
-    protected List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
+    protected List<Channel> rssChannels(String category, Account account) {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
         rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {

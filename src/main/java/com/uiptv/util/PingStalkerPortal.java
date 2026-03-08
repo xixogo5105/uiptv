@@ -183,7 +183,7 @@ public class PingStalkerPortal {
     }
 
     public static String parsePortalApiServer(String jsFileContents, String url) {
-        String portal_api_server = null;
+        String portalApiServer = null;
         try {
             String serverUri = prepareServerUrl(jsFileContents, url);
             if (isNotBlank(serverUri) && isValidUrl(serverUri)) {
@@ -196,30 +196,30 @@ public class PingStalkerPortal {
                 String delimiter = jsFileContents.toLowerCase().split(portal)[1].substring(0, 1);
                 int startingIndex = jsFileContents.toLowerCase().split(portal)[0].lastIndexOf(delimiter + "/");
                 String extractedPath = jsFileContents.substring(startingIndex + 1, i + (portal.length()));
-                portal_api_server = combineUrlWithPath(url, extractedPath);
+                portalApiServer = combineUrlWithPath(url, extractedPath);
 
-                if (!isValidUrl(portal_api_server)) {
-                    portal_api_server = null;
+                if (!isValidUrl(portalApiServer)) {
+                    portalApiServer = null;
                 }
             } else if (jsFileContents.toLowerCase().contains(load)) {
                 int i = jsFileContents.toLowerCase().indexOf(load);
                 String delimiter = jsFileContents.toLowerCase().split(load)[1].substring(0, 1);
                 int startingIndex = jsFileContents.toLowerCase().split(load)[0].lastIndexOf(delimiter + "/");
                 String extractedPath = jsFileContents.substring(startingIndex + 1, i + (load.length()));
-                portal_api_server = combineUrlWithPath(url, extractedPath);
+                portalApiServer = combineUrlWithPath(url, extractedPath);
 
-                if (!isValidUrl(portal_api_server)) {
-                    portal_api_server = null;
+                if (!isValidUrl(portalApiServer)) {
+                    portalApiServer = null;
                 }
             }
         } catch (Exception e) {
             showErrorKey("pingParseError", e);
         }
 
-        if (isBlank(portal_api_server)) {
-            portal_api_server = getDefaultApiEndpoint(url);
+        if (isBlank(portalApiServer)) {
+            portalApiServer = getDefaultApiEndpoint(url);
         }
-        return portal_api_server;
+        return portalApiServer;
     }
 
     private static String getDefaultApiEndpoint(String url) {
@@ -434,7 +434,7 @@ public class PingStalkerPortal {
         try {
             URI.create(url);
             return url.contains("://");
-        } catch (Exception e) {
+        } catch (Exception _) {
             return false;
         }
     }

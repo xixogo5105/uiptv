@@ -140,7 +140,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         return "All".equalsIgnoreCase(categoryId);
     }
 
-    private String resolveSeriesEpisodesJson(Account account, String categoryId, String movieId) throws IOException {
+    private String resolveSeriesEpisodesJson(Account account, String categoryId, String movieId) {
         String categoryApiId = resolveCategoryApiId(account, categoryId);
         List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
         applySeriesEpisodesWatched(account, categoryApiId, movieId, episodes);

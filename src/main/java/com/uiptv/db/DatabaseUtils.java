@@ -297,9 +297,7 @@ public class DatabaseUtils {
     public static String createTableSql(DbTable table) {
         String tableName = validatedTableName(table);
         StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" ( ");
-        dbStructure.get(tableName).forEach(c -> {
-            sql.append(c.getColumnName()).append(" ").append(c.getTypeAndDefault()).append(",");
-        });
+        dbStructure.get(tableName).forEach(c -> sql.append(c.getColumnName()).append(" ").append(c.getTypeAndDefault()).append(","));
         return removeLastChar(sql) + ")";
     }
 

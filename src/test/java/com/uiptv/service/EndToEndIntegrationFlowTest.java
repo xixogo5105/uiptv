@@ -291,7 +291,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertChannelFetchCancellationFlow();
     }
 
-    private void assertXtremeEpisodes(Account xtreme) throws IOException {
+    private void assertXtremeEpisodes(Account xtreme) {
         xtreme.setAction(series);
         List<Category> seriesCategories = SeriesCategoryDb.get().getCategories(xtreme);
         assertFalse(seriesCategories.isEmpty());

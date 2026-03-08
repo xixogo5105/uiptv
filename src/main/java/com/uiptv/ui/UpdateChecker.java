@@ -32,15 +32,11 @@ public class UpdateChecker {
                         }
                     });
                 } else {
-                    Platform.runLater(() -> {
-                        UIptvAlert.showMessageAlert(I18n.tr("autoYouAreCurrentlyOnTheLatestVersion"));
-                    });
+                    Platform.runLater(() -> UIptvAlert.showMessageAlert(I18n.tr("autoYouAreCurrentlyOnTheLatestVersion")));
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                Platform.runLater(() -> {
-                    UIptvAlert.showErrorAlert(I18n.tr("autoUpdateCheckFailed", e.getMessage()));
-                });
+                Platform.runLater(() -> UIptvAlert.showErrorAlert(I18n.tr("autoUpdateCheckFailed", e.getMessage())));
             }
         }).start();
     }
