@@ -22,8 +22,6 @@ Native installers and packages are currently published for Windows (x86_64), Lin
 - CSS/theming guide: [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
 
-[![Download](https://img.shields.io/badge/Download-Latest%20Release-brightgreen)](https://github.com/xixogo5105/uiptv/releases/latest)
-
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
 
 ## What's New
