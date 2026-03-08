@@ -6,6 +6,7 @@ public class DatabaseUtils {
     private static final String INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY";
     private static final String INTEGER_TYPE = "INTEGER";
     private static final String TEXT_NOT_NULL = "TEXT NOT NULL";
+    private static final String WHERE_ID_EQUALS = " where id=?";
     private static final String COLUMN_ACCOUNT_ID = "accountId";
     private static final String COLUMN_ACCOUNT_TYPE = "accountType";
     private static final String COLUMN_ACTIVE_SUB = "activeSub";
@@ -327,7 +328,7 @@ public class DatabaseUtils {
                 sql.append(c.getColumnName()).append("=?,");
             }
         });
-        return removeLastChar(sql) + " where id=?";
+        return removeLastChar(sql) + WHERE_ID_EQUALS;
     }
 
     public static String selectAllSql(DbTable table) {
@@ -335,11 +336,11 @@ public class DatabaseUtils {
     }
 
     public static String selectByIdSql(DbTable table) {
-        return "SELECT * FROM " + validatedTableName(table) + " where id=?";
+        return "SELECT * FROM " + validatedTableName(table) + WHERE_ID_EQUALS;
     }
 
     public static String deleteByIdSql(DbTable table) {
-        return "DELETE FROM " + validatedTableName(table) + " where id=?";
+        return "DELETE FROM " + validatedTableName(table) + WHERE_ID_EQUALS;
     }
 
     public static String validatedTableName(DbTable table) {

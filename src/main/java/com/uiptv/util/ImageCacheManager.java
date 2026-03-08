@@ -14,6 +14,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.util.Timeout;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
@@ -206,7 +207,7 @@ public class ImageCacheManager {
         logImageIssue(candidate, "Image HTTP status: " + e.statusCode);
     }
 
-    private static ImagePayload fetchSingleImage(String url) throws Exception {
+    private static ImagePayload fetchSingleImage(String url) throws IOException, InterruptedException, HttpStatusException {
         if (isHostBackedOff(url)) {
             return null;
         }

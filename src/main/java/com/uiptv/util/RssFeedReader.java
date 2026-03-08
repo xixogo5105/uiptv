@@ -2,8 +2,10 @@ package com.uiptv.util;
 
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
+import com.rometools.rome.io.FeedException;
 import com.rometools.rome.io.SyndFeedInput;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +54,7 @@ public class RssFeedReader {
         }
     }
 
-    public static List<RssItem> getItems(String url) throws Exception {
+    public static List<RssItem> getItems(String url) throws IOException, FeedException {
         List<RssItem> items = new ArrayList<>();
 
         SyndFeedInput input = new SyndFeedInput();

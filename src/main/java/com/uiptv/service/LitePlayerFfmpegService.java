@@ -3,6 +3,7 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -238,7 +239,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             return null;
-        } catch (IOException | RuntimeException _) {
+        } catch (IOException | JSONException _) {
             return null;
         }
     }

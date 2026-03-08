@@ -139,14 +139,18 @@ public class RootApplication extends Application {
     }
 
     @Override
-    public void stop() throws Exception {
+    public void stop() {
         try {
             MediaPlayerFactory.release();
         } catch (Exception _) {
             // Best-effort shutdown: media teardown should not prevent server cleanup or app exit.
         }
         ServerUrlUtil.stopServerWithShutdownMessage();
-        super.stop();
+        try {
+            super.stop();
+        } catch (Exception _) {
+            // Best-effort shutdown: JavaFX stop hooks should not prevent process exit.
+        }
     }
 
     private void configureFontStyles(Scene scene) {

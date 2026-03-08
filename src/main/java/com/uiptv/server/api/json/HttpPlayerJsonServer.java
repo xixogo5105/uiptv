@@ -367,7 +367,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE);
     }
 
-    private HttpUtil.HttpResult followRedirectResponse(String current) throws Exception {
+    private HttpUtil.HttpResult followRedirectResponse(String current) throws IOException {
         return HttpUtil.sendRequest(
                 current,
                 Map.of("User-Agent", USER_AGENT),

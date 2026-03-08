@@ -71,7 +71,7 @@ public class HttpProxyStreamServer implements HttpHandler {
 
     private HttpUtil.StreamResult openResolvedStream(String current,
                                                      List<String> cookies,
-                                                     Map<String, String> forwardHeaders) throws Exception {
+                                                     Map<String, String> forwardHeaders) throws IOException {
         for (int i = 0; i < 6; i++) {
             Map<String, String> upstreamHeaders = buildUpstreamHeaders(cookies, forwardHeaders);
 

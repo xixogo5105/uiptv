@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -97,7 +98,7 @@ public class LogoResolverService {
         return !catalog.isEmpty() && now - lastCatalogRefreshAt < CATALOG_REFRESH_MS;
     }
 
-    private HttpUtil.HttpResult fetchChannelsCatalog() throws Exception {
+    private HttpUtil.HttpResult fetchChannelsCatalog() throws IOException {
         return HttpUtil.sendRequest(CHANNELS_CATALOG_URL, null, "GET");
     }
 
