@@ -1718,7 +1718,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private String normalizeNumber(String value) {
         if (isBlank(value)) return "";
-        String parsed = value.replaceAll("[^0-9]", "");
+        String parsed = value.replaceAll("\\D", "");
         if (isBlank(parsed)) return "";
         try {
             return String.valueOf(Integer.parseInt(parsed));

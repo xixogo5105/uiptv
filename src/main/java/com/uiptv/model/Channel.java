@@ -74,8 +74,8 @@ public class Channel extends BaseJson {
             channel.setStatus(jsonObj.optInt("status"));
             channel.setHd(jsonObj.optInt("hd"));
             Object watched = jsonObj.opt("watched");
-            if (watched instanceof Boolean) {
-                channel.setWatched((Boolean) watched);
+            if (watched instanceof Boolean watchedBoolean) {
+                channel.setWatched(watchedBoolean);
             } else {
                 String watchedStr = safeGetString(jsonObj, "watched");
                 channel.setWatched("1".equals(watchedStr) || "true".equalsIgnoreCase(watchedStr));

@@ -23,28 +23,6 @@ public class SystemUtils {
     private SystemUtils() {
     }
 
-    /**
-     * Operating system state flag for error.
-     */
-    private static final int INIT_PROBLEM = -1;
-    /**
-     * Operating system state flag for neither Unix nor Windows.
-     */
-    private static final int OTHER = 0;
-    /**
-     * Operating system state flag for Windows.
-     */
-    private static final int WINDOWS = 1;
-    /**
-     * Operating system state flag for Unix.
-     */
-    private static final int UNIX = 2;
-    private static final int MAX_OSX = 14;
-    /**
-     * Operating system state flag for Posix flavour Unix.
-     */
-    private static final int POSIX_UNIX = 3;
-
     public static boolean IS_OS_WINDOWS;
     public static boolean IS_OS_LINUX;
     public static boolean IS_OS_MAC_OSX;

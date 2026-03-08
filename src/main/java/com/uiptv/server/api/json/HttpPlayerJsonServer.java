@@ -292,8 +292,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         String url = response.getUrl().toLowerCase();
-        boolean forcedPath = isForcedWebPath(url);
-        return forcedPath;
+        return isForcedWebPath(url);
     }
 
     private String normalizeWebPlaybackUrl(String mode, String url) {

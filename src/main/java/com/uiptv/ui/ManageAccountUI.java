@@ -478,7 +478,7 @@ public class ManageAccountUI extends VBox {
             } else {
                 saveButton.setDisable(false);
             }
-        } catch (Exception e) {
+        } catch (Exception _) {
             showErrorAlert(I18n.tr("autoFailedToSaveAccountPleaseTryAgain"));
             saveButton.setDisable(false);
         }

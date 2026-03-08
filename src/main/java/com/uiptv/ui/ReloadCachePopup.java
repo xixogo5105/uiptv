@@ -1380,7 +1380,7 @@ public class ReloadCachePopup extends VBox {
         });
         try {
             latch.await();
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

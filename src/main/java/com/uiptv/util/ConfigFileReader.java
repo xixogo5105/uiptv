@@ -18,8 +18,7 @@ public class ConfigFileReader {
         try (FileInputStream inputStream = new FileInputStream(CONFIG_FILE_PATH)) {
             properties.load(inputStream);
             return properties.getProperty("db.path");
-        } catch (IOException e) {
-            // Handle the exception (e.g., log it)
+        } catch (IOException _) {
             return null;
         }
     }

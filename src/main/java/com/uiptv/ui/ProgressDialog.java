@@ -161,8 +161,8 @@ public class ProgressDialog extends Stage {
         if (!messageContainer.getChildren().isEmpty()) {
             int lastIndex = messageContainer.getChildren().size() - 1;
             Node lastNode = messageContainer.getChildren().get(lastIndex);
-            if (lastNode instanceof TextFlow) {
-                ((TextFlow) lastNode).getChildren().setAll(new Text(text));
+            if (lastNode instanceof TextFlow textFlow) {
+                textFlow.getChildren().setAll(new Text(text));
             }
         } else {
             messageContainer.getChildren().add(createStyledText(text));

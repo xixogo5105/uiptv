@@ -31,7 +31,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 public abstract class BaseMainApplicationUI {

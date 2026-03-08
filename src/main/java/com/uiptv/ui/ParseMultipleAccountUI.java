@@ -176,7 +176,7 @@ public class ParseMultipleAccountUI extends VBox {
                 if (startVerificationAfterParsing && createdAccounts != null && !createdAccounts.isEmpty()) {
                     openVerificationPopup(createdAccounts);
                 }
-            } catch (Exception e) {
+            } catch (Exception _) {
                 showErrorAlert(I18n.tr("autoErrorParsingOrSavingAccounts"));
             }
         });

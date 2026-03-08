@@ -465,7 +465,7 @@ public class ConfigurationUI extends VBox {
                 currentThemeCssOverride.setLightThemeCssContent(cssContents);
             }
             updateThemeCssStatusLabels();
-        } catch (Exception e) {
+        } catch (Exception _) {
             showErrorAlert(I18n.tr("configUnableToReadCss"));
         }
     }
@@ -499,7 +499,7 @@ public class ConfigurationUI extends VBox {
             }
             Files.writeString(target.toPath(), cssContent, StandardCharsets.UTF_8);
             showMessageAlert(I18n.tr("configCssExportSuccess"));
-        } catch (Exception e) {
+        } catch (Exception _) {
             showErrorAlert(I18n.tr("configCssExportFailed"));
         }
     }

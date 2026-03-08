@@ -784,7 +784,7 @@ public class BookmarkChannelListUI extends HBox {
                         suppressAutoReloadOnBookmarkChange = false;
                     }
                 });
-            } catch (Exception e) {
+            } catch (Exception _) {
                 runLater(() -> {
                     if (saveGeneration == bookmarkOrderSaveGeneration.get()) {
                         suppressAutoReloadOnBookmarkChange = false;

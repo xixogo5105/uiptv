@@ -185,7 +185,7 @@ public class ImageCacheManager {
         } catch (HttpStatusException e) {
             handleImageHttpStatus(candidate, cacheKey, e, lastCandidate);
             return null;
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             negativeCacheIfFinalFailure(cacheKey, lastCandidate);
             return null;
