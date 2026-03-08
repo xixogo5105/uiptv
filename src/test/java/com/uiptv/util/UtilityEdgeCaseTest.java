@@ -8,6 +8,7 @@ import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.util.AbstractMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +38,40 @@ class UtilityEdgeCaseTest {
         assertFalse(StringUtils.isNotBlank(" "));
         assertEquals(0, StringUtils.split(" ").length);
         assertEquals("Cafe", StringUtils.safeUtf(" Cafe "));
+
+        Account vodAccount = new Account();
+        vodAccount.setAction(Account.AccountAction.vod);
+        vodAccount.setM3u8Path("http://example.com/");
+        vodAccount.setUsername("u");
+        vodAccount.setPassword("p");
+        assertEquals("http://example.com/movie/u/p/99.mp4", StringUtils.getXtremeStreamUrl(vodAccount, "99", "mp4"));
+
+        Account seriesAccount = new Account();
+        seriesAccount.setAction(Account.AccountAction.series);
+        seriesAccount.setM3u8Path("http://example.com/");
+        seriesAccount.setUsername("u");
+        seriesAccount.setPassword("p");
+        assertEquals("http://example.com/series/u/p/100.mkv", StringUtils.getXtremeStreamUrl(seriesAccount, "100", "mkv"));
+
+        Account liveAccount = new Account();
+        liveAccount.setAction(Account.AccountAction.itv);
+        liveAccount.setM3u8Path("http://example.com/");
+        liveAccount.setUsername("u");
+        liveAccount.setPassword("p");
+        assertEquals("http://example.com/u/p/7", StringUtils.getXtremeStreamUrl(liveAccount, "7", "ts"));
+
+        Map<String, Object> explodingMap = new AbstractMap<>() {
+            @Override
+            public Object get(Object key) {
+                throw new IllegalStateException("boom");
+            }
+
+            @Override
+            public java.util.Set<Entry<String, Object>> entrySet() {
+                return java.util.Set.of();
+            }
+        };
+        assertEquals(null, StringUtils.safeGetString(explodingMap, "value"));
     }
 
     @Test
