@@ -18,6 +18,10 @@ public class FetchAPI {
     private static final String PORTAL_PHP = "portal.php";
 
     public static String fetch(Map<String, String> params, final Account account) {
+        return fetch(params, account, HttpUtil.RequestOptions.defaults());
+    }
+
+    public static String fetch(Map<String, String> params, final Account account, HttpUtil.RequestOptions options) {
         try {
             String baseUrl = resolveBaseUrl(account);
             if (isBlank(baseUrl)) {
@@ -33,7 +37,7 @@ public class FetchAPI {
             }
 
             Map<String, String> headers = headers(account, isPost);
-            HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null);
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null, options);
 
             httpLog(requestUrl, response, params);
             if (response.statusCode() == HttpUtil.STATUS_OK) {

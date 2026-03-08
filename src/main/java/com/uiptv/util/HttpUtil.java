@@ -135,10 +135,13 @@ public class HttpUtil {
     }
 
     private static RequestConfig buildRequestConfig(RequestOptions options) {
-        Timeout connectTimeout = Timeout.of(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS));
-        Timeout connectionRequestTimeout = Timeout.of(Duration.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS));
-        Timeout responseTimeout = Timeout.of(Duration.ofSeconds(RESPONSE_TIMEOUT_SECONDS));
         RequestOptions effective = options == null ? RequestOptions.defaults() : options;
+        Timeout connectTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
+                effective.connectTimeoutSeconds(), CONNECT_TIMEOUT_SECONDS)));
+        Timeout connectionRequestTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
+                effective.connectionRequestTimeoutSeconds(), CONNECTION_REQUEST_TIMEOUT_SECONDS)));
+        Timeout responseTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
+                effective.responseTimeoutSeconds(), RESPONSE_TIMEOUT_SECONDS)));
         return RequestConfig.custom()
                 .setConnectTimeout(connectTimeout)
                 .setConnectionRequestTimeout(connectionRequestTimeout)
@@ -146,6 +149,10 @@ public class HttpUtil {
                 .setRedirectsEnabled(effective.followRedirects())
                 .setMaxRedirects(effective.followRedirects() ? MAX_REDIRECTS : 0)
                 .build();
+    }
+
+    private static int resolveTimeoutSeconds(Integer override, int defaultValue) {
+        return override != null && override > 0 ? override : defaultValue;
     }
 
     private static Map<String, List<String>> headersToMap(Header[] headers) {
@@ -189,10 +196,24 @@ public class HttpUtil {
     public static final class RequestOptions {
         private final boolean followRedirects;
         private final boolean readBody;
+        private final Integer connectTimeoutSeconds;
+        private final Integer connectionRequestTimeoutSeconds;
+        private final Integer responseTimeoutSeconds;
 
         public RequestOptions(boolean followRedirects, boolean readBody) {
+            this(followRedirects, readBody, null, null, null);
+        }
+
+        public RequestOptions(boolean followRedirects,
+                              boolean readBody,
+                              Integer connectTimeoutSeconds,
+                              Integer connectionRequestTimeoutSeconds,
+                              Integer responseTimeoutSeconds) {
             this.followRedirects = followRedirects;
             this.readBody = readBody;
+            this.connectTimeoutSeconds = connectTimeoutSeconds;
+            this.connectionRequestTimeoutSeconds = connectionRequestTimeoutSeconds;
+            this.responseTimeoutSeconds = responseTimeoutSeconds;
         }
 
         public static RequestOptions defaults() {
@@ -205,6 +226,18 @@ public class HttpUtil {
 
         public boolean readBody() {
             return readBody;
+        }
+
+        public Integer connectTimeoutSeconds() {
+            return connectTimeoutSeconds;
+        }
+
+        public Integer connectionRequestTimeoutSeconds() {
+            return connectionRequestTimeoutSeconds;
+        }
+
+        public Integer responseTimeoutSeconds() {
+            return responseTimeoutSeconds;
         }
     }
 

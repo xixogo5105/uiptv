@@ -20,9 +20,13 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class StalkerPortalPlayerService implements AccountPlayerService {
+    private static final int CREATE_LINK_TIMEOUT_SECONDS = Integer.getInteger("uiptv.stalker.create_link.timeout.seconds", 8);
     private static final String FFMPEG_PREFIX = "ffmpeg ";
     private static final String STREAM_PARAM = "stream=";
     private static final String STREAM_PARAM_WITH_SEPARATOR = "stream=&";
+    private static final com.uiptv.util.HttpUtil.RequestOptions CREATE_LINK_REQUEST_OPTIONS =
+            new com.uiptv.util.HttpUtil.RequestOptions(true, true,
+                    CREATE_LINK_TIMEOUT_SECONDS, CREATE_LINK_TIMEOUT_SECONDS, CREATE_LINK_TIMEOUT_SECONDS);
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
@@ -118,7 +122,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
     }
 
     private String resolveCreateLink(Account account, String series, String cmd) {
-        String json = FetchAPI.fetch(getParams(account, cmd, series), account);
+        String json = FetchAPI.fetch(getParams(account, cmd, series), account, CREATE_LINK_REQUEST_OPTIONS);
         String resolved = parseUrl(json);
         if (isBlank(resolved)) {
             com.uiptv.util.AppLog.addLog("create_link unresolved for provided cmd.");
