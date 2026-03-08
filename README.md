@@ -8,7 +8,7 @@
 [![GitHub license](https://img.shields.io/github/license/xixogo5105/uiptv.svg)](https://github.com/xixogo5105/uiptv/blob/main/LICENSE)
 [![Main](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=xixogo5105_uiptv&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=xixogo5105_uiptv)
-[![codecov](https://codecov.io/gh/xixogo5105/uiptv/branch/main/graph/badge.svg)](https://codecov.io/gh/xixogo5105/uiptv)
+[![codecov](https://codecov.io/gh/xixogo5105/uiptv/branch/main/graph/badge.svg)](https://app.codecov.io/github/xixogo5105/uiptv)
 
 UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. It provides both a desktop experience and a full local-network web experience (SPA/PWA) for Live TV, VOD, and Series.
 
