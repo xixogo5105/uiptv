@@ -22,6 +22,7 @@
         <!--        <javafx.platform>mac-aarch64</javafx.platform>-->
         <!--        <javafx.platform>win</javafx.platform>-->
         <javafx.platform>linux</javafx.platform>
+        <sonar.organization>xixogo5105</sonar.organization>
     </properties>
 
     <dependencies>
