@@ -438,29 +438,30 @@ public class ChannelService {
             return channelList;
         }
 
-        channelList.addAll(firstPage.channels);
-        log(logger, "Fetched " + firstPage.channels.size() + " channels from page " + startPage + ".");
-        if (callback != null) callback.accept(firstPage.channels);
+        appendFetchedPage(channelList, firstPage, startPage, callback, logger);
 
         int maxAdditionalPages = firstPage.pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(firstPage.pagination.getPageCount() + 1, 2);
-        boolean continuePaging = true;
-        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages && continuePaging; pageNumber++) {
+        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
             if (isPageFetchCancelled(isCancelled)) {
                 log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
-                continuePaging = false;
-            } else {
-                PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
-                if (isEmptyChannelPage(page)) {
-                    log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
-                    continuePaging = false;
-                } else {
-                    channelList.addAll(page.channels);
-                    log(logger, "Fetched " + page.channels.size() + " channels from page " + pageNumber + ".");
-                    if (callback != null) callback.accept(page.channels);
-                }
+                break;
             }
+            PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
+            if (isEmptyChannelPage(page)) {
+                log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
+                break;
+            }
+            appendFetchedPage(channelList, page, pageNumber, callback, logger);
         }
         return dedupeChannels(channelList);
+    }
+
+    private void appendFetchedPage(List<Channel> channelList, PageFetchResult page, int pageNumber, Consumer<List<Channel>> callback, LoggerCallback logger) {
+        channelList.addAll(page.channels);
+        log(logger, "Fetched " + page.channels.size() + " channels from page " + pageNumber + ".");
+        if (callback != null) {
+            callback.accept(page.channels);
+        }
     }
 
     private void ensureStalkerAccountSession(Account account, LoggerCallback logger) {

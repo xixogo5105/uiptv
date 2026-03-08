@@ -46,6 +46,16 @@ public class ImdbMetadataService {
     private static final String JSON_SUFFIX = ".json";
     private static final String USER_AGENT_BROWSER = "Mozilla/5.0";
 
+    private static final class CandidateMatch {
+        private final JSONObject candidate;
+        private final int score;
+
+        private CandidateMatch(JSONObject candidate, int score) {
+            this.candidate = candidate;
+            this.score = score;
+        }
+    }
+
     private static class SingletonHelper {
         private static final ImdbMetadataService INSTANCE = new ImdbMetadataService();
     }
@@ -170,35 +180,40 @@ public class ImdbMetadataService {
     private JSONObject searchBestCandidate(List<String> queryTitles) {
         JSONObject best = new JSONObject();
         try {
-            if (queryTitles == null || queryTitles.isEmpty()) {
-                return best;
-            }
+            if (queryTitles == null || queryTitles.isEmpty()) return best;
             String primary = normalizeTitle(queryTitles.getFirst());
-            if (isBlank(primary)) {
-                return best;
-            }
+            if (isBlank(primary)) return best;
 
             int bestScore = Integer.MIN_VALUE;
             for (String query : queryTitles) {
-                String q = normalizeTitle(query);
-                if (!isBlank(q)) {
-                    JSONObject found = findBestInSuggestions(querySuggestions(q), q);
-                    if (!isBlank(found.optString("tmdb", ""))) {
-                        int score = scoreCandidate(primary, found.optString("name", ""), found.optString(KEY_GENRE, ""));
-                        if (q.equals(primary)) {
-                            score += 5;
-                        }
-                        if (score > bestScore) {
-                            bestScore = score;
-                            best = found;
-                        }
-                    }
+                CandidateMatch match = findCandidateMatch(primary, query);
+                if (match != null && match.score > bestScore) {
+                    bestScore = match.score;
+                    best = match.candidate;
                 }
             }
             return best;
         } catch (Exception _) {
             return best;
         }
+    }
+
+    private CandidateMatch findCandidateMatch(String primary, String query) {
+        String normalizedQuery = normalizeTitle(query);
+        if (isBlank(normalizedQuery)) {
+            return null;
+        }
+
+        JSONObject found = findBestInSuggestions(querySuggestions(normalizedQuery), normalizedQuery);
+        if (isBlank(found.optString("tmdb", ""))) {
+            return null;
+        }
+
+        int score = scoreCandidate(primary, found.optString("name", ""), found.optString(KEY_GENRE, ""));
+        if (normalizedQuery.equals(primary)) {
+            score += 5;
+        }
+        return new CandidateMatch(found, score);
     }
 
     private JSONArray querySuggestions(String queryTitle) {

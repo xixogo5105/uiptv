@@ -118,7 +118,7 @@ public class CategoryListUI extends HBox {
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
         table.setEditable(true);
-        table.getColumns().addAll(categoryTitle);
+        table.getColumns().add(categoryTitle);
         categoryTitle.setVisible(true);
         categoryId.setVisible(false);
         categoryTitle.setCellValueFactory(cellData -> cellData.getValue().categoryTitleProperty());

@@ -227,7 +227,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void setupBookmarkTable() {
         bookmarkTable.getTableView().setEditable(true);
-        bookmarkTable.getTableView().getColumns().addAll(bookmarkColumn);
+        bookmarkTable.getTableView().getColumns().add(bookmarkColumn);
         bookmarkTable.getTableView().setItems(filteredItems);
         bookmarkColumn.setVisible(true);
         bookmarkColumn.setCellValueFactory(cellData -> cellData.getValue().channelAccountNameProperty());
