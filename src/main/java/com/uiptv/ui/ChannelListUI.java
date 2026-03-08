@@ -47,6 +47,9 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public class ChannelListUI extends HBox {
+    private static final String IMAGE_CACHE_KEY_CHANNEL = "channel";
+    private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
+
     private final Account account;
     private final String categoryTitle;
     private final String categoryId;
@@ -78,7 +81,6 @@ public class ChannelListUI extends HBox {
     private boolean inlineEpisodeNavigationEnabled = false;
     private final VBox listPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
-    private Runnable onHome;
     private final HBox detailNavHeader = new HBox(6);
     private final Button detailBackButton = createBackButton();
     private final Label detailTitle = new Label();
@@ -96,7 +98,7 @@ public class ChannelListUI extends HBox {
         this.categoryTitle = categoryTitle;
         preloadAllCategoryContextAsync();
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            ImageCacheManager.clearCache("channel");
+            ImageCacheManager.clearCache(IMAGE_CACHE_KEY_CHANNEL);
         }
         initWidgets();
         registerBookmarkListener();
@@ -106,7 +108,6 @@ public class ChannelListUI extends HBox {
 
     public void setEmbeddedMode(boolean embeddedMode, Runnable onHome) {
         this.embeddedMode = embeddedMode;
-        this.onHome = onHome;
         if (embeddedMode) {
             showListView();
         }
@@ -216,18 +217,6 @@ public class ChannelListUI extends HBox {
         detailPane.getChildren().setAll(detailContent);
     }
 
-    private Button createHomeButton() {
-        Button button = new Button();
-        button.getStyleClass().add("nav-back-button");
-        button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip(I18n.tr("autoHome")));
-        SVGPath icon = new SVGPath();
-        icon.setContent("M4 10 L12 4 L20 10 V20 H14 V13 H10 V20 H4 Z");
-        icon.getStyleClass().add("nav-back-icon");
-        button.setGraphic(icon);
-        return button;
-    }
-
     private Button createBackButton() {
         Button button = new Button(I18n.tr("autoBack"));
         button.setFocusTraversable(false);
@@ -256,7 +245,7 @@ public class ChannelListUI extends HBox {
         VBox.setVgrow(ui, Priority.ALWAYS);
         detailPane.setMaxHeight(Double.MAX_VALUE);
         detailPane.setMinHeight(0);
-        if (!embeddedMode && inlineEpisodeNavigationEnabled) {
+        if (inlineEpisodeNavigationEnabled) {
             detailPane.getChildren().setAll(detailNavHeader, detailContent);
         } else {
             detailPane.getChildren().setAll(detailContent);
@@ -289,10 +278,10 @@ public class ChannelListUI extends HBox {
             {
                 bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
                 bookmarkIcon.setFill(Color.BLACK);
-                drmBadge.getStyleClass().add("drm-badge");
+                drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
-                progressBadge.getStyleClass().add("drm-badge");
+                progressBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 progressBadge.setVisible(false);
                 progressBadge.setManaged(false);
 
@@ -329,7 +318,7 @@ public class ChannelListUI extends HBox {
                 progressBadge.setVisible(inProgress);
                 progressBadge.setManaged(inProgress);
                 bookmarkIcon.setVisible(channelItem.isBookmarked());
-                imageView.loadImage(channelItem.getLogo(), "channel");
+                imageView.loadImage(channelItem.getLogo(), IMAGE_CACHE_KEY_CHANNEL);
                 setGraphic(graphic);
             }
         };
@@ -348,10 +337,10 @@ public class ChannelListUI extends HBox {
             {
                 bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
                 bookmarkIcon.setFill(Color.BLACK);
-                drmBadge.getStyleClass().add("drm-badge");
+                drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
-                progressBadge.getStyleClass().add("drm-badge");
+                progressBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 progressBadge.setVisible(false);
                 progressBadge.setManaged(false);
 
@@ -436,7 +425,7 @@ public class ChannelListUI extends HBox {
 
     private void applyThumbnailMode(boolean enabled) {
         if (enabled) {
-            ImageCacheManager.clearCache("channel");
+            ImageCacheManager.clearCache(IMAGE_CACHE_KEY_CHANNEL);
             channelName.setCellFactory(column -> createThumbnailCell());
         } else {
             channelName.setCellFactory(column -> createPlainTextCell());
@@ -490,7 +479,7 @@ public class ChannelListUI extends HBox {
     private List<Bookmark> loadBookmarksForAccount() {
         return BookmarkService.getInstance().read().stream()
                 .filter(b -> account.getAccountName().equals(b.getAccountName()))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private boolean isAllCategoryView() {
@@ -602,7 +591,8 @@ public class ChannelListUI extends HBox {
                 if (isM3uAccount()) {
                     m3uAllSourceContextByChannelKey.set(loadM3uAllSourceContextMap(categories));
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
+                // Ignore malformed category context and keep default empty mappings.
                 categoryTitleByCategoryId.set(Map.of());
                 categoryTitleByNormalizedTitle.set(Map.of());
                 m3uAllSourceContextByChannelKey.set(Map.of());
@@ -653,7 +643,7 @@ public class ChannelListUI extends HBox {
                 }
             }
             return contextByKey;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return Map.of();
         }
     }
@@ -712,7 +702,7 @@ public class ChannelListUI extends HBox {
             if (event.getCode() == KeyCode.ENTER) {
                 ChannelItem selected = resolveEnterTargetItem();
                 if (selected != null) {
-                    PlayOrShowSeries(selected);
+                    playOrShowSeries(selected);
                     event.consume();
                 }
             }
@@ -720,14 +710,14 @@ public class ChannelListUI extends HBox {
         table.getSearchTextField().setOnAction(event -> {
             ChannelItem selected = resolveEnterTargetItem();
             if (selected != null) {
-                PlayOrShowSeries(selected);
+                playOrShowSeries(selected);
             }
         });
         table.setRowFactory(tv -> {
             TableRow<ChannelItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    PlayOrShowSeries(row.getItem());
+                    playOrShowSeries(row.getItem());
                 }
             });
             addRightClickContextMenu(row);
@@ -750,7 +740,7 @@ public class ChannelListUI extends HBox {
         return null;
     }
 
-    private void PlayOrShowSeries(ChannelItem item) {
+    private void playOrShowSeries(ChannelItem item) {
         if (item == null) return;
         if (account.getAction() == series) {
             EpisodeList cachedEpisodes = seriesEpisodesCache.get(seriesEpisodeCacheKey(item));
@@ -770,7 +760,7 @@ public class ChannelListUI extends HBox {
             runningThread.interrupt();
             try {
                 runningThread.join(2000);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
             }
         }
@@ -845,7 +835,7 @@ public class ChannelListUI extends HBox {
                             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
                         }
                     }
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                 } catch (Exception e) {
                     runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
@@ -1092,7 +1082,8 @@ public class ChannelListUI extends HBox {
                         return withScheme;
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
+                // Ignore malformed base URIs and continue with the next candidate.
             }
         }
         return null;

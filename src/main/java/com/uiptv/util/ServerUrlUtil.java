@@ -14,6 +14,9 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class ServerUrlUtil {
     private static final AtomicReference<HostServices> hostServices = new AtomicReference<>();
 
+    private ServerUrlUtil() {
+    }
+
     public static String getLocalServerUrl() {
         String port = "8888";
         try {
@@ -27,7 +30,8 @@ public class ServerUrlUtil {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (RuntimeException _) {
+            // Fall back to the default local server port when configuration cannot be read.
         }
         return "http://127.0.0.1:" + port;
     }
@@ -52,7 +56,7 @@ public class ServerUrlUtil {
         try {
             UIptvServer.ensureStarted();
             return true;
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             UIptvAlert.showErrorKey("serverUnableToStartLocalWebServerForPlayback", e);
             return false;
         }

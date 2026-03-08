@@ -4,7 +4,6 @@ import com.uiptv.util.I18n;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
-import com.uiptv.model.Channel;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
@@ -19,7 +18,6 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.shape.SVGPath;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -28,8 +26,7 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.function.BooleanSupplier;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
@@ -45,8 +42,8 @@ public class CategoryListUI extends HBox {
     private final Account account;
     private final boolean embeddedMode;
     SearchableTableView table = new SearchableTableView();
-    TableColumn<CategoryItem, String> categoryTitle = new TableColumn(I18n.tr("autoCategories"));
-    TableColumn<CategoryItem, String> categoryId = new TableColumn("");
+    TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr("autoCategories"));
+    TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final VBox leftPane = new VBox(5);
@@ -97,7 +94,7 @@ public class CategoryListUI extends HBox {
                         }
                         return true;
                     })
-                    .collect(Collectors.toList());
+                    .toList();
         }
 
         List<CategoryItem> catList = new ArrayList<>();
@@ -151,14 +148,6 @@ public class CategoryListUI extends HBox {
         detailContent.setSpacing(5);
         VBox.setVgrow(detailContent, Priority.ALWAYS);
         detailPane.getChildren().setAll(detailContent);
-    }
-
-    private Button createBackButton() {
-        Button button = new Button(I18n.tr("autoBack"));
-        button.getStyleClass().add("nav-back-button");
-        button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip(I18n.tr("autoBack")));
-        return button;
     }
 
     private void showListView() {
@@ -393,7 +382,7 @@ public class CategoryListUI extends HBox {
             try {
                 // Wait a bit for the thread to finish, but don't block forever
                 runningThread.join(2000);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
             }
         }
@@ -406,9 +395,7 @@ public class CategoryListUI extends HBox {
             try {
                 retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
             } finally {
-                Platform.runLater(() -> {
-                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                });
+                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
                 currentLoadingThread.compareAndSet(Thread.currentThread(), null);
             }
         });
@@ -416,20 +403,20 @@ public class CategoryListUI extends HBox {
         loadingThread.start();
     }
 
-    private void retrieveChannels(CategoryItem item, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {
+    private void retrieveChannels(CategoryItem item, boolean noCachingNeeded, BooleanSupplier isCancelled, Account.AccountAction mode) {
         if (item == null) {
             return;
         }
         account.setAction(mode);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
-        final String categoryId = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
+        final String selectedCategoryKey = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? item.getCategoryId() : item.getCategoryTitle();
         final ChannelListUI[] channelListUIHolder = new ChannelListUI[1];
         final List<CategoryItem> allItems = new ArrayList<>();
         
         CountDownLatch latch = new CountDownLatch(1);
 
         Platform.runLater(() -> {
-            ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), categoryId);
+            ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), selectedCategoryKey);
             if (embeddedMode) {
                 ui.setEmbeddedMode(true, onHome);
             } else {
@@ -444,9 +431,7 @@ public class CategoryListUI extends HBox {
                 removeChannelPane();
                 getChildren().add(ui);
             }
-            if (isAllCategory(item)) {
-                 allItems.addAll(table.getItems());
-            }
+            if (isAllCategory(item)) allItems.addAll(table.getItems());
             latch.countDown();
         });
 
@@ -468,11 +453,11 @@ public class CategoryListUI extends HBox {
                                 item.getId(), 
                                 null,
                                 channelListUI::addItems,
-                                isCancelled
+                                isCancelled::getAsBoolean
                             );
                     } else {
                         for (CategoryItem categoryItem : allItems) {
-                            if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
+                            if (Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean()) return;
                             if (!isAllCategory(categoryItem)) {
                                 ChannelService.getInstance().get(
                                     account.getType() == STALKER_PORTAL || account.getType() == XTREME_API ? categoryItem.getCategoryId() : categoryItem.getCategoryTitle(),
@@ -480,19 +465,19 @@ public class CategoryListUI extends HBox {
                                     categoryItem.getId(), 
                                     null,
                                     channelListUI::addItems,
-                                    isCancelled
+                                    isCancelled::getAsBoolean
                                 );
                             }
                         }
                     }
                 } else {
-                    if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
-                    ChannelService.getInstance().get(categoryId, account, item.getId(), null, channelListUI::addItems, isCancelled);
+                    if (Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean()) return;
+                    ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(), null, channelListUI::addItems, isCancelled::getAsBoolean);
                 }
             } finally {
                 channelListUI.setLoadingComplete();
             }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             Platform.runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingChannels", e.getMessage())));
@@ -509,9 +494,9 @@ public class CategoryListUI extends HBox {
         if (category == null) {
             return false;
         }
-        String categoryId = category.getCategoryId();
+        String candidateCategoryId = category.getCategoryId();
         String title = category.getTitle();
-        return (categoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(categoryId.trim()))
+        return (candidateCategoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(candidateCategoryId.trim()))
                 || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
                 || (title != null && title.equalsIgnoreCase("All"));
     }
@@ -521,10 +506,10 @@ public class CategoryListUI extends HBox {
             return false;
         }
         String id = item.getId();
-        String categoryId = item.getCategoryId();
+        String candidateCategoryId = item.getCategoryId();
         String title = item.getCategoryTitle();
         return (id != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(id.trim()))
-                || (categoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(categoryId.trim()))
+                || (candidateCategoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(candidateCategoryId.trim()))
                 || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
                 || (title != null && title.equalsIgnoreCase("All"));
     }

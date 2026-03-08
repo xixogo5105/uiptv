@@ -17,9 +17,9 @@ import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public abstract class BaseDb {
-    private DatabaseUtils.DbTable table;
+    private final DatabaseUtils.DbTable table;
 
-    public BaseDb(DatabaseUtils.DbTable table) {
+    protected BaseDb(DatabaseUtils.DbTable table) {
         this.table = table;
     }
 
@@ -32,9 +32,9 @@ public abstract class BaseDb {
             AtomicInteger i = new AtomicInteger(1);
             Arrays.stream(parameters).forEach(s -> {
                 try {
-                    statement.setString(Integer.valueOf(i.getAndIncrement()), s);
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
+                    statement.setString(i.getAndIncrement(), s);
+                } catch (SQLException sqlException) {
+                    throw new IllegalStateException("Unable to bind query parameter", sqlException);
                 }
             });
             ResultSet resultSet = statement.executeQuery();
@@ -42,8 +42,8 @@ public abstract class BaseDb {
                 t.add(populate(resultSet));
             }
             resultSet.close();
-        } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query");
+        } catch (SQLException sqlException) {
+            throw new IllegalStateException("Unable to execute query", sqlException);
         }
         return t;
     }
@@ -62,8 +62,8 @@ public abstract class BaseDb {
                 t = populate(resultSet);
             }
             resultSet.close();
-        } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query");
+        } catch (SQLException sqlException) {
+            throw new IllegalStateException("Unable to execute query", sqlException);
         }
         return t;
     }
@@ -73,8 +73,8 @@ public abstract class BaseDb {
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, id);
             statement.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query");
+        } catch (SQLException sqlException) {
+            throw new IllegalStateException("Unable to execute delete query", sqlException);
         }
     }
 
@@ -82,7 +82,7 @@ public abstract class BaseDb {
     public String nullSafeString(ResultSet resultSet, String column) {
         try {
             return resultSet.getString(column);
-        } catch (SQLException e) {
+        } catch (SQLException _) {
             return null;
         }
     }
@@ -90,7 +90,7 @@ public abstract class BaseDb {
     public static int safeInteger(ResultSet resultSet, String column) {
         try {
             return isBlank(resultSet.getString(column)) ? 0 : Integer.parseInt(resultSet.getString(column));
-        } catch (SQLException e) {
+        } catch (SQLException _) {
             return 0;
         }
     }
@@ -99,7 +99,7 @@ public abstract class BaseDb {
         try {
             if(isBlank(resultSet.getString(column))) return false;
             return (Integer.parseInt(resultSet.getString(column)) > 0);
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
             return false;
         }
     }

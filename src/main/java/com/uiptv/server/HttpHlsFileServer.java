@@ -16,6 +16,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 public class HttpHlsFileServer implements HttpHandler {
     private static final int MISSING_TS_RETRY_ATTEMPTS = 10;
     private static final long MISSING_TS_RETRY_SLEEP_MS = 40;
+    private static final byte[] EMPTY_CONTENT = new byte[0];
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -23,7 +24,7 @@ public class HttpHlsFileServer implements HttpHandler {
         String fileName = path.substring(path.lastIndexOf('/') + 1);
         byte[] data = waitForUploadIfNeeded(fileName);
 
-        if (data == null) {
+        if (data.length == 0) {
             ex.sendResponseHeaders(404, -1);
             return;
         }
@@ -53,7 +54,7 @@ public class HttpHlsFileServer implements HttpHandler {
         for (int i = 0; i < MISSING_TS_RETRY_ATTEMPTS; i++) {
             try {
                 Thread.sleep(MISSING_TS_RETRY_SLEEP_MS);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 break;
             }
@@ -62,7 +63,7 @@ public class HttpHlsFileServer implements HttpHandler {
                 return data;
             }
         }
-        return null;
+        return EMPTY_CONTENT;
     }
 
     private static boolean isHvecEnabled(String value) {
