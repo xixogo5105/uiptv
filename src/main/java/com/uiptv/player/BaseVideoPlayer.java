@@ -92,7 +92,22 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnHideBar;
     protected Button btnTracks;
     protected ContextMenu tracksContextMenu;
-    protected ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioFillIcon, aspectRatioStretchIcon, hideBarIcon;
+    protected ImageView playIcon;
+    protected ImageView pauseIcon;
+    protected ImageView stopIcon;
+    protected ImageView repeatOnIcon;
+    protected ImageView repeatOffIcon;
+    protected ImageView fullscreenIcon;
+    protected ImageView fullscreenExitIcon;
+    protected ImageView muteOnIcon;
+    protected ImageView muteOffIcon;
+    protected ImageView reloadIcon;
+    protected ImageView pipIcon;
+    protected ImageView pipExitIcon;
+    protected ImageView aspectRatioIcon;
+    protected ImageView aspectRatioFillIcon;
+    protected ImageView aspectRatioStretchIcon;
+    protected ImageView hideBarIcon;
 
     // Fullscreen & PiP
     protected Stage fullscreenStage;
@@ -115,7 +130,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     // Resizing Logic
     protected boolean isResizing = false;
     protected int resizeDirection = 0;
-    protected double initialX, initialY, initialWidth, initialHeight;
+    protected double initialX;
+    protected double initialY;
+    protected double initialWidth;
+    protected double initialHeight;
     protected double xOffset = 0;
     protected double yOffset = 0;
     protected static final double RESIZE_BORDER = 5;
@@ -938,7 +956,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     protected String formatTime(long millis) {
         if (millis < 0) return "00:00";
-        long seconds = millis / 1000, s = seconds % 60, m = (seconds / 60) % 60, h = (seconds / 3600) % 24;
+        long seconds = millis / 1000;
+        long s = seconds % 60;
+        long m = (seconds / 60) % 60;
+        long h = (seconds / 3600) % 24;
         return h > 0 ? String.format("%02d:%02d:%02d", h, m, s) : String.format("%02d:%02d", m, s);
     }
 
@@ -1114,12 +1135,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.setVisible(true);
             playerContainer.setManaged(true);
 
-            if (videoView instanceof ImageView) {
-                ((ImageView) videoView).fitWidthProperty().bind(playerContainer.widthProperty());
-                ((ImageView) videoView).fitHeightProperty().bind(playerContainer.heightProperty());
-            } else if (videoView instanceof MediaView) {
-                ((MediaView) videoView).fitWidthProperty().bind(playerContainer.widthProperty());
-                ((MediaView) videoView).fitHeightProperty().bind(playerContainer.heightProperty());
+            if (videoView instanceof ImageView imageView) {
+                imageView.fitWidthProperty().bind(playerContainer.widthProperty());
+                imageView.fitHeightProperty().bind(playerContainer.heightProperty());
+            } else if (videoView instanceof MediaView mediaView) {
+                mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
+                mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
             }
 
             controlsContainer.setVisible(false);

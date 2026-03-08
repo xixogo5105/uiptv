@@ -12,10 +12,32 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class VideoInfo extends BaseJson {
-    String index, codecName, codecLongName, profile, codecType, codecTagString, codecTag, width, height,
-            codedWidth, codedHeight, closedCaptions, filmGrain, hasBFrames,
-            sampleAspectRatio, displayAspectRatio, pixFmt, avgFrameRate, rFrameRate,
-            startTime, durationTs, duration, bitRate, bitsPerRawSample, nbFrames, extradataSize;
+    private String index;
+    private String codecName;
+    private String codecLongName;
+    private String profile;
+    private String codecType;
+    private String codecTagString;
+    private String codecTag;
+    private String width;
+    private String height;
+    private String codedWidth;
+    private String codedHeight;
+    private String closedCaptions;
+    private String filmGrain;
+    private String hasBFrames;
+    private String sampleAspectRatio;
+    private String displayAspectRatio;
+    private String pixFmt;
+    private String avgFrameRate;
+    private String rFrameRate;
+    private String startTime;
+    private String durationTs;
+    private String duration;
+    private String bitRate;
+    private String bitsPerRawSample;
+    private String nbFrames;
+    private String extradataSize;
 
 
     public VideoInfo(Map<?, ?> map) {

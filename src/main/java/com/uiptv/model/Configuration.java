@@ -9,8 +9,26 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class Configuration extends BaseJson {
-    private String dbId, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, serverPort, cacheExpiryDays, languageLocale, tmdbReadAccessToken, uiZoomPercent;
-    private boolean darkTheme, pauseFiltering, pauseCaching, embeddedPlayer, wideView, enableFfmpegTranscoding, enableLitePlayerFfmpeg, enableThumbnails = true;
+    private String dbId;
+    private String playerPath1;
+    private String playerPath2;
+    private String playerPath3;
+    private String defaultPlayerPath;
+    private String filterCategoriesList;
+    private String filterChannelsList;
+    private String serverPort;
+    private String cacheExpiryDays;
+    private String languageLocale;
+    private String tmdbReadAccessToken;
+    private String uiZoomPercent;
+    private boolean darkTheme;
+    private boolean pauseFiltering;
+    private boolean pauseCaching;
+    private boolean embeddedPlayer;
+    private boolean wideView;
+    private boolean enableFfmpegTranscoding;
+    private boolean enableLitePlayerFfmpeg;
+    private boolean enableThumbnails = true;
 
 
     @SuppressWarnings("java:S107")

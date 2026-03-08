@@ -18,10 +18,29 @@ import static com.uiptv.util.StringUtils.safeGetString;
 public class Channel extends BaseJson {
     private static final String KEY_SEASON = "season";
 
-    private String dbId, channelId, categoryId, name, number, cmd, cmd_1, cmd_2, cmd_3, logo;
-    private String description, season, episodeNum, releaseDate, rating, duration;
+    private String dbId;
+    private String channelId;
+    private String categoryId;
+    private String name;
+    private String number;
+    private String cmd;
+    @SuppressWarnings("java:S116")
+    private String cmd_1;
+    @SuppressWarnings("java:S116")
+    private String cmd_2;
+    @SuppressWarnings("java:S116")
+    private String cmd_3;
+    private String logo;
+    private String description;
+    private String season;
+    private String episodeNum;
+    private String releaseDate;
+    private String rating;
+    private String duration;
     private String extraJson;
-    private int censored, status, hd;
+    private int censored;
+    private int status;
+    private int hd;
     private boolean watched;
     private String drmType;
     private String drmLicenseUrl;
@@ -30,14 +49,14 @@ public class Channel extends BaseJson {
     private String manifestType; // New field for manifest_type
 
     @SuppressWarnings("java:S107")
-    public Channel(String channelId, String name, String number, String cmd, String cmd_1, String cmd_2, String cmd_3, String logo, int censored, int status, int hd, String drmType, String drmLicenseUrl, Map<String, String> clearKeys, String inputstreamaddon, String manifestType) {
+    public Channel(String channelId, String name, String number, String cmd, String cmd1, String cmd2, String cmd3, String logo, int censored, int status, int hd, String drmType, String drmLicenseUrl, Map<String, String> clearKeys, String inputstreamaddon, String manifestType) {
         this.channelId = channelId;
         this.name = name;
         this.number = number;
         this.cmd = cmd;
-        this.cmd_1 = cmd_1;
-        this.cmd_2 = cmd_2;
-        this.cmd_3 = cmd_3;
+        this.cmd_1 = cmd1;
+        this.cmd_2 = cmd2;
+        this.cmd_3 = cmd3;
         this.logo = logo;
         this.censored = censored;
         this.status = status;

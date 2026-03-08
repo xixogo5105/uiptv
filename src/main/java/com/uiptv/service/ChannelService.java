@@ -192,7 +192,8 @@ public class ChannelService {
                 && account.getType() != XTREME_API;
     }
 
-    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) throws IOException {
+    @SuppressWarnings("java:S4276")
+    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) {
         List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger));
         return maybeFilterChannels(cachedChannels, true);
     }
@@ -243,7 +244,8 @@ public class ChannelService {
         }
     }
 
-    private List<Channel> fetchVodSeriesFromProviderAllPages(String categoryId, Account account, Supplier<Boolean> isCancelled, LoggerCallback logger) throws IOException {
+    @SuppressWarnings("java:S4276")
+    private List<Channel> fetchVodSeriesFromProviderAllPages(String categoryId, Account account, Supplier<Boolean> isCancelled, LoggerCallback logger) {
         List<Channel> channels;
         if (account.getType() == XTREME_API) {
             channels = dedupeChannels(XtremeParser.parseChannels(categoryId, account));
@@ -255,7 +257,7 @@ public class ChannelService {
         return channels;
     }
 
-    private List<Channel> rssChannels(String category, Account account) throws MalformedURLException {
+    private List<Channel> rssChannels(String category, Account account) {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
         rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {

@@ -15,9 +15,18 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class Episode extends BaseJson {
-
-    String id, episodeNum, title, containerExtension, custom_sid, added, season, direct_source, cmd;
-    EpisodeInfo info;
+    private String id;
+    private String episodeNum;
+    private String title;
+    private String containerExtension;
+    @SuppressWarnings("java:S116")
+    private String custom_sid;
+    private String added;
+    private String season;
+    @SuppressWarnings("java:S116")
+    private String direct_source;
+    private String cmd;
+    private EpisodeInfo info;
 
     public Episode(Account account, Map<?, ?> map) {
         if (map == null) return;

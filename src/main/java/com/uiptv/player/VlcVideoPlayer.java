@@ -24,7 +24,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
     private ImageView videoImageView;
-    private int videoSourceWidth, videoSourceHeight;
+    private int videoSourceWidth;
+    private int videoSourceHeight;
     private String lastStreamInfoLabel = "";
 
     public VlcVideoPlayer() {

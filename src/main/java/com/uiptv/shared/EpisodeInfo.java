@@ -14,9 +14,17 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class EpisodeInfo extends BaseJson {
-    String tmdbId, releaseDate, plot, durationSecs, duration, movieImage, bitrate, rating, season;
-    VideoInfo video;
-    AudioInfo audio;
+    private String tmdbId;
+    private String releaseDate;
+    private String plot;
+    private String durationSecs;
+    private String duration;
+    private String movieImage;
+    private String bitrate;
+    private String rating;
+    private String season;
+    private VideoInfo video;
+    private AudioInfo audio;
 
     public EpisodeInfo(Map<?, ?> map) {
         if (map == null) return;

@@ -148,14 +148,14 @@ public class ImageCacheManager {
             return CompletableFuture.completedFuture(diskCached);
         }
 
-        return LOADING_TASKS.computeIfAbsent(cacheKey, k -> {
-            return CompletableFuture.supplyAsync(() -> fetchImageWithFallback(url, cacheKey, normalizedCaller))
-                    .exceptionally(e -> {
-                        logImageIssue(url, "Failed to load image: " + e.getMessage());
-                        NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
-                        return null;
-                    }).whenComplete((img, ex) -> LOADING_TASKS.remove(cacheKey));
-        });
+        return LOADING_TASKS.computeIfAbsent(cacheKey, k ->
+                CompletableFuture.supplyAsync(() -> fetchImageWithFallback(url, cacheKey, normalizedCaller))
+                        .exceptionally(e -> {
+                            logImageIssue(url, "Failed to load image: " + e.getMessage());
+                            NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
+                            return null;
+                        }).whenComplete((img, ex) -> LOADING_TASKS.remove(cacheKey))
+        );
     }
 
     private static Image fetchImageWithFallback(String url, String cacheKey, String caller) {

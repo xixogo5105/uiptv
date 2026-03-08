@@ -8,7 +8,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class Pagination extends BaseJson {
-    int paginationLimit, maxPageItems, pageCount;
+    private int paginationLimit;
+    private int maxPageItems;
+    private int pageCount;
 
     public Pagination(int maxPageItems, int paginationLimit) {
         this.paginationLimit = paginationLimit;

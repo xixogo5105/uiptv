@@ -11,8 +11,21 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class SeasonInfo extends BaseJson {
-    String name, cover, plot, cast, director, genre, releaseDate, lastModified, rating, rating5Based, backdropPath,
-            tmdb, youtubeTrailer, episodeRunTime, categoryId;
+    private String name;
+    private String cover;
+    private String plot;
+    private String cast;
+    private String director;
+    private String genre;
+    private String releaseDate;
+    private String lastModified;
+    private String rating;
+    private String rating5Based;
+    private String backdropPath;
+    private String tmdb;
+    private String youtubeTrailer;
+    private String episodeRunTime;
+    private String categoryId;
 
     public SeasonInfo(JSONObject info) {
         this.name = safeGetString(info, "name");

@@ -282,7 +282,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
 
     private String safeNumeric(String value) {
         if (isBlank(value)) return "";
-        String normalized = value.replaceAll("[^0-9]", "");
+        String normalized = value.replaceAll("\\D", "");
         return isBlank(normalized) ? "" : normalized;
     }
 
@@ -296,7 +296,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         String inferredYear = "";
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((19|20)\\d{2}\\)\\s*$").matcher(trimmed);
         if (m.find()) {
-            inferredYear = m.group().replaceAll("[^0-9]", "");
+            inferredYear = m.group().replaceAll("\\D", "");
         }
 
         if (isBlank(seasonInfo.optString("name", "")) && !isBlank(inferredName)) {

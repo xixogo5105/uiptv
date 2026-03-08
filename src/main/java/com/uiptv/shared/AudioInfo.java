@@ -12,7 +12,15 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class AudioInfo extends BaseJson {
-    private String codecName, codecLongName, codecType, codecTagString, sampleRate, channels, bitRate, bitsPerSample, channelLayout;
+    private String codecName;
+    private String codecLongName;
+    private String codecType;
+    private String codecTagString;
+    private String sampleRate;
+    private String channels;
+    private String bitRate;
+    private String bitsPerSample;
+    private String channelLayout;
 
     public AudioInfo(Map<?, ?> map) {
         if (map == null) return;

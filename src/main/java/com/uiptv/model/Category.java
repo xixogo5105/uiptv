@@ -12,7 +12,12 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class Category extends BaseJson {
-    private String dbId, accountId, accountType, categoryId, title, alias;
+    private String dbId;
+    private String accountId;
+    private String accountType;
+    private String categoryId;
+    private String title;
+    private String alias;
     private String extraJson;
     private boolean activeSub;
     private int censored;
