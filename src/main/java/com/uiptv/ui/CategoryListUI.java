@@ -206,6 +206,11 @@ public class CategoryListUI extends HBox {
 
         // Clear all cached mode states to allow garbage collection
         // This is critical because modeStates holds ChannelListUI instances with data
+        for (ModeState state : modeStates.values()) {
+            if (state.channelListUI != null) {
+                state.channelListUI.dispose();
+            }
+        }
         modeStates.clear();
 
         // SearchableTableView wraps items in SortedList/FilteredList, which is not directly mutable.

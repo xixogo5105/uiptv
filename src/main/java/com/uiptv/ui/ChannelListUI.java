@@ -433,6 +433,10 @@ public class ChannelListUI extends HBox {
         table.refresh();
     }
 
+    public void dispose() {
+        releaseTransientState();
+    }
+
     private void releaseTransientState() {
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);

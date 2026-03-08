@@ -24,22 +24,18 @@ public class UIptvServer {
     }
 
     private static void initialiseServer() throws IOException {
-        try {
-            stop();
-            String httpPort = getHttpPort();
-            InetSocketAddress httpAddress = new InetSocketAddress("0.0.0.0", Integer.parseInt(httpPort));
+        stop();
+        String httpPort = getHttpPort();
+        InetSocketAddress httpAddress = new InetSocketAddress("0.0.0.0", Integer.parseInt(httpPort));
 
-            // Initialize HTTP server
-            httpServer = HttpServer.create(httpAddress, 0);
-            configureServer(httpServer);
+        // Initialize HTTP server
+        httpServer = HttpServer.create(httpAddress, 0);
+        configureServer(httpServer);
 
-            // Ensure at least 20 concurrent worker threads for web/API traffic.
-            int workerThreads = Math.max(MIN_HTTP_WORKERS, Runtime.getRuntime().availableProcessors() * 4);
-            httpExecutor = Executors.newFixedThreadPool(workerThreads, namedThreadFactory("uiptv-http-"));
-            httpServer.setExecutor(httpExecutor);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        // Ensure at least 20 concurrent worker threads for web/API traffic.
+        int workerThreads = Math.max(MIN_HTTP_WORKERS, Runtime.getRuntime().availableProcessors() * 4);
+        httpExecutor = Executors.newFixedThreadPool(workerThreads, namedThreadFactory("uiptv-http-"));
+        httpServer.setExecutor(httpExecutor);
     }
 
     private static void configureServer(HttpServer server) {
@@ -91,9 +87,7 @@ public class UIptvServer {
 
     public static synchronized void start() throws IOException {
         initialiseServer();
-        if (httpServer != null) {
-            httpServer.start();
-        }
+        httpServer.start();
         showMessage("Server Started on port " + getHttpPort());
     }
 
@@ -102,15 +96,12 @@ public class UIptvServer {
             return false;
         }
         initialiseServer();
-        if (httpServer != null) {
-            httpServer.start();
-            showMessage("Server Started on port " + getHttpPort());
-            return true;
-        }
-        return false;
+        httpServer.start();
+        showMessage("Server Started on port " + getHttpPort());
+        return true;
     }
 
-    public static synchronized void stop() throws IOException {
+    public static synchronized void stop() {
         if (httpServer != null) {
             httpServer.stop(1);
             httpServer = null;
