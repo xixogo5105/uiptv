@@ -41,6 +41,10 @@
             src/main/java/com/uiptv/util/ImageCacheManager.java,
             src/main/java/com/uiptv/util/ServerUrlUtil.java,
             src/main/java/com/uiptv/util/StyleClassDecorator.java,
+            src/main/java/com/uiptv/service/AbstractFfmpegHlsService.java,
+            src/main/java/com/uiptv/service/ChannelService.java,
+            src/main/java/com/uiptv/service/FfmpegService.java,
+            src/main/java/com/uiptv/service/LitePlayerFfmpegService.java,
             website/**
         </sonar.coverage.exclusions>
     </properties>
