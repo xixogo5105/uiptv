@@ -1,6 +1,7 @@
 package com.uiptv.util;
 
 
+import com.uiptv.db.DatabaseUtils;
 
 import java.sql.*;
 import java.util.Collections;
@@ -12,7 +13,8 @@ public class SQLiteTableSync {
     }
 
 
-    public static void syncTables(String firstDBPath, String secondDBPath, String tableName) throws SQLException {
+    public static void syncTables(String firstDBPath, String secondDBPath, DatabaseUtils.DbTable table) throws SQLException {
+        String tableName = DatabaseUtils.validatedTableName(table);
         try (
                 Connection firstConn = DriverManager.getConnection("jdbc:sqlite:" + firstDBPath);
                 Connection secondConn = DriverManager.getConnection("jdbc:sqlite:" + secondDBPath);

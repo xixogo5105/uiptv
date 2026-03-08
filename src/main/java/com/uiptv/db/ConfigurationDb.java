@@ -11,6 +11,7 @@ import java.util.Set;
 import static com.uiptv.db.DatabaseUtils.DbTable.CONFIGURATION_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.DatabaseUtils.updateTableSql;
+import static com.uiptv.db.DatabaseUtils.validatedTableName;
 import static com.uiptv.db.SQLConnection.connect;
 
 public class ConfigurationDb extends BaseDb {
@@ -32,9 +33,9 @@ public class ConfigurationDb extends BaseDb {
     public void clearAllCache() {
         try (Connection conn = connect(); Statement statement = conn.createStatement()) {
             for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                statement.execute(DELETE_FROM + table.getTableName());
+                statement.execute(DELETE_FROM + validatedTableName(table));
             }
-            statement.execute("UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl=''");
+            statement.execute("UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE) + " SET serverPortalUrl=''");
         } catch (Exception _) {
         }
     }
@@ -56,7 +57,7 @@ public class ConfigurationDb extends BaseDb {
                 deleteAccountLiveChannels(conn, account.getDbId());
             }
 
-            String updateAccountSql = "UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName()
+            String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
                     + " SET serverPortalUrl='' WHERE id = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updateAccountSql)) {
                 pstmt.setString(1, account.getDbId());
@@ -72,7 +73,7 @@ public class ConfigurationDb extends BaseDb {
             return;
         }
 
-        String sql = DELETE_FROM + table.getTableName() + " WHERE accountId=?";
+        String sql = DELETE_FROM + validatedTableName(table) + " WHERE accountId=?";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, accountId);
             pstmt.executeUpdate();
@@ -80,8 +81,8 @@ public class ConfigurationDb extends BaseDb {
     }
 
     private void deleteAccountLiveChannels(Connection conn, String accountId) throws SQLException {
-        String sql = DELETE_FROM + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
-                + " WHERE categoryId IN (SELECT id FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName()
+        String sql = DELETE_FROM + validatedTableName(DatabaseUtils.DbTable.CHANNEL_TABLE)
+                + " WHERE categoryId IN (SELECT id FROM " + validatedTableName(DatabaseUtils.DbTable.CATEGORY_TABLE)
                 + " WHERE accountId=?)";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, accountId);

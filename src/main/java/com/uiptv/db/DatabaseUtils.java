@@ -27,6 +27,7 @@ public class DatabaseUtils {
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
     private static Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();
+    private static final Set<String> KNOWN_TABLE_NAMES = new HashSet<>();
 
     public enum DbTable {
         CONFIGURATION_TABLE("Configuration"),
@@ -284,30 +285,33 @@ public class DatabaseUtils {
                 new DataColumn("category_id", "TEXT"), // Can be null for "All"
                 new DataColumn("display_order", INTEGER_TYPE)
         )));
+        KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
 
 
     public static String dropTableSql(DbTable table) {
-        return "DROP TABLE " + table.getTableName();
+        return "DROP TABLE " + validatedTableName(table);
     }
 
     public static String createTableSql(DbTable table) {
-        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ").append(table.getTableName()).append(" ( ");
-        dbStructure.get(table.getTableName()).forEach(c -> {
+        String tableName = validatedTableName(table);
+        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" ( ");
+        dbStructure.get(tableName).forEach(c -> {
             sql.append(c.getColumnName()).append(" ").append(c.getTypeAndDefault()).append(",");
         });
         return removeLastChar(sql) + ")";
     }
 
     public static String insertTableSql(DbTable table) {
-        StringBuilder sql = new StringBuilder("INSERT INTO ").append(table.getTableName()).append(" ( ");
-        dbStructure.get(table.getTableName()).forEach(c -> {
+        String tableName = validatedTableName(table);
+        StringBuilder sql = new StringBuilder("INSERT INTO ").append(tableName).append(" ( ");
+        dbStructure.get(tableName).forEach(c -> {
             if (!"id".equalsIgnoreCase(c.getColumnName())) {
                 sql.append(c.getColumnName()).append(",");
             }
         });
         StringBuilder sql2 = new StringBuilder(removeLastChar(sql) + ") VALUES (");
-        dbStructure.get(table.getTableName()).forEach(c -> {
+        dbStructure.get(tableName).forEach(c -> {
             if (!"id".equalsIgnoreCase(c.getColumnName())) {
                 sql2.append("?,");
             }
@@ -316,8 +320,9 @@ public class DatabaseUtils {
     }
 
     public static String updateTableSql(DbTable table) {
-        StringBuilder sql = new StringBuilder("UPDATE ").append(table.getTableName()).append(" set ");
-        dbStructure.get(table.getTableName()).forEach(c -> {
+        String tableName = validatedTableName(table);
+        StringBuilder sql = new StringBuilder("UPDATE ").append(tableName).append(" set ");
+        dbStructure.get(tableName).forEach(c -> {
             if (!"id".equalsIgnoreCase(c.getColumnName())) {
                 sql.append(c.getColumnName()).append("=?,");
             }
@@ -326,15 +331,29 @@ public class DatabaseUtils {
     }
 
     public static String selectAllSql(DbTable table) {
-        return "SELECT * FROM " + table.getTableName();
+        return "SELECT * FROM " + validatedTableName(table);
     }
 
-    public static String selectByIdSql(DbTable table, String id) {
-        return "SELECT * FROM " + table.getTableName() + " where id='" + id + "'";
+    public static String selectByIdSql(DbTable table) {
+        return "SELECT * FROM " + validatedTableName(table) + " where id=?";
     }
 
-    public static String deleteByIdSql(DbTable table, String id) {
-        return "DELETE FROM " + table.getTableName() + " where id='" + id + "'";
+    public static String deleteByIdSql(DbTable table) {
+        return "DELETE FROM " + validatedTableName(table) + " where id=?";
+    }
+
+    public static String validatedTableName(DbTable table) {
+        if (table == null) {
+            throw new IllegalArgumentException("Table cannot be null");
+        }
+        return validatedTableName(table.getTableName());
+    }
+
+    public static String validatedTableName(String tableName) {
+        if (tableName == null || !KNOWN_TABLE_NAMES.contains(tableName)) {
+            throw new IllegalArgumentException("Unknown table name: " + tableName);
+        }
+        return tableName;
     }
 
     private static String removeLastChar(StringBuilder sql) {

@@ -54,7 +54,7 @@ public abstract class BaseDb {
 
     public <T extends JsonCompliant> T getById(String id) {
         T t = null;
-        String sql = "SELECT * FROM " + table.getTableName() + " WHERE id=?";
+        String sql = selectByIdSql(table);
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, id);
             ResultSet resultSet = statement.executeQuery();
@@ -69,7 +69,7 @@ public abstract class BaseDb {
     }
 
     public void delete(String id) {
-        String sql = "DELETE FROM " + table.getTableName() + " WHERE id=?";
+        String sql = deleteByIdSql(table);
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, id);
             statement.executeUpdate();

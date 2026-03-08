@@ -13,6 +13,7 @@ import java.util.List;
 import static com.uiptv.db.DatabaseUtils.DbTable.CATEGORY_TABLE;
 import static com.uiptv.db.DatabaseUtils.DbTable.CHANNEL_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
+import static com.uiptv.db.DatabaseUtils.validatedTableName;
 import static com.uiptv.db.SQLConnection.connect;
 
 public class ChannelDb extends BaseDb {
@@ -57,7 +58,7 @@ public class ChannelDb extends BaseDb {
     }
 
     private static void deleteAll(String categoryId) {
-        String sql = "DELETE FROM " + CHANNEL_TABLE.getTableName() + " WHERE categoryId=?";
+        String sql = "DELETE FROM " + validatedTableName(CHANNEL_TABLE) + " WHERE categoryId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, categoryId);
             statement.execute();
@@ -71,8 +72,8 @@ public class ChannelDb extends BaseDb {
     }
 
     public int getChannelCountForAccount(String accountId) {
-        String sql = "SELECT COUNT(*) FROM " + CHANNEL_TABLE.getTableName() +
-                " c JOIN " + CATEGORY_TABLE.getTableName() + " cat ON c.categoryId = cat.id " +
+        String sql = "SELECT COUNT(*) FROM " + validatedTableName(CHANNEL_TABLE) +
+                " c JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id " +
                 "WHERE cat.accountId = ?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
@@ -93,8 +94,8 @@ public class ChannelDb extends BaseDb {
     }
 
     public Channel getChannelByChannelIdAndAccount(String channelId, String accountId) {
-        String sql = "SELECT c.* FROM " + CHANNEL_TABLE.getTableName() + " c" +
-                " INNER JOIN " + CATEGORY_TABLE.getTableName() + " cat ON c.categoryId = cat.id" +
+        String sql = "SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c" +
+                " INNER JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id" +
                 " WHERE c.channelId = ? AND cat.accountId = ?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, channelId);

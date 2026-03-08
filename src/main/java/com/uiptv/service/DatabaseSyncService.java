@@ -22,7 +22,7 @@ public class DatabaseSyncService {
     public void syncDatabases(String firstDB, String secondDB) throws SQLException {
         for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
             if (DatabaseUtils.Syncable.contains(tableName)) {
-                syncTables(firstDB, secondDB, tableName.getTableName());
+                syncTables(firstDB, secondDB, tableName);
             }
         }
     }
