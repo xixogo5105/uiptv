@@ -12,6 +12,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -37,7 +38,7 @@ public class XtremeParser {
         try {
             return doParseCategories(fetchPlayerApi(account, getCategoryAction(account.getAction()), null));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to load Xtreme categories", e);
         }
     }
 
@@ -47,7 +48,7 @@ public class XtremeParser {
             extraParams.put(PARAM_CATEGORY_ID, categoryId);
             return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to load Xtreme channels", e);
         }
     }
 
@@ -55,7 +56,7 @@ public class XtremeParser {
         try {
             return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), null), account);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to load all Xtreme channels", e);
         }
     }
 
@@ -65,7 +66,7 @@ public class XtremeParser {
             extraParams.put("series_id", seriesId);
             return doParseEpisodes(fetchPlayerApi(account, "get_series_info", extraParams), account);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to load Xtreme episodes", e);
         }
     }
 

@@ -247,6 +247,7 @@ public class PingStalkerPortal {
             }
             return isNotBlank(root.optString("token"));
         } catch (Exception _) {
+            // Non-JSON or malformed probe responses simply mean "no token found".
             return false;
         }
     }
@@ -271,6 +272,7 @@ public class PingStalkerPortal {
                     .replace("this.portal_path", resolvePortalValue(jsFileContents, uri, regex, PingStalkerPortal::getPortalPath, ""));
             return ensureAbsoluteServerUrl(result, uri);
         } catch (Exception _) {
+            // Fall back to the default endpoint discovery path when script parsing fails.
         }
         return "";
     }
@@ -290,6 +292,7 @@ public class PingStalkerPortal {
                 }
             }
         } catch (Exception _) {
+            // Ignore malformed script fragments and keep probing with other extraction paths.
         }
         return "";
     }
@@ -309,6 +312,7 @@ public class PingStalkerPortal {
                 }
             }
         } catch (Exception _) {
+            // Ignore malformed script fragments and keep probing with other extraction paths.
         }
         return null;
     }
@@ -328,6 +332,7 @@ public class PingStalkerPortal {
                 }
             }
         } catch (Exception _) {
+            // Ignore malformed script fragments and keep probing with other extraction paths.
         }
         return null;
     }
@@ -347,6 +352,7 @@ public class PingStalkerPortal {
                 }
             }
         } catch (Exception _) {
+            // Ignore malformed script fragments and keep probing with other extraction paths.
         }
         return null;
     }
@@ -401,6 +407,7 @@ public class PingStalkerPortal {
             }
             return assignment.replace(replacePrefix, "").replace("\"", "").replace(")", "");
         } catch (Exception _) {
+            // Returning null here preserves the fallback behavior for invalid URLs.
             return null;
         }
     }

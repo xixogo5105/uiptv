@@ -26,6 +26,7 @@ public class UiptUtils {
         try {
             return isBlank(line) ? EMPTY : line.replaceAll("\\p{Cntrl}", SPACER).replaceAll("[^\\p{Print}]", SPACER).replaceAll("\\p{C}", SPACER);
         } catch (Exception _) {
+            // Preserve the original text if sanitization hits an unexpected regex/runtime issue.
         }
         return line;
     }
@@ -36,6 +37,7 @@ public class UiptUtils {
             url.toURI();
             return true;
         } catch (Exception _) {
+            // Invalid URLs are expected here; report false instead of surfacing parsing failures.
         }
         return false;
     }
@@ -56,6 +58,7 @@ public class UiptUtils {
             } while (AccountService.getInstance().getByName(validName) != null);
             return validName;
         } catch (Exception _) {
+            // Fall back to the raw URL when host extraction fails.
         }
         return urlString;
     }
@@ -64,6 +67,7 @@ public class UiptUtils {
         try {
             return new URL(urlString).toURI().getHost();
         } catch (Exception _) {
+            // Fall back to the raw URL when host extraction fails.
         }
         return urlString;
     }
@@ -74,6 +78,7 @@ public class UiptUtils {
             if (isBlank(queryString)) return false;
             return urlString.toLowerCase().contains("get.php?") && queryString.toLowerCase().contains("username") && queryString.toLowerCase().contains("password");
         } catch (Exception _) {
+            // Treat malformed playlist links as non-Xtreme URLs.
         }
         return false;
     }
@@ -82,6 +87,7 @@ public class UiptUtils {
         try {
             return urlString.split("get.php?")[0];
         } catch (Exception _) {
+            // Preserve the original URL when path extraction fails.
         }
         return urlString;
     }
@@ -91,6 +97,7 @@ public class UiptUtils {
             String queryString = new URL(urlString).toURI().getQuery();
             return getQueryMap(queryString).get("username");
         } catch (Exception _) {
+            // Preserve the original URL when username extraction fails.
         }
         return urlString;
     }
@@ -100,6 +107,7 @@ public class UiptUtils {
             String queryString = new URL(urlString).toURI().getQuery();
             return getQueryMap(queryString).get("password");
         } catch (Exception _) {
+            // Preserve the original URL when password extraction fails.
         }
         return urlString;
     }

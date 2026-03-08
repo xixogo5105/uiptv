@@ -4,6 +4,8 @@ import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.RssFeedReader;
 import com.uiptv.util.StringUtils;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.util.*;
 
@@ -31,8 +33,12 @@ public class RssParser {
                         item.getLink(),
                         ""));
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to load RSS feed", e);
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("Unable to parse RSS feed", e);
         }
         return playlistEntries;
     }

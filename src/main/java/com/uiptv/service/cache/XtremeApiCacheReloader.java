@@ -42,11 +42,11 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
         CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categories, logger);
         if (fetchResult.failedCategories == categories.size()) {
-            throw new RuntimeException("All category channel requests failed.");
+            throw new IllegalStateException("All category channel requests failed.");
         }
         if (fetchResult.totalChannels == 0) {
             if (fetchResult.failedCategories > 0) {
-                throw new RuntimeException("No usable channels loaded after category fetch failures.");
+                throw new IllegalStateException("No usable channels loaded after category fetch failures.");
             }
             log(logger, "No channels found in any category. Keeping existing cache.");
             return;

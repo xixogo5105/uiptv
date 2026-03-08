@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.io.StringReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -41,9 +42,7 @@ public class M3U8Parser {
             }
             return parseCategory(new BufferedReader(new StringReader(readNonHttpUrl(m3u8Url))));
         } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to parse M3U categories from URL", e);
         }
     }
 
@@ -51,7 +50,7 @@ public class M3U8Parser {
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8))) {
             return parseCategory(reader);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to parse M3U categories from file", e);
         }
     }
 
@@ -64,9 +63,7 @@ public class M3U8Parser {
             }
             return parseM3U8(new BufferedReader(new StringReader(readNonHttpUrl(m3u8Url))));
         } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to parse M3U channels from URL", e);
         }
     }
 
@@ -74,7 +71,7 @@ public class M3U8Parser {
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8))) {
             return parseM3U8(reader);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to parse M3U channels from file", e);
         }
     }
 

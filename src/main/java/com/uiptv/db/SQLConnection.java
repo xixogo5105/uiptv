@@ -40,11 +40,11 @@ public class SQLConnection {
                         sleepBeforeRetry();
                         continue;
                     }
-                    throw new RuntimeException("Unable to initialize database migrations", ex);
+                    throw new DatabaseAccessException("Unable to initialize database migrations", ex);
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new DatabaseAccessException("Unable to create database file", e);
         }
     }
 
@@ -68,8 +68,8 @@ public class SQLConnection {
     public static Connection connect() {
         try {
             return openConnection();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to open database connection", e);
         }
     }
 
@@ -100,7 +100,7 @@ public class SQLConnection {
             Thread.sleep(INIT_RETRY_DELAY_MS);
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while waiting to retry database initialization", interruptedException);
+            throw new DatabaseAccessException("Interrupted while waiting to retry database initialization", interruptedException);
         }
     }
 

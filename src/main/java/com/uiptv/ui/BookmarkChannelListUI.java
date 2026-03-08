@@ -136,6 +136,7 @@ public class BookmarkChannelListUI extends HBox {
 
                 runLater(() -> applyReloadResult(generation, loadedItems, categories, revision));
             } catch (Exception _) {
+                // Keep the bookmark pane usable and show the existing placeholder on reload failure.
                 runLater(() -> {
                     if (generation != reloadGeneration.get()) {
                         return;
@@ -911,6 +912,7 @@ public class BookmarkChannelListUI extends HBox {
                     BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
                     removedBookmarkIds.add(selectedItem.getBookmarkId());
                 } catch (Exception _) {
+                    // Best-effort batch delete: continue removing the remaining bookmarks.
                 }
             }
             runLater(() -> {

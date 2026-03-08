@@ -71,17 +71,13 @@ public abstract class BaseMainApplicationUI {
 
         LogDisplayUI logDisplayUI = new LogDisplayUI();
         ConfigurationUI configurationUI = new ConfigurationUI(param -> {
-            try {
-                Scene currentScene = primaryStage.getScene();
-                if (currentScene != null) {
-                    fontStyleConfigurer.accept(currentScene);
-                }
-                accountListUI.refresh();
-                bookmarkChannelListUI.forceReload();
-                watchingNowUI.forceReload();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            Scene currentScene = primaryStage.getScene();
+            if (currentScene != null) {
+                fontStyleConfigurer.accept(currentScene);
             }
+            accountListUI.refresh();
+            bookmarkChannelListUI.forceReload();
+            watchingNowUI.forceReload();
         });
 
         configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI, watchingNowUI);
@@ -249,24 +245,14 @@ public abstract class BaseMainApplicationUI {
 
     private void configureManageAccountUI(ManageAccountUI manageAccountUI, AccountListUI accountListUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI) {
         manageAccountUI.addCallbackHandler(param -> {
-            try {
-                accountListUI.refresh();
-                bookmarkChannelListUI.forceReload();
-                watchingNowUI.forceReload();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            accountListUI.refresh();
+            bookmarkChannelListUI.forceReload();
+            watchingNowUI.forceReload();
         });
     }
 
     private void configureParseMultipleAccountUI(ParseMultipleAccountUI parseMultipleAccountUI, AccountListUI accountListUI) {
-        parseMultipleAccountUI.addCallbackHandler(param -> {
-            try {
-                accountListUI.refresh();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        parseMultipleAccountUI.addCallbackHandler(param -> accountListUI.refresh());
     }
 
     private void configureUIComponents(ConfigurationUI configurationUI, ParseMultipleAccountUI parseMultipleAccountUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, AccountListUI accountListUI) {

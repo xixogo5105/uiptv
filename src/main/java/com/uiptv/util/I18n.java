@@ -290,6 +290,7 @@ public final class I18n {
                 return localeBundle.getString(key);
             }
         } catch (Exception _) {
+            // Bundle lookup/formatting issues should degrade to the key rather than breaking the UI.
         }
         return key;
     }
@@ -491,6 +492,7 @@ public final class I18n {
         try {
             return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getModule());
         } catch (MissingResourceException _) {
+            // Missing localized bundles should fall back to the default language bundle.
             return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), I18n.class.getModule());
         }
     }

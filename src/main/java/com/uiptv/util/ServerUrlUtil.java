@@ -1,12 +1,14 @@
 package com.uiptv.util;
 
 import com.uiptv.server.UIptvServer;
+import com.uiptv.db.DatabaseAccessException;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.HostServices;
 import com.uiptv.model.Configuration;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -30,7 +32,7 @@ public class ServerUrlUtil {
                     }
                 }
             }
-        } catch (RuntimeException _) {
+        } catch (DatabaseAccessException | IllegalStateException _) {
             // Fall back to the default local server port when configuration cannot be read.
         }
         return "http://127.0.0.1:" + port;
@@ -48,7 +50,7 @@ public class ServerUrlUtil {
         try {
             UIptvServer.start();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Unable to start local web server", e);
         }
     }
 
@@ -56,7 +58,7 @@ public class ServerUrlUtil {
         try {
             UIptvServer.ensureStarted();
             return true;
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException | IllegalStateException e) {
             UIptvAlert.showErrorKey("serverUnableToStartLocalWebServerForPlayback", e);
             return false;
         }

@@ -172,6 +172,7 @@ public class ImageCacheManager {
             } catch (HttpStatusException e) {
                 handleImageHttpStatus(candidate, cacheKey, e, candidate.equals(candidates.get(candidates.size() - 1)));
             } catch (Exception _) {
+                // Fall through to the next candidate URL before negative-caching the final failure.
                 if (candidate.equals(candidates.get(candidates.size() - 1))) {
                     NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
                 }
@@ -275,6 +276,7 @@ public class ImageCacheManager {
                     return candidate;
                 }
             } catch (Exception _) {
+                // Cache directory is optional; keep disk caching disabled when no writable path is available.
             }
         }
         return null;
@@ -289,6 +291,7 @@ public class ImageCacheManager {
             Files.write(path, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             trimDiskCacheIfNeeded();
         } catch (Exception _) {
+            // Disk caching is best-effort; keep the in-memory cache path working.
         }
     }
 
@@ -319,6 +322,7 @@ public class ImageCacheManager {
             }
             return image;
         } catch (Exception _) {
+            // Ignore corrupt or partially written cache entries and refetch them on demand.
             return null;
         }
     }
@@ -345,6 +349,7 @@ public class ImageCacheManager {
                             long modified = Files.getLastModifiedTime(path).toMillis();
                             entries.add(new DiskEntry(path, size, modified));
                         } catch (Exception _) {
+                            // Skip unreadable cache files while estimating trim order.
                         }
                     });
                 }
@@ -367,9 +372,11 @@ public class ImageCacheManager {
                             totalBytes -= entry.size;
                         }
                     } catch (Exception _) {
+                        // Best-effort trim; leave the file behind if it cannot be removed now.
                     }
                 }
             } catch (Exception _) {
+                // Disk trimming is opportunistic; the next trim cycle can retry.
             } finally {
                 lastDiskTrimMs = insideLockNow;
             }
@@ -395,6 +402,7 @@ public class ImageCacheManager {
             byte[] hashed = digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hashed);
         } catch (Exception _) {
+            // Fall back to a stable hash when SHA-256 is unavailable for any reason.
             return Integer.toHexString(value.hashCode());
         }
     }
@@ -418,6 +426,7 @@ public class ImageCacheManager {
             long secs = Long.parseLong(raw.trim());
             return Math.max(10_000L, secs * 1000L);
         } catch (Exception _) {
+            // Invalid Retry-After headers should use the default backoff.
             return NEGATIVE_CACHE_MS_429_DEFAULT;
         }
     }
@@ -469,6 +478,7 @@ public class ImageCacheManager {
             URI uri = URI.create(url);
             return uri.getHost() == null ? "" : uri.getHost().toLowerCase();
         } catch (Exception _) {
+            // Invalid image URLs should simply skip host-based throttling.
             return "";
         }
     }
@@ -579,9 +589,11 @@ public class ImageCacheManager {
                 try {
                     Files.deleteIfExists(path);
                 } catch (Exception _) {
+                    // Best-effort cache cleanup; keep iterating through the remaining files.
                 }
             });
         } catch (Exception _) {
+            // Ignore directory listing failures during manual cache cleanup.
         }
     }
 
@@ -597,9 +609,11 @@ public class ImageCacheManager {
                         try {
                             Files.deleteIfExists(path);
                         } catch (Exception _) {
+                            // Best-effort cache cleanup for a single caller namespace.
                         }
                     });
         } catch (Exception _) {
+            // Ignore directory listing failures during scoped cache cleanup.
         }
     }
 

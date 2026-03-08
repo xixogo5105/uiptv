@@ -482,6 +482,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             if (isBlank(value)) return 1;
             return Integer.parseInt(value);
         } catch (Exception _) {
+            // Invalid numeric labels should fall back to the default season/episode number.
             return 1;
         }
     }
@@ -493,6 +494,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         try {
             return String.valueOf(Integer.parseInt(parsed));
         } catch (Exception _) {
+            // Invalid numeric labels should behave like an unknown season/episode number.
             return "";
         }
     }
@@ -557,6 +559,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         try {
             return OffsetDateTime.parse(input).toLocalDate();
         } catch (Exception _) {
+            // Offset timestamps are optional; try the plain date patterns next.
         }
         String[] patterns = new String[]{
                 "yyyy-MM-dd",
@@ -575,6 +578,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             try {
                 return LocalDate.parse(input, DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH));
             } catch (DateTimeParseException _) {
+                // Try the next date parser below.
             }
         }
         Matcher iso = ISO_DATE_PATTERN.matcher(input);
@@ -582,6 +586,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             try {
                 return LocalDate.parse(iso.group(), DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH));
             } catch (DateTimeParseException _) {
+                // Try the next date parser below.
             }
         }
         Matcher month = MONTH_DATE_PATTERN.matcher(input);
@@ -590,10 +595,12 @@ public abstract class BaseEpisodesListUI extends HBox {
             try {
                 return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
             } catch (DateTimeParseException _) {
+                // Try the next date parser below.
             }
             try {
                 return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH));
             } catch (DateTimeParseException _) {
+                // Give up on parsing this month-format variant.
             }
         }
         return null;
@@ -649,6 +656,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         try {
             return new JSONObject(value.toJson());
         } catch (Exception _) {
+            // Episode snapshots are optional; rebuild season info from other fields when parsing fails.
             return new JSONObject();
         }
     }
@@ -806,6 +814,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                     }
                 }
             } catch (Exception _) {
+                // Missing/invalid season metadata should not prevent the remaining items from loading.
             }
         }
         return null;

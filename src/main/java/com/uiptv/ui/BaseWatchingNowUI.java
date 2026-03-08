@@ -340,6 +340,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 categoryId = firstNonBlank(category.getCategoryId(), categoryId);
             }
         } catch (Exception _) {
+            // Snapshot payloads are optional; keep the original category id when parsing fails.
         }
         try {
             Channel channel = Channel.fromJson(state.getSeriesChannelSnapshot());
@@ -350,6 +351,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 poster = firstNonBlank(channel.getLogo(), poster);
             }
         } catch (Exception _) {
+            // Snapshot payloads are optional; keep the original series/channel scope when parsing fails.
         }
         return new SnapshotScope(categoryId, parentChannelId, title, poster);
     }
@@ -1433,11 +1435,13 @@ public abstract class BaseWatchingNowUI extends VBox {
                     return imdb;
                 }
             } catch (Exception _) {
+                // Ignore metadata refresh failures; the current cached panel still renders.
             }
             if (attempt < attempts) {
                 try {
                     Thread.sleep(300L * attempt);
                 } catch (InterruptedException _) {
+                    // Preserve interruption and stop the staggered refresh loop.
                     Thread.currentThread().interrupt();
                     break;
                 }
@@ -1943,6 +1947,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         try {
             return String.valueOf(Integer.parseInt(parsed));
         } catch (Exception _) {
+            // Invalid numeric labels should behave like an unknown season/episode number.
             return "";
         }
     }
@@ -1952,6 +1957,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             if (isBlank(value)) return fallback;
             return Integer.parseInt(value);
         } catch (Exception _) {
+            // Invalid numeric labels should fall back to the caller-provided default.
             return fallback;
         }
     }
@@ -2060,6 +2066,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         try {
             return OffsetDateTime.parse(input).toLocalDate();
         } catch (Exception _) {
+            // Offset timestamps are optional; try the plain date patterns next.
             return null;
         }
     }
@@ -2069,6 +2076,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             try {
                 return LocalDate.parse(input, DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH));
             } catch (DateTimeParseException _) {
+                // Try the next parser below.
             }
         }
         return null;
@@ -2082,6 +2090,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         try {
             return LocalDate.parse(iso.group(), DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH));
         } catch (DateTimeParseException _) {
+            // Give up on embedded ISO parsing and continue with month-based formats.
             return null;
         }
     }
@@ -2196,6 +2205,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 }
             }
         } catch (Exception _) {
+            // Invalid image/base URIs should not break rendering; the caller will keep the raw URL.
         }
         return null;
     }

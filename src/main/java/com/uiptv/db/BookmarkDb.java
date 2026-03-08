@@ -68,7 +68,7 @@ public class BookmarkDb extends BaseDb {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query for ordered bookmarks", e);
+            throw new DatabaseAccessException("Unable to execute query for ordered bookmarks", e);
         }
         return bookmarks;
     }
@@ -119,7 +119,7 @@ public class BookmarkDb extends BaseDb {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute insert query for bookmark", e);
+            throw new DatabaseAccessException("Unable to execute insert query for bookmark", e);
         }
     }
 
@@ -147,7 +147,7 @@ public class BookmarkDb extends BaseDb {
             statement.setString(i++, bookmark.getDbId());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute update query for bookmark", e);
+            throw new DatabaseAccessException("Unable to execute update query for bookmark", e);
         }
     }
 
@@ -173,7 +173,7 @@ public class BookmarkDb extends BaseDb {
             statement.setString(4, b.getChannelName());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query", e);
+            throw new DatabaseAccessException("Unable to execute delete query", e);
         }
     }
 
@@ -197,9 +197,9 @@ public class BookmarkDb extends BaseDb {
             try {
                 connect().rollback();
             } catch (SQLException ex) {
-                throw new RuntimeException("Failed to rollback transaction", ex);
+                throw new DatabaseAccessException("Failed to rollback transaction", ex);
             }
-            throw new RuntimeException("Unable to delete bookmarks by account name", e);
+            throw new DatabaseAccessException("Unable to delete bookmarks by account name", e);
         }
     }
 
@@ -256,9 +256,9 @@ public class BookmarkDb extends BaseDb {
                     conn.rollback();
                 }
             } catch (SQLException ex) {
-                throw new RuntimeException("Failed to rollback transaction", ex);
+                throw new DatabaseAccessException("Failed to rollback transaction", ex);
             }
-            throw new RuntimeException("Unable to save bookmark order", e);
+            throw new DatabaseAccessException("Unable to save bookmark order", e);
         } finally {
             closeConnection(conn);
         }
@@ -296,9 +296,9 @@ public class BookmarkDb extends BaseDb {
                     conn.rollback();
                 }
             } catch (SQLException ex) {
-                throw new RuntimeException("Failed to rollback transaction", ex);
+                throw new DatabaseAccessException("Failed to rollback transaction", ex);
             }
-            throw new RuntimeException("Unable to update bookmark orders", e);
+            throw new DatabaseAccessException("Unable to update bookmark orders", e);
         } finally {
             closeConnection(conn);
         }
@@ -328,7 +328,7 @@ public class BookmarkDb extends BaseDb {
             }
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to delete bookmark order", e);
+            throw new DatabaseAccessException("Unable to delete bookmark order", e);
         }
     }
 
@@ -368,7 +368,7 @@ public class BookmarkDb extends BaseDb {
             }
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to delete bookmark orders by category", e);
+            throw new DatabaseAccessException("Unable to delete bookmark orders by category", e);
         }
     }
 
@@ -377,7 +377,7 @@ public class BookmarkDb extends BaseDb {
             statement.setString(1, category.getName());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query", e);
+            throw new DatabaseAccessException("Unable to execute query", e);
         }
     }
 
@@ -387,7 +387,7 @@ public class BookmarkDb extends BaseDb {
             statement.setString(1, category.getId());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query", e);
+            throw new DatabaseAccessException("Unable to execute delete query", e);
         }
     }
 
@@ -403,7 +403,7 @@ public class BookmarkDb extends BaseDb {
                 categories.add(category);
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query", e);
+            throw new DatabaseAccessException("Unable to execute query", e);
         }
         return categories;
     }

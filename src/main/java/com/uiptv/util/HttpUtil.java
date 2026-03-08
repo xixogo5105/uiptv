@@ -45,15 +45,15 @@ public class HttpUtil {
                     .build())
             .build();
 
-    public static HttpResult sendRequest(String url, Map<String, String> headers, String method) throws Exception {
+    public static HttpResult sendRequest(String url, Map<String, String> headers, String method) throws IOException {
         return sendRequest(url, headers, method, null);
     }
 
-    public static HttpResult sendRequest(String url, Map<String, String> headers, String method, String body) throws Exception {
+    public static HttpResult sendRequest(String url, Map<String, String> headers, String method, String body) throws IOException {
         return sendRequest(url, headers, method, body, RequestOptions.defaults());
     }
 
-    public static HttpResult sendRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws Exception {
+    public static HttpResult sendRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
 
         return HTTP_CLIENT.execute(request, response -> {
@@ -73,7 +73,7 @@ public class HttpUtil {
         });
     }
 
-    public static StreamResult openStream(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws Exception {
+    public static StreamResult openStream(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
         CloseableHttpResponse response = HTTP_CLIENT.execute(request);
         HttpEntity entity = response.getEntity();

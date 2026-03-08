@@ -770,6 +770,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             try {
                 latch.await();
             } catch (InterruptedException _) {
+                // Preserve interruption while waiting for JavaFX to finish PiP cleanup.
                 Thread.currentThread().interrupt();
             }
         }
@@ -790,6 +791,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             // First stop any current playback and dispose current media
             stopForReload();
         } catch (Exception _) {
+            // Best-effort shutdown; continue disposing the remaining player resources.
         }
 
         try {
@@ -819,6 +821,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     uninstallSceneInputRecovery(fullscreenStage.getScene());
                     fullscreenStage.close();
                 } catch (Exception _) {
+                    // Ignore stage teardown issues during fullscreen cleanup.
                 }
                 fullscreenStage = null;
             }
@@ -829,6 +832,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     uninstallSceneInputRecovery(pipStage.getScene());
                     pipStage.close();
                 } catch (Exception _) {
+                    // Ignore stage teardown issues during PiP cleanup.
                 }
                 pipStage = null;
             }
@@ -843,6 +847,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
             restoreVisibleCursor();
         } catch (Exception _) {
+            // Best-effort shutdown; media disposal failures should not leave stale UI around.
         }
     }
 

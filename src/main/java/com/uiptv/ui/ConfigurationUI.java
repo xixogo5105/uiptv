@@ -40,6 +40,7 @@ import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Objects;
@@ -574,7 +575,7 @@ public class ConfigurationUI extends VBox {
                 refreshServerStatusUI();
                 // showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort()); // Removed alert
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException("Unable to toggle local web server", e);
             }
         });
     }

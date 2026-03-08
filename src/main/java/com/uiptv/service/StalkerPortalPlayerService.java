@@ -160,6 +160,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             String cmd = root.optString("cmd", null);
             return isBlank(cmd) ? null : cmd;
         } catch (Exception _) {
+            // Invalid create_link payloads should fall back to the original cmd/retry path.
         }
         return null;
     }
@@ -261,6 +262,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             URI resolvedUri = normalizedOriginal.resolve(trimmed);
             return resolvedUri.toString();
         } catch (Exception _) {
+            // Ignore malformed relative URLs and keep the unresolved base as-is.
             return trimmed;
         }
     }
