@@ -96,7 +96,7 @@ public class HttpUtil {
         }
 
         if (body != null) {
-            if (headers == null || headers.keySet().stream().noneMatch(h -> "Content-Type".equalsIgnoreCase(h))) {
+            if (headers == null || headers.keySet().stream().noneMatch("Content-Type"::equalsIgnoreCase)) {
                 request.setHeader("Content-Type", "application/x-www-form-urlencoded");
             }
             request.setEntity(new StringEntity(body));

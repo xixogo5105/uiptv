@@ -28,7 +28,7 @@ public class BaseJson implements Serializable, JsonCompliant {
                 } else {
                     map.put(field.getName(), value);
                 }
-            } catch (IllegalAccessException e) {
+            } catch (IllegalAccessException _) {
                 // This should not happen given field.setAccessible(true)
             }
         }

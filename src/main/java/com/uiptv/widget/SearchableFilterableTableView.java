@@ -36,7 +36,7 @@ public class SearchableFilterableTableView extends TableView<AccountListUI.Accou
         allMenuItem.setSelected(true);
         allMenuItem.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
             if (isUpdating) return;
-            if (isSelected) {
+            if (Boolean.TRUE.equals(isSelected)) {
                 isUpdating = true;
                 typeCheckMenuItems.forEach(item -> item.setSelected(false));
                 isUpdating = false;
@@ -51,7 +51,7 @@ public class SearchableFilterableTableView extends TableView<AccountListUI.Accou
             CheckMenuItem item = new CheckMenuItem(type.getDisplay());
             item.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
                 if (isUpdating) return;
-                if (isSelected) {
+                if (Boolean.TRUE.equals(isSelected)) {
                     isUpdating = true;
                     allMenuItem.setSelected(false);
                     isUpdating = false;

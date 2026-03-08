@@ -404,7 +404,7 @@ public class ImdbMetadataService {
         if (isBlank(value)) {
             return "";
         }
-        String normalized = value.replaceAll("[^0-9]", "");
+        String normalized = value.replaceAll("\\D", "");
         return isBlank(normalized) ? "" : String.valueOf(Integer.parseInt(normalized));
     }
 

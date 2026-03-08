@@ -486,8 +486,8 @@ public class AccountListUI extends HBox {
     }
 
     private Stage resolveOwnerStage() {
-        if (getScene() != null && getScene().getWindow() instanceof Stage) {
-            return (Stage) getScene().getWindow();
+        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
+            return stage;
         }
         return primaryStage;
     }

@@ -175,9 +175,6 @@ public class XtremeParser {
                 }
             } catch (Exception e) {
                 lastIoException = toPlayerApiIOException(e);
-                if (hasMoreCandidates) {
-                    continue;
-                }
             }
         }
         throw lastIoException != null ? lastIoException : new IOException("Failed to call Xtreme API.");

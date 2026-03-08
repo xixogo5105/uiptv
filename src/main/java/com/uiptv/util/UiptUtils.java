@@ -114,7 +114,7 @@ public class UiptUtils {
 
     private static Map<String, String> getQueryMap(String query) {
         String[] params = query.split("&");
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<>();
         for (String param : params) {
             String[] p = param.split("=");
             String name = p[0];
@@ -129,9 +129,7 @@ public class UiptUtils {
     public static String sanitizeStalkerText(String text) {
         if (isBlank(text)) return EMPTY;
         StringBuilder sb = new StringBuilder();
-        text.codePoints().forEach(cp -> {
-            sb.appendCodePoint(mapSpecialCodePoint(cp));
-        });
+        text.codePoints().forEach(cp -> sb.appendCodePoint(mapSpecialCodePoint(cp)));
         return sb.toString();
     }
 
