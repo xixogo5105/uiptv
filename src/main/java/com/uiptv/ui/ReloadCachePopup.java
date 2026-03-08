@@ -842,7 +842,7 @@ public class ReloadCachePopup extends VBox {
             logScrollPane.setVvalue(0);
             return;
         }
-        double vValue = Math.max(0, Math.min(1, targetY / maxScroll));
+        double vValue = Math.clamp(targetY / maxScroll, 0.0, 1.0);
         logScrollPane.setVvalue(vValue);
     }
 

@@ -418,7 +418,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 codec = bestTrack.codecName();
             }
         }
-        String newLabel = String.format("\n%dx%d %s (vlc)", width, height, codec);
+        String newLabel = String.format("%n%dx%d %s (vlc)", width, height, codec);
         if (!newLabel.equals(lastStreamInfoLabel)) {
             lastStreamInfoLabel = newLabel;
             streamInfoText.setText(newLabel);

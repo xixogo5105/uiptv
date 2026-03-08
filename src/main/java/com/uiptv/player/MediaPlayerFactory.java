@@ -30,7 +30,7 @@ public class MediaPlayerFactory {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 com.uiptv.util.AppLog.addLog("VLC found. Using it for embedded player");
-            } catch (Throwable _) {
+            } catch (Exception _) {
                 com.uiptv.util.AppLog.addLog("VLC not found. Using Lite player that plays limited set of videos");
                 instance = new LiteVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.LITE;
@@ -102,12 +102,14 @@ public class MediaPlayerFactory {
                     instance.stop();
                 }
             } catch (Exception _) {
+                // Best-effort shutdown: continue releasing shared state even if player teardown fails.
             }
 
             try {
                 // Clear player container
                 playerHostContainer.getChildren().clear();
             } catch (Exception _) {
+                // Best-effort shutdown: stale JavaFX nodes should not block process exit.
             }
 
             instance = null;

@@ -210,7 +210,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             if (m.getWidth() > 0 && m.getHeight() > 0) {
                 compatibilityFallbackTimer.stop();
             }
-            streamInfoText.setText(String.format("\n%dx%d %s (%s)", m.getWidth(), m.getHeight(), encoding, currentPlaybackModeLabel));
+            streamInfoText.setText(String.format("%n%dx%d %s (%s)", m.getWidth(), m.getHeight(), encoding, currentPlaybackModeLabel));
         });
     }
 

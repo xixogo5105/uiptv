@@ -953,17 +953,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
 
-        if (seekable && hasKnownTotal) {
-            long safeTotal = Math.max(0, totalTimeMs);
-            long behindLive = Math.max(0, safeTotal - safeCurrent);
-            timeLabel.setText(formatTime(safeCurrent) + " / LIVE -" + formatTime(behindLive));
-            timeSlider.setDisable(false);
-            if (!isUserSeeking && safeTotal > 0) {
-                timeSlider.setValue(clamp01((double) safeCurrent / safeTotal));
-            }
-            return;
-        }
-
         timeLabel.setText(formatTime(safeCurrent) + " / LIVE");
         timeSlider.setDisable(true);
         if (!isUserSeeking) {

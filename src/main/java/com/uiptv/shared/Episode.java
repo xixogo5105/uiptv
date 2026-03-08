@@ -97,7 +97,7 @@ public class Episode extends BaseJson {
         if (value instanceof Map<?, ?> nestedMap) {
             return (Map<String, Object>) nestedMap;
         }
-        return null;
+        return Map.of();
     }
 
     private boolean isBlankLike(String value) {

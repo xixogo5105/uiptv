@@ -8,7 +8,6 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
-import javafx.util.Callback;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,20 +29,15 @@ public class CategoryManagementPopup extends VBox {
 
         addButton.setOnAction(event -> addCategory());
         removeButton.setOnAction(event -> removeCategory());
-        categoryListView.setCellFactory(new Callback<ListView<BookmarkItem>, ListCell<BookmarkItem>>() {
+        categoryListView.setCellFactory(listView -> new ListCell<>() {
             @Override
-            public ListCell<BookmarkItem> call(ListView<BookmarkItem> listView) {
-                return new ListCell<BookmarkItem>() {
-                    @Override
-                    protected void updateItem(BookmarkItem item, boolean empty) {
-                        super.updateItem(item, empty);
-                        if (empty || item == null) {
-                            setText(null);
-                        } else {
-                            setText(item.getName());
-                        }
-                    }
-                };
+            protected void updateItem(BookmarkItem item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item.getName());
+                }
             }
         });
         getChildren().addAll(new Label(I18n.tr("autoManageCategories")), categoryListView, categoryNameField, addButton, removeButton);

@@ -24,11 +24,6 @@ public class SystemUtils {
     }
 
     /**
-     * Singleton instance, used mainly for testing.
-     */
-    private static final SystemUtils INSTANCE = new SystemUtils();
-
-    /**
      * Operating system state flag for error.
      */
     private static final int INIT_PROBLEM = -1;
@@ -50,14 +45,6 @@ public class SystemUtils {
      */
     private static final int POSIX_UNIX = 3;
 
-    /**
-     * The operating system flag.
-     */
-    private static final int OS;
-    /**
-     * The path to df
-     */
-    private static final String DF;
     public static boolean IS_OS_WINDOWS;
     public static boolean IS_OS_LINUX;
     public static boolean IS_OS_MAC_OSX;
@@ -101,7 +88,5 @@ public class SystemUtils {
         } catch (final Exception _) {
             os = INIT_PROBLEM;
         }
-        OS = os;
-        DF = dfPath;
     }
 }

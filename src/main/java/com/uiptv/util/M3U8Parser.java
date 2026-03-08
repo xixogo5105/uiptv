@@ -141,18 +141,17 @@ public class M3U8Parser {
 
     private static ParsedEntry parseEntryState(List<String> lines, int startIndex) {
         EntryState state = new EntryState();
-        int index = startIndex - 1;
-        for (index = startIndex; index < lines.size(); index++) {
+        for (int index = startIndex; index < lines.size(); index++) {
             String nextLine = lines.get(index);
             String trimmed = nextLine == null ? EMPTY : nextLine.trim();
             if (trimmed.startsWith(EXTINF)) {
                 return new ParsedEntry(state, index - 1);
             }
             if (applyMetaLine(state, nextLine, trimmed) && state.url != null) {
-                break;
+                return new ParsedEntry(state, index);
             }
         }
-        return new ParsedEntry(state, index);
+        return new ParsedEntry(state, lines.size() - 1);
     }
 
     private static List<String> readLines(BufferedReader reader) throws IOException {

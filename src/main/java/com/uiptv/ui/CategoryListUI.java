@@ -49,7 +49,6 @@ public class CategoryListUI extends HBox {
     private AtomicBoolean currentRequestCancelled;
     private final VBox leftPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
-    private final Runnable onHome;
     private final Label detailTitle = new Label();
     private final VBox detailContent = new VBox();
     private final TabPane modeTabs = new TabPane();
@@ -75,7 +74,6 @@ public class CategoryListUI extends HBox {
     public CategoryListUI(Account account, boolean embeddedMode, Runnable onHome) {
         this.account = account;
         this.embeddedMode = embeddedMode;
-        this.onHome = onHome;
         this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;
         initWidgets();
         refreshCategoryColumnTitle();
