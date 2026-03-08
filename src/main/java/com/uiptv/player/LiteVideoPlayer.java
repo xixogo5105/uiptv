@@ -71,8 +71,14 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                         Media m = mediaPlayer.getMedia();
                         if (m != null) {
                             updateStreamInfo(m);
-                            m.widthProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
-                            m.heightProperty().addListener((obs2, old, newVal) -> updateStreamInfo(m));
+                            m.widthProperty().addListener((obs2, old, newVal) -> {
+                                updateStreamInfo(m);
+                                updateVideoSize();
+                            });
+                            m.heightProperty().addListener((obs2, old, newVal) -> {
+                                updateStreamInfo(m);
+                                updateVideoSize();
+                            });
                         }
                         scheduleCompatibilityFallbackCheck();
                         break;
@@ -268,15 +274,52 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
         double containerWidth = playerContainer.getWidth();
         double containerHeight = playerContainer.getHeight();
+        mediaView.setScaleX(1.0);
+        mediaView.setScaleY(1.0);
 
-        if (aspectRatioMode == 1) { // Stretch to Fill
+        if (aspectRatioMode == ASPECT_RATIO_STRETCH) { // Stretch to Fill
             mediaView.setFitWidth(containerWidth);
             mediaView.setFitHeight(containerHeight);
             mediaView.setPreserveRatio(false);
-        } else { // Default: Fit within (Contain)
+        } else { // Fit or Fill (preserve aspect ratio)
             mediaView.setFitWidth(containerWidth);
             mediaView.setFitHeight(containerHeight);
             mediaView.setPreserveRatio(true);
+            if (aspectRatioMode == ASPECT_RATIO_FILL) {
+                applyFillZoom(containerWidth, containerHeight);
+            }
+        }
+    }
+
+    private void applyFillZoom(double containerWidth, double containerHeight) {
+        if (mediaPlayer == null || mediaPlayer.getMedia() == null) {
+            return;
+        }
+
+        Media media = mediaPlayer.getMedia();
+        double sourceWidth = media.getWidth();
+        double sourceHeight = media.getHeight();
+        if (sourceWidth <= 0 || sourceHeight <= 0 || containerWidth <= 0 || containerHeight <= 0) {
+            return;
+        }
+
+        double sourceRatio = sourceWidth / sourceHeight;
+        double containerRatio = containerWidth / containerHeight;
+        double fittedWidth = containerWidth;
+        double fittedHeight = containerHeight;
+        if (sourceRatio > containerRatio) {
+            fittedHeight = containerWidth / sourceRatio;
+        } else {
+            fittedWidth = containerHeight * sourceRatio;
+        }
+        if (fittedWidth <= 0 || fittedHeight <= 0) {
+            return;
+        }
+
+        double zoom = Math.max(containerWidth / fittedWidth, containerHeight / fittedHeight);
+        if (Double.isFinite(zoom) && zoom > 1.0) {
+            mediaView.setScaleX(zoom);
+            mediaView.setScaleY(zoom);
         }
     }
 

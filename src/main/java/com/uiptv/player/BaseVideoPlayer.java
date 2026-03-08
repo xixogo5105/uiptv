@@ -30,6 +30,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
@@ -59,7 +60,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected int retryCount = 0;
     protected final AtomicBoolean isRetrying = new AtomicBoolean(false);
     protected String currentMediaUri;
-    protected int aspectRatioMode = 0; // 0=Fit (Default), 1=Stretch
+    protected static final int ASPECT_RATIO_FIT = 0;
+    protected static final int ASPECT_RATIO_FILL = 1;
+    protected static final int ASPECT_RATIO_STRETCH = 2;
+    protected int aspectRatioMode = ASPECT_RATIO_FIT; // 0=Fit, 1=Fill (Zoom), 2=Stretch
     protected boolean isUserSeeking = false;
 
     // UI Components
@@ -85,7 +89,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnHideBar;
     protected Button btnTracks;
     protected ContextMenu tracksContextMenu;
-    protected ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioStretchIcon, hideBarIcon;
+    protected ImageView playIcon, pauseIcon, stopIcon, repeatOnIcon, repeatOffIcon, fullscreenIcon, fullscreenExitIcon, muteOnIcon, muteOffIcon, reloadIcon, pipIcon, pipExitIcon, aspectRatioIcon, aspectRatioFillIcon, aspectRatioStretchIcon, hideBarIcon;
 
     // Fullscreen & PiP
     protected Stage fullscreenStage;
@@ -233,6 +237,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerContainer.setFocusTraversable(true);
         playerContainer.setVisible(false);
         playerContainer.setManaged(false);
+        Rectangle playerClip = new Rectangle();
+        playerClip.widthProperty().bind(playerContainer.widthProperty());
+        playerClip.heightProperty().bind(playerContainer.heightProperty());
+        playerContainer.setClip(playerClip);
 
         playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
         playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
@@ -872,7 +880,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected void toggleAspectRatio() {
-        aspectRatioMode = (aspectRatioMode + 1) % 2;
+        aspectRatioMode = (aspectRatioMode + 1) % 3;
         updateAspectRatioButtonState();
         updateVideoSize();
     }
@@ -880,7 +888,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void updateAspectRatioButtonState() {
         String tooltipText;
         ImageView icon;
-        if (aspectRatioMode == 1) {
+        if (aspectRatioMode == ASPECT_RATIO_FILL) {
+            tooltipText = "Fill";
+            icon = aspectRatioFillIcon;
+        } else if (aspectRatioMode == ASPECT_RATIO_STRETCH) {
             tooltipText = "Stretch";
             icon = aspectRatioStretchIcon;
         } else {
@@ -1348,6 +1359,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         pipIcon = createIconView("picture-in-picture.png", true);
         pipExitIcon = createIconView("picture-in-picture-exit.png", false);
         aspectRatioIcon = createIconView("aspect-ratio.png", true);
+        aspectRatioFillIcon = createIconView("aspect-ratio-fill.png", true);
         aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
         hideBarIcon = createIconView("arrow-down.png", true);
     }

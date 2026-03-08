@@ -317,15 +317,20 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
         double containerWidth = playerContainer.getWidth();
         double containerHeight = playerContainer.getHeight();
+        videoImageView.setScaleX(1.0);
+        videoImageView.setScaleY(1.0);
 
-        if (aspectRatioMode == 1) { // Stretch to Fill
+        if (aspectRatioMode == ASPECT_RATIO_STRETCH) { // Stretch to Fill
             videoImageView.setFitWidth(containerWidth);
             videoImageView.setFitHeight(containerHeight);
             videoImageView.setPreserveRatio(false);
-        } else { // Default: Fit within (Contain)
+        } else { // Fit or Fill (preserve aspect ratio)
             videoImageView.setFitWidth(containerWidth);
             videoImageView.setFitHeight(containerHeight);
             videoImageView.setPreserveRatio(true);
+            if (aspectRatioMode == ASPECT_RATIO_FILL) {
+                applyFillZoom(containerWidth, containerHeight);
+            }
         }
 
         EmbeddedMediaPlayer player;
@@ -342,8 +347,42 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 }
             }
         }
+        if (aspectRatioMode == ASPECT_RATIO_FILL) {
+            applyFillZoom(containerWidth, containerHeight);
+        }
         if (!refreshRenderedImageStreamInfo() && videoSourceWidth > 0 && videoSourceHeight > 0) {
             updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        }
+    }
+
+    private void applyFillZoom(double containerWidth, double containerHeight) {
+        if (containerWidth <= 0 || containerHeight <= 0) {
+            return;
+        }
+        if (videoSourceWidth <= 0 || videoSourceHeight <= 0) {
+            captureRenderedImageDimensions();
+        }
+        if (videoSourceWidth <= 0 || videoSourceHeight <= 0) {
+            return;
+        }
+
+        double sourceRatio = (double) videoSourceWidth / videoSourceHeight;
+        double containerRatio = containerWidth / containerHeight;
+        double fittedWidth = containerWidth;
+        double fittedHeight = containerHeight;
+        if (sourceRatio > containerRatio) {
+            fittedHeight = containerWidth / sourceRatio;
+        } else {
+            fittedWidth = containerHeight * sourceRatio;
+        }
+        if (fittedWidth <= 0 || fittedHeight <= 0) {
+            return;
+        }
+
+        double zoom = Math.max(containerWidth / fittedWidth, containerHeight / fittedHeight);
+        if (Double.isFinite(zoom) && zoom > 1.0) {
+            videoImageView.setScaleX(zoom);
+            videoImageView.setScaleY(zoom);
         }
     }
 
@@ -384,6 +423,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void onRenderedImageChanged(Image image) {
         if (captureRenderedImageDimensions(image)) {
             updateStreamInfo(videoSourceWidth, videoSourceHeight);
+            if (aspectRatioMode == ASPECT_RATIO_FILL) {
+                updateVideoSize();
+            }
         }
     }
 

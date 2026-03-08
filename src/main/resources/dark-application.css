@@ -481,6 +481,7 @@
 
 .player-hiddenbar-message-label {
     -fx-font-size: 1.385em;
+    -fx-text-fill: white;
 }
 
 .player-round-control-button {
