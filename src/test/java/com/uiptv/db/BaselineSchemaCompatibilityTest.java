@@ -63,6 +63,26 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         AccountService accountService = AccountService.getInstance();
         BookmarkService bookmarkService = BookmarkService.getInstance();
 
+        Configuration savedConfiguration = saveAndReadConfiguration(configurationService);
+        assertConfigurationPersistence(savedConfiguration);
+
+        ThemeCssOverride savedOverride = saveAndReadThemeOverride(themeCssOverrideService);
+        assertThemeOverridePersistence(savedOverride);
+
+        Account savedAccount = saveAndReadAccount(accountService);
+        assertAccountPersistence(savedAccount);
+
+        List<Category> liveCategories = saveAndReadLiveCategories(savedAccount);
+        Channel liveChannel = saveAndReadLiveChannel(savedAccount, liveCategories);
+        assertLiveChannelPersistence(liveCategories, liveChannel);
+
+        assertBookmarkPersistence(bookmarkService, savedAccount, liveCategories, liveChannel);
+        assertBookmarkCategoryPersistence(bookmarkService);
+        assertVodPersistence(accountService, savedAccount);
+        assertSeriesPersistence(accountService, savedAccount);
+    }
+
+    private Configuration saveAndReadConfiguration(ConfigurationService configurationService) {
         Configuration configuration = new Configuration(
                 "player-1",
                 "player-2",
@@ -83,13 +103,17 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         configuration.setTmdbReadAccessToken("tmdb-token");
         configuration.setUiZoomPercent("125");
         configurationService.save(configuration);
+        return configurationService.read();
+    }
 
-        Configuration savedConfiguration = configurationService.read();
+    private void assertConfigurationPersistence(Configuration savedConfiguration) {
         assertEquals("player-1", savedConfiguration.getPlayerPath1());
         assertEquals("8899", savedConfiguration.getServerPort());
         assertEquals("125", savedConfiguration.getUiZoomPercent());
         assertTrue(savedConfiguration.isWideView());
+    }
 
+    private ThemeCssOverride saveAndReadThemeOverride(ThemeCssOverrideService themeCssOverrideService) {
         ThemeCssOverride override = new ThemeCssOverride();
         override.setLightThemeCssName("light.css");
         override.setLightThemeCssContent(".root { -fx-font-size: 14px; }");
@@ -97,11 +121,15 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         override.setDarkThemeCssContent(".root { -fx-font-size: 15px; }");
         override.setUpdatedAt("123456");
         themeCssOverrideService.save(override);
+        return themeCssOverrideService.read();
+    }
 
-        ThemeCssOverride savedOverride = themeCssOverrideService.read();
+    private void assertThemeOverridePersistence(ThemeCssOverride savedOverride) {
         assertEquals("light.css", savedOverride.getLightThemeCssName());
         assertEquals("dark.css", savedOverride.getDarkThemeCssName());
+    }
 
+    private Account saveAndReadAccount(AccountService accountService) {
         Account account = new Account(
                 "BaselineAccount",
                 "user",
@@ -121,17 +149,22 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         account.setHttpMethod("POST");
         account.setTimezone("America/New_York");
         accountService.save(account);
+        return accountService.getByName("BaselineAccount");
+    }
 
-        Account savedAccount = accountService.getByName("BaselineAccount");
+    private void assertAccountPersistence(Account savedAccount) {
         assertNotNull(savedAccount);
         assertEquals("POST", savedAccount.getHttpMethod());
         assertEquals("America/New_York", savedAccount.getTimezone());
+    }
 
+    private List<Category> saveAndReadLiveCategories(Account savedAccount) {
         Category liveCategory = new Category("live-cat", "Live Category", "live", true, 0);
         CategoryDb.get().saveAll(List.of(liveCategory), savedAccount);
-        List<Category> liveCategories = CategoryDb.get().getCategories(savedAccount);
-        assertEquals(1, liveCategories.size());
+        return CategoryDb.get().getCategories(savedAccount);
+    }
 
+    private Channel saveAndReadLiveChannel(Account savedAccount, List<Category> liveCategories) {
         Channel liveChannel = new Channel(
                 "live-1",
                 "Live One",
@@ -151,10 +184,16 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
                 "hls"
         );
         ChannelDb.get().saveAll(List.of(liveChannel), liveCategories.get(0).getDbId(), savedAccount);
-        List<Channel> liveChannels = ChannelDb.get().getChannels(liveCategories.get(0).getDbId());
-        assertEquals(1, liveChannels.size());
-        assertEquals("widevine", liveChannels.get(0).getDrmType());
+        return ChannelDb.get().getChannels(liveCategories.get(0).getDbId()).get(0);
+    }
 
+    private void assertLiveChannelPersistence(List<Category> liveCategories, Channel liveChannel) {
+        assertEquals(1, liveCategories.size());
+        assertEquals("widevine", liveChannel.getDrmType());
+    }
+
+    private void assertBookmarkPersistence(BookmarkService bookmarkService, Account savedAccount,
+                                           List<Category> liveCategories, Channel liveChannel) {
         Bookmark bookmark = new Bookmark(
                 savedAccount.getAccountName(),
                 liveCategories.get(0).getTitle(),
@@ -174,12 +213,16 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         List<Bookmark> bookmarks = bookmarkService.read();
         assertEquals(1, bookmarks.size());
         assertFalse(bookmarkService.getBookmarksByCategory(liveCategories.get(0).getCategoryId()).isEmpty());
+    }
 
+    private void assertBookmarkCategoryPersistence(BookmarkService bookmarkService) {
         BookmarkCategory bookmarkCategory = new BookmarkCategory(null, "Pinned");
         bookmarkService.addCategory(bookmarkCategory);
         assertTrue(bookmarkService.getAllCategories().stream().anyMatch(item -> "Pinned".equals(item.getName())));
+    }
 
-        Account vodAccount = accountService.getByName("BaselineAccount");
+    private void assertVodPersistence(AccountService accountService, Account savedAccount) {
+        Account vodAccount = accountService.getByName(savedAccount.getAccountName());
         vodAccount.setAction(vod);
         Category vodCategory = new Category("vod-cat", "Vod Category", "vod", false, 0);
         vodCategory.setExtraJson("{\"kind\":\"vod\"}");
@@ -210,8 +253,10 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         List<Channel> vodChannels = VodChannelDb.get().getChannels(vodAccount, vodCategories.get(0).getCategoryId());
         assertEquals(1, vodChannels.size());
         assertEquals("{\"rating\":\"5\"}", vodChannels.get(0).getExtraJson());
+    }
 
-        Account seriesAccount = accountService.getByName("BaselineAccount");
+    private void assertSeriesPersistence(AccountService accountService, Account savedAccount) {
+        Account seriesAccount = accountService.getByName(savedAccount.getAccountName());
         seriesAccount.setAction(series);
         Category seriesCategory = new Category("series-cat", "Series Category", "series", false, 0);
         seriesCategory.setExtraJson("{\"kind\":\"series\"}");

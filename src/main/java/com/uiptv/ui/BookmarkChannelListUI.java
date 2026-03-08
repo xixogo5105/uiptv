@@ -528,9 +528,10 @@ public class BookmarkChannelListUI extends HBox {
             mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), channelByAccountAndChannel));
         }
 
-        Account.AccountAction accountAction = bookmark.getAccountAction() != null
-                ? bookmark.getAccountAction()
-                : (account != null ? account.getAction() : Account.AccountAction.itv);
+        Account.AccountAction accountAction = bookmark.getAccountAction();
+        if (accountAction == null) {
+            accountAction = account != null ? account.getAction() : Account.AccountAction.itv;
+        }
         return new BookmarkItem(
                 new SimpleStringProperty(bookmark.getDbId()),
                 new SimpleStringProperty(bookmark.getChannelName()),

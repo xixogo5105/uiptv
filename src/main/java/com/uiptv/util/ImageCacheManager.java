@@ -160,32 +160,46 @@ public class ImageCacheManager {
 
     private static Image fetchImageWithFallback(String url, String cacheKey, String caller) {
         List<String> candidates = buildImageCandidates(url);
+        int lastIndex = candidates.size() - 1;
 
-        for (String candidate : candidates) {
-            try {
-                ImagePayload payload = fetchSingleImage(candidate);
-                if (payload != null && payload.image != null) {
-                    IMAGE_CACHE.put(cacheKey, payload.image);
-                    persistImageToDisk(cacheKey, caller, payload.bytes);
-                    NEGATIVE_CACHE_UNTIL.remove(cacheKey);
-                    return payload.image;
-                }
-            } catch (HttpStatusException e) {
-                handleImageHttpStatus(candidate, cacheKey, e, candidate.equals(candidates.get(candidates.size() - 1)));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                if (candidate.equals(candidates.get(candidates.size() - 1))) {
-                    NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
-                }
-                return null;
-            } catch (Exception _) {
-                // Fall through to the next candidate URL before negative-caching the final failure.
-                if (candidate.equals(candidates.get(candidates.size() - 1))) {
-                    NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
-                }
+        for (int i = 0; i < candidates.size(); i++) {
+            String candidate = candidates.get(i);
+            Image image = tryFetchCandidateImage(candidate, cacheKey, caller, i == lastIndex);
+            if (image != null || Thread.currentThread().isInterrupted()) {
+                return image;
             }
         }
         return null;
+    }
+
+    private static Image tryFetchCandidateImage(String candidate, String cacheKey, String caller, boolean lastCandidate) {
+        try {
+            ImagePayload payload = fetchSingleImage(candidate);
+            if (payload == null || payload.image == null) {
+                return null;
+            }
+            IMAGE_CACHE.put(cacheKey, payload.image);
+            persistImageToDisk(cacheKey, caller, payload.bytes);
+            NEGATIVE_CACHE_UNTIL.remove(cacheKey);
+            return payload.image;
+        } catch (HttpStatusException e) {
+            handleImageHttpStatus(candidate, cacheKey, e, lastCandidate);
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            negativeCacheIfFinalFailure(cacheKey, lastCandidate);
+            return null;
+        } catch (Exception _) {
+            // Fall through to the next candidate URL before negative-caching the final failure.
+            negativeCacheIfFinalFailure(cacheKey, lastCandidate);
+            return null;
+        }
+    }
+
+    private static void negativeCacheIfFinalFailure(String cacheKey, boolean lastCandidate) {
+        if (lastCandidate) {
+            NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
+        }
     }
 
     private static List<String> buildImageCandidates(String url) {

@@ -493,9 +493,14 @@ public class ReloadCachePopup extends VBox {
     }
 
     private AccountRunStatus finalAccountRunStatus(SummaryStatus summaryStatus, int availableChannelCount, boolean failed) {
-        AccountRunStatus badStatus = availableChannelCount > 0
-                ? AccountRunStatus.YELLOW
-                : (failed ? AccountRunStatus.FAILED : AccountRunStatus.EMPTY);
+        AccountRunStatus badStatus;
+        if (availableChannelCount > 0) {
+            badStatus = AccountRunStatus.YELLOW;
+        } else if (failed) {
+            badStatus = AccountRunStatus.FAILED;
+        } else {
+            badStatus = AccountRunStatus.EMPTY;
+        }
         return switch (summaryStatus.level) {
             case GOOD -> AccountRunStatus.DONE;
             case YELLOW -> AccountRunStatus.YELLOW;

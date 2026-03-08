@@ -340,10 +340,9 @@ public class SeriesWatchStateService {
 
         String watchedSeason = stripToDigits(watchedState.getSeason());
         String candidateSeason = stripToDigits(normalizeSeason(season, episodeName));
-        if (!isBlank(watchedSeason)) {
-            if (isBlank(candidateSeason) || !watchedSeason.equals(candidateSeason)) {
-                return false;
-            }
+        if (!isBlank(watchedSeason)
+                && (isBlank(candidateSeason) || !watchedSeason.equals(candidateSeason))) {
+            return false;
         }
 
         String watchedEpisodeNum = watchedState.getEpisodeNum() > 0
@@ -351,10 +350,9 @@ public class SeriesWatchStateService {
                 : "";
         String candidateEpisodeNum = stripToDigits(
                 !isBlank(episodeNum) ? episodeNum : String.valueOf(parseEpisodeNum("", episodeName)));
-        if (!isBlank(watchedEpisodeNum)) {
-            if (isBlank(candidateEpisodeNum) || !watchedEpisodeNum.equals(candidateEpisodeNum)) {
-                return false;
-            }
+        if (!isBlank(watchedEpisodeNum)
+                && (isBlank(candidateEpisodeNum) || !watchedEpisodeNum.equals(candidateEpisodeNum))) {
+            return false;
         }
         return true;
     }
@@ -444,9 +442,7 @@ public class SeriesWatchStateService {
         }
         Matcher seasonMatcher = SEASON_PATTERN.matcher(title);
         if (seasonMatcher.find()) {
-            String parsed = !isBlank(seasonMatcher.group(1))
-                    ? seasonMatcher.group(1)
-                    : (!isBlank(seasonMatcher.group(2)) ? seasonMatcher.group(2) : seasonMatcher.group(3));
+            String parsed = firstNonBlank(seasonMatcher.group(1), seasonMatcher.group(2), seasonMatcher.group(3));
             if (!isBlank(parsed)) {
                 return String.valueOf(Integer.parseInt(parsed));
             }

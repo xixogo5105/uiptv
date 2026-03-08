@@ -2,13 +2,18 @@ package com.uiptv.util;
 
 import java.text.Normalizer;
 import java.util.List;
+import java.util.Locale;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
 public final class EpisodeTitleFormatter {
-    private static final String GENERIC_EPISODE_SUFFIX = "\\s*[: -]?\\s*$";
-    private static final String ORDINAL_URDU = "(?:pehl[ai]|doosr[ai]|teesr[ai]|chauth[ai]|paanch(?:va|vi|wa|wi)|chh(?:a|i)t[ai]|saat(?:va|vi)|aath(?:va|vi)|nau(?:va|vi)|das(?:va|vi))";
-    private static final String EPISODE_WORD = "(?:qist|kist|episode|ep|kadi)";
+    private static final List<String> ORDINAL_URDU_PREFIXES = List.of(
+            "pehla", "pehli", "doosra", "doosri", "teesra", "teesri",
+            "chautha", "chauthi", "paanchva", "paanchvi", "paanchwa", "paanchwi",
+            "chhata", "chhati", "saatva", "saatvi", "aathva", "aathvi",
+            "nauva", "nauvi", "dasva", "dasvi"
+    );
+    private static final List<String> EPISODE_WORDS = List.of("qist", "kist", "episode", "ep", "kadi");
 
     private EpisodeTitleFormatter() {
     }
@@ -29,11 +34,10 @@ public final class EpisodeTitleFormatter {
         if (isBlank(value)) {
             return true;
         }
-        return value.matches("(?i)^episode\\s*\\d+" + GENERIC_EPISODE_SUFFIX)
-                || value.matches("(?i)^ep\\.?\\s*\\d+" + GENERIC_EPISODE_SUFFIX)
-                || value.matches("(?i)^e\\d+" + GENERIC_EPISODE_SUFFIX)
-                || value.matches("(?i)^" + ORDINAL_URDU + "\\s+season\\s+" + EPISODE_WORD + "\\s*\\d+\\s*$")
-                || value.matches("(?i)^season\\s*\\d+\\s+" + EPISODE_WORD + "\\s*\\d+\\s*$");
+        String normalized = normalizeAsciiWords(value);
+        return matchesSimpleEpisodeNumber(normalized)
+                || matchesOrdinalSeasonEpisode(normalized)
+                || matchesSeasonEpisode(normalized);
     }
 
     static String stripGenericEpisodeTitle(String season, String episodeNumber, String title) {
@@ -108,5 +112,49 @@ public final class EpisodeTitleFormatter {
 
     private static String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String normalizeAsciiWords(String value) {
+        return normalizeDigitsToAscii(safe(value))
+                .toLowerCase(Locale.ROOT)
+                .replace('.', ' ')
+                .replace(':', ' ')
+                .replace('-', ' ')
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    private static boolean matchesSimpleEpisodeNumber(String value) {
+        if (value.matches("^episode\\s+\\d+$")) {
+            return true;
+        }
+        if (value.matches("^ep\\s+\\d+$")) {
+            return true;
+        }
+        return value.matches("^e\\d+$");
+    }
+
+    private static boolean matchesOrdinalSeasonEpisode(String value) {
+        String[] parts = value.split(" ");
+        if (parts.length != 4 || !"season".equals(parts[1]) || !isEpisodeWord(parts[2])) {
+            return false;
+        }
+        return ORDINAL_URDU_PREFIXES.contains(parts[0]) && isDigits(parts[3]);
+    }
+
+    private static boolean matchesSeasonEpisode(String value) {
+        String[] parts = value.split(" ");
+        if (parts.length != 4 || !"season".equals(parts[0]) || !isEpisodeWord(parts[2])) {
+            return false;
+        }
+        return isDigits(parts[1]) && isDigits(parts[3]);
+    }
+
+    private static boolean isEpisodeWord(String value) {
+        return EPISODE_WORDS.contains(value);
+    }
+
+    private static boolean isDigits(String value) {
+        return !isBlank(value) && value.chars().allMatch(Character::isDigit);
     }
 }

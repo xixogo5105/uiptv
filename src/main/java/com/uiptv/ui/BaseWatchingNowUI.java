@@ -705,40 +705,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         return name + " [" + data.account.getAccountName() + "]";
     }
 
-    private HBox createSeriesHeader(SeriesPanelData data) {
-        HBox root = new HBox(12);
-        root.setAlignment(Pos.TOP_LEFT);
-
-        ImageView cover = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString(KEY_COVER, ""), 140, 200, WATCHING_NOW_CACHE);
-        data.seriesPosterNode = cover;
-
-        VBox details = new VBox(4);
-        details.setMaxWidth(Double.MAX_VALUE);
-        data.titleNode = new Label(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
-        data.titleNode.getStyleClass().add(STRONG_LABEL);
-        data.titleNode.setWrapText(true);
-        data.titleNode.setMaxWidth(Double.MAX_VALUE);
-        details.getChildren().add(data.titleNode);
-
-        data.ratingNode = new Label();
-        data.genreNode = new Label();
-        data.releaseNode = new Label();
-        data.plotNode = new Label();
-        data.plotNode.setWrapText(true);
-        data.plotNode.setMaxWidth(Double.MAX_VALUE);
-        data.plotNode.setMinHeight(Region.USE_PREF_SIZE);
-        details.setMaxHeight(Double.MAX_VALUE);
-        VBox.setVgrow(data.plotNode, Priority.ALWAYS);
-        data.plotNode.prefWidthProperty().bind(details.widthProperty().subtract(6));
-        data.titleNode.prefWidthProperty().bind(details.widthProperty().subtract(6));
-
-        applySeasonInfoToHeader(data);
-        root.setMaxHeight(Double.MAX_VALUE);
-        root.getChildren().addAll(cover, details);
-        HBox.setHgrow(details, Priority.ALWAYS);
-        return root;
-    }
-
     private void applySeasonInfoToHeader(SeriesPanelData data) {
         VBox details = (VBox) data.titleNode.getParent();
         clearSeasonHeaderDetails(details, data);
@@ -810,17 +776,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             data.reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal(data));
         }
         return data.reloadEpisodesButton;
-    }
-
-    private TabPane createSeasonTabs(SeriesPanelData data) {
-        TabPane tabPane = new TabPane();
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setMaxWidth(Double.MAX_VALUE);
-        tabPane.setMaxHeight(Double.MAX_VALUE);
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
-        populateSeasonTabs(tabPane, data);
-        data.seasonTabs = tabPane;
-        return tabPane;
     }
 
     private void populateSeasonTabs(TabPane tabPane, SeriesPanelData data) {

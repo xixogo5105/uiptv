@@ -146,43 +146,32 @@ class I18nTest {
 
     @Test
     void seasonAndEpisodeLabelsUseOrdinalWordsForSupportedLanguages() {
-        I18n.setLocale("ur-PK");
-        assertEquals("پہلا سیزن", I18n.formatSeasonLabel("1"));
-        assertEquals("پہلی قسط", I18n.formatEpisodeLabel("1"));
-        assertEquals("گیارہواں سیزن", I18n.formatSeasonLabel("11"));
-        assertEquals("گیارہویں قسط", I18n.formatEpisodeLabel("11"));
-        assertEquals("پچاسواں سیزن", I18n.formatSeasonLabel("50"));
-        assertEquals("پچاسویں قسط", I18n.formatEpisodeLabel("50"));
-        assertEquals("ایک", I18n.formatTabNumberLabel("1"));
-        assertEquals("دو", I18n.formatTabNumberLabel("2"));
-        assertEquals("پچاس", I18n.formatTabNumberLabel("50"));
+        assertOrdinalLabels("ur-PK", "پہلا سیزن", "پہلی قسط", "گیارہواں سیزن", "گیارہویں قسط", "پچاسواں سیزن", "پچاسویں قسط", "ایک", "دو", "پچاس");
+        assertOrdinalLabels("hi-IN", "पहला सीज़न", "पहली कड़ी", "ग्यारहवाँ सीज़न", "ग्यारहवीं कड़ी", "पचासवाँ सीज़न", "पचासवीं कड़ी", "एक", "दो", "पचास");
+        assertOrdinalLabels("ar-SA", "الموسم الأول", "الحلقة الأولى", "الموسم الحادي عشر", "الحلقة الحادية عشرة", "الموسم الخمسون", "الحلقة الخمسون", "واحد", "اثنان", "خمسون");
+        assertOrdinalLabels("en-US", "Season 1", "Episode 1", "Season 11", "Episode 11", "Season 50", "Episode 50", "1", "2", "50");
+    }
 
-        I18n.setLocale("hi-IN");
-        assertEquals("पहला सीज़न", I18n.formatSeasonLabel("1"));
-        assertEquals("पहली कड़ी", I18n.formatEpisodeLabel("1"));
-        assertEquals("ग्यारहवाँ सीज़न", I18n.formatSeasonLabel("11"));
-        assertEquals("ग्यारहवीं कड़ी", I18n.formatEpisodeLabel("11"));
-        assertEquals("पचासवाँ सीज़न", I18n.formatSeasonLabel("50"));
-        assertEquals("पचासवीं कड़ी", I18n.formatEpisodeLabel("50"));
-        assertEquals("एक", I18n.formatTabNumberLabel("1"));
-        assertEquals("दो", I18n.formatTabNumberLabel("2"));
-        assertEquals("पचास", I18n.formatTabNumberLabel("50"));
-
-        I18n.setLocale("ar-SA");
-        assertEquals("الموسم الأول", I18n.formatSeasonLabel("1"));
-        assertEquals("الحلقة الأولى", I18n.formatEpisodeLabel("1"));
-        assertEquals("الموسم الحادي عشر", I18n.formatSeasonLabel("11"));
-        assertEquals("الحلقة الحادية عشرة", I18n.formatEpisodeLabel("11"));
-        assertEquals("الموسم الخمسون", I18n.formatSeasonLabel("50"));
-        assertEquals("الحلقة الخمسون", I18n.formatEpisodeLabel("50"));
-        assertEquals("واحد", I18n.formatTabNumberLabel("1"));
-        assertEquals("اثنان", I18n.formatTabNumberLabel("2"));
-        assertEquals("خمسون", I18n.formatTabNumberLabel("50"));
-
-        I18n.setLocale("en-US");
-        assertEquals("Season 1", I18n.formatSeasonLabel("1"));
-        assertEquals("Episode 1", I18n.formatEpisodeLabel("1"));
-        assertEquals("1", I18n.formatTabNumberLabel("1"));
+    private void assertOrdinalLabels(String localeTag,
+                                     String season1,
+                                     String episode1,
+                                     String season11,
+                                     String episode11,
+                                     String season50,
+                                     String episode50,
+                                     String tab1,
+                                     String tab2,
+                                     String tab50) {
+        I18n.setLocale(localeTag);
+        assertEquals(season1, I18n.formatSeasonLabel("1"));
+        assertEquals(episode1, I18n.formatEpisodeLabel("1"));
+        assertEquals(season11, I18n.formatSeasonLabel("11"));
+        assertEquals(episode11, I18n.formatEpisodeLabel("11"));
+        assertEquals(season50, I18n.formatSeasonLabel("50"));
+        assertEquals(episode50, I18n.formatEpisodeLabel("50"));
+        assertEquals(tab1, I18n.formatTabNumberLabel("1"));
+        assertEquals(tab2, I18n.formatTabNumberLabel("2"));
+        assertEquals(tab50, I18n.formatTabNumberLabel("50"));
     }
 
     private Properties loadBundle(String fileName) throws IOException {

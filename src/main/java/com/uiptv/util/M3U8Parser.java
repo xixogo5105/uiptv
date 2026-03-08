@@ -82,22 +82,11 @@ public class M3U8Parser {
         try {
             String line;
             while ((line = reader.readLine()) != null) {
-                try {
-                    if (!line.startsWith(EXTINF)) {
-                        continue;
-                    }
-                    String groupTitle = parseItem(line, "group-title=\"");
-                    hasUncategorizedEntries |= shouldTreatAsUncategorized(groupTitle);
-                    PlaylistEntry categoryEntry = buildCategoryEntry(line, groupTitle);
-                    if (categoryEntry != null) {
-                        playlistEntries.add(categoryEntry);
-                    }
-                    String mediaUrl = reader.readLine();
-                    if (mediaUrl == null) {
-                        break;
-                    }
-                } catch (Exception e) {
-                    UIptvAlert.showError(e.getMessage());
+                if (!line.startsWith(EXTINF)) {
+                    continue;
+                }
+                if (processCategoryLineSafely(reader, playlistEntries, line)) {
+                    hasUncategorizedEntries = true;
                 }
             }
         } catch (Exception e) {
@@ -110,7 +99,28 @@ public class M3U8Parser {
         return playlistEntries;
     }
 
-    @SuppressWarnings("java:S1141")
+    private static boolean processCategoryLineSafely(BufferedReader reader, Set<PlaylistEntry> playlistEntries, String line) {
+        try {
+            return processCategoryLine(reader, playlistEntries, line);
+        } catch (IOException e) {
+            UIptvAlert.showError(e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean processCategoryLine(BufferedReader reader, Set<PlaylistEntry> playlistEntries, String line) throws IOException {
+        String groupTitle = parseItem(line, "group-title=\"");
+        boolean uncategorized = shouldTreatAsUncategorized(groupTitle);
+        PlaylistEntry categoryEntry = buildCategoryEntry(line, groupTitle);
+        if (categoryEntry != null) {
+            playlistEntries.add(categoryEntry);
+        }
+        String mediaUrl = reader.readLine();
+        if (mediaUrl == null) {
+            throw new IOException("Unexpected end of playlist after category entry");
+        }
+        return uncategorized;
+    }
     private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
