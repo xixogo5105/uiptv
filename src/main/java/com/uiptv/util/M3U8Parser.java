@@ -95,7 +95,8 @@ public class M3U8Parser {
                     if (categoryEntry != null) {
                         playlistEntries.add(categoryEntry);
                     }
-                    if (reader.readLine() == null) {
+                    String mediaUrl = reader.readLine();
+                    if (mediaUrl == null) {
                         break;
                     }
                 } catch (Exception e) {
