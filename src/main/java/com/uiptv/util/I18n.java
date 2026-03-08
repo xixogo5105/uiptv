@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 public final class I18n {
     public static final String DEFAULT_LANGUAGE_TAG = "en-US";
     private static final String BUNDLE_BASE_NAME = "i18n.messages";
+    private static final String ARIAL_UNICODE_MS = "Arial Unicode MS";
     private static final Set<String> RTL_LANGUAGE_CODES = Set.of(
             "ar", // Arabic
             "fa", // Persian
@@ -43,7 +44,7 @@ public final class I18n {
     );
 
     private static final List<SupportedLanguage> SUPPORTED_LANGUAGES = List.of(
-            new SupportedLanguage("en-US", "English (United States)"),
+            new SupportedLanguage(DEFAULT_LANGUAGE_TAG, "English (United States)"),
             new SupportedLanguage("en-GB", "English (United Kingdom)"),
             new SupportedLanguage("es-ES", "Español"),
             new SupportedLanguage("fr-FR", "Français"),
@@ -411,14 +412,14 @@ public final class I18n {
                     "ITF Devanagari Marathi",
                     "Shree Devanagari 714",
                     "Noto Sans Devanagari",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             case "bn" -> firstAvailableFontFamily(
                     "Bangla Sangam MN",
                     "Bangla MN",
                     "Kohinoor Bangla",
                     "Noto Sans Bengali",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             case "ur" -> firstAvailableFontFamily(
                     "Noto Nastaliq Urdu UI",
@@ -429,33 +430,33 @@ public final class I18n {
                     "Geeza Pro Interface",
                     "Noto Naskh Arabic UI",
                     "Noto Sans Arabic UI",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             case "pa" -> firstAvailableFontFamily(
                     "Gurmukhi Sangam MN",
                     "Gurmukhi MN",
                     "Raavi",
                     "Noto Sans Gurmukhi",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             case "ta" -> firstAvailableFontFamily(
                     "Tamil Sangam MN",
                     "Tamil MN",
                     "Noto Sans Tamil",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             case "te" -> firstAvailableFontFamily(
                     "Kohinoor Telugu",
                     "Telugu Sangam MN",
                     "Telugu MN",
                     "Noto Sans Telugu",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             case "ml" -> firstAvailableFontFamily(
                     "Malayalam Sangam MN",
                     "Malayalam MN",
                     "Noto Sans Malayalam",
-                    "Arial Unicode MS"
+                    ARIAL_UNICODE_MS
             );
             default -> "";
         };

@@ -25,6 +25,9 @@ public class M3U8Parser {
     private static final String KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type=";
     private static final String KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key=";
     private static final String COMMENT_PREFIX = "#";
+    private static final String UNCATEGORIZED = "Uncategorized";
+    private static final String DRM_TYPE_WIDEVINE = "com.widevine.alpha";
+    private static final String DRM_TYPE_CLEARKEY = "org.w3.clearkey";
 
     private M3U8Parser() {
     }
@@ -92,7 +95,7 @@ public class M3U8Parser {
                                     null,
                                     null,
                                     null));
-                            if (groupTitle.equalsIgnoreCase("Uncategorized")) {
+                            if (groupTitle.equalsIgnoreCase(UNCATEGORIZED)) {
                                 hasUncategorizedEntries = true;
                             }
                         } else {
@@ -112,8 +115,8 @@ public class M3U8Parser {
             UIptvAlert.showError(e.getMessage());
         }
         if (hasUncategorizedEntries
-                && playlistEntries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase("Uncategorized"))) {
-            playlistEntries.add(new PlaylistEntry("Uncategorized", "Uncategorized", null, null, null));
+                && playlistEntries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase(UNCATEGORIZED))) {
+            playlistEntries.add(new PlaylistEntry(UNCATEGORIZED, UNCATEGORIZED, null, null, null));
         }
         return playlistEntries;
     }
@@ -160,16 +163,16 @@ public class M3U8Parser {
                         manifestType = nextLine.substring(KODIPROP_MANIFEST_TYPE.length()).trim();
                     } else if (nextLine.startsWith(KODIPROP_LICENSE_TYPE)) {
                         String type = nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim();
-                        if ("com.widevine.alpha".equalsIgnoreCase(type)) {
-                            drmType = "com.widevine.alpha";
+                        if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(type)) {
+                            drmType = DRM_TYPE_WIDEVINE;
                         } else if ("clearkey".equalsIgnoreCase(type)
-                                || "org.w3.clearkey".equalsIgnoreCase(type)
+                                || DRM_TYPE_CLEARKEY.equalsIgnoreCase(type)
                                 || "com.clearkey.alpha".equalsIgnoreCase(type)) {
-                            drmType = "org.w3.clearkey";
+                            drmType = DRM_TYPE_CLEARKEY;
                         }
                     } else if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
                         String key = nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim();
-                        if ("org.w3.clearkey".equalsIgnoreCase(drmType)) {
+                        if (DRM_TYPE_CLEARKEY.equalsIgnoreCase(drmType)) {
                             if (clearKeys == null) clearKeys = new HashMap<>();
                             clearKeys.putAll(parseClearKeys(key));
                         } else {
@@ -215,8 +218,8 @@ public class M3U8Parser {
         Matcher matcher = pattern.matcher(line);
         if (matcher.find()) {
             String keyFormat = matcher.group(1);
-            if ("com.widevine.alpha".equalsIgnoreCase(keyFormat)) {
-                return "com.widevine.alpha";
+            if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(keyFormat)) {
+                return DRM_TYPE_WIDEVINE;
             }
         }
         return null;

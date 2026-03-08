@@ -224,8 +224,10 @@ public class StringUtils {
                 return account.getM3u8Path() + "movie/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + extension;
             case series:
                 return account.getM3u8Path() + "series/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + extension;
+            case itv:
+            default:
+                return account.getM3u8Path() + account.getUsername() + "/" + account.getPassword() + "/" + streamId;
         }
-        return account.getM3u8Path() + account.getUsername() + "/" + account.getPassword() + "/" + streamId;
     }
 
     public static <T extends JsonCompliant> String toJson(T t) {

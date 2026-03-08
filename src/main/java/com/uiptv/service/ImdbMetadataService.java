@@ -25,6 +25,14 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class ImdbMetadataService {
     private static final ImdbMetadataService INSTANCE = new ImdbMetadataService();
     private static final String TMDB_BASE_URL = "https://api.themoviedb.org/3";
+    private static final String IMDB_TITLE_URL_PREFIX = "https://www.imdb.com/title/";
+    private static final String KEY_COVER = "cover";
+    private static final String KEY_DIRECTOR = "director";
+    private static final String KEY_GENRE = "genre";
+    private static final String KEY_IMDB_URL = "imdbUrl";
+    private static final String KEY_RATING = "rating";
+    private static final String KEY_RELEASE_DATE = "releaseDate";
+    private static final String KEY_EPISODES_META = "episodesMeta";
 
     public static ImdbMetadataService getInstance() {
         return INSTANCE;
@@ -76,48 +84,48 @@ public class ImdbMetadataService {
         }
 
         details.put("tmdb", imdbId); // keep frontend field compatibility
-        details.put("imdbUrl", "https://www.imdb.com/title/" + imdbId + "/");
+        details.put(KEY_IMDB_URL, IMDB_TITLE_URL_PREFIX + imdbId + "/");
 
         // IMDb suggestion endpoint still returns useful metadata even when title pages are WAF blocked.
         mergeIfPresent(details, candidate, "name");
-        mergeIfPresent(details, candidate, "cover");
+        mergeIfPresent(details, candidate, KEY_COVER);
         mergeIfPresent(details, candidate, "cast");
-        mergeIfPresent(details, candidate, "genre");
-        mergeIfPresent(details, candidate, "releaseDate");
+        mergeIfPresent(details, candidate, KEY_GENRE);
+        mergeIfPresent(details, candidate, KEY_RELEASE_DATE);
 
         JSONObject pageDetails = fetchImdbTitleDetails(imdbId);
         mergeIfPresent(details, pageDetails, "name");
-        mergeIfPresent(details, pageDetails, "cover");
+        mergeIfPresent(details, pageDetails, KEY_COVER);
         mergeIfPresent(details, pageDetails, "plot");
         mergeIfPresent(details, pageDetails, "cast");
-        mergeIfPresent(details, pageDetails, "director");
-        mergeIfPresent(details, pageDetails, "genre");
-        mergeIfPresent(details, pageDetails, "releaseDate");
-        mergeIfPresent(details, pageDetails, "rating");
+        mergeIfPresent(details, pageDetails, KEY_DIRECTOR);
+        mergeIfPresent(details, pageDetails, KEY_GENRE);
+        mergeIfPresent(details, pageDetails, KEY_RELEASE_DATE);
+        mergeIfPresent(details, pageDetails, KEY_RATING);
 
         JSONObject primaryMeta = moviePreferred ? fetchCinemetaMovieDetails(imdbId) : fetchCinemetaSeriesDetails(imdbId);
         JSONObject secondaryMeta = moviePreferred ? fetchCinemetaSeriesDetails(imdbId) : fetchCinemetaMovieDetails(imdbId);
         mergeMissing(details, primaryMeta, "name");
-        mergeMissing(details, primaryMeta, "cover");
+        mergeMissing(details, primaryMeta, KEY_COVER);
         mergeMissing(details, primaryMeta, "plot");
         mergeMissing(details, primaryMeta, "cast");
-        mergeMissing(details, primaryMeta, "director");
-        mergeMissing(details, primaryMeta, "genre");
-        mergeMissing(details, primaryMeta, "releaseDate");
-        mergeMissing(details, primaryMeta, "rating");
-        mergeMissing(details, primaryMeta, "imdbUrl");
-        if (primaryMeta.has("episodesMeta")) {
-            details.put("episodesMeta", primaryMeta.getJSONArray("episodesMeta"));
+        mergeMissing(details, primaryMeta, KEY_DIRECTOR);
+        mergeMissing(details, primaryMeta, KEY_GENRE);
+        mergeMissing(details, primaryMeta, KEY_RELEASE_DATE);
+        mergeMissing(details, primaryMeta, KEY_RATING);
+        mergeMissing(details, primaryMeta, KEY_IMDB_URL);
+        if (primaryMeta.has(KEY_EPISODES_META)) {
+            details.put(KEY_EPISODES_META, primaryMeta.getJSONArray(KEY_EPISODES_META));
         }
 
         mergeMissing(details, secondaryMeta, "name");
-        mergeMissing(details, secondaryMeta, "cover");
+        mergeMissing(details, secondaryMeta, KEY_COVER);
         mergeMissing(details, secondaryMeta, "plot");
         mergeMissing(details, secondaryMeta, "cast");
-        mergeMissing(details, secondaryMeta, "director");
-        mergeMissing(details, secondaryMeta, "genre");
-        mergeMissing(details, secondaryMeta, "releaseDate");
-        mergeMissing(details, secondaryMeta, "rating");
+        mergeMissing(details, secondaryMeta, KEY_DIRECTOR);
+        mergeMissing(details, secondaryMeta, KEY_GENRE);
+        mergeMissing(details, secondaryMeta, KEY_RELEASE_DATE);
+        mergeMissing(details, secondaryMeta, KEY_RATING);
         mergeMissing(details, secondaryMeta, "imdbUrl");
         if (!details.has("episodesMeta") && secondaryMeta.has("episodesMeta")) {
             details.put("episodesMeta", secondaryMeta.getJSONArray("episodesMeta"));
@@ -451,9 +459,9 @@ public class ImdbMetadataService {
         }
         return value
                 .replaceAll("<[^>]*>", " ")
-                .replaceAll("&amp;", "&")
-                .replaceAll("&quot;", "\"")
-                .replaceAll("&#39;", "'")
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
                 .replaceAll("\\s+", " ")
                 .trim();
     }

@@ -1316,6 +1316,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                         newHeight = initialHeight - deltaY;
                         newY = initialY + deltaY;
                         break;
+                    default:
+                        break;
                 }
 
                 if (newWidth < MIN_WIDTH) {

@@ -50,6 +50,9 @@ public class ConfigurationUI extends VBox {
     private static final String EMBEDDED_PLAYER_PATH = PlaybackUIService.EMBEDDED_PLAYER_PATH;
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
+    private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
+    private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
+    private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private String dbId;
     private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
@@ -77,8 +80,8 @@ public class ConfigurationUI extends VBox {
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
-    private final TextField lightThemeCssStatus = new TextField(I18n.tr("configDefaultResourceInUse"));
-    private final TextField darkThemeCssStatus = new TextField(I18n.tr("configDefaultResourceInUse"));
+    private final TextField lightThemeCssStatus = new TextField(I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE));
+    private final TextField darkThemeCssStatus = new TextField(I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE));
     private final Button uploadLightThemeCssButton = new Button(I18n.tr("configCssUploadLight"));
     private final Button uploadDarkThemeCssButton = new Button(I18n.tr("configCssUploadDark"));
     private final Hyperlink downloadLightThemeCssLink = new Hyperlink(I18n.tr("configLightCss"));
@@ -221,10 +224,10 @@ public class ConfigurationUI extends VBox {
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
         tmdbHelpLabel.setWrapText(true);
-        tmdbHelpLabel.getStyleClass().add("dim-label");
+        tmdbHelpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
-        tmdbConfigSection.getStyleClass().add("uiptv-outline-pane");
+        tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);

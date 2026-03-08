@@ -15,6 +15,8 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class FetchAPI {
+    private static final String PORTAL_PHP = "portal.php";
+
     public static String fetch(Map<String, String> params, final Account account) {
         try {
             String baseUrl = resolveBaseUrl(account);
@@ -69,12 +71,12 @@ public class FetchAPI {
             }
             String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();
             if (appendPortalPhpWhenMissing
-                    && !path.endsWith("portal.php")
+                    && !path.endsWith(PORTAL_PHP)
                     && !path.endsWith("load.php")) {
                 if (candidate.endsWith("/")) {
-                    return candidate + "portal.php";
+                    return candidate + PORTAL_PHP;
                 }
-                return candidate + "/portal.php";
+                return candidate + "/" + PORTAL_PHP;
             }
             return candidate;
         } catch (Exception _) {
@@ -131,7 +133,7 @@ public class FetchAPI {
     }
 
     public enum ServerType {
-        PORTAL("portal.php"),
+        PORTAL(PORTAL_PHP),
 
         LOAD("load.php?");
         private String loader;

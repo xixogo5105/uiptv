@@ -27,6 +27,9 @@ import static com.uiptv.widget.UIptvAlert.showError;
 import static com.uiptv.widget.UIptvAlert.showErrorKey;
 
 public class XtremeParser {
+    private static final String PARAM_CATEGORY_ID = "category_id";
+    private static final String XTREME_ERROR_PROCESSING_RESPONSE_DATA = "xtremeErrorProcessingResponseData";
+
     private XtremeParser() {
     }
 
@@ -41,7 +44,7 @@ public class XtremeParser {
     public static List<Channel> parseChannels(String categoryId, Account account) {
         try {
             Map<String, String> extraParams = new LinkedHashMap<>();
-            extraParams.put("category_id", categoryId);
+            extraParams.put(PARAM_CATEGORY_ID, categoryId);
             return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -77,7 +80,7 @@ public class XtremeParser {
                 categoryList.add(category);
             }
         } catch (Exception e) {
-            showErrorKey("xtremeErrorProcessingResponseData", e, e.getMessage());
+            showErrorKey(XTREME_ERROR_PROCESSING_RESPONSE_DATA, e, e.getMessage());
         }
         return categoryList;
     }
@@ -111,7 +114,7 @@ public class XtremeParser {
                 categoryList.add(channel);
             }
         } catch (Exception e) {
-            showErrorKey("xtremeErrorProcessingResponseData", e, e.getMessage());
+            showErrorKey(XTREME_ERROR_PROCESSING_RESPONSE_DATA, e, e.getMessage());
         }
         return categoryList;
     }
@@ -130,7 +133,7 @@ public class XtremeParser {
                 }
             }
         } catch (Exception e) {
-            showErrorKey("xtremeErrorProcessingResponseData", e, e.getMessage());
+            showErrorKey(XTREME_ERROR_PROCESSING_RESPONSE_DATA, e, e.getMessage());
         }
         return episodeList;
     }
@@ -141,8 +144,10 @@ public class XtremeParser {
                 return "get_vod_categories";
             case series:
                 return "get_series_categories";
+            case itv:
+            default:
+                return "get_live_categories";
         }
-        return "get_live_categories";
     }
 
     private static String getChannelListAction(Account.AccountAction action) {
@@ -151,8 +156,10 @@ public class XtremeParser {
                 return "get_vod_streams";
             case series:
                 return "get_series";
+            case itv:
+            default:
+                return "get_live_streams";
         }
-        return "get_live_streams";
     }
 
     private static String fetchPlayerApi(Account account, String action, Map<String, String> extraParams) throws IOException {

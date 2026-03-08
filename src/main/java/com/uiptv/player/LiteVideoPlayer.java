@@ -15,6 +15,7 @@ import javafx.util.Duration;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class LiteVideoPlayer extends BaseVideoPlayer {
+    private static final String PLAYBACK_MODE_LITE_DIRECT = "Lite direct";
 
     private MediaPlayer mediaPlayer;
     private MediaView mediaView; // Removed final and initializer
@@ -22,7 +23,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private final ChangeListener<MediaPlayer.Status> statusListener;
     private volatile boolean usingFfmpegFallback;
     private volatile boolean attemptedCompatibilityFallback;
-    private volatile String currentPlaybackModeLabel = "Lite direct";
+    private volatile String currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
@@ -83,6 +84,8 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                     case DISPOSED:
                     case STALLED:
                         loadingSpinner.setVisible(true);
+                        break;
+                    default:
                         break;
                 }
             });
