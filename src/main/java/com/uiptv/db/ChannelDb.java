@@ -53,7 +53,7 @@ public class ChannelDb extends BaseDb {
             statement.setString(17, channel.getManifestType());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query");
+            throw new DatabaseAccessException("Unable to execute query", e);
         }
     }
 
@@ -63,7 +63,7 @@ public class ChannelDb extends BaseDb {
             statement.setString(1, categoryId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete all query");
+            throw new DatabaseAccessException("Unable to execute delete all query", e);
         }
     }
 
@@ -83,7 +83,7 @@ public class ChannelDb extends BaseDb {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute channel count for account query", e);
+            throw new DatabaseAccessException("Unable to execute channel count for account query", e);
         }
         return 0;
     }
@@ -106,7 +106,7 @@ public class ChannelDb extends BaseDb {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute getChannelByChannelIdAndAccount query", e);
+            throw new DatabaseAccessException("Unable to execute getChannelByChannelIdAndAccount query", e);
         }
         return null;
     }
@@ -145,12 +145,12 @@ public class ChannelDb extends BaseDb {
                 conn.commit();
             } catch (SQLException e) {
                 conn.rollback();
-                throw new RuntimeException("Unable to execute saveAll query", e);
+                throw new DatabaseAccessException("Unable to execute saveAll query", e);
             } finally {
                 conn.setAutoCommit(true);
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to connect to database", e);
+            throw new DatabaseAccessException("Unable to connect to database", e);
         }
     }
 
@@ -161,7 +161,7 @@ public class ChannelDb extends BaseDb {
             statement.setString(1, accountId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute deleteByAccount query", e);
+            throw new DatabaseAccessException("Unable to execute deleteByAccount query", e);
         }
     }
 

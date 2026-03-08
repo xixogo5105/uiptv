@@ -89,7 +89,7 @@ public class SeriesWatchStateDb extends BaseDb {
                 insert.executeUpdate();
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to save series watch state", e);
+            throw new DatabaseAccessException("Unable to save series watch state", e);
         }
     }
 
@@ -102,7 +102,7 @@ public class SeriesWatchStateDb extends BaseDb {
             statement.setString(4, seriesId);
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to clear series watch state", e);
+            throw new DatabaseAccessException("Unable to clear series watch state", e);
         }
     }
 
@@ -112,7 +112,7 @@ public class SeriesWatchStateDb extends BaseDb {
             statement.setString(1, accountId);
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to delete watch state by account", e);
+            throw new DatabaseAccessException("Unable to delete watch state by account", e);
         }
     }
 
@@ -122,7 +122,7 @@ public class SeriesWatchStateDb extends BaseDb {
             statement.setString(1, MODE_SERIES);
             statement.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to clear all series watch state", e);
+            throw new DatabaseAccessException("Unable to clear all series watch state", e);
         }
     }
 

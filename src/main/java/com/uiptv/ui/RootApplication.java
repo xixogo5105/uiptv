@@ -143,6 +143,7 @@ public class RootApplication extends Application {
         try {
             MediaPlayerFactory.release();
         } catch (Exception _) {
+            // Best-effort shutdown: media teardown should not prevent server cleanup or app exit.
         }
         ServerUrlUtil.stopServerWithShutdownMessage();
         super.stop();

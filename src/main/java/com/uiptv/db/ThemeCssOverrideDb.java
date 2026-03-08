@@ -59,7 +59,7 @@ public class ThemeCssOverrideDb extends BaseDb {
                 statement.setString(6, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
-                throw new RuntimeException("Unable to execute update query", e);
+                throw new DatabaseAccessException("Unable to execute update query", e);
             }
             return;
         }
@@ -69,7 +69,7 @@ public class ThemeCssOverrideDb extends BaseDb {
             setParameters(statement, sanitized);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute insert query", e);
+            throw new DatabaseAccessException("Unable to execute insert query", e);
         }
     }
 

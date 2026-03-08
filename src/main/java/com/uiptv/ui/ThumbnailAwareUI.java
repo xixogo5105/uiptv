@@ -50,6 +50,7 @@ public abstract class ThumbnailAwareUI {
                 try {
                     listener.onThumbnailModeChanged(enabled);
                 } catch (Exception _) {
+                    // Isolate listener failures so one broken view does not block thumbnail updates globally.
                 }
             }
         };
@@ -65,6 +66,7 @@ public abstract class ThumbnailAwareUI {
             var config = ConfigurationService.getInstance().read();
             return config != null && config.isEnableThumbnails();
         } catch (Exception _) {
+            // Fall back to disabled thumbnails if configuration cannot be read.
         }
         return false;
     }

@@ -53,6 +53,7 @@ public class SeriesEpisodeDb extends BaseDb {
                 }
             }
         } catch (SQLException _) {
+            // Treat unreadable cache timestamps as stale and force a refresh from the provider.
         }
         return false;
     }
@@ -69,6 +70,7 @@ public class SeriesEpisodeDb extends BaseDb {
                 }
             }
         } catch (SQLException _) {
+            // Treat unreadable cache timestamps as stale and force a refresh from the provider.
         }
         return false;
     }
@@ -87,7 +89,7 @@ public class SeriesEpisodeDb extends BaseDb {
             statement.setString(1, accountId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query", e);
+            throw new DatabaseAccessException("Unable to execute delete query", e);
         }
     }
 
@@ -99,7 +101,7 @@ public class SeriesEpisodeDb extends BaseDb {
             statement.setString(3, seriesId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query", e);
+            throw new DatabaseAccessException("Unable to execute delete query", e);
         }
     }
 
@@ -122,7 +124,7 @@ public class SeriesEpisodeDb extends BaseDb {
             statement.setLong(15, cachedAt);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute insert query", e);
+            throw new DatabaseAccessException("Unable to execute insert query", e);
         }
     }
 
@@ -160,6 +162,7 @@ public class SeriesEpisodeDb extends BaseDb {
                 }
             }
         } catch (SQLException _) {
+            // Missing freshness metadata is equivalent to no usable cached category.
         }
         return null;
     }

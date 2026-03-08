@@ -311,6 +311,7 @@ public class BookmarkDb extends BaseDb {
         try {
             conn.close();
         } catch (SQLException _) {
+            // Best-effort close: connection cleanup failure should not mask the original DB result.
         }
     }
 
@@ -337,7 +338,7 @@ public class BookmarkDb extends BaseDb {
             statement.setString(1, bookmarkDbId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to delete bookmark orders", e);
+            throw new DatabaseAccessException("Unable to delete bookmark orders", e);
         }
     }
 
@@ -350,7 +351,7 @@ public class BookmarkDb extends BaseDb {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to read next bookmark display order", e);
+            throw new DatabaseAccessException("Unable to read next bookmark display order", e);
         }
         return 1;
     }

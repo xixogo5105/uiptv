@@ -82,7 +82,7 @@ public class AccountDb extends BaseDb {
             }
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query");
+            throw new DatabaseAccessException("Unable to execute query", e);
         }
     }
 

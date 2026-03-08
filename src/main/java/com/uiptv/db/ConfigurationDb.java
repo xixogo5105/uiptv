@@ -37,6 +37,7 @@ public class ConfigurationDb extends BaseDb {
             }
             statement.execute("UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE) + " SET serverPortalUrl=''");
         } catch (Exception _) {
+            // Cache clearing is best-effort; keep app startup resilient if a stale table or DB handle fails here.
         }
     }
 
@@ -64,6 +65,7 @@ public class ConfigurationDb extends BaseDb {
                 pstmt.executeUpdate();
             }
         } catch (Exception _) {
+            // Cache clearing is best-effort; preserve current app flow even if one table cannot be cleared.
         }
     }
 
@@ -133,7 +135,7 @@ public class ConfigurationDb extends BaseDb {
                 statement.setString(19, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
-                throw new RuntimeException("Unable to execute update query", e);
+                throw new DatabaseAccessException("Unable to execute update query", e);
             }
         } else {
             // Insert new
@@ -142,7 +144,7 @@ public class ConfigurationDb extends BaseDb {
                 setParameters(statement, configuration);
                 statement.execute();
             } catch (SQLException e) {
-                throw new RuntimeException("Unable to execute insert query", e);
+                throw new DatabaseAccessException("Unable to execute insert query", e);
             }
         }
     }

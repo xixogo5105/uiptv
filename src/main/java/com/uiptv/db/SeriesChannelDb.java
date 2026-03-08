@@ -64,6 +64,7 @@ public class SeriesChannelDb extends BaseDb {
                 }
             }
         } catch (SQLException _) {
+            // Treat unreadable cache timestamps as stale and force a provider refresh.
         }
         return false;
     }
@@ -80,7 +81,7 @@ public class SeriesChannelDb extends BaseDb {
             statement.setString(1, accountId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query", e);
+            throw new DatabaseAccessException("Unable to execute delete query", e);
         }
     }
 
@@ -91,7 +92,7 @@ public class SeriesChannelDb extends BaseDb {
             statement.setString(2, categoryId);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete query", e);
+            throw new DatabaseAccessException("Unable to execute delete query", e);
         }
     }
 
@@ -119,7 +120,7 @@ public class SeriesChannelDb extends BaseDb {
             statement.setLong(20, cachedAt);
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute insert query", e);
+            throw new DatabaseAccessException("Unable to execute insert query", e);
         }
     }
 

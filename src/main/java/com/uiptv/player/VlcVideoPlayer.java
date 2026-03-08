@@ -218,20 +218,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 try {
                     mediaPlayer.controls().stop();
                 } catch (Exception _) {
+                    // Best-effort shutdown: player may already be stopped or detached.
                 }
                 try {
                     if (mediaPlayerEvents != null) {
                         mediaPlayer.events().removeMediaPlayerEventListener(mediaPlayerEvents);
                     }
                 } catch (Exception _) {
+                    // Best-effort shutdown: listener removal should not block disposal.
                 }
                 try {
                     mediaPlayer.videoSurface().set(null);
                 } catch (Exception _) {
+                    // Best-effort shutdown: surface can already be released during teardown.
                 }
                 try {
                     mediaPlayer.release();
                 } catch (Exception _) {
+                    // Best-effort shutdown: native VLC release can fail after partial teardown.
                 }
                 mediaPlayer = null;
                 mediaPlayerEvents = null;
@@ -240,6 +244,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 try {
                     mediaPlayerFactory.release();
                 } catch (Exception _) {
+                    // Best-effort shutdown: native factory cleanup should not block UI disposal.
                 }
                 mediaPlayerFactory = null;
             }

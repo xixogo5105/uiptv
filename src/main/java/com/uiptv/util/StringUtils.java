@@ -186,7 +186,7 @@ public class StringUtils {
         try {
             return String.valueOf(jsonCategory.get(key));
         } catch (Exception _) {
-
+            // Preserve legacy null-on-missing-key behavior for loose JSON parsing.
         }
         return null;
     }
@@ -195,7 +195,7 @@ public class StringUtils {
         try {
             return String.valueOf(map.get(key));
         } catch (Exception _) {
-
+            // Preserve legacy null-on-missing-key behavior for loose map parsing.
         }
         return null;
     }
@@ -206,7 +206,7 @@ public class StringUtils {
                 return val.replaceAll("\\p{C}", "").replace("\\", "\\\\").replace("\"", "\\\"");
             }
         } catch (Exception _) {
-
+            // Keep JSON escaping best-effort; return EMPTY on malformed input.
         }
         return EMPTY;
     }

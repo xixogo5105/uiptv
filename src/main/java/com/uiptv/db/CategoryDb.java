@@ -56,7 +56,7 @@ public class CategoryDb extends BaseDb {
             statement.setString(2, account.getAction().name());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute delete all query");
+            throw new DatabaseAccessException("Unable to execute delete all query", e);
         }
     }
 
@@ -71,7 +71,7 @@ public class CategoryDb extends BaseDb {
             statement.setInt(7, category.getCensored());
             statement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to execute query");
+            throw new DatabaseAccessException("Unable to execute query", e);
         }
     }
 
