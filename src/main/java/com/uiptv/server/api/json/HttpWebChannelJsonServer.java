@@ -32,6 +32,7 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpWebChannelJsonServer implements HttpHandler {
+    private static final String PARAM_API_OFFSET = "apiOffset";
     private static final int DEFAULT_PAGE_SIZE = 120;
     private static final int MAX_PAGE_SIZE = 240;
     private static final int DEFAULT_PREFETCH = 3;
@@ -41,7 +42,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
         if (account == null) {
-            generateJsonResponse(ex, "{\"items\":[],\"nextPage\":0,\"hasMore\":false,\"apiOffset\":0}");
+            generateJsonResponse(ex, "{\"items\":[],\"nextPage\":0,\"hasMore\":false,\"" + PARAM_API_OFFSET + "\":0}");
             return;
         }
         applyMode(account, getParam(ex, "mode"));
@@ -54,7 +55,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         int page = parseInt(getParam(ex, "page"), 0, 0, Integer.MAX_VALUE);
         int pageSize = parseInt(getParam(ex, "pageSize"), DEFAULT_PAGE_SIZE, 20, MAX_PAGE_SIZE);
         int prefetchPages = parseInt(getParam(ex, "prefetchPages"), DEFAULT_PREFETCH, 1, MAX_PREFETCH);
-        int apiOffset = parseInt(getParam(ex, "apiOffset"), 0, 0, 1);
+        int apiOffset = parseInt(getParam(ex, PARAM_API_OFFSET), 0, 0, 1);
 
         if (account.getType() == AccountType.STALKER_PORTAL && !"All".equalsIgnoreCase(categoryId)) {
             generateJsonResponse(ex, buildStalkerPagedResponse(account, categoryId, movieId, page, pageSize, prefetchPages, apiOffset));

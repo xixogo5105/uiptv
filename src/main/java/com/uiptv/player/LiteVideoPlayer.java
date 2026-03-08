@@ -221,7 +221,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             LitePlayerFfmpegService.getInstance().stopPlayback();
             usingFfmpegFallback = false;
         }
-        currentPlaybackModeLabel = "Lite direct";
+        currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
         compatibilityFallbackTimer.stop();
     }
 

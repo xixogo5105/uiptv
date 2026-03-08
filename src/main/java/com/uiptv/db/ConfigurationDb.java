@@ -80,7 +80,7 @@ public class ConfigurationDb extends BaseDb {
     }
 
     private void deleteAccountLiveChannels(Connection conn, String accountId) throws SQLException {
-        String sql = "DELETE FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
+        String sql = DELETE_FROM + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
                 + " WHERE categoryId IN (SELECT id FROM " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName()
                 + " WHERE accountId=?)";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {

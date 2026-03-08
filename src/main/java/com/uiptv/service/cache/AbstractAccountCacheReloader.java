@@ -143,7 +143,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
                 if (!hasOtherCategories) {
                     return false;
                 }
-                return gtTrim.isEmpty() || gtTrim.equalsIgnoreCase("Uncategorized");
+                return gtTrim.isEmpty() || gtTrim.equalsIgnoreCase(UNCATEGORIZED_NAME);
             }
 
             return gtTrim.equalsIgnoreCase(category) || (e.getId() != null && e.getId().equalsIgnoreCase(category));

@@ -271,8 +271,8 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         if (isBlank(seasonInfo.optString("name", "")) && !isBlank(inferredName)) {
             seasonInfo.put("name", inferredName);
         }
-        if (isBlank(seasonInfo.optString("releaseDate", "")) && !isBlank(inferredYear)) {
-            seasonInfo.put("releaseDate", inferredYear);
+        if (isBlank(seasonInfo.optString(KEY_RELEASE_DATE, "")) && !isBlank(inferredYear)) {
+            seasonInfo.put(KEY_RELEASE_DATE, inferredYear);
         }
     }
 

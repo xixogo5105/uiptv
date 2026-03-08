@@ -6,6 +6,8 @@ import java.sql.*;
 import java.util.Collections;
 
 public class SQLiteTableSync {
+    private static final String SELECT_ALL_FROM = "SELECT * FROM ";
+
     private SQLiteTableSync() {
     }
 
@@ -18,8 +20,8 @@ public class SQLiteTableSync {
                 Statement secondStmt = secondConn.createStatement();
         ) {
             // Get column count for both tables
-            int firstColCount = firstStmt.executeQuery("SELECT * FROM " + tableName).getMetaData().getColumnCount();
-            int secondColCount = secondStmt.executeQuery("SELECT * FROM " + tableName).getMetaData().getColumnCount();
+            int firstColCount = firstStmt.executeQuery(SELECT_ALL_FROM + tableName).getMetaData().getColumnCount();
+            int secondColCount = secondStmt.executeQuery(SELECT_ALL_FROM + tableName).getMetaData().getColumnCount();
 
             // Check if column counts match
             if (firstColCount != secondColCount) {

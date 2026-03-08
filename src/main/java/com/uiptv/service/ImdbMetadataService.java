@@ -310,7 +310,7 @@ public class ImdbMetadataService {
                     e.put(KEY_TITLE, sanitizeEpisodeTitle(video.optString(KEY_TITLE, "")));
                     e.put("plot", video.optString(KEY_OVERVIEW, ""));
                     e.put("logo", video.optString("thumbnail", ""));
-                    e.put("releaseDate", video.optString("released", ""));
+                    e.put(KEY_RELEASE_DATE, video.optString("released", ""));
                     e.put(KEY_SEASON, String.valueOf(video.optInt(KEY_SEASON, 0)));
                     e.put(KEY_EPISODE_NUMBER, String.valueOf(video.optInt("episode", 0)));
                     episodesMeta.put(e);
@@ -559,9 +559,9 @@ public class ImdbMetadataService {
         replaceIfPresent(details, localized, "name");
         replaceIfPresent(details, localized, "plot");
         replaceIfPresent(details, localized, "genre");
-        replaceIfPresent(details, localized, "releaseDate");
-        mergeMissing(details, localized, "cover");
-        mergeMissing(details, localized, "rating");
+        replaceIfPresent(details, localized, KEY_RELEASE_DATE);
+        mergeMissing(details, localized, KEY_COVER);
+        mergeMissing(details, localized, KEY_RATING);
         if (!moviePreferred) {
             enrichEpisodesMetaWithTmdb(details.optJSONArray(KEY_EPISODES_META), tmdbId, localeTag);
         }
@@ -901,8 +901,8 @@ public class ImdbMetadataService {
     private String httpGet(String url) {
         try {
             Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0");
-            headers.put("Accept-Language", buildAcceptLanguageHeader());
+            headers.put(HEADER_USER_AGENT, USER_AGENT_BROWSER);
+            headers.put(HEADER_ACCEPT_LANGUAGE, buildAcceptLanguageHeader());
             HttpUtil.HttpResult response = HttpUtil.sendRequest(url, headers, "GET");
             if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return "";

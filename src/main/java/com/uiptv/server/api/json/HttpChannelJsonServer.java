@@ -28,6 +28,8 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpChannelJsonServer implements HttpHandler {
+    private static final String PARAM_CHANNEL_ID = "channelId";
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -125,7 +127,7 @@ public class HttpChannelJsonServer implements HttpHandler {
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.optJSONObject(i);
                 if (item == null) continue;
-                String key = item.optString("channelId", "").trim() + "|"
+                String key = item.optString(PARAM_CHANNEL_ID, "").trim() + "|"
                         + item.optString("cmd", "").trim() + "|"
                         + item.optString("name", "").trim().toLowerCase();
                 if (seen.add(key)) {

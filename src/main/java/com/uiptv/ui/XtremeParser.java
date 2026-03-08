@@ -109,7 +109,7 @@ public class XtremeParser {
                         null,
                         null
                 );
-                channel.setCategoryId(safeGetString(jsonCategory, "category_id"));
+                channel.setCategoryId(safeGetString(jsonCategory, PARAM_CATEGORY_ID));
                 channel.setExtraJson(jsonCategory.toString());
                 categoryList.add(channel);
             }

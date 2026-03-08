@@ -433,7 +433,7 @@ public class ManageAccountUI extends VBox {
             account.setDbId(accountId);
         }
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue().toString() : "GET");
-        account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue().toString() : "Europe/London");
+        account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue().toString() : DEFAULT_TIMEZONE);
         return account;
     }
 
