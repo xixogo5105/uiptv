@@ -22,7 +22,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 @NoArgsConstructor()
 public class Account extends BaseJson {
 
-
+    @SuppressWarnings("java:S115")
     public enum AccountAction {
         itv,
         vod,

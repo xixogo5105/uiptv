@@ -33,6 +33,11 @@ public class ImdbMetadataService {
     private static final String KEY_RATING = "rating";
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_EPISODES_META = "episodesMeta";
+    private static final String KEY_TITLE = "title";
+    private static final String KEY_OVERVIEW = "overview";
+    private static final String KEY_SEASON = "season";
+    private static final String KEY_EPISODE_NUMBER = "episodeNum";
+    private static final String KEY_TMDB_MEDIA_ID = "tmdbMediaId";
 
     public static ImdbMetadataService getInstance() {
         return INSTANCE;
@@ -298,12 +303,12 @@ public class ImdbMetadataService {
                     JSONObject video = videos.optJSONObject(i);
                     if (video == null) continue;
                     JSONObject e = new JSONObject();
-                    e.put("title", sanitizeEpisodeTitle(video.optString("title", "")));
-                    e.put("plot", video.optString("overview", ""));
+                    e.put(KEY_TITLE, sanitizeEpisodeTitle(video.optString(KEY_TITLE, "")));
+                    e.put("plot", video.optString(KEY_OVERVIEW, ""));
                     e.put("logo", video.optString("thumbnail", ""));
                     e.put("releaseDate", video.optString("released", ""));
-                    e.put("season", String.valueOf(video.optInt("season", 0)));
-                    e.put("episodeNum", String.valueOf(video.optInt("episode", 0)));
+                    e.put(KEY_SEASON, String.valueOf(video.optInt(KEY_SEASON, 0)));
+                    e.put(KEY_EPISODE_NUMBER, String.valueOf(video.optInt("episode", 0)));
                     episodesMeta.put(e);
                 }
                 enrichEpisodeMetaWithTvMaze(episodesMeta, imdbId, meta.optString("name", ""));
@@ -351,14 +356,14 @@ public class ImdbMetadataService {
             if (row == null) continue;
             if (isNotBlank(row.optString("plot", ""))) continue;
 
-            String season = safeNumeric(row.optString("season", ""));
-            String episode = safeNumeric(row.optString("episodeNum", ""));
+            String season = safeNumeric(row.optString(KEY_SEASON, ""));
+            String episode = safeNumeric(row.optString(KEY_EPISODE_NUMBER, ""));
             JSONObject match = null;
             if (isNotBlank(season) && isNotBlank(episode)) {
                 match = bySeasonEpisode.get(season + ":" + episode);
             }
             if (match == null) {
-                match = byTitle.get(normalizeTitle(row.optString("title", "")));
+                match = byTitle.get(normalizeTitle(row.optString(KEY_TITLE, "")));
             }
             if (match == null) continue;
 
@@ -491,7 +496,7 @@ public class ImdbMetadataService {
         result.put("plot", meta.optString("description", ""));
         result.put("imdbUrl", isNotBlank(meta.optString("imdb_id", "")) ? "https://www.imdb.com/title/" + meta.optString("imdb_id", "") + "/" : "");
         if (meta.has("moviedb_id")) {
-            result.put("tmdbMediaId", String.valueOf(meta.opt("moviedb_id")));
+            result.put(KEY_TMDB_MEDIA_ID, String.valueOf(meta.opt("moviedb_id")));
         }
 
         JSONArray genres = meta.optJSONArray("genres");
@@ -532,8 +537,8 @@ public class ImdbMetadataService {
         }
 
         String tmdbId = firstNonBlank(
-                primaryMeta.optString("tmdbMediaId", ""),
-                secondaryMeta.optString("tmdbMediaId", "")
+                primaryMeta.optString(KEY_TMDB_MEDIA_ID, ""),
+                secondaryMeta.optString(KEY_TMDB_MEDIA_ID, "")
         );
         if (isBlank(tmdbId)) {
             return;
@@ -588,8 +593,8 @@ public class ImdbMetadataService {
             }
 
             JSONObject payload = new JSONObject(response.body());
-            result.put("name", firstNonBlank(payload.optString("name", ""), payload.optString("title", "")));
-            result.put("plot", payload.optString("overview", ""));
+            result.put("name", firstNonBlank(payload.optString("name", ""), payload.optString(KEY_TITLE, "")));
+            result.put("plot", payload.optString(KEY_OVERVIEW, ""));
             result.put("rating", String.valueOf(payload.optDouble("vote_average", 0)));
             result.put("releaseDate", firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
             JSONArray genres = payload.optJSONArray("genres");
@@ -628,8 +633,8 @@ public class ImdbMetadataService {
         for (int i = 0; i < episodesMeta.length(); i++) {
             JSONObject row = episodesMeta.optJSONObject(i);
             if (row == null) continue;
-            String season = safeNumeric(row.optString("season", ""));
-            String episode = safeNumeric(row.optString("episodeNum", ""));
+            String season = safeNumeric(row.optString(KEY_SEASON, ""));
+            String episode = safeNumeric(row.optString(KEY_EPISODE_NUMBER, ""));
             if (isBlank(season) || isBlank(episode)) {
                 continue;
             }
@@ -651,7 +656,7 @@ public class ImdbMetadataService {
                     continue;
                 }
                 JSONObject mapped = mapTmdbEpisodeMeta(episode);
-                replaceIfPresent(target, mapped, "title");
+                replaceIfPresent(target, mapped, KEY_TITLE);
                 replaceIfPresent(target, mapped, "plot");
                 replaceIfPresent(target, mapped, "releaseDate");
                 mergeMissing(target, mapped, "logo");
@@ -699,8 +704,8 @@ public class ImdbMetadataService {
         if (episode == null) {
             return mapped;
         }
-        mapped.put("title", sanitizeEpisodeTitle(episode.optString("name", "")));
-        mapped.put("plot", episode.optString("overview", ""));
+        mapped.put(KEY_TITLE, sanitizeEpisodeTitle(episode.optString("name", "")));
+        mapped.put("plot", episode.optString(KEY_OVERVIEW, ""));
         mapped.put("releaseDate", episode.optString("air_date", ""));
         String stillPath = episode.optString("still_path", "");
         if (isNotBlank(stillPath)) {

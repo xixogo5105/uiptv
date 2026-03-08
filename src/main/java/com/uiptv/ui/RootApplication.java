@@ -92,7 +92,7 @@ public class RootApplication extends Application {
 
     @Override
     public final void start(Stage primaryStage) throws IOException {
-        RootApplication.primaryStage = primaryStage;
+        setPrimaryStage(primaryStage);
         ServerUrlUtil.setHostServices(getHostServices());
         Configuration bootConfiguration = configurationService.read();
         I18n.initialize(bootConfiguration == null ? null : bootConfiguration.getLanguageLocale());
@@ -150,16 +150,36 @@ public class RootApplication extends Application {
 
     private void configureFontStyles(Scene scene) {
         Configuration configuration = configurationService.read();
-
-        scene.getStylesheets().clear();
-        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+        applyTheme(
+                scene,
                 getClass(),
                 configuration.isDarkTheme(),
                 configurationService.getUiZoomPercent()
         );
+    }
+
+    public static void setPrimaryStage(Stage stage) {
+        primaryStage = stage;
+    }
+
+    public static String getCurrentTheme() {
+        return currentTheme;
+    }
+
+    public static void applyTheme(Scene scene, Class<?> themeResourceClass, boolean darkTheme, int zoomPercent) {
+        if (scene == null || scene.getRoot() == null) {
+            return;
+        }
+
+        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+                themeResourceClass,
+                darkTheme,
+                zoomPercent
+        );
+        scene.getStylesheets().clear();
         scene.getStylesheets().add(currentTheme);
         scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(configurationService.getUiZoomPercent()));
+        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(zoomPercent));
         I18n.applySceneOrientation(scene);
         StyleClassDecorator.decorate(scene.getRoot());
     }

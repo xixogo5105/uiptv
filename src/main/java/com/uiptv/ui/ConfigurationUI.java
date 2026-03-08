@@ -19,6 +19,7 @@ import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
+import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
@@ -460,20 +461,12 @@ public class ConfigurationUI extends VBox {
 
     private void applyThemePreview() {
         Scene scene = getScene();
-        if (scene == null || scene.getRoot() == null) {
-            return;
-        }
-        RootApplication.currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+        RootApplication.applyTheme(
+                scene,
                 getClass(),
                 darkThemeCheckBox.isSelected(),
                 getSelectedThemeZoomPercent()
         );
-        scene.getStylesheets().clear();
-        scene.getStylesheets().add(RootApplication.currentTheme);
-        scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(getSelectedThemeZoomPercent()));
-        I18n.applySceneOrientation(scene);
-        StyleClassDecorator.decorate(scene.getRoot());
     }
 
     private void uploadThemeCss(boolean darkTheme) {
@@ -611,7 +604,7 @@ public class ConfigurationUI extends VBox {
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
             Scene scene = new Scene(popup, 400, 300);
             I18n.applySceneOrientation(scene);
-            scene.getStylesheets().add(RootApplication.currentTheme);
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
             popupStage.setTitle(I18n.tr("configPublishM3u8"));
             popupStage.setScene(scene);
             popupStage.showAndWait();
@@ -621,7 +614,7 @@ public class ConfigurationUI extends VBox {
     private void installServerStatusMonitor() {
         refreshServerStatusUI();
         serverStatusTimeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> refreshServerStatusUI()));
-        serverStatusTimeline.setCycleCount(Timeline.INDEFINITE);
+        serverStatusTimeline.setCycleCount(Animation.INDEFINITE);
         serverStatusTimeline.play();
 
         sceneProperty().addListener((observable, oldScene, newScene) -> {

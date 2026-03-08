@@ -96,7 +96,7 @@ public class LogDisplayUI extends VBox {
         VBox vbox = new VBox(5, logArea, controlBox);
         VBox.setVgrow(logArea, Priority.ALWAYS);
         contentBox.getChildren().add(vbox);
-        detached = false;
+        setDetached(false);
     }
 
     private void renderDetachedPlaceholder() {
@@ -110,8 +110,8 @@ public class LogDisplayUI extends VBox {
         if (detached) {
             return;
         }
-        detached = true;
-        forceLoggingEnabled = true;
+        setDetached(true);
+        setForceLoggingEnabled(true);
         renderDetachedPlaceholder();
 
         VBox popupRoot = new VBox(5);
@@ -122,7 +122,7 @@ public class LogDisplayUI extends VBox {
         popupRoot.getChildren().addAll(logArea, controlBox);
         VBox.setVgrow(logArea, Priority.ALWAYS);
 
-        detachedStage = new Stage();
+        setDetachedStage(new Stage());
         detachedStage.setTitle(I18n.tr("autoUiptvLogs"));
         Scene detachedScene = new Scene(popupRoot, 800, 600);
         I18n.applySceneOrientation(detachedScene);
@@ -135,12 +135,24 @@ public class LogDisplayUI extends VBox {
         if (!detached) {
             return;
         }
-        detached = false;
-        forceLoggingEnabled = false;
+        setDetached(false);
+        setForceLoggingEnabled(false);
         if (detachedStage != null) {
             detachedStage.close();
-            detachedStage = null;
+            setDetachedStage(null);
         }
         renderAttachedView();
+    }
+
+    private static void setDetached(boolean isDetached) {
+        detached = isDetached;
+    }
+
+    private static void setForceLoggingEnabled(boolean enabled) {
+        forceLoggingEnabled = enabled;
+    }
+
+    private static void setDetachedStage(Stage stage) {
+        detachedStage = stage;
     }
 }

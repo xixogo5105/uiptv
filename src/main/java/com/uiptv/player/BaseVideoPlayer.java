@@ -51,6 +51,8 @@ import java.util.function.IntConsumer;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
+    private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
+    private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
 
     // State
     protected boolean isMuted = true;
@@ -287,7 +289,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         closeIcon.setContent("M 4 4 L 12 12 M 4 12 L 12 4"); // Simple X shape
         closeIcon.getStyleClass().add("player-hiddenbar-close-icon");
         msgCloseBtn.setGraphic(closeIcon);
-        msgCloseBtn.getStyleClass().add("player-round-control-button");
+        msgCloseBtn.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
         msgCloseBtn.setPadding(new Insets(8)); // Bigger hit area
         
         // Action
@@ -349,7 +351,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (!hasShownHiddenBarMessage) {
                 hiddenBarMessage.setVisible(true);
                 hiddenBarMessage.setManaged(true);
-                hasShownHiddenBarMessage = true;
+                markHiddenBarMessageShown();
                 if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
                 hiddenBarMessageHideTimer = new PauseTransition(Duration.seconds(10));
                 hiddenBarMessageHideTimer.setOnFinished(ev -> {
@@ -1081,8 +1083,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restoreButton.setText(I18n.tr("autoRestore"));
                 restoreButton.getStyleClass().add("player-pip-restore-button");
             }
-            restoreButton.getStyleClass().add("player-round-control-button");
-            restoreButton.getStyleClass().add("player-pip-overlay-button");
+            restoreButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+            restoreButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
             restoreButton.setPadding(new Insets(15));
             restoreButton.setVisible(false);
             restoreButton.setOnAction(e -> exitPip());
@@ -1095,8 +1097,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             whiteColorAdjust.setBrightness(1.0);
             pipMuteIcon.setEffect(whiteColorAdjust);
             pipMuteButton.setGraphic(pipMuteIcon);
-            pipMuteButton.getStyleClass().add("player-round-control-button");
-            pipMuteButton.getStyleClass().add("player-pip-overlay-button");
+            pipMuteButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+            pipMuteButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
             pipMuteButton.setPadding(new Insets(8));
             pipMuteButton.setVisible(false);
             pipMuteButton.setOnAction(e -> {
@@ -1110,8 +1112,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             pipReloadIcon.setFitWidth(20);
             pipReloadIcon.setEffect(whiteColorAdjust);
             pipReloadButton.setGraphic(pipReloadIcon);
-            pipReloadButton.getStyleClass().add("player-round-control-button");
-            pipReloadButton.getStyleClass().add("player-pip-overlay-button");
+            pipReloadButton.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+            pipReloadButton.getStyleClass().add(STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON);
             pipReloadButton.setPadding(new Insets(8));
             pipReloadButton.setVisible(false);
             pipReloadButton.setOnAction(e -> refreshAndPlay());
@@ -1415,5 +1417,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btn.getStyleClass().add("player-icon-button");
         btn.setPadding(new Insets(4));
         return btn;
+    }
+
+    private static void markHiddenBarMessageShown() {
+        hasShownHiddenBarMessage = true;
     }
 }

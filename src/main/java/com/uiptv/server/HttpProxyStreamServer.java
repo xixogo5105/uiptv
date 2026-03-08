@@ -18,6 +18,23 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpProxyStreamServer implements HttpHandler {
+    private static final String HEADER_ACCEPT = "Accept";
+    private static final String HEADER_ACCEPT_RANGES = "Accept-Ranges";
+    private static final String HEADER_ACCESS_CONTROL_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+    private static final String HEADER_CACHE_CONTROL = "Cache-Control";
+    private static final String HEADER_CONTENT_DISPOSITION = "Content-Disposition";
+    private static final String HEADER_CONTENT_LENGTH = "Content-Length";
+    private static final String HEADER_CONTENT_RANGE = "Content-Range";
+    private static final String HEADER_CONTENT_TYPE = "Content-Type";
+    private static final String HEADER_COOKIE = "Cookie";
+    private static final String HEADER_LOCATION = "Location";
+    private static final String HEADER_ORIGIN = "Origin";
+    private static final String HEADER_RANGE = "Range";
+    private static final String HEADER_REFERER = "Referer";
+    private static final String HEADER_SET_COOKIE = "Set-Cookie";
+    private static final String USER_AGENT = "UIPTV/1.0";
+    private static final long UNKNOWN_CONTENT_LENGTH = 0L;
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String source = getParam(ex, "src");
@@ -30,88 +47,39 @@ public class HttpProxyStreamServer implements HttpHandler {
         List<String> cookies = new ArrayList<>();
 
         try {
-            String rangeHeader = ex.getRequestHeaders().getFirst("Range");
-            String acceptHeader = ex.getRequestHeaders().getFirst("Accept");
-            String refererHeader = ex.getRequestHeaders().getFirst("Referer");
-            String originHeader = ex.getRequestHeaders().getFirst("Origin");
-            try (HttpUtil.StreamResult upstream = openResolvedStream(current, cookies, rangeHeader, acceptHeader, refererHeader, originHeader)) {
+            try (HttpUtil.StreamResult upstream = openResolvedStream(current, cookies, readForwardHeaders(ex))) {
                 if (upstream == null) {
-                    ex.sendResponseHeaders(502, -1);
+                    sendBadGateway(ex);
                     return;
                 }
 
-                int upstreamStatus = upstream.statusCode();
-                InputStream upstreamStream = upstream.bodyStream();
-                if (upstreamStream == null) {
-                    upstreamStream = new ByteArrayInputStream(new byte[0]);
-                }
+                writeResponseHeaders(ex, upstream.responseHeaders());
+                ex.sendResponseHeaders(
+                        upstream.statusCode(),
+                        resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
+                );
 
-                String contentType = firstHeader(upstream.responseHeaders(), "Content-Type");
-                if (isBlank(contentType)) {
-                    contentType = "application/octet-stream";
-                }
-                ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-                ex.getResponseHeaders().add("Cache-Control", "no-store");
-                ex.getResponseHeaders().add("Content-Type", contentType);
-                String acceptRanges = firstHeader(upstream.responseHeaders(), "Accept-Ranges");
-                String contentRange = firstHeader(upstream.responseHeaders(), "Content-Range");
-                String contentLengthHeader = firstHeader(upstream.responseHeaders(), "Content-Length");
-                String contentDisposition = firstHeader(upstream.responseHeaders(), "Content-Disposition");
-                if (!isBlank(acceptRanges)) ex.getResponseHeaders().add("Accept-Ranges", acceptRanges);
-                if (!isBlank(contentRange)) ex.getResponseHeaders().add("Content-Range", contentRange);
-                if (!isBlank(contentDisposition)) ex.getResponseHeaders().add("Content-Disposition", contentDisposition);
-
-                long contentLength = 0;
-                try {
-                    contentLength = isBlank(contentLengthHeader) ? 0 : Long.parseLong(contentLengthHeader);
-                } catch (Exception _) {
-                    contentLength = 0;
-                }
-                ex.sendResponseHeaders(upstreamStatus, contentLength > 0 ? contentLength : 0);
-
-                try (InputStream is = upstreamStream;
+                try (InputStream is = resolvedBodyStream(upstream);
                      OutputStream os = ex.getResponseBody()) {
-                    byte[] buffer = new byte[8192];
-                    int read;
-                    while ((read = is.read(buffer)) != -1) {
-                        os.write(buffer, 0, read);
-                    }
+                    copyStream(is, os);
                 }
             }
         } catch (Exception _) {
-            ex.sendResponseHeaders(502, -1);
+            sendBadGateway(ex);
         }
     }
 
     private HttpUtil.StreamResult openResolvedStream(String current,
                                                      List<String> cookies,
-                                                     String rangeHeader,
-                                                     String acceptHeader,
-                                                     String refererHeader,
-                                                     String originHeader) throws Exception {
+                                                     Map<String, String> forwardHeaders) throws Exception {
         for (int i = 0; i < 6; i++) {
-            Map<String, String> upstreamHeaders = new LinkedHashMap<>();
-            upstreamHeaders.put("User-Agent", "UIPTV/1.0");
-            upstreamHeaders.put("Accept", isBlank(acceptHeader) ? "*/*" : acceptHeader);
-            upstreamHeaders.put("Accept-Encoding", "identity");
-            if (!isBlank(rangeHeader)) {
-                upstreamHeaders.put("Range", rangeHeader);
-            }
-            if (!isBlank(refererHeader)) {
-                upstreamHeaders.put("Referer", refererHeader);
-            }
-            if (!isBlank(originHeader)) {
-                upstreamHeaders.put("Origin", originHeader);
-            }
-            if (!cookies.isEmpty()) {
-                upstreamHeaders.put("Cookie", String.join("; ", cookies));
-            }
+            Map<String, String> upstreamHeaders = buildUpstreamHeaders(cookies, forwardHeaders);
 
             try (HttpUtil.StreamResult upstream = HttpUtil.openStream(current, upstreamHeaders, "GET", null, new HttpUtil.RequestOptions(false, true))) {
                 collectCookies(upstream.responseHeaders(), cookies);
                 int status = upstream.statusCode();
                 if (status >= 300 && status <= 399) {
-                    String location = firstHeader(upstream.responseHeaders(), "Location");
+                    String location = firstHeader(upstream.responseHeaders(), HEADER_LOCATION);
                     if (isBlank(location)) {
                         return null;
                     }
@@ -139,7 +107,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
         List<String> setCookie = null;
         for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
-            if (entry.getKey() != null && "Set-Cookie".equalsIgnoreCase(entry.getKey())) {
+            if (entry.getKey() != null && HEADER_SET_COOKIE.equalsIgnoreCase(entry.getKey())) {
                 setCookie = entry.getValue();
                 break;
             }
@@ -177,6 +145,78 @@ public class HttpProxyStreamServer implements HttpHandler {
             }
         }
         return "";
+    }
+
+    private Map<String, String> readForwardHeaders(HttpExchange ex) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put(HEADER_ACCEPT, ex.getRequestHeaders().getFirst(HEADER_ACCEPT));
+        headers.put(HEADER_RANGE, ex.getRequestHeaders().getFirst(HEADER_RANGE));
+        headers.put(HEADER_REFERER, ex.getRequestHeaders().getFirst(HEADER_REFERER));
+        headers.put(HEADER_ORIGIN, ex.getRequestHeaders().getFirst(HEADER_ORIGIN));
+        return headers;
+    }
+
+    private Map<String, String> buildUpstreamHeaders(List<String> cookies, Map<String, String> forwardedHeaders) {
+        Map<String, String> upstreamHeaders = new LinkedHashMap<>();
+        upstreamHeaders.put("User-Agent", USER_AGENT);
+        upstreamHeaders.put(HEADER_ACCEPT, isBlank(forwardedHeaders.get(HEADER_ACCEPT)) ? "*/*" : forwardedHeaders.get(HEADER_ACCEPT));
+        upstreamHeaders.put("Accept-Encoding", "identity");
+        addHeaderIfPresent(upstreamHeaders, HEADER_RANGE, forwardedHeaders.get(HEADER_RANGE));
+        addHeaderIfPresent(upstreamHeaders, HEADER_REFERER, forwardedHeaders.get(HEADER_REFERER));
+        addHeaderIfPresent(upstreamHeaders, HEADER_ORIGIN, forwardedHeaders.get(HEADER_ORIGIN));
+        if (!cookies.isEmpty()) {
+            upstreamHeaders.put(HEADER_COOKIE, String.join("; ", cookies));
+        }
+        return upstreamHeaders;
+    }
+
+    private void addHeaderIfPresent(Map<String, String> headers, String name, String value) {
+        if (!isBlank(value)) {
+            headers.put(name, value);
+        }
+    }
+
+    private InputStream resolvedBodyStream(HttpUtil.StreamResult upstream) {
+        InputStream bodyStream = upstream.bodyStream();
+        return bodyStream == null ? new ByteArrayInputStream(new byte[0]) : bodyStream;
+    }
+
+    private void writeResponseHeaders(HttpExchange ex, Map<String, List<String>> upstreamHeaders) {
+        String contentType = firstHeader(upstreamHeaders, HEADER_CONTENT_TYPE);
+        ex.getResponseHeaders().add(HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        ex.getResponseHeaders().add(HEADER_CACHE_CONTROL, "no-store");
+        ex.getResponseHeaders().add(HEADER_CONTENT_TYPE, isBlank(contentType) ? "application/octet-stream" : contentType);
+        copyHeaderIfPresent(ex, upstreamHeaders, HEADER_ACCEPT_RANGES);
+        copyHeaderIfPresent(ex, upstreamHeaders, HEADER_CONTENT_RANGE);
+        copyHeaderIfPresent(ex, upstreamHeaders, HEADER_CONTENT_DISPOSITION);
+    }
+
+    private void copyHeaderIfPresent(HttpExchange ex, Map<String, List<String>> upstreamHeaders, String headerName) {
+        String value = firstHeader(upstreamHeaders, headerName);
+        if (!isBlank(value)) {
+            ex.getResponseHeaders().add(headerName, value);
+        }
+    }
+
+    private long resolveContentLength(String contentLengthHeader) {
+        try {
+            long contentLength = isBlank(contentLengthHeader) ? UNKNOWN_CONTENT_LENGTH : Long.parseLong(contentLengthHeader);
+            return contentLength > 0 ? contentLength : UNKNOWN_CONTENT_LENGTH;
+        } catch (Exception _) {
+            return UNKNOWN_CONTENT_LENGTH;
+        }
+    }
+
+    private void copyStream(InputStream inputStream, OutputStream outputStream) throws IOException {
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, read);
+        }
+    }
+
+    private void sendBadGateway(HttpExchange ex) throws IOException {
+        ex.sendResponseHeaders(502, -1);
     }
 
     private String downgradeHttpsToHttp(String url) {
