@@ -90,7 +90,7 @@ public class XtremeParser implements AccountParser {
         String[] tokens = remaining.trim().split("\\s+");
         return Arrays.stream(tokens)
                 .filter(s -> !s.isEmpty() && s.length() > 1)
-                .toList();
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     private String stripKnownCredential(String remaining, String value, String prefixPattern) {

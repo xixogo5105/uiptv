@@ -1,20 +1,29 @@
 package com.uiptv.db;
 
+import com.uiptv.api.JsonCompliant;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
+import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.model.Account.AccountAction.vod;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -106,6 +115,132 @@ class DbWrapperCoverageTest extends DbBackedTest {
         }
     }
 
+    @Test
+    void baseDb_helpersHandleBlankNumbersAndSqlExceptions() throws Exception {
+        TestBaseDb baseDb = new TestBaseDb();
+        ResultSet resultSet = Mockito.mock(ResultSet.class);
+
+        Mockito.when(resultSet.getString("value")).thenReturn("text");
+        Mockito.when(resultSet.getString("blankInt")).thenReturn("");
+        Mockito.when(resultSet.getString("intVal")).thenReturn("7");
+        Mockito.when(resultSet.getString("boolBlank")).thenReturn("");
+        Mockito.when(resultSet.getString("boolOne")).thenReturn("1");
+        Mockito.when(resultSet.getString("missing")).thenThrow(new SQLException("missing"));
+
+        assertEquals("text", baseDb.nullSafeString(resultSet, "value"));
+        assertNull(baseDb.nullSafeString(resultSet, "missing"));
+        assertEquals(0, BaseDb.safeInteger(resultSet, "blankInt"));
+        assertEquals(7, BaseDb.safeInteger(resultSet, "intVal"));
+        assertEquals(0, BaseDb.safeInteger(resultSet, "missing"));
+        assertFalse(BaseDb.safeBoolean(resultSet, "boolBlank"));
+        assertTrue(BaseDb.safeBoolean(resultSet, "boolOne"));
+        assertFalse(BaseDb.safeBoolean(resultSet, "missing"));
+    }
+
+    @Test
+    void sqlConnection_applySchemaPrefersMigrationsThenBaselineAndFailsWhenMissing() throws Exception {
+        Method applySchema = SQLConnection.class.getDeclaredMethod("applySchema", Connection.class);
+        applySchema.setAccessible(true);
+        Connection connection = Mockito.mock(Connection.class);
+
+        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
+            patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(true);
+            assertDoesNotThrow(() -> applySchema.invoke(null, connection));
+            patches.verify(() -> DatabasePatchesUtils.applyPatches(connection));
+        }
+
+        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
+            patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(false);
+            patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(true);
+            assertDoesNotThrow(() -> applySchema.invoke(null, connection));
+            patches.verify(() -> DatabasePatchesUtils.applyBaseline(connection));
+        }
+
+        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
+            patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(false);
+            patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(false);
+            Exception ex = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> applySchema.invoke(null, connection));
+            assertTrue(ex.getCause() instanceof IllegalStateException);
+        }
+    }
+
+    @Test
+    void vodAndSeriesCaches_reportFreshnessAndSupportDeleteLookups() {
+        Account vodAccount = persistActionAccount("vod-db", vod);
+        Account seriesAccount = persistActionAccount("series-db", series);
+
+        Category vodCategory = new Category("vod-1", "Movies", "movies", false, 0);
+        vodCategory.setExtraJson("{\"kind\":\"vod\"}");
+        VodCategoryDb.get().saveAll(List.of(vodCategory), vodAccount);
+        assertTrue(VodCategoryDb.get().isFresh(vodAccount, 60_000));
+        assertFalse(VodCategoryDb.get().isFresh(vodAccount, 0));
+
+        Category seriesCategory = new Category("series-1", "Shows", "shows", false, 0);
+        seriesCategory.setExtraJson("{\"kind\":\"series\"}");
+        SeriesCategoryDb.get().saveAll(List.of(seriesCategory), seriesAccount);
+        assertTrue(SeriesCategoryDb.get().isFresh(seriesAccount, 60_000));
+        assertFalse(SeriesCategoryDb.get().isFresh(seriesAccount, 0));
+
+        Category savedVodCategory = VodCategoryDb.get().getCategories(vodAccount).get(0);
+        Category savedSeriesCategory = SeriesCategoryDb.get().getCategories(seriesAccount).get(0);
+        assertEquals("{\"kind\":\"vod\"}", savedVodCategory.getExtraJson());
+        assertEquals("{\"kind\":\"series\"}", savedSeriesCategory.getExtraJson());
+
+        VodCategoryDb.get().deleteByAccount(vodAccount.getDbId());
+        SeriesCategoryDb.get().deleteByAccount(seriesAccount.getDbId());
+        assertTrue(VodCategoryDb.get().getCategories(vodAccount).isEmpty());
+        assertTrue(SeriesCategoryDb.get().getCategories(seriesAccount).isEmpty());
+    }
+
+    @Test
+    void vodAndSeriesChannelWrappers_coverFreshnessLookupsAndDeletes() {
+        Account vodAccount = persistActionAccount("vod-ch-db", vod);
+        Account seriesAccount = persistActionAccount("series-ch-db", series);
+
+        VodChannelDb.get().saveAll(List.of(channel("vod-chan-1", "Movie One")), "vod-cat", vodAccount);
+        assertNotNull(VodChannelDb.get().getChannelByChannelId("vod-chan-1", "vod-cat", vodAccount.getDbId()));
+        assertTrue(VodChannelDb.get().isFresh(vodAccount, "vod-cat", 60_000));
+        assertFalse(VodChannelDb.get().isFresh(vodAccount, "vod-cat", 0));
+
+        SeriesChannelDb.get().saveAll(List.of(
+                channel("series-chan-1", "Series One"),
+                channel("series-chan-1", "Series One Duplicate"),
+                channel("series-chan-2", "Series Two")
+        ), "series-cat", seriesAccount);
+        assertEquals(3, SeriesChannelDb.get().getChannelsBySeriesIds(seriesAccount, java.util.Arrays.asList("series-chan-1", "series-chan-1", "series-chan-2", "", null)).size());
+        assertTrue(SeriesChannelDb.get().getChannelsBySeriesIds(seriesAccount, List.of()).isEmpty());
+        assertTrue(SeriesChannelDb.get().isFresh(seriesAccount, "series-cat", 60_000));
+        assertFalse(SeriesChannelDb.get().isFresh(seriesAccount, "series-cat", 0));
+
+        VodChannelDb.get().deleteByAccount(vodAccount.getDbId());
+        SeriesChannelDb.get().deleteByAccount(seriesAccount.getDbId());
+        assertTrue(VodChannelDb.get().getChannels(vodAccount, "vod-cat").isEmpty());
+        assertTrue(SeriesChannelDb.get().getChannels(seriesAccount, "series-cat").isEmpty());
+    }
+
+    @Test
+    void seriesEpisodeDb_usesFreshestCategoryAndSupportsAccountDelete() {
+        Account account = persistSeriesAccount("series-episodes-db");
+
+        Channel older = channel("ep-1", "Episode 1");
+        older.setSeason("1");
+        older.setEpisodeNum("1");
+        SeriesEpisodeDb.get().saveAll(account, "cat-old", "series-100", List.of(older));
+
+        Channel newer = channel("ep-2", "Episode 2");
+        newer.setSeason("1");
+        newer.setEpisodeNum("2");
+        SeriesEpisodeDb.get().saveAll(account, null, "series-100", List.of(newer));
+
+        assertTrue(SeriesEpisodeDb.get().isFresh(account, "", "series-100", 60_000));
+        assertFalse(SeriesEpisodeDb.get().isFresh(account, "", "series-100", 0));
+        assertTrue(SeriesEpisodeDb.get().isFreshInAnyCategory(account, "series-100", 60_000));
+        assertEquals("ep-2", SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, "series-100").get(0).getChannelId());
+        assertTrue(SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, "missing-series").isEmpty());
+        SeriesEpisodeDb.get().deleteByAccount(account.getDbId());
+        assertTrue(SeriesEpisodeDb.get().getEpisodes(account, "", "series-100").isEmpty());
+    }
+
     private Account persistAccount(String name) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.M3U8_URL, null, "http://127.0.0.1/mock/list.m3u", false);
         AccountService.getInstance().save(account);
@@ -119,6 +254,23 @@ class DbWrapperCoverageTest extends DbBackedTest {
         Account saved = AccountService.getInstance().getByName(name);
         saved.setAction(series);
         return saved;
+    }
+
+    private Account persistActionAccount(String name, Account.AccountAction action) {
+        Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, "http://127.0.0.1/mock", false);
+        account.setAction(action);
+        AccountService.getInstance().save(account);
+        Account saved = AccountService.getInstance().getByName(name);
+        saved.setAction(action);
+        return saved;
+    }
+
+    private Channel channel(String id, String name) {
+        Channel channel = new Channel();
+        channel.setChannelId(id);
+        channel.setName(name);
+        channel.setCmd("http://example.test/" + id);
+        return channel;
     }
 
     private SeriesWatchState state(String accountId, String categoryId, String seriesId, String episodeId) {
@@ -137,5 +289,16 @@ class DbWrapperCoverageTest extends DbBackedTest {
         state.setSeriesChannelSnapshot("{\"id\":\"" + seriesId + "\"}");
         state.setSeriesEpisodeSnapshot("{\"id\":\"" + episodeId + "\"}");
         return state;
+    }
+
+    private static final class TestBaseDb extends BaseDb {
+        private TestBaseDb() {
+            super(DatabaseUtils.DbTable.ACCOUNT_TABLE);
+        }
+
+        @Override
+        JsonCompliant populate(ResultSet resultSet) {
+            return null;
+        }
     }
 }
