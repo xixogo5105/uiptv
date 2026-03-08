@@ -1,22 +1,16 @@
 package com.uiptv.ui;
 
-import com.uiptv.util.I18n;
-import com.uiptv.util.EpisodeTitleFormatter;
-
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.ImdbMetadataService;
-import com.uiptv.service.SeriesEpisodeService;
-import com.uiptv.service.SeriesWatchStateChangeListener;
-import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.util.EpisodeTitleFormatter;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Platform;
@@ -24,29 +18,10 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Accordion;
-import javafx.scene.control.Button;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
-import javafx.scene.control.Menu;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
-import javafx.scene.control.TitledPane;
+import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -55,15 +30,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -859,7 +826,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         HBox badges = new HBox(4);
         badges.setAlignment(Pos.TOP_RIGHT);
-        
+
         Label watching = new Label(I18n.tr("autoWatching"));
         watching.getStyleClass().add("drm-badge");
         watching.setMinWidth(Region.USE_PREF_SIZE);
@@ -867,7 +834,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         watching.setVisible(row.watched);
         watching.setManaged(row.watched);
         badges.getChildren().add(watching);
-        
+
         // Store the watching label in the episode object or map for later access
         data.watchingLabels.put(row, watching);
 
@@ -1082,7 +1049,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (item == null || item.channel == null || item.account == null) {
             return;
         }
-        
+
         // Optimistically update UI
         updateWatchingStatusUI(data, item);
 
@@ -1103,10 +1070,10 @@ public abstract class BaseWatchingNowUI extends VBox {
                 .channelId(item.channel.getChannelId())
                 .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
     }
-    
+
     private void updateWatchingStatusUI(SeriesPanelData data, WatchingEpisode currentEpisode) {
         if (data == null || currentEpisode == null) return;
-        
+
         // Check if we should update the UI based on whether the new episode is "newer"
         // We need to find the currently watched episode first
         WatchingEpisode previouslyWatched = null;
@@ -1131,15 +1098,15 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (!shouldUpdate) {
             return;
         }
-        
+
         // Hide all watching labels
         for (Map.Entry<WatchingEpisode, Label> entry : data.watchingLabels.entrySet()) {
             WatchingEpisode episode = entry.getKey();
             Label label = entry.getValue();
-            
+
             boolean isCurrent = episode == currentEpisode;
             episode.watched = isCurrent;
-            
+
             if (label != null) {
                 label.setVisible(isCurrent);
                 label.setManaged(isCurrent);

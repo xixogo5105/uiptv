@@ -104,6 +104,7 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
 
         @Override
         public void close() {
+            //not needed
         }
 
         @Override
@@ -148,10 +149,12 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            //not needed
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            //not needed
         }
 
         @Override
