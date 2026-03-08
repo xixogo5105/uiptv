@@ -170,29 +170,48 @@ public class XtremeParser {
 
         IOException lastIoException = null;
         for (int index = 0; index < baseUrlCandidates.size(); index++) {
-            String baseUrl = baseUrlCandidates.get(index);
-            boolean hasMoreCandidates = index + 1 < baseUrlCandidates.size();
+            boolean hasMoreCandidates = hasMoreBaseUrlCandidates(baseUrlCandidates, index);
             try {
-                HttpUtil.HttpResult response = HttpUtil.sendRequest(buildPlayerApiUrl(baseUrl, account, action, extraParams), null, "GET");
-                if (isSuccessfulPlayerApiResponse(response)) {
-                    return response.body();
+                String responseBody = fetchPlayerApiCandidate(baseUrlCandidates.get(index), account, action, extraParams, hasMoreCandidates);
+                if (responseBody != null) {
+                    return responseBody;
                 }
-                if (response.statusCode() == 404 && hasMoreCandidates) {
-                    continue;
-                }
-                throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
             } catch (Exception e) {
-                if (e instanceof IOException ioException) {
-                    lastIoException = ioException;
-                } else {
-                    lastIoException = new IOException("Failed to call Xtreme API: " + e.getMessage(), e);
-                }
+                lastIoException = toPlayerApiIOException(e);
                 if (hasMoreCandidates) {
                     continue;
                 }
             }
         }
         throw lastIoException != null ? lastIoException : new IOException("Failed to call Xtreme API.");
+    }
+
+    private static boolean hasMoreBaseUrlCandidates(List<String> baseUrlCandidates, int index) {
+        return index + 1 < baseUrlCandidates.size();
+    }
+
+    private static String fetchPlayerApiCandidate(String baseUrl, Account account, String action, Map<String, String> extraParams,
+                                                  boolean hasMoreCandidates) throws IOException {
+        HttpUtil.HttpResult response;
+        try {
+            response = HttpUtil.sendRequest(buildPlayerApiUrl(baseUrl, account, action, extraParams), null, "GET");
+        } catch (Exception e) {
+            throw toPlayerApiIOException(e);
+        }
+        if (isSuccessfulPlayerApiResponse(response)) {
+            return response.body();
+        }
+        if (response.statusCode() == 404 && hasMoreCandidates) {
+            return null;
+        }
+        throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
+    }
+
+    private static IOException toPlayerApiIOException(Exception e) {
+        if (e instanceof IOException ioException) {
+            return ioException;
+        }
+        return new IOException("Failed to call Xtreme API: " + e.getMessage(), e);
     }
 
     private static String buildPlayerApiUrl(String baseUrl, Account account, String action, Map<String, String> extraParams) {

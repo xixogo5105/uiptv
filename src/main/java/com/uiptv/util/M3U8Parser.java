@@ -123,21 +123,9 @@ public class M3U8Parser {
                 }
 
                 EntryHeader header = parseEntryHeader(line);
-                EntryState state = new EntryState();
-                for (index = index + 1; index < lines.size(); index++) {
-                    String nextLine = lines.get(index);
-                    String trimmed = nextLine == null ? EMPTY : nextLine.trim();
-                    if (trimmed.startsWith(EXTINF)) {
-                        index--;
-                        break;
-                    }
-                    if (applyMetaLine(state, nextLine, trimmed)) {
-                        if (state.url != null) {
-                            break;
-                        }
-                    }
-                }
-
+                ParsedEntry parsed = parseEntryState(lines, index + 1);
+                EntryState state = parsed.state();
+                index = parsed.lastIndex();
                 if (isNotBlank(state.url)) {
                     playlistEntries.add(new PlaylistEntry(header.tvgId, header.groupTitle, header.title, state.url, header.logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
                 }
@@ -146,6 +134,22 @@ public class M3U8Parser {
             UIptvAlert.showError(e.getMessage());
         }
         return playlistEntries;
+    }
+
+    private static ParsedEntry parseEntryState(List<String> lines, int startIndex) {
+        EntryState state = new EntryState();
+        int index = startIndex - 1;
+        for (index = startIndex; index < lines.size(); index++) {
+            String nextLine = lines.get(index);
+            String trimmed = nextLine == null ? EMPTY : nextLine.trim();
+            if (trimmed.startsWith(EXTINF)) {
+                return new ParsedEntry(state, index - 1);
+            }
+            if (applyMetaLine(state, nextLine, trimmed) && state.url != null) {
+                break;
+            }
+        }
+        return new ParsedEntry(state, index);
     }
 
     private static List<String> readLines(BufferedReader reader) throws IOException {
@@ -242,6 +246,9 @@ public class M3U8Parser {
     }
 
     private record EntryHeader(String tvgId, String groupTitle, String title, String logo) {
+    }
+
+    private record ParsedEntry(EntryState state, int lastIndex) {
     }
 
     private static String parseItem(String line, String key) {

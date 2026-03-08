@@ -460,7 +460,7 @@ public class ImdbMetadataService {
             result.put(KEY_CAST, meta.optString(KEY_CAST, ""));
         }
 
-        JSONArray director = meta.optJSONArray("director");
+        JSONArray director = meta.optJSONArray(KEY_DIRECTOR);
         if (director != null) {
             result.put(KEY_DIRECTOR, joinStringArray(director, 4));
         } else {

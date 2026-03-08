@@ -49,7 +49,7 @@ public final class PlaybackUIService {
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request);
 
-        if (handleBrowserPlayback(context)) return;
+        if (handleBrowserPlayback(context, request)) return;
         if (handleDrmBrowserFallback(context, request)) return;
 
         Scene scene = source.getScene();
@@ -82,11 +82,11 @@ public final class PlaybackUIService {
         return new PlaybackModeContext(useEmbeddedPlayerConfig, browserIsDefaultConfig, playerPathIsEmbedded, playerPathIsBrowser, mode);
     }
 
-    private static boolean handleBrowserPlayback(PlaybackModeContext context) {
+    private static boolean handleBrowserPlayback(PlaybackModeContext context, PlaybackRequest request) {
         if (!context.playerPathIsBrowser()) {
             return false;
         }
-        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"), null);
+        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"), request);
     }
 
     private static boolean handleDrmBrowserFallback(PlaybackModeContext context, PlaybackRequest request) {
@@ -108,11 +108,12 @@ public final class PlaybackUIService {
             showErrorAlert(startupFailureMessage);
             return true;
         }
-        if (request != null) {
-            String browserUrl = PlayerService.getInstance()
-                    .buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
-            ServerUrlUtil.openInBrowser(browserUrl);
+        if (request == null) {
+            return false;
         }
+        String browserUrl = PlayerService.getInstance()
+                .buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
+        ServerUrlUtil.openInBrowser(browserUrl);
         return true;
     }
 

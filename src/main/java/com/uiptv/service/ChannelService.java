@@ -424,17 +424,10 @@ public class ChannelService {
 
     private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage, LoggerCallback logger) {
         List<Channel> channelList = new ArrayList<>();
-        if (account.getType() == STALKER_PORTAL) {
-            ensureStalkerSession(account, logger);
-        }
+        ensureStalkerAccountSession(account, logger);
         PageFetchResult firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
-        if ((firstPage.channels == null || firstPage.channels.isEmpty()) && account.getType() == STALKER_PORTAL) {
-            log(logger, "No channels returned. Refreshing Stalker session and retrying page " + startPage + " once...");
-            HandshakeService.getInstance().hardTokenRefresh(account);
-            firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
-        }
-
-        if (firstPage.channels == null || firstPage.channels.isEmpty()) {
+        firstPage = retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, firstPage);
+        if (isEmptyChannelPage(firstPage)) {
             log(logger, "Page " + startPage + " returned no channels.");
             return channelList;
         }
@@ -451,7 +444,7 @@ public class ChannelService {
             }
 
             PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
-            if (page.channels == null || page.channels.isEmpty()) {
+            if (isEmptyChannelPage(page)) {
                 log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
                 break;
             }
@@ -460,6 +453,26 @@ public class ChannelService {
             if (callback != null) callback.accept(page.channels);
         }
         return dedupeChannels(channelList);
+    }
+
+    private void ensureStalkerAccountSession(Account account, LoggerCallback logger) {
+        if (account.getType() == STALKER_PORTAL) {
+            ensureStalkerSession(account, logger);
+        }
+    }
+
+    private PageFetchResult retryEmptyFirstPage(String category, Account account, String movieId, String seriesId, boolean censor,
+                                                int startPage, LoggerCallback logger, PageFetchResult firstPage) {
+        if (!isEmptyChannelPage(firstPage) || account.getType() != STALKER_PORTAL) {
+            return firstPage;
+        }
+        log(logger, "No channels returned. Refreshing Stalker session and retrying page " + startPage + " once...");
+        HandshakeService.getInstance().hardTokenRefresh(account);
+        return fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
+    }
+
+    private boolean isEmptyChannelPage(PageFetchResult page) {
+        return page.channels == null || page.channels.isEmpty();
     }
 
     private PageFetchResult fetchStalkerPage(String category, Account account, String movieId, String seriesId,

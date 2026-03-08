@@ -27,6 +27,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
@@ -379,52 +380,68 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void wireContainerInteractions() {
-        playerContainer.setOnMouseClicked(e -> {
-            restoreVisibleCursor();
-            if (!isControlBarHiddenByUser) {
-                controlsContainer.setVisible(true);
-            }
-            if (playerContainer.isVisible() && playerContainer.isManaged()) {
-                idleTimer.playFromStart();
-            }
-            if (e.getButton() == MouseButton.PRIMARY) {
-                if (e.getClickCount() == 1) playerContainer.requestFocus();
-                else if (e.getClickCount() == 2) toggleFullscreen();
-            } else if (e.getButton() == MouseButton.SECONDARY) {
-                showControlBar();
-            }
-        });
-
-        playerContainer.addEventFilter(KeyEvent.ANY, e -> {
-            restoreVisibleCursor();
-            restartIdleTimerForActivePlayer();
-        });
-
-        playerContainer.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.F) toggleFullscreen();
-            else if (e.getCode() == KeyCode.M) btnMute.fire();
-            else if (e.getCode() == KeyCode.ESCAPE && fullscreenStage != null) toggleFullscreen();
-            else if (e.getCode() == KeyCode.B) showControlBar();
-        });
-
+        playerContainer.setOnMouseClicked(this::handlePlayerMouseClick);
+        playerContainer.addEventFilter(KeyEvent.ANY, e -> onPlayerInteraction());
+        playerContainer.setOnKeyPressed(this::handlePlayerKeyPress);
         playerContainer.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> restoreVisibleCursor());
         playerContainer.addEventFilter(MouseEvent.MOUSE_RELEASED, e -> restoreVisibleCursor());
-        playerContainer.addEventFilter(MouseEvent.MOUSE_DRAGGED, e -> {
-            isPointerInsidePlayer = true;
-            restoreVisibleCursor();
-            if (!isControlBarHiddenByUser) {
-                controlsContainer.setVisible(true);
-            }
-            restartIdleTimerForActivePlayer();
-        });
+        playerContainer.addEventFilter(MouseEvent.MOUSE_DRAGGED, e -> handlePlayerMouseDragged());
+        playerContainer.setOnScroll(this::handlePlayerScroll);
+    }
 
-        playerContainer.setOnScroll(e -> {
-            restoreVisibleCursor();
-            double delta = e.getDeltaY();
-            if (delta == 0) return;
-            double change = Math.signum(delta) * 5;
-            volumeSlider.setValue(volumeSlider.getValue() + change);
-        });
+    private void handlePlayerMouseClick(MouseEvent event) {
+        onPlayerInteraction();
+        if (event.getButton() == MouseButton.PRIMARY) {
+            handlePrimaryPlayerClick(event);
+            return;
+        }
+        if (event.getButton() == MouseButton.SECONDARY) {
+            showControlBar();
+        }
+    }
+
+    private void handlePrimaryPlayerClick(MouseEvent event) {
+        if (event.getClickCount() == 1) {
+            playerContainer.requestFocus();
+        } else if (event.getClickCount() == 2) {
+            toggleFullscreen();
+        }
+    }
+
+    private void handlePlayerKeyPress(KeyEvent event) {
+        if (event.getCode() == KeyCode.F) {
+            toggleFullscreen();
+        } else if (event.getCode() == KeyCode.M) {
+            btnMute.fire();
+        } else if (event.getCode() == KeyCode.ESCAPE && fullscreenStage != null) {
+            toggleFullscreen();
+        } else if (event.getCode() == KeyCode.B) {
+            showControlBar();
+        }
+    }
+
+    private void handlePlayerMouseDragged() {
+        isPointerInsidePlayer = true;
+        onPlayerInteraction();
+    }
+
+    private void handlePlayerScroll(ScrollEvent event) {
+        restoreVisibleCursor();
+        double delta = event.getDeltaY();
+        if (delta == 0) return;
+        double change = Math.signum(delta) * 5;
+        volumeSlider.setValue(volumeSlider.getValue() + change);
+    }
+
+    private void onPlayerInteraction() {
+        restoreVisibleCursor();
+        if (!isControlBarHiddenByUser) {
+            controlsContainer.setVisible(true);
+        }
+        if (playerContainer.isVisible() && playerContainer.isManaged()) {
+            idleTimer.playFromStart();
+        }
+        restartIdleTimerForActivePlayer();
     }
 
     private void hideControlBarByUser() {
