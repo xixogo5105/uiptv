@@ -7,7 +7,7 @@
 [![GitHub (pre-)release](https://img.shields.io/github/release-pre/xixogo5105/uiptv.svg)](https://github.com/xixogo5105/uiptv/releases)
 [![GitHub license](https://img.shields.io/github/license/xixogo5105/uiptv?branch=main)](https://github.com/xixogo5105/uiptv/blob/main/LICENSE)
 [![Main](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=xixogo5105_uiptv&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=xixogo5105_uiptv)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=xixogo5105_uiptv&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=xixogo5105_uiptv)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=xixogo5105_uiptv&metric=coverage)](https://sonarcloud.io/summary/new_code?id=xixogo5105_uiptv)
 [![codecov](https://codecov.io/gh/xixogo5105/uiptv/branch/main/graph/badge.svg)](https://app.codecov.io/github/xixogo5105/uiptv)
 
@@ -93,7 +93,7 @@ Before compiling, please ensure you have:
 
 To compile the project, you can use Maven profiles to target specific operating systems and package formats. The final application will be generated in the `target/dist` directory.
 
-### Build
+### Build Commands
 Here are some examples of how to build the application for different targets.
 
 #### Windows
