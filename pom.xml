@@ -26,11 +26,22 @@
             src/main/java/com/uiptv/player/**,
             src/main/java/com/uiptv/widget/**,
             src/main/java/com/uiptv/api/VideoPlayerInterface.java,
+            src/main/java/com/uiptv/server/HttpCssServer.java,
+            src/main/java/com/uiptv/server/HttpHlsFileServer.java,
+            src/main/java/com/uiptv/server/HttpHlsUploadServer.java,
+            src/main/java/com/uiptv/server/HttpIconServer.java,
+            src/main/java/com/uiptv/server/HttpJavascriptServer.java,
+            src/main/java/com/uiptv/server/HttpManifestServer.java,
+            src/main/java/com/uiptv/server/HttpProxyStreamServer.java,
+            src/main/java/com/uiptv/server/StaticWebFileResolver.java,
+            src/main/java/com/uiptv/server/UIptvServer.java,
+            src/main/java/com/uiptv/server/html/HttpSpaHtmlServer.java,
             src/main/java/com/uiptv/util/ColoredStatusTableCell.java,
             src/main/java/com/uiptv/util/I18n.java,
             src/main/java/com/uiptv/util/ImageCacheManager.java,
             src/main/java/com/uiptv/util/ServerUrlUtil.java,
-            src/main/java/com/uiptv/util/StyleClassDecorator.java
+            src/main/java/com/uiptv/util/StyleClassDecorator.java,
+            website/**
         </sonar.coverage.exclusions>
     </properties>
 
