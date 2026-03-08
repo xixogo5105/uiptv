@@ -115,6 +115,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                     return json;
                 }
             } catch (Exception _) {
+                // Ignore non-usable JSON variants and keep trying the remaining fallback shapes.
             }
         }
         return "";

@@ -4,7 +4,7 @@ import com.uiptv.ui.ChannelListUI;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableRow;
 
-public class ColoredStatusTableCell extends TableCell<TableRow, ChannelListUI.ChannelItem> {
+public class ColoredStatusTableCell extends TableCell<ChannelListUI.ChannelItem, ChannelListUI.ChannelItem> {
 
     @Override
     protected void updateItem(ChannelListUI.ChannelItem item, boolean empty) {
@@ -13,7 +13,7 @@ public class ColoredStatusTableCell extends TableCell<TableRow, ChannelListUI.Ch
         setText(empty ? "" : getItem().getChannelName());
         setGraphic(null);
 
-        TableRow currentRow = getTableRow();
+        TableRow<ChannelListUI.ChannelItem> currentRow = getTableRow();
 
         if (!isEmpty()) {
 

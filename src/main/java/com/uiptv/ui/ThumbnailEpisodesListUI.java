@@ -659,6 +659,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 }
                 applyEpisodeMeta(episode, meta);
             } catch (Exception _) {
+                // Skip malformed per-episode metadata rows and keep rendering the base episode item.
             }
         }
     }
@@ -767,6 +768,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                     return imdb;
                 }
             } catch (Exception _) {
+                // Ignore transient IMDb lookup failures and retry on the next attempt.
             }
             if (attempt < attempts) {
                 try {

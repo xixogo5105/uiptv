@@ -46,6 +46,7 @@ class InMemoryHlsServiceTest {
             try {
                 Thread.sleep(1);
             } catch (InterruptedException _) {
+                // Ignore jitter in the ordering helper loop for this test.
             }
         }
 

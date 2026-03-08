@@ -69,14 +69,14 @@ public class ManageAccountUI extends VBox {
     private final VBox formContainer = new VBox();
     AccountService service = AccountService.getInstance();
     private String accountId;
-    private Callback onSaveCallback;
+    private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;
 
     public ManageAccountUI() {
         initWidgets();
     }
 
-    public void addCallbackHandler(Callback onSaveCallback) {
+    public void addCallbackHandler(Callback<Object> onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
     }
 

@@ -123,6 +123,7 @@ public class PlayerUrlUtils {
                 return URI.create(portal.trim());
             }
         } catch (Exception _) {
+            // Invalid portal URLs should simply disable portal-relative URL rewriting.
         }
         return null;
     }

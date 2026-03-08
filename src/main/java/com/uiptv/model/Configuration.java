@@ -13,6 +13,7 @@ public class Configuration extends BaseJson {
     private boolean darkTheme, pauseFiltering, pauseCaching, embeddedPlayer, wideView, enableFfmpegTranscoding, enableLitePlayerFfmpeg, enableThumbnails = true;
 
 
+    @SuppressWarnings("java:S107")
     public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, boolean enableFfmpegTranscoding, boolean enableThumbnails) {
         this.playerPath1 = playerPath1;
         this.playerPath2 = playerPath2;
@@ -28,15 +29,18 @@ public class Configuration extends BaseJson {
         this.enableThumbnails = enableThumbnails;
     }
 
+    @SuppressWarnings("java:S107")
     public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, boolean enableFfmpegTranscoding) {
         this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, true);
     }
 
+    @SuppressWarnings("java:S107")
     public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, boolean enableFfmpegTranscoding, String cacheExpiryDays, boolean enableThumbnails) {
         this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, enableThumbnails);
         this.cacheExpiryDays = cacheExpiryDays;
     }
 
+    @SuppressWarnings("java:S107")
     public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, boolean enableFfmpegTranscoding, String cacheExpiryDays) {
         this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, cacheExpiryDays, true);
     }

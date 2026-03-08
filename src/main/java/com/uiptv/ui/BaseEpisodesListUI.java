@@ -863,6 +863,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         private final SimpleStringProperty rating;
         private final Episode episode;
 
+        @SuppressWarnings("java:S107")
         public EpisodeItem(SimpleStringProperty episodeName,
                           SimpleStringProperty episodeId,
                           SimpleStringProperty cmd,

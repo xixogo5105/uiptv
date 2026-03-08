@@ -1103,6 +1103,7 @@ public class BookmarkChannelListUI extends HBox {
         private final String manifestType;
 
 
+        @SuppressWarnings("java:S107")
         public BookmarkItem(SimpleStringProperty bookmarkId, SimpleStringProperty channelName, SimpleStringProperty channelId, SimpleStringProperty cmd, SimpleStringProperty accountName, SimpleStringProperty categoryTitle, SimpleStringProperty serverPortalUrl, SimpleStringProperty channelAccountName, SimpleStringProperty categoryId, SimpleStringProperty logo, Account.AccountAction accountAction, String drmType, String drmLicenseUrl, String clearKeysJson, String inputstreamaddon, String manifestType) {
             this.bookmarkId = bookmarkId;
             this.channelName = channelName;

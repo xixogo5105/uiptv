@@ -32,6 +32,7 @@ public class RssCacheReloader extends AbstractAccountCacheReloader {
                     totalChannels += channels.size();
                 }
             } catch (Exception _) {
+                // Best-effort category fetch: keep loading the remaining categories.
             }
         }
 

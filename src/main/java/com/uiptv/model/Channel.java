@@ -29,6 +29,7 @@ public class Channel extends BaseJson {
     private String inputstreamaddon;
     private String manifestType; // New field for manifest_type
 
+    @SuppressWarnings("java:S107")
     public Channel(String channelId, String name, String number, String cmd, String cmd_1, String cmd_2, String cmd_3, String logo, int censored, int status, int hd, String drmType, String drmLicenseUrl, Map<String, String> clearKeys, String inputstreamaddon, String manifestType) {
         this.channelId = channelId;
         this.name = name;
@@ -86,6 +87,7 @@ public class Channel extends BaseJson {
             channel.setManifestType(safeGetString(jsonObj, "manifestType"));
             return channel;
         } catch (Exception e) {
+            // Treat malformed serialized channels as absent cached snapshots.
             return null;
         }
     }
@@ -105,6 +107,7 @@ public class Channel extends BaseJson {
                 map.put(key, value);
             }
         } catch (Exception e) {
+            // Malformed clear-key JSON should behave like missing DRM keys.
             return null;
         }
         return map;

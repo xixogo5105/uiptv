@@ -400,14 +400,17 @@ public class ChannelService {
         return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true);
     }
 
+    @SuppressWarnings("java:S107")
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) {
         return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true, logger);
     }
 
+    @SuppressWarnings("java:S107")
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor) {
         return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, censor, null);
     }
 
+    @SuppressWarnings("java:S107")
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, LoggerCallback logger) {
         log(logger, "Starting portal fetch for category " + category + ".");
         // Different portals are inconsistent on first page index (0 vs 1); try both.
@@ -461,6 +464,7 @@ public class ChannelService {
         }
     }
 
+    @SuppressWarnings("java:S107")
     private PageFetchResult retryEmptyFirstPage(String category, Account account, String movieId, String seriesId, boolean censor,
                                                 int startPage, LoggerCallback logger, PageFetchResult firstPage) {
         if (!isEmptyChannelPage(firstPage) || account.getType() != STALKER_PORTAL) {
@@ -682,6 +686,7 @@ public class ChannelService {
                 port = uri.getPort();
             }
         } catch (Exception _) {
+            // Invalid portal URLs should fall back to the default scheme/host values.
         }
         return new PortalAddress(scheme, host, port);
     }

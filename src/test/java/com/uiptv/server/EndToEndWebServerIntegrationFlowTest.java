@@ -103,6 +103,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         try {
             UIptvServer.stop();
         } catch (Exception _) {
+            // Best-effort shutdown between tests; server may already be stopped.
         }
         if (providerMockServer != null) {
             providerMockServer.stop(0);

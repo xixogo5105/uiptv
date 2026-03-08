@@ -253,6 +253,7 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
         private final String seriesPoster;
         private final long updatedAt;
 
+        @SuppressWarnings("java:S107")
         private PanelRow(String accountId,
                          String accountName,
                          String accountType,

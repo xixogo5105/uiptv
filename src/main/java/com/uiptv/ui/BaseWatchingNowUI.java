@@ -2389,6 +2389,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         private String rating;
         private boolean watched;
 
+        @SuppressWarnings("java:S107")
         private WatchingEpisode(Account account,
                                 SeriesWatchState state,
                                 String seriesTitle,

@@ -45,6 +45,7 @@ public class Account extends BaseJson {
     private String httpMethod = "GET";
     private String timezone = "Europe/London";
 
+    @SuppressWarnings("java:S107")
     public Account(String accountName, String username, String password, String url, String macAddress, String macAddressList, String serialNumber, String deviceId1, String deviceId2, String signature, AccountType type, String epg, String m3u8Path, boolean pinToTop) {
         this.accountName = accountName;
         this.username = username;

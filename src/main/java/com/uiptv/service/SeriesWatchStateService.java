@@ -198,6 +198,7 @@ public class SeriesWatchStateService {
         }
     }
 
+    @SuppressWarnings("java:S107")
     private void upsertState(String accountId, String categoryId, String seriesId, String episodeId, String episodeName, String season, int episodeNum, String source) {
         String normalizedSeason = normalizeSeason(season, episodeName);
         int normalizedEpisodeNum = episodeNum > 0 ? episodeNum : parseEpisodeNum("", episodeName);

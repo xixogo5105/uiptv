@@ -105,14 +105,14 @@ public class ConfigurationUI extends VBox {
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
-    private final Callback onSaveCallback;
+    private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private Timeline serverStatusTimeline;
     private Timeline saveSuccessTimeline;
 
-    public ConfigurationUI(Callback onSaveCallback) {
+    public ConfigurationUI(Callback<Object> onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
         initWidgets();
     }

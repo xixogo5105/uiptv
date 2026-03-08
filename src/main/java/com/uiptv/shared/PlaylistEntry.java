@@ -31,6 +31,7 @@ public class PlaylistEntry extends BaseJson {
         this.logo = logo;
     }
 
+    @SuppressWarnings("java:S107")
     public PlaylistEntry(String id, String groupTitle, String title, String playlistEntry, String logo, String drmType, String drmLicenseUrl, Map<String, String> clearKeys, String inputstreamaddon, String manifestType) {
         this.id = id;
         this.groupTitle = groupTitle;

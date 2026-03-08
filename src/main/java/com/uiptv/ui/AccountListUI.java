@@ -63,8 +63,8 @@ public class AccountListUI extends HBox {
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private Node currentContent;
     private final VBox embeddedContainer = new VBox();
-    private Callback onEditCallback;
-    private Callback onDeleteCallback;
+    private Callback<Object> onEditCallback;
+    private Callback<Object> onDeleteCallback;
     private boolean isPromptShowing = false;
 
     public AccountListUI() { // Removed MediaPlayer argument
@@ -87,11 +87,11 @@ public class AccountListUI extends HBox {
         });
     }
 
-    public void addUpdateCallbackHandler(Callback onEditCallback) {
+    public void addUpdateCallbackHandler(Callback<Object> onEditCallback) {
         this.onEditCallback = onEditCallback;
     }
 
-    public void addDeleteCallbackHandler(Callback onDeleteCallback) {
+    public void addDeleteCallbackHandler(Callback<Object> onDeleteCallback) {
         this.onDeleteCallback = onDeleteCallback;
     }
 
