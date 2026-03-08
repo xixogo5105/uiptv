@@ -161,7 +161,7 @@ public class MacAddressManagementPopup extends VBox {
 
         if (removingDefault) {
             if (!macItems.isEmpty()) {
-                defaultMac = macItems.get(0).getMac();
+                defaultMac = macItems.getFirst().getMac();
             } else {
                 defaultMac = null; // Should not happen due to check above
             }

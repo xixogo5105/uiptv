@@ -600,7 +600,7 @@ public class ConfigurationUI extends VBox {
         serverStatusTimeline.setCycleCount(Animation.INDEFINITE);
         serverStatusTimeline.play();
 
-        sceneProperty().addListener((observable, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 if (serverStatusTimeline != null) {
                     serverStatusTimeline.stop();
@@ -669,7 +669,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addSaveButtonClickHandler() {
-        saveButton.setOnAction(actionEvent -> {
+        saveButton.setOnAction(_ -> {
             try {
                 if (saveButton.isDisable()) {
                     return;
@@ -772,7 +772,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addBrowserButton1ClickHandler() {
-        browserButtonPlayerPath1.setOnAction(actionEvent -> {
+        browserButtonPlayerPath1.setOnAction(_ -> {
             File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             if (file != null) {
                 playerPath1.setText(file.getAbsolutePath());
@@ -781,7 +781,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addBrowserButton2ClickHandler() {
-        browserButtonPlayerPath2.setOnAction(actionEvent -> {
+        browserButtonPlayerPath2.setOnAction(_ -> {
             File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             if (file != null) {
                 playerPath2.setText(file.getAbsolutePath());
@@ -790,7 +790,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addBrowserButton3ClickHandler() {
-        browserButtonPlayerPath3.setOnAction(actionEvent -> {
+        browserButtonPlayerPath3.setOnAction(_ -> {
             File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             if (file != null) {
                 playerPath3.setText(file.getAbsolutePath());

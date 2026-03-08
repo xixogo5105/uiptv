@@ -73,7 +73,7 @@ public class EpisodesListUI extends HBox {
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = false;

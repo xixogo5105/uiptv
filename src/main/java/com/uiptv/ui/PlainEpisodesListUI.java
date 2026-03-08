@@ -91,7 +91,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void configureRowInteractions() {
-        tableView.setRowFactory(tv -> {
+        tableView.setRowFactory(_ -> {
             TableRow<EpisodeItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> handleEpisodeRowClick(row, event));
             addRightClickContextMenu(row);
@@ -185,7 +185,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private void addRightClickContextMenu(TableRow<EpisodeItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
         I18n.preparePopupControl(rowMenu, row);
-        rowMenu.hideOnEscapeProperty();
+        rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         row.setOnContextMenuRequested(event -> {
             populateEpisodeContextMenu(rowMenu, row.getItem());

@@ -120,7 +120,7 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void registerSceneCleanupListener() {
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 releaseTransientState();
             }
@@ -159,7 +159,7 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void addSubmitButtonClickHandler() {
-        saveButton.setOnAction(actionEvent -> {
+        saveButton.setOnAction(_ -> {
             try {
                 if (isBlank(multipleSPAccounts.getText())) {
                     showErrorAlert(I18n.tr("autoInputCannotBeEmpty"));

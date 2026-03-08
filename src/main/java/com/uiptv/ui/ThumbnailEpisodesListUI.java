@@ -371,7 +371,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         Tab defaultTab = seasonTabPane.getTabs().stream()
                 .filter(t -> "1".equals(String.valueOf(t.getUserData())))
                 .findFirst()
-                .orElse(seasonTabPane.getTabs().get(0));
+                .orElse(seasonTabPane.getTabs().getFirst());
         if (!isBlank(current)) {
             defaultTab = seasonTabPane.getTabs().stream()
                     .filter(t -> current.equals(String.valueOf(t.getUserData())))
@@ -550,7 +550,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private ContextMenu addRightClickContextMenu(EpisodeItem item, Pane target) {
         final ContextMenu rowMenu = new ContextMenu();
         I18n.preparePopupControl(rowMenu, target);
-        rowMenu.hideOnEscapeProperty();
+        rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         target.setOnContextMenuRequested(event -> {
             populateEpisodeContextMenu(rowMenu, item);

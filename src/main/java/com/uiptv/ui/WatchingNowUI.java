@@ -36,7 +36,7 @@ public class WatchingNowUI extends VBox {
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = false;

@@ -155,7 +155,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buildUI();
         setupEventHandlers();
         setupFadeAndIdleLogic();
-        playerContainer.sceneProperty().addListener((obs, oldScene, newScene) -> {
+        playerContainer.sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != newScene) {
                 uninstallSceneInputRecovery(oldScene);
                 installSceneInputRecovery(newScene);

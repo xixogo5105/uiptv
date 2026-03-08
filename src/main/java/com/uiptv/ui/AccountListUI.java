@@ -28,6 +28,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.scene.shape.SVGPath;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.ArrayDeque;
@@ -57,6 +58,7 @@ public class AccountListUI extends HBox {
     private final Button backButton = createBackButton();
     private final Button homeButton = createHomeButton();
     private final VBox detailContent = new VBox();
+    @Setter
     private ManageAccountUI manageAccountUI;
     private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
     private final Deque<Node> viewStack = new ArrayDeque<>();
@@ -79,7 +81,7 @@ public class AccountListUI extends HBox {
 
     private void registerVisibilityListener() {
         // Load data only when tab becomes visible
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
                 refresh();
             }
@@ -195,10 +197,6 @@ public class AccountListUI extends HBox {
         return button;
     }
 
-    public void setManageAccountUI(ManageAccountUI manageAccountUI) {
-        this.manageAccountUI = manageAccountUI;
-    }
-
     public void showAccountListView() {
         if (!embeddedMode) {
             return;
@@ -249,7 +247,7 @@ public class AccountListUI extends HBox {
             return;
         }
         if (!detailContent.getChildren().isEmpty()) {
-            Node content = detailContent.getChildren().get(0);
+            Node content = detailContent.getChildren().getFirst();
             if (content instanceof CategoryListUI categoryListUI && categoryListUI.navigateBackEmbedded()) {
                 return;
             }
@@ -270,7 +268,7 @@ public class AccountListUI extends HBox {
     }
 
     private void registerSceneCleanupListener() {
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 // Clear all children to allow garbage collection of CategoryListUI
                 getChildren().clear();
@@ -281,7 +279,7 @@ public class AccountListUI extends HBox {
 
     private void addAccountClickHandler() {
         table.setOnKeyReleased(this::handleAccountKeyReleased);
-        table.setRowFactory(tv -> {
+        table.setRowFactory(_ -> {
             TableRow<AccountItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> handleAccountRowClick(row, event));
             addRightClickContextMenu(row);
@@ -332,31 +330,31 @@ public class AccountListUI extends HBox {
     private void addRightClickContextMenu(TableRow<AccountItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
         I18n.preparePopupControl(rowMenu, row);
-        rowMenu.hideOnEscapeProperty();
+        rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
 
         MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
-        editAccount.setOnAction(actionEvent -> runSingleSelectionAction(() -> openManageAccount(row.getItem())));
+        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(row.getItem())));
 
         MenuItem itv = new MenuItem(I18n.tr("autoTvChannels"));
-        itv.setOnAction(actionEvent -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv)));
+        itv.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv)));
 
         MenuItem vod = new MenuItem(I18n.tr("autoVod"));
-        vod.setOnAction(actionEvent -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod)));
+        vod.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod)));
 
         MenuItem series = new MenuItem(I18n.tr("autoSeries"));
-        series.setOnAction(actionEvent -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series)));
+        series.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series)));
 
         MenuItem reloadCache = new MenuItem(I18n.tr("autoReloadCache"));
-        reloadCache.setOnAction(actionEvent -> handleReloadCache(row.getItem()));
+        reloadCache.setOnAction(_ -> handleReloadCache(row.getItem()));
 
         MenuItem deleteItem = new MenuItem(I18n.tr("autoDeleteAccount"));
         deleteItem.getStyleClass().add("danger-menu-item");
-        deleteItem.setOnAction(actionEvent -> handleDeleteAccounts());
+        deleteItem.setOnAction(_ -> handleDeleteAccounts());
 
         rowMenu.getItems().addAll(editAccount, new SeparatorMenuItem(), itv, vod, series, new SeparatorMenuItem(), reloadCache, deleteItem);
 
-        rowMenu.setOnShowing(e -> {
+        rowMenu.setOnShowing(_ -> {
             if (row.getItem() != null) {
                 Account account = accountService.getById(row.getItem().getAccountId());
                 if (account == null) {
@@ -398,7 +396,7 @@ public class AccountListUI extends HBox {
     }
 
     private List<Account> resolveAccountsForReload(AccountItem contextItem) {
-        List<AccountItem> selectedItems = (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems();
+        List<AccountItem> selectedItems = table.getSelectionModel().getSelectedItems();
         boolean contextInSelection = contextItem != null
                 && selectedItems.stream().anyMatch(item -> contextItem.getAccountId().equals(item.getAccountId()));
 
@@ -518,7 +516,7 @@ public class AccountListUI extends HBox {
         }
     }
 
-    public class AccountItem {
+    public static class AccountItem {
         private final SimpleStringProperty accountName;
         private final SimpleStringProperty accountId;
         private final SimpleStringProperty accountType;
@@ -535,10 +533,6 @@ public class AccountListUI extends HBox {
 
         public void setAccountId(String accountId) {
             this.accountId.set(accountId);
-        }
-
-        public SimpleStringProperty accountIdProperty() {
-            return accountId;
         }
 
         public String getAccountName() {
@@ -561,8 +555,5 @@ public class AccountListUI extends HBox {
             this.accountType.set(accountType);
         }
 
-        public SimpleStringProperty accountTypeProperty() {
-            return accountType;
-        }
     }
 }

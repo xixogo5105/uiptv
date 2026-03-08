@@ -400,8 +400,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
         for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
             if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
                 List<String> values = entry.getValue();
-                if (values != null && !values.isEmpty() && isNotBlank(values.get(0))) {
-                    return values.get(0);
+                if (values != null && !values.isEmpty() && isNotBlank(values.getFirst())) {
+                    return values.getFirst();
                 }
             }
         }

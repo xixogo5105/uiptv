@@ -109,7 +109,7 @@ public class CategoryListUI extends HBox {
         table.setPlaceholder(null);
         maybeShowCachedChannelPane(state);
         if (catList.size() == 1) {
-            doRetrieveChannels(catList.get(0));
+            doRetrieveChannels(catList.getFirst());
         }
     }
 
@@ -171,7 +171,7 @@ public class CategoryListUI extends HBox {
             return false;
         }
         if (!detailContent.getChildren().isEmpty()) {
-            javafx.scene.Node content = detailContent.getChildren().get(0);
+            javafx.scene.Node content = detailContent.getChildren().getFirst();
             if (content instanceof ChannelListUI channelListUI && channelListUI.navigateBackEmbedded()) {
                 return true;
             }
@@ -181,7 +181,7 @@ public class CategoryListUI extends HBox {
     }
 
     private void registerSceneCleanupListener() {
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 releaseTransientState();
             }
@@ -336,7 +336,7 @@ public class CategoryListUI extends HBox {
                 doRetrieveChannels(table.getFocusModel().getFocusedItem());
             }
         });
-        table.setRowFactory(tv -> {
+        table.setRowFactory(_ -> {
             TableRow<CategoryItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY
@@ -478,7 +478,7 @@ public class CategoryListUI extends HBox {
         if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
             return;
         }
-        if (allItems.size() == 1 && isAllCategory(allItems.get(0))) {
+        if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
             ChannelService.getInstance().get(selectedCategoryKey(item), account, item.getId(), null,
                     channelListUI::addItems, isCancelled::getAsBoolean);
             return;

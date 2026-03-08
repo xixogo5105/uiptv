@@ -388,7 +388,7 @@ public class ChannelListUI extends HBox {
         }
         BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = true;
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
                 if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
@@ -408,7 +408,7 @@ public class ChannelListUI extends HBox {
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = false;
@@ -744,7 +744,7 @@ public class ChannelListUI extends HBox {
                 playOrShowSeries(selected);
             }
         });
-        table.setRowFactory(tv -> {
+        table.setRowFactory(_ -> {
             TableRow<ChannelItem> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
@@ -766,7 +766,7 @@ public class ChannelListUI extends HBox {
             return focused;
         }
         if (table.getItems() != null && !table.getItems().isEmpty()) {
-            return table.getItems().get(0);
+            return table.getItems().getFirst();
         }
         return null;
     }
@@ -924,7 +924,7 @@ public class ChannelListUI extends HBox {
     private void addRightClickContextMenu(TableRow<ChannelItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
         I18n.preparePopupControl(rowMenu, row);
-        rowMenu.hideOnEscapeProperty();
+        rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
 
         Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));

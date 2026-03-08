@@ -818,7 +818,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             Tab toSelect = tabPane.getTabs().stream()
                     .filter(t -> safe(String.valueOf(t.getUserData())).equals(selectedSeason))
                     .findFirst()
-                    .orElse(tabPane.getTabs().get(0));
+                    .orElse(tabPane.getTabs().getFirst());
             tabPane.getSelectionModel().select(toSelect);
         }
     }
@@ -1010,7 +1010,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (item == null) {
             return;
         }
-        rowMenu.hideOnEscapeProperty();
+        rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         target.setOnContextMenuRequested(event -> {
             populateEpisodeContextMenu(rowMenu, data, item);
@@ -1447,7 +1447,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
             watchStateListenerRegistered = true;
         }
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 if (watchStateListenerRegistered) {
                     SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);

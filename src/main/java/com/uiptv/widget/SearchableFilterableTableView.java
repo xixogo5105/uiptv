@@ -113,6 +113,6 @@ public class SearchableFilterableTableView extends TableView<AccountListUI.Accou
                 boolean matchesType = allMenuItem.isSelected() || selectedTypes.contains(accountItem.getAccountType());
                 return matchesText && matchesType;
             };
-        }, dependencies.toArray(new Observable[0])));
+        }, dependencies.toArray(Observable[]::new)));
     }
 }

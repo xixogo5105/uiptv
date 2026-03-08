@@ -83,7 +83,7 @@ public class BookmarkChannelListUI extends HBox {
         initWidgets();
         registerBookmarkChangeListener();
         registerThumbnailModeListener();
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 releaseTransientState();
             } else if (isVisible()) {
@@ -182,7 +182,7 @@ public class BookmarkChannelListUI extends HBox {
         }
         BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
         changeListenerRegistered = true;
-        sceneProperty().addListener((observable, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkChangeListener();
             } else {
@@ -243,7 +243,7 @@ public class BookmarkChannelListUI extends HBox {
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((observable, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = false;
@@ -621,7 +621,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void addChannelClickHandler() {
         bookmarkTable.getTableView().setOnKeyReleased(this::handleBookmarkTableKeyReleased);
-        bookmarkTable.getTableView().setRowFactory(tv -> {
+        bookmarkTable.getTableView().setRowFactory(_ -> {
             TableRow<BookmarkItem> row = new TableRow<>();
 
             row.setOnMouseClicked(event -> handleRowClick(row, event));
@@ -836,13 +836,13 @@ public class BookmarkChannelListUI extends HBox {
     private void addRightClickContextMenu(TableRow<BookmarkItem> row) {
         final ContextMenu rowMenu = new ContextMenu();
         I18n.preparePopupControl(rowMenu, row);
-        rowMenu.hideOnEscapeProperty();
+        rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
 
         MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
         editItem.getStyleClass().add("danger-menu-item");
 
-        editItem.setOnAction(actionEvent -> handleDeleteMultipleBookmarks());
+        editItem.setOnAction(_ -> handleDeleteMultipleBookmarks());
 
         List<MenuItem> playerItems = new ArrayList<>();
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {

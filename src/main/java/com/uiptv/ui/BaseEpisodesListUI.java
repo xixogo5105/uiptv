@@ -179,7 +179,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         match = findEpisodeByName(normalizedEpisodeName);
         if (match != null) return match;
         match = findEpisodeBySeason(normalizedSeason);
-        return match != null ? match : allEpisodeItems.get(0);
+        return match != null ? match : allEpisodeItems.getFirst();
     }
 
     private void applyPendingNavigation() {
@@ -228,7 +228,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         }
         BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = true;
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
                 releaseTransientState();
@@ -246,7 +246,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         }
         SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
         watchStateListenerRegistered = true;
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
+        sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterWatchStateListener();
                 releaseTransientState();

@@ -349,7 +349,7 @@ public class ManageAccountUI extends VBox {
             String newMacsStr = String.join(", ", validMacs);
 
             if (defaultIsInvalid && !validMacs.isEmpty()) {
-                macAddress.setValue(validMacs.get(0));
+                macAddress.setValue(validMacs.getFirst());
             }
 
             macAddressList.setText(newMacsStr);
@@ -373,7 +373,7 @@ public class ManageAccountUI extends VBox {
     }
 
     private void addBrowserButton1ClickHandler() {
-        browserButtonM3u8Path.setOnAction(actionEvent -> {
+        browserButtonM3u8Path.setOnAction(_ -> {
             File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
             m3u8Path.setText(file.getAbsolutePath());
         });
@@ -509,11 +509,11 @@ public class ManageAccountUI extends VBox {
     }
 
     private void addSubmitButtonClickHandler() {
-        saveButton.setOnAction(actionEvent -> saveAccount(true));
+        saveButton.setOnAction(_ -> saveAccount(true));
     }
 
     private void addDeleteButtonClickHandler() {
-        deleteButton.setOnAction(actionEvent -> deleteAccount(name.getText(), accountId));
+        deleteButton.setOnAction(_ -> deleteAccount(name.getText(), accountId));
     }
 
     private void deleteAccount(String name, String accountId) {

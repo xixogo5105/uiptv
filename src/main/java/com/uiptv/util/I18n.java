@@ -119,7 +119,7 @@ public final class I18n {
         return SUPPORTED_LANGUAGES.stream()
                 .filter(item -> item.languageTag().equalsIgnoreCase(normalizedTag))
                 .findFirst()
-                .orElseGet(() -> SUPPORTED_LANGUAGES.get(0));
+                .orElseGet(() -> SUPPORTED_LANGUAGES.getFirst());
     }
 
     public static String normalizeLanguageTag(String languageTag) {

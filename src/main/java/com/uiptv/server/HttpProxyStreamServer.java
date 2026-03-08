@@ -140,8 +140,8 @@ public class HttpProxyStreamServer implements HttpHandler {
         for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
             if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
                 List<String> values = entry.getValue();
-                if (values != null && !values.isEmpty() && !isBlank(values.get(0))) {
-                    return values.get(0);
+                if (values != null && !values.isEmpty() && !isBlank(values.getFirst())) {
+                    return values.getFirst();
                 }
             }
         }
