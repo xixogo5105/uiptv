@@ -6,6 +6,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -109,6 +111,25 @@ class PingStalkerPortalTest {
                         "this.ajax_loader="));
         assertNull(invokePrivate("extractPortalParam", new Class[]{String.class, String.class, String.class},
                 "broken", "this.portal_port=", "document.URL.replace(pattern,"));
+    }
+
+    @Test
+    void privateHelpers_coverNetworkClassificationAndParsedServerAssignments() throws Exception {
+        assertTrue((Boolean) invokePrivate("isNetworkFailure", new Class[]{Throwable.class}, new ConnectException("down")));
+        assertTrue((Boolean) invokePrivate("isNetworkFailure", new Class[]{Throwable.class}, new RuntimeException(new SocketTimeoutException("late"))));
+        assertFalse((Boolean) invokePrivate("isNetworkFailure", new Class[]{Throwable.class}, new IllegalArgumentException("nope")));
+
+        assertEquals("UnknownHostException: root-cause",
+                invokePrivate("rootCauseMessage", new Class[]{Throwable.class},
+                        new RuntimeException(new UnknownHostException("root-cause"))));
+
+        String js = "this.get_server_params=function(){this.ajax_loader='/stalker_portal/server/load.php';};";
+
+        assertEquals("http://demo.example/c/stalker_portal/server/load.php",
+                invokePrivate("prepareServerUrl", new Class[]{String.class, String.class}, js, "http://demo.example/c/"));
+        assertEquals("http://demo.example/c/stalker_portal/server/load.php",
+                invokePrivate("ensureAbsoluteServerUrl", new Class[]{String.class, String.class},
+                        "/stalker_portal/server/load.php", "http://demo.example/c/"));
     }
 
     private static Account createPortalAccount(String url) {

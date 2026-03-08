@@ -273,6 +273,57 @@ class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
+    void testBookmarkOrderCategoryOperationsAndDisplayOrderHelpers() {
+        BookmarkDb bookmarkDb = BookmarkDb.get();
+
+        assertEquals(1, bookmarkDb.getNextDisplayOrder());
+
+        Bookmark first = new Bookmark("acc-cat-order", "Sports", "ch-1", "One", "cmd://1", "http://portal", "cat-a");
+        Bookmark second = new Bookmark("acc-cat-order", "Sports", "ch-2", "Two", "cmd://2", "http://portal", null);
+        bookmarkDb.save(first);
+        bookmarkDb.save(second);
+
+        Bookmark savedFirst = bookmarkDb.getBookmarkById(first);
+        Bookmark savedSecond = bookmarkDb.getBookmarkById(second);
+        assertNotNull(savedFirst);
+        assertNotNull(savedSecond);
+
+        assertEquals(1, bookmarkDb.getNextDisplayOrder());
+        bookmarkDb.saveBookmarkOrder(savedFirst.getDbId(), 7);
+        assertEquals(8, bookmarkDb.getNextDisplayOrder());
+        bookmarkDb.saveBookmarkOrder(savedSecond.getDbId(), 9);
+        assertEquals(10, bookmarkDb.getNextDisplayOrder());
+
+        bookmarkDb.deleteBookmarkOrder(savedFirst.getDbId(), null);
+        assertEquals(0, countBookmarkOrderRows(savedFirst.getDbId()));
+        bookmarkDb.deleteBookmarkOrdersByCategory(null);
+        assertEquals(0, countBookmarkOrderRows(savedFirst.getDbId()));
+        assertEquals(0, countBookmarkOrderRows(savedSecond.getDbId()));
+
+        bookmarkDb.updateBookmarkOrders(Map.of(
+                savedSecond.getDbId(), 2,
+                savedFirst.getDbId(), 1,
+                " ", 3
+        ));
+        assertEquals(List.of(1, 2), readDisplayOrders(List.of(savedFirst.getDbId(), savedSecond.getDbId())));
+
+        BookmarkCategory category = new BookmarkCategory(null, "Category Ops");
+        bookmarkDb.saveCategory(category);
+        List<BookmarkCategory> categories = bookmarkDb.getAllCategories();
+        BookmarkCategory savedCategory = categories.stream()
+                .filter(c -> "Category Ops".equals(c.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertNotNull(savedCategory.getId());
+
+        bookmarkDb.deleteCategory(savedCategory);
+        assertFalse(bookmarkDb.getAllCategories().stream().anyMatch(c -> "Category Ops".equals(c.getName())));
+
+        bookmarkDb.deleteBookmarkOrders(savedFirst.getDbId());
+        bookmarkDb.deleteBookmarkOrders(savedSecond.getDbId());
+    }
+
+    @Test
     void testBookmarkIdentityLookupSupportsAllCategoryViews() {
         BookmarkService bookmarkService = BookmarkService.getInstance();
 
@@ -318,4 +369,5 @@ class BookmarkCrudFlowTest extends DbBackedTest {
             throw new RuntimeException(e);
         }
     }
+
 }

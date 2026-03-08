@@ -4,12 +4,15 @@ import com.uiptv.model.Account;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -95,5 +98,61 @@ class StalkerPortalParserTest {
                 assertEquals(expectedSig, actual.getSignature(), "Signature mismatch for MAC " + expectedMac);
             }
         }
+    }
+
+    @Test
+    void helperMethods_groupMacs_andDetectExtraParams() throws Exception {
+        Account existing = new Account();
+        existing.setAccountName("portal.example");
+        existing.setUrl("http://portal.example/c");
+        existing.setMacAddress("00:11:22:33:44:55");
+        existing.setMacAddressList("00:11:22:33:44:55");
+
+        StalkerPortalParser parser = new StalkerPortalParser(
+                name -> "portal.example".equals(name) ? existing : null,
+                account -> {}
+        );
+
+        Method hasExtraParams = StalkerPortalParser.class.getDeclaredMethod("hasExtraParams", Account.class);
+        hasExtraParams.setAccessible(true);
+        Method appendMacAddress = StalkerPortalParser.class.getDeclaredMethod("appendMacAddress", Account.class, String.class);
+        appendMacAddress.setAccessible(true);
+        Method saveGroupedAccount = StalkerPortalParser.class.getDeclaredMethod(
+                "saveGroupedAccount", Account.class, Map.class, List.class, java.util.Set.class);
+        saveGroupedAccount.setAccessible(true);
+        Method detectTimezone = StalkerPortalParser.class.getDeclaredMethod("detectTimezone", String.class);
+        detectTimezone.setAccessible(true);
+        Method applyLineMetadata = StalkerPortalParser.class.getDeclaredMethod("applyLineMetadata", Account.class, String.class);
+        applyLineMetadata.setAccessible(true);
+
+        Account simple = new Account();
+        simple.setUrl("http://portal.example/c");
+        simple.setMacAddress("00:11:22:33:44:66");
+        assertFalse((Boolean) hasExtraParams.invoke(parser, simple));
+
+        Account extra = new Account();
+        extra.setUrl("http://portal.example/c");
+        extra.setMacAddress("00:11:22:33:44:77");
+        extra.setSerialNumber("SERIAL77");
+        assertTrue((Boolean) hasExtraParams.invoke(parser, extra));
+
+        appendMacAddress.invoke(parser, existing, "00:11:22:33:44:66");
+        assertTrue(existing.getMacAddressList().contains("00:11:22:33:44:55"));
+        assertTrue(existing.getMacAddressList().contains("00:11:22:33:44:66"));
+
+        Map<String, Account> groupedAccounts = new LinkedHashMap<>();
+        List<Account> createdAccounts = new ArrayList<>();
+        HashSet<String> processedNames = new HashSet<>();
+        saveGroupedAccount.invoke(parser, simple, groupedAccounts, createdAccounts, processedNames);
+        assertEquals(1, groupedAccounts.size());
+        assertEquals(0, createdAccounts.size());
+        assertEquals("00:11:22:33:44:55,00:11:22:33:44:66", groupedAccounts.get("portal.example").getMacAddressList());
+
+        Account metadata = new Account();
+        applyLineMetadata.invoke(parser, metadata, "POST");
+        applyLineMetadata.invoke(parser, metadata, "Europe/Paris");
+        assertEquals("POST", metadata.getHttpMethod());
+        assertEquals("Europe/Paris", metadata.getTimezone());
+        assertEquals("Europe/Paris", detectTimezone.invoke(parser, "timezone Europe/Paris"));
     }
 }
