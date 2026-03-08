@@ -678,28 +678,31 @@ public class ChannelListUI extends HBox {
     private BookmarkContext resolveBookmarkContext(Channel channel) {
         String effectiveCategoryId = categoryId;
         String effectiveCategoryTitle = categoryTitle;
-        if (isAllCategoryView() && channel != null) {
-            if (isM3uAccount()) {
-                BookmarkContext sourceContext = m3uAllSourceContextByChannelKey.get().get(channelIdentityKey(channel));
-                if (sourceContext != null) {
-                    return sourceContext;
-                }
+        if (isAllCategoryView() && channel != null && isM3uAccount()) {
+            BookmarkContext sourceContext = m3uAllSourceContextByChannelKey.get().get(channelIdentityKey(channel));
+            if (sourceContext != null) {
+                return sourceContext;
             }
         }
         if (isAllCategoryView() && channel != null && !isBlank(channel.getCategoryId())) {
             effectiveCategoryId = channel.getCategoryId();
-            String mappedTitle = categoryTitleByCategoryId.get().get(channel.getCategoryId());
-            if (isBlank(mappedTitle)) {
-                mappedTitle = categoryTitleByNormalizedTitle.get().get(normalizeCategoryKey(channel.getCategoryId()));
-            }
-            if (isBlank(mappedTitle) && isM3uAccount()) {
-                mappedTitle = channel.getCategoryId();
-            }
+            String mappedTitle = resolveMappedCategoryTitle(channel.getCategoryId());
             if (!isBlank(mappedTitle)) {
                 effectiveCategoryTitle = mappedTitle;
             }
         }
         return new BookmarkContext(effectiveCategoryId, effectiveCategoryTitle);
+    }
+
+    private String resolveMappedCategoryTitle(String rawCategoryId) {
+        String mappedTitle = categoryTitleByCategoryId.get().get(rawCategoryId);
+        if (isBlank(mappedTitle)) {
+            mappedTitle = categoryTitleByNormalizedTitle.get().get(normalizeCategoryKey(rawCategoryId));
+        }
+        if (isBlank(mappedTitle) && isM3uAccount()) {
+            mappedTitle = rawCategoryId;
+        }
+        return mappedTitle;
     }
 
     private String resolveSeriesCategoryId(Channel channel, BookmarkContext context) {
@@ -774,86 +777,69 @@ public class ChannelListUI extends HBox {
         }
         AtomicBoolean isCancelled = preparePlaybackLoad();
 
-        if (account.getAction() == series) {
-            getScene().setCursor(Cursor.WAIT);
-            Thread loadingThread = new Thread(() -> {
-                try {
-                    if (account.getType() == XTREME_API) {
-                        final EpisodesListUI[] episodesListUIHolder = new EpisodesListUI[1];
-                        CountDownLatch latch = new CountDownLatch(1);
-
-                        runLater(() -> {
-                            if (this.getChildren().size() > 1) {
-                                this.getChildren().remove(1);
-                            }
-                            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
-                            episodesListUIHolder[0] = ui;
-                            HBox.setHgrow(ui, Priority.ALWAYS);
-                            if (embeddedMode || inlineEpisodeNavigationEnabled) {
-                                showDetailView(ui, item.getChannelName());
-                            } else {
-                                this.getChildren().add(ui);
-                            }
-                            latch.countDown();
-                        });
-
-                        latch.await();
-                        if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
-                        try {
-                            EpisodeList episodes = SeriesEpisodeService.getInstance()
-                                    .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
-                            seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
-                            episodesListUIHolder[0].setItems(episodes);
-                        } finally {
-                            episodesListUIHolder[0].setLoadingComplete();
-                        }
-                    } else if (account.getType() == STALKER_PORTAL) {
-                        if (isBlank(item.getCmd())) {
-                            final EpisodesListUI[] episodesListUIHolder = new EpisodesListUI[1];
-                            CountDownLatch latch = new CountDownLatch(1);
-                            runLater(() -> {
-                                if (this.getChildren().size() > 1) {
-                                    this.getChildren().remove(1);
-                                }
-                                EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
-                                episodesListUIHolder[0] = ui;
-                                HBox.setHgrow(ui, Priority.ALWAYS);
-                                if (embeddedMode || inlineEpisodeNavigationEnabled) {
-                                    showDetailView(ui, item.getChannelName());
-                                } else {
-                                    this.getChildren().add(ui);
-                                }
-                                latch.countDown();
-                            });
-
-                            latch.await();
-                            if (Thread.currentThread().isInterrupted() || isCancelled.get()) return;
-
-                            try {
-                                EpisodeList episodeList = SeriesEpisodeService.getInstance()
-                                        .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
-                                seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodeList);
-                                episodesListUIHolder[0].setItems(episodeList);
-                            } finally {
-                                episodesListUIHolder[0].setLoadingComplete();
-                            }
-                        } else {
-                            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-                        }
-                    }
-                } catch (InterruptedException _) {
-                    Thread.currentThread().interrupt();
-                } catch (Exception e) {
-                    runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
-                } finally {
-                    runLater(() -> getScene().setCursor(Cursor.DEFAULT));
-                    currentLoadingThread.compareAndSet(Thread.currentThread(), null);
-                }
-            });
-            currentLoadingThread.set(loadingThread);
-            loadingThread.start();
-        } else {
+        if (account.getAction() != series) {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            return;
+        }
+        if (account.getType() == STALKER_PORTAL && !isBlank(item.getCmd())) {
+            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            return;
+        }
+        loadSeriesEpisodesAsync(item, isCancelled);
+    }
+
+    private void loadSeriesEpisodesAsync(ChannelItem item, AtomicBoolean isCancelled) {
+        getScene().setCursor(Cursor.WAIT);
+        Thread loadingThread = new Thread(() -> {
+            try {
+                EpisodesListUI ui = buildEpisodesListUi(item);
+                if (!awaitEpisodesUiReady(item, ui, isCancelled)) {
+                    return;
+                }
+                populateEpisodes(item, isCancelled, ui);
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
+            } finally {
+                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
+                currentLoadingThread.compareAndSet(Thread.currentThread(), null);
+            }
+        });
+        currentLoadingThread.set(loadingThread);
+        loadingThread.start();
+    }
+
+    private EpisodesListUI buildEpisodesListUi(ChannelItem item) {
+        return new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+    }
+
+    private boolean awaitEpisodesUiReady(ChannelItem item, EpisodesListUI ui, AtomicBoolean isCancelled) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        runLater(() -> {
+            if (this.getChildren().size() > 1) {
+                this.getChildren().remove(1);
+            }
+            HBox.setHgrow(ui, Priority.ALWAYS);
+            if (embeddedMode || inlineEpisodeNavigationEnabled) {
+                showDetailView(ui, item.getChannelName());
+            } else {
+                this.getChildren().add(ui);
+            }
+            latch.countDown();
+        });
+        latch.await();
+        return !Thread.currentThread().isInterrupted() && !isCancelled.get();
+    }
+
+    private void populateEpisodes(ChannelItem item, AtomicBoolean isCancelled, EpisodesListUI ui) {
+        try {
+            EpisodeList episodes = SeriesEpisodeService.getInstance()
+                    .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
+            seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
+            ui.setItems(episodes);
+        } finally {
+            ui.setLoadingComplete();
         }
     }
 

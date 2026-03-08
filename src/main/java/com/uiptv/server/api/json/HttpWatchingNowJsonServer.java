@@ -117,43 +117,53 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
             return index;
         }
 
+        indexCategories(account, index);
+        List<String> watchedSeriesIds = watchedSeriesIds(states);
+        if (watchedSeriesIds.isEmpty()) {
+            return index;
+        }
+
+        indexSeriesChannels(account, watchedSeriesIds, index);
+        return index;
+    }
+
+    private void indexCategories(Account account, AccountSeriesIndex index) {
         List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
         for (Category category : categories) {
             if (category == null || StringUtils.isBlank(category.getDbId())) {
                 continue;
             }
             String categoryDbId = safe(category.getDbId());
-            String categoryApiId = safe(category.getCategoryId());
             index.categoryDbIds.add(categoryDbId);
+            String categoryApiId = safe(category.getCategoryId());
             if (!StringUtils.isBlank(categoryApiId)) {
                 index.categoryApiToDb.putIfAbsent(categoryApiId, categoryDbId);
             }
         }
+    }
 
-        List<String> watchedSeriesIds = (states == null ? List.<SeriesWatchState>of() : states).stream()
+    private List<String> watchedSeriesIds(List<SeriesWatchState> states) {
+        return (states == null ? List.<SeriesWatchState>of() : states).stream()
                 .map(SeriesWatchState::getSeriesId)
                 .map(this::safe)
                 .filter(id -> !StringUtils.isBlank(id))
                 .distinct()
                 .collect(Collectors.toList());
+    }
 
-        if (watchedSeriesIds.isEmpty()) {
-            return index;
-        }
-
+    private void indexSeriesChannels(Account account, List<String> watchedSeriesIds, AccountSeriesIndex index) {
         List<Channel> channels = SeriesChannelDb.get().getChannelsBySeriesIds(account, watchedSeriesIds);
         for (Channel channel : channels) {
             if (channel == null || StringUtils.isBlank(channel.getChannelId())) {
                 continue;
             }
             String seriesId = safe(channel.getChannelId());
-            String categoryDbId = safe(channel.getCategoryId());
             index.bySeriesId.putIfAbsent(seriesId, channel);
+            String categoryDbId = safe(channel.getCategoryId());
             if (!StringUtils.isBlank(categoryDbId)) {
                 index.byCategoryAndSeries.putIfAbsent(categoryDbId + "|" + seriesId, channel);
             }
         }
-        return index;
     }
 
     private SeriesCacheInfo resolveSeriesInfoFromCache(SeriesWatchState state, AccountSeriesIndex index) {

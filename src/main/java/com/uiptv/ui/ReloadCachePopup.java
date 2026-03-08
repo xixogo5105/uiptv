@@ -985,46 +985,15 @@ public class ReloadCachePopup extends VBox {
     }
 
     private String compactGlobalFallbackLog(Account account, String trimmed) {
-        if (isNoCategoriesFoundLog(trimmed)) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadNoCategoriesFoundCacheKept")
-                    : I18n.tr("reloadModeCategoriesNoneFound", mode);
+        String modeBased = translateModeFallbackLog(account, trimmed);
+        if (modeBased != null) {
+            return modeBased;
         }
-        if (LOG_NO_CHANNELS_FOUND.equals(trimmed)) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
-                    : I18n.tr("reloadModeChannelsNoneFound", mode);
+        String globalLookup = translateGlobalLookupFallbackLog(trimmed);
+        if (globalLookup != null) {
+            return globalLookup;
         }
-        if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
-            return I18n.tr("reloadGlobalLookupFailedUsingCategoryFetch");
-        }
-        if (trimmed.startsWith("Global Xtreme channel lookup returned no channels")) {
-            return I18n.tr("reloadGlobalLookupEmptyUsingCategoryFetch");
-        }
-        if (trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
-            return I18n.tr("reloadGlobalLookupUncategorizedUsingCategoryFetch");
-        }
-        if (trimmed.startsWith("No channels returned by get_all_channels")) {
-            return I18n.tr("reloadGlobalChannelListEmptyTryingFallback");
-        }
-        if (trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
-            return I18n.tr("reloadGlobalChannelListFailedTryingFallback");
-        }
-        if (isLastResortFetchSucceededLog(trimmed)) {
-            Integer count = extractFirstNumber(trimmed);
-            return count == null
-                    ? I18n.tr("reloadFallbackFetchSucceeded")
-                    : I18n.tr("reloadFallbackFetchSucceededWithChannels", I18n.formatNumber(String.valueOf(count)));
-        }
-        if (trimmed.startsWith(GLOBAL_VOD_CATEGORY_LIST_FAILED)) {
-            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
-        }
-        if (trimmed.startsWith(GLOBAL_SERIES_CATEGORY_LIST_FAILED)) {
-            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
-        }
-        return null;
+        return translateCategoryListFallbackLog(trimmed);
     }
 
     private boolean isLoadedChannelsFromCacheLog(String trimmed) {
@@ -1294,10 +1263,60 @@ public class ReloadCachePopup extends VBox {
             case vod:
                 return "VOD";
             case series:
-                return "SERIES";
+                return MODE_SERIES;
             default:
                 return null;
         }
+    }
+
+    private String translateModeFallbackLog(Account account, String trimmed) {
+        String mode = modeLabel(account);
+        if (isNoCategoriesFoundLog(trimmed)) {
+            return mode == null
+                    ? I18n.tr("reloadNoCategoriesFoundCacheKept")
+                    : I18n.tr("reloadModeCategoriesNoneFound", mode);
+        }
+        if (LOG_NO_CHANNELS_FOUND.equals(trimmed)) {
+            return mode == null
+                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
+                    : I18n.tr("reloadModeChannelsNoneFound", mode);
+        }
+        if (isLastResortFetchSucceededLog(trimmed)) {
+            Integer count = extractFirstNumber(trimmed);
+            return count == null
+                    ? I18n.tr("reloadFallbackFetchSucceeded")
+                    : I18n.tr("reloadFallbackFetchSucceededWithChannels", I18n.formatNumber(String.valueOf(count)));
+        }
+        return null;
+    }
+
+    private String translateGlobalLookupFallbackLog(String trimmed) {
+        if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
+            return I18n.tr("reloadGlobalLookupFailedUsingCategoryFetch");
+        }
+        if (trimmed.startsWith("Global Xtreme channel lookup returned no channels")) {
+            return I18n.tr("reloadGlobalLookupEmptyUsingCategoryFetch");
+        }
+        if (trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
+            return I18n.tr("reloadGlobalLookupUncategorizedUsingCategoryFetch");
+        }
+        if (trimmed.startsWith("No channels returned by get_all_channels")) {
+            return I18n.tr("reloadGlobalChannelListEmptyTryingFallback");
+        }
+        if (trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
+            return I18n.tr("reloadGlobalChannelListFailedTryingFallback");
+        }
+        return null;
+    }
+
+    private String translateCategoryListFallbackLog(String trimmed) {
+        if (trimmed.startsWith(GLOBAL_VOD_CATEGORY_LIST_FAILED)) {
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
+        }
+        if (trimmed.startsWith(GLOBAL_SERIES_CATEGORY_LIST_FAILED)) {
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
+        }
+        return null;
     }
 
     private String modeLabel(Account account) {

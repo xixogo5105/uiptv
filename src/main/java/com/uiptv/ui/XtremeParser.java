@@ -172,24 +172,9 @@ public class XtremeParser {
         for (int index = 0; index < baseUrlCandidates.size(); index++) {
             String baseUrl = baseUrlCandidates.get(index);
             boolean hasMoreCandidates = index + 1 < baseUrlCandidates.size();
-            StringBuilder url = new StringBuilder(baseUrl)
-                    .append("player_api.php")
-                    .append("?username=").append(nullSafeEncode(account.getUsername()))
-                    .append("&password=").append(nullSafeEncode(account.getPassword()))
-                    .append("&action=").append(nullSafeEncode(action));
-
-            if (extraParams != null) {
-                for (Map.Entry<String, String> entry : extraParams.entrySet()) {
-                    url.append('&')
-                            .append(nullSafeEncode(entry.getKey()))
-                            .append('=')
-                            .append(nullSafeEncode(entry.getValue()));
-                }
-            }
-
             try {
-                HttpUtil.HttpResult response = HttpUtil.sendRequest(url.toString(), null, "GET");
-                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                HttpUtil.HttpResult response = HttpUtil.sendRequest(buildPlayerApiUrl(baseUrl, account, action, extraParams), null, "GET");
+                if (isSuccessfulPlayerApiResponse(response)) {
                     return response.body();
                 }
                 if (response.statusCode() == 404 && hasMoreCandidates) {
@@ -208,6 +193,32 @@ public class XtremeParser {
             }
         }
         throw lastIoException != null ? lastIoException : new IOException("Failed to call Xtreme API.");
+    }
+
+    private static String buildPlayerApiUrl(String baseUrl, Account account, String action, Map<String, String> extraParams) {
+        StringBuilder url = new StringBuilder(baseUrl)
+                .append("player_api.php")
+                .append("?username=").append(nullSafeEncode(account.getUsername()))
+                .append("&password=").append(nullSafeEncode(account.getPassword()))
+                .append("&action=").append(nullSafeEncode(action));
+        appendExtraParams(url, extraParams);
+        return url.toString();
+    }
+
+    private static void appendExtraParams(StringBuilder url, Map<String, String> extraParams) {
+        if (extraParams == null) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : extraParams.entrySet()) {
+            url.append('&')
+                    .append(nullSafeEncode(entry.getKey()))
+                    .append('=')
+                    .append(nullSafeEncode(entry.getValue()));
+        }
+    }
+
+    private static boolean isSuccessfulPlayerApiResponse(HttpUtil.HttpResult response) {
+        return response.statusCode() >= 200 && response.statusCode() < 300;
     }
 
     private static String normalizedBaseUrl(Account account) {

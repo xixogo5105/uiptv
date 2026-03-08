@@ -619,16 +619,32 @@ public class ChannelService {
         if (isBlank(logo)) {
             return "";
         }
-        String value = logo.trim().replace("\\/", "/");
-        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.substring(1, value.length() - 1).trim();
-        }
+        String value = trimWrappedLogo(logo);
         if (isBlank(value)) {
             return "";
         }
         if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
             return value;
         }
+        PortalAddress portalAddress = resolvePortalAddress(account);
+        if (value.startsWith("//")) {
+            return portalAddress.scheme + ":" + value;
+        }
+        if (value.startsWith("/") && !isBlank(portalAddress.host)) {
+            return portalAddress.origin() + value;
+        }
+        return value;
+    }
+
+    private String trimWrappedLogo(String logo) {
+        String value = logo.trim().replace("\\/", "/");
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    private PortalAddress resolvePortalAddress(Account account) {
         String portal = account != null ? account.getServerPortalUrl() : "";
         String scheme = "https";
         String host = "";
@@ -642,13 +658,13 @@ public class ChannelService {
             }
         } catch (Exception _) {
         }
-        if (value.startsWith("//")) {
-            return scheme + ":" + value;
+        return new PortalAddress(scheme, host, port);
+    }
+
+    private record PortalAddress(String scheme, String host, int port) {
+        private String origin() {
+            return scheme + "://" + host + (port > 0 ? ":" + port : "");
         }
-        if (value.startsWith("/") && !isBlank(host)) {
-            return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
-        }
-        return value;
     }
 
     public List<Channel> censor(List<Channel> channelList) {

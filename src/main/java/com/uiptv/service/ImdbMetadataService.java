@@ -438,9 +438,9 @@ public class ImdbMetadataService {
     }
 
     private void applyCinemetaMeta(JSONObject result, JSONObject meta) {
-        result.put("name", meta.optString("name", ""));
+        result.put(KEY_NAME, meta.optString(KEY_NAME, ""));
         result.put(KEY_COVER, meta.optString("poster", ""));
-        result.put("plot", meta.optString("description", ""));
+        result.put(KEY_PLOT, meta.optString("description", ""));
         result.put(KEY_IMDB_URL, isNotBlank(meta.optString("imdb_id", "")) ? IMDB_TITLE_URL_PREFIX + meta.optString("imdb_id", "") + "/" : "");
         if (meta.has("moviedb_id")) {
             result.put(KEY_TMDB_MEDIA_ID, String.valueOf(meta.opt("moviedb_id")));
@@ -448,9 +448,9 @@ public class ImdbMetadataService {
 
         JSONArray genres = meta.optJSONArray("genres");
         if (genres != null) {
-            result.put("genre", joinStringArray(genres, 6));
+            result.put(KEY_GENRE, joinStringArray(genres, 6));
         } else {
-            result.put("genre", meta.optString("genre", ""));
+            result.put(KEY_GENRE, meta.optString(KEY_GENRE, ""));
         }
 
         JSONArray cast = meta.optJSONArray("cast");
@@ -462,9 +462,9 @@ public class ImdbMetadataService {
 
         JSONArray director = meta.optJSONArray("director");
         if (director != null) {
-            result.put("director", joinStringArray(director, 4));
+            result.put(KEY_DIRECTOR, joinStringArray(director, 4));
         } else {
-            result.put("director", meta.optString("director", ""));
+            result.put(KEY_DIRECTOR, meta.optString(KEY_DIRECTOR, ""));
         }
 
         String releaseInfo = meta.optString("releaseInfo", "");

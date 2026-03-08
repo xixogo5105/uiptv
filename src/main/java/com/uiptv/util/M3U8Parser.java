@@ -115,23 +115,14 @@ public class M3U8Parser {
     private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
-            List<String> lines = new ArrayList<>();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lines.add(line);
-            }
-
+            List<String> lines = readLines(reader);
             for (int index = 0; index < lines.size(); index++) {
-                line = lines.get(index);
+                String line = lines.get(index);
                 if (!line.startsWith(EXTINF)) {
                     continue;
                 }
 
-                String tvgId = parseItem(line, "tvg-id=\"");
-                String groupTitle = parseItem(line, "group-title=\"");
-                String title = parseTitle(line);
-                String logo = parseItem(line, "tvg-logo=\"");
-
+                EntryHeader header = parseEntryHeader(line);
                 EntryState state = new EntryState();
                 for (index = index + 1; index < lines.size(); index++) {
                     String nextLine = lines.get(index);
@@ -148,13 +139,31 @@ public class M3U8Parser {
                 }
 
                 if (isNotBlank(state.url)) {
-                    playlistEntries.add(new PlaylistEntry(tvgId, groupTitle, title, state.url, logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
+                    playlistEntries.add(new PlaylistEntry(header.tvgId, header.groupTitle, header.title, state.url, header.logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
                 }
             }
         } catch (IOException e) {
             UIptvAlert.showError(e.getMessage());
         }
         return playlistEntries;
+    }
+
+    private static List<String> readLines(BufferedReader reader) throws IOException {
+        List<String> lines = new ArrayList<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            lines.add(line);
+        }
+        return lines;
+    }
+
+    private static EntryHeader parseEntryHeader(String line) {
+        return new EntryHeader(
+                parseItem(line, "tvg-id=\""),
+                parseItem(line, "group-title=\""),
+                parseTitle(line),
+                parseItem(line, "tvg-logo=\"")
+        );
     }
 
     private static boolean shouldTreatAsUncategorized(String groupTitle) {
@@ -230,6 +239,9 @@ public class M3U8Parser {
         private String inputstreamaddon;
         private String manifestType;
         private String url;
+    }
+
+    private record EntryHeader(String tvgId, String groupTitle, String title, String logo) {
     }
 
     private static String parseItem(String line, String key) {
