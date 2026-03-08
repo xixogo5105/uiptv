@@ -21,6 +21,7 @@
         <lombok.version>1.18.42</lombok.version>
         <javafx.platform>linux</javafx.platform>
         <sonar.organization>xixogo5105</sonar.organization>
+        <sonar.coverage.exclusions>src/main/java/com/uiptv/ui/**,src/main/java/com/uiptv/player/**,src/main/java/com/uiptv/widget/**</sonar.coverage.exclusions>
     </properties>
 
     <dependencies>
