@@ -125,7 +125,7 @@ public class PlayerService {
     }
 
     private void appendQueryDelimiter(StringBuilder newQuery) {
-        if (newQuery.length() > 0) {
+        if (!newQuery.isEmpty()) {
             newQuery.append("&");
         }
     }

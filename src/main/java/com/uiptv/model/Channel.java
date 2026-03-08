@@ -126,13 +126,12 @@ public class Channel extends BaseJson {
 
     public int getCompareSeason() {
         try {
-            Integer parsedSeason = Integer.parseInt(this.getName().split("-")[0]
+            return Integer.parseInt(this.getName().split("-")[0]
                     .toLowerCase()
                     .replace(" ", "")
                     .replace(KEY_SEASON, "")
                     .replace("episode", "")
                     .replace("-", ""));
-            return parsedSeason;
         } catch (Exception _) {
             // Fall back to zero when the title cannot be parsed into a season number.
         }
@@ -141,13 +140,12 @@ public class Channel extends BaseJson {
 
     public int getCompareEpisode() {
         try {
-            Integer episode = Integer.parseInt(this.getName().split("-")[1]
+            return Integer.parseInt(this.getName().split("-")[1]
                     .toLowerCase()
                     .replace(" ", "")
                     .replace(KEY_SEASON, "")
                     .replace("episode", "")
                     .replace("-", ""));
-            return episode;
         } catch (Exception _) {
             // Fall back to zero when the title cannot be parsed into an episode number.
         }

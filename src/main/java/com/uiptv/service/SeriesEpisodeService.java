@@ -260,17 +260,11 @@ public class SeriesEpisodeService {
         String parsedId = safe(parsed.getId());
         String cachedId = safe(channel.getChannelId());
         if (!isBlank(parsedId) && !isBlank(cachedId)) {
-            if (!parsedId.equals(cachedId)) {
-                return false;
-            }
-            return true;
+            return parsedId.equals(cachedId);
         }
         String parsedCmd = safe(parsed.getCmd());
         String cachedCmd = safe(channel.getCmd());
-        if (!isBlank(parsedCmd) && !isBlank(cachedCmd) && parsedCmd.equals(cachedCmd)) {
-            return true;
-        }
-        return false;
+        return !isBlank(parsedCmd) && !isBlank(cachedCmd) && parsedCmd.equals(cachedCmd);
     }
 
     private String safe(String value) {

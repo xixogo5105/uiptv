@@ -334,7 +334,7 @@ public class CategoryListUI extends HBox {
     private void addChannelClickHandler() {
         table.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER) {
-                doRetrieveChannels((CategoryItem) table.getFocusModel().getFocusedItem());
+                doRetrieveChannels(table.getFocusModel().getFocusedItem());
             }
         });
         table.setRowFactory(tv -> {

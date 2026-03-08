@@ -1138,9 +1138,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void setupPipResizing(StackPane pipRoot) {
-        pipRoot.setOnMouseMoved(event -> updatePipResizeCursor(event));
-        pipRoot.setOnMousePressed(event -> handlePipMousePressed(event));
-        pipRoot.setOnMouseDragged(event -> handlePipMouseDragged(event));
+        pipRoot.setOnMouseMoved(this::updatePipResizeCursor);
+        pipRoot.setOnMousePressed(this::handlePipMousePressed);
+        pipRoot.setOnMouseDragged(this::handlePipMouseDragged);
         pipRoot.setOnMouseReleased(event -> finishPipInteraction());
     }
 

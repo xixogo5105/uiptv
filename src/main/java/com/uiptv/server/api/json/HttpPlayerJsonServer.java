@@ -297,9 +297,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return true;
         }
         // Skip DRM-only flows for non-forced URLs; keep those in direct player path.
-        if (isNotBlank(response.getDrmType()) || isNotBlank(response.getInputstreamaddon())) {
-            return false;
-        }
         return false;
     }
 

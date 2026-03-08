@@ -50,8 +50,6 @@ public class SystemUtils {
     public static boolean IS_OS_MAC_OSX;
 
     static {
-        int os = OTHER;
-        String dfPath = "df";
         try {
             String osName = System.getProperty("os.name");
             if (osName == null) {
@@ -60,7 +58,6 @@ public class SystemUtils {
             osName = osName.toLowerCase(Locale.ENGLISH);
             // match
             if (osName.contains("windows")) {
-                os = WINDOWS;
                 IS_OS_WINDOWS = true;
             } else if (osName.contains("linux") ||
                     osName.contains("mpe/ix") ||
@@ -70,23 +67,19 @@ public class SystemUtils {
                     osName.contains("digital unix") ||
                     osName.contains("unix")
             ) {
-                os = UNIX;
                 IS_OS_LINUX = true;
             } else if (osName.contains("mac os x")) {
-                os = MAX_OSX;
                 IS_OS_MAC_OSX = true;
             } else if (osName.contains("sun os") ||
                     osName.contains("sunos") ||
                     osName.contains("solaris")) {
-                os = POSIX_UNIX;
-                dfPath = "/usr/xpg4/bin/df";
-            } else if (osName.contains("hp-ux") ||
-                    osName.contains("aix")) {
-                os = POSIX_UNIX;
+                // POSIX Unix variants do not need extra flags here.
+            } else if (osName.contains("hp-ux") || osName.contains("aix")) {
+                // POSIX Unix variants do not need extra flags here.
             }
 
         } catch (final Exception _) {
-            os = INIT_PROBLEM;
+            // Leave OS flags false if detection fails.
         }
     }
 }

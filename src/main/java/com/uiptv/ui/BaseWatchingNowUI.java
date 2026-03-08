@@ -1071,9 +1071,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (item == null || isBlank(item.account.getDbId())) {
             return;
         }
-        new Thread(() -> {
-            SeriesWatchStateService.getInstance().clearSeriesLastWatched(item.account.getDbId(), item.state.getCategoryId(), item.state.getSeriesId());
-        }, "watching-now-clear-watched").start();
+        new Thread(() -> SeriesWatchStateService.getInstance().clearSeriesLastWatched(
+                item.account.getDbId(),
+                item.state.getCategoryId(),
+                item.state.getSeriesId()
+        ), "watching-now-clear-watched").start();
     }
 
     private void playEpisode(SeriesPanelData data, WatchingEpisode item, String playerPath) {

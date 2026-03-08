@@ -45,9 +45,7 @@ public class LogDisplayUI extends VBox {
         logArea.setPrefHeight(GUIDED_MAX_HEIGHT_PIXELS);
         logArea.getStyleClass().add("terminal");
 
-        clearLogButton.setOnAction(event -> {
-            logArea.clear();
-        });
+        clearLogButton.setOnAction(event -> logArea.clear());
 
         copyLogButton.setOnAction(event -> {
             Clipboard clipboard = Clipboard.getSystemClipboard();

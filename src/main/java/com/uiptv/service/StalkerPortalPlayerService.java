@@ -3,7 +3,6 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
-import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.PlayerUrlUtils;
 import org.json.JSONObject;
@@ -197,8 +196,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         if (colonIndex > 0) {
             trimmed = trimmed.substring(0, colonIndex);
         }
-        String digits = trimmed.replaceAll("[^0-9]", "");
-        return digits;
+        return trimmed.replaceAll("\\D", "");
     }
 
     static String mergeMissingQueryParams(String resolvedCmd, String originalCmd) {

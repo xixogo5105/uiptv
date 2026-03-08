@@ -350,11 +350,8 @@ public class SeriesWatchStateService {
                 : "";
         String candidateEpisodeNum = stripToDigits(
                 !isBlank(episodeNum) ? episodeNum : String.valueOf(parseEpisodeNum("", episodeName)));
-        if (!isBlank(watchedEpisodeNum)
-                && (isBlank(candidateEpisodeNum) || !watchedEpisodeNum.equals(candidateEpisodeNum))) {
-            return false;
-        }
-        return true;
+        return isBlank(watchedEpisodeNum)
+                || (!isBlank(candidateEpisodeNum) && watchedEpisodeNum.equals(candidateEpisodeNum));
     }
 
     private String normalizeCategoryId(String categoryId) {
@@ -454,7 +451,7 @@ public class SeriesWatchStateService {
         if (isBlank(value)) {
             return "";
         }
-        String parsed = value.replaceAll("[^0-9]", "");
+        String parsed = value.replaceAll("\\D", "");
         return isBlank(parsed) ? "" : parsed;
     }
 

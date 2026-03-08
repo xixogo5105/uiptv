@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
@@ -660,7 +659,7 @@ public class ReloadCachePopup extends VBox {
 
     private List<Account> selectedProblemAccounts(VBox accountsBox) {
         return accountsBox.getChildren().stream()
-                .filter(n -> n instanceof CheckBox && ((CheckBox) n).isSelected())
+                .filter(n -> n instanceof CheckBox checkbox && checkbox.isSelected())
                 .map(n -> (Account) n.getUserData())
                 .toList();
     }

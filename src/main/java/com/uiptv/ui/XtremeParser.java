@@ -7,7 +7,6 @@ import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.shared.SeasonInfo;
 import com.uiptv.util.HttpUtil;
-import com.uiptv.util.I18n;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -24,7 +23,6 @@ import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.nullSafeEncode;
 import static com.uiptv.util.StringUtils.safeGetString;
-import static com.uiptv.widget.UIptvAlert.showError;
 import static com.uiptv.widget.UIptvAlert.showErrorKey;
 
 public class XtremeParser {

@@ -18,7 +18,6 @@ import javafx.stage.Stage;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class M3U8PublicationPopup extends VBox {
 

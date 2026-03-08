@@ -756,16 +756,16 @@ public class ChannelListUI extends HBox {
     }
 
     private ChannelItem resolveEnterTargetItem() {
-        ChannelItem selected = (ChannelItem) table.getSelectionModel().getSelectedItem();
+        ChannelItem selected = table.getSelectionModel().getSelectedItem();
         if (selected != null) {
             return selected;
         }
-        ChannelItem focused = (ChannelItem) table.getFocusModel().getFocusedItem();
+        ChannelItem focused = table.getFocusModel().getFocusedItem();
         if (focused != null) {
             return focused;
         }
         if (table.getItems() != null && !table.getItems().isEmpty()) {
-            return (ChannelItem) table.getItems().get(0);
+            return table.getItems().get(0);
         }
         return null;
     }
@@ -941,17 +941,13 @@ public class ChannelListUI extends HBox {
 
                 Platform.runLater(() -> {
                     MenuItem allItem = new MenuItem(I18n.tr("autoAll"));
-                    allItem.setOnAction(e -> {
-                        saveBookmark(item, null);
-                    });
+                    allItem.setOnAction(e -> saveBookmark(item, null));
                     bookmarkMenu.getItems().add(allItem);
                     bookmarkMenu.getItems().add(new SeparatorMenuItem());
 
                     for (BookmarkCategory category : categories) {
                         MenuItem categoryItem = new MenuItem(category.getName());
-                        categoryItem.setOnAction(e -> {
-                            saveBookmark(item, category.getId());
-                        });
+                        categoryItem.setOnAction(e -> saveBookmark(item, category.getId()));
                         bookmarkMenu.getItems().add(categoryItem);
                     }
 
@@ -959,16 +955,14 @@ public class ChannelListUI extends HBox {
                         bookmarkMenu.getItems().add(new SeparatorMenuItem());
                         MenuItem unbookmarkItem = new MenuItem(I18n.tr("autoRemoveBookmark"));
                         unbookmarkItem.getStyleClass().add("danger-menu-item");
-                        unbookmarkItem.setOnAction(e -> {
-                            new Thread(() -> {
-                                BookmarkService.getInstance().remove(existingBookmark.getDbId());
-                                Platform.runLater(() -> {
-                                    item.setBookmarked(false);
-                                    table.refresh();
-                                    refreshBookmarkStatesAsync();
-                                });
-                            }).start();
-                        });
+                        unbookmarkItem.setOnAction(e -> new Thread(() -> {
+                            BookmarkService.getInstance().remove(existingBookmark.getDbId());
+                            Platform.runLater(() -> {
+                                item.setBookmarked(false);
+                                table.refresh();
+                                refreshBookmarkStatesAsync();
+                            });
+                        }).start());
                         bookmarkMenu.getItems().add(unbookmarkItem);
                     }
                 });

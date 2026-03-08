@@ -209,7 +209,7 @@ public class ManageAccountUI extends VBox {
             macList.addAll(Arrays.stream(currentMacs.replace(SPACE, "").split(",")).toList());
         }
 
-        String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : null;
+        String currentDefault = macAddress.getValue();
 
         MacAddressManagementPopup popup = new MacAddressManagementPopup((Stage) getScene().getWindow(), macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
@@ -336,7 +336,7 @@ public class ManageAccountUI extends VBox {
         String invalidMacsStr = String.join(", ", invalidMacs);
         StringBuilder message = new StringBuilder(I18n.tr("manageFoundInvalidMacAddresses", invalidMacsStr)).append("\n");
 
-        String currentDefault = macAddress.getValue() != null ? macAddress.getValue().toString() : "";
+        String currentDefault = macAddress.getValue() != null ? macAddress.getValue() : "";
         boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
 
         if (defaultIsInvalid) {
@@ -367,10 +367,10 @@ public class ManageAccountUI extends VBox {
         List<String> items = new ArrayList<>(Arrays.stream(newVal.replace(SPACE, "").split(",")).toList());
         Collections.sort(items);
         macAddress.getItems().addAll(items);
-        if (macAddress.getValue() == null || isBlank(macAddress.getValue().toString()) || !macAddress.getValue().toString().toLowerCase().contains(newVal.toLowerCase())) {
+        if (macAddress.getValue() == null || isBlank(macAddress.getValue()) || !macAddress.getValue().toLowerCase().contains(newVal.toLowerCase())) {
             macAddress.setValue(newVal.split(",")[0].trim());
         } else {
-            macAddress.setValue(macAddress.getValue().toString());
+            macAddress.setValue(macAddress.getValue());
         }
     }
 
@@ -409,8 +409,8 @@ public class ManageAccountUI extends VBox {
     }
 
     private Stage resolveOwnerStage() {
-        if (getScene() != null && getScene().getWindow() instanceof Stage) {
-            return (Stage) getScene().getWindow();
+        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
+            return stage;
         }
         return RootApplication.primaryStage;
     }
@@ -440,13 +440,13 @@ public class ManageAccountUI extends VBox {
 
     private Account getAccountFromForm() {
         Account account = new Account(name.getText(), username.getText(), password.getText(), url.getText(),
-                macAddress.getValue() != null ? macAddress.getValue().toString() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
-                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue().toString()) ? accountType.getValue().toString() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
+                macAddress.getValue() != null ? macAddress.getValue() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
+                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue()) ? accountType.getValue() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
         if (accountId != null) {
             account.setDbId(accountId);
         }
-        account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue().toString() : "GET");
-        account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue().toString() : DEFAULT_TIMEZONE);
+        account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
+        account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
         return account;
     }
 

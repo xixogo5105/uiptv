@@ -14,7 +14,6 @@ import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.ServerUrlUtil;
-import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -171,7 +170,7 @@ public class ConfigurationUI extends VBox {
             if (newVal == null) {
                 return;
             }
-            String normalized = newVal.replaceAll("[^0-9]", "");
+            String normalized = newVal.replaceAll("\\D", "");
             if (!newVal.equals(normalized)) {
                 cacheExpiryDays.setText(normalized);
             }

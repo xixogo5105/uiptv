@@ -16,7 +16,6 @@ import java.util.regex.Pattern;
 import static com.uiptv.util.FetchAPI.ServerType.PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
-import static com.uiptv.widget.UIptvAlert.showError;
 import static com.uiptv.widget.UIptvAlert.showErrorKey;
 
 public class PingStalkerPortal {

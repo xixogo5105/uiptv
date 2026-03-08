@@ -842,9 +842,7 @@ public class BookmarkChannelListUI extends HBox {
         MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
         editItem.getStyleClass().add("danger-menu-item");
 
-        editItem.setOnAction(actionEvent -> {
-            handleDeleteMultipleBookmarks();
-        });
+        editItem.setOnAction(actionEvent -> handleDeleteMultipleBookmarks());
 
         List<MenuItem> playerItems = new ArrayList<>();
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {

@@ -112,8 +112,7 @@ public class PlayerUrlUtils {
             normalized = normalized.substring(FFMPEG_PREFIX.length()).trim();
         }
         // Reject known broken pattern with empty stream parameter.
-        if (normalized.contains("stream=&")) return false;
-        return true;
+        return !normalized.contains("stream=&");
     }
 
     private static URI resolvePortalUri(Account account) {

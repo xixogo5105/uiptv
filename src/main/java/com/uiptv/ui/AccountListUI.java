@@ -291,7 +291,7 @@ public class AccountListUI extends HBox {
     }
 
     private void handleAccountKeyReleased(javafx.scene.input.KeyEvent event) {
-        AccountItem focusedItem = (AccountItem) table.getFocusModel().getFocusedItem();
+        AccountItem focusedItem = table.getFocusModel().getFocusedItem();
         openFocusedAccountForEditing(focusedItem);
         if (event.getCode() == KeyCode.DELETE) {
             handleDeleteAccounts();
@@ -432,12 +432,12 @@ public class AccountListUI extends HBox {
                 "accountListDeleteAccountsConfirm",
                 selectedCount,
                 table.getSelectionModel().getSelectedItems().stream()
-                        .map(accountItem -> ((AccountItem) accountItem).getAccountName())
+                        .map(AccountItem::getAccountName)
                         .collect(Collectors.joining(", "))
         );
         isPromptShowing = true;
         if (showConfirmationAlert(localizedMessage)) {
-            for (AccountItem selectedItem : (List<AccountItem>) (List<?>) table.getSelectionModel().getSelectedItems()) {
+            for (AccountItem selectedItem : table.getSelectionModel().getSelectedItems()) {
                 AccountService.getInstance().delete(selectedItem.getAccountId());
                 if (onDeleteCallback != null) {
                     onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
@@ -476,15 +476,11 @@ public class AccountListUI extends HBox {
             try {
                 final List<Category> list = CategoryService.getInstance().get(account);
 
-                Platform.runLater(() -> {
-                    categoryListUI.setItems(list);
-                });
+                Platform.runLater(() -> categoryListUI.setItems(list));
             } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert(I18n.tr("autoFailedRefreshChannels", e.getMessage())));
             } finally {
-                Platform.runLater(() -> {
-                    primaryStage.getScene().setCursor(Cursor.DEFAULT);
-                });
+                Platform.runLater(() -> primaryStage.getScene().setCursor(Cursor.DEFAULT));
             }
         }).start();
     }

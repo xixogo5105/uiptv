@@ -3,7 +3,6 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
-import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.util.PlayerUrlUtils;
 
 import java.io.IOException;
