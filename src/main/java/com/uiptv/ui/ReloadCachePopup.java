@@ -158,9 +158,9 @@ public class ReloadCachePopup extends VBox {
     }
 
     private List<Account> loadSupportedAccounts() {
-        List<Account> supportedAccounts = accountService.getAll().values().stream()
+        List<Account> supportedAccounts = new ArrayList<>(accountService.getAll().values().stream()
                 .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
-                .toList();
+                .toList());
         supportedAccounts.sort(Comparator.comparing(account -> accountTypeOrder().getOrDefault(account.getType(), Integer.MAX_VALUE)));
         return supportedAccounts;
     }
