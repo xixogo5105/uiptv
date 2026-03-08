@@ -2,9 +2,9 @@ package com.uiptv.util;
 
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -28,15 +28,47 @@ class VersionManagerTest {
 
     @Test
     void missingUpdateMetadataFallsBackToNa() throws Exception {
-        Path compiledResource = Path.of("target/classes/update.json");
-        Path backup = compiledResource.resolveSibling("update.json.bak-test");
-        Files.move(compiledResource, backup, StandardCopyOption.REPLACE_EXISTING);
-        try {
-            assertEquals("N/A", VersionManager.getCurrentVersion());
-            assertEquals("N/A", VersionManager.getReleaseUrl());
-            assertEquals("N/A", VersionManager.getReleaseDescription());
-        } finally {
-            Files.move(backup, compiledResource, StandardCopyOption.REPLACE_EXISTING);
-        }
+        ClassLoader shadowLoader = new ClassLoader(VersionManager.class.getClassLoader()) {
+            @Override
+            public InputStream getResourceAsStream(String name) {
+                if ("update.json".equals(name)) {
+                    return null;
+                }
+                return super.getResourceAsStream(name);
+            }
+
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (!"com.uiptv.util.VersionManager".equals(name)) {
+                    return super.loadClass(name, resolve);
+                }
+                Class<?> loaded = findLoadedClass(name);
+                if (loaded == null) {
+                    try (InputStream input = VersionManager.class.getClassLoader()
+                            .getResourceAsStream("com/uiptv/util/VersionManager.class")) {
+                        if (input == null) {
+                            throw new ClassNotFoundException(name);
+                        }
+                        byte[] bytes = input.readAllBytes();
+                        loaded = defineClass(name, bytes, 0, bytes.length);
+                    } catch (IOException ex) {
+                        throw new ClassNotFoundException(name, ex);
+                    }
+                }
+                if (resolve) {
+                    resolveClass(loaded);
+                }
+                return loaded;
+            }
+        };
+
+        Class<?> shadowVersionManager = Class.forName("com.uiptv.util.VersionManager", true, shadowLoader);
+        Method getCurrentVersion = shadowVersionManager.getMethod("getCurrentVersion");
+        Method getReleaseUrl = shadowVersionManager.getMethod("getReleaseUrl");
+        Method getReleaseDescription = shadowVersionManager.getMethod("getReleaseDescription");
+
+        assertEquals("N/A", getCurrentVersion.invoke(null));
+        assertEquals("N/A", getReleaseUrl.invoke(null));
+        assertEquals("N/A", getReleaseDescription.invoke(null));
     }
 }

@@ -4,9 +4,12 @@ import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -234,7 +237,14 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     }
 
     private static int expectedMigrationCount() throws Exception {
-        try (InputStream in = DatabasePatchesUtilsTest.class.getClassLoader().getResourceAsStream("db/migrations/migrations.txt")) {
+        InputStream resource = DatabasePatchesUtilsTest.class.getClassLoader().getResourceAsStream("db/migrations/migrations.txt");
+        if (resource == null) {
+            Path fallback = Path.of("src", "main", "resources", "db", "migrations", "migrations.txt");
+            if (Files.exists(fallback)) {
+                resource = new FileInputStream(fallback.toFile());
+            }
+        }
+        try (InputStream in = resource) {
             if (in == null) {
                 throw new IllegalStateException("Missing migrations list");
             }
