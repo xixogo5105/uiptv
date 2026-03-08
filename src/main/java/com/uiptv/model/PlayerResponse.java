@@ -19,9 +19,11 @@ public class PlayerResponse {
 
     public void setFromChannel(Channel channel, Account account) {
         this.channel = channel;
-        if (channel != null) {
-            this.account = account;
+        if (channel == null) {
+            clearDrmMetadata();
+            return;
         }
+        this.account = account;
         this.drmType = channel.getDrmType();
         this.drmLicenseUrl = channel.getDrmLicenseUrl();
         this.clearKeysJson = channel.getClearKeysJson();
@@ -30,13 +32,23 @@ public class PlayerResponse {
     }
 
     public void setFromBookmark(Bookmark bookmark, Account account) {
-        if (bookmark != null) {
-            this.account = account;
+        if (bookmark == null) {
+            clearDrmMetadata();
+            return;
         }
+        this.account = account;
         this.drmType = bookmark.getDrmType();
         this.drmLicenseUrl = bookmark.getDrmLicenseUrl();
         this.clearKeysJson = bookmark.getClearKeysJson();
         this.inputstreamaddon = bookmark.getInputstreamaddon();
         this.manifestType = bookmark.getManifestType();
+    }
+
+    private void clearDrmMetadata() {
+        this.drmType = null;
+        this.drmLicenseUrl = null;
+        this.clearKeysJson = null;
+        this.inputstreamaddon = null;
+        this.manifestType = null;
     }
 }

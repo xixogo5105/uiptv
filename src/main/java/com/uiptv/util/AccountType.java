@@ -24,6 +24,13 @@ public enum AccountType {
     }
 
     public static AccountType getAccountTypeByDisplay(String display) {
-        return Arrays.stream(AccountType.values()).filter(a -> a.getDisplay().equalsIgnoreCase(display)).findFirst().get();
+        if (display == null || display.trim().isEmpty()) {
+            throw new IllegalArgumentException("Account type display cannot be blank");
+        }
+        String normalizedDisplay = display.trim();
+        return Arrays.stream(AccountType.values())
+                .filter(a -> a.getDisplay().equalsIgnoreCase(normalizedDisplay))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown account type display: " + display));
     }
 }

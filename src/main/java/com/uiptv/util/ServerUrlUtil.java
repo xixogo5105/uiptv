@@ -7,11 +7,12 @@ import javafx.application.HostServices;
 import com.uiptv.model.Configuration;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class ServerUrlUtil {
-    private static volatile HostServices hostServices;
+    private static final AtomicReference<HostServices> hostServices = new AtomicReference<>();
 
     public static String getLocalServerUrl() {
         String port = "8888";
@@ -32,7 +33,7 @@ public class ServerUrlUtil {
     }
 
     public static void setHostServices(HostServices hostServicesInstance) {
-        hostServices = hostServicesInstance;
+        hostServices.set(hostServicesInstance);
     }
 
     public static void installServerShutdownHook() {
@@ -67,8 +68,9 @@ public class ServerUrlUtil {
     }
 
     public static void openInBrowser(String url) {
-        if (isNotBlank(url) && hostServices != null) {
-            hostServices.showDocument(url);
+        HostServices services = hostServices.get();
+        if (isNotBlank(url) && services != null) {
+            services.showDocument(url);
             return;
         }
         UIptvAlert.showErrorKey("serverUnableToOpenBrowserForDrmPlayback");

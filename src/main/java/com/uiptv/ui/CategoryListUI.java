@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -46,7 +47,7 @@ public class CategoryListUI extends HBox {
     SearchableTableView table = new SearchableTableView();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn(I18n.tr("autoCategories"));
     TableColumn<CategoryItem, String> categoryId = new TableColumn("");
-    private volatile Thread currentLoadingThread;
+    private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final VBox leftPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
@@ -209,8 +210,9 @@ public class CategoryListUI extends HBox {
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
         }
-        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
-            currentLoadingThread.interrupt();
+        Thread loadingThread = currentLoadingThread.getAndSet(null);
+        if (loadingThread != null && loadingThread.isAlive()) {
+            loadingThread.interrupt();
         }
 
         // Clear all cached mode states to allow garbage collection
@@ -384,12 +386,13 @@ public class CategoryListUI extends HBox {
             currentRequestCancelled.set(true);
         }
         
-        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+        Thread runningThread = currentLoadingThread.get();
+        if (runningThread != null && runningThread.isAlive()) {
             primaryStage.getScene().setCursor(Cursor.WAIT);
-            currentLoadingThread.interrupt();
+            runningThread.interrupt();
             try {
                 // Wait a bit for the thread to finish, but don't block forever
-                currentLoadingThread.join(2000);
+                runningThread.join(2000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -399,16 +402,18 @@ public class CategoryListUI extends HBox {
         AtomicBoolean isCancelled = currentRequestCancelled;
 
         primaryStage.getScene().setCursor(Cursor.WAIT);
-        currentLoadingThread = new Thread(() -> {
+        Thread loadingThread = new Thread(() -> {
             try {
                 retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
             } finally {
                 Platform.runLater(() -> {
                     primaryStage.getScene().setCursor(Cursor.DEFAULT);
                 });
+                currentLoadingThread.compareAndSet(Thread.currentThread(), null);
             }
         });
-        currentLoadingThread.start();
+        currentLoadingThread.set(loadingThread);
+        loadingThread.start();
     }
 
     private void retrieveChannels(CategoryItem item, boolean noCachingNeeded, Supplier<Boolean> isCancelled, Account.AccountAction mode) {

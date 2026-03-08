@@ -36,6 +36,7 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.series;
@@ -54,9 +55,9 @@ public class ChannelListUI extends HBox {
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
     private final Set<String> seenChannelKeys = new HashSet<>();
-    private volatile Map<String, String> categoryTitleByCategoryId = Map.of();
-    private volatile Map<String, String> categoryTitleByNormalizedTitle = Map.of();
-    private volatile Map<String, BookmarkContext> m3uAllSourceContextByChannelKey = Map.of();
+    private final AtomicReference<Map<String, String>> categoryTitleByCategoryId = new AtomicReference<>(Map.of());
+    private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
+    private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private static final int MAX_SERIES_EPISODE_CACHE_ENTRIES = Integer.getInteger("uiptv.series.cache.maxEntries", 48);
     private final Map<String, EpisodeList> seriesEpisodesCache = Collections.synchronizedMap(
@@ -70,7 +71,7 @@ public class ChannelListUI extends HBox {
     private boolean bookmarkListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
-    private volatile Thread currentLoadingThread;
+    private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean embeddedMode = false;
@@ -447,8 +448,9 @@ public class ChannelListUI extends HBox {
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
         }
-        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
-            currentLoadingThread.interrupt();
+        Thread loadingThread = currentLoadingThread.getAndSet(null);
+        if (loadingThread != null && loadingThread.isAlive()) {
+            loadingThread.interrupt();
         }
         seriesEpisodesCache.clear();
         // Clear channel items and metadata to allow garbage collection
@@ -456,9 +458,9 @@ public class ChannelListUI extends HBox {
             channelItems.clear();
         }
         seenChannelKeys.clear();
-        categoryTitleByCategoryId = Map.of();
-        categoryTitleByNormalizedTitle = Map.of();
-        m3uAllSourceContextByChannelKey = Map.of();
+        categoryTitleByCategoryId.set(Map.of());
+        categoryTitleByNormalizedTitle.set(Map.of());
+        m3uAllSourceContextByChannelKey.set(Map.of());
     }
 
     private void unregisterBookmarkListener() {
@@ -583,27 +585,27 @@ public class ChannelListUI extends HBox {
             try {
                 List<Category> categories = CategoryService.getInstance().getCached(account);
 
-                categoryTitleByCategoryId = categories.stream()
+                categoryTitleByCategoryId.set(categories.stream()
                         .filter(c -> c != null && c.getCategoryId() != null)
                         .collect(Collectors.toMap(
                                 c -> c.getCategoryId(),
                                 Category::getTitle,
-                                (left, right) -> left));
+                                (left, right) -> left)));
 
-                categoryTitleByNormalizedTitle = categories.stream()
+                categoryTitleByNormalizedTitle.set(categories.stream()
                         .filter(c -> c != null && !isBlank(c.getTitle()))
                         .collect(Collectors.toMap(
                                 c -> normalizeCategoryKey(c.getTitle()),
                                 Category::getTitle,
-                                (left, right) -> left));
+                                (left, right) -> left)));
 
                 if (isM3uAccount()) {
-                    m3uAllSourceContextByChannelKey = loadM3uAllSourceContextMap(categories);
+                    m3uAllSourceContextByChannelKey.set(loadM3uAllSourceContextMap(categories));
                 }
             } catch (Exception ignored) {
-                categoryTitleByCategoryId = Map.of();
-                categoryTitleByNormalizedTitle = Map.of();
-                m3uAllSourceContextByChannelKey = Map.of();
+                categoryTitleByCategoryId.set(Map.of());
+                categoryTitleByNormalizedTitle.set(Map.of());
+                m3uAllSourceContextByChannelKey.set(Map.of());
             } finally {
                 runLater(this::refreshBookmarkStatesAsync);
             }
@@ -661,7 +663,7 @@ public class ChannelListUI extends HBox {
         String effectiveCategoryTitle = categoryTitle;
         if (isAllCategoryView() && channel != null) {
             if (isM3uAccount()) {
-                BookmarkContext sourceContext = m3uAllSourceContextByChannelKey.get(channelIdentityKey(channel));
+                BookmarkContext sourceContext = m3uAllSourceContextByChannelKey.get().get(channelIdentityKey(channel));
                 if (sourceContext != null) {
                     return sourceContext;
                 }
@@ -669,9 +671,9 @@ public class ChannelListUI extends HBox {
         }
         if (isAllCategoryView() && channel != null && !isBlank(channel.getCategoryId())) {
             effectiveCategoryId = channel.getCategoryId();
-            String mappedTitle = categoryTitleByCategoryId.get(channel.getCategoryId());
+            String mappedTitle = categoryTitleByCategoryId.get().get(channel.getCategoryId());
             if (isBlank(mappedTitle)) {
-                mappedTitle = categoryTitleByNormalizedTitle.get(normalizeCategoryKey(channel.getCategoryId()));
+                mappedTitle = categoryTitleByNormalizedTitle.get().get(normalizeCategoryKey(channel.getCategoryId()));
             }
             if (isBlank(mappedTitle) && isM3uAccount()) {
                 mappedTitle = channel.getCategoryId();
@@ -762,11 +764,12 @@ public class ChannelListUI extends HBox {
             currentRequestCancelled.set(true);
         }
 
-        if (currentLoadingThread != null && currentLoadingThread.isAlive()) {
+        Thread runningThread = currentLoadingThread.get();
+        if (runningThread != null && runningThread.isAlive()) {
             getScene().setCursor(Cursor.WAIT);
-            currentLoadingThread.interrupt();
+            runningThread.interrupt();
             try {
-                currentLoadingThread.join(2000);
+                runningThread.join(2000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -777,7 +780,7 @@ public class ChannelListUI extends HBox {
 
         if (account.getAction() == series) {
             getScene().setCursor(Cursor.WAIT);
-            currentLoadingThread = new Thread(() -> {
+            Thread loadingThread = new Thread(() -> {
                 try {
                     if (account.getType() == XTREME_API) {
                         final EpisodesListUI[] episodesListUIHolder = new EpisodesListUI[1];
@@ -848,9 +851,11 @@ public class ChannelListUI extends HBox {
                     runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
                 } finally {
                     runLater(() -> getScene().setCursor(Cursor.DEFAULT));
+                    currentLoadingThread.compareAndSet(Thread.currentThread(), null);
                 }
             });
-            currentLoadingThread.start();
+            currentLoadingThread.set(loadingThread);
+            loadingThread.start();
         } else {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
         }
