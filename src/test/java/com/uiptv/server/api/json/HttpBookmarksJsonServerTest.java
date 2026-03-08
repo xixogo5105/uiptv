@@ -23,7 +23,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -114,14 +116,12 @@ class HttpBookmarksJsonServerTest extends DbBackedTest {
         JSONArray before = new JSONArray(getBeforeReorder.getResponseBodyText());
         assertEquals(3, before.length());
 
-        JSONArray orderedIds = new JSONArray();
-        orderedIds.put(before.getJSONObject(2).getString("dbId"));
-        orderedIds.put(before.getJSONObject(1).getString("dbId"));
-        orderedIds.put(before.getJSONObject(0).getString("dbId"));
-
         JSONObject reorderPayload = new JSONObject();
-        reorderPayload.put("categoryId", sports.getDbId());
-        reorderPayload.put("orderedBookmarkDbIds", orderedIds);
+        JSONObject bookmarkOrders = new JSONObject();
+        bookmarkOrders.put(before.getJSONObject(2).getString("dbId"), 1);
+        bookmarkOrders.put(before.getJSONObject(1).getString("dbId"), 2);
+        bookmarkOrders.put(before.getJSONObject(0).getString("dbId"), 3);
+        reorderPayload.put("bookmarkOrders", bookmarkOrders);
 
         StubHttpExchange putExchange = new StubHttpExchange("/bookmarks", "PUT", reorderPayload.toString());
         handler.handle(putExchange);
@@ -136,6 +136,63 @@ class HttpBookmarksJsonServerTest extends DbBackedTest {
                 after.getJSONObject(1).optString("channelName", ""),
                 after.getJSONObject(2).optString("channelName", "")
         ));
+    }
+
+    @Test
+    void bookmarksServer_putOrder_rejectsEmptyPayload() throws Exception {
+        HttpBookmarksJsonServer handler = new HttpBookmarksJsonServer();
+
+        StubHttpExchange putExchange = new StubHttpExchange("/bookmarks", "PUT", "{}");
+        handler.handle(putExchange);
+
+        assertEquals(400, putExchange.getResponseCode());
+        assertTrue(putExchange.getResponseBodyText().contains("bookmarkOrders is required"));
+    }
+
+    @Test
+    void bookmarksServer_putOrder_ignoresInvalidEntriesAndKeepsOtherBookmarksVisible() throws Exception {
+        Account account = createAccount("bookmark-api-invalid-order");
+        CategoryDb.get().saveAll(List.of(new Category("10", "Sports", "sports", false, 0)), account);
+        Category sports = CategoryDb.get().getCategories(account).get(0);
+        HttpBookmarksJsonServer handler = new HttpBookmarksJsonServer();
+
+        String[] channelNames = {"Sports One", "Sports Two", "Sports Three"};
+        for (int i = 0; i < channelNames.length; i++) {
+            JSONObject payload = new JSONObject();
+            payload.put("accountId", account.getDbId());
+            payload.put("categoryId", sports.getDbId());
+            payload.put("mode", "itv");
+            payload.put("channelId", "ch-invalid-" + (200 + i));
+            payload.put("name", channelNames[i]);
+            payload.put("cmd", "ffmpeg http://stream/" + (200 + i) + ".ts");
+            handler.handle(new StubHttpExchange("/bookmarks", "POST", payload.toString()));
+        }
+
+        StubHttpExchange getBefore = new StubHttpExchange("/bookmarks", "GET", null);
+        handler.handle(getBefore);
+        JSONArray before = new JSONArray(getBefore.getResponseBodyText());
+        Map<String, String> nameById = new LinkedHashMap<>();
+        for (int i = 0; i < before.length(); i++) {
+            nameById.put(before.getJSONObject(i).getString("dbId"), before.getJSONObject(i).getString("channelName"));
+        }
+        String firstId = before.getJSONObject(0).getString("dbId");
+
+        JSONObject bookmarkOrders = new JSONObject();
+        bookmarkOrders.put(firstId, 1);
+        bookmarkOrders.put(" ", 2);
+        bookmarkOrders.put("missing-id", -3);
+        JSONObject reorderPayload = new JSONObject();
+        reorderPayload.put("bookmarkOrders", bookmarkOrders);
+
+        StubHttpExchange putExchange = new StubHttpExchange("/bookmarks", "PUT", reorderPayload.toString());
+        handler.handle(putExchange);
+        assertEquals(200, putExchange.getResponseCode());
+
+        StubHttpExchange getAfter = new StubHttpExchange("/bookmarks", "GET", null);
+        handler.handle(getAfter);
+        JSONArray after = new JSONArray(getAfter.getResponseBodyText());
+        assertEquals(3, after.length());
+        assertEquals(nameById.get(firstId), after.getJSONObject(0).getString("channelName"));
     }
 
     private Account createAccount(String name) {

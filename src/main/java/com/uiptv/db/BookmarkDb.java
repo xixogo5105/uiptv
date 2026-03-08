@@ -9,7 +9,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.*;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
@@ -43,34 +45,21 @@ public class BookmarkDb extends BaseDb {
 
     private List<Bookmark> getBookmarksOrdered(String categoryId) {
         List<Bookmark> bookmarks = new ArrayList<>();
-        StringBuilder sql = new StringBuilder();
+        StringBuilder sql = new StringBuilder("SELECT b.*, bo.display_order FROM ")
+                .append(BOOKMARK_TABLE.getTableName()).append(" b ")
+                .append("LEFT JOIN (SELECT bookmark_db_id, MIN(display_order) AS display_order FROM ")
+                .append(BOOKMARK_ORDER_TABLE.getTableName())
+                .append(" GROUP BY bookmark_db_id) bo ON b.id = bo.bookmark_db_id ");
 
-        if (categoryId == null) { // "All" category
-            sql.append("SELECT b.*, COALESCE(bo_all.display_order, bo_category.display_order) AS display_order FROM ")
-                    .append(BOOKMARK_TABLE.getTableName()).append(" b ")
-                    .append("LEFT JOIN (SELECT bookmark_db_id, MIN(display_order) AS display_order FROM ")
-                    .append(BOOKMARK_ORDER_TABLE.getTableName())
-                    .append(" WHERE category_id IS NULL GROUP BY bookmark_db_id) bo_all ON b.id = bo_all.bookmark_db_id ")
-                    .append("LEFT JOIN (SELECT bookmark_db_id, category_id, MIN(display_order) AS display_order FROM ")
-                    .append(BOOKMARK_ORDER_TABLE.getTableName())
-                    .append(" WHERE category_id IS NOT NULL GROUP BY bookmark_db_id, category_id) bo_category ")
-                    .append("ON b.id = bo_category.bookmark_db_id AND bo_category.category_id = b.categoryId ")
-                    .append("ORDER BY CASE WHEN COALESCE(bo_all.display_order, bo_category.display_order) IS NULL THEN 1 ELSE 0 END, ")
-                    .append("COALESCE(bo_all.display_order, bo_category.display_order) ASC, b.id ASC");
-        } else {
-            sql.append("SELECT b.*, bo.display_order FROM ")
-                    .append(BOOKMARK_TABLE.getTableName()).append(" b ")
-                    .append("LEFT JOIN (SELECT bookmark_db_id, category_id, MIN(display_order) AS display_order FROM ")
-                    .append(BOOKMARK_ORDER_TABLE.getTableName())
-                    .append(" WHERE category_id = ? GROUP BY bookmark_db_id, category_id) bo ")
-                    .append("ON b.id = bo.bookmark_db_id AND bo.category_id = b.categoryId ")
-                    .append("WHERE b.categoryId = ? ORDER BY CASE WHEN bo.display_order IS NULL THEN 1 ELSE 0 END, bo.display_order ASC, b.id ASC");
+        if (categoryId != null) {
+            sql.append("WHERE b.categoryId = ? ");
         }
+
+        sql.append("ORDER BY CASE WHEN bo.display_order IS NULL THEN 1 ELSE 0 END, bo.display_order ASC, b.id ASC");
 
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql.toString())) {
             if (categoryId != null) {
                 statement.setString(1, categoryId);
-                statement.setString(2, categoryId);
             }
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
@@ -88,17 +77,16 @@ public class BookmarkDb extends BaseDb {
         return (bookmarks != null && !bookmarks.isEmpty()) ? bookmarks.get(0) : null;
     }
 
-    public void save(Bookmark bookmark) {
-        // Check if bookmark exists to decide between insert and update
+    public boolean save(Bookmark bookmark) {
         Bookmark existing = getBookmarkById(bookmark);
         if (existing != null) {
-            bookmark.setDbId(existing.getDbId()); // Ensure we update the correct record
+            bookmark.setDbId(existing.getDbId());
             update(bookmark);
+            return false;
         } else {
             insert(bookmark);
+            return true;
         }
-        // Update or insert order
-        saveBookmarkOrder(bookmark.getDbId(), bookmark.getCategoryId(), -1); // -1 means append to end
     }
 
     private void insert(Bookmark bookmark) {
@@ -172,7 +160,7 @@ public class BookmarkDb extends BaseDb {
     @Override
     public void delete(String id) {
         super.delete(id);
-        deleteBookmarkOrder(id, null); // Delete order for this bookmark across all categories
+        deleteBookmarkOrders(id);
     }
 
     private void deleteBookmark(Bookmark b) {
@@ -241,62 +229,26 @@ public class BookmarkDb extends BaseDb {
         return bookmark;
     }
 
-    public void saveBookmarkOrder(String bookmarkDbId, String categoryId, int displayOrder) {
-        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?" + AND_NULLABLE_CATEGORY_ID;
-        String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, ?, ?)";
-        String updateSql = "UPDATE " + BOOKMARK_ORDER_TABLE.getTableName() + " SET display_order = ? WHERE bookmark_db_id = ? AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
+    public void saveBookmarkOrder(String bookmarkDbId, int displayOrder) {
+        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?";
+        String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, NULL, ?)";
 
         Connection conn = null;
         try {
             conn = connect();
-            conn.setAutoCommit(false); // Start transaction
+            conn.setAutoCommit(false);
 
-            // First, delete any existing order for this bookmark in this category
             try (PreparedStatement deleteStmt = conn.prepareStatement(deleteSql)) {
                 deleteStmt.setString(1, bookmarkDbId);
-                if (categoryId == null) {
-                    deleteStmt.setNull(2, java.sql.Types.VARCHAR);
-                    deleteStmt.setNull(3, java.sql.Types.VARCHAR);
-                } else {
-                    deleteStmt.setString(2, categoryId);
-                    deleteStmt.setString(3, categoryId);
-                }
                 deleteStmt.executeUpdate();
             }
 
-            // If displayOrder is -1, find the next available order
-            if (displayOrder == -1) {
-                String maxOrderSql = "SELECT MAX(display_order) FROM " + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
-                try (PreparedStatement maxOrderStmt = conn.prepareStatement(maxOrderSql)) {
-                    if (categoryId == null) {
-                        maxOrderStmt.setNull(1, java.sql.Types.VARCHAR);
-                        maxOrderStmt.setNull(2, java.sql.Types.VARCHAR);
-                    } else {
-                        maxOrderStmt.setString(1, categoryId);
-                        maxOrderStmt.setString(2, categoryId);
-                    }
-                    try (ResultSet rs = maxOrderStmt.executeQuery()) {
-                        if (rs.next()) {
-                            displayOrder = rs.getInt(1) + 1;
-                        } else {
-                            displayOrder = 0; // First item
-                        }
-                    }
-                }
-            }
-
-            // Insert the new order
             try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
                 insertStmt.setString(1, bookmarkDbId);
-                if (categoryId == null) {
-                    insertStmt.setNull(2, java.sql.Types.VARCHAR);
-                } else {
-                    insertStmt.setString(2, categoryId);
-                }
-                insertStmt.setInt(3, displayOrder);
+                insertStmt.setInt(2, displayOrder);
                 insertStmt.executeUpdate();
             }
-            conn.commit(); // Commit transaction
+            conn.commit();
         } catch (SQLException e) {
             try {
                 if (conn != null) {
@@ -311,42 +263,32 @@ public class BookmarkDb extends BaseDb {
         }
     }
 
-    public void updateBookmarkOrders(String categoryId, List<String> orderedBookmarkDbIds) {
-        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + WHERE_NULLABLE_CATEGORY_ID;
-        String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, ?, ?)";
+    public void updateBookmarkOrders(Map<String, Integer> bookmarkOrders) {
+        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName();
+        String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, NULL, ?)";
 
         Connection conn = null;
         try {
             conn = connect();
-            conn.setAutoCommit(false); // Start transaction
+            conn.setAutoCommit(false);
 
-            // Delete all existing orders for this category
             try (PreparedStatement deleteStmt = conn.prepareStatement(deleteSql)) {
-                if (categoryId == null) {
-                    deleteStmt.setNull(1, java.sql.Types.VARCHAR);
-                    deleteStmt.setNull(2, java.sql.Types.VARCHAR);
-                } else {
-                    deleteStmt.setString(1, categoryId);
-                    deleteStmt.setString(2, categoryId);
-                }
                 deleteStmt.executeUpdate();
             }
 
-            // Insert new orders
             try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
-                for (int i = 0; i < orderedBookmarkDbIds.size(); i++) {
-                    insertStmt.setString(1, orderedBookmarkDbIds.get(i));
-                    if (categoryId == null) {
-                        insertStmt.setNull(2, java.sql.Types.VARCHAR);
-                    } else {
-                        insertStmt.setString(2, categoryId);
-                    }
-                    insertStmt.setInt(3, i);
+                List<Map.Entry<String, Integer>> orderedEntries = bookmarkOrders.entrySet().stream()
+                        .filter(entry -> isNotBlank(entry.getKey()) && entry.getValue() != null)
+                        .sorted(Comparator.comparingInt(Map.Entry::getValue))
+                        .toList();
+                for (Map.Entry<String, Integer> entry : orderedEntries) {
+                    insertStmt.setString(1, entry.getKey());
+                    insertStmt.setInt(2, entry.getValue());
                     insertStmt.addBatch();
                 }
                 insertStmt.executeBatch();
             }
-            conn.commit(); // Commit transaction
+            conn.commit();
         } catch (SQLException e) {
             try {
                 if (conn != null) {
@@ -386,6 +328,30 @@ public class BookmarkDb extends BaseDb {
         } catch (SQLException e) {
             throw new RuntimeException("Unable to delete bookmark order", e);
         }
+    }
+
+    public void deleteBookmarkOrders(String bookmarkDbId) {
+        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, bookmarkDbId);
+            statement.execute();
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to delete bookmark orders", e);
+        }
+    }
+
+    public int getNextDisplayOrder() {
+        String sql = "SELECT COALESCE(MAX(display_order), 0) + 1 FROM " + BOOKMARK_ORDER_TABLE.getTableName();
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to read next bookmark display order", e);
+        }
+        return 1;
     }
 
     public void deleteBookmarkOrdersByCategory(String categoryId) {

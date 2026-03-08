@@ -597,8 +597,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             ids.add(bookmarks.getJSONObject(i).optString("dbId"));
         }
         JSONObject reorderPayload = new JSONObject();
-        reorderPayload.put("categoryId", "");
-        reorderPayload.put("orderedBookmarkDbIds", new JSONArray(ids.stream().sorted(Comparator.reverseOrder()).collect(Collectors.toList())));
+        JSONObject bookmarkOrders = new JSONObject();
+        List<String> reorderedIds = ids.stream().sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+        for (int i = 0; i < reorderedIds.size(); i++) {
+            bookmarkOrders.put(reorderedIds.get(i), i + 1);
+        }
+        reorderPayload.put("bookmarkOrders", bookmarkOrders);
         JSONObject reorderRes = jsonObjectBody(putJson("/bookmarks", reorderPayload.toString()));
         assertEquals("reordered", reorderRes.optString("action"));
 

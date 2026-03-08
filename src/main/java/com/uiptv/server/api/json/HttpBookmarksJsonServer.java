@@ -16,7 +16,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -26,6 +28,7 @@ import static com.uiptv.util.ServerUtils.objectToJson;
 public class HttpBookmarksJsonServer implements HttpHandler {
     private static final String ALLOWED_METHODS = "GET,POST,PUT,DELETE,OPTIONS";
     private static final String PARAM_BOOKMARK_IDS = "bookmarkIds";
+    private static final String PARAM_BOOKMARK_ORDERS = "bookmarkOrders";
     private static final String PARAM_CATEGORY_ID = "categoryId";
     private static final String PARAM_ORDERED_BOOKMARK_DB_IDS = "orderedBookmarkDbIds";
     @Override
@@ -64,8 +67,22 @@ public class HttpBookmarksJsonServer implements HttpHandler {
 
     private void updateBookmarkOrder(HttpExchange ex) throws IOException {
         JSONObject body = readBodyJson(ex);
-        String categoryId = opt(body, PARAM_CATEGORY_ID, queryParam(ex, PARAM_CATEGORY_ID));
-        String normalizedCategoryId = isBlank(categoryId) ? null : categoryId;
+        Map<String, Integer> bookmarkOrders = new LinkedHashMap<>();
+
+        if (body != null && body.has(PARAM_BOOKMARK_ORDERS) && !body.isNull(PARAM_BOOKMARK_ORDERS)) {
+            JSONObject ordersObject = body.optJSONObject(PARAM_BOOKMARK_ORDERS);
+            if (ordersObject != null) {
+                for (String bookmarkId : ordersObject.keySet()) {
+                    if (isBlank(bookmarkId)) {
+                        continue;
+                    }
+                    int orderNumber = ordersObject.optInt(bookmarkId, -1);
+                    if (orderNumber > 0) {
+                        bookmarkOrders.put(bookmarkId, orderNumber);
+                    }
+                }
+            }
+        }
 
         List<String> orderedDbIds = new ArrayList<>();
         JSONArray idsArray = null;
@@ -84,7 +101,18 @@ public class HttpBookmarksJsonServer implements HttpHandler {
             }
         }
 
-        BookmarkService.getInstance().saveBookmarkOrder(normalizedCategoryId, orderedDbIds);
+        if (bookmarkOrders.isEmpty() && !orderedDbIds.isEmpty()) {
+            for (int i = 0; i < orderedDbIds.size(); i++) {
+                bookmarkOrders.put(orderedDbIds.get(i), i + 1);
+            }
+        }
+
+        if (bookmarkOrders.isEmpty()) {
+            writeJson(ex, 400, "{\"status\":\"error\",\"message\":\"bookmarkOrders is required\"}");
+            return;
+        }
+
+        BookmarkService.getInstance().saveBookmarkOrders(bookmarkOrders);
         writeJson(ex, 200, "{\"status\":\"ok\",\"action\":\"reordered\"}");
     }
 

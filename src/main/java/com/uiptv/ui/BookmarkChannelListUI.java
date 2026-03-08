@@ -723,7 +723,7 @@ public class BookmarkChannelListUI extends HBox {
                         }
                     }
                     applyLocalBookmarkOrder(categoryId, orderedDbIds);
-                    persistBookmarkOrderAsync(categoryId, buildPersistedBookmarkOrder(categoryId));
+                    persistBookmarkOrderAsync(buildPersistedBookmarkOrders());
 
                     event.consume();
                 }
@@ -734,17 +734,16 @@ public class BookmarkChannelListUI extends HBox {
         });
     }
 
-    private void persistBookmarkOrderAsync(String categoryId, List<String> orderedDbIds) {
+    private void persistBookmarkOrderAsync(Map<String, Integer> bookmarkOrders) {
         final long saveGeneration = bookmarkOrderSaveGeneration.incrementAndGet();
-        final String finalCategoryId = categoryId;
-        final List<String> finalOrderedDbIds = List.copyOf(orderedDbIds);
+        final Map<String, Integer> finalBookmarkOrders = Map.copyOf(bookmarkOrders);
         suppressAutoReloadOnBookmarkChange = true;
         bookmarkOrderSaveExecutor.execute(() -> {
             if (saveGeneration != bookmarkOrderSaveGeneration.get()) {
                 return;
             }
             try {
-                BookmarkService.getInstance().saveBookmarkOrder(finalCategoryId, finalOrderedDbIds);
+                BookmarkService.getInstance().saveBookmarkOrders(finalBookmarkOrders);
                 long revision = BookmarkService.getInstance().getChangeRevision();
                 runLater(() -> {
                     lastKnownBookmarkRevision = revision;
@@ -793,11 +792,12 @@ public class BookmarkChannelListUI extends HBox {
         }
     }
 
-    private List<String> buildPersistedBookmarkOrder(String categoryId) {
-        return allBookmarkItems.stream()
-                .filter(item -> categoryId == null || Objects.equals(categoryId, item.getCategoryId()))
-                .map(BookmarkItem::getBookmarkId)
-                .collect(Collectors.toList());
+    private Map<String, Integer> buildPersistedBookmarkOrders() {
+        Map<String, Integer> bookmarkOrders = new HashMap<>();
+        for (int i = 0; i < allBookmarkItems.size(); i++) {
+            bookmarkOrders.put(allBookmarkItems.get(i).getBookmarkId(), i + 1);
+        }
+        return bookmarkOrders;
     }
 
     private void addRightClickContextMenu(TableRow<BookmarkItem> row) {

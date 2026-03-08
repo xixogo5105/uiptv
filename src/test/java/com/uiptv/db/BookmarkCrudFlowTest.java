@@ -8,10 +8,14 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.uiptv.db.SQLConnection.connect;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -93,26 +97,25 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         assertEquals(List.of("One", "Two", "Three"), initial.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
 
         List<String> reversedIds = List.of(initial.get(2).getDbId(), initial.get(1).getDbId(), initial.get(0).getDbId());
-        bookmarkService.saveBookmarkOrder("cat-order", reversedIds);
+        bookmarkService.saveBookmarkOrder(reversedIds);
         List<Bookmark> reordered = bookmarkService.getBookmarksByCategory("cat-order");
         assertEquals(List.of("Three", "Two", "One"), reordered.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
 
-        bookmarkService.saveBookmarkOrder(null, List.of(reordered.get(0).getDbId(), reordered.get(1).getDbId(), reordered.get(2).getDbId()));
+        bookmarkService.saveBookmarkOrder(List.of(reordered.get(0).getDbId(), reordered.get(1).getDbId(), reordered.get(2).getDbId()));
         List<Bookmark> allBookmarks = bookmarkService.read();
         assertEquals(3, allBookmarks.size());
         assertEquals(List.of("Three", "Two", "One"), allBookmarks.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+        assertEquals(List.of(1, 2, 3), readDisplayOrders(allBookmarks.stream().map(Bookmark::getDbId).collect(Collectors.toList())));
 
         bookmarkDb.deleteBookmarkOrder(reordered.get(0).getDbId(), "cat-order");
         assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
-        bookmarkDb.saveBookmarkOrder(reordered.get(0).getDbId(), "cat-order", 0);
+        bookmarkDb.saveBookmarkOrder(reordered.get(0).getDbId(), 1);
         assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
 
-        bookmarkDb.deleteBookmarkOrdersByCategory("cat-order");
-        assertEquals(3, bookmarkService.getBookmarksByCategory("cat-order").size());
-
-        bookmarkDb.saveBookmarkOrder(reordered.get(0).getDbId(), null, 0);
-        bookmarkDb.deleteBookmarkOrder(reordered.get(0).getDbId(), null);
-        bookmarkDb.deleteBookmarkOrdersByCategory(null);
+        Bookmark b4 = new Bookmark("acc-order", "Other", "ch-4", "Four", "cmd://4", "http://portal", "cat-other");
+        bookmarkService.save(b4);
+        List<Bookmark> globalOrder = bookmarkService.read();
+        assertEquals(List.of("Three", "Two", "One", "Four"), globalOrder.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
 
         bookmarkService.removeCategory(savedCategory);
         assertFalse(bookmarkService.getAllCategories().stream().anyMatch(c -> "My Favorites".equals(c.getName())));
@@ -131,7 +134,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
         Bookmark saved = bookmarkService.getBookmark(bookmark);
         assertNotNull(saved);
-        bookmarkService.saveBookmarkOrder("cat-rev", List.of(saved.getDbId()));
+        bookmarkService.saveBookmarkOrder(List.of(saved.getDbId()));
         long afterReorder = bookmarkService.getChangeRevision();
         assertTrue(afterReorder > afterSave);
 
@@ -151,6 +154,71 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         bookmarkService.remove(saved.getDbId());
         long afterRemove = bookmarkService.getChangeRevision();
         assertTrue(afterRemove > afterRemoveCategory);
+    }
+
+    @Test
+    void testUpdatingBookmarkDoesNotChangeGlobalOrder() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        Bookmark first = new Bookmark("acc-update", "Fav", "ch-1", "One", "cmd://1", "http://portal", "cat-a");
+        Bookmark second = new Bookmark("acc-update", "Fav", "ch-2", "Two", "cmd://2", "http://portal", "cat-b");
+        bookmarkService.save(first);
+        bookmarkService.save(second);
+
+        List<Bookmark> initial = bookmarkService.read();
+        assertEquals(List.of("One", "Two"), initial.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+
+        Bookmark savedFirst = bookmarkService.getBookmark(first);
+        assertNotNull(savedFirst);
+        savedFirst.setCmd("cmd://1-updated");
+        bookmarkService.save(savedFirst);
+
+        List<Bookmark> afterUpdate = bookmarkService.read();
+        assertEquals(List.of("One", "Two"), afterUpdate.stream().map(Bookmark::getChannelName).collect(Collectors.toList()));
+        assertEquals(List.of(1, 2), readDisplayOrders(afterUpdate.stream().map(Bookmark::getDbId).collect(Collectors.toList())));
+    }
+
+    @Test
+    void testDeletingBookmarkRemovesItsOrderRows() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        Bookmark bookmark = new Bookmark("acc-delete-order", "Fav", "ch-1", "One", "cmd://1", "http://portal", "cat-a");
+        bookmarkService.save(bookmark);
+
+        Bookmark saved = bookmarkService.getBookmark(bookmark);
+        assertNotNull(saved);
+        assertEquals(1, countBookmarkOrderRows(saved.getDbId()));
+
+        bookmarkService.remove(saved.getDbId());
+        assertEquals(0, countBookmarkOrderRows(saved.getDbId()));
+    }
+
+    @Test
+    void testGlobalOrderRemainsConsistentWhenCategoryViewsFilterIt() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        Bookmark a1 = new Bookmark("acc-global", "Fav", "ch-1", "A One", "cmd://1", "http://portal", "cat-a");
+        Bookmark b1 = new Bookmark("acc-global", "Fav", "ch-2", "B One", "cmd://2", "http://portal", "cat-b");
+        Bookmark a2 = new Bookmark("acc-global", "Fav", "ch-3", "A Two", "cmd://3", "http://portal", "cat-a");
+        bookmarkService.save(a1);
+        bookmarkService.save(b1);
+        bookmarkService.save(a2);
+
+        List<Bookmark> saved = bookmarkService.read();
+        bookmarkService.saveBookmarkOrder(List.of(saved.get(2).getDbId(), saved.get(1).getDbId(), saved.get(0).getDbId()));
+
+        assertEquals(
+                List.of("A Two", "B One", "A One"),
+                bookmarkService.read().stream().map(Bookmark::getChannelName).collect(Collectors.toList())
+        );
+        assertEquals(
+                List.of("A Two", "A One"),
+                bookmarkService.getBookmarksByCategory("cat-a").stream().map(Bookmark::getChannelName).collect(Collectors.toList())
+        );
+        assertEquals(
+                List.of("B One"),
+                bookmarkService.getBookmarksByCategory("cat-b").stream().map(Bookmark::getChannelName).collect(Collectors.toList())
+        );
     }
 
     @Test
@@ -218,5 +286,36 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         bookmarkService.toggleBookmark(allCategoryViewBookmark);
         assertTrue(bookmarkService.isChannelBookmarked(sportsBookmark));
         assertNotNull(bookmarkService.getBookmark(allCategoryViewBookmark));
+    }
+
+    private List<Integer> readDisplayOrders(List<String> bookmarkIds) {
+        String placeholders = bookmarkIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+        String sql = "SELECT display_order FROM BookmarkOrder WHERE bookmark_db_id IN (" + placeholders + ") ORDER BY display_order ASC";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            for (int i = 0; i < bookmarkIds.size(); i++) {
+                statement.setString(i + 1, bookmarkIds.get(i));
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<Integer> displayOrders = new java.util.ArrayList<>();
+                while (resultSet.next()) {
+                    displayOrders.add(resultSet.getInt(1));
+                }
+                return displayOrders;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private int countBookmarkOrderRows(String bookmarkId) {
+        String sql = "SELECT COUNT(*) FROM BookmarkOrder WHERE bookmark_db_id = ?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, bookmarkId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

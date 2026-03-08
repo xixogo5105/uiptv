@@ -377,7 +377,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         bookmarkService.save(secondBookmark);
         List<Bookmark> beforeOrder = bookmarkService.getBookmarksByCategory("cat-e2e");
         assertEquals(2, beforeOrder.size());
-        bookmarkService.saveBookmarkOrder("cat-e2e", List.of(beforeOrder.get(1).getDbId(), beforeOrder.get(0).getDbId()));
+        bookmarkService.saveBookmarkOrder(List.of(beforeOrder.get(1).getDbId(), beforeOrder.get(0).getDbId()));
         List<Bookmark> afterOrder = bookmarkService.getBookmarksByCategory("cat-e2e");
         assertEquals(2, afterOrder.size());
         bookmarkService.toggleBookmark(secondBookmark);

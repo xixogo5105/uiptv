@@ -9,7 +9,9 @@ import com.uiptv.model.Channel;
 import com.uiptv.util.ServerUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -58,7 +60,11 @@ public class BookmarkService {
     }
 
     public void save(Bookmark bookmark) {
-        BookmarkDb.get().save(bookmark);
+        boolean created = BookmarkDb.get().save(bookmark);
+        if (created) {
+            int nextDisplayOrder = BookmarkDb.get().getNextDisplayOrder();
+            BookmarkDb.get().saveBookmarkOrder(bookmark.getDbId(), nextDisplayOrder);
+        }
         touchChange();
     }
 
@@ -135,8 +141,16 @@ public class BookmarkService {
     }
 
     // Order operations
-    public void saveBookmarkOrder(String categoryId, List<String> orderedBookmarkDbIds) {
-        BookmarkDb.get().updateBookmarkOrders(categoryId, orderedBookmarkDbIds);
+    public void saveBookmarkOrder(List<String> orderedBookmarkDbIds) {
+        Map<String, Integer> bookmarkOrders = new LinkedHashMap<>();
+        for (int i = 0; i < orderedBookmarkDbIds.size(); i++) {
+            bookmarkOrders.put(orderedBookmarkDbIds.get(i), i + 1);
+        }
+        saveBookmarkOrders(bookmarkOrders);
+    }
+
+    public void saveBookmarkOrders(Map<String, Integer> bookmarkOrders) {
+        BookmarkDb.get().updateBookmarkOrders(bookmarkOrders);
         touchChange();
     }
 

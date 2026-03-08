@@ -1013,16 +1013,18 @@ createApp({
 
         const persistBookmarkOrder = async () => {
             try {
-                const categoryId = String(selectedBookmarkCategoryId.value || '');
-                const orderedBookmarkDbIds = filteredBookmarks.value
+                const bookmarkOrders = {};
+                bookmarks.value
                     .map(b => String(b?.dbId || '').trim())
-                    .filter(Boolean);
+                    .filter(Boolean)
+                    .forEach((bookmarkId, index) => {
+                        bookmarkOrders[bookmarkId] = index + 1;
+                    });
                 await fetch(`${window.location.origin}/bookmarks`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        categoryId,
-                        orderedBookmarkDbIds
+                        bookmarkOrders
                     })
                 });
             } catch (e) {
