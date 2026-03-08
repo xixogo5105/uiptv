@@ -297,6 +297,25 @@ a {
     color: var(--brand);
 }
 
+.hero-status-badges {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    align-items: center;
+}
+
+.hero-status-badges a {
+    display: inline-flex;
+    align-items: center;
+}
+
+.hero-status-badges img {
+    display: block;
+    max-width: 100%;
+    height: 20px;
+}
+
 .hero-media {
     position: relative;
 }
