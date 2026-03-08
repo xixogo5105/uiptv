@@ -24,12 +24,16 @@ import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.objectToJson;
 
 public class HttpBookmarksJsonServer implements HttpHandler {
+    private static final String ALLOWED_METHODS = "GET,POST,PUT,DELETE,OPTIONS";
+    private static final String PARAM_BOOKMARK_IDS = "bookmarkIds";
+    private static final String PARAM_CATEGORY_ID = "categoryId";
+    private static final String PARAM_ORDERED_BOOKMARK_DB_IDS = "orderedBookmarkDbIds";
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String method = ex.getRequestMethod();
         if ("OPTIONS".equalsIgnoreCase(method)) {
             ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-            ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+            ex.getResponseHeaders().add("Access-Control-Allow-Methods", ALLOWED_METHODS);
             ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type,*");
             ex.sendResponseHeaders(204, -1);
             return;
@@ -54,22 +58,22 @@ public class HttpBookmarksJsonServer implements HttpHandler {
             deleteBookmark(ex);
             return;
         }
-        ex.getResponseHeaders().set("Allow", "GET,POST,PUT,DELETE,OPTIONS");
+        ex.getResponseHeaders().set("Allow", ALLOWED_METHODS);
         ex.sendResponseHeaders(405, -1);
     }
 
     private void updateBookmarkOrder(HttpExchange ex) throws IOException {
         JSONObject body = readBodyJson(ex);
-        String categoryId = opt(body, "categoryId", queryParam(ex, "categoryId"));
+        String categoryId = opt(body, PARAM_CATEGORY_ID, queryParam(ex, PARAM_CATEGORY_ID));
         String normalizedCategoryId = isBlank(categoryId) ? null : categoryId;
 
         List<String> orderedDbIds = new ArrayList<>();
         JSONArray idsArray = null;
-        if (body != null && body.has("orderedBookmarkDbIds") && !body.isNull("orderedBookmarkDbIds")) {
-            idsArray = body.optJSONArray("orderedBookmarkDbIds");
+        if (body != null && body.has(PARAM_ORDERED_BOOKMARK_DB_IDS) && !body.isNull(PARAM_ORDERED_BOOKMARK_DB_IDS)) {
+            idsArray = body.optJSONArray(PARAM_ORDERED_BOOKMARK_DB_IDS);
         }
-        if (idsArray == null && body != null && body.has("bookmarkIds") && !body.isNull("bookmarkIds")) {
-            idsArray = body.optJSONArray("bookmarkIds");
+        if (idsArray == null && body != null && body.has(PARAM_BOOKMARK_IDS) && !body.isNull(PARAM_BOOKMARK_IDS)) {
+            idsArray = body.optJSONArray(PARAM_BOOKMARK_IDS);
         }
         if (idsArray != null) {
             for (int i = 0; i < idsArray.length(); i++) {
@@ -87,7 +91,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
     private void upsertBookmark(HttpExchange ex) throws IOException {
         JSONObject body = readBodyJson(ex);
         String accountId = opt(body, "accountId", queryParam(ex, "accountId"));
-        String categoryId = opt(body, "categoryId", queryParam(ex, "categoryId"));
+        String categoryId = opt(body, PARAM_CATEGORY_ID, queryParam(ex, PARAM_CATEGORY_ID));
         String mode = opt(body, "mode", queryParam(ex, "mode"));
         String channelId = opt(body, "channelId", queryParam(ex, "channelId"));
         String channelName = opt(body, "name", queryParam(ex, "name"));

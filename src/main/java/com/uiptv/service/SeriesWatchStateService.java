@@ -22,6 +22,8 @@ import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class SeriesWatchStateService {
+    private static final String FIELD_CATEGORY_ID = "categoryId";
+    private static final String SOURCE_MANUAL = "MANUAL";
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b");
@@ -117,7 +119,7 @@ public class SeriesWatchStateService {
         if (account == null || isBlank(account.getDbId()) || isBlank(seriesId) || isBlank(episodeId)) {
             return;
         }
-        upsertState(account.getDbId(), normalizeCategoryId(categoryId), seriesId, episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), "MANUAL");
+        upsertState(account.getDbId(), normalizeCategoryId(categoryId), seriesId, episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), SOURCE_MANUAL);
     }
 
     public void markSeriesEpisodeManualIfNewer(Account account, String categoryId, String seriesId, String episodeId, String episodeName, String season, String episodeNum) {
@@ -129,7 +131,7 @@ public class SeriesWatchStateService {
         int nextSeasonNum = parseSeasonNum(season, episodeName);
         SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(account.getDbId(), normalizedCategory, seriesId);
         if (existing == null) {
-            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, "MANUAL");
+            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, SOURCE_MANUAL);
             return;
         }
         int currentSeasonNum = parseSeasonNum(existing.getSeason(), existing.getEpisodeName());
@@ -229,7 +231,7 @@ public class SeriesWatchStateService {
 
         if (matchedCategory != null) {
             JSONObject categoryJson = new JSONObject(matchedCategory.toJson());
-            categoryJson.put("categoryId", portalCategoryId);
+            categoryJson.put(FIELD_CATEGORY_ID, portalCategoryId);
             state.setSeriesCategorySnapshot(categoryJson.toString());
         } else {
             state.setSeriesCategorySnapshot("");
@@ -238,7 +240,7 @@ public class SeriesWatchStateService {
         Channel seriesChannel = findSeriesChannel(account, portalCategoryId, state.getSeriesId(), matchedCategory);
         if (seriesChannel != null) {
             JSONObject seriesJson = new JSONObject(seriesChannel.toJson());
-            seriesJson.put("categoryId", portalCategoryId);
+            seriesJson.put(FIELD_CATEGORY_ID, portalCategoryId);
             seriesJson.put("channelId", safe(seriesChannel.getChannelId()));
             state.setSeriesChannelSnapshot(seriesJson.toString());
         } else {

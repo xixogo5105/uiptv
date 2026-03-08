@@ -18,6 +18,9 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class BookmarkDb extends BaseDb {
     private static BookmarkDb instance;
+    private static final String DELETE_FROM = "DELETE FROM ";
+    private static final String AND_NULLABLE_CATEGORY_ID = " AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
+    private static final String WHERE_NULLABLE_CATEGORY_ID = " WHERE (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
 
     public static synchronized BookmarkDb get() {
         if (instance == null) {
@@ -173,7 +176,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     private void deleteBookmark(Bookmark b) {
-        String sql = "DELETE FROM " + BOOKMARK_TABLE.getTableName() + " where accountName=? AND categoryTitle=? AND channelId=? AND channelName=?";
+        String sql = DELETE_FROM + BOOKMARK_TABLE.getTableName() + " where accountName=? AND categoryTitle=? AND channelId=? AND channelName=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, b.getAccountName());
             statement.setString(2, b.getCategoryTitle());
@@ -186,9 +189,9 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void deleteByAccountName(String accountName) {
-        String deleteOrderSql = "DELETE FROM " + BOOKMARK_ORDER_TABLE.getTableName() +
+        String deleteOrderSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() +
                 " WHERE bookmark_db_id IN (SELECT id FROM " + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?)";
-        String deleteBookmarkSql = "DELETE FROM " + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?";
+        String deleteBookmarkSql = DELETE_FROM + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?";
 
         try (Connection conn = connect()) {
             conn.setAutoCommit(false);
@@ -239,11 +242,13 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void saveBookmarkOrder(String bookmarkDbId, String categoryId, int displayOrder) {
-        String deleteSql = "DELETE FROM " + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ? AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
+        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?" + AND_NULLABLE_CATEGORY_ID;
         String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, ?, ?)";
         String updateSql = "UPDATE " + BOOKMARK_ORDER_TABLE.getTableName() + " SET display_order = ? WHERE bookmark_db_id = ? AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
 
-        try (Connection conn = connect()) {
+        Connection conn = null;
+        try {
+            conn = connect();
             conn.setAutoCommit(false); // Start transaction
 
             // First, delete any existing order for this bookmark in this category
@@ -294,19 +299,25 @@ public class BookmarkDb extends BaseDb {
             conn.commit(); // Commit transaction
         } catch (SQLException e) {
             try {
-                connect().rollback(); // Rollback on error
+                if (conn != null) {
+                    conn.rollback();
+                }
             } catch (SQLException ex) {
                 throw new RuntimeException("Failed to rollback transaction", ex);
             }
             throw new RuntimeException("Unable to save bookmark order", e);
+        } finally {
+            closeConnection(conn);
         }
     }
 
     public void updateBookmarkOrders(String categoryId, List<String> orderedBookmarkDbIds) {
-        String deleteSql = "DELETE FROM " + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
+        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + WHERE_NULLABLE_CATEGORY_ID;
         String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, ?, ?)";
 
-        try (Connection conn = connect()) {
+        Connection conn = null;
+        try {
+            conn = connect();
             conn.setAutoCommit(false); // Start transaction
 
             // Delete all existing orders for this category
@@ -338,16 +349,30 @@ public class BookmarkDb extends BaseDb {
             conn.commit(); // Commit transaction
         } catch (SQLException e) {
             try {
-                connect().rollback(); // Rollback on error
+                if (conn != null) {
+                    conn.rollback();
+                }
             } catch (SQLException ex) {
                 throw new RuntimeException("Failed to rollback transaction", ex);
             }
             throw new RuntimeException("Unable to update bookmark orders", e);
+        } finally {
+            closeConnection(conn);
+        }
+    }
+
+    private void closeConnection(Connection conn) {
+        if (conn == null) {
+            return;
+        }
+        try {
+            conn.close();
+        } catch (SQLException _) {
         }
     }
 
     public void deleteBookmarkOrder(String bookmarkDbId, String categoryId) {
-        String sql = "DELETE FROM " + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ? AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
+        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?" + AND_NULLABLE_CATEGORY_ID;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, bookmarkDbId);
             if (categoryId == null) {
@@ -364,7 +389,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void deleteBookmarkOrdersByCategory(String categoryId) {
-        String sql = "DELETE FROM " + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
+        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + WHERE_NULLABLE_CATEGORY_ID;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             if (categoryId == null) {
                 statement.setNull(1, java.sql.Types.VARCHAR);
@@ -389,7 +414,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void deleteCategory(BookmarkCategory category) {
-        String sql = "DELETE FROM " + BOOKMARK_CATEGORY_TABLE.getTableName() + " where id=?";
+        String sql = DELETE_FROM + BOOKMARK_CATEGORY_TABLE.getTableName() + " where id=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, category.getId());
             statement.execute();

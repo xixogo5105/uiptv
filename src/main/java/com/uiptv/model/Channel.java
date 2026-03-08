@@ -14,6 +14,8 @@ import static com.uiptv.util.StringUtils.safeGetString;
 @Data
 @NoArgsConstructor
 public class Channel extends BaseJson {
+    private static final String KEY_SEASON = "season";
+
     private String dbId, channelId, categoryId, name, number, cmd, cmd_1, cmd_2, cmd_3, logo;
     private String description, season, episodeNum, releaseDate, rating, duration;
     private String extraJson;
@@ -59,7 +61,7 @@ public class Channel extends BaseJson {
             channel.setCmd_3(safeGetString(jsonObj, "cmd_3"));
             channel.setLogo(safeGetString(jsonObj, "logo"));
             channel.setDescription(safeGetString(jsonObj, "description"));
-            channel.setSeason(safeGetString(jsonObj, "season"));
+            channel.setSeason(safeGetString(jsonObj, KEY_SEASON));
             channel.setEpisodeNum(safeGetString(jsonObj, "episodeNum"));
             channel.setReleaseDate(safeGetString(jsonObj, "releaseDate"));
             channel.setRating(safeGetString(jsonObj, "rating"));

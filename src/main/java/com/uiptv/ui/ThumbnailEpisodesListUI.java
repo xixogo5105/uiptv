@@ -42,6 +42,10 @@ import java.util.Map;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
+    private static final String EPISODE_CACHE = "episode";
+    private static final String KEY_COVER = "cover";
+    private static final String KEY_RATING = "rating";
+    private static final String KEY_RELEASE_DATE = "releaseDate";
     private final TabPane seasonTabPane = new TabPane();
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
@@ -80,7 +84,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void initWidgets() {
-        ImageCacheManager.clearCache("episode");
+        ImageCacheManager.clearCache(EPISODE_CACHE);
         initHeader();
         seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         seasonTabPane.setMaxWidth(Double.MAX_VALUE);
@@ -264,7 +268,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             headerDetails.getChildren().remove(imdbBadgeNode);
         }
 
-        String rating = seasonInfo.optString("rating", "");
+        String rating = seasonInfo.optString(KEY_RATING, "");
         if (!isBlank(rating)) {
             ratingNode.setText(I18n.tr("autoImdbPrefix", rating));
         }
@@ -284,7 +288,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             headerDetails.getChildren().add(genreNode);
         }
 
-        String releaseDate = seasonInfo.optString("releaseDate", "");
+        String releaseDate = seasonInfo.optString(KEY_RELEASE_DATE, "");
         if (!isBlank(releaseDate)) {
             releaseNode.setText(I18n.tr("autoReleasePrefix", shortDateOnly(releaseDate)));
             headerDetails.getChildren().add(releaseNode);
@@ -297,13 +301,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         headerDetails.getChildren().add(reloadEpisodesButton);
 
-        String cover = normalizeImageUrl(seasonInfo.optString("cover", ""));
+        String cover = normalizeImageUrl(seasonInfo.optString(KEY_COVER, ""));
         if (isBlank(cover)) {
             cover = allEpisodeItems.stream().map(EpisodeItem::getLogo).filter(s -> !isBlank(s)).findFirst().orElse("");
         }
         if (!isBlank(cover)) {
             String finalCover = cover;
-            ImageCacheManager.loadImageAsync(cover, "episode")
+            ImageCacheManager.loadImageAsync(cover, EPISODE_CACHE)
                     .thenAccept(image -> {
                         if (image != null) {
                             Platform.runLater(() -> seriesPosterNode.setImage(image));

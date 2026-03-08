@@ -18,8 +18,9 @@ import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 
 public class SearchableFilterableTableView extends TableView {
+    private static final String COMMON_ALL = "commonAll";
     private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
-    private final MenuButton menuButton = new MenuButton(I18n.tr("commonAll"));
+    private final MenuButton menuButton = new MenuButton(I18n.tr(COMMON_ALL));
     private final List<CheckMenuItem> typeCheckMenuItems = new ArrayList<>();
     private final CheckMenuItem allMenuItem;
     private boolean isUpdating = false;
@@ -31,7 +32,7 @@ public class SearchableFilterableTableView extends TableView {
         menuButton.setPrefWidth(175);
         textField.setPrefWidth(275);
 
-        allMenuItem = new CheckMenuItem(I18n.tr("commonAll"));
+        allMenuItem = new CheckMenuItem(I18n.tr(COMMON_ALL));
         allMenuItem.setSelected(true);
         allMenuItem.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
             if (isUpdating) return;
@@ -64,7 +65,7 @@ public class SearchableFilterableTableView extends TableView {
 
     private void updateMenuButtonText() {
         if (allMenuItem.isSelected()) {
-            menuButton.setText(I18n.tr("commonAll"));
+            menuButton.setText(I18n.tr(COMMON_ALL));
             return;
         }
 
@@ -77,7 +78,7 @@ public class SearchableFilterableTableView extends TableView {
             isUpdating = true;
             allMenuItem.setSelected(true);
             isUpdating = false;
-            menuButton.setText(I18n.tr("commonAll"));
+            menuButton.setText(I18n.tr(COMMON_ALL));
         } else {
             menuButton.setText(selectedItemsText);
         }

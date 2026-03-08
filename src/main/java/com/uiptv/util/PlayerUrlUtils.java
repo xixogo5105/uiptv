@@ -10,6 +10,8 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerUrlUtils {
+    private static final String FFMPEG_PREFIX = "ffmpeg ";
+
     private PlayerUrlUtils() {
     }
 
@@ -35,8 +37,8 @@ public class PlayerUrlUtils {
         String value = raw.trim();
         String lower = value.toLowerCase();
 
-        if (lower.startsWith("ffmpeg ")) {
-            return value.substring("ffmpeg ".length()).trim();
+        if (lower.startsWith(FFMPEG_PREFIX)) {
+            return value.substring(FFMPEG_PREFIX.length()).trim();
         }
         if (lower.startsWith("ffmpeg+")) {
             return value.substring("ffmpeg+".length()).trim();

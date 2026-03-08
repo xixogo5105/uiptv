@@ -27,6 +27,14 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpPlayerJsonServer implements HttpHandler {
+    private static final String HEADER_LOCATION = "Location";
+    private static final String HTTP_PREFIX = "http://";
+    private static final String HTTPS_PREFIX = "https://";
+    private static final String MODE_SERIES = "series";
+    private static final String MODE_VOD = "vod";
+    private static final String PATH_LIVE_PLAY = "/live/play/";
+    private static final String PATH_PLAY_MOVIE = "/play/movie.php";
+    private static final String USER_AGENT = "UIPTV/1.0";
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String bookmarkId = getParam(ex, "bookmarkId");
@@ -241,7 +249,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) {
             return false;
         }
         String url = response.getUrl().toLowerCase();
@@ -261,12 +269,12 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return url;
         }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) {
             return url;
         }
         String lower = url.toLowerCase();
-        if (lower.startsWith("https://") && (lower.contains("/live/play/") || lower.contains("/play/movie.php"))) {
-            return "http://" + url.substring("https://".length());
+        if (lower.startsWith(HTTPS_PREFIX) && (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE))) {
+            return HTTP_PREFIX + url.substring(HTTPS_PREFIX.length());
         }
         return url;
     }
@@ -276,8 +284,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return url;
         }
         String lower = url.toLowerCase();
-        if (lower.startsWith("https://") && (lower.contains("/live/play/") || lower.contains("/play/movie.php"))) {
-            return "http://" + url.substring("https://".length());
+        if (lower.startsWith(HTTPS_PREFIX) && (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE))) {
+            return HTTP_PREFIX + url.substring(HTTPS_PREFIX.length());
         }
         return url;
     }
@@ -291,13 +299,13 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return inputUrl;
         }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) {
             return inputUrl;
         }
 
         String current = inputUrl;
         String lower = current.toLowerCase();
-        boolean forceHttpChain = lower.contains("/live/play/") || lower.contains("/play/movie.php");
+        boolean forceHttpChain = lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE);
         if (!forceHttpChain) {
             return current;
         }
@@ -306,7 +314,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             try {
                 HttpUtil.HttpResult response = HttpUtil.sendRequest(
                         current,
-                        Map.of("User-Agent", "UIPTV/1.0"),
+                        Map.of("User-Agent", USER_AGENT),
                         "GET",
                         null,
                         new HttpUtil.RequestOptions(false, false)
@@ -316,18 +324,18 @@ public class HttpPlayerJsonServer implements HttpHandler {
                     return current;
                 }
 
-                String location = firstHeader(response.responseHeaders(), "Location");
+                String location = firstHeader(response.responseHeaders(), HEADER_LOCATION);
                 if (isBlank(location)) {
-                    return forceHttpChain && current.toLowerCase().startsWith("https://")
-                            ? "http://" + current.substring("https://".length())
+                    return forceHttpChain && current.toLowerCase().startsWith(HTTPS_PREFIX)
+                            ? HTTP_PREFIX + current.substring(HTTPS_PREFIX.length())
                             : current;
                 }
 
                 URI base = URI.create(current);
                 URI resolved = base.resolve(location);
                 current = resolved.toString();
-                if (forceHttpChain && current.toLowerCase().startsWith("https://")) {
-                    current = "http://" + current.substring("https://".length());
+                if (forceHttpChain && current.toLowerCase().startsWith(HTTPS_PREFIX)) {
+                    current = HTTP_PREFIX + current.substring(HTTPS_PREFIX.length());
                 } else {
                     current = downgradeHttpsToHttp(current);
                 }
@@ -358,7 +366,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!"vod".equals(normalizedMode) && !"series".equals(normalizedMode)) {
+        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) {
             return false;
         }
         return isForcedWebPath(url.toLowerCase());
@@ -377,10 +385,10 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
     private boolean isForcedWebPath(String url) {
         if (isBlank(url)) return false;
-        return url.contains("/play/movie.php")
-                || url.contains("/live/play/")
+        return url.contains(PATH_PLAY_MOVIE)
+                || url.contains(PATH_LIVE_PLAY)
                 || url.contains("type=movie")
-                || url.contains("type=series")
+                || url.contains("type=" + MODE_SERIES)
                 || url.contains("extension=mp4")
                 || url.contains("extension=mkv")
                 || url.contains("extension=mpg")

@@ -15,6 +15,7 @@ import static com.uiptv.db.SQLConnection.connect;
 
 public class SeriesEpisodeDb extends BaseDb {
     private static SeriesEpisodeDb instance;
+    private static final String WHERE_ACCOUNT_CATEGORY_SERIES = " WHERE accountId=? AND categoryId=? AND seriesId=?";
 
     public SeriesEpisodeDb() {
         super(SERIES_EPISODE_TABLE);
@@ -28,7 +29,7 @@ public class SeriesEpisodeDb extends BaseDb {
     }
 
     public List<Channel> getEpisodes(Account account, String categoryId, String seriesId) {
-        return getAll(" WHERE accountId=? AND categoryId=? AND seriesId=?", new String[]{account.getDbId(), safeCategoryId(categoryId), seriesId});
+        return getAll(WHERE_ACCOUNT_CATEGORY_SERIES, new String[]{account.getDbId(), safeCategoryId(categoryId), seriesId});
     }
 
     public List<Channel> getEpisodesFromFreshestCategory(Account account, String seriesId) {
@@ -40,7 +41,7 @@ public class SeriesEpisodeDb extends BaseDb {
     }
 
     public boolean isFresh(Account account, String categoryId, String seriesId, long maxAgeMs) {
-        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND categoryId=? AND seriesId=?";
+        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + WHERE_ACCOUNT_CATEGORY_SERIES;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
             statement.setString(2, safeCategoryId(categoryId));
@@ -91,7 +92,7 @@ public class SeriesEpisodeDb extends BaseDb {
     }
 
     private void deleteBySeries(String accountId, String categoryId, String seriesId) {
-        String sql = "DELETE FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND categoryId=? AND seriesId=?";
+        String sql = "DELETE FROM " + SERIES_EPISODE_TABLE.getTableName() + WHERE_ACCOUNT_CATEGORY_SERIES;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
             statement.setString(2, safeCategoryId(categoryId));

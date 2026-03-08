@@ -20,6 +20,9 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class StalkerPortalPlayerService implements AccountPlayerService {
+    private static final String FFMPEG_PREFIX = "ffmpeg ";
+    private static final String STREAM_PARAM = "stream=";
+    private static final String STREAM_PARAM_WITH_SEPARATOR = "stream=&";
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
@@ -166,15 +169,15 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             return resolvedCmd;
         }
         if (resolvedCmd.contains("stream=.&")) {
-            return resolvedCmd.replace("stream=.&", "stream=" + streamToken + "&");
+            return resolvedCmd.replace("stream=.&", STREAM_PARAM + streamToken + "&");
         }
         if (resolvedCmd.endsWith("stream=.")) {
-            return resolvedCmd.substring(0, resolvedCmd.length() - "stream=.".length()) + "stream=" + streamToken;
+            return resolvedCmd.substring(0, resolvedCmd.length() - "stream=.".length()) + STREAM_PARAM + streamToken;
         }
-        if (resolvedCmd.contains("stream=&")) {
-            return resolvedCmd.replace("stream=&", "stream=" + streamToken + "&");
+        if (resolvedCmd.contains(STREAM_PARAM_WITH_SEPARATOR)) {
+            return resolvedCmd.replace(STREAM_PARAM_WITH_SEPARATOR, STREAM_PARAM + streamToken + "&");
         }
-        if (resolvedCmd.endsWith("stream=")) {
+        if (resolvedCmd.endsWith(STREAM_PARAM)) {
             return resolvedCmd + streamToken;
         }
         return resolvedCmd;
@@ -263,7 +266,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             return "";
         }
         String trimmed = cmd.trim();
-        if (trimmed.startsWith("ffmpeg ")) {
+        if (trimmed.startsWith(FFMPEG_PREFIX)) {
             return "ffmpeg";
         }
         return "";
@@ -274,8 +277,8 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             return "";
         }
         String trimmed = cmd.trim();
-        if (trimmed.startsWith("ffmpeg ")) {
-            return trimmed.substring("ffmpeg ".length()).trim();
+        if (trimmed.startsWith(FFMPEG_PREFIX)) {
+            return trimmed.substring(FFMPEG_PREFIX.length()).trim();
         }
         return trimmed;
     }
@@ -318,10 +321,10 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             return false;
         }
         String normalized = url.trim().toLowerCase();
-        if (normalized.startsWith("ffmpeg ")) {
-            normalized = normalized.substring("ffmpeg ".length()).trim();
+        if (normalized.startsWith(FFMPEG_PREFIX)) {
+            normalized = normalized.substring(FFMPEG_PREFIX.length()).trim();
         }
-        return !normalized.contains("stream=&");
+        return !normalized.contains(STREAM_PARAM_WITH_SEPARATOR);
     }
 
     private static String rescueResolvedLiveUrlWithCandidates(String resolvedUrl, List<String> candidates) {

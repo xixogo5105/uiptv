@@ -16,6 +16,7 @@ import static com.uiptv.db.SQLConnection.connect;
 
 public class SeriesChannelDb extends BaseDb {
     private static SeriesChannelDb instance;
+    private static final String WHERE_ACCOUNT_AND_CATEGORY = " WHERE accountId=? AND categoryId=?";
 
     public SeriesChannelDb() {
         super(SERIES_CHANNEL_TABLE);
@@ -29,7 +30,7 @@ public class SeriesChannelDb extends BaseDb {
     }
 
     public List<Channel> getChannels(Account account, String categoryId) {
-        return getAll(" WHERE accountId=? AND categoryId=?", new String[]{account.getDbId(), categoryId});
+        return getAll(WHERE_ACCOUNT_AND_CATEGORY, new String[]{account.getDbId(), categoryId});
     }
 
     public List<Channel> getChannelsBySeriesIds(Account account, List<String> seriesIds) {
@@ -52,7 +53,7 @@ public class SeriesChannelDb extends BaseDb {
     }
 
     public boolean isFresh(Account account, String categoryId, long maxAgeMs) {
-        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_CHANNEL_TABLE.getTableName() + " WHERE accountId=? AND categoryId=?";
+        String sql = "SELECT MAX(cachedAt) FROM " + SERIES_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
             statement.setString(2, categoryId);
@@ -84,7 +85,7 @@ public class SeriesChannelDb extends BaseDb {
     }
 
     private void deleteByAccountAndCategory(String accountId, String categoryId) {
-        String sql = "DELETE FROM " + SERIES_CHANNEL_TABLE.getTableName() + " WHERE accountId=? AND categoryId=?";
+        String sql = "DELETE FROM " + SERIES_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
             statement.setString(2, categoryId);

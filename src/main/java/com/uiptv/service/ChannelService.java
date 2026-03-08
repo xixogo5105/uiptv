@@ -41,6 +41,8 @@ import static com.uiptv.widget.UIptvAlert.showError;
 
 @Slf4j
 public class ChannelService {
+    private static final String FIELD_CENSORED = "censored";
+    private static final String FIELD_STATUS = "status";
     private static final int MAX_PAGES_WITHOUT_PAGINATION = 200;
     private static ChannelService instance;
     private final CacheService cacheService;
@@ -527,7 +529,7 @@ public class ChannelService {
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
-                Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                 channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
                 channel.setExtraJson(jsonChannel.toString());
                 resolveLogoIfNeeded(channel);

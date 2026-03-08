@@ -72,6 +72,11 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public abstract class BaseWatchingNowUI extends VBox {
+    private static final String KEY_CARD_LABELS = "cardLabels";
+    private static final String KEY_COVER = "cover";
+    private static final String KEY_RELEASE_DATE = "releaseDate";
+    private static final String MESSAGE_NO_CURRENTLY_WATCHED_SERIES = "autoNoCurrentlyWatchedSeriesFound";
+    private static final String WATCHING_NOW_CACHE = "watching-now";
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
@@ -112,7 +117,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         if (thumbnailsEnabled()) {
-            ImageCacheManager.clearCache("watching-now");
+            ImageCacheManager.clearCache(WATCHING_NOW_CACHE);
         }
         registerListeners();
         refreshIfNeeded();
@@ -217,7 +222,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, firstEpisodePoster, cacheInfo.resolvedFromCache);
         }
         if (!isBlank(cacheInfo.seriesPoster)) {
-            seasonInfo.put("cover", cacheInfo.seriesPoster);
+            seasonInfo.put(KEY_COVER, cacheInfo.seriesPoster);
         }
 
         SeriesPanelData panel = new SeriesPanelData(account, scopedState, cacheInfo.seriesTitle, seasonInfo, episodes, list);
@@ -394,7 +399,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         contentBox.getChildren().clear();
         panelDataByKey.clear();
         if (rows == null || rows.isEmpty()) {
-            contentBox.getChildren().add(new Label(I18n.tr("autoNoCurrentlyWatchedSeriesFound")));
+            contentBox.getChildren().add(new Label(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES)));
             selectedSeriesKey = "";
             return;
         }
@@ -424,7 +429,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         contentBox.setPadding(new Insets(5));
         contentBox.setSpacing(10);
         if (rows == null || rows.isEmpty()) {
-            contentBox.getChildren().add(new Label(I18n.tr("autoNoCurrentlyWatchedSeriesFound")));
+            contentBox.getChildren().add(new Label(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES)));
             return;
         }
 
@@ -495,7 +500,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         card.setPadding(new Insets(6));
         card.getStyleClass().add("uiptv-card");
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString("cover", ""), 52, 74, "watching-now");
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString(KEY_COVER, ""), 52, 74, WATCHING_NOW_CACHE);
         VBox text = new VBox(2);
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
@@ -547,7 +552,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 setSelectedSeriesCard(card);
             }
         });
-        card.getProperties().put("cardLabels", List.of(title));
+        card.getProperties().put(KEY_CARD_LABELS, List.of(title));
         card.getProperties().put("cardLinks", List.of(viewEpisodesLink));
         return card;
     }
@@ -752,7 +757,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         HBox root = new HBox(12);
         root.setAlignment(Pos.TOP_LEFT);
 
-        ImageView cover = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString("cover", ""), 140, 200, "watching-now");
+        ImageView cover = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString(KEY_COVER, ""), 140, 200, WATCHING_NOW_CACHE);
         data.seriesPosterNode = cover;
 
         VBox details = new VBox(4);
@@ -822,7 +827,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             details.getChildren().add(data.genreNode);
         }
 
-        String releaseDate = data.seasonInfo.optString("releaseDate", "");
+        String releaseDate = data.seasonInfo.optString(KEY_RELEASE_DATE, "");
         if (!isBlank(releaseDate)) {
             data.releaseNode.setText(I18n.tr("autoReleasePrefix", shortDateOnly(releaseDate)));
             details.getChildren().add(data.releaseNode);

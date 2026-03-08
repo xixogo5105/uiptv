@@ -15,6 +15,7 @@ import static com.uiptv.db.SQLConnection.connect;
 
 public class VodChannelDb extends BaseDb {
     private static VodChannelDb instance;
+    private static final String WHERE_ACCOUNT_AND_CATEGORY = " WHERE accountId=? AND categoryId=?";
 
     public VodChannelDb() {
         super(VOD_CHANNEL_TABLE);
@@ -28,7 +29,7 @@ public class VodChannelDb extends BaseDb {
     }
 
     public List<Channel> getChannels(Account account, String categoryId) {
-        return getAll(" WHERE accountId=? AND categoryId=?", new String[]{account.getDbId(), categoryId});
+        return getAll(WHERE_ACCOUNT_AND_CATEGORY, new String[]{account.getDbId(), categoryId});
     }
 
     public Channel getChannelByChannelId(String channelId, String categoryId, String accountId) {
@@ -40,7 +41,7 @@ public class VodChannelDb extends BaseDb {
     }
 
     public boolean isFresh(Account account, String categoryId, long maxAgeMs) {
-        String sql = "SELECT MAX(cachedAt) FROM " + VOD_CHANNEL_TABLE.getTableName() + " WHERE accountId=? AND categoryId=?";
+        String sql = "SELECT MAX(cachedAt) FROM " + VOD_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
             statement.setString(2, categoryId);
@@ -72,7 +73,7 @@ public class VodChannelDb extends BaseDb {
     }
 
     private void deleteByAccountAndCategory(String accountId, String categoryId) {
-        String sql = "DELETE FROM " + VOD_CHANNEL_TABLE.getTableName() + " WHERE accountId=? AND categoryId=?";
+        String sql = "DELETE FROM " + VOD_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
             statement.setString(2, categoryId);

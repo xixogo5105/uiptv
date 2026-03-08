@@ -40,6 +40,21 @@ import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCachePopup extends VBox {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
+    private static final String GLOBAL_SERIES_CATEGORY_LIST_FAILED = "Global SERIES category list failed:";
+    private static final String GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED = "Global Stalker get_all_channels failed";
+    private static final String GLOBAL_VOD_CATEGORY_LIST_FAILED = "Global VOD category list failed:";
+    private static final String LOG_MARKED_BAD_AND_SKIPPED = "Marked bad and skipped after global call failure.";
+    private static final String LOG_NETWORK_ERROR_LOADING_CATEGORIES = "Network error while loading categories";
+    private static final String LOG_NO_CHANNELS_FOUND = "No channels found.";
+    private static final String LOG_RELOAD_FAILED_PREFIX = "Reload failed:";
+    private static final String MODE_SERIES = "SERIES";
+    private static final String MODE_VOD = "VOD";
+    private static final String STYLE_YELLOW_LABEL = "-fx-font-weight: bold; -fx-text-fill: #d97706;";
+    private static final String TR_CATEGORY_TAB_SERIES = "categoryTabTvSeries";
+    private static final String TR_CATEGORY_TAB_VOD = "categoryTabVideoOnDemand";
+    private static final String TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED = "reloadModeCategoryListCallFailed";
+    private static final String TR_RELOAD_MODE_CATEGORY_LIST_FAILED = "reloadModeCategoryListFailed";
+    private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
 
     private enum AccountRunStatus {
         QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY
@@ -411,16 +426,16 @@ public class ReloadCachePopup extends VBox {
                 });
                 fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
                 if (fetchedChannelCount <= 0) {
-                    logMessage(account, "No channels found.");
-                    addIssue(accountIssues, I18n.tr("reloadNoChannelsLoaded"));
+                    logMessage(account, LOG_NO_CHANNELS_FOUND);
+                    addIssue(accountIssues, I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
                 }
             } catch (SkipAccountReloadException e) {
                 failed = true;
-                logMessage(account, "Marked bad and skipped after global call failure.");
+                logMessage(account, LOG_MARKED_BAD_AND_SKIPPED);
                 addIssue(accountIssues, I18n.tr("reloadMarkedBadByUser"));
             } catch (Exception e) {
                 failed = true;
-                logMessage(account, "Reload failed: " + shortFailure(e.getMessage()));
+                logMessage(account, LOG_RELOAD_FAILED_PREFIX + " " + shortFailure(e.getMessage()));
                 addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));
             }
 
@@ -514,7 +529,7 @@ public class ReloadCachePopup extends VBox {
         }
         if (!yellowAccounts.isEmpty()) {
             Label yellowLabel = new Label(I18n.tr("autoYellowPartiallySuccessful"));
-            yellowLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
+            yellowLabel.setStyle(STYLE_YELLOW_LABEL);
             accountsBox.getChildren().add(yellowLabel);
             addProblemAccountsToDeleteBox(accountsBox, yellowAccounts, problematicAccounts);
         }
@@ -828,7 +843,7 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith("Page ") && trimmed.endsWith(" returned no channels.")) {
             Integer page = extractFirstNumber(trimmed);
             return page == null
-                    ? I18n.tr("reloadNoChannelsLoaded")
+                    ? I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED)
                     : I18n.tr("reloadPageNoChannels", I18n.formatNumber(String.valueOf(page)));
         }
         if (trimmed.startsWith("Saved ")) {
@@ -856,14 +871,14 @@ public class ReloadCachePopup extends VBox {
                     ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
                     : I18n.tr("reloadModeChannelsNoneFound", mode);
         }
-        if (trimmed.startsWith("Reload failed:")) {
+        if (trimmed.startsWith(LOG_RELOAD_FAILED_PREFIX)) {
             return I18n.tr("reloadFailedReason",
-                    shortFailure(trimmed.substring("Reload failed:".length()).trim()));
+                    shortFailure(trimmed.substring(LOG_RELOAD_FAILED_PREFIX.length()).trim()));
         }
         if (trimmed.equals("Handshake failed.") || trimmed.startsWith("Handshake failed for")) {
             return I18n.tr("reloadFailedHandshake");
         }
-        if (trimmed.startsWith("Network error while loading categories")) {
+        if (trimmed.startsWith(LOG_NETWORK_ERROR_LOADING_CATEGORIES)) {
             return I18n.tr("reloadFailedNetworkError");
         }
         if (trimmed.startsWith("Failed to parse channels")) {
@@ -884,7 +899,7 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith("No channels returned by get_all_channels")) {
             return I18n.tr("reloadGlobalChannelListEmptyTryingFallback");
         }
-        if (trimmed.startsWith("Global Stalker get_all_channels failed")) {
+        if (trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
             return I18n.tr("reloadGlobalChannelListFailedTryingFallback");
         }
         if (trimmed.startsWith("Last-resort fetch succeeded. Collected")) {
@@ -893,13 +908,13 @@ public class ReloadCachePopup extends VBox {
                     ? I18n.tr("reloadFallbackFetchSucceeded")
                     : I18n.tr("reloadFallbackFetchSucceededWithChannels", I18n.formatNumber(String.valueOf(count)));
         }
-        if (trimmed.startsWith("Global VOD category list failed:")) {
-            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabVideoOnDemand"));
+        if (trimmed.startsWith(GLOBAL_VOD_CATEGORY_LIST_FAILED)) {
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
         }
-        if (trimmed.startsWith("Global SERIES category list failed:")) {
-            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabTvSeries"));
+        if (trimmed.startsWith(GLOBAL_SERIES_CATEGORY_LIST_FAILED)) {
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
         }
-        if (trimmed.equals("Marked bad and skipped after global call failure.")) {
+        if (trimmed.equals(LOG_MARKED_BAD_AND_SKIPPED)) {
             return I18n.tr("reloadMarkedBadMovedNext");
         }
         return trimmed;
@@ -916,22 +931,22 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
             return I18n.tr("reloadLiveTvGlobalCallFailedForXtreme");
         }
-        if (trimmed.startsWith("Global Stalker get_all_channels failed")) {
+        if (trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
             return I18n.tr("reloadLiveTvGetAllChannelsFailedForStalker");
         }
-        if (trimmed.startsWith("Global VOD category list failed:")) {
-            return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabVideoOnDemand"));
+        if (trimmed.startsWith(GLOBAL_VOD_CATEGORY_LIST_FAILED)) {
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
         }
-        if (trimmed.startsWith("Global SERIES category list failed:")) {
-            return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabTvSeries"));
+        if (trimmed.startsWith(GLOBAL_SERIES_CATEGORY_LIST_FAILED)) {
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
         }
-        if (trimmed.startsWith("Network error while loading categories")) {
+        if (trimmed.startsWith(LOG_NETWORK_ERROR_LOADING_CATEGORIES)) {
             String modeCode = modeCode(account);
-            if ("VOD".equals(modeCode)) {
-                return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabVideoOnDemand"));
+            if (MODE_VOD.equals(modeCode)) {
+                return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
             }
-            if ("SERIES".equals(modeCode)) {
-                return I18n.tr("reloadModeCategoryListCallFailed", I18n.tr("categoryTabTvSeries"));
+            if (MODE_SERIES.equals(modeCode)) {
+                return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
             }
         }
         return null;
