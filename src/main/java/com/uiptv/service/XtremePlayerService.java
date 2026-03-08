@@ -34,46 +34,55 @@ public class XtremePlayerService implements AccountPlayerService {
         if (isNotBlank(fallbackCmd)) {
             com.uiptv.util.AppLog.addLog("Found channel cmd: " + fallbackCmd);
         }
-
-        String baseUrl = account.getM3u8Path();
-        if (isBlank(baseUrl)) {
-            baseUrl = account.getUrl();
-        }
+        String baseUrl = resolveBaseUrl(account);
         if (isBlank(baseUrl)) {
             com.uiptv.util.AppLog.addLog("Xtreme base URL is blank. Falling back to channel cmd.");
             return fallbackCmd;
         }
-
-        int playerApiIndex = baseUrl.indexOf("player_api.php");
-        if (playerApiIndex >= 0) {
-            baseUrl = baseUrl.substring(0, playerApiIndex);
-        }
-        if (!baseUrl.endsWith("/")) {
-            baseUrl += "/";
-        }
-
-        String username = account.getUsername();
-        String password = account.getPassword();
-        String id = channel.getChannelId();
-        if (isBlank(username) || isBlank(password) || isBlank(id)) {
+        if (!hasRequiredParts(account, channel)) {
             com.uiptv.util.AppLog.addLog("Xtreme URL parts missing (username/password/channelId). Falling back to channel cmd.");
             return fallbackCmd;
         }
         String extension = inferExtensionFromCmd(fallbackCmd);
+        String type = resolveStreamType(account, parentSeriesId);
+        String resolvedExtension = defaultExtension(extension, type);
+        return baseUrl + type + "/" + account.getUsername() + "/" + account.getPassword() + "/" + channel.getChannelId() + "." + resolvedExtension;
+    }
 
-        String type = "live";
+    private String resolveBaseUrl(Account account) {
+        String baseUrl = isBlank(account.getM3u8Path()) ? account.getUrl() : account.getM3u8Path();
+        if (isBlank(baseUrl)) {
+            return "";
+        }
+        int playerApiIndex = baseUrl.indexOf("player_api.php");
+        if (playerApiIndex >= 0) {
+            baseUrl = baseUrl.substring(0, playerApiIndex);
+        }
+        return baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+    }
+
+    private boolean hasRequiredParts(Account account, Channel channel) {
+        return isNotBlank(account.getUsername())
+                && isNotBlank(account.getPassword())
+                && isNotBlank(channel.getChannelId());
+    }
+
+    private String resolveStreamType(Account account, String parentSeriesId) {
         Account.AccountAction action = account.getAction();
         if (isNotBlank(parentSeriesId) || action == Account.AccountAction.series) {
-            type = "series";
-            if (isBlank(extension)) extension = "mp4";
-        } else if (action == Account.AccountAction.vod) {
-            type = "movie";
-            if (isBlank(extension)) extension = "mp4";
-        } else {
-            if (isBlank(extension)) extension = "ts";
+            return "series";
         }
+        if (action == Account.AccountAction.vod) {
+            return "movie";
+        }
+        return "live";
+    }
 
-        return baseUrl + type + "/" + username + "/" + password + "/" + id + "." + extension;
+    private String defaultExtension(String extension, String type) {
+        if (isNotBlank(extension)) {
+            return extension;
+        }
+        return "live".equals(type) ? "ts" : "mp4";
     }
 
     private String inferExtensionFromCmd(String cmd) {

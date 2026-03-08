@@ -28,18 +28,18 @@ import static com.uiptv.util.ServerUtils.getParam;
 public class HttpSeriesEpisodesJsonServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
+        String emptyJson = "[]";
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
         if (account == null) {
-            generateJsonResponse(ex, "[]");
+            generateJsonResponse(ex, emptyJson);
             return;
         }
 
         String seriesId = getParam(ex, "seriesId");
         String rawCategoryId = getParam(ex, "categoryId");
         String categoryId = resolveSeriesCategoryId(rawCategoryId);
-        List<Channel> episodesAsChannels = new ArrayList<>();
         if (StringUtils.isBlank(seriesId)) {
-            generateJsonResponse(ex, "[]");
+            generateJsonResponse(ex, emptyJson);
             return;
         }
 
@@ -47,45 +47,13 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
         if (cachedEpisodes.isEmpty() && account.getType() == AccountType.XTREME_API) {
             cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
         }
-        boolean cachedFresh = !cachedEpisodes.isEmpty() && (
-                SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())
-                        || (account.getType() == AccountType.XTREME_API
-                        && SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs()))
-        );
-        if (cachedFresh) {
+        if (isCachedFresh(account, categoryId, seriesId, cachedEpisodes)) {
             applyWatchedFlag(cachedEpisodes, account, categoryId, seriesId);
             generateJsonResponse(ex, ServerUtils.objectToJson(cachedEpisodes));
             return;
         }
 
-        if (account.getType() == AccountType.XTREME_API && StringUtils.isNotBlank(seriesId)) {
-            EpisodeList episodes = XtremeParser.parseEpisodes(seriesId, account);
-            if (episodes != null && episodes.episodes != null) {
-                for (Episode episode : episodes.episodes) {
-                    if (episode == null) {
-                        continue;
-                    }
-                    Channel channel = new Channel();
-                    channel.setChannelId(episode.getId());
-                    channel.setName(episode.getTitle());
-                    channel.setCmd(episode.getCmd());
-                    channel.setExtraJson(episode.toJson());
-                    channel.setSeason(episode.getSeason());
-                    channel.setEpisodeNum(episode.getEpisodeNum());
-                    if (episode.getInfo() != null) {
-                        channel.setLogo(episode.getInfo().getMovieImage());
-                        channel.setDescription(episode.getInfo().getPlot());
-                        channel.setReleaseDate(episode.getInfo().getReleaseDate());
-                        channel.setRating(episode.getInfo().getRating());
-                        channel.setDuration(episode.getInfo().getDuration());
-                        if (StringUtils.isBlank(channel.getSeason())) {
-                            channel.setSeason(episode.getInfo().getSeason());
-                        }
-                    }
-                    episodesAsChannels.add(channel);
-                }
-            }
-        }
+        List<Channel> episodesAsChannels = loadEpisodes(account, seriesId);
 
         if (!episodesAsChannels.isEmpty()) {
             SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, episodesAsChannels);
@@ -94,6 +62,59 @@ public class HttpSeriesEpisodesJsonServer implements HttpHandler {
         }
         applyWatchedFlag(episodesAsChannels, account, categoryId, seriesId);
         generateJsonResponse(ex, ServerUtils.objectToJson(episodesAsChannels));
+    }
+
+    private boolean isCachedFresh(Account account, String categoryId, String seriesId, List<Channel> cachedEpisodes) {
+        return !cachedEpisodes.isEmpty() && (
+                SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())
+                        || (account.getType() == AccountType.XTREME_API
+                        && SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs()))
+        );
+    }
+
+    private List<Channel> loadEpisodes(Account account, String seriesId) {
+        if (account.getType() == AccountType.XTREME_API && StringUtils.isNotBlank(seriesId)) {
+            return toChannels(XtremeParser.parseEpisodes(seriesId, account));
+        }
+        return new ArrayList<>();
+    }
+
+    private List<Channel> toChannels(EpisodeList episodes) {
+        List<Channel> channels = new ArrayList<>();
+        if (episodes == null || episodes.episodes == null) {
+            return channels;
+        }
+        for (Episode episode : episodes.episodes) {
+            Channel channel = toChannel(episode);
+            if (channel != null) {
+                channels.add(channel);
+            }
+        }
+        return channels;
+    }
+
+    private Channel toChannel(Episode episode) {
+        if (episode == null) {
+            return null;
+        }
+        Channel channel = new Channel();
+        channel.setChannelId(episode.getId());
+        channel.setName(episode.getTitle());
+        channel.setCmd(episode.getCmd());
+        channel.setExtraJson(episode.toJson());
+        channel.setSeason(episode.getSeason());
+        channel.setEpisodeNum(episode.getEpisodeNum());
+        if (episode.getInfo() != null) {
+            channel.setLogo(episode.getInfo().getMovieImage());
+            channel.setDescription(episode.getInfo().getPlot());
+            channel.setReleaseDate(episode.getInfo().getReleaseDate());
+            channel.setRating(episode.getInfo().getRating());
+            channel.setDuration(episode.getInfo().getDuration());
+            if (StringUtils.isBlank(channel.getSeason())) {
+                channel.setSeason(episode.getInfo().getSeason());
+            }
+        }
+        return channel;
     }
 
     private void applyWatchedFlag(List<Channel> episodes, Account account, String categoryId, String seriesId) {

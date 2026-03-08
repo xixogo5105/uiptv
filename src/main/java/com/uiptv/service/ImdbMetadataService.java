@@ -268,17 +268,7 @@ public class ImdbMetadataService {
                 result.put(KEY_RATING, rating.optString("ratingValue", ""));
             }
 
-            Object genreValue = data.opt("genre");
-            if (genreValue instanceof JSONArray genreArray) {
-                List<String> genres = new ArrayList<>();
-                for (int i = 0; i < genreArray.length(); i++) {
-                    String g = genreArray.optString(i, "");
-                    if (isNotBlank(g)) genres.add(g);
-                }
-                result.put(KEY_GENRE, String.join(", ", genres));
-            } else if (genreValue instanceof String g) {
-                result.put(KEY_GENRE, g);
-            }
+            applyImdbGenre(result, data.opt(KEY_GENRE));
 
             result.put(KEY_CAST, joinPersonNames(data.optJSONArray("actor")));
             result.put(KEY_DIRECTOR, joinPersonNames(data.optJSONArray("director")));
@@ -624,7 +614,7 @@ public class ImdbMetadataService {
 
     private JSONObject fetchTmdbLocalizedDetails(String tmdbId, String mediaType, String localeTag) {
         JSONObject result = new JSONObject();
-        if (isBlank(tmdbId) || isBlank(mediaType)) {
+        if (!canFetchTmdbLocalizedDetails(tmdbId, mediaType)) {
             return result;
         }
         String bearerToken = resolveConfiguredTmdbBearerToken();
@@ -633,46 +623,17 @@ public class ImdbMetadataService {
         }
 
         try {
-            StringBuilder url = new StringBuilder(TMDB_BASE_URL)
-                    .append("/")
-                    .append(mediaType)
-                    .append("/")
-                    .append(URLEncoder.encode(tmdbId, StandardCharsets.UTF_8))
-                    .append("?language=")
-                    .append(URLEncoder.encode(localeTag, StandardCharsets.UTF_8));
-
-            Map<String, String> headers = buildTmdbHeaders(bearerToken);
-
-            HttpUtil.HttpResult response = HttpUtil.sendRequest(url.toString(), headers, "GET");
-            if (response.statusCode() != HttpUtil.STATUS_OK || isBlank(response.body())) {
+            HttpUtil.HttpResult response = HttpUtil.sendRequest(
+                    buildTmdbLocalizedUrl(tmdbId, mediaType, localeTag),
+                    buildTmdbHeaders(bearerToken),
+                    "GET"
+            );
+            if (!isSuccessfulTmdbResponse(response)) {
                 return result;
             }
 
             JSONObject payload = new JSONObject(response.body());
-            result.put(KEY_NAME, firstNonBlank(payload.optString(KEY_NAME, ""), payload.optString(KEY_TITLE, "")));
-            result.put(KEY_PLOT, payload.optString(KEY_OVERVIEW, ""));
-            result.put(KEY_RATING, String.valueOf(payload.optDouble("vote_average", 0)));
-            result.put(KEY_RELEASE_DATE, firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
-            JSONArray genres = payload.optJSONArray("genres");
-            if (genres != null && !genres.isEmpty()) {
-                List<String> names = new ArrayList<>();
-                for (int i = 0; i < genres.length(); i++) {
-                    JSONObject g = genres.optJSONObject(i);
-                    if (g == null) continue;
-                    String name = g.optString("name", "");
-                    if (isNotBlank(name)) {
-                        names.add(name);
-                    }
-                    if (names.size() >= 6) break;
-                }
-                if (!names.isEmpty()) {
-                    result.put(KEY_GENRE, String.join(", ", names));
-                }
-            }
-            String posterPath = payload.optString("poster_path", "");
-            if (isNotBlank(posterPath)) {
-                result.put(KEY_COVER, "https://image.tmdb.org/t/p/w500" + posterPath);
-            }
+            populateTmdbLocalizedDetails(result, payload);
         } catch (Exception _) {
             // best effort
         }
@@ -684,40 +645,146 @@ public class ImdbMetadataService {
             return;
         }
 
-        Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
-        Set<String> seasons = new LinkedHashSet<>();
-        for (int i = 0; i < episodesMeta.length(); i++) {
-            JSONObject row = episodesMeta.optJSONObject(i);
-            if (row == null) continue;
-            String season = safeNumeric(row.optString(KEY_SEASON, ""));
-            String episode = safeNumeric(row.optString(KEY_EPISODE_NUMBER, ""));
-            if (isBlank(season) || isBlank(episode)) {
-                continue;
-            }
-            bySeasonEpisode.put(season + ":" + episode, row);
-            seasons.add(season);
-        }
-
-        for (String season : seasons) {
+        Map<String, JSONObject> bySeasonEpisode = indexEpisodesBySeasonEpisode(episodesMeta);
+        for (String season : collectTmdbSeasons(bySeasonEpisode)) {
             JSONArray localizedEpisodes = fetchTmdbSeasonEpisodes(tmdbId, season, localeTag);
             for (int i = 0; i < localizedEpisodes.length(); i++) {
                 JSONObject episode = localizedEpisodes.optJSONObject(i);
-                if (episode == null) continue;
-                String episodeNum = safeNumeric(String.valueOf(episode.optInt("episode_number", 0)));
-                if (isBlank(episodeNum)) {
-                    continue;
-                }
-                JSONObject target = bySeasonEpisode.get(season + ":" + episodeNum);
-                if (target == null) {
-                    continue;
-                }
-                JSONObject mapped = mapTmdbEpisodeMeta(episode);
-                replaceIfPresent(target, mapped, KEY_TITLE);
-                replaceIfPresent(target, mapped, KEY_PLOT);
-                replaceIfPresent(target, mapped, KEY_RELEASE_DATE);
-                mergeMissing(target, mapped, KEY_LOGO);
+                mergeLocalizedTmdbEpisode(bySeasonEpisode, season, episode);
             }
         }
+    }
+
+    private void applyImdbGenre(JSONObject result, Object genreValue) {
+        if (genreValue instanceof JSONArray genreArray) {
+            result.put(KEY_GENRE, joinNonBlankArray(genreArray));
+            return;
+        }
+        if (genreValue instanceof String genre) {
+            result.put(KEY_GENRE, genre);
+        }
+    }
+
+    private String joinNonBlankArray(JSONArray values) {
+        List<String> resolved = new ArrayList<>();
+        for (int i = 0; i < values.length(); i++) {
+            String value = values.optString(i, "");
+            if (isNotBlank(value)) {
+                resolved.add(value);
+            }
+        }
+        return String.join(", ", resolved);
+    }
+
+    private boolean canFetchTmdbLocalizedDetails(String tmdbId, String mediaType) {
+        return isNotBlank(tmdbId) && isNotBlank(mediaType);
+    }
+
+    private String buildTmdbLocalizedUrl(String tmdbId, String mediaType, String localeTag) {
+        return new StringBuilder(TMDB_BASE_URL)
+                .append("/")
+                .append(mediaType)
+                .append("/")
+                .append(URLEncoder.encode(tmdbId, StandardCharsets.UTF_8))
+                .append("?language=")
+                .append(URLEncoder.encode(localeTag, StandardCharsets.UTF_8))
+                .toString();
+    }
+
+    private boolean isSuccessfulTmdbResponse(HttpUtil.HttpResult response) {
+        return response.statusCode() == HttpUtil.STATUS_OK && isNotBlank(response.body());
+    }
+
+    private void populateTmdbLocalizedDetails(JSONObject result, JSONObject payload) {
+        result.put(KEY_NAME, firstNonBlank(payload.optString(KEY_NAME, ""), payload.optString(KEY_TITLE, "")));
+        result.put(KEY_PLOT, payload.optString(KEY_OVERVIEW, ""));
+        result.put(KEY_RATING, String.valueOf(payload.optDouble("vote_average", 0)));
+        result.put(KEY_RELEASE_DATE, firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
+        putTmdbGenres(result, payload.optJSONArray("genres"));
+        putTmdbPoster(result, payload.optString("poster_path", ""));
+    }
+
+    private void putTmdbGenres(JSONObject result, JSONArray genres) {
+        List<String> names = extractTmdbGenreNames(genres);
+        if (!names.isEmpty()) {
+            result.put(KEY_GENRE, String.join(", ", names));
+        }
+    }
+
+    private List<String> extractTmdbGenreNames(JSONArray genres) {
+        List<String> names = new ArrayList<>();
+        if (genres == null || genres.isEmpty()) {
+            return names;
+        }
+        for (int i = 0; i < genres.length() && names.size() < 6; i++) {
+            JSONObject genre = genres.optJSONObject(i);
+            if (genre == null) {
+                continue;
+            }
+            String name = genre.optString(KEY_NAME, "");
+            if (isNotBlank(name)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    private void putTmdbPoster(JSONObject result, String posterPath) {
+        if (isNotBlank(posterPath)) {
+            result.put(KEY_COVER, "https://image.tmdb.org/t/p/w500" + posterPath);
+        }
+    }
+
+    private Map<String, JSONObject> indexEpisodesBySeasonEpisode(JSONArray episodesMeta) {
+        Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
+        for (int i = 0; i < episodesMeta.length(); i++) {
+            JSONObject row = episodesMeta.optJSONObject(i);
+            String episodeKey = seasonEpisodeKey(row == null ? "" : row.optString(KEY_SEASON, ""),
+                    row == null ? "" : row.optString(KEY_EPISODE_NUMBER, ""));
+            if (episodeKey != null && row != null) {
+                bySeasonEpisode.put(episodeKey, row);
+            }
+        }
+        return bySeasonEpisode;
+    }
+
+    private Set<String> collectTmdbSeasons(Map<String, JSONObject> bySeasonEpisode) {
+        Set<String> seasons = new LinkedHashSet<>();
+        for (String key : bySeasonEpisode.keySet()) {
+            int separatorIndex = key.indexOf(':');
+            if (separatorIndex > 0) {
+                seasons.add(key.substring(0, separatorIndex));
+            }
+        }
+        return seasons;
+    }
+
+    private void mergeLocalizedTmdbEpisode(Map<String, JSONObject> bySeasonEpisode, String season, JSONObject episode) {
+        if (episode == null) {
+            return;
+        }
+        String episodeKey = seasonEpisodeKey(season, String.valueOf(episode.optInt("episode_number", 0)));
+        if (episodeKey == null) {
+            return;
+        }
+        JSONObject target = bySeasonEpisode.get(episodeKey);
+        if (target == null) {
+            return;
+        }
+        JSONObject mapped = mapTmdbEpisodeMeta(episode);
+        replaceIfPresent(target, mapped, KEY_TITLE);
+        replaceIfPresent(target, mapped, KEY_PLOT);
+        replaceIfPresent(target, mapped, KEY_RELEASE_DATE);
+        mergeMissing(target, mapped, KEY_LOGO);
+    }
+
+    private String seasonEpisodeKey(String rawSeason, String rawEpisode) {
+        String season = safeNumeric(rawSeason);
+        String episode = safeNumeric(rawEpisode);
+        if (isBlank(season) || isBlank(episode)) {
+            return null;
+        }
+        return season + ":" + episode;
     }
 
     private JSONArray fetchTmdbSeasonEpisodes(String tmdbId, String season, String localeTag) {

@@ -47,93 +47,73 @@ public class MacAddressManagementPopup extends VBox {
     public MacAddressManagementPopup(Stage owner, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
         this.defaultMac = currentDefaultMac;
         this.onSave = onSave;
-        this.macItems = FXCollections.observableArrayList(
-                initialMacs.stream().map(MacItem::new).collect(Collectors.toList())
-        );
+        this.macItems = FXCollections.observableArrayList(initialMacs.stream().map(MacItem::new).collect(Collectors.toList()));
+        stage = createStage(owner);
+        configureLayout();
+        configureSelectionHandling();
+        configureListView();
+        configureButtons();
+        buildContent();
+        stage.setScene(createScene(owner));
+    }
 
-        stage = new Stage();
-        stage.initOwner(owner);
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle(I18n.tr("autoManageMACAddresses"));
+    public void show() {
+        stage.show();
+    }
 
+    private Stage createStage(Stage owner) {
+        Stage popupStage = new Stage();
+        popupStage.initOwner(owner);
+        popupStage.initModality(Modality.APPLICATION_MODAL);
+        popupStage.setTitle(I18n.tr("autoManageMACAddresses"));
+        return popupStage;
+    }
+
+    private void configureLayout() {
         setPadding(new Insets(10));
         setSpacing(10);
+    }
 
+    private void configureSelectionHandling() {
         selectAllCheckBox.setOnAction(e -> {
             boolean selected = selectAllCheckBox.isSelected();
             for (MacItem item : macItems) {
                 item.setSelected(selected);
             }
         });
+    }
 
+    private void configureListView() {
         macListView.setItems(macItems);
-        macListView.setCellFactory(param -> new ListCell<>() {
-            private final CheckBox checkBox = new CheckBox();
-            private final TextFlow textFlow = new TextFlow();
-            private BooleanProperty currentBoundProperty;
-
-            @Override
-            protected void updateItem(MacItem item, boolean empty) {
-                super.updateItem(item, empty);
-
-                if (currentBoundProperty != null) {
-                    checkBox.selectedProperty().unbindBidirectional(currentBoundProperty);
-                    currentBoundProperty = null;
-                }
-
-                if (empty || item == null) {
-                    setGraphic(null);
-                    setText(null);
-                } else {
-                    currentBoundProperty = item.selectedProperty();
-                    checkBox.selectedProperty().bindBidirectional(currentBoundProperty);
-
-                    textFlow.getChildren().clear();
-                    textFlow.getChildren().add(new Text(item.getMac()));
-
-                    if (item.getMac().equalsIgnoreCase(defaultMac)) {
-                        textFlow.getChildren().add(new Text(" ("));
-                        Text defaultText = new Text("Default");
-                        defaultText.getStyleClass().add("default-text");
-                        textFlow.getChildren().add(defaultText);
-                        textFlow.getChildren().add(new Text(")"));
-                    }
-
-                    HBox hBox = new HBox(10, checkBox, textFlow);
-                    hBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-                    setGraphic(hBox);
-                }
-            }
-        });
+        macListView.setCellFactory(param -> new MacListCell());
         VBox.setVgrow(macListView, Priority.ALWAYS);
-
         addMacField.setPromptText(I18n.tr("autoAddMACAddressEsCommaSeparated"));
+    }
 
+    private void configureButtons() {
         addButton.setOnAction(e -> addMacs());
         removeButton.setOnAction(e -> removeMacs());
         setDefaultButton.setOnAction(e -> setDefaultMac());
         saveButton.setOnAction(e -> saveAndClose());
         closeButton.setOnAction(e -> stage.close());
+    }
 
+    private void buildContent() {
         HBox addBox = new HBox(10, addMacField, addButton);
         HBox.setHgrow(addMacField, Priority.ALWAYS);
-
         HBox actionBox = new HBox(10, removeButton, setDefaultButton);
         HBox bottomBox = new HBox(10, saveButton, closeButton);
         bottomBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-
         getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label(I18n.tr("autoAddNew")), addBox, new Separator(), bottomBox);
+    }
 
+    private Scene createScene(Stage owner) {
         Scene scene = new Scene(this, 450, 500);
         I18n.applySceneOrientation(scene);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
         }
-        stage.setScene(scene);
-    }
-
-    public void show() {
-        stage.show();
+        return scene;
     }
 
     private void addMacs() {
@@ -244,6 +224,53 @@ public class MacAddressManagementPopup extends VBox {
 
         public void setSelected(boolean selected) {
             this.selected.set(selected);
+        }
+    }
+
+    private class MacListCell extends ListCell<MacItem> {
+        private final CheckBox checkBox = new CheckBox();
+        private final TextFlow textFlow = new TextFlow();
+        private BooleanProperty currentBoundProperty;
+
+        @Override
+        protected void updateItem(MacItem item, boolean empty) {
+            super.updateItem(item, empty);
+            unbindCurrentProperty();
+            if (empty || item == null) {
+                setGraphic(null);
+                setText(null);
+                return;
+            }
+            bindSelection(item);
+            setGraphic(buildGraphic(item));
+        }
+
+        private void unbindCurrentProperty() {
+            if (currentBoundProperty != null) {
+                checkBox.selectedProperty().unbindBidirectional(currentBoundProperty);
+                currentBoundProperty = null;
+            }
+        }
+
+        private void bindSelection(MacItem item) {
+            currentBoundProperty = item.selectedProperty();
+            checkBox.selectedProperty().bindBidirectional(currentBoundProperty);
+        }
+
+        private HBox buildGraphic(MacItem item) {
+            textFlow.getChildren().setAll(new Text(item.getMac()));
+            if (item.getMac().equalsIgnoreCase(defaultMac)) {
+                textFlow.getChildren().addAll(new Text(" ("), defaultTextNode(), new Text(")"));
+            }
+            HBox hBox = new HBox(10, checkBox, textFlow);
+            hBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            return hBox;
+        }
+
+        private Text defaultTextNode() {
+            Text defaultText = new Text("Default");
+            defaultText.getStyleClass().add("default-text");
+            return defaultText;
         }
     }
 }

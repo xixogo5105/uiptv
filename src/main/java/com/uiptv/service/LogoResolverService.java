@@ -70,45 +70,17 @@ public class LogoResolverService {
 
     private synchronized void ensureCatalogLoaded() {
         long now = System.currentTimeMillis();
-        if (!catalog.isEmpty() && now - lastCatalogRefreshAt < CATALOG_REFRESH_MS) {
-            return;
-        }
-        if (refreshInProgress) {
+        if (isCatalogFresh(now) || refreshInProgress) {
             return;
         }
         refreshInProgress = true;
         try {
-            HttpUtil.HttpResult response = HttpUtil.sendRequest(CHANNELS_CATALOG_URL, null, "GET");
+            HttpUtil.HttpResult response = fetchChannelsCatalog();
             if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return;
             }
-            String json = response.body();
-            JSONArray channels = new JSONArray(json);
             Map<String, String> logoByChannelId = loadLogosByChannelId();
-
-            ConcurrentHashMap<String, String> fresh = new ConcurrentHashMap<>();
-            for (int i = 0; i < channels.length(); i++) {
-                JSONObject item = channels.getJSONObject(i);
-                String channelId = item.optString("id", "");
-                String logo = item.optString("logo", "");
-                if (isBlank(logo) && isNotBlank(channelId)) {
-                    logo = logoByChannelId.getOrDefault(channelId, "");
-                }
-                if (isBlank(logo)) {
-                    continue;
-                }
-
-                String name = item.optString("name", "");
-                addAlias(fresh, name, logo);
-
-                JSONArray altNames = item.optJSONArray("alt_names");
-                if (altNames != null) {
-                    for (int j = 0; j < altNames.length(); j++) {
-                        addAlias(fresh, altNames.optString(j, ""), logo);
-                    }
-                }
-            }
-
+            ConcurrentHashMap<String, String> fresh = buildCatalogEntries(new JSONArray(response.body()), logoByChannelId);
             if (!fresh.isEmpty()) {
                 catalog.clear();
                 catalog.putAll(fresh);
@@ -119,6 +91,46 @@ public class LogoResolverService {
         } finally {
             refreshInProgress = false;
         }
+    }
+
+    private boolean isCatalogFresh(long now) {
+        return !catalog.isEmpty() && now - lastCatalogRefreshAt < CATALOG_REFRESH_MS;
+    }
+
+    private HttpUtil.HttpResult fetchChannelsCatalog() throws Exception {
+        return HttpUtil.sendRequest(CHANNELS_CATALOG_URL, null, "GET");
+    }
+
+    private ConcurrentHashMap<String, String> buildCatalogEntries(JSONArray channels, Map<String, String> logoByChannelId) {
+        ConcurrentHashMap<String, String> fresh = new ConcurrentHashMap<>();
+        for (int i = 0; i < channels.length(); i++) {
+            addCatalogAliases(fresh, channels.getJSONObject(i), logoByChannelId);
+        }
+        return fresh;
+    }
+
+    private void addCatalogAliases(ConcurrentHashMap<String, String> fresh, JSONObject item, Map<String, String> logoByChannelId) {
+        String logo = resolveCatalogLogo(item, logoByChannelId);
+        if (isBlank(logo)) {
+            return;
+        }
+        addAlias(fresh, item.optString("name", ""), logo);
+        JSONArray altNames = item.optJSONArray("alt_names");
+        if (altNames == null) {
+            return;
+        }
+        for (int j = 0; j < altNames.length(); j++) {
+            addAlias(fresh, altNames.optString(j, ""), logo);
+        }
+    }
+
+    private String resolveCatalogLogo(JSONObject item, Map<String, String> logoByChannelId) {
+        String channelId = item.optString("id", "");
+        String logo = item.optString("logo", "");
+        if (isBlank(logo) && isNotBlank(channelId)) {
+            return logoByChannelId.getOrDefault(channelId, "");
+        }
+        return logo;
     }
 
     private String resolveFromCatalog(String channelName, String key) {

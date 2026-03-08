@@ -80,63 +80,57 @@ public class PlayerService {
         }
         int questionMarkIndex = url.indexOf('?');
         if (questionMarkIndex == -1) {
-            return url; // No query string, nothing to do.
+            return url;
         }
-
         String baseUrl = url.substring(0, questionMarkIndex);
         String query = url.substring(questionMarkIndex + 1);
-
         if (isBlank(query)) {
             return url;
         }
-
         StringBuilder newQuery = new StringBuilder();
-        String[] params = query.split("&");
-
-        for (String param : params) {
+        for (String param : query.split("&")) {
             if (isBlank(param)) {
                 continue;
             }
-
-            int eqIndex = param.indexOf("=");
-            String key, value;
-
-            if (eqIndex >= 0) {
-                key = param.substring(0, eqIndex);
-                value = param.substring(eqIndex + 1);
-            } else {
-                key = param;
-                value = null;
-            }
-
-            try {
-                // Decode first to handle any existing encoding, then re-encode.
-                String decodedKey = URLDecoder.decode(key, StandardCharsets.UTF_8);
-                String encodedKey = URLEncoder.encode(decodedKey, StandardCharsets.UTF_8);
-
-                if (newQuery.length() > 0) {
-                    newQuery.append("&");
-                }
-                newQuery.append(encodedKey);
-
-                if (value != null) {
-                    String decodedValue = URLDecoder.decode(value, StandardCharsets.UTF_8);
-                    String encodedValue = URLEncoder.encode(decodedValue, StandardCharsets.UTF_8);
-                    newQuery.append("=");
-                    newQuery.append(encodedValue);
-                }
-            } catch (Exception e) {
-                // This can happen with malformed percent-encoding.
-                // In this case, we append the original parameter as a fallback.
-                if (newQuery.length() > 0) {
-                    newQuery.append("&");
-                }
-                newQuery.append(param);
-            }
+            appendSanitizedParam(newQuery, param);
         }
-
-        return baseUrl + "?" + newQuery.toString();
+        return baseUrl + "?" + newQuery;
     }
+
+    private void appendSanitizedParam(StringBuilder newQuery, String param) {
+        QueryParamParts parts = splitQueryParam(param);
+        try {
+            appendQueryDelimiter(newQuery);
+            newQuery.append(reencodeQueryPart(parts.key()));
+            if (parts.value() != null) {
+                newQuery.append("=").append(reencodeQueryPart(parts.value()));
+            }
+        } catch (Exception _) {
+            appendQueryDelimiter(newQuery);
+            newQuery.append(param);
+        }
+    }
+
+    private QueryParamParts splitQueryParam(String param) {
+        int eqIndex = param.indexOf('=');
+        if (eqIndex >= 0) {
+            return new QueryParamParts(param.substring(0, eqIndex), param.substring(eqIndex + 1));
+        }
+        return new QueryParamParts(param, null);
+    }
+
+    private String reencodeQueryPart(String value) {
+        String decoded = URLDecoder.decode(value, StandardCharsets.UTF_8);
+        return URLEncoder.encode(decoded, StandardCharsets.UTF_8);
+    }
+
+    private void appendQueryDelimiter(StringBuilder newQuery) {
+        if (newQuery.length() > 0) {
+            newQuery.append("&");
+        }
+    }
+
+    private record QueryParamParts(String key, String value) {}
 
     private AccountPlayerService getPlayerService(Account account) {
         if (account.getType() == XTREME_API) {

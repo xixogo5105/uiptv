@@ -30,11 +30,15 @@ import static com.uiptv.util.ServerUtils.generateJsonResponse;
 public class HttpWatchingNowJsonServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        JSONArray rows = new JSONArray();
-        for (PanelRow row : buildRows()) {
-            rows.put(row.toJson());
+        generateJsonResponse(ex, toJson(buildRows()));
+    }
+
+    private String toJson(List<PanelRow> rows) {
+        JSONArray payload = new JSONArray();
+        for (PanelRow row : rows) {
+            payload.put(row.toJson());
         }
-        generateJsonResponse(ex, rows.toString());
+        return payload.toString();
     }
 
     private List<PanelRow> buildRows() {
@@ -42,12 +46,15 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
         for (Account account : AccountService.getInstance().getAll().values()) {
             addRowsForAccount(rows, account);
         }
+        sortRows(rows);
+        return rows;
+    }
 
+    private void sortRows(List<PanelRow> rows) {
         rows.sort(
                 Comparator.comparingLong((PanelRow row) -> row.updatedAt).reversed()
                         .thenComparing(row -> safe(row.seriesTitle), String.CASE_INSENSITIVE_ORDER)
         );
-        return rows;
     }
 
     private void addRowsForAccount(List<PanelRow> rows, Account account) {

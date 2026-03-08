@@ -81,23 +81,8 @@ public class CategoryService {
             return maybeFilterCategories(cats, censor);
         }
 
-        if ((account.getAction() == vod || account.getAction() == series)
-                && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API)) {
-            List<Category> cached = getVodSeriesCachedCategories(account);
-            if (!cached.isEmpty() && isVodSeriesCategoriesFresh(account)) {
-                log(logger, "Loaded categories from local cache.");
-                return maybeFilterCategories(cached, censor);
-            }
-
-            log(logger, "No fresh cached categories found. Fetching from portal/provider...");
-            List<Category> fetched = fetchCategoriesFromSource(account);
-            if (!fetched.isEmpty()) {
-                saveVodSeriesCategories(account, fetched);
-                log(logger, "Saved " + fetched.size() + " categories to local VOD/Series cache.");
-                List<Category> stored = getVodSeriesCachedCategories(account);
-                return maybeFilterCategories(stored.isEmpty() ? fetched : stored, censor);
-            }
-            return maybeFilterCategories(cached, censor);
+        if (usesVodSeriesCategoryCache(account)) {
+            return getVodSeriesCategories(account, censor, logger);
         }
 
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
@@ -128,6 +113,28 @@ public class CategoryService {
             cachedCategories.addAll(CategoryDb.get().getCategories(account));
         }
         return maybeFilterCategories(cachedCategories, censor);
+    }
+
+    private boolean usesVodSeriesCategoryCache(Account account) {
+        return (account.getAction() == vod || account.getAction() == series)
+                && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
+    }
+
+    private List<Category> getVodSeriesCategories(Account account, boolean censor, LoggerCallback logger) {
+        List<Category> cached = getVodSeriesCachedCategories(account);
+        if (!cached.isEmpty() && isVodSeriesCategoriesFresh(account)) {
+            log(logger, "Loaded categories from local cache.");
+            return maybeFilterCategories(cached, censor);
+        }
+        log(logger, "No fresh cached categories found. Fetching from portal/provider...");
+        List<Category> fetched = fetchCategoriesFromSource(account);
+        if (!fetched.isEmpty()) {
+            saveVodSeriesCategories(account, fetched);
+            log(logger, "Saved " + fetched.size() + " categories to local VOD/Series cache.");
+            List<Category> stored = getVodSeriesCachedCategories(account);
+            return maybeFilterCategories(stored.isEmpty() ? fetched : stored, censor);
+        }
+        return maybeFilterCategories(cached, censor);
     }
 
     private List<Category> fetchCategoriesFromSource(Account account) {

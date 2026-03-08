@@ -224,20 +224,8 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
 
     static ProbeResult probeSource(String sourceUrl) {
         try {
-            Process process = new ProcessBuilder(
-                    "ffprobe",
-                    "-v", "error",
-                    "-print_format", "json",
-                    "-show_format",
-                    "-show_streams",
-                    sourceUrl
-            ).start();
-
-            if (!process.waitFor(4, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-                return null;
-            }
-            if (process.exitValue() != 0) {
+            Process process = buildProbeProcess(sourceUrl).start();
+            if (!awaitSuccessfulProbe(process)) {
                 return null;
             }
 
@@ -246,33 +234,62 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
                 return null;
             }
 
-            JSONObject root = new JSONObject(json);
-            JSONObject format = root.optJSONObject("format");
-            String formatName = format == null ? "" : format.optString("format_name", "");
-
-            String videoCodec = "";
-            String audioCodec = "";
-            JSONArray streams = root.optJSONArray("streams");
-            if (streams != null) {
-                for (int i = 0; i < streams.length(); i++) {
-                    JSONObject stream = streams.optJSONObject(i);
-                    if (stream == null) {
-                        continue;
-                    }
-                    String codecType = stream.optString("codec_type", "");
-                    if ("video".equalsIgnoreCase(codecType) && videoCodec.isBlank()) {
-                        videoCodec = stream.optString("codec_name", "");
-                    } else if ("audio".equalsIgnoreCase(codecType) && audioCodec.isBlank()) {
-                        audioCodec = stream.optString("codec_name", "");
-                    }
-                }
-            }
-            return new ProbeResult(formatName, videoCodec, audioCodec);
+            return toProbeResult(new JSONObject(json));
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             return null;
         } catch (IOException | RuntimeException _) {
             return null;
         }
+    }
+
+    private static ProcessBuilder buildProbeProcess(String sourceUrl) {
+        return new ProcessBuilder(
+                "ffprobe",
+                "-v", "error",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                sourceUrl
+        );
+    }
+
+    private static boolean awaitSuccessfulProbe(Process process) throws InterruptedException {
+        if (!process.waitFor(4, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            return false;
+        }
+        return process.exitValue() == 0;
+    }
+
+    private static ProbeResult toProbeResult(JSONObject root) {
+        JSONObject format = root.optJSONObject("format");
+        String formatName = format == null ? "" : format.optString("format_name", "");
+        CodecPair codecs = extractCodecs(root.optJSONArray("streams"));
+        return new ProbeResult(formatName, codecs.videoCodec(), codecs.audioCodec());
+    }
+
+    private static CodecPair extractCodecs(JSONArray streams) {
+        String videoCodec = "";
+        String audioCodec = "";
+        if (streams == null) {
+            return new CodecPair(videoCodec, audioCodec);
+        }
+        for (int i = 0; i < streams.length(); i++) {
+            JSONObject stream = streams.optJSONObject(i);
+            if (stream == null) {
+                continue;
+            }
+            String codecType = stream.optString("codec_type", "");
+            if ("video".equalsIgnoreCase(codecType) && videoCodec.isBlank()) {
+                videoCodec = stream.optString("codec_name", "");
+            } else if ("audio".equalsIgnoreCase(codecType) && audioCodec.isBlank()) {
+                audioCodec = stream.optString("codec_name", "");
+            }
+        }
+        return new CodecPair(videoCodec, audioCodec);
+    }
+
+    private record CodecPair(String videoCodec, String audioCodec) {
     }
 }

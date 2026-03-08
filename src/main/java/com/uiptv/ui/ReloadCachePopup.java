@@ -900,18 +900,18 @@ public class ReloadCachePopup extends VBox {
     }
 
     private String compactCategoryLog(Account account, String trimmed) {
-        if (trimmed.startsWith("Loaded channels from local cache")) {
+        if (isLoadedChannelsFromCacheLog(trimmed)) {
             return I18n.tr("reloadLoadedChannelsFromLocalCache");
         }
-        if (trimmed.startsWith("No fresh cache found for category")) {
+        if (isFreshCacheMissLog(trimmed)) {
             String category = trimmed.replace("No fresh cache found for category", "")
                     .replace(". Fetching from portal...", "")
                     .trim();
             return I18n.tr("reloadCacheMissFetchingCategory", category);
         }
-        if (trimmed.startsWith("No fresh cached categories found")) {
+        if (isFreshCategoriesCacheMissLog(trimmed)) {
             String modeCode = modeCode(account);
-            if ("VOD".equals(modeCode) || "SERIES".equals(modeCode)) {
+            if ("VOD".equals(modeCode) || MODE_SERIES.equals(modeCode)) {
                 return "";
             }
             String mode = modeLabel(account);
@@ -919,9 +919,9 @@ public class ReloadCachePopup extends VBox {
                     ? I18n.tr("reloadCategoriesCacheMissFetching")
                     : I18n.tr("reloadModeCategoriesCacheMissFetching", mode);
         }
-        if (trimmed.startsWith("No cached categories found")) {
+        if (isNoCachedCategoriesLog(trimmed)) {
             String modeCode = modeCode(account);
-            if ("VOD".equals(modeCode) || "SERIES".equals(modeCode)) {
+            if ("VOD".equals(modeCode) || MODE_SERIES.equals(modeCode)) {
                 return "";
             }
             String mode = modeLabel(account);
@@ -929,81 +929,34 @@ public class ReloadCachePopup extends VBox {
                     ? I18n.tr("reloadNoCachedCategoriesFetching")
                     : I18n.tr("reloadModeNoCachedCategoriesFetching", mode);
         }
-        if (trimmed.startsWith("Fetching categories from Xtreme API")) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadFetchingCategoriesFromProvider", "Xtreme API")
-                    : I18n.tr("reloadFetchingModeCategoriesFromProvider", mode, "Xtreme API");
-        }
-        if (trimmed.startsWith("Fetching categories from Stalker Portal")) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadFetchingCategoriesFromProvider", "Stalker Portal")
-                    : I18n.tr("reloadFetchingModeCategoriesFromProvider", mode, "Stalker Portal");
+        String provider = resolveCategoryFetchProvider(trimmed);
+        if (provider != null) {
+            return translateProviderCategoryFetch(account, provider);
         }
         return null;
     }
 
     private String compactCountLog(Account account, String trimmed) {
-        if (trimmed.startsWith("Found Categories")) {
-            Integer count = extractFirstNumber(trimmed);
-            if (count != null) {
-                String mode = modeLabel(account);
-                return mode == null
-                        ? I18n.tr("reloadCategoriesCount", I18n.formatNumber(String.valueOf(count)))
-                        : I18n.tr("reloadModeCategoriesCount", mode, I18n.formatNumber(String.valueOf(count)));
-            }
-            return I18n.tr("autoCategories") + ":";
+        String countTranslation = translateFoundCountLog(account, trimmed);
+        if (countTranslation != null) {
+            return countTranslation;
         }
-        if (trimmed.startsWith("Found Channels")) {
-            Integer count = extractFirstNumber(trimmed);
-            if (count != null) {
-                String mode = modeLabel(account);
-                return mode == null
-                        ? I18n.tr("reloadChannelsCount", I18n.formatNumber(String.valueOf(count)))
-                        : I18n.tr("reloadModeChannelsCount", mode, I18n.formatNumber(String.valueOf(count)));
-            }
-            return I18n.tr("autoChannels") + ":";
-        }
-        if (trimmed.endsWith("saved Successfully ✓")) {
+        if (isSavedSuccessfullyLog(trimmed)) {
             return I18n.tr("reloadSaved");
         }
-        if (trimmed.startsWith("Fetching page")) {
-            Matcher matcher = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+(.+)\\.\\.\\.")
-                    .matcher(trimmed);
-            if (matcher.matches()) {
-                return I18n.tr("reloadPageCategory",
-                        I18n.formatNumber(matcher.group(1)),
-                        matcher.group(2).trim());
-            }
+        String pageTranslation = translatePageFetchLog(trimmed);
+        if (pageTranslation != null) {
+            return pageTranslation;
         }
-        if (trimmed.startsWith("Fetched")) {
-            Matcher matcher = Pattern.compile("Fetched\\s+(\\d+)\\s+channels from page\\s+(\\d+)\\.?")
-                    .matcher(trimmed);
-            if (matcher.matches()) {
-                return I18n.tr("reloadChannelsPage",
-                        I18n.formatNumber(matcher.group(1)),
-                        I18n.formatNumber(matcher.group(2)));
-            }
-        }
-        if (trimmed.startsWith("Page ") && trimmed.endsWith(" returned no channels.")) {
+        if (isPageNoChannelsLog(trimmed)) {
             Integer page = extractFirstNumber(trimmed);
             return page == null
                     ? I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED)
                     : I18n.tr("reloadPageNoChannels", I18n.formatNumber(String.valueOf(page)));
         }
-        if (trimmed.startsWith("Saved ")) {
-            if (trimmed.contains(" to local VOD/Series cache.")) {
-                Integer count = extractFirstNumber(trimmed);
-                if (count != null) {
-                    String mode = modeLabel(account);
-                    if (mode != null) {
-                        return I18n.tr("reloadModeCategoriesCount", mode, I18n.formatNumber(String.valueOf(count)));
-                    }
-                    return I18n.tr("reloadCategoriesSaved", I18n.formatNumber(String.valueOf(count)));
-                }
-            }
-            return I18n.tr("reloadSavedToCache");
+        String savedTranslation = translateSavedLog(account, trimmed);
+        if (savedTranslation != null) {
+            return savedTranslation;
         }
         return null;
     }
@@ -1032,13 +985,13 @@ public class ReloadCachePopup extends VBox {
     }
 
     private String compactGlobalFallbackLog(Account account, String trimmed) {
-        if (trimmed.equals("No categories found. Keeping existing cache.")) {
+        if (isNoCategoriesFoundLog(trimmed)) {
             String mode = modeLabel(account);
             return mode == null
                     ? I18n.tr("reloadNoCategoriesFoundCacheKept")
                     : I18n.tr("reloadModeCategoriesNoneFound", mode);
         }
-        if (trimmed.equals("No channels found in any category. Keeping existing cache.")) {
+        if (LOG_NO_CHANNELS_FOUND.equals(trimmed)) {
             String mode = modeLabel(account);
             return mode == null
                     ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
@@ -1059,7 +1012,7 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
             return I18n.tr("reloadGlobalChannelListFailedTryingFallback");
         }
-        if (trimmed.startsWith("Last-resort fetch succeeded. Collected")) {
+        if (isLastResortFetchSucceededLog(trimmed)) {
             Integer count = extractFirstNumber(trimmed);
             return count == null
                     ? I18n.tr("reloadFallbackFetchSucceeded")
@@ -1072,6 +1025,103 @@ public class ReloadCachePopup extends VBox {
             return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
         }
         return null;
+    }
+
+    private boolean isLoadedChannelsFromCacheLog(String trimmed) {
+        return trimmed.startsWith("Loaded channels from local cache");
+    }
+
+    private boolean isFreshCacheMissLog(String trimmed) {
+        return trimmed.startsWith("No fresh cache found for category");
+    }
+
+    private boolean isFreshCategoriesCacheMissLog(String trimmed) {
+        return trimmed.startsWith("No fresh cached categories found");
+    }
+
+    private boolean isNoCachedCategoriesLog(String trimmed) {
+        return trimmed.startsWith("No cached categories found");
+    }
+
+    private String resolveCategoryFetchProvider(String trimmed) {
+        if (trimmed.startsWith("Fetching categories from Xtreme API")) {
+            return "Xtreme API";
+        }
+        if (trimmed.startsWith("Fetching categories from Stalker Portal")) {
+            return "Stalker Portal";
+        }
+        return null;
+    }
+
+    private String translateProviderCategoryFetch(Account account, String provider) {
+        String mode = modeLabel(account);
+        return mode == null
+                ? I18n.tr("reloadFetchingCategoriesFromProvider", provider)
+                : I18n.tr("reloadFetchingModeCategoriesFromProvider", mode, provider);
+    }
+
+    private String translateFoundCountLog(Account account, String trimmed) {
+        if (trimmed.startsWith("Found Categories")) {
+            return translateModeAwareCount(account, trimmed, "reloadCategoriesCount", "reloadModeCategoriesCount", I18n.tr("autoCategories") + ":");
+        }
+        if (trimmed.startsWith("Found Channels")) {
+            return translateModeAwareCount(account, trimmed, "reloadChannelsCount", "reloadModeChannelsCount", I18n.tr("autoChannels") + ":");
+        }
+        return null;
+    }
+
+    private String translateModeAwareCount(Account account, String trimmed, String noModeKey, String modeKey, String fallback) {
+        Integer count = extractFirstNumber(trimmed);
+        if (count == null) {
+            return fallback;
+        }
+        String formattedCount = I18n.formatNumber(String.valueOf(count));
+        String mode = modeLabel(account);
+        return mode == null ? I18n.tr(noModeKey, formattedCount) : I18n.tr(modeKey, mode, formattedCount);
+    }
+
+    private boolean isSavedSuccessfullyLog(String trimmed) {
+        return trimmed.endsWith("saved Successfully ✓");
+    }
+
+    private String translatePageFetchLog(String trimmed) {
+        Matcher fetching = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+(.+)\\.\\.\\.").matcher(trimmed);
+        if (fetching.matches()) {
+            return I18n.tr("reloadPageCategory", I18n.formatNumber(fetching.group(1)), fetching.group(2).trim());
+        }
+        Matcher fetched = Pattern.compile("Fetched\\s+(\\d+)\\s+channels from page\\s+(\\d+)\\.?").matcher(trimmed);
+        if (fetched.matches()) {
+            return I18n.tr("reloadChannelsPage", I18n.formatNumber(fetched.group(1)), I18n.formatNumber(fetched.group(2)));
+        }
+        return null;
+    }
+
+    private boolean isPageNoChannelsLog(String trimmed) {
+        return trimmed.startsWith("Page ") && trimmed.endsWith(" returned no channels.");
+    }
+
+    private String translateSavedLog(Account account, String trimmed) {
+        if (!trimmed.startsWith("Saved ")) {
+            return null;
+        }
+        if (trimmed.contains(" to local VOD/Series cache.")) {
+            Integer count = extractFirstNumber(trimmed);
+            if (count != null) {
+                String mode = modeLabel(account);
+                return mode != null
+                        ? I18n.tr("reloadModeCategoriesCount", mode, I18n.formatNumber(String.valueOf(count)))
+                        : I18n.tr("reloadCategoriesSaved", I18n.formatNumber(String.valueOf(count)));
+            }
+        }
+        return I18n.tr("reloadSavedToCache");
+    }
+
+    private boolean isNoCategoriesFoundLog(String trimmed) {
+        return "No categories found. Keeping existing cache.".equals(trimmed);
+    }
+
+    private boolean isLastResortFetchSucceededLog(String trimmed) {
+        return trimmed.startsWith("Last-resort fetch succeeded. Collected");
     }
 
     private String extractGlobalFailureReason(Account account, String message) {
@@ -1146,26 +1196,26 @@ public class ReloadCachePopup extends VBox {
             return issue;
         }
         if (trimmed.equals("No channels found in any category. Keeping existing cache.")
-                || trimmed.equals("No channels found.")) {
+                || trimmed.equals(LOG_NO_CHANNELS_FOUND)) {
             String mode = modeLabel(account);
             return mode == null
                     ? I18n.tr("reloadNoChannelsFound")
                     : I18n.tr("reloadModeNoChannelsFound", mode);
         }
-        if (trimmed.equals("Marked bad and skipped after global call failure.")) {
+        if (trimmed.equals(LOG_MARKED_BAD_AND_SKIPPED)) {
             return I18n.tr("reloadMarkedBadByUser");
         }
         return null;
     }
 
     private String extractCommonIssueReason(String trimmed) {
-        if (trimmed.startsWith("Reload failed:")) {
+        if (trimmed.startsWith(LOG_RELOAD_FAILED_PREFIX)) {
             return I18n.tr("reloadReloadFailed");
         }
         if (trimmed.equals("Handshake failed.") || trimmed.startsWith("Handshake failed for")) {
             return I18n.tr("reloadHandshakeFailed");
         }
-        if (trimmed.startsWith("Network error while loading categories")) {
+        if (trimmed.startsWith(LOG_NETWORK_ERROR_LOADING_CATEGORIES)) {
             return I18n.tr("reloadNetworkErrorLoadingCategories");
         }
         if (trimmed.startsWith("Failed to parse channels")) {
@@ -1179,7 +1229,7 @@ public class ReloadCachePopup extends VBox {
 
     private String extractGlobalIssueReason(String trimmed) {
         if (trimmed.startsWith("No channels returned by get_all_channels")
-                || trimmed.startsWith("Global Stalker get_all_channels failed")) {
+                || trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
             return I18n.tr("reloadGlobalLiveTvChannelCallFailed");
         }
         if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)
@@ -1187,10 +1237,10 @@ public class ReloadCachePopup extends VBox {
                 || trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
             return I18n.tr("reloadGlobalXtremeLookupFailed");
         }
-        if (trimmed.startsWith("Global VOD category list failed:")) {
+        if (trimmed.startsWith(GLOBAL_VOD_CATEGORY_LIST_FAILED)) {
             return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
         }
-        if (trimmed.startsWith("Global SERIES category list failed:")) {
+        if (trimmed.startsWith(GLOBAL_SERIES_CATEGORY_LIST_FAILED)) {
             return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
         }
         return null;
@@ -1405,7 +1455,7 @@ public class ReloadCachePopup extends VBox {
                 case EMPTY:
                     runningIndicator.setVisible(false);
                     statusLabel.setText(I18n.tr("autoEmpty0Channels"));
-                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
+                    statusLabel.setStyle(STYLE_YELLOW_LABEL);
                     break;
                 case FAILED:
                     runningIndicator.setVisible(false);

@@ -23,18 +23,12 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        if (account.getAction() == vod || account.getAction() == series) {
-            List<Category> categories = CategoryService.getInstance().get(account, false, logger);
-            saveVodOrSeriesCategories(account, categories);
-            log(logger, "Found Categories " + categories.size());
-            log(logger, categories.size() + " Categories saved Successfully \u2713");
+        if (isVodOrSeriesAction(account)) {
+            reloadVodOrSeriesCategories(account, logger);
             return;
         }
 
-        List<Category> categories = CategoryService.getInstance().get(account, false, logger)
-                .stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
-                .toList();
+        List<Category> categories = loadLiveCategories(account, logger);
         if (categories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
             return;
@@ -46,6 +40,89 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             return;
         }
 
+        CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categories, logger);
+        if (fetchResult.failedCategories == categories.size()) {
+            throw new RuntimeException("All category channel requests failed.");
+        }
+        if (fetchResult.totalChannels == 0) {
+            if (fetchResult.failedCategories > 0) {
+                throw new RuntimeException("No usable channels loaded after category fetch failures.");
+            }
+            log(logger, "No channels found in any category. Keeping existing cache.");
+            return;
+        }
+        log(logger, "Found Channels " + fetchResult.totalChannels + ". Found 0 Orphaned channels.");
+
+        clearCache(account);
+        CategoryDb.get().saveAll(categories, account);
+        List<Category> savedCategories = CategoryDb.get().getCategories(account);
+        for (Category savedCat : savedCategories) {
+            List<Channel> channels = fetchResult.channelsByCategory.get(savedCat.getCategoryId());
+            if (channels != null && !channels.isEmpty()) {
+                ChannelDb.get().saveAll(channels, savedCat.getDbId(), account);
+            }
+        }
+        log(logger, savedCategories.size() + " Categories & " + fetchResult.totalChannels + " Channels saved Successfully \u2713");
+        cacheVodAndSeriesCategoriesOnly(account, logger);
+    }
+
+    private boolean reloadLiveWithGlobalLookup(Account account, List<Category> categories, LoggerCallback logger) {
+        List<Channel> allChannels = fetchAllChannelsOrLog(account, logger);
+        if (allChannels == null || allChannels.isEmpty()) {
+            return false;
+        }
+
+        if (!hasCategoryAssignments(allChannels)) {
+            log(logger, "Global Xtreme channel lookup returned uncategorized rows only. Falling back to category fetch.");
+            return false;
+        }
+
+        ChannelGrouping grouping = groupChannelsByKnownCategory(allChannels, categories);
+
+        log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphaned.size() + " Orphaned channels.");
+        clearCache(account);
+
+        CategoryDb.get().saveAll(categoriesWithUncategorizedIfNeeded(categories, grouping.orphaned), account);
+        List<Category> savedCategories = CategoryDb.get().getCategories(account);
+        Map<String, Category> savedByApiId = savedCategories.stream()
+                .collect(Collectors.toMap(Category::getCategoryId, c -> c, (a, b) -> a));
+
+        for (Map.Entry<String, List<Channel>> entry : grouping.matchedByCategory.entrySet()) {
+            Category category = savedByApiId.get(entry.getKey());
+            if (category != null && category.getDbId() != null) {
+                ChannelDb.get().saveAll(entry.getValue(), category.getDbId(), account);
+            }
+        }
+
+        if (!grouping.orphaned.isEmpty()) {
+            Category uncategorized = findUncategorizedCategory(savedByApiId);
+            if (uncategorized != null && uncategorized.getDbId() != null) {
+                ChannelDb.get().saveAll(grouping.orphaned, uncategorized.getDbId(), account);
+            }
+        }
+
+        log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
+        return true;
+    }
+
+    private boolean isVodOrSeriesAction(Account account) {
+        return account.getAction() == vod || account.getAction() == series;
+    }
+
+    private void reloadVodOrSeriesCategories(Account account, LoggerCallback logger) {
+        List<Category> categories = CategoryService.getInstance().get(account, false, logger);
+        saveVodOrSeriesCategories(account, categories);
+        log(logger, "Found Categories " + categories.size());
+        log(logger, categories.size() + " Categories saved Successfully \u2713");
+    }
+
+    private List<Category> loadLiveCategories(Account account, LoggerCallback logger) {
+        return CategoryService.getInstance().get(account, false, logger).stream()
+                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .toList();
+    }
+
+    private CategoryFetchResult fetchChannelsByCategory(Account account, List<Category> categories, LoggerCallback logger) {
         Map<String, List<Channel>> channelsMap = new HashMap<>();
         int totalChannels = 0;
         int failedCategories = 0;
@@ -61,57 +138,31 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 log(logger, "Category fetch failed (" + category.getTitle() + "): " + describeFailure(e));
             }
         }
-
-        if (failedCategories == categories.size()) {
-            throw new RuntimeException("All category channel requests failed.");
-        }
-        if (totalChannels == 0) {
-            if (failedCategories > 0) {
-                throw new RuntimeException("No usable channels loaded after category fetch failures.");
-            }
-            log(logger, "No channels found in any category. Keeping existing cache.");
-            return;
-        }
-        log(logger, "Found Channels " + totalChannels + ". Found 0 Orphaned channels.");
-
-        clearCache(account);
-        CategoryDb.get().saveAll(categories, account);
-        List<Category> savedCategories = CategoryDb.get().getCategories(account);
-        for (Category savedCat : savedCategories) {
-            List<Channel> channels = channelsMap.get(savedCat.getCategoryId());
-            if (channels != null && !channels.isEmpty()) {
-                ChannelDb.get().saveAll(channels, savedCat.getDbId(), account);
-            }
-        }
-        log(logger, savedCategories.size() + " Categories & " + totalChannels + " Channels saved Successfully \u2713");
-        cacheVodAndSeriesCategoriesOnly(account, logger);
+        return new CategoryFetchResult(channelsMap, totalChannels, failedCategories);
     }
 
-    private boolean reloadLiveWithGlobalLookup(Account account, List<Category> categories, LoggerCallback logger) {
-        List<Channel> allChannels;
+    private List<Channel> fetchAllChannelsOrLog(Account account, LoggerCallback logger) {
         try {
-            allChannels = XtremeParser.parseAllChannels(account);
+            List<Channel> allChannels = XtremeParser.parseAllChannels(account);
+            if (allChannels.isEmpty()) {
+                log(logger, "Global Xtreme channel lookup returned no channels. Falling back to category fetch.");
+            }
+            return allChannels;
         } catch (Exception _) {
             log(logger, "Global Xtreme channel lookup failed. Falling back to category fetch.");
-            return false;
+            return null;
         }
+    }
 
-        if (allChannels.isEmpty()) {
-            log(logger, "Global Xtreme channel lookup returned no channels. Falling back to category fetch.");
-            return false;
-        }
+    private boolean hasCategoryAssignments(List<Channel> allChannels) {
+        return allChannels.stream().anyMatch(c -> isNotBlank(c.getCategoryId()));
+    }
 
-        boolean hasCategoryAssignments = allChannels.stream().anyMatch(c -> isNotBlank(c.getCategoryId()));
-        if (!hasCategoryAssignments) {
-            log(logger, "Global Xtreme channel lookup returned uncategorized rows only. Falling back to category fetch.");
-            return false;
-        }
-
+    private ChannelGrouping groupChannelsByKnownCategory(List<Channel> allChannels, List<Category> categories) {
         Map<String, Category> categoryByApiId = categories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (a, b) -> a));
         Map<String, List<Channel>> matchedByCategory = new HashMap<>();
         List<Channel> orphaned = new ArrayList<>();
-
         for (Channel channel : allChannels) {
             String categoryId = channel.getCategoryId();
             if (isNotBlank(categoryId) && categoryByApiId.containsKey(categoryId)) {
@@ -120,43 +171,32 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 orphaned.add(channel);
             }
         }
+        return new ChannelGrouping(matchedByCategory, orphaned);
+    }
 
-        log(logger, "Found Channels " + allChannels.size() + ". Found " + orphaned.size() + " Orphaned channels.");
-        clearCache(account);
-
+    private List<Category> categoriesWithUncategorizedIfNeeded(List<Category> categories, List<Channel> orphaned) {
         List<Category> categoriesToSave = new ArrayList<>(categories);
-        if (!orphaned.isEmpty()) {
-            boolean hasUncategorized = categories.stream()
-                    .anyMatch(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()));
-            if (!hasUncategorized) {
-                categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
-            }
+        if (!orphaned.isEmpty() && categories.stream().noneMatch(this::isUncategorizedCategory)) {
+            categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
         }
+        return categoriesToSave;
+    }
 
-        CategoryDb.get().saveAll(categoriesToSave, account);
-        List<Category> savedCategories = CategoryDb.get().getCategories(account);
-        Map<String, Category> savedByApiId = savedCategories.stream()
-                .collect(Collectors.toMap(Category::getCategoryId, c -> c, (a, b) -> a));
+    private boolean isUncategorizedCategory(Category category) {
+        return UNCATEGORIZED_ID.equals(category.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(category.getTitle());
+    }
 
-        for (Map.Entry<String, List<Channel>> entry : matchedByCategory.entrySet()) {
-            Category category = savedByApiId.get(entry.getKey());
-            if (category != null && category.getDbId() != null) {
-                ChannelDb.get().saveAll(entry.getValue(), category.getDbId(), account);
-            }
-        }
+    private Category findUncategorizedCategory(Map<String, Category> savedByApiId) {
+        return savedByApiId.values().stream()
+                .filter(this::isUncategorizedCategory)
+                .findFirst()
+                .orElse(null);
+    }
 
-        if (!orphaned.isEmpty()) {
-            Category uncategorized = savedByApiId.values().stream()
-                    .filter(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()))
-                    .findFirst()
-                    .orElse(null);
-            if (uncategorized != null && uncategorized.getDbId() != null) {
-                ChannelDb.get().saveAll(orphaned, uncategorized.getDbId(), account);
-            }
-        }
+    private record CategoryFetchResult(Map<String, List<Channel>> channelsByCategory, int totalChannels, int failedCategories) {
+    }
 
-        log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
-        return true;
+    private record ChannelGrouping(Map<String, List<Channel>> matchedByCategory, List<Channel> orphaned) {
     }
 
     private static String describeFailure(Exception e) {

@@ -226,14 +226,11 @@ public class ManageAccountUI extends VBox {
     }
 
     private void verifyMacAddresses() {
-        String macs = macAddressList.getText();
-        if (isBlank(macs)) {
+        List<String> macList = parseMacAddressesForVerification();
+        if (macList.isEmpty()) {
             showErrorAlert(I18n.tr("autoNoMACAddressesToVerify"));
             return;
         }
-
-        List<String> macList = new ArrayList<>(Arrays.stream(macs.replace(SPACE, "").split(",")).toList());
-        if (macList.isEmpty()) return;
 
         ProgressDialog progressDialog = new ProgressDialog((Stage) getScene().getWindow());
         progressDialog.show();
@@ -249,33 +246,14 @@ public class ManageAccountUI extends VBox {
                 Account accountToVerify = service.getById(accountId);
 
                 for (int i = 0; i < total; i++) {
-                    if (isCancelled() || stopRequested.get()) break;
-
+                    if (shouldStopVerification(stopRequested)) break;
                     String mac = macList.get(i);
-                    progressDialog.addProgressText(I18n.tr("manageVerifyingMacProgress", i + 1, total, mac));
-
-                    boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac);
-                    progressDialog.addResult(isValid);
-
-                    if (isValid) {
-                        progressDialog.addProgressText(I18n.tr("manageResultValid"));
-                    } else {
+                    boolean isValid = verifySingleMac(progressDialog, accountToVerify, mac, i, total);
+                    if (!isValid) {
                         invalidMacs.add(mac);
-                        progressDialog.addProgressText(I18n.tr("manageResultInvalid"));
                     }
-
-                    if (isCancelled() || stopRequested.get()) break;
-
                     if (i < total - 1) {
-                        long delayMillis = progressDialog.getSelectedDelayMillis();
-                        int totalSeconds = (int) (delayMillis / 1000);
-
-                        for (int seconds = totalSeconds; seconds > 0; seconds--) {
-                            if (isCancelled() || stopRequested.get()) break;
-                            progressDialog.setPauseStatus(seconds, totalSeconds);
-                            Thread.sleep(1000);
-                        }
-                        progressDialog.setPauseStatus(0, 0);
+                        pauseBetweenMacChecks(progressDialog, stopRequested);
                     }
                 }
                 return invalidMacs;
@@ -302,6 +280,41 @@ public class ManageAccountUI extends VBox {
         });
 
         new Thread(task).start();
+    }
+
+    private List<String> parseMacAddressesForVerification() {
+        String macs = macAddressList.getText();
+        if (isBlank(macs)) {
+            return List.of();
+        }
+        return new ArrayList<>(Arrays.stream(macs.replace(SPACE, "").split(","))
+                .filter(value -> !isBlank(value))
+                .toList());
+    }
+
+    private boolean shouldStopVerification(AtomicBoolean stopRequested) {
+        return Thread.currentThread().isInterrupted() || stopRequested.get();
+    }
+
+    private boolean verifySingleMac(ProgressDialog progressDialog, Account accountToVerify, String mac, int index, int total) {
+        progressDialog.addProgressText(I18n.tr("manageVerifyingMacProgress", index + 1, total, mac));
+        boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac);
+        progressDialog.addResult(isValid);
+        progressDialog.addProgressText(I18n.tr(isValid ? "manageResultValid" : "manageResultInvalid"));
+        return isValid;
+    }
+
+    private void pauseBetweenMacChecks(ProgressDialog progressDialog, AtomicBoolean stopRequested) throws InterruptedException {
+        long delayMillis = progressDialog.getSelectedDelayMillis();
+        int totalSeconds = (int) (delayMillis / 1000);
+        for (int seconds = totalSeconds; seconds > 0; seconds--) {
+            if (shouldStopVerification(stopRequested)) {
+                break;
+            }
+            progressDialog.setPauseStatus(seconds, totalSeconds);
+            Thread.sleep(1000);
+        }
+        progressDialog.setPauseStatus(0, 0);
     }
 
     private void handleVerificationResults(List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {

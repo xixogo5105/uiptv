@@ -50,13 +50,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private void reloadLive(Account account, LoggerCallback logger) {
-        String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
-        List<Category> officialCategories = CategoryService.getInstance().parseCategories(jsonCategories, false)
-                .stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
-                .collect(Collectors.toList());
-        Map<String, Category> officialCategoryMap = officialCategories.stream()
-                .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
+        List<Category> officialCategories = loadOfficialLiveCategories(account);
 
         if (officialCategories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
@@ -64,15 +58,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
         log(logger, "Found Categories " + officialCategories.size());
 
-        String jsonChannels = fetchAllStalkerChannelsJson(account);
-        List<Channel> allChannels = Collections.emptyList();
-        if (isNotBlank(jsonChannels)) {
-            try {
-                allChannels = ChannelService.getInstance().parseItvChannels(jsonChannels, false);
-            } catch (Exception e) {
-                log(logger, "Failed to parse channels from get_all_channels: " + e.getMessage());
-            }
-        }
+        List<Channel> allChannels = parseGlobalLiveChannels(account, logger);
 
         if (allChannels.isEmpty()) {
             log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
@@ -84,47 +70,27 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             log(logger, "Last-resort fetch succeeded. Collected " + allChannels.size() + " channels.");
         }
 
-        List<Channel> orphanedChannels = new ArrayList<>();
-        Map<String, List<Channel>> matchedChannelsByCatId = new HashMap<>();
-        for (Channel channel : allChannels) {
-            if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
-                matchedChannelsByCatId.computeIfAbsent(channel.getCategoryId(), k -> new ArrayList<>()).add(channel);
-            } else {
-                orphanedChannels.add(channel);
-            }
-        }
-        log(logger, "Found Channels " + allChannels.size() + ". Found " + orphanedChannels.size() + " Orphaned channels.");
+        ChannelGrouping grouping = groupChannelsByCategory(allChannels, officialCategories);
+        log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphanedChannels.size() + " Orphaned channels.");
 
         clearCache(account);
 
-        List<Category> categoriesToSave = new ArrayList<>(officialCategories);
-        if (!orphanedChannels.isEmpty()) {
-            boolean uncategorizedExists = officialCategories.stream()
-                    .anyMatch(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()));
-            if (!uncategorizedExists) {
-                categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
-            }
-        }
-
-        CategoryDb.get().saveAll(categoriesToSave, account);
+        CategoryDb.get().saveAll(categoriesWithUncategorizedIfNeeded(officialCategories, grouping.orphanedChannels), account);
         List<Category> savedCategories = CategoryDb.get().getCategories(account);
         Map<String, Category> savedCategoryMap = savedCategories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
 
-        for (Map.Entry<String, List<Channel>> entry : matchedChannelsByCatId.entrySet()) {
+        for (Map.Entry<String, List<Channel>> entry : grouping.matchedChannelsByCatId.entrySet()) {
             Category category = savedCategoryMap.get(entry.getKey());
             if (category != null && category.getDbId() != null) {
                 ChannelDb.get().saveAll(entry.getValue(), category.getDbId(), account);
             }
         }
 
-        if (!orphanedChannels.isEmpty()) {
-            Category uncategorizedCategory = savedCategoryMap.values().stream()
-                    .filter(c -> UNCATEGORIZED_ID.equals(c.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(c.getTitle()))
-                    .findFirst()
-                    .orElse(null);
+        if (!grouping.orphanedChannels.isEmpty()) {
+            Category uncategorizedCategory = findUncategorizedCategory(savedCategoryMap);
             if (uncategorizedCategory != null && uncategorizedCategory.getDbId() != null) {
-                ChannelDb.get().saveAll(orphanedChannels, uncategorizedCategory.getDbId(), account);
+                ChannelDb.get().saveAll(grouping.orphanedChannels, uncategorizedCategory.getDbId(), account);
             }
         }
 
@@ -195,10 +161,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
 
             try {
                 if (page == startPage) {
-                    Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
-                    if (pagination != null) {
-                        maxAdditionalPages = Math.max(pagination.getPageCount() + 1, 2);
-                    }
+                    maxAdditionalPages = resolveMaxAdditionalPages(json, maxAdditionalPages);
                 }
 
                 List<Channel> pageChannels = ChannelService.getInstance().parseItvChannels(json, false);
@@ -212,6 +175,72 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             }
         }
 
+        return dedupeChannels(aggregated);
+    }
+
+    private List<Category> loadOfficialLiveCategories(Account account) {
+        String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
+        return CategoryService.getInstance().parseCategories(jsonCategories, false).stream()
+                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .collect(Collectors.toList());
+    }
+
+    private List<Channel> parseGlobalLiveChannels(Account account, LoggerCallback logger) {
+        String jsonChannels = fetchAllStalkerChannelsJson(account);
+        if (isBlank(jsonChannels)) {
+            return Collections.emptyList();
+        }
+        try {
+            return ChannelService.getInstance().parseItvChannels(jsonChannels, false);
+        } catch (Exception e) {
+            log(logger, "Failed to parse channels from get_all_channels: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private ChannelGrouping groupChannelsByCategory(List<Channel> allChannels, List<Category> officialCategories) {
+        Map<String, Category> officialCategoryMap = officialCategories.stream()
+                .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
+        Map<String, List<Channel>> matchedChannelsByCatId = new HashMap<>();
+        List<Channel> orphanedChannels = new ArrayList<>();
+        for (Channel channel : allChannels) {
+            if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
+                matchedChannelsByCatId.computeIfAbsent(channel.getCategoryId(), k -> new ArrayList<>()).add(channel);
+            } else {
+                orphanedChannels.add(channel);
+            }
+        }
+        return new ChannelGrouping(matchedChannelsByCatId, orphanedChannels);
+    }
+
+    private List<Category> categoriesWithUncategorizedIfNeeded(List<Category> officialCategories, List<Channel> orphanedChannels) {
+        List<Category> categoriesToSave = new ArrayList<>(officialCategories);
+        if (!orphanedChannels.isEmpty() && officialCategories.stream().noneMatch(this::isUncategorizedCategory)) {
+            categoriesToSave.add(new Category(UNCATEGORIZED_ID, UNCATEGORIZED_NAME, null, false, 0));
+        }
+        return categoriesToSave;
+    }
+
+    private boolean isUncategorizedCategory(Category category) {
+        return UNCATEGORIZED_ID.equals(category.getCategoryId()) || UNCATEGORIZED_NAME.equalsIgnoreCase(category.getTitle());
+    }
+
+    private Category findUncategorizedCategory(Map<String, Category> savedCategoryMap) {
+        return savedCategoryMap.values().stream()
+                .filter(this::isUncategorizedCategory)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private int resolveMaxAdditionalPages(String json, int defaultValue) {
+        Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
+        if (pagination == null) {
+            return defaultValue;
+        }
+        return Math.max(pagination.getPageCount() + 1, 2);
+    }
+
+    private List<Channel> dedupeChannels(List<Channel> aggregated) {
         Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
         for (Channel channel : aggregated) {
             if (channel == null || isBlank(channel.getChannelId())) {
@@ -220,5 +249,8 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             uniqueChannels.putIfAbsent(channel.getChannelId(), channel);
         }
         return new ArrayList<>(uniqueChannels.values());
+    }
+
+    private record ChannelGrouping(Map<String, List<Channel>> matchedChannelsByCatId, List<Channel> orphanedChannels) {
     }
 }

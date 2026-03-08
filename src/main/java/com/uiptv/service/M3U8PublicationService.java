@@ -40,35 +40,41 @@ public class M3U8PublicationService {
         if (selectedAccountIds.isEmpty()) {
             return "";
         }
-
         StringBuilder result = new StringBuilder();
         result.append("#EXTM3U").append("\n");
-
         for (String accountId : selectedAccountIds) {
-            Account account = AccountService.getInstance().getById(accountId);
-            if (account != null) {
-                try {
-                    String content = "";
-                    if (account.getType() == AccountType.M3U8_LOCAL) {
-                        content = readFile(account.getM3u8Path());
-                    } else if (account.getType() == AccountType.M3U8_URL) {
-                        content = readUrl(account.getUrl());
-                    }
-                    
-                    String[] lines = content.split("\\r?\\n");
-                    for (String line : lines) {
-                        if (line.trim().startsWith("#EXTM3U")) {
-                            continue;
-                        }
-                        result.append(line).append("\n");
-                    }
-                    
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
+            appendAccountPlaylist(result, AccountService.getInstance().getById(accountId));
         }
         return result.toString();
+    }
+
+    private void appendAccountPlaylist(StringBuilder result, Account account) {
+        if (account == null) {
+            return;
+        }
+        try {
+            appendPlaylistLines(result, readPlaylistContent(account));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String readPlaylistContent(Account account) throws IOException {
+        if (account.getType() == AccountType.M3U8_LOCAL) {
+            return readFile(account.getM3u8Path());
+        }
+        if (account.getType() == AccountType.M3U8_URL) {
+            return readUrl(account.getUrl());
+        }
+        return "";
+    }
+
+    private void appendPlaylistLines(StringBuilder result, String content) {
+        for (String line : content.split("\\r?\\n")) {
+            if (!line.trim().startsWith("#EXTM3U")) {
+                result.append(line).append("\n");
+            }
+        }
     }
 
     private String readFile(String path) throws IOException {

@@ -120,58 +120,75 @@ public class HttpWebChannelJsonServer implements HttpHandler {
     }
 
     private String resolveFullJson(Account account, String categoryId, String movieId) throws IOException {
-        if (account.getAction() == Account.AccountAction.series
+        if (isSeriesEpisodeRequest(account, categoryId, movieId)) {
+            return resolveSeriesEpisodesJson(account, categoryId, movieId);
+        }
+        if (isAllCategoryRequest(categoryId)) {
+            return resolveAllCategoriesJson(account);
+        }
+        return resolveSingleCategoryJson(account, categoryId);
+    }
+
+    private boolean isSeriesEpisodeRequest(Account account, String categoryId, String movieId) {
+        return account.getAction() == Account.AccountAction.series
                 && account.getType() == AccountType.STALKER_PORTAL
                 && isNotBlank(movieId)
-                && !"All".equalsIgnoreCase(categoryId)) {
-            String categoryApiId = resolveCategoryApiId(account, categoryId);
-            List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
-            applySeriesEpisodesWatched(account, categoryApiId, movieId, episodes);
-            return StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(
-                    episodes
-            );
+                && !isAllCategoryRequest(categoryId);
+    }
+
+    private boolean isAllCategoryRequest(String categoryId) {
+        return "All".equalsIgnoreCase(categoryId);
+    }
+
+    private String resolveSeriesEpisodesJson(Account account, String categoryId, String movieId) throws IOException {
+        String categoryApiId = resolveCategoryApiId(account, categoryId);
+        List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
+        applySeriesEpisodesWatched(account, categoryApiId, movieId, episodes);
+        return StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(episodes);
+    }
+
+    private String resolveAllCategoriesJson(Account account) throws IOException {
+        JSONArray allChannels = new JSONArray();
+        List<Category> categories = resolveCategoriesForAccount(account);
+        List<Category> categoriesToRead = resolveCategoriesToRead(categories);
+        for (Category category : categoriesToRead) {
+            appendChannelsJson(allChannels, ChannelService.getInstance().readToJson(category, account));
         }
-        if ("All".equalsIgnoreCase(categoryId)) {
-            JSONArray allChannels = new JSONArray();
-            List<Category> categories = resolveCategoriesForAccount(account);
-            List<Category> nonAllCategories = categories.stream()
-                    .filter(cat -> !"All".equalsIgnoreCase(cat.getTitle()))
-                    .toList();
-            if (nonAllCategories.isEmpty()) {
-                Category allCategory = categories.stream()
-                        .filter(cat -> "All".equalsIgnoreCase(cat.getTitle()))
-                        .findFirst()
-                        .orElse(null);
-                if (allCategory != null) {
-                    String channelsJson = ChannelService.getInstance().readToJson(allCategory, account);
-                    if (channelsJson != null && !channelsJson.isEmpty()) {
-                        JSONArray channelsArray = new JSONArray(channelsJson);
-                        for (int i = 0; i < channelsArray.length(); i++) {
-                            allChannels.put(channelsArray.getJSONObject(i));
-                        }
-                    }
-                }
-            } else {
-                for (Category cat : nonAllCategories) {
-                    String channelsJson = ChannelService.getInstance().readToJson(cat, account);
-                    if (channelsJson == null || channelsJson.isEmpty()) continue;
-                    JSONArray channelsArray = new JSONArray(channelsJson);
-                    for (int i = 0; i < channelsArray.length(); i++) {
-                        allChannels.put(channelsArray.getJSONObject(i));
-                    }
-                }
-            }
-            String result = allChannels.toString();
-            if (account.getAction() == Account.AccountAction.series) {
-                result = enrichSeriesRowsWatchedJson(account, "", result);
-            }
-            return result;
+        String result = allChannels.toString();
+        return account.getAction() == Account.AccountAction.series
+                ? enrichSeriesRowsWatchedJson(account, "", result)
+                : result;
+    }
+
+    private List<Category> resolveCategoriesToRead(List<Category> categories) {
+        List<Category> nonAllCategories = categories.stream()
+                .filter(cat -> !"All".equalsIgnoreCase(cat.getTitle()))
+                .toList();
+        if (!nonAllCategories.isEmpty()) {
+            return nonAllCategories;
         }
+        Category allCategory = categories.stream()
+                .filter(cat -> "All".equalsIgnoreCase(cat.getTitle()))
+                .findFirst()
+                .orElse(null);
+        return allCategory == null ? List.of() : List.of(allCategory);
+    }
+
+    private void appendChannelsJson(JSONArray target, String channelsJson) {
+        if (channelsJson == null || channelsJson.isEmpty()) {
+            return;
+        }
+        JSONArray channelsArray = new JSONArray(channelsJson);
+        for (int i = 0; i < channelsArray.length(); i++) {
+            target.put(channelsArray.getJSONObject(i));
+        }
+    }
+
+    private String resolveSingleCategoryJson(Account account, String categoryId) throws IOException {
         Category category = resolveCategoryByDbId(account, categoryId);
         String result = StringUtils.EMPTY + ChannelService.getInstance().readToJson(category, account);
         if (account.getAction() == Account.AccountAction.series) {
-            String categoryApiId = resolveCategoryApiId(account, categoryId);
-            result = enrichSeriesRowsWatchedJson(account, categoryApiId, result);
+            result = enrichSeriesRowsWatchedJson(account, resolveCategoryApiId(account, categoryId), result);
         }
         return result;
     }

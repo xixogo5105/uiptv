@@ -52,37 +52,66 @@ public class XtremeParser implements AccountParser {
 
     private Account processBlock(List<String> block) {
         String joinedBlock = String.join(" ", block);
-        String url = null, username = null, password = null;
-
-        Matcher mUrl = URL_PATTERN.matcher(joinedBlock);
-        if (mUrl.find()) url = mUrl.group(1);
-        if (url == null) return null;
-
-        Matcher mUser = LABELED_USER.matcher(joinedBlock);
-        if (mUser.find()) username = mUser.group(2);
-        
-        Matcher mPass = LABELED_PASS.matcher(joinedBlock);
-        if (mPass.find()) password = mPass.group(3);
-
-        if (username == null || password == null) {
-            String remaining = joinedBlock.replace(url, "");
-            if (username != null) remaining = remaining.replaceAll("(?i)\\b(user|username|u|name|id)\\b\\s*[:=]?\\s*" + Pattern.quote(username), "");
-            if (password != null) remaining = remaining.replaceAll("(?i)\\b(pass(word)?|p|pw)\\b\\s*[:=]?\\s*" + Pattern.quote(password), "");
-
-            String[] tokens = remaining.trim().split("\\s+");
-            List<String> unlabeled = Arrays.stream(tokens).filter(s -> !s.isEmpty() && s.length() > 1).collect(Collectors.toList());
-
-            if (username == null && !unlabeled.isEmpty()) username = unlabeled.remove(0);
-            if (password == null && !unlabeled.isEmpty()) password = unlabeled.remove(0);
+        String url = extractFirstMatch(URL_PATTERN, joinedBlock, 1);
+        if (url == null) {
+            return null;
         }
-
-        if (url != null && username != null && password != null) {
-            String name = getUniqueNameFromUrl(url);
-            Account account = new Account(name, username, password, url, null, null, null, null, null, null,
-                    AccountType.XTREME_API, null, url, false);
-            AccountService.getInstance().save(account);
-            return account;
+        Credentials credentials = extractCredentials(joinedBlock, url);
+        if (!credentials.isComplete()) {
+            return null;
         }
-        return null;
+        return saveAccount(url, credentials);
+    }
+
+    private Credentials extractCredentials(String joinedBlock, String url) {
+        String username = extractFirstMatch(LABELED_USER, joinedBlock, 2);
+        String password = extractFirstMatch(LABELED_PASS, joinedBlock, 3);
+        if (username != null && password != null) {
+            return new Credentials(username, password);
+        }
+        List<String> unlabeled = extractUnlabeledTokens(joinedBlock, url, username, password);
+        if (username == null && !unlabeled.isEmpty()) {
+            username = unlabeled.remove(0);
+        }
+        if (password == null && !unlabeled.isEmpty()) {
+            password = unlabeled.remove(0);
+        }
+        return new Credentials(username, password);
+    }
+
+    private String extractFirstMatch(Pattern pattern, String text, int group) {
+        Matcher matcher = pattern.matcher(text);
+        return matcher.find() ? matcher.group(group) : null;
+    }
+
+    private List<String> extractUnlabeledTokens(String joinedBlock, String url, String username, String password) {
+        String remaining = joinedBlock.replace(url, "");
+        remaining = stripKnownCredential(remaining, username, "(?i)\\b(user|username|u|name|id)\\b\\s*[:=]?\\s*");
+        remaining = stripKnownCredential(remaining, password, "(?i)\\b(pass(word)?|p|pw)\\b\\s*[:=]?\\s*");
+        String[] tokens = remaining.trim().split("\\s+");
+        return Arrays.stream(tokens)
+                .filter(s -> !s.isEmpty() && s.length() > 1)
+                .collect(Collectors.toList());
+    }
+
+    private String stripKnownCredential(String remaining, String value, String prefixPattern) {
+        if (value == null) {
+            return remaining;
+        }
+        return remaining.replaceAll(prefixPattern + Pattern.quote(value), "");
+    }
+
+    private Account saveAccount(String url, Credentials credentials) {
+        String name = getUniqueNameFromUrl(url);
+        Account account = new Account(name, credentials.username, credentials.password, url, null, null, null, null, null, null,
+                AccountType.XTREME_API, null, url, false);
+        AccountService.getInstance().save(account);
+        return account;
+    }
+
+    private record Credentials(String username, String password) {
+        private boolean isComplete() {
+            return username != null && password != null;
+        }
     }
 }

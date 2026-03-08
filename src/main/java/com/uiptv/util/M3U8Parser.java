@@ -86,26 +86,17 @@ public class M3U8Parser {
             String line;
             while ((line = reader.readLine()) != null) {
                 try {
-                    if (line.startsWith(EXTINF)) {
-                        String groupTitle = parseItem(line, "group-title=\"");
-                        if (isNotBlank(groupTitle) && !groupTitle.equalsIgnoreCase("All")) {
-                            playlistEntries.add(new PlaylistEntry(
-                                    parseItem(line, "tvg-id=\""),
-                                    groupTitle,
-                                    null,
-                                    null,
-                                    null));
-                            if (groupTitle.equalsIgnoreCase(UNCATEGORIZED)) {
-                                hasUncategorizedEntries = true;
-                            }
-                        } else {
-                            // Missing group-title should be represented by Uncategorized if present in the source.
-                            hasUncategorizedEntries = true;
-                        }
-                        String streamLine = reader.readLine();
-                        if (streamLine == null) {
-                            break;
-                        }
+                    if (!line.startsWith(EXTINF)) {
+                        continue;
+                    }
+                    String groupTitle = parseItem(line, "group-title=\"");
+                    hasUncategorizedEntries |= shouldTreatAsUncategorized(groupTitle);
+                    PlaylistEntry categoryEntry = buildCategoryEntry(line, groupTitle);
+                    if (categoryEntry != null) {
+                        playlistEntries.add(categoryEntry);
+                    }
+                    if (reader.readLine() == null) {
+                        break;
                     }
                 } catch (Exception e) {
                     UIptvAlert.showError(e.getMessage());
@@ -141,12 +132,7 @@ public class M3U8Parser {
                 String title = parseTitle(line);
                 String logo = parseItem(line, "tvg-logo=\"");
 
-                String drmType = null;
-                String drmLicenseUrl = null;
-                Map<String, String> clearKeys = null;
-                String inputstreamaddon = null;
-                String manifestType = null;
-                String url = null;
+                EntryState state = new EntryState();
                 for (index = index + 1; index < lines.size(); index++) {
                     String nextLine = lines.get(index);
                     String trimmed = nextLine == null ? EMPTY : nextLine.trim();
@@ -154,47 +140,96 @@ public class M3U8Parser {
                         index--;
                         break;
                     }
-                    if (nextLine.startsWith(EXT_X_KEY)) {
-                        drmType = parseDrmType(nextLine);
-                        drmLicenseUrl = parseItem(nextLine, "URI=\"");
-                    } else if (nextLine.startsWith(KODIPROP_INPUTSTREAM_ADDON)) {
-                        inputstreamaddon = nextLine.substring(KODIPROP_INPUTSTREAM_ADDON.length()).trim();
-                    } else if (nextLine.startsWith(KODIPROP_MANIFEST_TYPE)) {
-                        manifestType = nextLine.substring(KODIPROP_MANIFEST_TYPE.length()).trim();
-                    } else if (nextLine.startsWith(KODIPROP_LICENSE_TYPE)) {
-                        String type = nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim();
-                        if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(type)) {
-                            drmType = DRM_TYPE_WIDEVINE;
-                        } else if ("clearkey".equalsIgnoreCase(type)
-                                || DRM_TYPE_CLEARKEY.equalsIgnoreCase(type)
-                                || "com.clearkey.alpha".equalsIgnoreCase(type)) {
-                            drmType = DRM_TYPE_CLEARKEY;
-                        }
-                    } else if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
-                        String key = nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim();
-                        if (DRM_TYPE_CLEARKEY.equalsIgnoreCase(drmType)) {
-                            if (clearKeys == null) clearKeys = new HashMap<>();
-                            clearKeys.putAll(parseClearKeys(key));
-                        } else {
-                            drmLicenseUrl = key;
-                        }
-                    } else if (isNotBlank(trimmed) && !trimmed.startsWith(COMMENT_PREFIX)) {
-                        String normalizedCandidate = normalizePotentialUrl(trimmed);
-                        if (isLikelyStreamUrl(normalizedCandidate)) {
-                            url = normalizedCandidate;
+                    if (applyMetaLine(state, nextLine, trimmed)) {
+                        if (state.url != null) {
                             break;
                         }
                     }
                 }
 
-                if (isNotBlank(url)) {
-                    playlistEntries.add(new PlaylistEntry(tvgId, groupTitle, title, url, logo, drmType, drmLicenseUrl, clearKeys, inputstreamaddon, manifestType));
+                if (isNotBlank(state.url)) {
+                    playlistEntries.add(new PlaylistEntry(tvgId, groupTitle, title, state.url, logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
                 }
             }
         } catch (IOException e) {
             UIptvAlert.showError(e.getMessage());
         }
         return playlistEntries;
+    }
+
+    private static boolean shouldTreatAsUncategorized(String groupTitle) {
+        return !isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase(UNCATEGORIZED);
+    }
+
+    private static PlaylistEntry buildCategoryEntry(String line, String groupTitle) {
+        if (!isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase("All")) {
+            return null;
+        }
+        return new PlaylistEntry(parseItem(line, "tvg-id=\""), groupTitle, null, null, null);
+    }
+
+    private static boolean applyMetaLine(EntryState state, String nextLine, String trimmed) {
+        if (nextLine.startsWith(EXT_X_KEY)) {
+            state.drmType = parseDrmType(nextLine);
+            state.drmLicenseUrl = parseItem(nextLine, "URI=\"");
+            return false;
+        }
+        if (nextLine.startsWith(KODIPROP_INPUTSTREAM_ADDON)) {
+            state.inputstreamaddon = nextLine.substring(KODIPROP_INPUTSTREAM_ADDON.length()).trim();
+            return false;
+        }
+        if (nextLine.startsWith(KODIPROP_MANIFEST_TYPE)) {
+            state.manifestType = nextLine.substring(KODIPROP_MANIFEST_TYPE.length()).trim();
+            return false;
+        }
+        if (nextLine.startsWith(KODIPROP_LICENSE_TYPE)) {
+            state.drmType = normalizeLicenseType(nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim(), state.drmType);
+            return false;
+        }
+        if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
+            applyLicenseKey(state, nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim());
+            return false;
+        }
+        if (isNotBlank(trimmed) && !trimmed.startsWith(COMMENT_PREFIX)) {
+            String normalizedCandidate = normalizePotentialUrl(trimmed);
+            if (isLikelyStreamUrl(normalizedCandidate)) {
+                state.url = normalizedCandidate;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeLicenseType(String type, String currentType) {
+        if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(type)) {
+            return DRM_TYPE_WIDEVINE;
+        }
+        if ("clearkey".equalsIgnoreCase(type)
+                || DRM_TYPE_CLEARKEY.equalsIgnoreCase(type)
+                || "com.clearkey.alpha".equalsIgnoreCase(type)) {
+            return DRM_TYPE_CLEARKEY;
+        }
+        return currentType;
+    }
+
+    private static void applyLicenseKey(EntryState state, String key) {
+        if (DRM_TYPE_CLEARKEY.equalsIgnoreCase(state.drmType)) {
+            if (state.clearKeys == null) {
+                state.clearKeys = new HashMap<>();
+            }
+            state.clearKeys.putAll(parseClearKeys(key));
+            return;
+        }
+        state.drmLicenseUrl = key;
+    }
+
+    private static final class EntryState {
+        private String drmType;
+        private String drmLicenseUrl;
+        private Map<String, String> clearKeys;
+        private String inputstreamaddon;
+        private String manifestType;
+        private String url;
     }
 
     private static String parseItem(String line, String key) {

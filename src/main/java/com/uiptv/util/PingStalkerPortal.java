@@ -254,46 +254,22 @@ public class PingStalkerPortal {
     // ... [Rest of your existing private methods: prepareServerUrl, getPattern, etc. remain exactly as they were] ...
 
     private static String prepareServerUrl(String jsFileContents, String uri) {
-        // [Existing implementation]
-        String pattern = "this.ajax_loader=";
-        String endsWithString = ";";
         try {
-            String[] functionSplitArray = jsFileContents.split(SPLIT_FUNCTION_SERVER_PARAMS);
-            if (functionSplitArray.length > 1) {
-                String[] patternArray = functionSplitArray[1].split(pattern);
-                while (patternArray.length > 1) {
-                    if (patternArray[0].endsWith("//") || patternArray[0].endsWith("/*") || patternArray[0].endsWith("*")) {
-                        patternArray = patternArray[1].split(pattern);
-                    } else break;
-                }
-                if (patternArray.length > 1 && patternArray[1].contains(endsWithString)) {
-                    String regex = getPattern(jsFileContents).replaceAll("^/+", "").replaceAll("/+$", "");
-                    String protocol = getPortalProtocolParamNumber(jsFileContents, uri);
-                    String ip = getPortalIP(jsFileContents, uri);
-                    String port = getPortalPort(jsFileContents, uri);
-                    String path = getPortalPath(jsFileContents, uri);
-
-                    String result = patternArray[1].substring(0, patternArray[1].indexOf(endsWithString))
-                            .replace("'", "")
-                            .replace("+", "")
-                            .replace(" ", "")
-                            .replace(";", "")
-                            .replace("this.portal_protocol", protocol != null ? uri.replaceFirst(regex, protocol) : "http")
-                            .replace("this.portal_ip", ip != null ? uri.replaceFirst(regex, ip) : "")
-                            .replace("this.portal_port", port != null && !isBlank(port) ? uri.replaceFirst(regex, port) : "")
-                            .replace("this.portal_path", path != null ? uri.replaceFirst(regex, path) : "");
-
-                    if (isNotBlank(result) && !result.contains("://")) {
-                        String baseUrl = ensureAbsoluteUrl(uri);
-                        if (result.startsWith("/")) {
-                            result = baseUrl + result.substring(1);
-                        } else {
-                            result = baseUrl + result;
-                        }
-                    }
-                    return result;
-                }
+            String ajaxLoader = extractActiveAssignment(jsFileContents, "this.ajax_loader=");
+            if (isBlank(ajaxLoader)) {
+                return "";
             }
+            String regex = getPattern(jsFileContents).replaceAll("^/+", "").replaceAll("/+$", "");
+            String result = ajaxLoader
+                    .replace("'", "")
+                    .replace("+", "")
+                    .replace(" ", "")
+                    .replace(";", "")
+                    .replace("this.portal_protocol", resolvePortalValue(jsFileContents, uri, regex, PingStalkerPortal::getPortalProtocolParamNumber, "http"))
+                    .replace("this.portal_ip", resolvePortalValue(jsFileContents, uri, regex, PingStalkerPortal::getPortalIP, ""))
+                    .replace("this.portal_port", resolvePortalPortValue(jsFileContents, uri, regex))
+                    .replace("this.portal_path", resolvePortalValue(jsFileContents, uri, regex, PingStalkerPortal::getPortalPath, ""));
+            return ensureAbsoluteServerUrl(result, uri);
         } catch (Exception _) {
         }
         return "";
@@ -367,7 +343,7 @@ public class PingStalkerPortal {
                 String[] patternArray = functionSplitArray[1].split(pattern);
                 if (patternArray.length > 1 && patternArray[1].contains(endsWithString)) {
                     apiServerURL = patternArray[1].substring(0, patternArray[1].indexOf(endsWithString));
-                    return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
+                    return apiServerURL.replace(DOCUMENT_URL_REPLACE_PREFIX, "").replace("\"", "").replace(")", "");
                 }
             }
         } catch (Exception _) {
@@ -376,22 +352,62 @@ public class PingStalkerPortal {
     }
 
     private static String getPortalPort(String jsFileContents, String url) {
-        // [Existing implementation]
-        String apiServerURL;
-        String pattern = "this.portal_port=";
-        String endsWithString = ";";
-        try {
-            String[] functionSplitArray = jsFileContents.split(SPLIT_FUNCTION_SERVER_PARAMS);
-            if (functionSplitArray.length > 1) {
-                String[] patternArray = functionSplitArray[1].split(pattern);
-                if (patternArray.length > 1 && patternArray[1].contains(endsWithString)) {
-                    apiServerURL = patternArray[1].substring(0, patternArray[1].indexOf(endsWithString));
-                    return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
-                }
-            }
-        } catch (Exception _) {
+        return extractPortalParam(jsFileContents, "this.portal_port=", "document.URL.replace(pattern,");
+    }
+
+    private static String extractActiveAssignment(String jsFileContents, String pattern) {
+        String[] functionSplitArray = jsFileContents.split(SPLIT_FUNCTION_SERVER_PARAMS);
+        if (functionSplitArray.length <= 1) {
+            return "";
         }
-        return null;
+        String[] patternArray = functionSplitArray[1].split(pattern);
+        while (patternArray.length > 1 && isCommentPrefix(patternArray[0])) {
+            patternArray = patternArray[1].split(pattern);
+        }
+        if (patternArray.length > 1 && patternArray[1].contains(";")) {
+            return patternArray[1].substring(0, patternArray[1].indexOf(";"));
+        }
+        return "";
+    }
+
+    private static boolean isCommentPrefix(String value) {
+        return value.endsWith("//") || value.endsWith("/*") || value.endsWith("*");
+    }
+
+    private static String ensureAbsoluteServerUrl(String result, String uri) {
+        if (isBlank(result) || result.contains("://")) {
+            return result;
+        }
+        String baseUrl = ensureAbsoluteUrl(uri);
+        return result.startsWith("/") ? baseUrl + result.substring(1) : baseUrl + result;
+    }
+
+    private static String resolvePortalValue(String jsFileContents, String uri, String regex,
+                                             PortalValueExtractor extractor, String fallback) {
+        String value = extractor.extract(jsFileContents, uri);
+        return value != null ? uri.replaceFirst(regex, value) : fallback;
+    }
+
+    private static String resolvePortalPortValue(String jsFileContents, String uri, String regex) {
+        String port = getPortalPort(jsFileContents, uri);
+        return port != null && !isBlank(port) ? uri.replaceFirst(regex, port) : "";
+    }
+
+    private static String extractPortalParam(String jsFileContents, String pattern, String replacePrefix) {
+        try {
+            String assignment = extractActiveAssignment(jsFileContents, pattern);
+            if (isBlank(assignment)) {
+                return null;
+            }
+            return assignment.replace(replacePrefix, "").replace("\"", "").replace(")", "");
+        } catch (Exception _) {
+            return null;
+        }
+    }
+
+    @FunctionalInterface
+    private interface PortalValueExtractor {
+        String extract(String jsFileContents, String url);
     }
 
     private static String ensureAbsoluteUrl(String url) {
