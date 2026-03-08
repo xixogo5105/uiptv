@@ -71,6 +71,7 @@ import java.util.regex.Pattern;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
+@SuppressWarnings("java:S5843")
 public abstract class BaseWatchingNowUI extends VBox {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
@@ -221,7 +222,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (list.getSeasonInfo() != null && isBlank(list.getSeasonInfo().getName()) && !isBlank(cacheInfo.seriesTitle)) {
             list.getSeasonInfo().setName(cacheInfo.seriesTitle);
         }
-        List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, cacheInfo.seriesTitle, list);
+        List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, list);
         if (episodes.isEmpty()) {
             return null;
         }
@@ -390,7 +391,6 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private List<WatchingEpisode> mapEpisodesFromCache(Account account,
                                                        SeriesWatchState state,
-                                                       String seriesTitle,
                                                        EpisodeList episodeList) {
         List<WatchingEpisode> episodes = new ArrayList<>();
         if (episodeList == null || episodeList.getEpisodes() == null) {
@@ -691,109 +691,6 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         contentBox.getChildren().addAll(topBar, body);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
-    }
-
-    private void configureAccordionFocusMode(Accordion accordion) {
-        if (accordion == null) {
-            return;
-        }
-        List<TitledPane> basePanes = new ArrayList<>(accordion.getPanes());
-        AtomicBoolean focusModeActive = new AtomicBoolean(false);
-        AtomicBoolean internalUpdate = new AtomicBoolean(false);
-        accordion.expandedPaneProperty().addListener((obs, oldPane, newPane) -> {
-            if (internalUpdate.get()) {
-                return;
-            }
-
-            if (newPane != null && !focusModeActive.get()) {
-                focusModeActive.set(true);
-                internalUpdate.set(true);
-                try {
-                    accordion.getPanes().setAll(newPane);
-                    accordion.setExpandedPane(newPane);
-                } finally {
-                    internalUpdate.set(false);
-                }
-                rerenderSeasonTabsForExpandedPane(newPane);
-                Platform.runLater(() -> {
-                    contentBox.requestLayout();
-                    scrollPane.layout();
-                    scrollPane.setVvalue(0.0);
-                });
-                return;
-            }
-
-            if (newPane == null && focusModeActive.get()) {
-                focusModeActive.set(false);
-                internalUpdate.set(true);
-                try {
-                    for (TitledPane pane : basePanes) {
-                        pane.setExpanded(false);
-                    }
-                    accordion.getPanes().setAll(basePanes);
-                    accordion.setExpandedPane(null);
-                } finally {
-                    internalUpdate.set(false);
-                }
-                Platform.runLater(() -> {
-                    contentBox.requestLayout();
-                    scrollPane.layout();
-                });
-            }
-        });
-    }
-
-    private void rerenderSeasonTabsForExpandedPane(TitledPane pane) {
-        if (pane == null) {
-            return;
-        }
-        String key = safe((String) pane.getUserData());
-        SeriesPanelData data = panelDataByKey.get(key);
-        if (data == null || !(pane.getContent() instanceof VBox body)) {
-            return;
-        }
-        String selectedSeason = "";
-        if (data.seasonTabs != null && data.seasonTabs.getSelectionModel() != null && data.seasonTabs.getSelectionModel().getSelectedItem() != null) {
-            selectedSeason = safe(String.valueOf(data.seasonTabs.getSelectionModel().getSelectedItem().getUserData()));
-        }
-        data.seasonCardsBySeason.clear();
-        TabPane refreshed = createSeasonTabs(data);
-        if (!isBlank(selectedSeason)) {
-            for (Tab tab : refreshed.getTabs()) {
-                if (selectedSeason.equals(safe(String.valueOf(tab.getUserData())))) {
-                    refreshed.getSelectionModel().select(tab);
-                    break;
-                }
-            }
-        }
-        if (body.getChildren().size() >= 2) {
-            body.getChildren().set(1, refreshed);
-        } else {
-            body.getChildren().add(refreshed);
-        }
-    }
-
-    private TitledPane createSeriesPane(SeriesPanelData data) {
-        VBox body = new VBox(8);
-        body.setPadding(new Insets(8));
-
-        HBox header = createSeriesHeader(data);
-        TabPane seasonTabs = createSeasonTabs(data);
-        VBox.setVgrow(seasonTabs, Priority.ALWAYS);
-
-        body.getChildren().addAll(header, seasonTabs);
-        TitledPane pane = new TitledPane(buildSeriesPaneTitle(data), body);
-        pane.setAnimated(false);
-        pane.setUserData(seriesPaneKey(data));
-        pane.setExpanded(false);
-        pane.expandedProperty().addListener((obs, oldVal, expanded) -> {
-            if (expanded && !data.imdbLoaded && !data.imdbLoading) {
-                data.imdbLoading = true;
-                applySeasonInfoToHeader(data);
-                lazyLoadImdb(data, pane);
-            }
-        });
-        return pane;
     }
 
     private String seriesPaneKey(SeriesPanelData data) {
@@ -1472,7 +1369,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         new Thread(() -> {
             EpisodeList refreshed = SeriesEpisodeService.getInstance()
                     .reloadEpisodesFromPortal(data.account, data.state.getCategoryId(), data.state.getSeriesId(), () -> false);
-            List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, data.seriesTitle, refreshed);
+            List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, refreshed);
             Platform.runLater(() -> {
                 // Always discard old episodes on reload and rebuild tabs from the latest response.
                 data.episodes.clear();

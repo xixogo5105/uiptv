@@ -135,6 +135,7 @@ public class UiptUtils {
         return sb.toString();
     }
 
+    @SuppressWarnings("java:S1479")
     private static int mapSpecialCodePoint(int c) {
         // Mathematical Bold Capital
         if (c >= 0x1D400 && c <= 0x1D419) return 'A' + (c - 0x1D400);

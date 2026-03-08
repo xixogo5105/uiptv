@@ -184,8 +184,6 @@ public class PingStalkerPortal {
     }
 
     public static String parsePortalApiServer(String jsFileContents, String url) {
-        // [Existing logic remains unchanged]
-        //this.ajax_loader=this.portal_protocol+'://'+this.portal_ip+'/portal.php';
         String portal_api_server = null;
         try {
             String serverUri = prepareServerUrl(jsFileContents, url);

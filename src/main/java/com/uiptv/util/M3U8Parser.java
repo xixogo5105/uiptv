@@ -110,6 +110,7 @@ public class M3U8Parser {
         return playlistEntries;
     }
 
+    @SuppressWarnings("java:S1141")
     private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {

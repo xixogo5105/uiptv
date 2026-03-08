@@ -6,6 +6,10 @@ import java.util.List;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public final class EpisodeTitleFormatter {
+    private static final String GENERIC_EPISODE_SUFFIX = "\\s*[: -]?\\s*$";
+    private static final String ORDINAL_URDU = "(?:pehl[ai]|doosr[ai]|teesr[ai]|chauth[ai]|paanch(?:va|vi|wa|wi)|chh(?:a|i)t[ai]|saat(?:va|vi)|aath(?:va|vi)|nau(?:va|vi)|das(?:va|vi))";
+    private static final String EPISODE_WORD = "(?:qist|kist|episode|ep|kadi)";
+
     private EpisodeTitleFormatter() {
     }
 
@@ -25,11 +29,11 @@ public final class EpisodeTitleFormatter {
         if (isBlank(value)) {
             return true;
         }
-        return value.matches("(?i)^episode\\s*\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^ep\\.?\\s*\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$")
-                || value.matches("(?i)^(pehla|pehli|doosra|doosri|teesra|teesri|chautha|chauthi|paanch(?:va|vi|wa|wi)|chh(?:a|i)ta|chh(?:a|i)ti|saat(?:va|vi)|aath(?:va|vi)|nau(?:va|vi)|das(?:va|vi))\\s+season\\s+(qist|kist|episode|ep|kadi)\\s*\\d+\\s*$")
-                || value.matches("(?i)^season\\s*\\d+\\s+(qist|kist|episode|ep|kadi)\\s*\\d+\\s*$");
+        return value.matches("(?i)^episode\\s*\\d+" + GENERIC_EPISODE_SUFFIX)
+                || value.matches("(?i)^ep\\.?\\s*\\d+" + GENERIC_EPISODE_SUFFIX)
+                || value.matches("(?i)^e\\d+" + GENERIC_EPISODE_SUFFIX)
+                || value.matches("(?i)^" + ORDINAL_URDU + "\\s+season\\s+" + EPISODE_WORD + "\\s*\\d+\\s*$")
+                || value.matches("(?i)^season\\s*\\d+\\s+" + EPISODE_WORD + "\\s*\\d+\\s*$");
     }
 
     static String stripGenericEpisodeTitle(String season, String episodeNumber, String title) {

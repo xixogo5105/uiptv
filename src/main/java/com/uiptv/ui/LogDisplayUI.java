@@ -38,9 +38,7 @@ public class LogDisplayUI extends VBox {
     public LogDisplayUI() {
         setPadding(new Insets(5));
         setSpacing(5);
-        if (logArea == null) {
-            logArea = new TextArea();
-        }
+        ensureLogAreaInitialized();
         logArea.setEditable(false);
         logArea.setWrapText(true);
         logArea.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
@@ -67,6 +65,12 @@ public class LogDisplayUI extends VBox {
 
     public static void addLog(String log) {
         com.uiptv.util.AppLog.addLog(log);
+    }
+
+    private static void ensureLogAreaInitialized() {
+        if (logArea == null) {
+            logArea = new TextArea();
+        }
     }
 
     public static void setLoggingEnabled(boolean enabled) {

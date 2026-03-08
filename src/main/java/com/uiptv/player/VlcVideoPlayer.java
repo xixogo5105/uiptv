@@ -514,22 +514,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-//        if (mediaPlayer == null) {
-//            return Integer.MIN_VALUE;
-//        }
-//        return mediaPlayer.subpictures().track();
-//    }
-//
-//    @Override
-//    protected void selectSubtitleTrack(int trackId) {
-//        if (mediaPlayer != null) {
-//            mediaPlayer.subpictures().setTrack(trackId);
-//            if (mediaPlayer.subpictures().track() != trackId) {
-//                mediaPlayer.submit(() -> mediaPlayer.subpictures().setTrack(trackId));
-//            }
-//        }
-//    }
-
     private String normalizeTrackLabel(String label, String fallbackPrefix) {
         if (label == null || label.trim().isEmpty()) {
             return fallbackPrefix;

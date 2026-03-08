@@ -786,6 +786,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
      * Must be called when the application exits or player is no longer needed.
      * This is separate from stopMedia/disposeMedia to handle complete cleanup.
      */
+    @SuppressWarnings("java:S1141")
     public void disposePlayer() {
         try {
             // First stop any current playback and dispose current media

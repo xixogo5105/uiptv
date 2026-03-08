@@ -25,6 +25,7 @@ public class ContentFilterService {
         return instance;
     }
 
+    @SuppressWarnings("java:S6204")
     public List<Channel> filterChannels(List<Channel> channels) {
         if (channels == null || channels.isEmpty()) {
             return channels;
@@ -50,6 +51,7 @@ public class ContentFilterService {
         return channels.stream().filter(keepChannel).collect(Collectors.toList());
     }
 
+    @SuppressWarnings("java:S6204")
     public List<Category> filterCategories(List<Category> categories) {
         if (categories == null || categories.isEmpty()) {
             return categories;

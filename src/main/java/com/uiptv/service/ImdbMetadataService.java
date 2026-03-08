@@ -1053,7 +1053,10 @@ public class ImdbMetadataService {
     }
 
     private void replaceIfPresent(JSONObject target, JSONObject source, String key) {
-        String value = source.optString(key, "");
+        replaceValue(target, source.optString(key, ""), key);
+    }
+
+    private void replaceValue(JSONObject target, String value, String key) {
         if (isNotBlank(value)) {
             target.put(key, value);
         }

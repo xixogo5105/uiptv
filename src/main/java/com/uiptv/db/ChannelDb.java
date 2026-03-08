@@ -111,6 +111,7 @@ public class ChannelDb extends BaseDb {
         return null;
     }
 
+    @SuppressWarnings("java:S1141")
     public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
         Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
         deleteAll(category.getDbId());

@@ -334,6 +334,7 @@ public class ImageCacheManager {
         }
     }
 
+    @SuppressWarnings("java:S1141")
     private static void trimDiskCacheIfNeeded() {
         if (DISK_CACHE_DIR == null) {
             return;

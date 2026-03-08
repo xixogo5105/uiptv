@@ -425,6 +425,7 @@ public class ChannelService {
         return fallback;
     }
 
+    @SuppressWarnings("java:S107")
     private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage, LoggerCallback logger) {
         List<Channel> channelList = new ArrayList<>();
         ensureStalkerAccountSession(account, logger);

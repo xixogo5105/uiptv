@@ -55,8 +55,9 @@ public class SQLiteTableSync {
                 for (int i = 1; i <= sourceResult.getMetaData().getColumnCount(); i++) {
                     targetStmtPrepared.setObject(i, sourceResult.getObject(i));
                 }
-                targetStmtPrepared.executeUpdate();
+                targetStmtPrepared.addBatch();
             }
+            targetStmtPrepared.executeBatch();
         }
     }
 }

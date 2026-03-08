@@ -523,16 +523,6 @@ public class AccountListUI extends HBox {
         }
     }
 
-    private String resolveDetailTitle(Account.AccountAction action) {
-        if (action == Account.AccountAction.vod) {
-            return I18n.tr("autoVod");
-        }
-        if (action == Account.AccountAction.series) {
-            return I18n.tr("autoSeries");
-        }
-        return I18n.tr("autoTvChannels");
-    }
-
     public class AccountItem {
         private final SimpleStringProperty accountName;
         private final SimpleStringProperty accountId;

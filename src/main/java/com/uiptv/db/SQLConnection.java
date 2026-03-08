@@ -28,6 +28,7 @@ public class SQLConnection {
         init();
     }
 
+    @SuppressWarnings("java:S1141")
     public static synchronized void init() {
         try {
             FileUtils.touch(new File(dbPath));

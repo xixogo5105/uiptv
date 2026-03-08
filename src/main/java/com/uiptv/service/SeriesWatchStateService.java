@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
 
+@SuppressWarnings("java:S5843")
 public class SeriesWatchStateService {
     private static final String FIELD_CATEGORY_ID = "categoryId";
     private static final String SOURCE_MANUAL = "MANUAL";
