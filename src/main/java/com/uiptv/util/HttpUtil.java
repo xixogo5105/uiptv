@@ -163,34 +163,12 @@ public class HttpUtil {
         return headerMap;
     }
 
-    public static final class HttpResult {
-        private final int statusCode;
-        private final String body;
-        private final Map<String, List<String>> requestHeaders;
-        private final Map<String, List<String>> responseHeaders;
-
-        public HttpResult(int statusCode, String body, Map<String, List<String>> requestHeaders, Map<String, List<String>> responseHeaders) {
-            this.statusCode = statusCode;
-            this.body = body;
-            this.requestHeaders = requestHeaders;
-            this.responseHeaders = responseHeaders;
-        }
-
-        public int statusCode() {
-            return statusCode;
-        }
-
-        public String body() {
-            return body;
-        }
-
-        public Map<String, List<String>> requestHeaders() {
-            return requestHeaders;
-        }
-
-        public Map<String, List<String>> responseHeaders() {
-            return responseHeaders;
-        }
+    public record HttpResult(
+            int statusCode,
+            String body,
+            Map<String, List<String>> requestHeaders,
+            Map<String, List<String>> responseHeaders
+    ) {
     }
 
     public static final class RequestOptions {

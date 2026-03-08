@@ -237,7 +237,7 @@ public class CategoryService {
         HandshakeService.getInstance().connect(account);
         if (account.isNotConnected()) {
             log(logger, "Handshake failed.");
-            return null;
+            return List.of();
         }
         log(logger, "Handshake successful. Loading categories...");
         String jsonResponse = FetchAPI.fetch(getCategoryParams(account.getAction()), account);

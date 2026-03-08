@@ -29,18 +29,17 @@ public class LogDisplayUI extends VBox {
     private static boolean forceLoggingEnabled = false;
     private static boolean detached = false;
     private static Stage detachedStage;
-    private static boolean listenerRegistered = false;
     private final VBox contentBox = new VBox(5);
+
+    static {
+        AppLog.registerListener(LogDisplayUI::appendToLogArea);
+    }
 
     public LogDisplayUI() {
         setPadding(new Insets(5));
         setSpacing(5);
         if (logArea == null) {
             logArea = new TextArea();
-        }
-        if (!listenerRegistered) {
-            AppLog.registerListener(LogDisplayUI::appendToLogArea);
-            listenerRegistered = true;
         }
         logArea.setEditable(false);
         logArea.setWrapText(true);

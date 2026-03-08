@@ -732,7 +732,7 @@ public class ChannelService {
         if (hasAbsoluteLogo) {
             return;
         }
-        String resolved = logoResolverService.resolve(channel.getName(), currentLogo, null);
+        String resolved = logoResolverService.resolve(channel.getName(), currentLogo);
         if (isNotBlank(resolved)) {
             channel.setLogo(resolved);
         }

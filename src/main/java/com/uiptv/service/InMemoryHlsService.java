@@ -87,11 +87,9 @@ public class InMemoryHlsService {
             long oldestTime = Long.MAX_VALUE;
 
             for (Map.Entry<String, Long> entry : timestamps.entrySet()) {
-                if (entry.getKey().endsWith(".ts")) {
-                    if (entry.getValue() < oldestTime) {
-                        oldestTime = entry.getValue();
-                        oldestKey = entry.getKey();
-                    }
+                if (entry.getKey().endsWith(".ts") && entry.getValue() < oldestTime) {
+                    oldestTime = entry.getValue();
+                    oldestKey = entry.getKey();
                 }
             }
 

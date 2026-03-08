@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.uiptv.util.FetchAPI.ServerType.PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -27,7 +28,7 @@ public class PingStalkerPortal {
         NETWORK_ERROR
     }
 
-    public static final String SPLIT_FUNCTION_SERVER_PARAMS = "this.get_server_params=function()";
+    public static final String SPLIT_FUNCTION_SERVER_PARAMS = Pattern.quote("this.get_server_params=function()");
 
     // Ordered by commonly seen Stalker/Ministra deployments.
     private static final String[] PROBE_PATHS = {
@@ -357,7 +358,7 @@ public class PingStalkerPortal {
         return null;
     }
 
-    private static String getPortalPort(String jsFileContents, String ignoredUrl) {
+    private static String getPortalPort(String jsFileContents) {
         return extractPortalParam(jsFileContents, "this.portal_port=", DOCUMENT_URL_REPLACE_PREFIX);
     }
 
@@ -395,7 +396,7 @@ public class PingStalkerPortal {
     }
 
     private static String resolvePortalPortValue(String jsFileContents, String uri, String regex) {
-        String port = getPortalPort(jsFileContents, uri);
+        String port = getPortalPort(jsFileContents);
         return port != null && !isBlank(port) ? uri.replaceFirst(regex, port) : "";
     }
 

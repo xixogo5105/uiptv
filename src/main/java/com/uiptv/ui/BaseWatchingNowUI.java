@@ -90,12 +90,9 @@ public abstract class BaseWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private volatile boolean dirty = true;
-    private boolean firstRender = true;
-    private String lastExpandedSeriesKey = "";
     private String selectedSeriesKey = "";
     private String renderedDetailKey = "";
     private HBox selectedSeriesCard;
-    private Accordion seriesAccordion;
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
     private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.imdb.maxEntries", 200);
     private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
@@ -425,7 +422,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             playbackChannel.setSeason(season);
             playbackChannel.setEpisodeNum(episodeNum);
 
-            episodes.add(new WatchingEpisode(account, state, seriesTitle, playbackChannel, season, episodeNum, title, image, plot, releaseDate, rating, watched));
+            episodes.add(new WatchingEpisode(account, state, playbackChannel, season, episodeNum, title, image, plot, releaseDate, rating, watched));
         }
 
         episodes.sort(Comparator
@@ -790,13 +787,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         pane.setUserData(seriesPaneKey(data));
         pane.setExpanded(false);
         pane.expandedProperty().addListener((obs, oldVal, expanded) -> {
-            if (expanded) {
-                lastExpandedSeriesKey = safe((String) pane.getUserData());
-            }
             if (expanded && !data.imdbLoaded && !data.imdbLoading) {
                 data.imdbLoading = true;
                 applySeasonInfoToHeader(data);
-                lazyLoadImdb(data, pane, header, seasonTabs);
+                lazyLoadImdb(data, pane);
             }
         });
         return pane;
@@ -1276,11 +1270,8 @@ public abstract class BaseWatchingNowUI extends VBox {
             int prevSeason = parseNumberOrDefault(previouslyWatched.season, 0);
             int prevEpNum = parseNumberOrDefault(previouslyWatched.episodeNum, 0);
 
-            if (currentSeason < prevSeason) {
-                shouldUpdate = false;
-            } else if (currentSeason == prevSeason && currentEpNum <= prevEpNum) {
-                shouldUpdate = false;
-            }
+            shouldUpdate = currentSeason >= prevSeason
+                    && (currentSeason != prevSeason || currentEpNum > prevEpNum);
         }
 
         if (!shouldUpdate) {
@@ -1319,7 +1310,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
-    private void lazyLoadImdb(SeriesPanelData data, TitledPane pane, HBox ignoredHeader, TabPane ignoredSeasonTabs) {
+    private void lazyLoadImdb(SeriesPanelData data, TitledPane pane) {
         if (!thumbnailsEnabled()) {
             data.imdbLoaded = true;
             data.imdbLoading = false;
@@ -1493,7 +1484,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 data.imdbLoaded = false;
                 data.imdbLoading = true;
                 applySeasonInfoToHeader(data);
-                lazyLoadImdb(data, null, null, data.seasonTabs);
+                lazyLoadImdb(data, null);
                 if (data.reloadEpisodesButton != null) {
                     data.reloadEpisodesButton.setText(I18n.tr("autoReloadFromServer"));
                     data.reloadEpisodesButton.setDisable(false);
@@ -1785,37 +1776,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (selected.seasonTabs != null) {
             refreshSeasonTables(selected);
         }
-    }
-
-    private void rebuildAccordion(List<SeriesPanelData> rows, String expandedKey) {
-        contentBox.getChildren().clear();
-        if (rows.isEmpty()) {
-            contentBox.getChildren().add(new Label(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES)));
-            seriesAccordion = null;
-            lastExpandedSeriesKey = "";
-            return;
-        }
-        Accordion accordion = new Accordion();
-        seriesAccordion = accordion;
-        accordion.setMaxWidth(Double.MAX_VALUE);
-        VBox.setVgrow(accordion, Priority.ALWAYS);
-        panelDataByKey.clear();
-        for (SeriesPanelData data : rows) {
-            String key = seriesPaneKey(data);
-            panelDataByKey.put(key, data);
-            accordion.getPanes().add(createSeriesPane(data));
-        }
-        configureAccordionFocusMode(accordion);
-        if (!isBlank(expandedKey)) {
-            for (TitledPane pane : accordion.getPanes()) {
-                if (expandedKey.equals(safe((String) pane.getUserData()))) {
-                    accordion.setExpandedPane(pane);
-                    break;
-                }
-            }
-        }
-        contentBox.getChildren().add(accordion);
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
     }
 
     private boolean isDisplayable() {
@@ -2225,7 +2185,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         imdbCacheByPanelKey.clear();
         selectedSeriesKey = "";
         renderedDetailKey = "";
-        lastExpandedSeriesKey = "";
         contentBox.getChildren().clear();
     }
 
@@ -2336,7 +2295,6 @@ public abstract class BaseWatchingNowUI extends VBox {
     private static final class WatchingEpisode {
         private final Account account;
         private final SeriesWatchState state;
-        private final String seriesTitle;
         private final Channel channel;
         private final String season;
         private final String episodeNum;
@@ -2350,7 +2308,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         @SuppressWarnings("java:S107")
         private WatchingEpisode(Account account,
                                 SeriesWatchState state,
-                                String seriesTitle,
                                 Channel channel,
                                 String season,
                                 String episodeNum,
@@ -2362,7 +2319,6 @@ public abstract class BaseWatchingNowUI extends VBox {
                                 boolean watched) {
             this.account = account;
             this.state = state;
-            this.seriesTitle = seriesTitle;
             this.channel = channel;
             this.season = season;
             this.episodeNum = episodeNum;

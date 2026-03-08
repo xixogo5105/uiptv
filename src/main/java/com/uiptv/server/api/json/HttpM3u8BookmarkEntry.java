@@ -28,13 +28,13 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
             Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
             if (bookmark != null) {
                 String response = "#EXTM3U\n" +
-                        "#EXTINF:-1 tvg-id=\"" + bookmark.getDbId() + "\" tvg-name=\"" + bookmark.getChannelName() + "\" group-title=\"" + bookmark.getAccountName() + "\"," + bookmark.getChannelName() + "\n" + StringUtils.EMPTY + bookmarkPlayerResponse(ex, bookmark) + "\n";
+                        "#EXTINF:-1 tvg-id=\"" + bookmark.getDbId() + "\" tvg-name=\"" + bookmark.getChannelName() + "\" group-title=\"" + bookmark.getAccountName() + "\"," + bookmark.getChannelName() + "\n" + StringUtils.EMPTY + bookmarkPlayerResponse(bookmark) + "\n";
                 generateTs8Response(ex, response, bookmark.getDbId() + "-" + bookmark.getAccountName() + " - " + bookmark.getChannelName() + ".ts");
             }
         }
     }
 
-    private static String bookmarkPlayerResponse(HttpExchange ignoredEx, Bookmark bookmark) throws IOException {
+    private static String bookmarkPlayerResponse(Bookmark bookmark) throws IOException {
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
         
         String originalCmd = bookmark.getCmd();

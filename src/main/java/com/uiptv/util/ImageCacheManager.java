@@ -172,6 +172,12 @@ public class ImageCacheManager {
                 }
             } catch (HttpStatusException e) {
                 handleImageHttpStatus(candidate, cacheKey, e, candidate.equals(candidates.get(candidates.size() - 1)));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                if (candidate.equals(candidates.get(candidates.size() - 1))) {
+                    NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
+                }
+                return null;
             } catch (Exception _) {
                 // Fall through to the next candidate URL before negative-caching the final failure.
                 if (candidate.equals(candidates.get(candidates.size() - 1))) {

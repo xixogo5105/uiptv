@@ -160,7 +160,7 @@ public class AccountListUI extends HBox {
                 return;
             }
             manageAccountUI.clearAll();
-            showDetailView(manageAccountUI, I18n.tr("autoNewAccount"));
+            showDetailView(manageAccountUI);
         });
     }
 
@@ -215,7 +215,7 @@ public class AccountListUI extends HBox {
         getChildren().setAll(embeddedContainer);
     }
 
-    private void showDetailView(Node content, String ignoredTitle) {
+    private void showDetailView(Node content) {
         if (!embeddedMode) {
             return;
         }
@@ -456,9 +456,9 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode, this::showAccountListView);
+        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
         if (embeddedMode) {
-            showDetailView(categoryListUI, resolveDetailTitle(accountAction));
+            showDetailView(categoryListUI);
         } else {
             showDetailViewNonEmbedded(categoryListUI);
         }
@@ -507,7 +507,7 @@ public class AccountListUI extends HBox {
         }
         if (embeddedMode && manageAccountUI != null) {
             manageAccountUI.editAccount(account);
-            showDetailView(manageAccountUI, I18n.tr("autoEditManageAccount"));
+            showDetailView(manageAccountUI);
             return;
         }
         if (!embeddedMode && manageAccountUI != null) {

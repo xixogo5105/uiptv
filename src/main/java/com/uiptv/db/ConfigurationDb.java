@@ -33,9 +33,10 @@ public class ConfigurationDb extends BaseDb {
     public void clearAllCache() {
         try (Connection conn = connect(); Statement statement = conn.createStatement()) {
             for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                statement.execute(DELETE_FROM + validatedTableName(table));
+                statement.addBatch(DELETE_FROM + validatedTableName(table));
             }
-            statement.execute("UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE) + " SET serverPortalUrl=''");
+            statement.addBatch("UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE) + " SET serverPortalUrl=''");
+            statement.executeBatch();
         } catch (Exception _) {
             // Cache clearing is best-effort; keep app startup resilient if a stale table or DB handle fails here.
         }

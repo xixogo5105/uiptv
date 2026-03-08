@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,7 +89,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
             });
             initThread.start();
 
-            Thread.sleep(600);
+            waitForCondition(2_000, () -> failure.get() != null || !initThread.isAlive());
             st.execute("COMMIT");
         }
         initThread.join();
@@ -245,6 +246,16 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
                         .toList();
                 return lines.size();
             }
+        }
+    }
+
+    private static void waitForCondition(long timeoutMillis, BooleanSupplier condition) {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.onSpinWait();
         }
     }
 }

@@ -94,7 +94,7 @@ public class Channel extends BaseJson {
 
     public Map<String, String> getClearKeys() {
         if (this.clearKeysJson == null || this.clearKeysJson.isEmpty() || "{}".equals(this.clearKeysJson)) {
-            return null;
+            return Map.of();
         }
         Map<String, String> map = new HashMap<>();
         try {
@@ -108,7 +108,7 @@ public class Channel extends BaseJson {
             }
         } catch (Exception e) {
             // Malformed clear-key JSON should behave like missing DRM keys.
-            return null;
+            return Map.of();
         }
         return map;
     }
@@ -126,14 +126,15 @@ public class Channel extends BaseJson {
 
     public int getCompareSeason() {
         try {
-            Integer season = Integer.parseInt(this.getName().split("-")[0]
+            Integer parsedSeason = Integer.parseInt(this.getName().split("-")[0]
                     .toLowerCase()
                     .replace(" ", "")
                     .replace(KEY_SEASON, "")
                     .replace("episode", "")
                     .replace("-", ""));
-            return season;
+            return parsedSeason;
         } catch (Exception _) {
+            // Fall back to zero when the title cannot be parsed into a season number.
         }
         return 0;
     }
@@ -148,6 +149,7 @@ public class Channel extends BaseJson {
                     .replace("-", ""));
             return episode;
         } catch (Exception _) {
+            // Fall back to zero when the title cannot be parsed into an episode number.
         }
         return 0;
     }

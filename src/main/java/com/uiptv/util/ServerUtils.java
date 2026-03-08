@@ -102,7 +102,6 @@ public class ServerUtils {
         if (isNotBlank(fileName) && DOWNLOADABLE.contains(contentType)) {
             httpExchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=" + fileName);
             httpExchange.getResponseHeaders().add("Content-Transfer-Encoding", "binary");
-//            httpExchange.setAttribute("Content-Type", CONTENT_TYPE_M3U8);
         }
         byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
         httpExchange.getResponseHeaders().add("Content-length", Long.toString(responseBytes.length));

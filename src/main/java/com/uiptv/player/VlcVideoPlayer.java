@@ -514,20 +514,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-//    @Override
-//    protected List<TrackOption> getSubtitleTrackOptions() {
-//        List<TrackOption> options = new ArrayList<>();
-//        if (mediaPlayer == null) {
-//            return options;
-//        }
-//        for (TrackDescription track : mediaPlayer.subpictures().trackDescriptions()) {
-//            options.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Subtitle")));
-//        }
-//        return options;
-//    }
-//
-//    @Override
-//    protected int getSelectedSubtitleTrackId() {
 //        if (mediaPlayer == null) {
 //            return Integer.MIN_VALUE;
 //        }

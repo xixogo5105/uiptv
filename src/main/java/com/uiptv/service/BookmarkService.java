@@ -99,7 +99,7 @@ public class BookmarkService {
                 }
                 String logo = resolveBookmarkLogo(bookmark);
                 if (isBlank(logo)) {
-                    logo = logoResolverService.resolve(bookmark.getChannelName(), null, null);
+                    logo = logoResolverService.resolve(bookmark.getChannelName(), null);
                 }
                 bookmark.setLogo(logo);
             } catch (Exception _) {

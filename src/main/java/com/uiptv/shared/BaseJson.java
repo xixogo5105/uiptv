@@ -18,7 +18,9 @@ public class BaseJson implements Serializable, JsonCompliant {
             if (Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers())) {
                 continue;
             }
-            field.setAccessible(true);
+            if (!field.canAccess(this) && !field.trySetAccessible()) {
+                continue;
+            }
             try {
                 Object value = field.get(this);
                 if (field.getType() == boolean.class) {

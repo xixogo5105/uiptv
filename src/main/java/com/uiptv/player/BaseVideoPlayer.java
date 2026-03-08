@@ -132,7 +132,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
     }
 
-    public BaseVideoPlayer() {
+    protected BaseVideoPlayer() {
         loadIcons();
         buildUI();
         setupEventHandlers();
@@ -919,18 +919,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void updateAspectRatioButtonState() {
-        String tooltipText;
-        ImageView icon;
-        if (aspectRatioMode == ASPECT_RATIO_FILL) {
-            tooltipText = "Fill";
-            icon = aspectRatioFillIcon;
-        } else if (aspectRatioMode == ASPECT_RATIO_STRETCH) {
-            tooltipText = "Stretch";
-            icon = aspectRatioStretchIcon;
-        } else {
-            tooltipText = "Fit";
-            icon = aspectRatioIcon;
-        }
+        String tooltipText = switch (aspectRatioMode) {
+            case ASPECT_RATIO_FILL -> "Fill";
+            case ASPECT_RATIO_STRETCH -> "Stretch";
+            default -> "Fit";
+        };
+        ImageView icon = switch (aspectRatioMode) {
+            case ASPECT_RATIO_FILL -> aspectRatioFillIcon;
+            case ASPECT_RATIO_STRETCH -> aspectRatioStretchIcon;
+            default -> aspectRatioIcon;
+        };
         btnAspectRatio.setGraphic(icon);
         if (btnAspectRatio.getTooltip() != null) {
             btnAspectRatio.getTooltip().setText(tooltipText);

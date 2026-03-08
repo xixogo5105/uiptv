@@ -47,7 +47,7 @@ public class LogoResolverService {
         return INSTANCE;
     }
 
-    public String resolve(String channelName, String providerLogo, String ignoredCountryCode) {
+    public String resolve(String channelName, String providerLogo) {
         if (isNotBlank(providerLogo)) {
             return providerLogo;
         }
@@ -187,7 +187,8 @@ public class LogoResolverService {
         List<String> cells = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
-        for (int i = 0; i < line.length(); i++) {
+        int i = 0;
+        while (i < line.length()) {
             char c = line.charAt(i);
             if (c == '"') {
                 if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
@@ -202,6 +203,7 @@ public class LogoResolverService {
             } else {
                 current.append(c);
             }
+            i++;
         }
         cells.add(current.toString());
         return cells;

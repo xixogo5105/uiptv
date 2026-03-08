@@ -314,7 +314,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                         if (image != null) {
                             Platform.runLater(() -> seriesPosterNode.setImage(image));
                         } else {
-                            System.out.println("EpisodesListUI series poster failed: " + finalCover);
+                            com.uiptv.util.AppLog.addLog("EpisodesListUI series poster failed: " + finalCover);
                         }
                     });
         }

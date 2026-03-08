@@ -727,8 +727,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse recentlyDeletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(200, recentlyDeletedSegmentFetch.statusCode());
 
-        Thread.sleep(hlsTsDeleteGraceMillis() + 250);
-
+        waitForCondition(hlsTsDeleteGraceMillis() + 500, () -> get("/hls/segment-1.ts").statusCode() == 404);
         HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(404, deletedSegmentFetch.statusCode());
 
@@ -1166,5 +1165,20 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             out.write(bytes);
         }
         exchange.close();
+    }
+
+    private void waitForCondition(long timeoutMillis, CheckedBooleanSupplier condition) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedBooleanSupplier {
+        boolean getAsBoolean() throws Exception;
     }
 }

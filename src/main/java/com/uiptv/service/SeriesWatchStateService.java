@@ -144,11 +144,13 @@ public class SeriesWatchStateService {
         }
     }
 
-    public void onPlaybackResolved(Account account, Channel channel, String ignoredRequestedSeriesId, String parentSeriesId) {
-        onPlaybackResolved(account, channel, ignoredRequestedSeriesId, parentSeriesId, "");
+    @SuppressWarnings("java:S1172")
+    public void onPlaybackResolved(Account account, Channel channel, String requestedSeriesId, String parentSeriesId) {
+        onPlaybackResolved(account, channel, requestedSeriesId, parentSeriesId, "");
     }
 
-    public void onPlaybackResolved(Account account, Channel channel, String ignoredRequestedSeriesId, String parentSeriesId, String categoryId) {
+    @SuppressWarnings("java:S1172")
+    public void onPlaybackResolved(Account account, Channel channel, String requestedSeriesId, String parentSeriesId, String categoryId) {
         if (account == null || channel == null || account.getAction() != series || isBlank(account.getDbId())) {
             return;
         }

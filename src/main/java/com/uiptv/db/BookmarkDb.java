@@ -252,9 +252,7 @@ public class BookmarkDb extends BaseDb {
             conn.commit();
         } catch (SQLException e) {
             try {
-                if (conn != null) {
-                    conn.rollback();
-                }
+                conn.rollback();
             } catch (SQLException ex) {
                 throw new DatabaseAccessException("Failed to rollback transaction", ex);
             }
@@ -292,9 +290,7 @@ public class BookmarkDb extends BaseDb {
             conn.commit();
         } catch (SQLException e) {
             try {
-                if (conn != null) {
-                    conn.rollback();
-                }
+                conn.rollback();
             } catch (SQLException ex) {
                 throw new DatabaseAccessException("Failed to rollback transaction", ex);
             }

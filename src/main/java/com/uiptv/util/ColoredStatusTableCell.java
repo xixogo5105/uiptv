@@ -15,10 +15,8 @@ public class ColoredStatusTableCell extends TableCell<ChannelListUI.ChannelItem,
 
         TableRow<ChannelListUI.ChannelItem> currentRow = getTableRow();
 
-        if (!isEmpty()) {
-
-            if (getItem().getChannelName().startsWith("**"))
-                currentRow.setStyle("-fx-color:lightgreen");
+        if (!isEmpty() && getItem().getChannelName().startsWith("**")) {
+            currentRow.setStyle("-fx-color:lightgreen");
         }
     }
 }

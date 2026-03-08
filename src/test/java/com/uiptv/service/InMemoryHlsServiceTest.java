@@ -43,11 +43,7 @@ class InMemoryHlsServiceTest {
         // MAX_SEGMENTS is 40; add 45 so oldest 5 are evicted.
         for (int i = 0; i < 45; i++) {
             service.put("segment" + i + ".ts", new byte[]{1});
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException _) {
-                // Ignore jitter in the ordering helper loop for this test.
-            }
+            waitForNextMillisecond();
         }
 
         assertFalse(service.exists("segment0.ts"));
@@ -56,5 +52,12 @@ class InMemoryHlsServiceTest {
         assertTrue(service.exists("segment5.ts"));
         assertTrue(service.exists("segment44.ts"));
         assertTrue(service.exists("segment40.ts"));
+    }
+
+    private void waitForNextMillisecond() {
+        long now = System.currentTimeMillis();
+        while (System.currentTimeMillis() == now) {
+            Thread.onSpinWait();
+        }
     }
 }
