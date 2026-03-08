@@ -17,6 +17,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
@@ -32,6 +33,8 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     @Test
     void accountDb_saveServerPortalUrl_ignoresUnsavedAccounts_andPersistsSavedOnes() {
+        assertNotNull(AccountDb.get());
+        assertNotNull(CategoryDb.get());
         Account unsaved = new Account("account-db-unsaved", "user", "pass", "http://portal.test", null, null, null, null, null, null, AccountType.STALKER_PORTAL, null, null, false);
         unsaved.setServerPortalUrl("http://portal.test/c/");
 
@@ -161,6 +164,61 @@ class DbWrapperCoverageTest extends DbBackedTest {
             patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(false);
             Exception ex = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> applySchema.invoke(null, connection));
             assertTrue(ex.getCause() instanceof IllegalStateException);
+        }
+    }
+
+    @Test
+    void sqlConnection_helpers_detectBusyState_andInterruptedSleep() throws Exception {
+        Method isBusy = SQLConnection.class.getDeclaredMethod("isBusy", SQLException.class);
+        isBusy.setAccessible(true);
+        SQLException busy = new SQLException("SQLITE_BUSY: database is locked", "state", 5);
+        SQLException wrapped = new SQLException("wrapper");
+        wrapped.setNextException(busy);
+        assertTrue((Boolean) isBusy.invoke(null, busy));
+        assertTrue((Boolean) isBusy.invoke(null, wrapped));
+        assertFalse((Boolean) isBusy.invoke(null, new SQLException("other failure", "state", 1)));
+
+        Method sleepBeforeRetry = SQLConnection.class.getDeclaredMethod("sleepBeforeRetry");
+        sleepBeforeRetry.setAccessible(true);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread thread = new Thread(() -> {
+            Thread.currentThread().interrupt();
+            try {
+                sleepBeforeRetry.invoke(null);
+            } catch (Throwable throwable) {
+                failure.set(throwable.getCause());
+            }
+        });
+        thread.start();
+        thread.join();
+        assertTrue(failure.get() instanceof DatabaseAccessException);
+    }
+
+    @Test
+    void databasePatchesUtils_privateHelpers_coverDirectiveParsingAndFallbacks() throws Exception {
+        Method findDirectiveLine = DatabasePatchesUtils.class.getDeclaredMethod("findDirectiveLine", String.class);
+        findDirectiveLine.setAccessible(true);
+        assertEquals("--@add_column Account testColumn TEXT", findDirectiveLine.invoke(null, "-- note\n--@add_column Account testColumn TEXT\nSELECT 1;"));
+        assertNull(findDirectiveLine.invoke(null, "SELECT 1;"));
+
+        Method safeError = DatabasePatchesUtils.class.getDeclaredMethod("safeError", Exception.class);
+        safeError.setAccessible(true);
+        assertEquals("IllegalArgumentException", safeError.invoke(null, new IllegalArgumentException()));
+        assertEquals(1000, safeError.invoke(null, new Exception("x".repeat(1200))).toString().length());
+
+        Method resourceExists = DatabasePatchesUtils.class.getDeclaredMethod("resourceExists", String.class);
+        resourceExists.setAccessible(true);
+        assertFalse((Boolean) resourceExists.invoke(null, "db/migrations/does-not-exist.sql"));
+
+        Method executeDirective = DatabasePatchesUtils.class.getDeclaredMethod("executeDirective", Connection.class, String.class);
+        executeDirective.setAccessible(true);
+        try (Connection conn = SQLConnection.connect(); Statement statement = conn.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS temp_patch_table(id INTEGER PRIMARY KEY)");
+            assertDoesNotThrow(() -> executeDirective.invoke(null, conn, "--@add_column temp_patch_table patchCol TEXT"));
+            assertDoesNotThrow(() -> executeDirective.invoke(null, conn, "--@drop_column temp_patch_table patchCol"));
+            Exception invalid = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
+                    () -> executeDirective.invoke(null, conn, "--@bogus temp_patch_table patchCol"));
+            assertTrue(invalid.getCause() instanceof SQLException);
         }
     }
 

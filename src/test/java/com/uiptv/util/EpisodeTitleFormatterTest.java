@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EpisodeTitleFormatterTest {
     private String originalLanguageTag;
@@ -44,5 +46,20 @@ class EpisodeTitleFormatterTest {
         String displayTitle = EpisodeTitleFormatter.buildEpisodeDisplayTitle("2", "11", "The One with the Lesbian Wedding");
 
         assertEquals("Season 2 - Episode 11: The One with the Lesbian Wedding", displayTitle);
+    }
+
+    @Test
+    void genericEpisodePatternsAndLocalizedLabelsAreCollapsed() {
+        I18n.setLocale("en-US");
+
+        assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("Episode 9"));
+        assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("ep 9"));
+        assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("e9"));
+        assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("Season 2 Episode 9"));
+        assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("Doosra season qist 9"));
+        assertFalse(EpisodeTitleFormatter.isGenericEpisodeTitle("The Finale"));
+
+        assertEquals("Season 2 - Episode 11", EpisodeTitleFormatter.buildEpisodeDisplayTitle("2", "11", "Season 2 - Episode 11"));
+        assertEquals("Season 1 - Episode 5", EpisodeTitleFormatter.buildEpisodeDisplayTitle("", "5", ""));
     }
 }

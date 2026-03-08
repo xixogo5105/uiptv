@@ -99,6 +99,29 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
         assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
     }
 
+    @Test
+    void rssReloader_ignoresPerCategoryFailure_andSavesSuccessfulCategories() {
+        Account account = persistAccount("rss-partial", AccountType.RSS_FEED);
+        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        StubRssCacheReloader reloader = new StubRssCacheReloader();
+        reloader.failOn = "Broken";
+        reloader.channelsByCategory.put("Working", List.of(channel("work-1", "Working One")));
+
+        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+            categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
+            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+                    .thenReturn(List.of(
+                            new Category("1", "Broken", "broken", false, 0),
+                            new Category("2", "Working", "working", false, 0)
+                    ));
+
+            reloader.reloadCache(account, null);
+        }
+
+        assertEquals(2, CategoryDb.get().getCategories(account).size());
+        assertEquals(1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+    }
+
     private Account persistAccount(String name, AccountType accountType) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, accountType, null, "mock-source", false);
         AccountService.getInstance().save(account);
@@ -128,9 +151,13 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
 
     private static final class StubRssCacheReloader extends RssCacheReloader {
         private final java.util.Map<String, List<Channel>> channelsByCategory = new java.util.HashMap<>();
+        private String failOn;
 
         @Override
         protected List<Channel> rssChannels(String category, Account account) {
+            if (category.equals(failOn)) {
+                throw new IllegalStateException("boom");
+            }
             return channelsByCategory.getOrDefault(category, List.of());
         }
     }
