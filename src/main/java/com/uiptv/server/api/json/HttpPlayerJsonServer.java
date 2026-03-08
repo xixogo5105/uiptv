@@ -44,101 +44,9 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String mode = getParam(ex, "mode");
         String seriesParentId = getParam(ex, "seriesParentId");
         String hvec = getParam(ex, "hvec");
-
-        PlayerResponse response;
-
-        if (isNotBlank(bookmarkId)) {
-            Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
-            Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
-            applyMode(account, mode);
-            if (bookmark.getAccountAction() != null) {
-                account.setAction(bookmark.getAccountAction());
-            }
-            
-            Channel channel = null;
-            if (isNotBlank(bookmark.getSeriesJson())) {
-                Episode episode = Episode.fromJson(bookmark.getSeriesJson());
-                if (episode != null) {
-                    channel = new Channel();
-                    channel.setCmd(episode.getCmd());
-                    channel.setName(episode.getTitle());
-                    channel.setChannelId(episode.getId());
-                    if (episode.getInfo() != null) {
-                        channel.setLogo(episode.getInfo().getMovieImage());
-                    }
-                }
-            } else if (isNotBlank(bookmark.getChannelJson())) {
-                channel = Channel.fromJson(bookmark.getChannelJson());
-            } else if (isNotBlank(bookmark.getVodJson())) {
-                channel = Channel.fromJson(bookmark.getVodJson());
-            }
-
-            if (channel == null) { // Fallback for legacy bookmarks
-                channel = new Channel();
-                channel.setCmd(bookmark.getCmd());
-                channel.setChannelId(bookmark.getChannelId());
-                channel.setName(bookmark.getChannelName());
-                channel.setDrmType(bookmark.getDrmType());
-                channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
-                channel.setClearKeysJson(bookmark.getClearKeysJson());
-                channel.setInputstreamaddon(bookmark.getInputstreamaddon());
-                channel.setManifestType(bookmark.getManifestType());
-            }
-            String scopedCategoryId = resolveSeriesCategoryId(account, bookmark.getCategoryId());
-            response = PlayerService.getInstance().get(account, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
-        } else {
-            Account account = AccountService.getInstance().getById(accountId);
-            applyMode(account, mode);
-            Channel channel = ChannelDb.get().getChannelById(channelId, categoryId);
-            String reqName = sanitizeParam(getParam(ex, "name"));
-            String reqLogo = sanitizeParam(getParam(ex, "logo"));
-            String reqCmd = sanitizeParam(getParam(ex, "cmd"));
-            String reqCmd1 = sanitizeParam(getParam(ex, "cmd_1"));
-            String reqCmd2 = sanitizeParam(getParam(ex, "cmd_2"));
-            String reqCmd3 = sanitizeParam(getParam(ex, "cmd_3"));
-            String reqDrmType = sanitizeParam(getParam(ex, "drmType"));
-            String reqDrmLicenseUrl = sanitizeParam(getParam(ex, "drmLicenseUrl"));
-            String reqClearKeys = sanitizeParam(getParam(ex, "clearKeysJson"));
-            String reqInputstreamAddon = sanitizeParam(getParam(ex, "inputstreamaddon"));
-            String reqManifestType = sanitizeParam(getParam(ex, "manifestType"));
-            String reqSeason = sanitizeParam(getParam(ex, "season"));
-            String reqEpisodeNum = sanitizeParam(getParam(ex, "episodeNum"));
-
-            if (channel == null) {
-                channel = new Channel();
-                channel.setChannelId(channelId);
-                channel.setName(reqName);
-                channel.setLogo(reqLogo);
-                channel.setCmd(reqCmd);
-                channel.setCmd_1(reqCmd1);
-                channel.setCmd_2(reqCmd2);
-                channel.setCmd_3(reqCmd3);
-                channel.setDrmType(reqDrmType);
-                channel.setDrmLicenseUrl(reqDrmLicenseUrl);
-                channel.setClearKeysJson(reqClearKeys);
-                channel.setInputstreamaddon(reqInputstreamAddon);
-                channel.setManifestType(reqManifestType);
-                channel.setSeason(reqSeason);
-                channel.setEpisodeNum(reqEpisodeNum);
-            } else {
-                if (isBlank(channel.getName()) && isNotBlank(reqName)) channel.setName(reqName);
-                if (isBlank(channel.getLogo()) && isNotBlank(reqLogo)) channel.setLogo(reqLogo);
-                if (isBlank(channel.getCmd()) && isNotBlank(reqCmd)) channel.setCmd(reqCmd);
-                if (isBlank(channel.getCmd_1()) && isNotBlank(reqCmd1)) channel.setCmd_1(reqCmd1);
-                if (isBlank(channel.getCmd_2()) && isNotBlank(reqCmd2)) channel.setCmd_2(reqCmd2);
-                if (isBlank(channel.getCmd_3()) && isNotBlank(reqCmd3)) channel.setCmd_3(reqCmd3);
-                if (isBlank(channel.getDrmType()) && isNotBlank(reqDrmType)) channel.setDrmType(reqDrmType);
-                if (isBlank(channel.getDrmLicenseUrl()) && isNotBlank(reqDrmLicenseUrl)) channel.setDrmLicenseUrl(reqDrmLicenseUrl);
-                if (isBlank(channel.getClearKeysJson()) && isNotBlank(reqClearKeys)) channel.setClearKeysJson(reqClearKeys);
-                if (isBlank(channel.getInputstreamaddon()) && isNotBlank(reqInputstreamAddon)) channel.setInputstreamaddon(reqInputstreamAddon);
-                if (isBlank(channel.getManifestType()) && isNotBlank(reqManifestType)) channel.setManifestType(reqManifestType);
-                if (isBlank(channel.getSeason()) && isNotBlank(reqSeason)) channel.setSeason(reqSeason);
-                if (isBlank(channel.getEpisodeNum()) && isNotBlank(reqEpisodeNum)) channel.setEpisodeNum(reqEpisodeNum);
-            }
-            String seriesId = getParam(ex, "seriesId");
-            String scopedCategoryId = resolveSeriesCategoryId(account, categoryId);
-            response = PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId);
-        }
+        PlayerResponse response = isNotBlank(bookmarkId)
+                ? resolveBookmarkPlayback(bookmarkId, mode, seriesParentId)
+                : resolveDirectPlayback(ex, accountId, categoryId, channelId, mode, seriesParentId);
 
         String originalUrl = response.getUrl();
         response.setUrl(resolveWebPlaybackRedirects(mode, normalizeWebPlaybackUrl(mode, originalUrl)));
@@ -176,6 +84,120 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
 
         generateJsonResponse(ex, buildJsonResponse(response));
+    }
+
+    private PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
+        Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
+        Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
+        applyMode(account, mode);
+        if (bookmark.getAccountAction() != null) {
+            account.setAction(bookmark.getAccountAction());
+        }
+        Channel channel = resolveBookmarkChannel(bookmark);
+        String scopedCategoryId = resolveSeriesCategoryId(account, bookmark.getCategoryId());
+        return PlayerService.getInstance().get(account, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
+    }
+
+    private Channel resolveBookmarkChannel(Bookmark bookmark) {
+        Channel channel = readBookmarkSnapshot(bookmark);
+        if (channel != null) {
+            return channel;
+        }
+        return createLegacyBookmarkChannel(bookmark);
+    }
+
+    private Channel readBookmarkSnapshot(Bookmark bookmark) {
+        if (isNotBlank(bookmark.getSeriesJson())) {
+            Episode episode = Episode.fromJson(bookmark.getSeriesJson());
+            if (episode != null) {
+                Channel channel = new Channel();
+                channel.setCmd(episode.getCmd());
+                channel.setName(episode.getTitle());
+                channel.setChannelId(episode.getId());
+                if (episode.getInfo() != null) {
+                    channel.setLogo(episode.getInfo().getMovieImage());
+                }
+                return channel;
+            }
+        }
+        if (isNotBlank(bookmark.getChannelJson())) {
+            return Channel.fromJson(bookmark.getChannelJson());
+        }
+        if (isNotBlank(bookmark.getVodJson())) {
+            return Channel.fromJson(bookmark.getVodJson());
+        }
+        return null;
+    }
+
+    private Channel createLegacyBookmarkChannel(Bookmark bookmark) {
+        Channel channel = new Channel();
+        channel.setCmd(bookmark.getCmd());
+        channel.setChannelId(bookmark.getChannelId());
+        channel.setName(bookmark.getChannelName());
+        channel.setDrmType(bookmark.getDrmType());
+        channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
+        channel.setClearKeysJson(bookmark.getClearKeysJson());
+        channel.setInputstreamaddon(bookmark.getInputstreamaddon());
+        channel.setManifestType(bookmark.getManifestType());
+        return channel;
+    }
+
+    private PlayerResponse resolveDirectPlayback(HttpExchange ex, String accountId, String categoryId, String channelId,
+                                                 String mode, String seriesParentId) throws IOException {
+        Account account = AccountService.getInstance().getById(accountId);
+        applyMode(account, mode);
+        Channel channel = mergeRequestChannel(ChannelDb.get().getChannelById(channelId, categoryId), channelId, ex);
+        String seriesId = getParam(ex, "seriesId");
+        String scopedCategoryId = resolveSeriesCategoryId(account, categoryId);
+        return PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId);
+    }
+
+    private Channel mergeRequestChannel(Channel channel, String channelId, HttpExchange ex) {
+        Channel requestChannel = buildRequestChannel(channelId, ex);
+        if (channel == null) {
+            return requestChannel;
+        }
+        fillIfBlank(channel::getName, channel::setName, requestChannel.getName());
+        fillIfBlank(channel::getLogo, channel::setLogo, requestChannel.getLogo());
+        fillIfBlank(channel::getCmd, channel::setCmd, requestChannel.getCmd());
+        fillIfBlank(channel::getCmd_1, channel::setCmd_1, requestChannel.getCmd_1());
+        fillIfBlank(channel::getCmd_2, channel::setCmd_2, requestChannel.getCmd_2());
+        fillIfBlank(channel::getCmd_3, channel::setCmd_3, requestChannel.getCmd_3());
+        fillIfBlank(channel::getDrmType, channel::setDrmType, requestChannel.getDrmType());
+        fillIfBlank(channel::getDrmLicenseUrl, channel::setDrmLicenseUrl, requestChannel.getDrmLicenseUrl());
+        fillIfBlank(channel::getClearKeysJson, channel::setClearKeysJson, requestChannel.getClearKeysJson());
+        fillIfBlank(channel::getInputstreamaddon, channel::setInputstreamaddon, requestChannel.getInputstreamaddon());
+        fillIfBlank(channel::getManifestType, channel::setManifestType, requestChannel.getManifestType());
+        fillIfBlank(channel::getSeason, channel::setSeason, requestChannel.getSeason());
+        fillIfBlank(channel::getEpisodeNum, channel::setEpisodeNum, requestChannel.getEpisodeNum());
+        return channel;
+    }
+
+    private Channel buildRequestChannel(String channelId, HttpExchange ex) {
+        Channel channel = new Channel();
+        channel.setChannelId(channelId);
+        channel.setName(sanitizeParam(getParam(ex, "name")));
+        channel.setLogo(sanitizeParam(getParam(ex, "logo")));
+        channel.setCmd(sanitizeParam(getParam(ex, "cmd")));
+        channel.setCmd_1(sanitizeParam(getParam(ex, "cmd_1")));
+        channel.setCmd_2(sanitizeParam(getParam(ex, "cmd_2")));
+        channel.setCmd_3(sanitizeParam(getParam(ex, "cmd_3")));
+        channel.setDrmType(sanitizeParam(getParam(ex, "drmType")));
+        channel.setDrmLicenseUrl(sanitizeParam(getParam(ex, "drmLicenseUrl")));
+        channel.setClearKeysJson(sanitizeParam(getParam(ex, "clearKeysJson")));
+        channel.setInputstreamaddon(sanitizeParam(getParam(ex, "inputstreamaddon")));
+        channel.setManifestType(sanitizeParam(getParam(ex, "manifestType")));
+        channel.setSeason(sanitizeParam(getParam(ex, "season")));
+        channel.setEpisodeNum(sanitizeParam(getParam(ex, "episodeNum")));
+        return channel;
+    }
+
+    private void fillIfBlank(java.util.function.Supplier<String> getter,
+                             java.util.function.Consumer<String> setter,
+                             String value) {
+        if (isBlank(getter.get()) && isNotBlank(value)) {
+            setter.accept(value);
+        }
     }
 
     private String buildJsonResponse(PlayerResponse response) {

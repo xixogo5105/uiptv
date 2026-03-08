@@ -521,34 +521,10 @@ public class BookmarkChannelListUI extends HBox {
 
     private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, Channel> channelByAccountAndChannel) {
         Account account = accountByName.get(bookmark.getAccountName());
-        String logo = bookmark.getLogo();
-        String drmType = bookmark.getDrmType();
-        String drmLicenseUrl = bookmark.getDrmLicenseUrl();
-        String clearKeysJson = bookmark.getClearKeysJson();
-        String inputstreamaddon = bookmark.getInputstreamaddon();
-        String manifestType = bookmark.getManifestType();
-
-        Channel jsonChannel = resolveBookmarkChannelSnapshot(bookmark);
-        if (jsonChannel != null) {
-            if (isBlank(logo)) logo = jsonChannel.getLogo();
-            if (isBlank(drmType)) drmType = jsonChannel.getDrmType();
-            if (isBlank(drmLicenseUrl)) drmLicenseUrl = jsonChannel.getDrmLicenseUrl();
-            if (isBlank(clearKeysJson)) clearKeysJson = jsonChannel.getClearKeysJson();
-            if (isBlank(inputstreamaddon)) inputstreamaddon = jsonChannel.getInputstreamaddon();
-            if (isBlank(manifestType)) manifestType = jsonChannel.getManifestType();
-        }
-
-        Channel channel = null;
-        if (needsChannelFallback(logo, drmType, drmLicenseUrl, clearKeysJson, inputstreamaddon, manifestType)) {
-            channel = lookupFallbackChannel(account, bookmark.getChannelId(), channelByAccountAndChannel);
-        }
-        if (channel != null) {
-            if (isBlank(logo)) logo = channel.getLogo();
-            if (isBlank(drmType)) drmType = channel.getDrmType();
-            if (isBlank(drmLicenseUrl)) drmLicenseUrl = channel.getDrmLicenseUrl();
-            if (isBlank(clearKeysJson)) clearKeysJson = channel.getClearKeysJson();
-            if (isBlank(inputstreamaddon)) inputstreamaddon = channel.getInputstreamaddon();
-            if (isBlank(manifestType)) manifestType = channel.getManifestType();
+        BookmarkRenderData renderData = BookmarkRenderData.fromBookmark(bookmark);
+        mergeRenderData(renderData, resolveBookmarkChannelSnapshot(bookmark));
+        if (needsChannelFallback(renderData)) {
+            mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), channelByAccountAndChannel));
         }
 
         Account.AccountAction accountAction = bookmark.getAccountAction() != null
@@ -564,13 +540,13 @@ public class BookmarkChannelListUI extends HBox {
                 new SimpleStringProperty(bookmark.getServerPortalUrl()),
                 new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")"),
                 new SimpleStringProperty(bookmark.getCategoryId()),
-                new SimpleStringProperty(logo),
+                new SimpleStringProperty(renderData.logo),
                 accountAction,
-                drmType,
-                drmLicenseUrl,
-                clearKeysJson,
-                inputstreamaddon,
-                manifestType
+                renderData.drmType,
+                renderData.drmLicenseUrl,
+                renderData.clearKeysJson,
+                renderData.inputstreamaddon,
+                renderData.manifestType
         );
     }
 
@@ -601,13 +577,14 @@ public class BookmarkChannelListUI extends HBox {
         return null;
     }
 
-    private boolean needsChannelFallback(String logo, String drmType, String drmLicenseUrl, String clearKeysJson, String inputstreamaddon, String manifestType) {
-        return isBlank(logo)
-                || isBlank(drmType)
-                || isBlank(drmLicenseUrl)
-                || isBlank(clearKeysJson)
-                || isBlank(inputstreamaddon)
-                || isBlank(manifestType);
+    private boolean needsChannelFallback(BookmarkRenderData renderData) {
+        return renderData == null
+                || isBlank(renderData.logo)
+                || isBlank(renderData.drmType)
+                || isBlank(renderData.drmLicenseUrl)
+                || isBlank(renderData.clearKeysJson)
+                || isBlank(renderData.inputstreamaddon)
+                || isBlank(renderData.manifestType);
     }
 
     private Channel lookupFallbackChannel(Account account, String channelId, Map<String, Channel> channelByAccountAndChannel) {
@@ -641,98 +618,151 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void addChannelClickHandler() {
-        bookmarkTable.getTableView().setOnKeyReleased(event -> {
-            if (event.getCode() == KeyCode.DELETE) {
-                handleDeleteMultipleBookmarks();
-            } else if (event.getCode() == KeyCode.ENTER) {
-                if (isPromptShowing) {
-                    event.consume();
-                    isPromptShowing = false;
-                } else {
-                    play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
-                }
-            }
-        });
+        bookmarkTable.getTableView().setOnKeyReleased(this::handleBookmarkTableKeyReleased);
         bookmarkTable.getTableView().setRowFactory(tv -> {
             TableRow<BookmarkItem> row = new TableRow<>();
 
-            row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY) {
-                    if (event.getClickCount() == 2) {
-                        play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
-                    } else if (!event.isControlDown() && !event.isShiftDown()) {
-                        TableView.TableViewSelectionModel<BookmarkItem> sm = bookmarkTable.getTableView().getSelectionModel();
-                        if (sm.isSelected(row.getIndex())) {
-                            if (sm.getSelectedItems().size() > 1) {
-                                sm.clearAndSelect(row.getIndex());
-                            }
-                        } else {
-                            sm.clearAndSelect(row.getIndex());
-                        }
-                    }
-                }
-            });
-
-            row.setOnDragDetected(event -> {
-                if (!row.isEmpty()) {
-                    Integer index = row.getIndex();
-                    Dragboard db = row.startDragAndDrop(TransferMode.MOVE);
-                    db.setDragView(row.snapshot(null, null));
-                    ClipboardContent cc = new ClipboardContent();
-                    cc.put(SERIALIZED_MIME_TYPE, index);
-                    db.setContent(cc);
-                    event.consume();
-                }
-            });
-
-            row.setOnDragOver(event -> {
-                Dragboard db = event.getDragboard();
-                if (db.hasContent(SERIALIZED_MIME_TYPE)) {
-                    if (row.getIndex() != (Integer) db.getContent(SERIALIZED_MIME_TYPE)) {
-                        event.acceptTransferModes(TransferMode.MOVE);
-                        event.consume();
-                    }
-                }
-            });
-
-            row.setOnDragDropped(event -> {
-                Dragboard db = event.getDragboard();
-                if (db.hasContent(SERIALIZED_MIME_TYPE)) {
-                    int draggedIndex = (Integer) db.getContent(SERIALIZED_MIME_TYPE);
-                    if (draggedIndex < 0 || draggedIndex >= bookmarkTable.getTableView().getItems().size()) {
-                        event.setDropCompleted(false);
-                        event.consume();
-                        return;
-                    }
-                    BookmarkItem draggedItem = bookmarkTable.getTableView().getItems().remove(draggedIndex);
-
-                    int dropIndex = row.isEmpty() ? bookmarkTable.getTableView().getItems().size() : row.getIndex();
-                    bookmarkTable.getTableView().getItems().add(dropIndex, draggedItem);
-
-                    event.setDropCompleted(true);
-                    bookmarkTable.getTableView().getSelectionModel().clearSelection();
-
-                    List<String> orderedDbIds = bookmarkTable.getTableView().getItems().stream()
-                            .map(BookmarkItem::getBookmarkId)
-                            .collect(Collectors.toList());
-                    Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
-                    String categoryId = null;
-                    if (selectedTab != null) {
-                        BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
-                        if (category != null) {
-                            categoryId = category.getId();
-                        }
-                    }
-                    applyLocalBookmarkOrder(categoryId, orderedDbIds);
-                    persistBookmarkOrderAsync(buildPersistedBookmarkOrders());
-
-                    event.consume();
-                }
-            });
+            row.setOnMouseClicked(event -> handleRowClick(row, event));
+            row.setOnDragDetected(event -> handleRowDragDetected(row, event));
+            row.setOnDragOver(event -> handleRowDragOver(row, event));
+            row.setOnDragDropped(event -> handleRowDragDropped(row, event));
 
             addRightClickContextMenu(row);
             return row;
         });
+    }
+
+    private void handleBookmarkTableKeyReleased(KeyEvent event) {
+        if (event.getCode() == KeyCode.DELETE) {
+            handleDeleteMultipleBookmarks();
+            return;
+        }
+        if (event.getCode() == KeyCode.ENTER) {
+            if (isPromptShowing) {
+                event.consume();
+                isPromptShowing = false;
+                return;
+            }
+            play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+        }
+    }
+
+    private void handleRowClick(TableRow<BookmarkItem> row, MouseEvent event) {
+        if (row.isEmpty() || event.getButton() != MouseButton.PRIMARY) {
+            return;
+        }
+        if (event.getClickCount() == 2) {
+            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            return;
+        }
+        if (!event.isControlDown() && !event.isShiftDown()) {
+            normalizeRowSelection(row);
+        }
+    }
+
+    private void normalizeRowSelection(TableRow<BookmarkItem> row) {
+        TableView.TableViewSelectionModel<BookmarkItem> selectionModel = bookmarkTable.getTableView().getSelectionModel();
+        if (selectionModel.isSelected(row.getIndex())) {
+            if (selectionModel.getSelectedItems().size() > 1) {
+                selectionModel.clearAndSelect(row.getIndex());
+            }
+            return;
+        }
+        selectionModel.clearAndSelect(row.getIndex());
+    }
+
+    private void handleRowDragDetected(TableRow<BookmarkItem> row, MouseEvent event) {
+        if (row.isEmpty()) {
+            return;
+        }
+        Integer index = row.getIndex();
+        Dragboard db = row.startDragAndDrop(TransferMode.MOVE);
+        db.setDragView(row.snapshot(null, null));
+        ClipboardContent cc = new ClipboardContent();
+        cc.put(SERIALIZED_MIME_TYPE, index);
+        db.setContent(cc);
+        event.consume();
+    }
+
+    private void handleRowDragOver(TableRow<BookmarkItem> row, DragEvent event) {
+        Dragboard db = event.getDragboard();
+        if (db.hasContent(SERIALIZED_MIME_TYPE) && row.getIndex() != (Integer) db.getContent(SERIALIZED_MIME_TYPE)) {
+            event.acceptTransferModes(TransferMode.MOVE);
+            event.consume();
+        }
+    }
+
+    private void handleRowDragDropped(TableRow<BookmarkItem> row, DragEvent event) {
+        Dragboard db = event.getDragboard();
+        if (!db.hasContent(SERIALIZED_MIME_TYPE)) {
+            return;
+        }
+        int draggedIndex = (Integer) db.getContent(SERIALIZED_MIME_TYPE);
+        if (!isValidDraggedIndex(draggedIndex)) {
+            event.setDropCompleted(false);
+            event.consume();
+            return;
+        }
+        BookmarkItem draggedItem = bookmarkTable.getTableView().getItems().remove(draggedIndex);
+        int dropIndex = row.isEmpty() ? bookmarkTable.getTableView().getItems().size() : row.getIndex();
+        bookmarkTable.getTableView().getItems().add(dropIndex, draggedItem);
+        event.setDropCompleted(true);
+        bookmarkTable.getTableView().getSelectionModel().clearSelection();
+        applyDraggedBookmarkOrder();
+        event.consume();
+    }
+
+    private boolean isValidDraggedIndex(int draggedIndex) {
+        return draggedIndex >= 0 && draggedIndex < bookmarkTable.getTableView().getItems().size();
+    }
+
+    private void applyDraggedBookmarkOrder() {
+        List<String> orderedDbIds = bookmarkTable.getTableView().getItems().stream()
+                .map(BookmarkItem::getBookmarkId)
+                .collect(Collectors.toList());
+        applyLocalBookmarkOrder(selectedCategoryId(), orderedDbIds);
+        persistBookmarkOrderAsync(buildPersistedBookmarkOrders());
+    }
+
+    private String selectedCategoryId() {
+        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab == null) {
+            return null;
+        }
+        BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
+        return category != null ? category.getId() : null;
+    }
+
+    private void mergeRenderData(BookmarkRenderData target, Channel channel) {
+        if (target == null || channel == null) {
+            return;
+        }
+        if (isBlank(target.logo)) target.logo = channel.getLogo();
+        if (isBlank(target.drmType)) target.drmType = channel.getDrmType();
+        if (isBlank(target.drmLicenseUrl)) target.drmLicenseUrl = channel.getDrmLicenseUrl();
+        if (isBlank(target.clearKeysJson)) target.clearKeysJson = channel.getClearKeysJson();
+        if (isBlank(target.inputstreamaddon)) target.inputstreamaddon = channel.getInputstreamaddon();
+        if (isBlank(target.manifestType)) target.manifestType = channel.getManifestType();
+    }
+
+    private static class BookmarkRenderData {
+        private String logo;
+        private String drmType;
+        private String drmLicenseUrl;
+        private String clearKeysJson;
+        private String inputstreamaddon;
+        private String manifestType;
+
+        private static BookmarkRenderData fromBookmark(Bookmark bookmark) {
+            BookmarkRenderData data = new BookmarkRenderData();
+            data.logo = bookmark.getLogo();
+            data.drmType = bookmark.getDrmType();
+            data.drmLicenseUrl = bookmark.getDrmLicenseUrl();
+            data.clearKeysJson = bookmark.getClearKeysJson();
+            data.inputstreamaddon = bookmark.getInputstreamaddon();
+            data.manifestType = bookmark.getManifestType();
+            return data;
+        }
     }
 
     private void persistBookmarkOrderAsync(Map<String, Integer> bookmarkOrders) {

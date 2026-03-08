@@ -759,6 +759,26 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.isEmpty()) {
             return "";
         }
+        String translated = compactCategoryLog(account, trimmed);
+        if (translated != null) {
+            return translated;
+        }
+        translated = compactCountLog(account, trimmed);
+        if (translated != null) {
+            return translated;
+        }
+        translated = compactFailureLog(trimmed);
+        if (translated != null) {
+            return translated;
+        }
+        translated = compactGlobalFallbackLog(account, trimmed);
+        if (translated != null) {
+            return translated;
+        }
+        return trimmed;
+    }
+
+    private String compactCategoryLog(Account account, String trimmed) {
         if (trimmed.startsWith("Loaded channels from local cache")) {
             return I18n.tr("reloadLoadedChannelsFromLocalCache");
         }
@@ -800,6 +820,10 @@ public class ReloadCachePopup extends VBox {
                     ? I18n.tr("reloadFetchingCategoriesFromProvider", "Stalker Portal")
                     : I18n.tr("reloadFetchingModeCategoriesFromProvider", mode, "Stalker Portal");
         }
+        return null;
+    }
+
+    private String compactCountLog(Account account, String trimmed) {
         if (trimmed.startsWith("Found Categories")) {
             Integer count = extractFirstNumber(trimmed);
             if (count != null) {
@@ -860,18 +884,10 @@ public class ReloadCachePopup extends VBox {
             }
             return I18n.tr("reloadSavedToCache");
         }
-        if (trimmed.equals("No categories found. Keeping existing cache.")) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadNoCategoriesFoundCacheKept")
-                    : I18n.tr("reloadModeCategoriesNoneFound", mode);
-        }
-        if (trimmed.equals("No channels found in any category. Keeping existing cache.")) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
-                    : I18n.tr("reloadModeChannelsNoneFound", mode);
-        }
+        return null;
+    }
+
+    private String compactFailureLog(String trimmed) {
         if (trimmed.startsWith(LOG_RELOAD_FAILED_PREFIX)) {
             return I18n.tr("reloadFailedReason",
                     shortFailure(trimmed.substring(LOG_RELOAD_FAILED_PREFIX.length()).trim()));
@@ -887,6 +903,25 @@ public class ReloadCachePopup extends VBox {
         }
         if (trimmed.startsWith("Last-resort fetch failed for category")) {
             return I18n.tr("reloadFailedFallbackCategoryFetch");
+        }
+        if (trimmed.equals(LOG_MARKED_BAD_AND_SKIPPED)) {
+            return I18n.tr("reloadMarkedBadMovedNext");
+        }
+        return null;
+    }
+
+    private String compactGlobalFallbackLog(Account account, String trimmed) {
+        if (trimmed.equals("No categories found. Keeping existing cache.")) {
+            String mode = modeLabel(account);
+            return mode == null
+                    ? I18n.tr("reloadNoCategoriesFoundCacheKept")
+                    : I18n.tr("reloadModeCategoriesNoneFound", mode);
+        }
+        if (trimmed.equals("No channels found in any category. Keeping existing cache.")) {
+            String mode = modeLabel(account);
+            return mode == null
+                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
+                    : I18n.tr("reloadModeChannelsNoneFound", mode);
         }
         if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
             return I18n.tr("reloadGlobalLookupFailedUsingCategoryFetch");
@@ -915,10 +950,7 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith(GLOBAL_SERIES_CATEGORY_LIST_FAILED)) {
             return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
         }
-        if (trimmed.equals(LOG_MARKED_BAD_AND_SKIPPED)) {
-            return I18n.tr("reloadMarkedBadMovedNext");
-        }
-        return trimmed;
+        return null;
     }
 
     private String extractGlobalFailureReason(Account account, String message) {
@@ -984,6 +1016,28 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.isEmpty()) {
             return null;
         }
+        String issue = extractCommonIssueReason(trimmed);
+        if (issue != null) {
+            return issue;
+        }
+        issue = extractGlobalIssueReason(trimmed);
+        if (issue != null) {
+            return issue;
+        }
+        if (trimmed.equals("No channels found in any category. Keeping existing cache.")
+                || trimmed.equals("No channels found.")) {
+            String mode = modeLabel(account);
+            return mode == null
+                    ? I18n.tr("reloadNoChannelsFound")
+                    : I18n.tr("reloadModeNoChannelsFound", mode);
+        }
+        if (trimmed.equals("Marked bad and skipped after global call failure.")) {
+            return I18n.tr("reloadMarkedBadByUser");
+        }
+        return null;
+    }
+
+    private String extractCommonIssueReason(String trimmed) {
         if (trimmed.startsWith("Reload failed:")) {
             return I18n.tr("reloadReloadFailed");
         }
@@ -999,6 +1053,10 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith("Last-resort fetch failed for category")) {
             return I18n.tr("reloadFallbackCategoryFetchFailed");
         }
+        return null;
+    }
+
+    private String extractGlobalIssueReason(String trimmed) {
         if (trimmed.startsWith("No channels returned by get_all_channels")
                 || trimmed.startsWith("Global Stalker get_all_channels failed")) {
             return I18n.tr("reloadGlobalLiveTvChannelCallFailed");
@@ -1013,16 +1071,6 @@ public class ReloadCachePopup extends VBox {
         }
         if (trimmed.startsWith("Global SERIES category list failed:")) {
             return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
-        }
-        if (trimmed.equals("No channels found in any category. Keeping existing cache.")
-                || trimmed.equals("No channels found.")) {
-            String mode = modeLabel(account);
-            return mode == null
-                    ? I18n.tr("reloadNoChannelsFound")
-                    : I18n.tr("reloadModeNoChannelsFound", mode);
-        }
-        if (trimmed.equals("Marked bad and skipped after global call failure.")) {
-            return I18n.tr("reloadMarkedBadByUser");
         }
         return null;
     }
