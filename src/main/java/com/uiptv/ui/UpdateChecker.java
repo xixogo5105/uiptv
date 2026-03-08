@@ -35,7 +35,7 @@ public class UpdateChecker {
                     Platform.runLater(() -> UIptvAlert.showMessageAlert(I18n.tr("autoYouAreCurrentlyOnTheLatestVersion")));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                UIptvAlert.showError(I18n.tr("autoUpdateCheckFailed", e.getMessage()), e);
                 Platform.runLater(() -> UIptvAlert.showErrorAlert(I18n.tr("autoUpdateCheckFailed", e.getMessage())));
             }
         }).start();
@@ -62,7 +62,7 @@ public class UpdateChecker {
                 }
             }
         } catch (NumberFormatException e) {
-            e.printStackTrace();
+            UIptvAlert.showError("Failed to compare versions. currentVersion='" + currentVersion + "', latestVersion='" + latestVersion + "'", e);
             return false;
         }
 

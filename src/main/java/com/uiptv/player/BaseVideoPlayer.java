@@ -51,6 +51,8 @@ import java.util.function.IntConsumer;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
 
+import static com.uiptv.widget.UIptvAlert.showError;
+
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
@@ -901,7 +903,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
                     Platform.runLater(() -> play(newResponse, true));
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    showError("Failed to refresh stream for account '" + currentAccount.getAccountName() + "' and channel '" + currentChannel.getName() + "'", e);
                     Platform.runLater(() -> {
                         loadingSpinner.setVisible(false);
                         errorLabel.setText(I18n.tr("autoCouldNotRefreshStream"));

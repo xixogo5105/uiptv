@@ -13,6 +13,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.uiptv.widget.UIptvAlert.showError;
+
 public class M3U8PublicationService {
     private final Set<String> selectedAccountIds = new HashSet<>();
 
@@ -55,7 +57,7 @@ public class M3U8PublicationService {
         try {
             appendPlaylistLines(result, readPlaylistContent(account));
         } catch (Exception e) {
-            e.printStackTrace();
+            showError("Failed to append playlist for account '" + account.getAccountName() + "'", e);
         }
     }
 

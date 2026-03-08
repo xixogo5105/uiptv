@@ -8,6 +8,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
+import static com.uiptv.widget.UIptvAlert.showError;
+
 public class VersionManager {
     private VersionManager() {
     }
@@ -46,7 +48,7 @@ public class VersionManager {
                 return new JSONObject(content.toString());
             }
         } catch (IOException ex) {
-            ex.printStackTrace();
+            showError("Failed to read update metadata from update.json", ex);
             return null;
         }
     }
