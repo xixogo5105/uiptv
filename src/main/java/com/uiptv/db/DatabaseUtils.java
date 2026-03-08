@@ -3,6 +3,29 @@ package com.uiptv.db;
 import java.util.*;
 
 public class DatabaseUtils {
+    private static final String INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY";
+    private static final String INTEGER_TYPE = "INTEGER";
+    private static final String TEXT_NOT_NULL = "TEXT NOT NULL";
+    private static final String COLUMN_ACCOUNT_ID = "accountId";
+    private static final String COLUMN_ACCOUNT_TYPE = "accountType";
+    private static final String COLUMN_ACTIVE_SUB = "activeSub";
+    private static final String COLUMN_ALIAS = "alias";
+    private static final String COLUMN_CACHED_AT = "cachedAt";
+    private static final String COLUMN_CATEGORY_ID = "categoryId";
+    private static final String COLUMN_CHANNEL_ID = "channelId";
+    private static final String COLUMN_CLEAR_KEYS_JSON = "clearKeysJson";
+    private static final String COLUMN_CENSORED = "censored";
+    private static final String COLUMN_CMD_1 = "cmd_1";
+    private static final String COLUMN_CMD_2 = "cmd_2";
+    private static final String COLUMN_CMD_3 = "cmd_3";
+    private static final String COLUMN_DRM_LICENSE_URL = "drmLicenseUrl";
+    private static final String COLUMN_DRM_TYPE = "drmType";
+    private static final String COLUMN_EXTRA_JSON = "extraJson";
+    private static final String COLUMN_INPUTSTREAM_ADDON = "inputstreamaddon";
+    private static final String COLUMN_MANIFEST_TYPE = "manifestType";
+    private static final String COLUMN_NUMBER = "number";
+    private static final String COLUMN_STATUS = "status";
+    private static final String COLUMN_TITLE = "title";
     private static Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();
 
     public enum DbTable {
@@ -46,7 +69,7 @@ public class DatabaseUtils {
 
     static {
         dbStructure.put(DbTable.CONFIGURATION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn("playerPath1", "TEXT"),
                 new DataColumn("playerPath2", "TEXT"),
                 new DataColumn("playerPath3", "TEXT"),
@@ -67,7 +90,7 @@ public class DatabaseUtils {
                 new DataColumn("enableLitePlayerFfmpeg", "TEXT")
         )));
         dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn("lightThemeCssName", "TEXT"),
                 new DataColumn("lightThemeCssContent", "TEXT"),
                 new DataColumn("darkThemeCssName", "TEXT"),
@@ -75,7 +98,7 @@ public class DatabaseUtils {
                 new DataColumn("updatedAt", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn("accountName", "TEXT NOT NULL UNIQUE"),
                 new DataColumn("username", "TEXT"),
                 new DataColumn("password", "TEXT"),
@@ -95,134 +118,134 @@ public class DatabaseUtils {
                 new DataColumn("timezone", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn("accountName", "TEXT"),
                 new DataColumn("categoryTitle", "TEXT"),
-                new DataColumn("channelId", "TEXT"),
+                new DataColumn(COLUMN_CHANNEL_ID, "TEXT"),
                 new DataColumn("channelName", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
-                new DataColumn("categoryId", "TEXT"),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
                 new DataColumn("accountAction", "TEXT"), // Added column
-                new DataColumn("drmType", "TEXT"),
-                new DataColumn("drmLicenseUrl", "TEXT"),
-                new DataColumn("clearKeysJson", "TEXT"),
-                new DataColumn("inputstreamaddon", "TEXT"),
-                new DataColumn("manifestType", "TEXT"),
+                new DataColumn(COLUMN_DRM_TYPE, "TEXT"),
+                new DataColumn(COLUMN_DRM_LICENSE_URL, "TEXT"),
+                new DataColumn(COLUMN_CLEAR_KEYS_JSON, "TEXT"),
+                new DataColumn(COLUMN_INPUTSTREAM_ADDON, "TEXT"),
+                new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT"),
                 new DataColumn("categoryJson", "TEXT"),
                 new DataColumn("channelJson", "TEXT"),
                 new DataColumn("vodJson", "TEXT"),
                 new DataColumn("seriesJson", "TEXT")
         )));
         dbStructure.put(DbTable.CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("categoryId", "TEXT NOT NULL"),
-                new DataColumn("accountId", "TEXT"),
-                new DataColumn("accountType", "TEXT"),
-                new DataColumn("title", "TEXT"),
-                new DataColumn("alias", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_CATEGORY_ID, TEXT_NOT_NULL),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_ACCOUNT_TYPE, "TEXT"),
+                new DataColumn(COLUMN_TITLE, "TEXT"),
+                new DataColumn(COLUMN_ALIAS, "TEXT"),
                 new DataColumn("url", "TEXT"),
-                new DataColumn("activeSub", "INTEGER"),
-                new DataColumn("censored", "INTEGER")
+                new DataColumn(COLUMN_ACTIVE_SUB, INTEGER_TYPE),
+                new DataColumn(COLUMN_CENSORED, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.CHANNEL_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("channelId", "TEXT NOT NULL"),
-                new DataColumn("categoryId", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
                 new DataColumn("name", "TEXT"),
-                new DataColumn("number", "TEXT"),
+                new DataColumn(COLUMN_NUMBER, "TEXT"),
                 new DataColumn("cmd", "TEXT"),
-                new DataColumn("cmd_1", "TEXT"),
-                new DataColumn("cmd_2", "TEXT"),
-                new DataColumn("cmd_3", "TEXT"),
+                new DataColumn(COLUMN_CMD_1, "TEXT"),
+                new DataColumn(COLUMN_CMD_2, "TEXT"),
+                new DataColumn(COLUMN_CMD_3, "TEXT"),
                 new DataColumn("logo", "TEXT"),
-                new DataColumn("censored", "INTEGER"),
-                new DataColumn("status", "INTEGER"),
-                new DataColumn("hd", "INTEGER"),
-                new DataColumn("drmType", "TEXT"),
-                new DataColumn("drmLicenseUrl", "TEXT"),
-                new DataColumn("clearKeysJson", "TEXT"),
-                new DataColumn("inputstreamaddon", "TEXT"),
-                new DataColumn("manifestType", "TEXT")
+                new DataColumn(COLUMN_CENSORED, INTEGER_TYPE),
+                new DataColumn(COLUMN_STATUS, INTEGER_TYPE),
+                new DataColumn("hd", INTEGER_TYPE),
+                new DataColumn(COLUMN_DRM_TYPE, "TEXT"),
+                new DataColumn(COLUMN_DRM_LICENSE_URL, "TEXT"),
+                new DataColumn(COLUMN_CLEAR_KEYS_JSON, "TEXT"),
+                new DataColumn(COLUMN_INPUTSTREAM_ADDON, "TEXT"),
+                new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT")
         )));
         dbStructure.put(DbTable.VOD_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("categoryId", "TEXT NOT NULL"),
-                new DataColumn("accountId", "TEXT"),
-                new DataColumn("accountType", "TEXT"),
-                new DataColumn("title", "TEXT"),
-                new DataColumn("alias", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_CATEGORY_ID, TEXT_NOT_NULL),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_ACCOUNT_TYPE, "TEXT"),
+                new DataColumn(COLUMN_TITLE, "TEXT"),
+                new DataColumn(COLUMN_ALIAS, "TEXT"),
                 new DataColumn("url", "TEXT"),
-                new DataColumn("activeSub", "INTEGER"),
-                new DataColumn("censored", "INTEGER"),
-                new DataColumn("extraJson", "TEXT"),
-                new DataColumn("cachedAt", "INTEGER")
+                new DataColumn(COLUMN_ACTIVE_SUB, INTEGER_TYPE),
+                new DataColumn(COLUMN_CENSORED, INTEGER_TYPE),
+                new DataColumn(COLUMN_EXTRA_JSON, "TEXT"),
+                new DataColumn(COLUMN_CACHED_AT, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.VOD_CHANNEL_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("channelId", "TEXT NOT NULL"),
-                new DataColumn("categoryId", "TEXT"),
-                new DataColumn("accountId", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn("name", "TEXT"),
-                new DataColumn("number", "TEXT"),
+                new DataColumn(COLUMN_NUMBER, "TEXT"),
                 new DataColumn("cmd", "TEXT"),
-                new DataColumn("cmd_1", "TEXT"),
-                new DataColumn("cmd_2", "TEXT"),
-                new DataColumn("cmd_3", "TEXT"),
+                new DataColumn(COLUMN_CMD_1, "TEXT"),
+                new DataColumn(COLUMN_CMD_2, "TEXT"),
+                new DataColumn(COLUMN_CMD_3, "TEXT"),
                 new DataColumn("logo", "TEXT"),
-                new DataColumn("censored", "INTEGER"),
-                new DataColumn("status", "INTEGER"),
-                new DataColumn("hd", "INTEGER"),
-                new DataColumn("drmType", "TEXT"),
-                new DataColumn("drmLicenseUrl", "TEXT"),
-                new DataColumn("clearKeysJson", "TEXT"),
-                new DataColumn("inputstreamaddon", "TEXT"),
-                new DataColumn("manifestType", "TEXT"),
-                new DataColumn("extraJson", "TEXT"),
-                new DataColumn("cachedAt", "INTEGER")
+                new DataColumn(COLUMN_CENSORED, INTEGER_TYPE),
+                new DataColumn(COLUMN_STATUS, INTEGER_TYPE),
+                new DataColumn("hd", INTEGER_TYPE),
+                new DataColumn(COLUMN_DRM_TYPE, "TEXT"),
+                new DataColumn(COLUMN_DRM_LICENSE_URL, "TEXT"),
+                new DataColumn(COLUMN_CLEAR_KEYS_JSON, "TEXT"),
+                new DataColumn(COLUMN_INPUTSTREAM_ADDON, "TEXT"),
+                new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT"),
+                new DataColumn(COLUMN_EXTRA_JSON, "TEXT"),
+                new DataColumn(COLUMN_CACHED_AT, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.SERIES_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("categoryId", "TEXT NOT NULL"),
-                new DataColumn("accountId", "TEXT"),
-                new DataColumn("accountType", "TEXT"),
-                new DataColumn("title", "TEXT"),
-                new DataColumn("alias", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_CATEGORY_ID, TEXT_NOT_NULL),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_ACCOUNT_TYPE, "TEXT"),
+                new DataColumn(COLUMN_TITLE, "TEXT"),
+                new DataColumn(COLUMN_ALIAS, "TEXT"),
                 new DataColumn("url", "TEXT"),
-                new DataColumn("activeSub", "INTEGER"),
-                new DataColumn("censored", "INTEGER"),
-                new DataColumn("extraJson", "TEXT"),
-                new DataColumn("cachedAt", "INTEGER")
+                new DataColumn(COLUMN_ACTIVE_SUB, INTEGER_TYPE),
+                new DataColumn(COLUMN_CENSORED, INTEGER_TYPE),
+                new DataColumn(COLUMN_EXTRA_JSON, "TEXT"),
+                new DataColumn(COLUMN_CACHED_AT, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.SERIES_CHANNEL_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("channelId", "TEXT NOT NULL"),
-                new DataColumn("categoryId", "TEXT"),
-                new DataColumn("accountId", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn("name", "TEXT"),
-                new DataColumn("number", "TEXT"),
+                new DataColumn(COLUMN_NUMBER, "TEXT"),
                 new DataColumn("cmd", "TEXT"),
-                new DataColumn("cmd_1", "TEXT"),
-                new DataColumn("cmd_2", "TEXT"),
-                new DataColumn("cmd_3", "TEXT"),
+                new DataColumn(COLUMN_CMD_1, "TEXT"),
+                new DataColumn(COLUMN_CMD_2, "TEXT"),
+                new DataColumn(COLUMN_CMD_3, "TEXT"),
                 new DataColumn("logo", "TEXT"),
-                new DataColumn("censored", "INTEGER"),
-                new DataColumn("status", "INTEGER"),
-                new DataColumn("hd", "INTEGER"),
-                new DataColumn("drmType", "TEXT"),
-                new DataColumn("drmLicenseUrl", "TEXT"),
-                new DataColumn("clearKeysJson", "TEXT"),
-                new DataColumn("inputstreamaddon", "TEXT"),
-                new DataColumn("manifestType", "TEXT"),
-                new DataColumn("extraJson", "TEXT"),
-                new DataColumn("cachedAt", "INTEGER")
+                new DataColumn(COLUMN_CENSORED, INTEGER_TYPE),
+                new DataColumn(COLUMN_STATUS, INTEGER_TYPE),
+                new DataColumn("hd", INTEGER_TYPE),
+                new DataColumn(COLUMN_DRM_TYPE, "TEXT"),
+                new DataColumn(COLUMN_DRM_LICENSE_URL, "TEXT"),
+                new DataColumn(COLUMN_CLEAR_KEYS_JSON, "TEXT"),
+                new DataColumn(COLUMN_INPUTSTREAM_ADDON, "TEXT"),
+                new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT"),
+                new DataColumn(COLUMN_EXTRA_JSON, "TEXT"),
+                new DataColumn(COLUMN_CACHED_AT, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.SERIES_EPISODE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("accountId", "TEXT"),
-                new DataColumn("categoryId", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
                 new DataColumn("seriesId", "TEXT"),
-                new DataColumn("channelId", "TEXT NOT NULL"),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
                 new DataColumn("name", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
                 new DataColumn("logo", "TEXT"),
@@ -232,34 +255,34 @@ public class DatabaseUtils {
                 new DataColumn("releaseDate", "TEXT"),
                 new DataColumn("rating", "TEXT"),
                 new DataColumn("duration", "TEXT"),
-                new DataColumn("extraJson", "TEXT"),
-                new DataColumn("cachedAt", "INTEGER")
+                new DataColumn(COLUMN_EXTRA_JSON, "TEXT"),
+                new DataColumn(COLUMN_CACHED_AT, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.SERIES_WATCH_STATE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("accountId", "TEXT"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn("mode", "TEXT"),
-                new DataColumn("categoryId", "TEXT"),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
                 new DataColumn("seriesId", "TEXT"),
                 new DataColumn("episodeId", "TEXT"),
                 new DataColumn("episodeName", "TEXT"),
                 new DataColumn("season", "TEXT"),
-                new DataColumn("episodeNum", "INTEGER"),
-                new DataColumn("updatedAt", "INTEGER"),
+                new DataColumn("episodeNum", INTEGER_TYPE),
+                new DataColumn("updatedAt", INTEGER_TYPE),
                 new DataColumn("source", "TEXT"),
                 new DataColumn("seriesCategorySnapshot", "TEXT"),
                 new DataColumn("seriesChannelSnapshot", "TEXT"),
                 new DataColumn("seriesEpisodeSnapshot", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("name", "TEXT NOT NULL")
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn("name", TEXT_NOT_NULL)
         )));
         dbStructure.put(DbTable.BOOKMARK_ORDER_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", "INTEGER PRIMARY KEY"),
-                new DataColumn("bookmark_db_id", "TEXT NOT NULL"),
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn("bookmark_db_id", TEXT_NOT_NULL),
                 new DataColumn("category_id", "TEXT"), // Can be null for "All"
-                new DataColumn("display_order", "INTEGER")
+                new DataColumn("display_order", INTEGER_TYPE)
         )));
     }
 

@@ -14,6 +14,7 @@ import static com.uiptv.db.DatabaseUtils.updateTableSql;
 import static com.uiptv.db.SQLConnection.connect;
 
 public class ConfigurationDb extends BaseDb {
+    private static final String DELETE_FROM = "DELETE FROM ";
     private static ConfigurationDb instance;
 
 
@@ -31,7 +32,7 @@ public class ConfigurationDb extends BaseDb {
     public void clearAllCache() {
         try (Connection conn = connect(); Statement statement = conn.createStatement()) {
             for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                statement.execute("DELETE FROM " + table.getTableName());
+                statement.execute(DELETE_FROM + table.getTableName());
             }
             statement.execute("UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl=''");
         } catch (Exception _) {

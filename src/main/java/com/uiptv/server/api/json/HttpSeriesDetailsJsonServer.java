@@ -28,11 +28,20 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpSeriesDetailsJsonServer implements HttpHandler {
+    private static final String KEY_COVER = "cover";
+    private static final String KEY_DIRECTOR = "director";
+    private static final String KEY_EPISODES = "episodes";
+    private static final String KEY_EPISODES_META = "episodesMeta";
+    private static final String KEY_GENRE = "genre";
+    private static final String KEY_IMDB_URL = "imdbUrl";
+    private static final String KEY_RATING = "rating";
+    private static final String KEY_RELEASE_DATE = "releaseDate";
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
         if (account == null) {
-            generateJsonResponse(ex, "{\"seasonInfo\":{},\"episodes\":[]}");
+            generateJsonResponse(ex, "{\"seasonInfo\":{},\"" + KEY_EPISODES + "\":[]}");
             return;
         }
         if (account.isNotConnected()) {
@@ -44,30 +53,30 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         String seriesName = getParam(ex, "seriesName");
         JSONObject response = new JSONObject();
         response.put("seasonInfo", new JSONObject());
-        response.put("episodes", new JSONArray());
-        response.put("episodesMeta", new JSONArray());
+        response.put(KEY_EPISODES, new JSONArray());
+        response.put(KEY_EPISODES_META, new JSONArray());
         if (!isBlank(seriesId)) {
             List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
             if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
-                response.put("episodes", new JSONArray(com.uiptv.util.ServerUtils.objectToJson(cached)));
+                response.put(KEY_EPISODES, new JSONArray(com.uiptv.util.ServerUtils.objectToJson(cached)));
             }
         }
 
         JSONObject seasonInfo = new JSONObject();
-        List<String> fuzzyHints = buildFuzzyHints(seriesName, seasonInfo, response.optJSONArray("episodes"));
+        List<String> fuzzyHints = buildFuzzyHints(seriesName, seasonInfo, response.optJSONArray(KEY_EPISODES));
         JSONObject imdbFirst = ImdbMetadataService.getInstance().findBestEffortDetails(seriesName, "", fuzzyHints);
         copyIfPresent(seasonInfo, imdbFirst, "name");
-        copyIfPresent(seasonInfo, imdbFirst, "cover");
+        copyIfPresent(seasonInfo, imdbFirst, KEY_COVER);
         copyIfPresent(seasonInfo, imdbFirst, "plot");
         copyIfPresent(seasonInfo, imdbFirst, "cast");
-        copyIfPresent(seasonInfo, imdbFirst, "director");
-        copyIfPresent(seasonInfo, imdbFirst, "genre");
-        copyIfPresent(seasonInfo, imdbFirst, "releaseDate");
-        copyIfPresent(seasonInfo, imdbFirst, "rating");
+        copyIfPresent(seasonInfo, imdbFirst, KEY_DIRECTOR);
+        copyIfPresent(seasonInfo, imdbFirst, KEY_GENRE);
+        copyIfPresent(seasonInfo, imdbFirst, KEY_RELEASE_DATE);
+        copyIfPresent(seasonInfo, imdbFirst, KEY_RATING);
         copyIfPresent(seasonInfo, imdbFirst, "tmdb");
-        copyIfPresent(seasonInfo, imdbFirst, "imdbUrl");
-        if (imdbFirst.optJSONArray("episodesMeta") != null) {
-            response.put("episodesMeta", imdbFirst.optJSONArray("episodesMeta"));
+        copyIfPresent(seasonInfo, imdbFirst, KEY_IMDB_URL);
+        if (imdbFirst.optJSONArray(KEY_EPISODES_META) != null) {
+            response.put(KEY_EPISODES_META, imdbFirst.optJSONArray(KEY_EPISODES_META));
         }
 
         if (account.getType() == AccountType.XTREME_API && !isBlank(seriesId)) {
@@ -78,17 +87,17 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
                     JSONObject provider = new JSONObject(info.toJson());
                     // Fill missing fields only; IMDb remains preferred when available.
                     mergeMissing(seasonInfo, provider, "name");
-                    mergeMissing(seasonInfo, provider, "cover");
+                    mergeMissing(seasonInfo, provider, KEY_COVER);
                     mergeMissing(seasonInfo, provider, "plot");
                     mergeMissing(seasonInfo, provider, "cast");
-                    mergeMissing(seasonInfo, provider, "director");
-                    mergeMissing(seasonInfo, provider, "genre");
-                    mergeMissing(seasonInfo, provider, "releaseDate");
-                    mergeMissing(seasonInfo, provider, "rating");
+                    mergeMissing(seasonInfo, provider, KEY_DIRECTOR);
+                    mergeMissing(seasonInfo, provider, KEY_GENRE);
+                    mergeMissing(seasonInfo, provider, KEY_RELEASE_DATE);
+                    mergeMissing(seasonInfo, provider, KEY_RATING);
                     mergeMissing(seasonInfo, provider, "tmdb");
                 }
 
-                Map<String, JSONObject> episodesMeta = indexEpisodesMeta(imdbFirst.optJSONArray("episodesMeta"));
+                Map<String, JSONObject> episodesMeta = indexEpisodesMeta(imdbFirst.optJSONArray(KEY_EPISODES_META));
                 JSONArray episodesJson = new JSONArray();
                 if (details.getEpisodes() != null) {
                     for (Episode episode : details.getEpisodes()) {
@@ -116,7 +125,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
                         episodesJson.put(new JSONObject(channel.toJson()));
                     }
                 }
-                response.put("episodes", episodesJson);
+                response.put(KEY_EPISODES, episodesJson);
                 if (episodesJson.length() > 0) {
                     SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, toChannels(episodesJson));
                 }
@@ -124,7 +133,7 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         }
 
         // Refine with provider fields + episode-derived hints to recover from wrong/missing portal IDs.
-        fuzzyHints = buildFuzzyHints(firstNonBlank(seasonInfo.optString("name", ""), seriesName), seasonInfo, response.optJSONArray("episodes"));
+        fuzzyHints = buildFuzzyHints(firstNonBlank(seasonInfo.optString("name", ""), seriesName), seasonInfo, response.optJSONArray(KEY_EPISODES));
         JSONObject imdbFallback = ImdbMetadataService.getInstance()
                 .findBestEffortDetails(
                         firstNonBlank(seasonInfo.optString("name", ""), seriesName),
@@ -132,18 +141,18 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
                         fuzzyHints
                 );
         mergeMissing(seasonInfo, imdbFallback, "name");
-        mergeMissing(seasonInfo, imdbFallback, "cover");
+        mergeMissing(seasonInfo, imdbFallback, KEY_COVER);
         mergeMissing(seasonInfo, imdbFallback, "plot");
         mergeMissing(seasonInfo, imdbFallback, "cast");
-        mergeMissing(seasonInfo, imdbFallback, "director");
-        mergeMissing(seasonInfo, imdbFallback, "genre");
-        mergeMissing(seasonInfo, imdbFallback, "releaseDate");
-        mergeMissing(seasonInfo, imdbFallback, "rating");
+        mergeMissing(seasonInfo, imdbFallback, KEY_DIRECTOR);
+        mergeMissing(seasonInfo, imdbFallback, KEY_GENRE);
+        mergeMissing(seasonInfo, imdbFallback, KEY_RELEASE_DATE);
+        mergeMissing(seasonInfo, imdbFallback, KEY_RATING);
         mergeMissing(seasonInfo, imdbFallback, "tmdb");
-        mergeMissing(seasonInfo, imdbFallback, "imdbUrl");
-        if ((response.optJSONArray("episodesMeta") == null || response.optJSONArray("episodesMeta").isEmpty())
-                && imdbFallback.optJSONArray("episodesMeta") != null) {
-            response.put("episodesMeta", imdbFallback.optJSONArray("episodesMeta"));
+        mergeMissing(seasonInfo, imdbFallback, KEY_IMDB_URL);
+        if ((response.optJSONArray(KEY_EPISODES_META) == null || response.optJSONArray(KEY_EPISODES_META).isEmpty())
+                && imdbFallback.optJSONArray(KEY_EPISODES_META) != null) {
+            response.put(KEY_EPISODES_META, imdbFallback.optJSONArray(KEY_EPISODES_META));
         }
         enrichEpisodesInResponse(response);
         response.put("seasonInfo", seasonInfo);

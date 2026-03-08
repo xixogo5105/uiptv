@@ -20,6 +20,13 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpVodDetailsJsonServer implements HttpHandler {
+    private static final String KEY_COVER = "cover";
+    private static final String KEY_DIRECTOR = "director";
+    private static final String KEY_GENRE = "genre";
+    private static final String KEY_IMDB_URL = "imdbUrl";
+    private static final String KEY_RATING = "rating";
+    private static final String KEY_RELEASE_DATE = "releaseDate";
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         Account account = AccountService.getInstance().getById(getParam(ex, "accountId"));
@@ -29,15 +36,15 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
 
         JSONObject vodInfo = new JSONObject();
         vodInfo.put("name", isBlank(vodName) ? "VOD" : vodName);
-        vodInfo.put("cover", "");
+        vodInfo.put(KEY_COVER, "");
         vodInfo.put("plot", "");
         vodInfo.put("cast", "");
-        vodInfo.put("director", "");
-        vodInfo.put("genre", "");
-        vodInfo.put("releaseDate", "");
-        vodInfo.put("rating", "");
+        vodInfo.put(KEY_DIRECTOR, "");
+        vodInfo.put(KEY_GENRE, "");
+        vodInfo.put(KEY_RELEASE_DATE, "");
+        vodInfo.put(KEY_RATING, "");
         vodInfo.put("tmdb", "");
-        vodInfo.put("imdbUrl", "");
+        vodInfo.put(KEY_IMDB_URL, "");
         vodInfo.put("duration", "");
 
         if (account != null && account.isNotConnected()) {
@@ -54,10 +61,10 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
 
         if (providerChannel != null) {
             mergeMissing(vodInfo, "name", providerChannel.getName());
-            mergeMissing(vodInfo, "cover", providerChannel.getLogo());
+            mergeMissing(vodInfo, KEY_COVER, providerChannel.getLogo());
             mergeMissing(vodInfo, "plot", providerChannel.getDescription());
-            mergeMissing(vodInfo, "releaseDate", providerChannel.getReleaseDate());
-            mergeMissing(vodInfo, "rating", providerChannel.getRating());
+            mergeMissing(vodInfo, KEY_RELEASE_DATE, providerChannel.getReleaseDate());
+            mergeMissing(vodInfo, KEY_RATING, providerChannel.getRating());
             mergeMissing(vodInfo, "duration", providerChannel.getDuration());
         }
 
@@ -69,15 +76,15 @@ public class HttpVodDetailsJsonServer implements HttpHandler {
                 fuzzyHints
         );
         mergeMissing(vodInfo, "name", imdbFirst.optString("name", ""));
-        mergeMissing(vodInfo, "cover", imdbFirst.optString("cover", ""));
+        mergeMissing(vodInfo, KEY_COVER, imdbFirst.optString(KEY_COVER, ""));
         mergeMissing(vodInfo, "plot", imdbFirst.optString("plot", ""));
         mergeMissing(vodInfo, "cast", imdbFirst.optString("cast", ""));
-        mergeMissing(vodInfo, "director", imdbFirst.optString("director", ""));
-        mergeMissing(vodInfo, "genre", imdbFirst.optString("genre", ""));
-        mergeMissing(vodInfo, "releaseDate", imdbFirst.optString("releaseDate", ""));
-        mergeMissing(vodInfo, "rating", imdbFirst.optString("rating", ""));
+        mergeMissing(vodInfo, KEY_DIRECTOR, imdbFirst.optString(KEY_DIRECTOR, ""));
+        mergeMissing(vodInfo, KEY_GENRE, imdbFirst.optString(KEY_GENRE, ""));
+        mergeMissing(vodInfo, KEY_RELEASE_DATE, imdbFirst.optString(KEY_RELEASE_DATE, ""));
+        mergeMissing(vodInfo, KEY_RATING, imdbFirst.optString(KEY_RATING, ""));
         mergeMissing(vodInfo, "tmdb", imdbFirst.optString("tmdb", ""));
-        mergeMissing(vodInfo, "imdbUrl", imdbFirst.optString("imdbUrl", ""));
+        mergeMissing(vodInfo, KEY_IMDB_URL, imdbFirst.optString(KEY_IMDB_URL, ""));
 
         JSONObject response = new JSONObject();
         response.put("vodInfo", vodInfo);

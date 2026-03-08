@@ -39,6 +39,7 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
+    private static final String DEFAULT_TIMEZONE = "Europe/London";
     final FileChooser fileChooser = new FileChooser();
     final Button browserButtonM3u8Path = new Button(I18n.tr("autoBrowse"));
     final UIptvText m3u8Path = new UIptvText("m3u8Path", "manageM3u8FilePathUrlPrompt", 5);
@@ -163,7 +164,7 @@ public class ManageAccountUI extends VBox {
 
         // Initialize Timezone combo with all available timezones
         timezoneCombo.getItems().addAll(java.time.ZoneId.getAvailableZoneIds().stream().sorted().toList());
-        timezoneCombo.setValue("Europe/London");
+        timezoneCombo.setValue(DEFAULT_TIMEZONE);
 
         accountType.getItems().addAll(Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList());
         accountType.setValue(STALKER_PORTAL.getDisplay());

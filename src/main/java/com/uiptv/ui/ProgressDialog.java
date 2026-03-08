@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ProgressDialog extends Stage {
+    private static final String LOG_TEXT_STYLE_CLASS = "log-text";
 
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final VBox messageContainer = new VBox();
@@ -175,7 +176,7 @@ public class ProgressDialog extends Stage {
         if (text.contains("[VALID]")) {
             String[] parts = text.split("\\[VALID\\]", 2);
             Text part1 = new Text(parts[0]);
-            part1.getStyleClass().add("log-text");
+            part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);
             Text validText = new Text(parts[1]);
             validText.getStyleClass().add("valid-text");
@@ -183,14 +184,14 @@ public class ProgressDialog extends Stage {
         } else if (text.contains("[INVALID]")) {
             String[] parts = text.split("\\[INVALID\\]", 2);
             Text part1 = new Text(parts[0]);
-            part1.getStyleClass().add("log-text");
+            part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);
             Text invalidText = new Text(parts[1]);
             invalidText.getStyleClass().add("invalid-text");
             texts.add(invalidText);
         } else {
             Text part1 = new Text(text);
-            part1.getStyleClass().add("log-text");
+            part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);
         }
 

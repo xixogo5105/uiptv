@@ -12,6 +12,8 @@ import static com.uiptv.db.DatabaseUtils.DbTable.SERIES_WATCH_STATE_TABLE;
 import static com.uiptv.db.SQLConnection.connect;
 
 public class SeriesWatchStateDb extends BaseDb {
+    private static final String DELETE_FROM = "DELETE FROM ";
+    private static final String MODE_SERIES = "series";
     private static SeriesWatchStateDb instance;
 
     public SeriesWatchStateDb() {
@@ -27,21 +29,21 @@ public class SeriesWatchStateDb extends BaseDb {
 
     public SeriesWatchState getBySeries(String accountId, String categoryId, String seriesId) {
         List<SeriesWatchState> rows = getAll(" WHERE accountId=? AND mode=? AND categoryId=? AND seriesId=?",
-                new String[]{accountId, "series", categoryId, seriesId});
+                new String[]{accountId, MODE_SERIES, categoryId, seriesId});
         return rows.isEmpty() ? null : rows.get(0);
     }
 
     public List<SeriesWatchState> getBySeries(String accountId, String seriesId) {
         return getAll(" WHERE accountId=? AND mode=? AND seriesId=?",
-                new String[]{accountId, "series", seriesId});
+                new String[]{accountId, MODE_SERIES, seriesId});
     }
 
     public List<SeriesWatchState> getByAccount(String accountId, String categoryId) {
-        return getAll(" WHERE accountId=? AND mode=? AND categoryId=?", new String[]{accountId, "series", categoryId});
+        return getAll(" WHERE accountId=? AND mode=? AND categoryId=?", new String[]{accountId, MODE_SERIES, categoryId});
     }
 
     public List<SeriesWatchState> getByAccount(String accountId) {
-        return getAll(" WHERE accountId=? AND mode=?", new String[]{accountId, "series"});
+        return getAll(" WHERE accountId=? AND mode=?", new String[]{accountId, MODE_SERIES});
     }
 
     public void upsert(SeriesWatchState state) {
@@ -92,10 +94,10 @@ public class SeriesWatchStateDb extends BaseDb {
     }
 
     public void clear(String accountId, String categoryId, String seriesId) {
-        String sql = "DELETE FROM " + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE accountId=? AND mode=? AND categoryId=? AND seriesId=?";
+        String sql = DELETE_FROM + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE accountId=? AND mode=? AND categoryId=? AND seriesId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
-            statement.setString(2, "series");
+            statement.setString(2, MODE_SERIES);
             statement.setString(3, categoryId);
             statement.setString(4, seriesId);
             statement.executeUpdate();
@@ -105,7 +107,7 @@ public class SeriesWatchStateDb extends BaseDb {
     }
 
     public void deleteByAccount(String accountId) {
-        String sql = "DELETE FROM " + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE accountId=?";
+        String sql = DELETE_FROM + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE accountId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
             statement.executeUpdate();
@@ -115,9 +117,9 @@ public class SeriesWatchStateDb extends BaseDb {
     }
 
     public void clearAllSeries() {
-        String sql = "DELETE FROM " + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE mode=?";
+        String sql = DELETE_FROM + SERIES_WATCH_STATE_TABLE.getTableName() + " WHERE mode=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setString(1, "series");
+            statement.setString(1, MODE_SERIES);
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Unable to clear all series watch state", e);

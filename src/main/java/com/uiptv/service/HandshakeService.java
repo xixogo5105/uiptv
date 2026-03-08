@@ -16,6 +16,9 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 
 public class HandshakeService {
+    private static final String PARAM_ACTION = "action";
+    private static final String PARAM_JS_HTTP_REQUEST = "JsHttpRequest";
+    private static final String PARAM_TOKEN = "token";
     private static HandshakeService instance;
 
     private HandshakeService() {
@@ -31,16 +34,16 @@ public class HandshakeService {
     private static Map<String, String> getHandshakeParams() {
         final Map<String, String> params = new HashMap<>();
         params.put("type", "stb");
-        params.put("action", "handshake");
-        params.put("token", "");
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put(PARAM_ACTION, "handshake");
+        params.put(PARAM_TOKEN, "");
+        params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
         return params;
     }
 
     private static Map<String, String> getProfileParams(Account c) {
         final Map<String, String> params = new HashMap<>();
         params.put("type", "stb");
-        params.put("action", "get_profile");
+        params.put(PARAM_ACTION, "get_profile");
         params.put("hd", "1");
         params.put("ver", "ImageDescription: 0.2.18-r23-250; ImageDate: Wed Aug 29 10:49:53 EEST 2018; PORTAL version: 5.6.9; API Version: JS API version: 343; STB API version: 146; Player Engine version: 0x58c");
         params.put("num_banks", "2");
@@ -59,7 +62,7 @@ public class HandshakeService {
         params.put("hw_version_2", generateRandom());
         params.put("api_signature", "262");
         params.put("prehash", "");
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
 
 
         return params;
@@ -68,8 +71,8 @@ public class HandshakeService {
     private static Map<String, String> getAccountParams() {
         final Map<String, String> params = new HashMap<>();
         params.put("type", "account_info");
-        params.put("action", "get_main_info");
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put(PARAM_ACTION, "get_main_info");
+        params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
         return params;
     }
 
