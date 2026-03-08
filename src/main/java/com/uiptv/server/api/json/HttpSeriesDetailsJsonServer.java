@@ -305,14 +305,14 @@ public class HttpSeriesDetailsJsonServer implements HttpHandler {
         if (seasonInfo != null) {
             addHint(hints, seasonInfo.optString("name", ""));
             addHint(hints, seasonInfo.optString("plot", ""));
-            addHint(hints, seasonInfo.optString("releaseDate", ""));
+            addHint(hints, seasonInfo.optString(KEY_RELEASE_DATE, ""));
         }
         if (episodes != null) {
             for (int i = 0; i < Math.min(8, episodes.length()); i++) {
                 JSONObject row = episodes.optJSONObject(i);
                 if (row == null) continue;
                 addHint(hints, row.optString("name", ""));
-                addHint(hints, row.optString("releaseDate", ""));
+                addHint(hints, row.optString(KEY_RELEASE_DATE, ""));
             }
         }
         return hints;

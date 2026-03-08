@@ -94,19 +94,10 @@ public class BookmarkService {
     private void enrichBookmarkLogos(List<Bookmark> bookmarks) {
         for (Bookmark bookmark : bookmarks) {
             try {
-                if (bookmark == null || isNotBlank(bookmark.getLogo())) {
+                if (shouldSkipLogoEnrichment(bookmark)) {
                     continue;
                 }
-                String logo = extractLogoFromChannelJson(bookmark.getChannelJson());
-                if (isBlank(logo) && isNotBlank(bookmark.getChannelId()) && isNotBlank(bookmark.getAccountName())) {
-                    Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
-                    if (account != null && isNotBlank(account.getDbId())) {
-                        Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
-                        if (channel != null) {
-                            logo = channel.getLogo();
-                        }
-                    }
-                }
+                String logo = resolveBookmarkLogo(bookmark);
                 if (isBlank(logo)) {
                     logo = logoResolverService.resolve(bookmark.getChannelName(), null, null);
                 }
@@ -115,6 +106,30 @@ public class BookmarkService {
                 // Best-effort enrichment only. Never fail /bookmarks response.
             }
         }
+    }
+
+    private boolean shouldSkipLogoEnrichment(Bookmark bookmark) {
+        return bookmark == null || isNotBlank(bookmark.getLogo());
+    }
+
+    private String resolveBookmarkLogo(Bookmark bookmark) {
+        String logo = extractLogoFromChannelJson(bookmark.getChannelJson());
+        if (isBlank(logo)) {
+            logo = resolveLogoFromChannelCache(bookmark);
+        }
+        return logo;
+    }
+
+    private String resolveLogoFromChannelCache(Bookmark bookmark) {
+        if (bookmark == null || isBlank(bookmark.getChannelId()) || isBlank(bookmark.getAccountName())) {
+            return "";
+        }
+        Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
+        if (account == null || isBlank(account.getDbId())) {
+            return "";
+        }
+        Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
+        return channel != null ? channel.getLogo() : "";
     }
 
     private String extractLogoFromChannelJson(String channelJson) {

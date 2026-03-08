@@ -375,8 +375,8 @@ public class ImdbMetadataService {
             if (isNotBlank(summary)) {
                 row.put("plot", summary);
             }
-            if (isBlank(row.optString("releaseDate", ""))) {
-                row.put("releaseDate", match.optString("airdate", ""));
+            if (isBlank(row.optString(KEY_RELEASE_DATE, ""))) {
+                row.put(KEY_RELEASE_DATE, match.optString("airdate", ""));
             }
         }
     }
@@ -596,8 +596,8 @@ public class ImdbMetadataService {
             JSONObject payload = new JSONObject(response.body());
             result.put("name", firstNonBlank(payload.optString("name", ""), payload.optString(KEY_TITLE, "")));
             result.put("plot", payload.optString(KEY_OVERVIEW, ""));
-            result.put("rating", String.valueOf(payload.optDouble("vote_average", 0)));
-            result.put("releaseDate", firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
+            result.put(KEY_RATING, String.valueOf(payload.optDouble("vote_average", 0)));
+            result.put(KEY_RELEASE_DATE, firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
             JSONArray genres = payload.optJSONArray("genres");
             if (genres != null && !genres.isEmpty()) {
                 List<String> names = new ArrayList<>();
@@ -611,12 +611,12 @@ public class ImdbMetadataService {
                     if (names.size() >= 6) break;
                 }
                 if (!names.isEmpty()) {
-                    result.put("genre", String.join(", ", names));
+                    result.put(KEY_GENRE, String.join(", ", names));
                 }
             }
             String posterPath = payload.optString("poster_path", "");
             if (isNotBlank(posterPath)) {
-                result.put("cover", "https://image.tmdb.org/t/p/w500" + posterPath);
+                result.put(KEY_COVER, "https://image.tmdb.org/t/p/w500" + posterPath);
             }
         } catch (Exception _) {
             // best effort

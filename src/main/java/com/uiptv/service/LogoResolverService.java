@@ -64,24 +64,8 @@ public class LogoResolverService {
             return cached;
         }
 
-        triggerCatalogRefreshAsync();
-        String resolved = catalog.get(key);
-        if (isBlank(resolved)) {
-            resolved = catalog.get(makeLookupKey(stripCommonSuffixes(channelName)));
-        }
-        if (isBlank(resolved)) {
-            resolved = resolveByVariants(channelName);
-        }
-        if (isBlank(resolved)) {
-            resolved = resolveByTokenSubset(channelName);
-        }
-
-        if (isNotBlank(resolved)) {
-            localCache.put(key, resolved);
-            persistLocalCache();
-            return resolved;
-        }
-        return "";
+        String resolved = resolveFromCatalog(channelName, key);
+        return cacheResolvedLogo(key, resolved);
     }
 
     private synchronized void ensureCatalogLoaded() {
@@ -135,6 +119,30 @@ public class LogoResolverService {
         } finally {
             refreshInProgress = false;
         }
+    }
+
+    private String resolveFromCatalog(String channelName, String key) {
+        triggerCatalogRefreshAsync();
+        String resolved = catalog.get(key);
+        if (isBlank(resolved)) {
+            resolved = catalog.get(makeLookupKey(stripCommonSuffixes(channelName)));
+        }
+        if (isBlank(resolved)) {
+            resolved = resolveByVariants(channelName);
+        }
+        if (isBlank(resolved)) {
+            resolved = resolveByTokenSubset(channelName);
+        }
+        return resolved;
+    }
+
+    private String cacheResolvedLogo(String key, String resolved) {
+        if (isBlank(resolved)) {
+            return "";
+        }
+        localCache.put(key, resolved);
+        persistLocalCache();
+        return resolved;
     }
 
     private Map<String, String> loadLogosByChannelId() {

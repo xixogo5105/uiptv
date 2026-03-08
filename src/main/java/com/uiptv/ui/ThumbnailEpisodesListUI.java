@@ -42,10 +42,12 @@ import java.util.Map;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
+    private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String EPISODE_CACHE = "episode";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RATING = "rating";
     private static final String KEY_RELEASE_DATE = "releaseDate";
+    private static final String KEY_TITLE = "title";
     private final TabPane seasonTabPane = new TabPane();
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
@@ -420,7 +422,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(row.getLogo(), 96, 136, "episode");
+        ImageView poster = SeriesCardUiSupport.createFitPoster(row.getLogo(), 96, 136, EPISODE_CACHE);
         StackPane posterWrap = new StackPane(poster);
         posterWrap.setAlignment(Pos.CENTER);
         posterWrap.setMinWidth(110);
@@ -492,7 +494,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             root.getChildren().add(plot);
             cardLabels.add(plot);
         }
-        root.getProperties().put("cardLabels", cardLabels);
+        root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
@@ -524,7 +526,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         } else {
             card.getStyleClass().remove("selected-card");
         }
-        Object labelsObj = card.getProperties().get("cardLabels");
+        Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (labelsObj instanceof List<?> labels) {
             for (Object labelObj : labels) {
                 if (labelObj instanceof Label label) {
@@ -609,18 +611,18 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                         3
                 );
                 if (imdb != null) {
-                    String imdbCover = normalizeImageUrl(imdb.optString("cover", ""));
+                    String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""));
                     if (!isBlank(imdbCover)) {
-                        imdb.put("cover", imdbCover);
-                        seasonInfo.put("cover", imdbCover);
+                        imdb.put(KEY_COVER, imdbCover);
+                        seasonInfo.put(KEY_COVER, imdbCover);
                     }
                     mergeMissing(seasonInfo, imdb, "name");
                     mergeMissing(seasonInfo, imdb, "plot");
                     mergeMissing(seasonInfo, imdb, "cast");
                     mergeMissing(seasonInfo, imdb, "director");
                     mergeMissing(seasonInfo, imdb, "genre");
-                    mergeMissing(seasonInfo, imdb, "releaseDate");
-                    mergeMissing(seasonInfo, imdb, "rating");
+                    mergeMissing(seasonInfo, imdb, KEY_RELEASE_DATE);
+                    mergeMissing(seasonInfo, imdb, KEY_RATING);
                     mergeMissing(seasonInfo, imdb, "tmdb");
                     mergeMissing(seasonInfo, imdb, "imdbUrl");
                     enrichEpisodesFromMeta(allEpisodeItems, imdb.optJSONArray("episodesMeta"));
@@ -657,7 +659,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             String season = normalizeNumber(row.optString("season", ""));
             String episodeNum = normalizeNumber(row.optString("episodeNum", ""));
             if (isBlank(episodeNum)) {
-                episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString("title", "")));
+                episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString(KEY_TITLE, "")));
             }
             if (!isBlank(season) && !isBlank(episodeNum)) {
                 bySeasonEpisode.put(season + ":" + episodeNum, row);
@@ -665,11 +667,11 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             if (!isBlank(episodeNum)) {
                 byEpisodeOnly.putIfAbsent(episodeNum, row);
             }
-            String title = normalizeTitle(cleanEpisodeTitle(row.optString("title", "")));
+            String title = normalizeTitle(cleanEpisodeTitle(row.optString(KEY_TITLE, "")));
             if (!isBlank(title)) {
                 byTitle.put(title, row);
             }
-            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString("title", "")));
+            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString(KEY_TITLE, "")));
             if (!isBlank(looseTitle)) {
                 byLooseTitle.put(looseTitle, row);
             }
@@ -700,8 +702,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                         meta.optString("overview", ""),
                         episode.getPlot()
                 ));
-                episode.setReleaseDate(firstNonBlank(episode.getReleaseDate(), meta.optString("releaseDate", "")));
-                episode.setRating(firstNonBlank(episode.getRating(), meta.optString("rating", "")));
+                episode.setReleaseDate(firstNonBlank(episode.getReleaseDate(), meta.optString(KEY_RELEASE_DATE, "")));
+                episode.setRating(firstNonBlank(episode.getRating(), meta.optString(KEY_RATING, "")));
             } catch (Exception _) {
             }
         }
@@ -758,7 +760,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         addHint(ordered, seasonInfo.optString("name", ""));
         addHint(ordered, seasonInfo.optString("plot", ""));
         String year = extractYear(firstNonBlank(
-                seasonInfo.optString("releaseDate", ""),
+                seasonInfo.optString(KEY_RELEASE_DATE, ""),
                 allEpisodeItems.stream().map(EpisodeItem::getReleaseDate).filter(v -> !isBlank(v)).findFirst().orElse("")
         ));
         if (!isBlank(year)) {

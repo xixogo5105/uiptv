@@ -67,45 +67,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
 
     private void updateBookmarkOrder(HttpExchange ex) throws IOException {
         JSONObject body = readBodyJson(ex);
-        Map<String, Integer> bookmarkOrders = new LinkedHashMap<>();
-
-        if (body != null && body.has(PARAM_BOOKMARK_ORDERS) && !body.isNull(PARAM_BOOKMARK_ORDERS)) {
-            JSONObject ordersObject = body.optJSONObject(PARAM_BOOKMARK_ORDERS);
-            if (ordersObject != null) {
-                for (String bookmarkId : ordersObject.keySet()) {
-                    if (isBlank(bookmarkId)) {
-                        continue;
-                    }
-                    int orderNumber = ordersObject.optInt(bookmarkId, -1);
-                    if (orderNumber > 0) {
-                        bookmarkOrders.put(bookmarkId, orderNumber);
-                    }
-                }
-            }
-        }
-
-        List<String> orderedDbIds = new ArrayList<>();
-        JSONArray idsArray = null;
-        if (body != null && body.has(PARAM_ORDERED_BOOKMARK_DB_IDS) && !body.isNull(PARAM_ORDERED_BOOKMARK_DB_IDS)) {
-            idsArray = body.optJSONArray(PARAM_ORDERED_BOOKMARK_DB_IDS);
-        }
-        if (idsArray == null && body != null && body.has(PARAM_BOOKMARK_IDS) && !body.isNull(PARAM_BOOKMARK_IDS)) {
-            idsArray = body.optJSONArray(PARAM_BOOKMARK_IDS);
-        }
-        if (idsArray != null) {
-            for (int i = 0; i < idsArray.length(); i++) {
-                String id = String.valueOf(idsArray.opt(i));
-                if (!isBlank(id) && !"null".equalsIgnoreCase(id)) {
-                    orderedDbIds.add(id);
-                }
-            }
-        }
-
-        if (bookmarkOrders.isEmpty() && !orderedDbIds.isEmpty()) {
-            for (int i = 0; i < orderedDbIds.size(); i++) {
-                bookmarkOrders.put(orderedDbIds.get(i), i + 1);
-            }
-        }
+        Map<String, Integer> bookmarkOrders = extractBookmarkOrders(body);
 
         if (bookmarkOrders.isEmpty()) {
             writeJson(ex, 400, "{\"status\":\"error\",\"message\":\"bookmarkOrders is required\"}");
@@ -114,6 +76,70 @@ public class HttpBookmarksJsonServer implements HttpHandler {
 
         BookmarkService.getInstance().saveBookmarkOrders(bookmarkOrders);
         writeJson(ex, 200, "{\"status\":\"ok\",\"action\":\"reordered\"}");
+    }
+
+    private Map<String, Integer> extractBookmarkOrders(JSONObject body) {
+        Map<String, Integer> bookmarkOrders = extractExplicitBookmarkOrders(body);
+        if (!bookmarkOrders.isEmpty()) {
+            return bookmarkOrders;
+        }
+
+        List<String> orderedDbIds = extractOrderedBookmarkIds(body);
+        for (int i = 0; i < orderedDbIds.size(); i++) {
+            bookmarkOrders.put(orderedDbIds.get(i), i + 1);
+        }
+        return bookmarkOrders;
+    }
+
+    private Map<String, Integer> extractExplicitBookmarkOrders(JSONObject body) {
+        Map<String, Integer> bookmarkOrders = new LinkedHashMap<>();
+        if (body == null || !body.has(PARAM_BOOKMARK_ORDERS) || body.isNull(PARAM_BOOKMARK_ORDERS)) {
+            return bookmarkOrders;
+        }
+
+        JSONObject ordersObject = body.optJSONObject(PARAM_BOOKMARK_ORDERS);
+        if (ordersObject == null) {
+            return bookmarkOrders;
+        }
+
+        for (String bookmarkId : ordersObject.keySet()) {
+            if (isBlank(bookmarkId)) {
+                continue;
+            }
+            int orderNumber = ordersObject.optInt(bookmarkId, -1);
+            if (orderNumber > 0) {
+                bookmarkOrders.put(bookmarkId, orderNumber);
+            }
+        }
+        return bookmarkOrders;
+    }
+
+    private List<String> extractOrderedBookmarkIds(JSONObject body) {
+        List<String> orderedDbIds = new ArrayList<>();
+        JSONArray idsArray = extractOrderedBookmarkIdArray(body);
+        if (idsArray == null) {
+            return orderedDbIds;
+        }
+        for (int i = 0; i < idsArray.length(); i++) {
+            String id = String.valueOf(idsArray.opt(i));
+            if (!isBlank(id) && !"null".equalsIgnoreCase(id)) {
+                orderedDbIds.add(id);
+            }
+        }
+        return orderedDbIds;
+    }
+
+    private JSONArray extractOrderedBookmarkIdArray(JSONObject body) {
+        if (body == null) {
+            return null;
+        }
+        if (body.has(PARAM_ORDERED_BOOKMARK_DB_IDS) && !body.isNull(PARAM_ORDERED_BOOKMARK_DB_IDS)) {
+            return body.optJSONArray(PARAM_ORDERED_BOOKMARK_DB_IDS);
+        }
+        if (body.has(PARAM_BOOKMARK_IDS) && !body.isNull(PARAM_BOOKMARK_IDS)) {
+            return body.optJSONArray(PARAM_BOOKMARK_IDS);
+        }
+        return null;
     }
 
     private void upsertBookmark(HttpExchange ex) throws IOException {
@@ -221,7 +247,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
     private void writeJson(HttpExchange ex, int status, String body) throws IOException {
         byte[] responseBytes = body.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-        ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+        ex.getResponseHeaders().add("Access-Control-Allow-Methods", ALLOWED_METHODS);
         ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type,*");
         ex.getResponseHeaders().add("Content-Type", "application/json");
         ex.sendResponseHeaders(status, responseBytes.length);

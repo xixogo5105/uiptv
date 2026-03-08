@@ -43,6 +43,7 @@ public class ReloadCachePopup extends VBox {
     private static final String GLOBAL_SERIES_CATEGORY_LIST_FAILED = "Global SERIES category list failed:";
     private static final String GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED = "Global Stalker get_all_channels failed";
     private static final String GLOBAL_VOD_CATEGORY_LIST_FAILED = "Global VOD category list failed:";
+    private static final String GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED = "Global Xtreme channel lookup failed";
     private static final String LOG_MARKED_BAD_AND_SKIPPED = "Marked bad and skipped after global call failure.";
     private static final String LOG_NETWORK_ERROR_LOADING_CATEGORIES = "Network error while loading categories";
     private static final String LOG_NO_CHANNELS_FOUND = "No channels found.";
@@ -887,7 +888,7 @@ public class ReloadCachePopup extends VBox {
         if (trimmed.startsWith("Last-resort fetch failed for category")) {
             return I18n.tr("reloadFailedFallbackCategoryFetch");
         }
-        if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
+        if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
             return I18n.tr("reloadGlobalLookupFailedUsingCategoryFetch");
         }
         if (trimmed.startsWith("Global Xtreme channel lookup returned no channels")) {
@@ -928,7 +929,7 @@ public class ReloadCachePopup extends VBox {
             return null;
         }
         String trimmed = message.trim();
-        if (trimmed.startsWith("Global Xtreme channel lookup failed")) {
+        if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
             return I18n.tr("reloadLiveTvGlobalCallFailedForXtreme");
         }
         if (trimmed.startsWith(GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED)) {
@@ -961,7 +962,7 @@ public class ReloadCachePopup extends VBox {
             return new SummaryStatus(SummaryLevel.YELLOW, fetchedChannelCount, normalizedReasons);
         }
         if (normalizedReasons.isEmpty()) {
-            normalizedReasons.add(I18n.tr("reloadNoChannelsLoaded"));
+            normalizedReasons.add(I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
         }
         return new SummaryStatus(SummaryLevel.BAD, fetchedChannelCount, normalizedReasons);
     }
@@ -1002,16 +1003,16 @@ public class ReloadCachePopup extends VBox {
                 || trimmed.startsWith("Global Stalker get_all_channels failed")) {
             return I18n.tr("reloadGlobalLiveTvChannelCallFailed");
         }
-        if (trimmed.startsWith("Global Xtreme channel lookup failed")
+        if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)
                 || trimmed.startsWith("Global Xtreme channel lookup returned no channels")
                 || trimmed.startsWith("Global Xtreme channel lookup returned uncategorized rows only")) {
             return I18n.tr("reloadGlobalXtremeLookupFailed");
         }
         if (trimmed.startsWith("Global VOD category list failed:")) {
-            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabVideoOnDemand"));
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_VOD));
         }
         if (trimmed.startsWith("Global SERIES category list failed:")) {
-            return I18n.tr("reloadModeCategoryListFailed", I18n.tr("categoryTabTvSeries"));
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
         }
         if (trimmed.equals("No channels found in any category. Keeping existing cache.")
                 || trimmed.equals("No channels found.")) {
@@ -1087,8 +1088,8 @@ public class ReloadCachePopup extends VBox {
         }
         return switch (code) {
             case "ITV" -> I18n.tr("categoryTabLiveTv");
-            case "VOD" -> I18n.tr("categoryTabVideoOnDemand");
-            case "SERIES" -> I18n.tr("categoryTabTvSeries");
+            case MODE_VOD -> I18n.tr(TR_CATEGORY_TAB_VOD);
+            case MODE_SERIES -> I18n.tr(TR_CATEGORY_TAB_SERIES);
             default -> null;
         };
     }
@@ -1230,7 +1231,7 @@ public class ReloadCachePopup extends VBox {
                     statusLabel.setText(channelCount == null
                             ? I18n.tr("reloadPartial")
                             : I18n.tr("reloadPartialWithChannels", channelCount));
-                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #d97706;");
+                    statusLabel.setStyle(STYLE_YELLOW_LABEL);
                     break;
                 case EMPTY:
                     runningIndicator.setVisible(false);

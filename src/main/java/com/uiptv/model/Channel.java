@@ -126,7 +126,7 @@ public class Channel extends BaseJson {
             Integer season = Integer.parseInt(this.getName().split("-")[0]
                     .toLowerCase()
                     .replace(" ", "")
-                    .replace("season", "")
+                    .replace(KEY_SEASON, "")
                     .replace("episode", "")
                     .replace("-", ""));
             return season;
@@ -140,7 +140,7 @@ public class Channel extends BaseJson {
             Integer episode = Integer.parseInt(this.getName().split("-")[1]
                     .toLowerCase()
                     .replace(" ", "")
-                    .replace("season", "")
+                    .replace(KEY_SEASON, "")
                     .replace("episode", "")
                     .replace("-", ""));
             return episode;

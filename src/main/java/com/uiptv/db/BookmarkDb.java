@@ -21,6 +21,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class BookmarkDb extends BaseDb {
     private static BookmarkDb instance;
     private static final String DELETE_FROM = "DELETE FROM ";
+    private static final String WHERE_BOOKMARK_DB_ID = " WHERE bookmark_db_id = ?";
     private static final String AND_NULLABLE_CATEGORY_ID = " AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
     private static final String WHERE_NULLABLE_CATEGORY_ID = " WHERE (category_id = ? OR (category_id IS NULL AND ? IS NULL))";
 
@@ -230,7 +231,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void saveBookmarkOrder(String bookmarkDbId, int displayOrder) {
-        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?";
+        String deleteSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + WHERE_BOOKMARK_DB_ID;
         String insertSql = "INSERT INTO " + BOOKMARK_ORDER_TABLE.getTableName() + " (bookmark_db_id, category_id, display_order) VALUES (?, NULL, ?)";
 
         Connection conn = null;
@@ -314,7 +315,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void deleteBookmarkOrder(String bookmarkDbId, String categoryId) {
-        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?" + AND_NULLABLE_CATEGORY_ID;
+        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + WHERE_BOOKMARK_DB_ID + AND_NULLABLE_CATEGORY_ID;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, bookmarkDbId);
             if (categoryId == null) {
@@ -331,7 +332,7 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void deleteBookmarkOrders(String bookmarkDbId) {
-        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + " WHERE bookmark_db_id = ?";
+        String sql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() + WHERE_BOOKMARK_DB_ID;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, bookmarkDbId);
             statement.execute();

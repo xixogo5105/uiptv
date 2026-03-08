@@ -557,7 +557,7 @@ public class ManageAccountUI extends VBox {
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
-        timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : "Europe/London");
+        timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         accountType.setValue(account.getType().getDisplay());
         updateButtonState();
     }

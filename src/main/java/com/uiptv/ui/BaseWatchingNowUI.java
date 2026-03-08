@@ -75,7 +75,9 @@ public abstract class BaseWatchingNowUI extends VBox {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
+    private static final String KEY_TITLE = "title";
     private static final String MESSAGE_NO_CURRENTLY_WATCHED_SERIES = "autoNoCurrentlyWatchedSeriesFound";
+    private static final String STRONG_LABEL = "strong-label";
     private static final String WATCHING_NOW_CACHE = "watching-now";
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
@@ -508,7 +510,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         String titleText = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         String accountText = data.account.getAccountName();
         Label title = new Label(titleText + " (" + accountText + ")");
-        title.getStyleClass().add("strong-label");
+        title.getStyleClass().add(STRONG_LABEL);
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
@@ -763,7 +765,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         VBox details = new VBox(4);
         details.setMaxWidth(Double.MAX_VALUE);
         data.titleNode = new Label(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
-        data.titleNode.getStyleClass().add("strong-label");
+        data.titleNode.getStyleClass().add(STRONG_LABEL);
         data.titleNode.setWrapText(true);
         data.titleNode.setMaxWidth(Double.MAX_VALUE);
         details.getChildren().add(data.titleNode);
@@ -925,7 +927,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 136, "watching-now");
+        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 136, WATCHING_NOW_CACHE);
         StackPane posterWrap = new StackPane(poster);
         posterWrap.setAlignment(Pos.CENTER);
         posterWrap.setMinWidth(110);
@@ -973,7 +975,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
-        title.getStyleClass().add("strong-label");
+        title.getStyleClass().add(STRONG_LABEL);
 
         text.getChildren().addAll(actionRow, title);
         List<Label> cardLabels = new ArrayList<>();
@@ -999,7 +1001,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             root.getChildren().add(plot);
             cardLabels.add(plot);
         }
-        root.getProperties().put("cardLabels", cardLabels);
+        root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
@@ -1043,7 +1045,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         } else {
             card.getStyleClass().remove("selected-card");
         }
-        Object labelsObj = card.getProperties().get("cardLabels");
+        Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (labelsObj instanceof List<?> labels) {
             for (Object labelObj : labels) {
                 if (labelObj instanceof Label label) {
@@ -1292,17 +1294,17 @@ public abstract class BaseWatchingNowUI extends VBox {
             try {
                 JSONObject imdb = findImdbWithRetry(data, 3);
                 if (imdb != null) {
-                    String imdbCover = normalizeImageUrl(imdb.optString("cover", ""), data.account);
+                    String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""), data.account);
                     if (!isBlank(imdbCover)) {
-                        data.seasonInfo.put("cover", imdbCover);
-                        imdb.put("cover", imdbCover);
+                        data.seasonInfo.put(KEY_COVER, imdbCover);
+                        imdb.put(KEY_COVER, imdbCover);
                     }
                     mergeMissing(data.seasonInfo, imdb, "name");
                     mergeMissing(data.seasonInfo, imdb, "plot");
                     mergeMissing(data.seasonInfo, imdb, "cast");
                     mergeMissing(data.seasonInfo, imdb, "director");
                     mergeMissing(data.seasonInfo, imdb, "genre");
-                    mergeMissing(data.seasonInfo, imdb, "releaseDate");
+                    mergeMissing(data.seasonInfo, imdb, KEY_RELEASE_DATE);
                     mergeMissing(data.seasonInfo, imdb, "rating");
                     mergeMissing(data.seasonInfo, imdb, "tmdb");
                     mergeMissing(data.seasonInfo, imdb, "imdbUrl");
@@ -1320,9 +1322,9 @@ public abstract class BaseWatchingNowUI extends VBox {
                         pane.setText(buildSeriesPaneTitle(data));
                     }
                     applySeasonInfoToHeader(data);
-                    String cover = data.seasonInfo.optString("cover", "");
+                    String cover = data.seasonInfo.optString(KEY_COVER, "");
                     if (!isBlank(cover)) {
-                        ImageCacheManager.loadImageAsync(cover, "watching-now").thenAccept(img -> {
+                        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
                             if (img != null) {
                                 Platform.runLater(() -> data.seriesPosterNode.setImage(img));
                             }
@@ -1369,7 +1371,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         addHint(ordered, data.seriesTitle);
         addHint(ordered, data.seasonInfo.optString("name", ""));
         addHint(ordered, data.seasonInfo.optString("plot", ""));
-        String year = extractYear(firstNonBlank(data.seasonInfo.optString("releaseDate", ""), firstEpisodeRelease(data)));
+        String year = extractYear(firstNonBlank(data.seasonInfo.optString(KEY_RELEASE_DATE, ""), firstEpisodeRelease(data)));
         if (!isBlank(year)) {
             addHint(ordered, data.seriesTitle + " " + year);
             addHint(ordered, data.seasonInfo.optString("name", "") + " " + year);
@@ -1468,7 +1470,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             String season = normalizeNumber(row.optString("season", ""));
             String episodeNum = normalizeNumber(row.optString("episodeNum", ""));
             if (isBlank(episodeNum)) {
-                episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString("title", "")));
+                episodeNum = normalizeNumber(inferEpisodeNumberFromTitle(row.optString(KEY_TITLE, "")));
             }
             if (!isBlank(season) && !isBlank(episodeNum)) {
                 bySeasonEpisode.put(season + ":" + episodeNum, row);
@@ -1476,11 +1478,11 @@ public abstract class BaseWatchingNowUI extends VBox {
             if (!isBlank(episodeNum)) {
                 byEpisodeOnly.putIfAbsent(episodeNum, row);
             }
-            String title = normalizeTitle(cleanEpisodeTitle(row.optString("title", "")));
+            String title = normalizeTitle(cleanEpisodeTitle(row.optString(KEY_TITLE, "")));
             if (!isBlank(title)) {
                 byTitle.put(title, row);
             }
-            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString("title", "")));
+            String looseTitle = normalizeTitle(extractLooseEpisodeTitle(row.optString(KEY_TITLE, "")));
             if (!isBlank(looseTitle)) {
                 byLooseTitle.put(looseTitle, row);
             }
@@ -1510,7 +1512,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                     meta.optString("overview", ""),
                     episode.plot
             );
-            episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString("releaseDate", ""));
+            episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
             if (!isBlank(episode.imageUrl)) {
                 episode.channel.setLogo(episode.imageUrl);
             }
@@ -1693,9 +1695,9 @@ public abstract class BaseWatchingNowUI extends VBox {
             applySeasonInfoToHeader(selected);
         }
         if (selected.seriesPosterNode != null) {
-            String cover = selected.seasonInfo.optString("cover", "");
+            String cover = selected.seasonInfo.optString(KEY_COVER, "");
             if (!isBlank(cover)) {
-                ImageCacheManager.loadImageAsync(cover, "watching-now").thenAccept(img -> {
+                ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
                     if (img != null) {
                         Platform.runLater(() -> selected.seriesPosterNode.setImage(img));
                     }
@@ -1710,7 +1712,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private void rebuildAccordion(List<SeriesPanelData> rows, String expandedKey) {
         contentBox.getChildren().clear();
         if (rows.isEmpty()) {
-            contentBox.getChildren().add(new Label(I18n.tr("autoNoCurrentlyWatchedSeriesFound")));
+            contentBox.getChildren().add(new Label(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES)));
             seriesAccordion = null;
             lastExpandedSeriesKey = "";
             return;

@@ -140,7 +140,7 @@ public class SeriesWatchStateService {
             return;
         }
         if (shouldAdvancePointer(currentSeasonNum, currentEpisodeNum, nextSeasonNum, nextEpisodeNum)) {
-            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, "MANUAL");
+            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, SOURCE_MANUAL);
         }
     }
 
@@ -250,7 +250,7 @@ public class SeriesWatchStateService {
         Channel episodeChannel = findEpisode(account, portalCategoryId, state.getSeriesId(), state.getEpisodeId(), matchedCategory);
         if (episodeChannel != null) {
             JSONObject episodeJson = new JSONObject(episodeChannel.toJson());
-            episodeJson.put("categoryId", portalCategoryId);
+            episodeJson.put(FIELD_CATEGORY_ID, portalCategoryId);
             episodeJson.put("seriesId", safe(state.getSeriesId()));
             episodeJson.put("channelId", safe(episodeChannel.getChannelId()));
             state.setSeriesEpisodeSnapshot(episodeJson.toString());

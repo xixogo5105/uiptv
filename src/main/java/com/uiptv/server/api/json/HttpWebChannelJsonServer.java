@@ -115,7 +115,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         response.put("items", new JSONArray(deduped));
         response.put("nextPage", currentPage);
         response.put("hasMore", hasMore);
-        response.put("apiOffset", resolvedApiOffset);
+        response.put(PARAM_API_OFFSET, resolvedApiOffset);
         return response.toString();
     }
 

@@ -40,32 +40,7 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
     private List<PanelRow> buildRows() {
         List<PanelRow> rows = new ArrayList<>();
         for (Account account : AccountService.getInstance().getAll().values()) {
-            if (account == null || StringUtils.isBlank(account.getDbId())) {
-                continue;
-            }
-
-            Map<String, SeriesWatchState> deduped = new LinkedHashMap<>();
-            for (SeriesWatchState state : SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(account.getDbId())) {
-                if (state == null || StringUtils.isBlank(state.getSeriesId())) {
-                    continue;
-                }
-                String key = safe(state.getSeriesId());
-                SeriesWatchState existing = deduped.get(key);
-                if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
-                    deduped.put(key, state);
-                }
-            }
-            if (deduped.isEmpty()) {
-                continue;
-            }
-            AccountSeriesIndex seriesIndex = buildSeriesIndex(account, new ArrayList<>(deduped.values()));
-
-            for (SeriesWatchState state : deduped.values()) {
-                PanelRow row = buildRow(account, state, seriesIndex);
-                if (row != null) {
-                    rows.add(row);
-                }
-            }
+            addRowsForAccount(rows, account);
         }
 
         rows.sort(
@@ -73,6 +48,38 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
                         .thenComparing(row -> safe(row.seriesTitle), String.CASE_INSENSITIVE_ORDER)
         );
         return rows;
+    }
+
+    private void addRowsForAccount(List<PanelRow> rows, Account account) {
+        if (account == null || StringUtils.isBlank(account.getDbId())) {
+            return;
+        }
+        Map<String, SeriesWatchState> dedupedStates = dedupeLatestStates(account.getDbId());
+        if (dedupedStates.isEmpty()) {
+            return;
+        }
+        AccountSeriesIndex seriesIndex = buildSeriesIndex(account, new ArrayList<>(dedupedStates.values()));
+        for (SeriesWatchState state : dedupedStates.values()) {
+            PanelRow row = buildRow(account, state, seriesIndex);
+            if (row != null) {
+                rows.add(row);
+            }
+        }
+    }
+
+    private Map<String, SeriesWatchState> dedupeLatestStates(String accountDbId) {
+        Map<String, SeriesWatchState> deduped = new LinkedHashMap<>();
+        for (SeriesWatchState state : SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountDbId)) {
+            if (state == null || StringUtils.isBlank(state.getSeriesId())) {
+                continue;
+            }
+            String key = safe(state.getSeriesId());
+            SeriesWatchState existing = deduped.get(key);
+            if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
+                deduped.put(key, state);
+            }
+        }
+        return deduped;
     }
 
     private PanelRow buildRow(Account account, SeriesWatchState state, AccountSeriesIndex index) {

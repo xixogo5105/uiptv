@@ -33,6 +33,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
+    private static final String ALL_CATEGORY = "All";
     protected static final String UNCATEGORIZED_ID = "uncategorized";
     protected static final String UNCATEGORIZED_NAME = "Uncategorized";
 
@@ -121,40 +122,13 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
 
     protected List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
         Set<Channel> channels = new LinkedHashSet<>();
-
-        Set<PlaylistEntry> m3uCategories = account.getType() == AccountType.M3U8_URL
-                ? M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
-                : M3U8Parser.parsePathCategory(account.getM3u8Path());
+        Set<PlaylistEntry> m3uCategories = loadM3uCategories(account);
         boolean hasOtherCategories = m3uCategories.size() >= 2;
-
-        List<PlaylistEntry> m3uEntries = account.getType() == AccountType.M3U8_URL
-                ? parseChannelUrlM3U8(new URL(account.getM3u8Path()))
-                : parseChannelPathM3U8(account.getM3u8Path());
-
-        m3uEntries.stream().filter(e -> {
-            String gt = e.getGroupTitle();
-            String gtTrim = gt == null ? "" : gt.trim();
-
-            if (category.equalsIgnoreCase("All")) {
-                return true;
+        for (PlaylistEntry entry : loadM3uEntries(account)) {
+            if (matchesM3uCategory(entry, category, hasOtherCategories)) {
+                channels.add(toChannel(entry));
             }
-
-            if (category.equalsIgnoreCase("Uncategorized")) {
-                if (!hasOtherCategories) {
-                    return false;
-                }
-                return gtTrim.isEmpty() || gtTrim.equalsIgnoreCase(UNCATEGORIZED_NAME);
-            }
-
-            return gtTrim.equalsIgnoreCase(category) || (e.getId() != null && e.getId().equalsIgnoreCase(category));
-        }).forEach(entry -> {
-            String channelId = entry.getId();
-            if (isBlank(channelId)) {
-                channelId = UUID.nameUUIDFromBytes((entry.getTitle() + entry.getPlaylistEntry()).getBytes()).toString();
-            }
-            Channel c = new Channel(channelId, entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
-            channels.add(c);
-        });
+        }
 
         return channels.stream().toList();
     }
@@ -167,5 +141,40 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             channels.add(c);
         });
         return channels.stream().toList();
+    }
+
+    private Set<PlaylistEntry> loadM3uCategories(Account account) throws MalformedURLException {
+        return account.getType() == AccountType.M3U8_URL
+                ? M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
+                : M3U8Parser.parsePathCategory(account.getM3u8Path());
+    }
+
+    private List<PlaylistEntry> loadM3uEntries(Account account) throws MalformedURLException {
+        return account.getType() == AccountType.M3U8_URL
+                ? parseChannelUrlM3U8(new URL(account.getM3u8Path()))
+                : parseChannelPathM3U8(account.getM3u8Path());
+    }
+
+    private boolean matchesM3uCategory(PlaylistEntry entry, String category, boolean hasOtherCategories) {
+        String groupTitle = entry.getGroupTitle();
+        String trimmedGroupTitle = groupTitle == null ? "" : groupTitle.trim();
+        if (category.equalsIgnoreCase(ALL_CATEGORY)) {
+            return true;
+        }
+        if (category.equalsIgnoreCase(UNCATEGORIZED_NAME)) {
+            return hasOtherCategories && (trimmedGroupTitle.isEmpty() || trimmedGroupTitle.equalsIgnoreCase(UNCATEGORIZED_NAME));
+        }
+        return trimmedGroupTitle.equalsIgnoreCase(category)
+                || (entry.getId() != null && entry.getId().equalsIgnoreCase(category));
+    }
+
+    private Channel toChannel(PlaylistEntry entry) {
+        String channelId = entry.getId();
+        if (isBlank(channelId)) {
+            channelId = UUID.nameUUIDFromBytes((entry.getTitle() + entry.getPlaylistEntry()).getBytes()).toString();
+        }
+        return new Channel(channelId, entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null,
+                entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(),
+                entry.getInputstreamaddon(), entry.getManifestType());
     }
 }

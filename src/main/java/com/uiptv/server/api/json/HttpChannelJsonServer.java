@@ -174,7 +174,7 @@ public class HttpChannelJsonServer implements HttpHandler {
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject item = rows.optJSONObject(i);
                 if (item == null) continue;
-                String seriesId = item.optString("channelId", "");
+                String seriesId = item.optString(PARAM_CHANNEL_ID, "");
                 String rowCategoryId = item.optString("categoryId", "");
                 if (StringUtils.isBlank(rowCategoryId)) {
                     rowCategoryId = fallbackCategoryId;

@@ -11,6 +11,11 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerUrlUtils {
     private static final String FFMPEG_PREFIX = "ffmpeg ";
+    private static final String FFMPEG_PLUS_PREFIX = FFMPEG_PREFIX.replace(" ", "+");
+    private static final String FFMPEG_URL_ENCODED_PREFIX = "ffmpeg%20";
+    private static final String HTTP_SCHEME = "http";
+    private static final String HTTPS_PREFIX = "https://";
+    private static final String HTTP_PREFIX = "http://";
 
     private PlayerUrlUtils() {
     }
@@ -40,11 +45,11 @@ public class PlayerUrlUtils {
         if (lower.startsWith(FFMPEG_PREFIX)) {
             return value.substring(FFMPEG_PREFIX.length()).trim();
         }
-        if (lower.startsWith("ffmpeg+")) {
-            return value.substring("ffmpeg+".length()).trim();
+        if (lower.startsWith(FFMPEG_PLUS_PREFIX)) {
+            return value.substring(FFMPEG_PLUS_PREFIX.length()).trim();
         }
-        if (lower.startsWith("ffmpeg%20")) {
-            return value.substring("ffmpeg%20".length()).trim();
+        if (lower.startsWith(FFMPEG_URL_ENCODED_PREFIX)) {
+            return value.substring(FFMPEG_URL_ENCODED_PREFIX.length()).trim();
         }
 
         String[] uriParts = value.split(" ");
@@ -61,29 +66,11 @@ public class PlayerUrlUtils {
         }
 
         String value = url.trim();
+        URI portalUri = resolvePortalUri(account);
+        String scheme = resolvePortalScheme(portalUri);
 
-        String scheme = "http";
-        try {
-            String portal = account == null ? null : account.getServerPortalUrl();
-            if (!isBlank(portal)) {
-                URI portalUri = URI.create(portal.trim());
-                if (!isBlank(portalUri.getScheme())) {
-                    scheme = portalUri.getScheme();
-                }
-            }
-        } catch (Exception _) {
-        }
-
-        if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
-            // Some Stalker providers return https links that are actually served over http.
-            // Align transport with the portal scheme for known playback paths.
-            if (account != null && account.getType() == STALKER_PORTAL
-                    && "http".equalsIgnoreCase(scheme)
-                    && value.toLowerCase().startsWith("https://")
-                    && (value.toLowerCase().contains("/live/play/") || value.toLowerCase().contains("/play/movie.php"))) {
-                return "http://" + value.substring("https://".length());
-            }
-            return value;
+        if (isAbsoluteUrl(value)) {
+            return alignStalkerPlaybackScheme(account, value, scheme);
         }
 
         if (value.startsWith("//")) {
@@ -91,22 +78,10 @@ public class PlayerUrlUtils {
         }
 
         if (value.startsWith("/")) {
-            try {
-                String portal = account == null ? null : account.getServerPortalUrl();
-                if (!isBlank(portal)) {
-                    URI portalUri = URI.create(portal.trim());
-                    String host = portalUri.getHost();
-                    int port = portalUri.getPort();
-                    if (!isBlank(host)) {
-                        return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
-                    }
-                }
-            } catch (Exception _) {
-            }
-            return value;
+            return prependPortalHost(value, scheme, portalUri);
         }
 
-        if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
+        if (isHostPathLike(value)) {
             return scheme + "://" + value;
         }
 
@@ -133,11 +108,57 @@ public class PlayerUrlUtils {
     public static boolean isUsableLiveCmd(String cmd) {
         if (isBlank(cmd)) return false;
         String normalized = cmd.trim().toLowerCase();
-        if (normalized.startsWith("ffmpeg ")) {
-            normalized = normalized.substring("ffmpeg ".length()).trim();
+        if (normalized.startsWith(FFMPEG_PREFIX)) {
+            normalized = normalized.substring(FFMPEG_PREFIX.length()).trim();
         }
         // Reject known broken pattern with empty stream parameter.
         if (normalized.contains("stream=&")) return false;
         return true;
+    }
+
+    private static URI resolvePortalUri(Account account) {
+        try {
+            String portal = account == null ? null : account.getServerPortalUrl();
+            if (!isBlank(portal)) {
+                return URI.create(portal.trim());
+            }
+        } catch (Exception _) {
+        }
+        return null;
+    }
+
+    private static String resolvePortalScheme(URI portalUri) {
+        if (portalUri != null && !isBlank(portalUri.getScheme())) {
+            return portalUri.getScheme();
+        }
+        return HTTP_SCHEME;
+    }
+
+    private static boolean isAbsoluteUrl(String value) {
+        return value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*");
+    }
+
+    private static boolean isHostPathLike(String value) {
+        return value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*");
+    }
+
+    private static String alignStalkerPlaybackScheme(Account account, String value, String scheme) {
+        String lowerValue = value.toLowerCase();
+        if (account != null
+                && account.getType() == STALKER_PORTAL
+                && HTTP_SCHEME.equalsIgnoreCase(scheme)
+                && lowerValue.startsWith(HTTPS_PREFIX)
+                && (lowerValue.contains("/live/play/") || lowerValue.contains("/play/movie.php"))) {
+            return HTTP_PREFIX + value.substring(HTTPS_PREFIX.length());
+        }
+        return value;
+    }
+
+    private static String prependPortalHost(String value, String scheme, URI portalUri) {
+        if (portalUri != null && !isBlank(portalUri.getHost())) {
+            int port = portalUri.getPort();
+            return scheme + "://" + portalUri.getHost() + (port > 0 ? ":" + port : "") + value;
+        }
+        return value;
     }
 }

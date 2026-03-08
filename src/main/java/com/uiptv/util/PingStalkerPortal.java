@@ -348,7 +348,7 @@ public class PingStalkerPortal {
                 String[] patternArray = functionSplitArray[1].split(pattern);
                 if (patternArray.length > 1 && patternArray[1].contains(endsWithString)) {
                     apiServerURL = patternArray[1].substring(0, patternArray[1].indexOf(endsWithString));
-                    return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
+                    return apiServerURL.replace(DOCUMENT_URL_REPLACE_PREFIX, "").replace("\"", "").replace(")", "");
                 }
             }
         } catch (Exception _) {

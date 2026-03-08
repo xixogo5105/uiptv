@@ -46,6 +46,7 @@ import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox {
     private static final DataFormat SERIALIZED_MIME_TYPE = new DataFormat("application/x-java-serialized-object");
+    private static final String BOOKMARK_CACHE = "bookmark";
     private final SearchableTableViewWithButton<BookmarkItem> bookmarkTable = new SearchableTableViewWithButton<>();
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
@@ -77,7 +78,7 @@ public class BookmarkChannelListUI extends HBox {
 
     public BookmarkChannelListUI() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            ImageCacheManager.clearCache("bookmark");
+            ImageCacheManager.clearCache(BOOKMARK_CACHE);
         }
         initWidgets();
         registerBookmarkChangeListener();
@@ -258,7 +259,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void applyThumbnailMode(boolean enabled) {
         if (enabled) {
-            ImageCacheManager.clearCache("bookmark");
+            ImageCacheManager.clearCache(BOOKMARK_CACHE);
             bookmarkColumn.setCellFactory(column -> createThumbnailCell());
         } else {
             bookmarkColumn.setCellFactory(column -> createPlainTextCell());
@@ -308,7 +309,7 @@ public class BookmarkChannelListUI extends HBox {
                         || isNotBlank(bookmarkItem.getManifestType());
                 drmBadge.setVisible(drmProtected);
                 drmBadge.setManaged(drmProtected);
-                imageView.loadImage(bookmarkItem.getLogo(), "bookmark");
+                imageView.loadImage(bookmarkItem.getLogo(), BOOKMARK_CACHE);
                 setGraphic(graphic);
             }
         };

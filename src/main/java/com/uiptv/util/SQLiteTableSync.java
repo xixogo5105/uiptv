@@ -43,7 +43,7 @@ public class SQLiteTableSync {
             throws SQLException {
         try (
                 Statement sourceStmt = sourceConn.createStatement();
-                ResultSet sourceResult = sourceStmt.executeQuery("SELECT * FROM " + tableName);
+                ResultSet sourceResult = sourceStmt.executeQuery(SELECT_ALL_FROM + tableName);
                 PreparedStatement targetStmtPrepared = targetConn.prepareStatement(
                         "INSERT OR REPLACE INTO " + tableName + " VALUES (" +
                                 String.join(",", Collections.nCopies(sourceResult.getMetaData().getColumnCount(), "?")) + ")"

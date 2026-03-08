@@ -564,7 +564,7 @@ public class ChannelService {
                     JSONArray seriesArray = jsonChannel.getJSONArray("series");
                     if (seriesArray != null) {
                         for (int j = 0; j < seriesArray.length(); j++) {
-                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                             channel.setCategoryId(categoryId);
                             channel.setExtraJson(jsonChannel.toString());
                             resolveLogoIfNeeded(channel);
@@ -572,7 +572,7 @@ public class ChannelService {
                         }
                     }
                 } else {
-                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, "censored"), nullSafeInteger(jsonChannel, "status"), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                     channel.setCategoryId(categoryId);
                     channel.setExtraJson(jsonChannel.toString());
                     resolveLogoIfNeeded(channel);
