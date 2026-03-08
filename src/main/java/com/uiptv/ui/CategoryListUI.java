@@ -71,7 +71,7 @@ public class CategoryListUI extends HBox {
         this(account, embeddedMode, null);
     }
 
-    public CategoryListUI(Account account, boolean embeddedMode, Runnable onHome) {
+    public CategoryListUI(Account account, boolean embeddedMode, Runnable ignoredOnHome) {
         this.account = account;
         this.embeddedMode = embeddedMode;
         this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;

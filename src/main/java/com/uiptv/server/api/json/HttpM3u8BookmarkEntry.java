@@ -34,7 +34,7 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
         }
     }
 
-    private static String bookmarkPlayerResponse(HttpExchange ex, Bookmark bookmark) throws IOException {
+    private static String bookmarkPlayerResponse(HttpExchange ignoredEx, Bookmark bookmark) throws IOException {
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
         
         String originalCmd = bookmark.getCmd();

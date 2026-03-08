@@ -1136,10 +1136,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
-    private void registerLabelBaseStyle(Label label) {
-        // no-op (legacy hook retained for compatibility)
-    }
-
     private void applyLabelSelection(Label label, boolean selected) {
         if (label == null) {
             return;
@@ -1149,10 +1145,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         } else {
             label.getStyleClass().remove("selected-card-text");
         }
-    }
-
-    private void registerHyperlinkBaseStyle(Hyperlink link) {
-        // no-op (legacy hook retained for compatibility)
     }
 
     private void applyHyperlinkSelection(Hyperlink link, boolean selected) {
@@ -1327,37 +1319,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
-    private void refreshWatchedStateInstant(WatchingEpisode item) {
-        if (item == null || item.account == null || isBlank(item.account.getDbId())) {
-            return;
-        }
-        SeriesWatchState state = SeriesWatchStateService.getInstance()
-                .getSeriesLastWatched(item.account.getDbId(), item.state.getCategoryId(), item.state.getSeriesId());
-        String accountId = safe(item.account.getDbId());
-        String seriesId = safe(item.state.getSeriesId());
-        for (SeriesPanelData panel : panelDataByKey.values()) {
-            if (panel == null || panel.account == null || panel.state == null) {
-                continue;
-            }
-            if (!accountId.equals(safe(panel.account.getDbId())) || !seriesId.equals(safe(panel.state.getSeriesId()))) {
-                continue;
-            }
-            for (WatchingEpisode episode : panel.episodes) {
-                episode.watched = SeriesWatchStateService.getInstance().isMatchingEpisode(
-                        state,
-                        episode.channel.getChannelId(),
-                        episode.season,
-                        episode.episodeNum,
-                        episode.title
-                );
-            }
-            if (seriesPaneKey(panel).equals(selectedSeriesKey) && panel.seasonTabs != null) {
-                Platform.runLater(() -> refreshSeasonTables(panel));
-            }
-        }
-    }
-
-    private void lazyLoadImdb(SeriesPanelData data, TitledPane pane, HBox header, TabPane seasonTabs) {
+    private void lazyLoadImdb(SeriesPanelData data, TitledPane pane, HBox ignoredHeader, TabPane ignoredSeasonTabs) {
         if (!thumbnailsEnabled()) {
             data.imdbLoaded = true;
             data.imdbLoading = false;
@@ -2208,10 +2170,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             // Invalid image/base URIs should not break rendering; the caller will keep the raw URL.
         }
         return null;
-    }
-
-    private String localServerOrigin() {
-        return ServerUrlUtil.getLocalServerUrl();
     }
 
     private String firstNonBlank(String... values) {

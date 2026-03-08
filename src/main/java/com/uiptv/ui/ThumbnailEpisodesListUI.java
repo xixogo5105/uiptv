@@ -536,10 +536,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
     }
 
-    private void registerLabelBaseStyle(Label label) {
-        // no-op (legacy hook retained for compatibility)
-    }
-
     private void applyLabelSelection(Label label, boolean selected) {
         if (label == null) {
             return;

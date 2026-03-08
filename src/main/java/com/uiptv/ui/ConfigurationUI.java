@@ -669,17 +669,6 @@ public class ConfigurationUI extends VBox {
         tmdbApiKeyPageLink.setOnAction(event -> ServerUrlUtil.openInBrowser(TMDB_API_KEY_URL));
     }
 
-    private String resolveServerPort() {
-        String port = serverPort.getText();
-        if (port == null || port.isBlank()) {
-            Configuration configuration = service.read();
-            if (configuration != null) {
-                port = configuration.getServerPort();
-            }
-        }
-        return (port == null || port.isBlank()) ? "8888" : port.trim();
-    }
-
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(actionEvent -> {
             try {

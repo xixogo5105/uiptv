@@ -47,7 +47,7 @@ public class LogoResolverService {
         return INSTANCE;
     }
 
-    public String resolve(String channelName, String providerLogo, String countryCode) {
+    public String resolve(String channelName, String providerLogo, String ignoredCountryCode) {
         if (isNotBlank(providerLogo)) {
             return providerLogo;
         }

@@ -181,17 +181,9 @@ public class CategoryService {
         }
     }
 
-    private void hardReloadCategories(Account account) {
-        hardReloadCategories(account, null);
-    }
-
     private void hardReloadCategories(Account account, LoggerCallback logger) {
         List<Category> categories = fetchCategoriesFromBackend(account, logger);
         CategoryDb.get().saveAll(categories, account);
-    }
-
-    private List<Category> fetchCategoriesFromBackend(Account account) {
-        return fetchCategoriesFromBackend(account, null);
     }
 
     private List<Category> fetchCategoriesFromBackend(Account account, LoggerCallback logger) {

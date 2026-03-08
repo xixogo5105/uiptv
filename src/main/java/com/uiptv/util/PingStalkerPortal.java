@@ -357,7 +357,7 @@ public class PingStalkerPortal {
         return null;
     }
 
-    private static String getPortalPort(String jsFileContents, String url) {
+    private static String getPortalPort(String jsFileContents, String ignoredUrl) {
         return extractPortalParam(jsFileContents, "this.portal_port=", DOCUMENT_URL_REPLACE_PREFIX);
     }
 

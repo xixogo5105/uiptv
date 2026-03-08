@@ -215,7 +215,7 @@ public class AccountListUI extends HBox {
         getChildren().setAll(embeddedContainer);
     }
 
-    private void showDetailView(Node content, String title) {
+    private void showDetailView(Node content, String ignoredTitle) {
         if (!embeddedMode) {
             return;
         }
