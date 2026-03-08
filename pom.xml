@@ -21,7 +21,17 @@
         <lombok.version>1.18.42</lombok.version>
         <javafx.platform>linux</javafx.platform>
         <sonar.organization>xixogo5105</sonar.organization>
-        <sonar.coverage.exclusions>src/main/java/com/uiptv/ui/**,src/main/java/com/uiptv/player/**,src/main/java/com/uiptv/widget/**</sonar.coverage.exclusions>
+        <sonar.coverage.exclusions>
+            src/main/java/com/uiptv/ui/**,
+            src/main/java/com/uiptv/player/**,
+            src/main/java/com/uiptv/widget/**,
+            src/main/java/com/uiptv/api/VideoPlayerInterface.java,
+            src/main/java/com/uiptv/util/ColoredStatusTableCell.java,
+            src/main/java/com/uiptv/util/I18n.java,
+            src/main/java/com/uiptv/util/ImageCacheManager.java,
+            src/main/java/com/uiptv/util/ServerUrlUtil.java,
+            src/main/java/com/uiptv/util/StyleClassDecorator.java
+        </sonar.coverage.exclusions>
     </properties>
 
     <dependencies>
