@@ -27,7 +27,6 @@ import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.LogUtil;
-import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
@@ -103,7 +102,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     void tearDownServers() throws Exception {
         try {
             UIptvServer.stop();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         if (providerMockServer != null) {
             providerMockServer.stop(0);
@@ -742,7 +741,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             var field = com.uiptv.service.InMemoryHlsService.class.getDeclaredField("TS_DELETE_GRACE_MILLIS");
             field.setAccessible(true);
             return field.getLong(null);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return 12_000L;
         }
     }

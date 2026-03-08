@@ -31,7 +31,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
                     channelsMap.put(category.getTitle(), channels);
                     totalChannels += channels.size();
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
         }
 

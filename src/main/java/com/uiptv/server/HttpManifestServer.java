@@ -15,7 +15,7 @@ public class HttpManifestServer implements HttpHandler {
         try {
             Path filePath = StaticWebFileResolver.resolve(ex);
             generateJsonResponse(ex, StringUtils.EMPTY + StaticWebFileResolver.readUtf8(filePath));
-        } catch (IOException e) {
+        } catch (IOException _) {
             ex.sendResponseHeaders(404, -1);
         }
     }

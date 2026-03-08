@@ -10,6 +10,8 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerUrlUtils {
+    private PlayerUrlUtils() {
+    }
 
     public static String resolveAndProcessUrl(String url) {
         if (isBlank(url)) return url;
@@ -67,7 +69,7 @@ public class PlayerUrlUtils {
                     scheme = portalUri.getScheme();
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
 
         if (value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
@@ -97,7 +99,7 @@ public class PlayerUrlUtils {
                         return scheme + "://" + host + (port > 0 ? ":" + port : "") + value;
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
             return value;
         }

@@ -145,7 +145,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             String transmuxInput = forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl;
             try {
                 hlsReady = FfmpegService.getInstance().startTransmuxing(transmuxInput, forceWebHls);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 hlsReady = false;
             }
             if (!hlsReady && forceWebHls) {
@@ -154,7 +154,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
                     try {
                         hlsReady = FfmpegService.getInstance().startTransmuxing(buildLocalProxyUrl(downgraded), true);
                         sourceUrl = downgraded;
-                    } catch (Exception ignored) {
+                    } catch (Exception _) {
                         hlsReady = false;
                     }
                 }
@@ -209,7 +209,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
         try {
             account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             account.setAction(Account.AccountAction.itv);
         }
     }
@@ -331,7 +331,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 } else {
                     current = downgradeHttpsToHttp(current);
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 return current;
             }
         }

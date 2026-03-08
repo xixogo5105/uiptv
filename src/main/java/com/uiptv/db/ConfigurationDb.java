@@ -34,7 +34,7 @@ public class ConfigurationDb extends BaseDb {
                 statement.execute("DELETE FROM " + table.getTableName());
             }
             statement.execute("UPDATE " + DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName() + " SET serverPortalUrl=''");
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 
@@ -61,7 +61,7 @@ public class ConfigurationDb extends BaseDb {
                 pstmt.setString(1, account.getDbId());
                 pstmt.executeUpdate();
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 

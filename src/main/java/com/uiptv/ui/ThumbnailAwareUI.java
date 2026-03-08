@@ -4,8 +4,6 @@ import com.uiptv.service.ConfigurationService;
 import javafx.application.Platform;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
 
 /**
  * Base class providing common functionality for UI components that support both
@@ -51,7 +49,7 @@ public abstract class ThumbnailAwareUI {
             for (ThumbnailModeListener listener : THUMBNAIL_MODE_LISTENERS) {
                 try {
                     listener.onThumbnailModeChanged(enabled);
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
             }
         };
@@ -66,7 +64,7 @@ public abstract class ThumbnailAwareUI {
         try {
             var config = ConfigurationService.getInstance().read();
             return config != null && config.isEnableThumbnails();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return false;
     }

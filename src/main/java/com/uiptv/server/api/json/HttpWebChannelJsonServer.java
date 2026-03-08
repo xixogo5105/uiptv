@@ -270,7 +270,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
                         SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), rowCategoryId, seriesId) != null);
             }
             return rows.toString();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return response;
         }
     }
@@ -311,7 +311,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         }
         try {
             account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             account.setAction(Account.AccountAction.itv);
         }
     }
@@ -321,7 +321,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
             int parsed = Integer.parseInt(value);
             if (parsed < minValue) return minValue;
             return Math.min(parsed, maxValue);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return defaultValue;
         }
     }

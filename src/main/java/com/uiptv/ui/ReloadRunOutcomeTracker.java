@@ -50,7 +50,7 @@ class ReloadRunOutcomeTracker {
         if (foundChannelsMatcher.find()) {
             try {
                 return Integer.parseInt(foundChannelsMatcher.group(1));
-            } catch (NumberFormatException ignored) {
+            } catch (NumberFormatException _) {
                 return null;
             }
         }
@@ -59,7 +59,7 @@ class ReloadRunOutcomeTracker {
         if (lastResortMatcher.find()) {
             try {
                 return Integer.parseInt(lastResortMatcher.group(1));
-            } catch (NumberFormatException ignored) {
+            } catch (NumberFormatException _) {
                 return null;
             }
         }

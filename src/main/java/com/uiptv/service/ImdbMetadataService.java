@@ -170,7 +170,7 @@ public class ImdbMetadataService {
                 }
             }
             return best;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return best;
         }
     }
@@ -186,7 +186,7 @@ public class ImdbMetadataService {
             if (isBlank(body)) return null;
             JSONObject json = new JSONObject(body);
             return json.optJSONArray("d");
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return null;
         }
     }
@@ -262,7 +262,7 @@ public class ImdbMetadataService {
 
             result.put("cast", joinPersonNames(data.optJSONArray("actor")));
             result.put("director", joinPersonNames(data.optJSONArray("director")));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // best effort
         }
         return result;
@@ -301,7 +301,7 @@ public class ImdbMetadataService {
                 enrichEpisodeMetaWithTvMaze(episodesMeta, imdbId, meta.optString("name", ""));
                 result.put("episodesMeta", episodesMeta);
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // best effort
         }
         return result;
@@ -389,7 +389,7 @@ public class ImdbMetadataService {
                 return new JSONArray();
             }
             return new JSONArray(body);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return new JSONArray();
         }
     }
@@ -432,7 +432,7 @@ public class ImdbMetadataService {
                 }
             }
             return bestId;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return -1;
         }
     }
@@ -471,7 +471,7 @@ public class ImdbMetadataService {
                 return result;
             }
             applyCinemetaMeta(result, meta);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // best effort
         }
         return result;
@@ -604,7 +604,7 @@ public class ImdbMetadataService {
             if (isNotBlank(posterPath)) {
                 result.put("cover", "https://image.tmdb.org/t/p/w500" + posterPath);
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // best effort
         }
         return result;
@@ -681,7 +681,7 @@ public class ImdbMetadataService {
             JSONObject payload = new JSONObject(response.body());
             JSONArray episodes = payload.optJSONArray("episodes");
             return episodes == null ? new JSONArray() : episodes;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return new JSONArray();
         }
     }
@@ -840,7 +840,7 @@ public class ImdbMetadataService {
                 }
             }
             return false;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return true;
         }
     }
@@ -889,7 +889,7 @@ public class ImdbMetadataService {
                 return "";
             }
             return response.body();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }
@@ -952,7 +952,7 @@ public class ImdbMetadataService {
             }
             String token = configuration.getTmdbReadAccessToken();
             return token == null ? "" : token.trim();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }

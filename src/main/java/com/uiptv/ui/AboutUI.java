@@ -24,7 +24,7 @@ import javafx.stage.Stage;
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
 
-    public AboutUI(HostServices hostServices) {
+    private AboutUI(HostServices hostServices) {
         Stage stage = new Stage();
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle(I18n.tr("autoAboutUIPTV"));
@@ -129,6 +129,10 @@ public class AboutUI {
         }
         stage.setScene(scene);
         stage.showAndWait();
+    }
+
+    public static void show(HostServices hostServices) {
+        new AboutUI(hostServices);
     }
 
     private static Label createBodyLabel(String text) {

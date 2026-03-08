@@ -1,6 +1,5 @@
 package com.uiptv.util;
 
-import com.uiptv.ui.LogDisplayUI;
 
 import java.io.File;
 

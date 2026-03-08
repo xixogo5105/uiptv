@@ -58,7 +58,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 }
             } catch (Exception e) {
                 failedCategories++;
-                log(logger, "Category fetch failed (" + category.getTitle() + "): " + shortReason(e));
+                log(logger, "Category fetch failed (" + category.getTitle() + "): " + describeFailure(e));
             }
         }
 
@@ -91,7 +91,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         List<Channel> allChannels;
         try {
             allChannels = XtremeParser.parseAllChannels(account);
-        } catch (Exception e) {
+        } catch (Exception _) {
             log(logger, "Global Xtreme channel lookup failed. Falling back to category fetch.");
             return false;
         }
@@ -159,7 +159,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         return true;
     }
 
-    private String shortReason(Exception e) {
+    private static String describeFailure(Exception e) {
         if (e == null) {
             return "unknown error";
         }

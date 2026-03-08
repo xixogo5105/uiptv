@@ -12,12 +12,12 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class M3U8PublicationServiceTest extends DbBackedTest {
+class M3U8PublicationServiceTest extends DbBackedTest {
 
     private java.io.File m3u8File;
 
     @BeforeEach
-    public void setUp() throws Exception {
+    void setUp() throws Exception {
         // Create a dummy M3U8 file
         m3u8File = tempDir.resolve("test.m3u8").toFile();
         try (FileWriter writer = new FileWriter(m3u8File)) {
@@ -28,7 +28,7 @@ public class M3U8PublicationServiceTest extends DbBackedTest {
     }
 
     @Test
-    public void testGetPublishedM3u8() {
+    void testGetPublishedM3u8() {
         AccountService accountService = AccountService.getInstance();
         
         // Create an account pointing to the local M3U8 file

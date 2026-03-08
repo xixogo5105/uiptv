@@ -1,12 +1,14 @@
 package com.uiptv.util;
 
-import com.uiptv.ui.LogDisplayUI;
 
 import java.util.Map;
 
 import static com.uiptv.util.StringUtils.EMPTY;
 
 public class LogUtil {
+    private LogUtil() {
+    }
+
     public static void httpLog(String url, HttpUtil.HttpResult response, Map<String, String> params) {
         com.uiptv.util.AppLog.addLog("URL: " + url);
         com.uiptv.util.AppLog.addLog("==========================================Request Headers==========================================");

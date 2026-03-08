@@ -12,6 +12,9 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class RssFeedReader {
+    private RssFeedReader() {
+    }
+
 
     public static class RssItem {
         private String title;

@@ -12,10 +12,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class CrudTest extends DbBackedTest {
+class CrudTest extends DbBackedTest {
 
     @Test
-    public void testAccountCrud() {
+    void testAccountCrud() {
         System.out.println("Testing Account CRUD...");
         AccountService accountService = AccountService.getInstance();
 
@@ -48,7 +48,7 @@ public class CrudTest extends DbBackedTest {
     }
 
     @Test
-    public void testAccountDefaultValues() {
+    void testAccountDefaultValues() {
         System.out.println("Testing Account Default Values...");
         AccountService accountService = AccountService.getInstance();
 
@@ -67,7 +67,7 @@ public class CrudTest extends DbBackedTest {
     }
 
     @Test
-    public void testCategoryCrud() {
+    void testCategoryCrud() {
         System.out.println("Testing Category CRUD...");
         AccountService accountService = AccountService.getInstance();
         
@@ -99,7 +99,7 @@ public class CrudTest extends DbBackedTest {
     }
 
     @Test
-    public void testChannelCrudAndPlayerService() throws IOException {
+    void testChannelCrudAndPlayerService() throws IOException {
         System.out.println("Testing Channel CRUD and PlayerService...");
         AccountService accountService = AccountService.getInstance();
         
@@ -145,7 +145,7 @@ public class CrudTest extends DbBackedTest {
     }
 
     @Test
-    public void testGlobalCacheClear() {
+    void testGlobalCacheClear() {
         System.out.println("Testing Global Cache Clear...");
         AccountService accountService = AccountService.getInstance();
         CacheServiceImpl cacheService = new CacheServiceImpl();
@@ -188,7 +188,7 @@ public class CrudTest extends DbBackedTest {
     }
 
     @Test
-    public void testBookmarkCrud() {
+    void testBookmarkCrud() {
         System.out.println("Testing Bookmark CRUD...");
         BookmarkService bookmarkService = BookmarkService.getInstance();
         AccountService accountService = AccountService.getInstance();
@@ -245,7 +245,7 @@ public class CrudTest extends DbBackedTest {
     }
 
     @Test
-    public void testConfigurationCrud() {
+    void testConfigurationCrud() {
         System.out.println("Testing Configuration CRUD...");
         ConfigurationService configService = ConfigurationService.getInstance();
 

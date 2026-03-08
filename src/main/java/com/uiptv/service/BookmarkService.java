@@ -74,7 +74,7 @@ public class BookmarkService {
         try {
             BookmarkDb.get().delete(id);
             touchChange();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             showError("Error while removing the bookmark");
         }
     }
@@ -105,7 +105,7 @@ public class BookmarkService {
                     logo = logoResolverService.resolve(bookmark.getChannelName(), null, null);
                 }
                 bookmark.setLogo(logo);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 // Best-effort enrichment only. Never fail /bookmarks response.
             }
         }
@@ -166,7 +166,7 @@ public class BookmarkService {
         for (BookmarkChangeListener listener : changeListeners) {
             try {
                 listener.onBookmarksChanged(revision, lastUpdatedEpochMs);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 // Listener failures must never break bookmark mutation flow.
             }
         }

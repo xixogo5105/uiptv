@@ -26,6 +26,9 @@ public class M3U8Parser {
     private static final String KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key=";
     private static final String COMMENT_PREFIX = "#";
 
+    private M3U8Parser() {
+    }
+
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
         try {
             String protocol = m3u8Url.getProtocol();
@@ -96,7 +99,10 @@ public class M3U8Parser {
                             // Missing group-title should be represented by Uncategorized if present in the source.
                             hasUncategorizedEntries = true;
                         }
-                        reader.readLine();
+                        String streamLine = reader.readLine();
+                        if (streamLine == null) {
+                            break;
+                        }
                     }
                 } catch (Exception e) {
                     UIptvAlert.showError(e.getMessage());

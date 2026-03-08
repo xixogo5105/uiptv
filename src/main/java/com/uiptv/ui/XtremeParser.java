@@ -27,6 +27,9 @@ import static com.uiptv.widget.UIptvAlert.showError;
 import static com.uiptv.widget.UIptvAlert.showErrorKey;
 
 public class XtremeParser {
+    private XtremeParser() {
+    }
+
     public static List<Category> parseCategories(Account account) {
         try {
             return doParseCategories(fetchPlayerApi(account, getCategoryAction(account.getAction()), null));

@@ -7,7 +7,6 @@ import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.shared.PlaylistEntry;
-import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;

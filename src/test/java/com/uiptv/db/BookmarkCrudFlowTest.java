@@ -6,7 +6,6 @@ import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Channel;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.DbBackedTest;
-import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -19,10 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class BookmarkCrudFlowTest extends DbBackedTest {
+class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
-    public void testBookmarkServiceCrudAndJsonFlow() {
+    void testBookmarkServiceCrudAndJsonFlow() {
         BookmarkService bookmarkService = BookmarkService.getInstance();
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
@@ -70,7 +69,7 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
-    public void testBookmarkCategoryAndOrderingFlow() {
+    void testBookmarkCategoryAndOrderingFlow() {
         BookmarkService bookmarkService = BookmarkService.getInstance();
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
@@ -120,7 +119,7 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
-    public void testBookmarkChangeRevisionIncrementsOnMutations() {
+    void testBookmarkChangeRevisionIncrementsOnMutations() {
         BookmarkService bookmarkService = BookmarkService.getInstance();
 
         long revisionStart = bookmarkService.getChangeRevision();
@@ -155,7 +154,7 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
-    public void testBookmarkDbDeleteAndUpdateFlow() {
+    void testBookmarkDbDeleteAndUpdateFlow() {
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
         Bookmark first = new Bookmark("acc-delete", "Movies", "m-1", "Movie One", "cmd://movie-1", "http://portal", "cat-movie");
@@ -206,7 +205,7 @@ public class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
-    public void testBookmarkIdentityLookupSupportsAllCategoryViews() {
+    void testBookmarkIdentityLookupSupportsAllCategoryViews() {
         BookmarkService bookmarkService = BookmarkService.getInstance();
 
         Bookmark sportsBookmark = new Bookmark("acc-all", "Sports", "ch-42", "The Channel", "cmd://42", "http://portal", "cat-sports");

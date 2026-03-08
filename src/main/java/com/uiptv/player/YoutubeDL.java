@@ -1,6 +1,5 @@
 package com.uiptv.player;
 
-import com.uiptv.ui.LogDisplayUI;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -8,13 +7,15 @@ import java.io.InputStreamReader;
 import java.util.concurrent.TimeUnit;
 
 public class YoutubeDL {
-
     private static final String DEFAULT_YT_DLP_COMMAND = "yt-dlp";
     private static final String DEFAULT_YOUTUBE_DL_COMMAND = "youtube-dl";
 
     // New fields to store custom paths
     private static String customYtDlpPath = null;
     private static String customYoutubeDlPath = null;
+
+    private YoutubeDL() {
+    }
 
     /**
      * Sets a custom path for the yt-dlp executable.
@@ -112,8 +113,10 @@ public class YoutubeDL {
         } catch (IOException e) {
             com.uiptv.util.AppLog.addLog("Error: The command '" + command + "' was not found. Please ensure yt-dlp or youtube-dl is installed and accessible in your system's PATH, or set the executable path using YoutubeDL.setYtDlpPath() or YoutubeDL.setYoutubeDlPath().");
             com.uiptv.util.AppLog.addLog("Details: " + e.getMessage());
-        } catch (Exception e) {
-            // This catch block will handle other runtime exceptions.
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+            com.uiptv.util.AppLog.addLog("Execution interrupted while running " + command + " for " + trimmedVideoUrl);
+        } catch (RuntimeException e) {
             com.uiptv.util.AppLog.addLog("An unexpected error occurred while executing " + command + " for " + trimmedVideoUrl + ": " + e.getMessage());
         }
         return null; // Return null if this command failed

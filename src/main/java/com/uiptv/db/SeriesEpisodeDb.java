@@ -51,7 +51,7 @@ public class SeriesEpisodeDb extends BaseDb {
                     return cachedAt > 0 && (System.currentTimeMillis() - cachedAt) <= maxAgeMs;
                 }
             }
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
         }
         return false;
     }
@@ -67,7 +67,7 @@ public class SeriesEpisodeDb extends BaseDb {
                     return cachedAt > 0 && (System.currentTimeMillis() - cachedAt) <= maxAgeMs;
                 }
             }
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
         }
         return false;
     }
@@ -158,7 +158,7 @@ public class SeriesEpisodeDb extends BaseDb {
                     return safeCategoryId(rs.getString(1));
                 }
             }
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
         }
         return null;
     }

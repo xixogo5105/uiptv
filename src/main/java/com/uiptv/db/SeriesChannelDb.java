@@ -62,7 +62,7 @@ public class SeriesChannelDb extends BaseDb {
                     return cachedAt > 0 && (System.currentTimeMillis() - cachedAt) <= maxAgeMs;
                 }
             }
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
         }
         return false;
     }

@@ -1,12 +1,14 @@
 package com.uiptv.util;
 
 
-import com.uiptv.ui.LogDisplayUI;
 
 import java.sql.*;
 import java.util.Collections;
 
 public class SQLiteTableSync {
+    private SQLiteTableSync() {
+    }
+
 
     public static void syncTables(String firstDBPath, String secondDBPath, String tableName) throws SQLException {
         try (

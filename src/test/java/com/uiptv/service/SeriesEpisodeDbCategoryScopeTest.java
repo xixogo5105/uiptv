@@ -4,7 +4,6 @@ import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

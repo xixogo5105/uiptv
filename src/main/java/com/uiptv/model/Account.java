@@ -6,7 +6,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.StringUtils;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
 import org.json.JSONPropertyIgnore;
 
 import java.util.Arrays;

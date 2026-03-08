@@ -60,7 +60,7 @@ public class ConfigurationService {
         try {
             int parsed = Integer.parseInt(rawZoomPercent.trim());
             return FIREFOX_ZOOM_PERCENT_OPTIONS.contains(parsed) ? parsed : DEFAULT_UI_ZOOM_PERCENT;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return DEFAULT_UI_ZOOM_PERCENT;
         }
     }
@@ -72,7 +72,7 @@ public class ConfigurationService {
         try {
             int parsed = Integer.parseInt(rawDays.trim());
             return parsed > 0 ? parsed : DEFAULT_CACHE_EXPIRY_DAYS;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return DEFAULT_CACHE_EXPIRY_DAYS;
         }
     }

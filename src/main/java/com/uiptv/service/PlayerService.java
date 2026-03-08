@@ -149,7 +149,7 @@ public class PlayerService {
         for (PlaybackResolvedListener listener : playbackResolvedListeners) {
             try {
                 listener.onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 // Callback failures should not impact playback.
             }
         }

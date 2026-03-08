@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 
 public class HttpUtil {
+    private HttpUtil() {
+    }
+
     public static final int STATUS_OK = 200;
     public static final int STATUS_NOT_ACCEPTABLE = 406;
 
@@ -118,7 +121,7 @@ public class HttpUtil {
                         parsed.getQuery(),
                         parsed.getRef()
                 );
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 throw original;
             }
         }

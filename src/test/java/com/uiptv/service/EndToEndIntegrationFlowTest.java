@@ -15,7 +15,6 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.LogUtil;
-import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.util.TextParserService;
 import org.json.JSONArray;
 import org.json.JSONObject;

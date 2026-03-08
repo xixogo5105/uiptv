@@ -230,7 +230,7 @@ public class DatabasePatchesUtils {
             if (in != null) {
                 return in;
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // Continue trying other strategies.
         }
 
@@ -238,7 +238,7 @@ public class DatabasePatchesUtils {
         if (Files.exists(localPath)) {
             try {
                 return new FileInputStream(localPath.toFile());
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 return null;
             }
         }

@@ -1,7 +1,6 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
-import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import org.json.JSONObject;
 
@@ -78,7 +77,7 @@ public class FetchAPI {
                 return candidate + "/portal.php";
             }
             return candidate;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }
@@ -110,7 +109,7 @@ public class FetchAPI {
     public static boolean nullSafeBoolean(JSONObject jsonCategory, String key) {
         try {
             return jsonCategory.getBoolean(key);
-        } catch (Exception ex) {
+        } catch (Exception _) {
             return false;
         }
     }
@@ -118,7 +117,7 @@ public class FetchAPI {
     public static int nullSafeInteger(JSONObject jsonCategory, String key) {
         try {
             return jsonCategory.getInt(key);
-        } catch (Exception ex) {
+        } catch (Exception _) {
             return -1;
         }
     }
@@ -126,7 +125,7 @@ public class FetchAPI {
     public static String nullSafeString(JSONObject jsonCategory, String key) {
         try {
             return jsonCategory.getString(key);
-        } catch (Exception ex) {
+        } catch (Exception _) {
             return "";
         }
     }

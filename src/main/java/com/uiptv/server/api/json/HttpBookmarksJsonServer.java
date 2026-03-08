@@ -160,7 +160,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
                 return new JSONObject();
             }
             return new JSONObject(new String(data, StandardCharsets.UTF_8));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return new JSONObject();
         }
     }
@@ -181,7 +181,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
         }
         try {
             account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             account.setAction(Account.AccountAction.itv);
         }
     }
@@ -206,7 +206,7 @@ public class HttpBookmarksJsonServer implements HttpHandler {
         try {
             String value = getParam(ex, key);
             return value == null ? "" : value;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }

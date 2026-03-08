@@ -365,7 +365,7 @@ public class SeriesWatchStateService {
         for (SeriesWatchStateChangeListener listener : listeners) {
             try {
                 listener.onSeriesWatchStateChanged(accountId, seriesId);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 // Listener errors should not break watch-state writes.
             }
         }
@@ -398,7 +398,7 @@ public class SeriesWatchStateService {
         }
         try {
             return Integer.parseInt(normalized);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return 0;
         }
     }

@@ -16,6 +16,8 @@ import java.util.Map;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class ServerUtils {
+    private ServerUtils() {
+    }
 
     public static final String CONTENT_TYPE_HTML = "text/html";
     public static final String CONTENT_TYPE_JAVASCRIPT = "text/javascript";

@@ -114,7 +114,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             long contentLength = 0;
             try {
                 contentLength = isBlank(contentLengthHeader) ? 0 : Long.parseLong(contentLengthHeader);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 contentLength = 0;
             }
             ex.sendResponseHeaders(upstreamStatus, contentLength > 0 ? contentLength : 0);
@@ -127,7 +127,7 @@ public class HttpProxyStreamServer implements HttpHandler {
                     os.write(buffer, 0, read);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             ex.sendResponseHeaders(502, -1);
         } finally {
             if (upstream != null) {
@@ -236,7 +236,7 @@ public class HttpProxyStreamServer implements HttpHandler {
                     uri.getFragment()
             );
             return candidate.toString();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return originalUrl;
         }
     }

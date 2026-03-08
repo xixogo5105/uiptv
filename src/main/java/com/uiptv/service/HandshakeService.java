@@ -1,7 +1,6 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Account;
-import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.util.StringUtils;
 import javafx.application.Platform;
 import org.json.JSONObject;

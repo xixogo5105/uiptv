@@ -12,18 +12,20 @@ import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class UiptUtils {
-    private static final String MAC_ADDRESS_REGEX = "^([0-9A-Fa-f]{2}[:-])"
+    private UiptUtils() {
+    }
+    private static final String MAC_ADDRESS_REGEX = "^(?:([0-9A-Fa-f]{2}[:-])"
             + "{5}([0-9A-Fa-f]{2})|"
             + "([0-9a-fA-F]{4}\\."
             + "[0-9a-fA-F]{4}\\."
-            + "[0-9a-fA-F]{4})$";
+            + "[0-9a-fA-F]{4}))$";
 
     public static final String SPACER = " ";
 
     public static String replaceAllNonPrintableChars(String line) {
         try {
             return isBlank(line) ? EMPTY : line.replaceAll("\\p{Cntrl}", SPACER).replaceAll("[^\\p{Print}]", SPACER).replaceAll("\\p{C}", SPACER);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return line;
     }
@@ -33,7 +35,7 @@ public class UiptUtils {
             URL url = new URL(urlString);
             url.toURI();
             return true;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return false;
     }
@@ -53,7 +55,7 @@ public class UiptUtils {
                 validName = uri.getHost() + " (" + i++ + ")";
             } while (AccountService.getInstance().getByName(validName) != null);
             return validName;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return urlString;
     }
@@ -61,7 +63,7 @@ public class UiptUtils {
     public static String getNameFromUrl(String urlString) {
         try {
             return new URL(urlString).toURI().getHost();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return urlString;
     }
@@ -71,7 +73,7 @@ public class UiptUtils {
             String queryString = new URL(urlString).toURI().getQuery();
             if (isBlank(queryString)) return false;
             return urlString.toLowerCase().contains("get.php?") && queryString.toLowerCase().contains("username") && queryString.toLowerCase().contains("password");
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return false;
     }
@@ -79,7 +81,7 @@ public class UiptUtils {
     public static String getPathFromUrl(String urlString) {
         try {
             return urlString.split("get.php?")[0];
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return urlString;
     }
@@ -88,7 +90,7 @@ public class UiptUtils {
         try {
             String queryString = new URL(urlString).toURI().getQuery();
             return getQueryMap(queryString).get("username");
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return urlString;
     }
@@ -97,7 +99,7 @@ public class UiptUtils {
         try {
             String queryString = new URL(urlString).toURI().getQuery();
             return getQueryMap(queryString).get("password");
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return urlString;
     }

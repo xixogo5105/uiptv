@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.Locale;
 
 public class SystemUtils {
+    private SystemUtils() {
+    }
 
     /**
      * Singleton instance, used mainly for testing.
@@ -96,7 +98,7 @@ public class SystemUtils {
                 os = POSIX_UNIX;
             }
 
-        } catch (final Exception ex) {
+        } catch (final Exception _) {
             os = INIT_PROBLEM;
         }
         OS = os;

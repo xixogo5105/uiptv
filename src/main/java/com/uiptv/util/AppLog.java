@@ -15,7 +15,7 @@ public final class AppLog {
         for (Consumer<String> listener : listeners) {
             try {
                 listener.accept(log);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 // Keep logging resilient if a listener fails.
             }
         }

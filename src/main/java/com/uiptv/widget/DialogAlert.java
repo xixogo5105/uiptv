@@ -9,6 +9,9 @@ import javafx.scene.control.ButtonType;
 import javafx.stage.Modality;
 
 public class DialogAlert {
+    private DialogAlert() {
+    }
+
     public static ButtonType showDialog(String contents) {
         return showDialog(I18n.tr("commonConfirm"), contents);
     }

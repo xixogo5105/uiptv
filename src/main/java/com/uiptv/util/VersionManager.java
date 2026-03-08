@@ -9,6 +9,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 public class VersionManager {
+    private VersionManager() {
+    }
 
     public static String getCurrentVersion() {
         return getUpdateMetadataValue("version");

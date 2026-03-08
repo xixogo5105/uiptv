@@ -26,7 +26,7 @@ public class AnalogClock extends Pane {
     }
 
     public void setSeconds(int seconds) {
-        double angle = (seconds % 60) * 6;
+        double angle = (seconds % 60) * 6.0;
         secondHandRotate.setAngle(angle);
     }
 }

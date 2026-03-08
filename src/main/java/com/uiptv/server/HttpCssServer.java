@@ -15,7 +15,7 @@ public class HttpCssServer implements HttpHandler {
         try {
             Path filePath = StaticWebFileResolver.resolve(ex);
             generateCssResponse(ex, StringUtils.EMPTY + StaticWebFileResolver.readUtf8(filePath), filePath.getFileName().toString());
-        } catch (IOException e) {
+        } catch (IOException _) {
             ex.sendResponseHeaders(404, -1);
         }
     }

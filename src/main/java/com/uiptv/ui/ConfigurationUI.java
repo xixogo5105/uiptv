@@ -565,7 +565,7 @@ public class ConfigurationUI extends VBox {
                 try {
                     cacheService.clearAllCache();
                     showMessageAlert(I18n.tr("configCacheCleared"));
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                     showMessageAlert(I18n.tr("configCacheClearFailed"));
                 }
             }
@@ -578,7 +578,7 @@ public class ConfigurationUI extends VBox {
                 try {
                     SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
                     showMessageAlert(I18n.tr("configWatchNowCleared"));
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                     showMessageAlert(I18n.tr("configWatchNowClearFailed"));
                 }
             }
@@ -726,7 +726,7 @@ public class ConfigurationUI extends VBox {
                 if (restartRequired) {
                     showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
                 }
-            } catch (Exception e) {
+            } catch (Exception _) {
                 showErrorAlert(I18n.tr("configFailedToSave"));
                 saveButton.setDisable(false);
             }

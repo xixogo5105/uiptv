@@ -13,6 +13,7 @@ abstract class AbstractFfmpegHlsService {
     private static Process currentProcess;
 
     protected boolean startManagedHlsStream(List<String> command) throws IOException {
+        Process process;
         synchronized (PROCESS_LOCK) {
             stopManagedHlsStreamLocked();
             InMemoryHlsService.getInstance().clear();
@@ -21,23 +22,24 @@ abstract class AbstractFfmpegHlsService {
             pb.redirectErrorStream(true);
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             currentProcess = pb.start();
-
-            int attempts = 0;
-            final int maxAttempts = 150;
-            while (!InMemoryHlsService.getInstance().exists(STREAM_FILENAME) && attempts < maxAttempts) {
-                if (currentProcess == null || !currentProcess.isAlive()) {
-                    break;
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                attempts++;
-            }
-            return InMemoryHlsService.getInstance().exists(STREAM_FILENAME);
+            process = currentProcess;
         }
+
+        int attempts = 0;
+        final int maxAttempts = 150;
+        while (!InMemoryHlsService.getInstance().exists(STREAM_FILENAME) && attempts < maxAttempts) {
+            if (currentProcess != process || !process.isAlive()) {
+                break;
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            attempts++;
+        }
+        return InMemoryHlsService.getInstance().exists(STREAM_FILENAME);
     }
 
     protected void stopManagedHlsStream() {
@@ -129,7 +131,7 @@ abstract class AbstractFfmpegHlsService {
                     if (!currentProcess.waitFor(1, TimeUnit.SECONDS)) {
                         currentProcess.destroyForcibly();
                     }
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     currentProcess.destroyForcibly();
                     Thread.currentThread().interrupt();
                 }

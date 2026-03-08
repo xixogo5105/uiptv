@@ -21,6 +21,9 @@ public class SQLConnection {
     private static String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
     private static String dbPath = isNotBlank(databasePathFromConfigFile) ? databasePathFromConfigFile : getUserHomeDirPath() + File.separator + "uiptv.db";
 
+    private SQLConnection() {
+    }
+
     static {
         init();
     }

@@ -73,7 +73,7 @@ public class SeriesEpisodeService {
                     saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
                     return episodes;
                 }
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException _) {
                 // Fall through to local cache fallback.
             }
             EpisodeList fallback = loadFromAnyCategoryCache(account, seriesId);

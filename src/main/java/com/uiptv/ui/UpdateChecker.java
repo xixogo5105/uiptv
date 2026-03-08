@@ -13,6 +13,9 @@ public class UpdateChecker {
 
     private static final String UPDATE_URL = "https://raw.githubusercontent.com/xixogo5105/uiptv/refs/heads/main/src/main/resources/update.json";
 
+    private UpdateChecker() {
+    }
+
     public static void checkForUpdates(HostServices hostServices) {
         new Thread(() -> {
             try {

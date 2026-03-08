@@ -22,7 +22,6 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -113,7 +112,7 @@ public class HttpChannelJsonServer implements HttpHandler {
         }
         try {
             account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             account.setAction(Account.AccountAction.itv);
         }
     }
@@ -134,7 +133,7 @@ public class HttpChannelJsonServer implements HttpHandler {
                 }
             }
             return deduped.toString();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return response;
         }
     }
@@ -183,7 +182,7 @@ public class HttpChannelJsonServer implements HttpHandler {
                         SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), rowCategoryId, seriesId) != null);
             }
             return rows.toString();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return response;
         }
     }
@@ -208,7 +207,7 @@ public class HttpChannelJsonServer implements HttpHandler {
                 ));
             }
             return rows.toString();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return response;
         }
     }

@@ -134,7 +134,7 @@ public class BookmarkChannelListUI extends HBox {
                 long revision = BookmarkService.getInstance().getChangeRevision();
 
                 runLater(() -> applyReloadResult(generation, loadedItems, categories, revision));
-            } catch (Exception ignored) {
+            } catch (Exception _) {
                 runLater(() -> {
                     if (generation != reloadGeneration.get()) {
                         return;
@@ -620,7 +620,7 @@ public class BookmarkChannelListUI extends HBox {
         Channel channel = null;
         try {
             channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(channelId, account.getDbId());
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // Best-effort fallback only. UI reload should never fail on an auxiliary channel lookup.
         }
         channelByAccountAndChannel.put(key, channel);
@@ -879,7 +879,7 @@ public class BookmarkChannelListUI extends HBox {
                 try {
                     BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
                     removedBookmarkIds.add(selectedItem.getBookmarkId());
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
             }
             runLater(() -> {

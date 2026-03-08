@@ -99,7 +99,7 @@ public final class SeriesCardUiSupport {
                 return null;
             }
             return new Image(input);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return null;
         }
     }

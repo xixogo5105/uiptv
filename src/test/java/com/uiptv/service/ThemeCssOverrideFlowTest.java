@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ThemeCssOverrideFlowTest extends DbBackedTest {
+class ThemeCssOverrideFlowTest extends DbBackedTest {
 
     @Test
     void uploadEquivalentSave_persistsOverrides_andResolverUsesThem() {

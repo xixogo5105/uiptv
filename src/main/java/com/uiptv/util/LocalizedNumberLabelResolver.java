@@ -2,7 +2,6 @@ package com.uiptv.util;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -49,7 +48,7 @@ public final class LocalizedNumberLabelResolver {
     private static ResourceBundle readBundle(String language) {
         try {
             return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(language));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return null;
         }
     }
@@ -60,7 +59,7 @@ public final class LocalizedNumberLabelResolver {
         }
         try {
             return Integer.parseInt(rawNumber.trim());
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return -1;
         }
     }

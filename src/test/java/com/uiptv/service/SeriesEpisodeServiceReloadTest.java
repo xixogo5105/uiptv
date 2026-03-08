@@ -7,7 +7,6 @@ import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.XtremeParser;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;

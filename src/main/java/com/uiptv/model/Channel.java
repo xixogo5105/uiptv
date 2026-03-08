@@ -126,7 +126,7 @@ public class Channel extends BaseJson {
                     .replace("episode", "")
                     .replace("-", ""));
             return season;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return 0;
     }
@@ -140,7 +140,7 @@ public class Channel extends BaseJson {
                     .replace("episode", "")
                     .replace("-", ""));
             return episode;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return 0;
     }

@@ -1044,7 +1044,7 @@ public class ReloadCachePopup extends VBox {
         }
         try {
             return Integer.parseInt(matcher.group(1));
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException _) {
             return null;
         }
     }

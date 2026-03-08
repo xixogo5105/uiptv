@@ -1,6 +1,5 @@
 package com.uiptv.util;
 
-import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.scene.image.Image;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
@@ -35,6 +34,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 public class ImageCacheManager {
+    private ImageCacheManager() {
+    }
 
     private static final long NEGATIVE_CACHE_MS_404 = 15L * 60L * 1000L;
     private static final long NEGATIVE_CACHE_MS_ERROR = 2L * 60L * 1000L;
@@ -185,7 +186,7 @@ public class ImageCacheManager {
                 } else {
                     logImageIssue(candidate, "Image HTTP status: " + e.statusCode);
                 }
-            } catch (Exception e) {
+            } catch (Exception _) {
                 if (candidate.equals(candidates.get(candidates.size() - 1))) {
                     NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
                 }
@@ -263,7 +264,7 @@ public class ImageCacheManager {
                 if (Files.isWritable(candidate)) {
                     return candidate;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
         }
         return null;
@@ -277,7 +278,7 @@ public class ImageCacheManager {
             Path path = cacheFilePath(cacheKey, caller);
             Files.write(path, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             trimDiskCacheIfNeeded();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 
@@ -307,7 +308,7 @@ public class ImageCacheManager {
                 return null;
             }
             return image;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return null;
         }
     }
@@ -333,7 +334,7 @@ public class ImageCacheManager {
                             long size = Files.size(path);
                             long modified = Files.getLastModifiedTime(path).toMillis();
                             entries.add(new DiskEntry(path, size, modified));
-                        } catch (Exception ignored) {
+                        } catch (Exception _) {
                         }
                     });
                 }
@@ -355,10 +356,10 @@ public class ImageCacheManager {
                         if (Files.deleteIfExists(entry.path)) {
                             totalBytes -= entry.size;
                         }
-                    } catch (Exception ignored) {
+                    } catch (Exception _) {
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             } finally {
                 lastDiskTrimMs = insideLockNow;
             }
@@ -383,7 +384,7 @@ public class ImageCacheManager {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashed = digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hashed);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return Integer.toHexString(value.hashCode());
         }
     }
@@ -406,7 +407,7 @@ public class ImageCacheManager {
             }
             long secs = Long.parseLong(raw.trim());
             return Math.max(10_000L, secs * 1000L);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return NEGATIVE_CACHE_MS_429_DEFAULT;
         }
     }
@@ -457,7 +458,7 @@ public class ImageCacheManager {
         try {
             URI uri = URI.create(url);
             return uri.getHost() == null ? "" : uri.getHost().toLowerCase();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }
@@ -567,10 +568,10 @@ public class ImageCacheManager {
             paths.filter(Files::isRegularFile).forEach(path -> {
                 try {
                     Files.deleteIfExists(path);
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
             });
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 
@@ -585,10 +586,10 @@ public class ImageCacheManager {
                     .forEach(path -> {
                         try {
                             Files.deleteIfExists(path);
-                        } catch (Exception ignored) {
+                        } catch (Exception _) {
                         }
                     });
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 

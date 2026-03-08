@@ -10,6 +10,9 @@ import static com.uiptv.util.Platform.getUserHomeDirPath;
 public class ConfigFileReader {
     private static final String CONFIG_FILE_PATH = getUserHomeDirPath() + File.separator + "uiptv.ini";
 
+    private ConfigFileReader() {
+    }
+
     public static String getDbPathFromConfigFile() {
         Properties properties = new Properties();
         try (FileInputStream inputStream = new FileInputStream(CONFIG_FILE_PATH)) {

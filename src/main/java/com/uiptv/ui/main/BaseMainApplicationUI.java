@@ -168,7 +168,7 @@ public abstract class BaseMainApplicationUI {
 
         Menu helpMenu = new Menu(I18n.tr("autoHelp"));
         MenuItem aboutItem = new MenuItem(I18n.tr("autoAbout"));
-        aboutItem.setOnAction(e -> new AboutUI(hostServices));
+        aboutItem.setOnAction(e -> AboutUI.show(hostServices));
 
         MenuItem updateItem = new MenuItem(I18n.tr("autoCheckForUpdates2"));
         updateItem.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));

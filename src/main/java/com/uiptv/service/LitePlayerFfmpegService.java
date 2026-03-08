@@ -8,7 +8,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -269,7 +268,10 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
                 }
             }
             return new ProbeResult(formatName, videoCodec, audioCodec);
-        } catch (Exception ignored) {
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (IOException | RuntimeException _) {
             return null;
         }
     }

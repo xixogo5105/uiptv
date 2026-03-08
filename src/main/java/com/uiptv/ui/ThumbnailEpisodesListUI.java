@@ -698,7 +698,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 ));
                 episode.setReleaseDate(firstNonBlank(episode.getReleaseDate(), meta.optString("releaseDate", "")));
                 episode.setRating(firstNonBlank(episode.getRating(), meta.optString("rating", "")));
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
         }
     }
@@ -733,12 +733,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 if (imdb != null) {
                     return imdb;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
             if (attempt < attempts) {
                 try {
                     Thread.sleep(300L * attempt);
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                     break;
                 }

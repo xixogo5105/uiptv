@@ -20,6 +20,9 @@ public class UIptvServer {
     private static HttpServer httpServer;
     private static ExecutorService httpExecutor;
 
+    private UIptvServer() {
+    }
+
     private static void initialiseServer() throws IOException {
         try {
             stop();

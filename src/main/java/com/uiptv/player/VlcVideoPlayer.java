@@ -2,7 +2,6 @@ package com.uiptv.player;
 
 import com.uiptv.util.I18n;
 
-import com.uiptv.ui.LogDisplayUI;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
@@ -209,21 +208,21 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (mediaPlayer != null) {
                 try {
                     mediaPlayer.controls().stop();
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 try {
                     if (mediaPlayerEvents != null) {
                         mediaPlayer.events().removeMediaPlayerEventListener(mediaPlayerEvents);
                     }
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 try {
                     mediaPlayer.videoSurface().set(null);
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 try {
                     mediaPlayer.release();
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 mediaPlayer = null;
                 mediaPlayerEvents = null;
@@ -231,7 +230,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (mediaPlayerFactory != null) {
                 try {
                     mediaPlayerFactory.release();
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 mediaPlayerFactory = null;
             }

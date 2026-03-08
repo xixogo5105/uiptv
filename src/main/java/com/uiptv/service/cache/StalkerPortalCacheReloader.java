@@ -148,7 +148,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 if (!channels.isEmpty()) {
                     return json;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
         }
         return "";

@@ -741,7 +741,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             });
             try {
                 latch.await();
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
             }
         }
@@ -761,7 +761,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         try {
             // First stop any current playback and dispose current media
             stopForReload();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
 
         try {
@@ -790,7 +790,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 try {
                     uninstallSceneInputRecovery(fullscreenStage.getScene());
                     fullscreenStage.close();
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 fullscreenStage = null;
             }
@@ -800,7 +800,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 try {
                     uninstallSceneInputRecovery(pipStage.getScene());
                     pipStage.close();
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                 }
                 pipStage = null;
             }
@@ -814,7 +814,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 hiddenBarMessageHideTimer.stop();
             }
             restoreVisibleCursor();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 

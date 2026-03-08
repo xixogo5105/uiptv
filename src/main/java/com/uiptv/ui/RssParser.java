@@ -8,6 +8,9 @@ import java.math.BigInteger;
 import java.util.*;
 
 public class RssParser {
+    private RssParser() {
+    }
+
     public static Set<PlaylistEntry> getCategories() {
         Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
         playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));

@@ -152,7 +152,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             }
             String cmd = root.optString("cmd", null);
             return isBlank(cmd) ? null : cmd;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return null;
     }
@@ -253,7 +253,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             }
             URI resolvedUri = normalizedOriginal.resolve(trimmed);
             return resolvedUri.toString();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return trimmed;
         }
     }

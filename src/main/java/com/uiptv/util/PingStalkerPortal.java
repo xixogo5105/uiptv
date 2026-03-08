@@ -1,7 +1,6 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
-import com.uiptv.ui.LogDisplayUI;
 import org.json.JSONObject;
 
 import javax.net.ssl.SSLException;
@@ -213,8 +212,8 @@ public class PingStalkerPortal {
                     portal_api_server = null;
                 }
             }
-        } catch (Exception ignored) {
-            showErrorKey("pingParseError", ignored);
+        } catch (Exception e) {
+            showErrorKey("pingParseError", e);
         }
 
         if (isBlank(portal_api_server)) {
@@ -245,7 +244,7 @@ public class PingStalkerPortal {
                 return true;
             }
             return isNotBlank(root.optString("token"));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return false;
         }
     }
@@ -293,7 +292,7 @@ public class PingStalkerPortal {
                     return result;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return "";
     }
@@ -312,7 +311,7 @@ public class PingStalkerPortal {
                     return apiServerURL;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return "";
     }
@@ -331,7 +330,7 @@ public class PingStalkerPortal {
                     return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return null;
     }
@@ -350,7 +349,7 @@ public class PingStalkerPortal {
                     return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return null;
     }
@@ -369,7 +368,7 @@ public class PingStalkerPortal {
                     return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return null;
     }
@@ -388,7 +387,7 @@ public class PingStalkerPortal {
                     return apiServerURL.replace("document.URL.replace(pattern,", "").replace("\"", "").replace(")", "");
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return null;
     }

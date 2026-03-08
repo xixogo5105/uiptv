@@ -138,7 +138,7 @@ public class SeriesWatchStateDb extends BaseDb {
         state.setEpisodeNum(safeInteger(resultSet, "episodeNum"));
         try {
             state.setUpdatedAt(resultSet.getLong("updatedAt"));
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
             state.setUpdatedAt(0L);
         }
         state.setSource(nullSafeString(resultSet, "source"));

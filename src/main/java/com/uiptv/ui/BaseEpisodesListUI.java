@@ -126,7 +126,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             } else {
                 try {
                     this.seasonInfo = new JSONObject(newChannelList.seasonInfo.toJson());
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                     this.seasonInfo = new JSONObject();
                 }
             }
@@ -566,7 +566,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         try {
             if (isBlank(value)) return 1;
             return Integer.parseInt(value);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return 1;
         }
     }
@@ -577,7 +577,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (isBlank(parsed)) return "";
         try {
             return String.valueOf(Integer.parseInt(parsed));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }
@@ -641,7 +641,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         }
         try {
             return OffsetDateTime.parse(input).toLocalDate();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         String[] patterns = new String[]{
                 "yyyy-MM-dd",
@@ -659,14 +659,14 @@ public abstract class BaseEpisodesListUI extends HBox {
         for (String pattern : patterns) {
             try {
                 return LocalDate.parse(input, DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
         }
         Matcher iso = ISO_DATE_PATTERN.matcher(input);
         if (iso.find()) {
             try {
                 return LocalDate.parse(iso.group(), DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
         }
         Matcher month = MONTH_DATE_PATTERN.matcher(input);
@@ -674,11 +674,11 @@ public abstract class BaseEpisodesListUI extends HBox {
             String candidate = month.group();
             try {
                 return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
             try {
                 return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
         }
         return null;
@@ -744,7 +744,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                         return withScheme;
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
         }
         return null;

@@ -3,17 +3,18 @@ package com.uiptv.player;
 import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.DummyVideoPlayer;
-import com.uiptv.ui.LogDisplayUI;
 import javafx.scene.Node;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.Region;
 
 public class MediaPlayerFactory {
-
     private static VideoPlayerInterface instance;
     public static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();
     private static boolean hostConfigured = false;
+
+    private MediaPlayerFactory() {
+    }
 
     public static synchronized VideoPlayerInterface getPlayer() {
         if (instance == null) {
@@ -29,7 +30,7 @@ public class MediaPlayerFactory {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 com.uiptv.util.AppLog.addLog("VLC found. Using it for embedded player");
-            } catch (Throwable bundledError) {
+            } catch (Throwable _) {
                 com.uiptv.util.AppLog.addLog("VLC not found. Using Lite player that plays limited set of videos");
                 instance = new LiteVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.LITE;
@@ -100,13 +101,13 @@ public class MediaPlayerFactory {
                 } else {
                     instance.stop();
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
 
             try {
                 // Clear player container
                 playerHostContainer.getChildren().clear();
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
 
             instance = null;

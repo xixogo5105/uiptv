@@ -192,7 +192,7 @@ public class StringUtils {
     public static String safeGetString(JSONObject jsonCategory, String key) {
         try {
             return String.valueOf(jsonCategory.get(key));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
 
         }
         return null;
@@ -201,7 +201,7 @@ public class StringUtils {
     public static String safeGetString(Map map, String key) {
         try {
             return String.valueOf(map.get(key));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
 
         }
         return null;
@@ -212,7 +212,7 @@ public class StringUtils {
             if (!isBlank(val)) {
                 return val.replaceAll("\\p{C}", "").replace("\\", "\\\\").replace("\"", "\\\"");
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
 
         }
         return EMPTY;

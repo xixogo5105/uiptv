@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class SerialCutAttributeParser implements StalkerAttributeParser {
-    private static final Pattern LABEL_PATTERN = Pattern.compile("(?i)sncut|serialcut|sn\\s*cut|serial\\s*cut");
+    private static final Pattern LABEL_PATTERN = Pattern.compile("(?i)(?:sn|serial)\\s*cut");
     private static final Pattern HEX_PATTERN = Pattern.compile("([A-F0-9]{13,16})", Pattern.CASE_INSENSITIVE);
 
     @Override

@@ -10,10 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ServerUrlUtilTest {
+class ServerUrlUtilTest {
 
     @Test
-    public void testGetLocalServerUrl_Default() {
+    void testGetLocalServerUrl_Default() {
         try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration config = new Configuration();
@@ -25,7 +25,7 @@ public class ServerUrlUtilTest {
     }
 
     @Test
-    public void testGetLocalServerUrl_CustomPort() {
+    void testGetLocalServerUrl_CustomPort() {
         try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration config = new Configuration();

@@ -1,6 +1,5 @@
 package com.uiptv.player;
 
-import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.LitePlayerFfmpegService;
@@ -12,7 +11,6 @@ import javafx.scene.Node;
 import javafx.scene.media.*;
 import javafx.util.Duration;
 
-import java.io.File;
 
 import static com.uiptv.util.StringUtils.isBlank;
 

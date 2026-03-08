@@ -64,8 +64,8 @@ public class RootApplication extends Application {
             com.uiptv.util.AppLog.addLog("Usage: sync <first_db_path> <second_db_path>");
             exit(1);
         }
-        String firstDB = args[1].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
-        String secondDB = args[2].replaceAll("^'|'$", "").replaceAll("^\"|\"$", "");
+        String firstDB = stripWrappingQuotes(args[1]);
+        String secondDB = stripWrappingQuotes(args[2]);
         try {
             syncDatabases(firstDB, secondDB);
             com.uiptv.util.AppLog.addLog("Sync complete!");
@@ -76,6 +76,18 @@ public class RootApplication extends Application {
 
     public static void syncDatabases(String firstDB, String secondDB) throws SQLException {
         databaseSyncService.syncDatabases(firstDB, secondDB);
+    }
+
+    private static String stripWrappingQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     @Override
@@ -130,7 +142,7 @@ public class RootApplication extends Application {
     public void stop() throws Exception {
         try {
             MediaPlayerFactory.release();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         ServerUrlUtil.stopServerWithShutdownMessage();
         super.stop();

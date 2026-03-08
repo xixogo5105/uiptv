@@ -9,6 +9,8 @@ import java.util.List;
  * This class now acts as a factory to select and create the appropriate parser.
  */
 public class TextParserService {
+    private TextParserService() {
+    }
 
     public static final String MODE_STALKER = "Stalker Portal";
     public static final String MODE_XTREME = "Xtreme";

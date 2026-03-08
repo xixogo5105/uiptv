@@ -2,7 +2,6 @@ package com.uiptv.util;
 
 import java.text.Normalizer;
 import java.util.List;
-import java.util.Locale;
 
 import static com.uiptv.util.StringUtils.isBlank;
 

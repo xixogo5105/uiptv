@@ -2,14 +2,12 @@ package com.uiptv.server;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.uiptv.util.StringUtils;
 import org.apache.commons.io.IOUtils;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-import static com.uiptv.util.Platform.getWebServerRootPath;
 
 public class HttpIconServer implements HttpHandler {
     // Assuming the icon is in the resources folder or web root. 

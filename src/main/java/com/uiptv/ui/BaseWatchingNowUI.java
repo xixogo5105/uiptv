@@ -296,7 +296,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             if (category != null) {
                 categoryId = firstNonBlank(category.getCategoryId(), categoryId);
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         try {
             Channel channel = Channel.fromJson(state.getSeriesChannelSnapshot());
@@ -306,7 +306,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 title = firstNonBlank(channel.getName(), title);
                 poster = firstNonBlank(channel.getLogo(), poster);
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return new SnapshotScope(categoryId, parentChannelId, title, poster);
     }
@@ -1345,12 +1345,12 @@ public abstract class BaseWatchingNowUI extends VBox {
                 if (imdb != null) {
                     return imdb;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
             if (attempt < attempts) {
                 try {
                     Thread.sleep(300L * attempt);
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                     break;
                 }
@@ -1823,7 +1823,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (isBlank(parsed)) return "";
         try {
             return String.valueOf(Integer.parseInt(parsed));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }
@@ -1832,7 +1832,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         try {
             if (isBlank(value)) return fallback;
             return Integer.parseInt(value);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return fallback;
         }
     }
@@ -1896,7 +1896,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         try {
             return OffsetDateTime.parse(input).toLocalDate();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         String[] patterns = new String[]{
                 "yyyy-MM-dd",
@@ -1914,14 +1914,14 @@ public abstract class BaseWatchingNowUI extends VBox {
         for (String pattern : patterns) {
             try {
                 return LocalDate.parse(input, DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
         }
         Matcher iso = ISO_DATE_PATTERN.matcher(input);
         if (iso.find()) {
             try {
                 return LocalDate.parse(iso.group(), DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
         }
         Matcher month = MONTH_DATE_PATTERN.matcher(input);
@@ -1929,11 +1929,11 @@ public abstract class BaseWatchingNowUI extends VBox {
             String candidate = month.group();
             try {
                 return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
             try {
                 return LocalDate.parse(candidate, DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
             }
         }
         return null;
@@ -2002,7 +2002,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                         return withScheme;
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
         }
         return null;

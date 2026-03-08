@@ -5,18 +5,18 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class InMemoryHlsServiceTest {
+class InMemoryHlsServiceTest {
 
     private InMemoryHlsService service;
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         service = InMemoryHlsService.getInstance();
         service.clear();
     }
 
     @Test
-    public void testPutAndGet() {
+    void testPutAndGet() {
         String filename = "test.ts";
         byte[] data = new byte[]{1, 2, 3};
 
@@ -27,7 +27,7 @@ public class InMemoryHlsServiceTest {
     }
 
     @Test
-    public void testRemove() {
+    void testRemove() {
         String filename = "test.m3u8";
         byte[] data = new byte[]{1, 2, 3};
 
@@ -39,13 +39,13 @@ public class InMemoryHlsServiceTest {
     }
 
     @Test
-    public void testCleanupOldSegments() {
+    void testCleanupOldSegments() {
         // MAX_SEGMENTS is 40; add 45 so oldest 5 are evicted.
         for (int i = 0; i < 45; i++) {
             service.put("segment" + i + ".ts", new byte[]{1});
             try {
                 Thread.sleep(1);
-            } catch (InterruptedException ignored) {
+            } catch (InterruptedException _) {
             }
         }
 

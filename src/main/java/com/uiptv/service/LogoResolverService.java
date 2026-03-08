@@ -130,7 +130,7 @@ public class LogoResolverService {
                 catalog.putAll(fresh);
                 lastCatalogRefreshAt = now;
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // keep using local/provider fallback only
         } finally {
             refreshInProgress = false;
@@ -156,7 +156,7 @@ public class LogoResolverService {
                 if (isBlank(channel) || isBlank(logoUrl)) continue;
                 logoById.putIfAbsent(channel, logoUrl);
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // best-effort only
         }
         return logoById;
@@ -299,7 +299,7 @@ public class LogoResolverService {
                     localCache.put(key, value);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // ignore corrupt cache
         }
     }
@@ -307,7 +307,7 @@ public class LogoResolverService {
     private synchronized void persistLocalCache() {
         try (FileOutputStream out = new FileOutputStream(localCacheFile)) {
             out.write(new JSONObject(localCache).toString().getBytes(StandardCharsets.UTF_8));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // best-effort cache only
         }
     }

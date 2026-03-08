@@ -513,7 +513,7 @@ public class ChannelService {
                 }
                 return new Pagination(nullSafeInteger(pagination, "total_items"), nullSafeInteger(pagination, "max_page_items"));
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             showError("Error while processing response data");
         }
         return null;
@@ -535,7 +535,7 @@ public class ChannelService {
             }
             return maybeFilterChannels(dedupeChannels(channelList), censor);
 
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             showError("Error while processing itv response data");
         }
         return Collections.emptyList();
@@ -580,7 +580,7 @@ public class ChannelService {
             List<Channel> censoredChannelList = maybeFilterChannels(dedupeChannels(channelList), censor);
             Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
             return censoredChannelList;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             showError("Error while processing vod response data");
         }
         return Collections.emptyList();
@@ -608,7 +608,7 @@ public class ChannelService {
             if (isBlank(logo)) logo = nullSafeString(json, "cover");
             if (isBlank(logo)) logo = nullSafeString(json, "movie_image");
             return logo == null ? "" : logo;
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "";
         }
     }
@@ -638,7 +638,7 @@ public class ChannelService {
                 if (!isBlank(uri.getHost())) host = uri.getHost();
                 port = uri.getPort();
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         if (value.startsWith("//")) {
             return scheme + ":" + value;

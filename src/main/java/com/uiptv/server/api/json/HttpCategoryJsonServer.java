@@ -32,7 +32,7 @@ public class HttpCategoryJsonServer implements HttpHandler {
         }
         try {
             account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             account.setAction(Account.AccountAction.itv);
         }
     }

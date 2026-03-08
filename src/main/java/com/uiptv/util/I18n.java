@@ -288,7 +288,7 @@ public final class I18n {
             if (localeBundle != null && localeBundle.containsKey(key)) {
                 return localeBundle.getString(key);
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
         return key;
     }
@@ -489,7 +489,7 @@ public final class I18n {
     private static ResourceBundle loadBundle(Locale locale) {
         try {
             return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getModule());
-        } catch (MissingResourceException ex) {
+        } catch (MissingResourceException _) {
             return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), I18n.class.getModule());
         }
     }

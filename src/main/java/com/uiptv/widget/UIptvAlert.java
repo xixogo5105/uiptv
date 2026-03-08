@@ -1,6 +1,5 @@
 package com.uiptv.widget;
 
-import com.uiptv.ui.LogDisplayUI;
 import com.uiptv.ui.RootApplication;
 import com.uiptv.util.I18n;
 import javafx.geometry.NodeOrientation;
@@ -12,6 +11,9 @@ import javafx.stage.Modality;
 import java.util.Optional;
 
 public class UIptvAlert {
+    private UIptvAlert() {
+    }
+
     public static ButtonType okButtonType() {
         return new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE);
     }
