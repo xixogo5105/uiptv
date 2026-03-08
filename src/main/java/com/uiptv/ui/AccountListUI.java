@@ -112,7 +112,7 @@ public class AccountListUI extends HBox {
         setPadding(new Insets(5));
         setFillHeight(true);
         table.setEditable(true);
-        table.getColumns().addAll(accountName);
+        table.getColumns().add(accountName);
         accountName.setVisible(true);
         accountName.setSortType(TableColumn.SortType.ASCENDING);
         accountName.setSortable(true);
@@ -152,7 +152,7 @@ public class AccountListUI extends HBox {
         newAccountButton.setMinHeight(26);
         newAccountButton.setPrefHeight(26);
         newAccountButton.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
-        newAccountButton.setOnAction(event -> {
+        newAccountButton.setOnAction(_ -> {
             if (!embeddedMode) {
                 return;
             }
@@ -166,8 +166,8 @@ public class AccountListUI extends HBox {
     }
 
     private void initDetailView() {
-        backButton.setOnAction(event -> showPreviousView());
-        homeButton.setOnAction(event -> showAccountListView());
+        backButton.setOnAction(_ -> showPreviousView());
+        homeButton.setOnAction(_ -> showAccountListView());
         navHeader.setPadding(new Insets(0, 8, 6, 8));
         navHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         navHeader.getChildren().setAll(backButton, homeButton);
