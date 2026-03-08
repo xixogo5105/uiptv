@@ -4,7 +4,7 @@
 > **Attention!!!** Volunteers are needed for translations. [Click here](TRANSLATIONS.md).
 
 # UIPTV - A Universal IPTV Player for Windows, Linux & macOS
-[![GitHub (pre-)release](https://img.shields.io/github/release-pre/xixogo5105/uiptv.svg)](https://github.com/xixogo5105/uiptv/releases)
+[![GitHub release](https://img.shields.io/github/v/release/xixogo5105/uiptv)](https://github.com/xixogo5105/uiptv/releases)
 [![GitHub license](https://img.shields.io/github/license/xixogo5105/uiptv?branch=main)](https://github.com/xixogo5105/uiptv/blob/main/LICENSE)
 [![Main](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=xixogo5105_uiptv&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=xixogo5105_uiptv)
