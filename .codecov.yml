@@ -1,0 +1,37 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        informational: false
+    patch:
+      default:
+        informational: false
+
+ignore:
+  - "src/main/java/com/uiptv/ui/**"
+  - "src/main/java/com/uiptv/player/**"
+  - "src/main/java/com/uiptv/widget/**"
+  - "src/main/java/com/uiptv/api/VideoPlayerInterface.java"
+  - "src/main/java/com/uiptv/server/HttpCssServer.java"
+  - "src/main/java/com/uiptv/server/HttpHlsFileServer.java"
+  - "src/main/java/com/uiptv/server/HttpHlsUploadServer.java"
+  - "src/main/java/com/uiptv/server/HttpIconServer.java"
+  - "src/main/java/com/uiptv/server/HttpJavascriptServer.java"
+  - "src/main/java/com/uiptv/server/HttpManifestServer.java"
+  - "src/main/java/com/uiptv/server/HttpProxyStreamServer.java"
+  - "src/main/java/com/uiptv/server/StaticWebFileResolver.java"
+  - "src/main/java/com/uiptv/server/UIptvServer.java"
+  - "src/main/java/com/uiptv/server/html/HttpSpaHtmlServer.java"
+  - "src/main/java/com/uiptv/util/ColoredStatusTableCell.java"
+  - "src/main/java/com/uiptv/util/I18n.java"
+  - "src/main/java/com/uiptv/util/ImageCacheManager.java"
+  - "src/main/java/com/uiptv/util/ServerUrlUtil.java"
+  - "src/main/java/com/uiptv/util/StyleClassDecorator.java"
+  - "src/main/java/com/uiptv/service/AbstractFfmpegHlsService.java"
+  - "src/main/java/com/uiptv/service/ChannelService.java"
+  - "src/main/java/com/uiptv/service/FfmpegService.java"
+  - "src/main/java/com/uiptv/service/LitePlayerFfmpegService.java"
+  - "website/**"
