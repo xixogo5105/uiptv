@@ -55,11 +55,19 @@ public class ServerUrlUtil {
     }
 
     public static boolean ensureServerForWebPlayback() {
+        return ensureServerForWebPlayback(null);
+    }
+
+    public static boolean ensureServerForWebPlayback(String friendlyFailureMessage) {
         try {
             UIptvServer.ensureStarted();
             return true;
         } catch (IOException | IllegalStateException e) {
-            UIptvAlert.showErrorKey("serverUnableToStartLocalWebServerForPlayback", e);
+            if (isNotBlank(friendlyFailureMessage)) {
+                UIptvAlert.showErrorAlert(friendlyFailureMessage, e);
+            } else {
+                UIptvAlert.showErrorKey("serverUnableToStartLocalWebServerForPlayback", e);
+            }
             return false;
         }
     }

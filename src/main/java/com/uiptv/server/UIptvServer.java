@@ -62,7 +62,9 @@ public class UIptvServer {
         server.createContext("/hls", new HttpHlsFileServer());
         server.createContext("/hls-upload", new HttpHlsUploadServer());
         server.createContext("/proxy-stream", new HttpProxyStreamServer());
-        
+        server.createContext("/bingewatch.m3u8", new HttpBingeWatchPlaylistServer());
+        server.createContext("/bingwatch", new HttpBingeWatchEntryServer());
+
         // API JSON servers
         server.createContext("/accounts", new HttpAccountJsonServer());
         server.createContext("/categories", new HttpCategoryJsonServer());

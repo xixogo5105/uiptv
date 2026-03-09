@@ -47,9 +47,7 @@ public class EpisodesListUI extends HBox {
     }
 
     public void applyWatchingNowDetailStyling() {
-        if (delegate instanceof ThumbnailEpisodesListUI thumbnail) {
-            thumbnail.applyWatchingNowDetailStyling();
-        }
+        withThumbnailDelegate(ThumbnailEpisodesListUI::applyWatchingNowDetailStyling);
     }
 
     public void navigateToLastWatched(SeriesWatchState state) {
@@ -62,9 +60,7 @@ public class EpisodesListUI extends HBox {
     }
 
     public void reloadFromServer() {
-        if (delegate instanceof ThumbnailEpisodesListUI thumbnail) {
-            thumbnail.reloadFromServer();
-        }
+        withThumbnailDelegate(ThumbnailEpisodesListUI::reloadFromServer);
     }
 
     private void registerThumbnailModeListener() {
@@ -110,5 +106,11 @@ public class EpisodesListUI extends HBox {
             return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
         }
         return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    private void withThumbnailDelegate(java.util.function.Consumer<ThumbnailEpisodesListUI> action) {
+        if (action != null && delegate instanceof ThumbnailEpisodesListUI thumbnail) {
+            action.accept(thumbnail);
+        }
     }
 }

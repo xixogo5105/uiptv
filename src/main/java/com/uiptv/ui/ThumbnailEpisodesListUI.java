@@ -15,6 +15,7 @@ import javafx.geometry.Side;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
@@ -59,6 +60,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label genreNode = new Label();
     private final Label releaseNode = new Label();
     private final Label plotNode = new Label();
+    private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button(I18n.tr("autoReloadFromServer"));
     private final HBox imdbLoadingNode = new HBox(6);
     private HBox imdbBadgeNode;
@@ -92,7 +94,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         seasonTabPane.setMaxWidth(Double.MAX_VALUE);
         seasonTabPane.setMaxHeight(Double.MAX_VALUE);
         seasonTabPane.setMinHeight(36);
-        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> applySeasonFilter());
+        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            applySeasonFilter();
+            updateBingeWatchButton();
+        });
 
         cardsContainer.setPadding(new Insets(5));
         cardsContainer.setFillWidth(true);
@@ -239,6 +244,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbProgress.setMaxSize(14, 14);
         Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
         imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
+        bingeWatchButton.setFocusTraversable(true);
+        bingeWatchButton.getStyleClass().setAll("button");
+        bingeWatchButton.getStyleClass().add("small-pill-button");
         reloadEpisodesButton.setFocusTraversable(true);
         reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
 
@@ -267,7 +275,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
         titleNode.setText(title);
 
-        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode, reloadEpisodesButton);
+        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode, bingeWatchButton, reloadEpisodesButton);
         if (imdbBadgeNode != null) {
             headerDetails.getChildren().remove(imdbBadgeNode);
         }
@@ -303,6 +311,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             plotNode.setText(plot);
             headerDetails.getChildren().add(plotNode);
         }
+        updateBingeWatchButton();
+        headerDetails.getChildren().add(bingeWatchButton);
         headerDetails.getChildren().add(reloadEpisodesButton);
 
         String cover = normalizeImageUrl(seasonInfo.optString(KEY_COVER, ""));
@@ -386,6 +396,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private void applySeasonFilter() {
         if (allEpisodeItems.isEmpty()) {
             setEmptyState("No episodes found.", true);
+            updateBingeWatchButton();
             return;
         }
         setEmptyState("", false);
@@ -402,6 +413,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsContainer.getChildren().clear();
         if (filtered.isEmpty()) {
             cardsContainer.getChildren().add(new Label(I18n.tr("autoNoEpisodesFound")));
+            updateBingeWatchButton();
             return;
         }
         for (EpisodeItem item : filtered) {
@@ -409,6 +421,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             renderedCardsByItem.put(item, card);
             cardsContainer.getChildren().add(card);
         }
+        updateBingeWatchButton();
     }
 
     private String selectedSeason() {
@@ -596,6 +609,18 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 }
             }
         }
+    }
+
+    private void updateBingeWatchButton() {
+        String season = firstNonBlank(selectedSeason(), "1");
+        bingeWatchButton.setText(buildBingeWatchMenuLabel(season));
+        bingeWatchButton.getItems().clear();
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(event -> bingeWatchSeason(season, option.playerPath()));
+            bingeWatchButton.getItems().add(playerItem);
+        }
+        bingeWatchButton.setDisable(allEpisodeItems.isEmpty());
     }
 
     private void triggerImdbLazyLoad() {

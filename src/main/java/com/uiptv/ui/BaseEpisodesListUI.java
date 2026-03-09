@@ -8,6 +8,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
@@ -42,10 +43,12 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 @SuppressWarnings("java:S5843")
 public abstract class BaseEpisodesListUI extends HBox {
+    private static final String BINGE_WATCH_FAILED_PREFIX = "Binge watch failed: ";
     protected static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     protected static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     protected static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
@@ -396,6 +399,69 @@ public abstract class BaseEpisodesListUI extends HBox {
                 .channelId(item.getEpisodeId())
                 .categoryId(seriesCategoryId)
                 .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
+    }
+
+    protected void bingeWatchSeason(String season, String playerPath) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(seriesId)) {
+            return;
+        }
+        String normalizedSeason = normalizeNumber(firstNonBlank(season, "1"));
+        List<Channel> seasonEpisodes = buildSeasonChannels(normalizedSeason);
+        if (seasonEpisodes.isEmpty()) {
+            showErrorAlert(BINGE_WATCH_FAILED_PREFIX + "no episodes were found for the selected season.");
+            return;
+        }
+        String startupFailureMessage = "Unable to start the local binge watch server on "
+                + ServerUrlUtil.getLocalServerUrl()
+                + ". Open Configuration, confirm the port is free, click Start Server, then try again.";
+        if (!ServerUrlUtil.ensureServerForWebPlayback(startupFailureMessage)) {
+            return;
+        }
+        account.setAction(Account.AccountAction.series);
+        SeriesWatchState watchState = SeriesWatchStateService.getInstance()
+                .getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+        String token = BingeWatchService.getInstance().createSession(
+                account,
+                seriesId,
+                seriesCategoryId,
+                normalizedSeason,
+                seasonEpisodes,
+                watchState
+        );
+        if (isBlank(token)) {
+            showErrorAlert(BINGE_WATCH_FAILED_PREFIX + "unable to prepare the season playlist.");
+            return;
+        }
+        PlaybackUIService.playDirectUrl(
+                playerPath,
+                BingeWatchService.getInstance().buildPlaylistUrl(token),
+                "Binge watch playback failed: "
+        );
+    }
+
+    protected String buildBingeWatchMenuLabel(String season) {
+        int seasonNumber = parseNumberOrDefault(firstNonBlank(season, "1"));
+        return String.format(Locale.ROOT, "Binge Watch S%02d", Math.max(seasonNumber, 1));
+    }
+
+    private List<Channel> buildSeasonChannels(String season) {
+        List<Channel> channels = new ArrayList<>();
+        for (EpisodeItem item : allEpisodeItems) {
+            if (item != null) {
+                String itemSeason = normalizeNumber(firstNonBlank(item.getSeason(), "1"));
+                if (season.equals(itemSeason)) {
+                    Channel channel = new Channel();
+                    channel.setChannelId(item.getEpisodeId());
+                    channel.setName(item.getEpisodeName());
+                    channel.setCmd(item.getCmd());
+                    channel.setSeason(item.getSeason());
+                    channel.setEpisodeNum(item.getEpisodeNumber());
+                    channel.setLogo(item.getLogo());
+                    channels.add(channel);
+                }
+            }
+        }
+        return channels;
     }
 
     protected String inferSeason(Episode episode) {
