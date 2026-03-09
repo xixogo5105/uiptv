@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Category;
@@ -54,10 +55,19 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private void applyWebPlaybackProcessing(PlayerResponse response, String mode, String hvec) {
+        if (response == null || isBlank(response.getUrl())) {
+            return;
+        }
         String originalUrl = response.getUrl();
-        String normalizedUrl = resolveWebPlaybackRedirects(mode, normalizeWebPlaybackUrl(mode, originalUrl));
+        String normalizedUrl = normalizeWebPlaybackUrl(mode, originalUrl);
         response.setUrl(normalizedUrl);
+        if (shouldBypassLocalProxyWebPlayback(response, mode, normalizedUrl)) {
+            return;
+        }
         if (!shouldStartTransmuxing(response, mode, originalUrl)) {
+            if (shouldUseLocalProxyWebPlayback(mode, normalizedUrl)) {
+                response.setUrl(buildLocalProxyUrl(normalizedUrl));
+            }
             return;
         }
         applyTransmuxedPlayback(response, mode, originalUrl, hvec);
@@ -164,10 +174,22 @@ public class HttpPlayerJsonServer implements HttpHandler {
                                                  String mode, String seriesParentId) throws IOException {
         Account account = AccountService.getInstance().getById(accountId);
         applyMode(account, mode);
-        Channel channel = mergeRequestChannel(ChannelDb.get().getChannelById(channelId, categoryId), channelId, ex);
+        Channel channel = mergeRequestChannel(resolveRequestedChannel(account, categoryId, channelId, mode), channelId, ex);
         String seriesId = getParam(ex, "seriesId");
         String scopedCategoryId = resolveSeriesCategoryId(account, categoryId);
         return PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId);
+    }
+
+    private Channel resolveRequestedChannel(Account account, String categoryId, String channelId, String mode) {
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (MODE_VOD.equals(normalizedMode) && account != null) {
+            Channel vodChannel = VodChannelDb.get().getChannelByChannelId(channelId, categoryId, account.getDbId());
+            if (vodChannel != null) {
+                return vodChannel;
+            }
+            return VodChannelDb.get().getChannelByChannelIdAndAccount(channelId, account.getDbId());
+        }
+        return ChannelDb.get().getChannelById(channelId, categoryId);
     }
 
     private Channel mergeRequestChannel(Channel channel, String channelId, HttpExchange ex) {
@@ -289,7 +311,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) {
+        if (!MODE_SERIES.equals(normalizedMode)) {
             return false;
         }
         String url = response.getUrl().toLowerCase();
@@ -324,6 +346,27 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
     private String buildLocalProxyUrl(String sourceUrl) {
         return ServerUrlUtil.getLocalServerUrl() + "/proxy-stream?src=" + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
+    }
+
+    private boolean shouldBypassLocalProxyWebPlayback(PlayerResponse response, String mode, String url) {
+        if (response == null || isBlank(url)) {
+            return false;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!MODE_VOD.equals(normalizedMode)) {
+            return false;
+        }
+        boolean hasDrm = isNotBlank(response.getDrmType())
+                || isNotBlank(response.getDrmLicenseUrl())
+                || isNotBlank(response.getClearKeysJson())
+                || isNotBlank(response.getInputstreamaddon())
+                || isNotBlank(response.getManifestType());
+        if (hasDrm) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains(PATH_LIVE_PLAY)
+                || lower.matches(".*/\\d+(\\?.*)?$");
     }
 
     private String resolveWebPlaybackRedirects(String mode, String inputUrl) {
@@ -409,6 +452,17 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private boolean shouldForceWebHlsForUrl(String mode, String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!MODE_SERIES.equals(normalizedMode)) {
+            return false;
+        }
+        return isForcedWebPath(url.toLowerCase());
+    }
+
+    private boolean shouldUseLocalProxyWebPlayback(String mode, String url) {
         if (isBlank(url)) {
             return false;
         }

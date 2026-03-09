@@ -152,6 +152,20 @@ class I18nTest {
         assertOrdinalLabels("en-US", "Season 1", "Episode 1", "Season 11", "Episode 11", "Season 50", "Episode 50", "1", "2", "50");
     }
 
+    @Test
+    void localeFontHelpers_replaceAndRemoveManagedFontRuleCleanly() {
+        String styled = "-fx-font-weight: bold;";
+        String withFont = I18n.appendInlineFontFamily(styled, "Noto Sans Arabic UI");
+        assertTrue(withFont.contains("-fx-font-family: \"Noto Sans Arabic UI\";"));
+        assertTrue(withFont.contains("-fx-font-weight: bold;"));
+
+        String cleaned = I18n.removeInlineFontFamily(withFont);
+        assertEquals("-fx-font-weight: bold;", cleaned);
+
+        String fontOnly = I18n.appendInlineFontFamily("", "Geeza Pro");
+        assertEquals("", I18n.removeInlineFontFamily(fontOnly));
+    }
+
     private void assertOrdinalLabels(String localeTag,
                                      String season1,
                                      String episode1,

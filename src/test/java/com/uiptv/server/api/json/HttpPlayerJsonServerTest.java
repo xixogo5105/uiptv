@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.db.ChannelDb;
+import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
@@ -121,6 +122,7 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         assertEquals("http://host/play/movie.php?id=1",
                 invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/play/movie.php?id=1"));
         assertTrue((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "series", "https://host/play/movie.php?id=1"));
+        assertFalse((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "vod", "https://host/play/movie.php?id=1"));
         assertFalse((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "itv", "https://host/play/movie.php?id=1"));
 
         HttpUtil.HttpResult redirect = new HttpUtil.HttpResult(302, "", Map.of(), Map.of("Location", List.of("/final/segment.m3u8")));
@@ -150,6 +152,15 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
             assertEquals("http://host/redirected", chained);
         }
 
+        PlayerResponse directNoProbeResponse = new PlayerResponse("http://host/live/play/tokenized/9412");
+        try (MockedStatic<HttpUtil> httpUtilStatic = Mockito.mockStatic(HttpUtil.class)) {
+            invoke(handler, "applyWebPlaybackProcessing",
+                    new Class[]{PlayerResponse.class, String.class, String.class},
+                    directNoProbeResponse, "vod", "0");
+            httpUtilStatic.verifyNoInteractions();
+        }
+        assertEquals("http://host/live/play/tokenized/9412", directNoProbeResponse.getUrl());
+
         PlayerResponse hlsResponse = new PlayerResponse("https://host/play/movie.php?id=1");
         FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
         try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
@@ -158,10 +169,25 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
 
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class},
-                    hlsResponse, "vod", "1");
+                    hlsResponse, "series", "1");
 
             assertEquals("/hls/stream.m3u8?hvec=1", hlsResponse.getUrl());
             assertEquals("hls", hlsResponse.getManifestType());
+        }
+
+        PlayerResponse vodProxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
+        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class);
+             MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
+            FfmpegService directFfmpeg = Mockito.mock(FfmpegService.class);
+            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(directFfmpeg);
+            serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
+
+            invoke(handler, "applyWebPlaybackProcessing",
+                    new Class[]{PlayerResponse.class, String.class, String.class},
+                    vodProxyResponse, "vod", "0");
+
+            Mockito.verifyNoInteractions(directFfmpeg);
+            assertTrue(vodProxyResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
         }
 
         PlayerResponse fallbackResponse = new PlayerResponse("https://host/play/movie.php?id=1");
@@ -178,6 +204,75 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
 
             assertTrue(fallbackResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
             assertTrue(fallbackResponse.getUrl().contains("http%3A%2F%2Fhost%2Fplay%2Fmovie.php%3Fid%3D1"));
+        }
+
+        PlayerResponse directVodResponse = new PlayerResponse("https://host/live/play/tokenized/9412");
+        invoke(handler, "applyWebPlaybackProcessing",
+                new Class[]{PlayerResponse.class, String.class, String.class},
+                directVodResponse, "vod", "0");
+        assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
+    }
+
+    @Test
+    void handle_directVodPlayback_usesVodChannelLookup_whenRequestCategoryDiffers() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+
+        Account account = new Account("stalker", "user", "pass", "http://demo", null, null, null, null, null, null,
+                com.uiptv.util.AccountType.STALKER_PORTAL, null, null, false);
+        account.setDbId("acc-1525");
+
+        Channel vodChannel = new Channel();
+        vodChannel.setChannelId("9412");
+        vodChannel.setName("Shehzada - 2023");
+        vodChannel.setCmd("ffmpeg http://provider/live/play/token/9412");
+
+        PlayerResponse response = new PlayerResponse("http://provider/live/play/token/9412");
+
+        AccountService accountService = Mockito.mock(AccountService.class);
+        ChannelDb channelDb = Mockito.mock(ChannelDb.class);
+        VodChannelDb vodChannelDb = Mockito.mock(VodChannelDb.class);
+        PlayerService playerService = Mockito.mock(PlayerService.class);
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        Configuration configuration = new Configuration();
+        configuration.setEnableFfmpegTranscoding(false);
+
+        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class);
+             MockedStatic<ChannelDb> channelDbStatic = Mockito.mockStatic(ChannelDb.class);
+             MockedStatic<VodChannelDb> vodChannelDbStatic = Mockito.mockStatic(VodChannelDb.class);
+             MockedStatic<PlayerService> playerServiceStatic = Mockito.mockStatic(PlayerService.class);
+             MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
+            channelDbStatic.when(ChannelDb::get).thenReturn(channelDb);
+            vodChannelDbStatic.when(VodChannelDb::get).thenReturn(vodChannelDb);
+            playerServiceStatic.when(PlayerService::getInstance).thenReturn(playerService);
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+
+            Mockito.when(accountService.getById("acc-1525")).thenReturn(account);
+            Mockito.when(channelDb.getChannelById("9412", "359")).thenReturn(null);
+            Mockito.when(vodChannelDb.getChannelByChannelId("9412", "359", "acc-1525")).thenReturn(null);
+            Mockito.when(vodChannelDb.getChannelByChannelIdAndAccount("9412", "acc-1525")).thenReturn(vodChannel);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+            Mockito.doReturn(response)
+                    .when(playerService)
+                    .get(Mockito.nullable(Account.class), Mockito.nullable(Channel.class), Mockito.nullable(String.class), Mockito.nullable(String.class), Mockito.nullable(String.class));
+
+            StubHttpExchange exchange = new StubHttpExchange(
+                    "/player?accountId=acc-1525&categoryId=359&channelId=9412&mode=vod&name=Shehzada%20-%202023&cmd=eyJ0eXBlIjoibW92aWUiLCJzdHJlYW1faWQiOiI5NDEyIn0",
+                    "GET"
+            );
+            handler.handle(exchange);
+
+            ArgumentCaptor<Channel> channelCaptor = ArgumentCaptor.forClass(Channel.class);
+            Mockito.verify(playerService).get(
+                    Mockito.eq(account),
+                    channelCaptor.capture(),
+                    Mockito.nullable(String.class),
+                    Mockito.nullable(String.class),
+                    Mockito.nullable(String.class)
+            );
+            assertEquals("ffmpeg http://provider/live/play/token/9412", channelCaptor.getValue().getCmd());
+            assertEquals(200, exchange.getResponseCode());
+            assertTrue(exchange.getResponseBodyText().contains("\"url\":\"http://provider/live/play/token/9412\""));
         }
     }
 

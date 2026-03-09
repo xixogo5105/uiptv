@@ -84,6 +84,16 @@ public class ServerUtils {
         generateResponse(httpExchange, response, CONTENT_TYPE_TS, fileName);
     }
 
+    public static void generateResponseText(HttpExchange httpExchange, int statusCode, String response) throws IOException {
+        byte[] responseBytes = response == null ? new byte[0] : response.getBytes(StandardCharsets.UTF_8);
+        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+        httpExchange.getResponseHeaders().add("Content-Type", CONTENT_TYPE_TEXT + "; charset=UTF-8");
+        httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
+        try (OutputStream os = httpExchange.getResponseBody()) {
+            os.write(responseBytes);
+        }
+    }
+
     private static void generateResponse(HttpExchange httpExchange, String response, String contentType, String fileName) throws IOException {
         if (!"GET".equals(httpExchange.getRequestMethod())) {
             httpExchange.getResponseHeaders().set("Allow", "GET");

@@ -39,6 +39,7 @@ public class DatabaseUtils {
         CHANNEL_TABLE("Channel"),
         VOD_CATEGORY_TABLE("VodCategory"),
         VOD_CHANNEL_TABLE("VodChannel"),
+        VOD_WATCH_STATE_TABLE("VodWatchState"),
         SERIES_CATEGORY_TABLE("SeriesCategory"),
         SERIES_CHANNEL_TABLE("SeriesChannel"),
         SERIES_EPISODE_TABLE("SeriesEpisode"),
@@ -210,6 +211,16 @@ public class DatabaseUtils {
                 new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT"),
                 new DataColumn(COLUMN_EXTRA_JSON, "TEXT"),
                 new DataColumn(COLUMN_CACHED_AT, INTEGER_TYPE)
+        )));
+        dbStructure.put(DbTable.VOD_WATCH_STATE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
+                new DataColumn("vodId", "TEXT"),
+                new DataColumn("vodName", "TEXT"),
+                new DataColumn("vodCmd", "TEXT"),
+                new DataColumn("vodLogo", "TEXT"),
+                new DataColumn("updatedAt", INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.SERIES_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

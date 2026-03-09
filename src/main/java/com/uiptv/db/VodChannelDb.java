@@ -40,6 +40,14 @@ public class VodChannelDb extends BaseDb {
         return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;
     }
 
+    public Channel getChannelByChannelIdAndAccount(String channelId, String accountId) {
+        List<Channel> channels = getAll(
+                " WHERE channelId=? AND accountId=?",
+                new String[]{channelId, accountId}
+        );
+        return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;
+    }
+
     public boolean isFresh(Account account, String categoryId, long maxAgeMs) {
         String sql = "SELECT MAX(cachedAt) FROM " + VOD_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {

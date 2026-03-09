@@ -8,6 +8,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.model.ThemeCssOverride;
+import com.uiptv.model.VodWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
@@ -253,6 +254,22 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         List<Channel> vodChannels = VodChannelDb.get().getChannels(vodAccount, vodCategories.get(0).getCategoryId());
         assertEquals(1, vodChannels.size());
         assertEquals("{\"rating\":\"5\"}", vodChannels.get(0).getExtraJson());
+
+        VodWatchState vodState = new VodWatchState();
+        vodState.setAccountId(vodAccount.getDbId());
+        vodState.setCategoryId(vodCategories.getFirst().getCategoryId());
+        vodState.setVodId(vodChannel.getChannelId());
+        vodState.setVodName(vodChannel.getName());
+        vodState.setVodCmd(vodChannel.getCmd());
+        vodState.setVodLogo(vodChannel.getLogo());
+        vodState.setUpdatedAt(System.currentTimeMillis());
+        VodWatchStateDb.get().upsert(vodState);
+
+        VodWatchState savedVodState = VodWatchStateDb.get()
+                .getByVod(vodAccount.getDbId(), vodCategories.get(0).getCategoryId(), vodChannel.getChannelId());
+        assertNotNull(savedVodState);
+        assertEquals("vod-1", savedVodState.getVodId());
+        assertEquals("Vod One", savedVodState.getVodName());
     }
 
     private void assertSeriesPersistence(AccountService accountService, Account savedAccount) {

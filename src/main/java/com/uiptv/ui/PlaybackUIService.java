@@ -8,6 +8,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.util.AppLog;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -22,6 +23,8 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
+    private static final String LOG_PREFIX = "BingeWatch: ";
+    private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
 
@@ -71,6 +74,32 @@ public final class PlaybackUIService {
                 }
             }
         }).start();
+    }
+
+    public static void playDirectUrl(String playerPath, String url, String errorPrefix) {
+        if (isBlank(url)) {
+            showErrorAlert(isBlank(errorPrefix) ? PLAYLIST_RESOLUTION_FAILURE : errorPrefix + "unable to resolve playlist URL.");
+            return;
+        }
+        AppLog.addLog(LOG_PREFIX + "Launching direct URL playerPath=" + playerPath + " url=" + url);
+        PlayerResponse response = new PlayerResponse(url);
+        if (isEmbeddedPlayerPath(playerPath)) {
+            Configuration configuration = ConfigurationService.getInstance().read();
+            AppLog.addLog(LOG_PREFIX + "Launch mode=embedded enabled=" + (configuration != null && configuration.isEmbeddedPlayer()));
+            playEmbedded(response, configuration != null && configuration.isEmbeddedPlayer());
+            return;
+        }
+        if (isBrowserPlayerPath(playerPath)) {
+            AppLog.addLog(LOG_PREFIX + "Launch mode=browser url=" + url);
+            ServerUrlUtil.openInBrowser(url);
+            return;
+        }
+        if (isBlank(playerPath)) {
+            showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
+            return;
+        }
+        AppLog.addLog(LOG_PREFIX + "Launch mode=external command=" + playerPath + " arg=" + url);
+        com.uiptv.util.Platform.executeCommand(playerPath, url);
     }
 
     private static PlaybackModeContext buildPlaybackModeContext(Configuration configuration, PlaybackRequest request) {
@@ -160,6 +189,14 @@ public final class PlaybackUIService {
             return true;
         }
         return normalized.contains("embedded");
+    }
+
+    private static boolean isBrowserPlayerPath(String playerPath) {
+        return WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(normalizePlayerPath(playerPath));
+    }
+
+    private static String normalizePlayerPath(String playerPath) {
+        return playerPath == null ? "" : playerPath.trim();
     }
 
     public static final class PlaybackRequest {

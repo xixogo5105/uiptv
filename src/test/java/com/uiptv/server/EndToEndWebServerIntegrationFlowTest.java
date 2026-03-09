@@ -126,7 +126,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
      *    - /seriesEpisodes
      *    - /seriesDetails
      *    - /vodDetails
-     *    - /player (direct channel path + bookmark path + drmLaunch payload path)
+     *    - /player (direct channel path + bookmark path + launch payload path)
      *    - /bookmarks (OPTIONS/GET/POST/PUT/DELETE + categories view)
      *    - /playlist.m3u8
      *    - /bookmarks.m3u8
@@ -696,12 +696,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         }
         assertNotNull(drmChannel);
 
-        JSONObject drmLaunch = new JSONObject();
-        drmLaunch.put("accountId", m3u.getDbId());
-        drmLaunch.put("categoryId", m3uCats.get(0).getDbId());
-        drmLaunch.put("mode", "itv");
-        drmLaunch.put("channel", new JSONObject(drmChannel.toJson()));
-        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(drmLaunch.toString().getBytes(StandardCharsets.UTF_8));
+        JSONObject launchPayload = new JSONObject();
+        launchPayload.put("accountId", m3u.getDbId());
+        launchPayload.put("categoryId", m3uCats.get(0).getDbId());
+        launchPayload.put("mode", "itv");
+        launchPayload.put("channel", new JSONObject(drmChannel.toJson()));
+        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(launchPayload.toString().getBytes(StandardCharsets.UTF_8));
         HttpTextResponse drmPlayer = get("/player?accountId=" + m3u.getDbId()
                 + "&categoryId=" + m3uCats.get(0).getDbId()
                 + "&channelId=" + URLEncoder.encode(drmChannel.getChannelId(), StandardCharsets.UTF_8)
@@ -710,7 +710,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 + "&cmd=" + URLEncoder.encode(drmChannel.getCmd(), StandardCharsets.UTF_8)
                 + "&drmType=" + URLEncoder.encode(drmChannel.getDrmType(), StandardCharsets.UTF_8)
                 + "&clearKeysJson=" + URLEncoder.encode(drmChannel.getClearKeysJson(), StandardCharsets.UTF_8)
-                + "&drmLaunch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8));
+                + "&launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8));
         assertEquals(200, drmPlayer.statusCode());
         assertTrue(drmPlayer.body().contains("\"url\""));
     }

@@ -319,6 +319,8 @@ public final class I18n {
         String preferredFamily = resolvePreferredFontFamily();
         if (!preferredFamily.isBlank()) {
             applyPreferredFont(node, preferredFamily);
+        } else {
+            clearPreferredFont(node);
         }
         if (node instanceof Parent parent) {
             attachTypographyListener(parent);
@@ -391,7 +393,25 @@ public final class I18n {
         }
     }
 
-    private static String appendInlineFontFamily(String existingStyle, String family) {
+    private static void clearPreferredFont(Node node) {
+        if (node == null || node.styleProperty().isBound()) {
+            return;
+        }
+        Object previousFamily = node.getProperties().remove(LOCALE_FONT_FAMILY_KEY);
+        if (!(previousFamily instanceof String) || ((String) previousFamily).isBlank()) {
+            return;
+        }
+
+        if (node instanceof Labeled labeled) {
+            labeled.setStyle(removeInlineFontFamily(labeled.getStyle()));
+        } else if (node instanceof TextInputControl textInputControl) {
+            textInputControl.setStyle(removeInlineFontFamily(textInputControl.getStyle()));
+        } else if (node instanceof Control control) {
+            control.setStyle(removeInlineFontFamily(control.getStyle()));
+        }
+    }
+
+    static String appendInlineFontFamily(String existingStyle, String family) {
         String fontRule = "-fx-font-family: \"" + family.replace("\"", "") + "\";";
         if (existingStyle == null || existingStyle.isBlank()) {
             return fontRule;
@@ -400,6 +420,20 @@ public final class I18n {
             return INLINE_FONT_FAMILY_RULE_PATTERN.matcher(existingStyle).replaceFirst(fontRule);
         }
         return existingStyle.trim() + (existingStyle.trim().endsWith(";") ? " " : "; ") + fontRule;
+    }
+
+    static String removeInlineFontFamily(String existingStyle) {
+        if (existingStyle == null || existingStyle.isBlank()) {
+            return "";
+        }
+        String normalized = INLINE_FONT_FAMILY_RULE_PATTERN.matcher(existingStyle).replaceAll("")
+                .replaceAll("\\s*;\\s*", "; ")
+                .trim();
+        normalized = normalized.replaceAll("^(;\\s*)+", "").replaceAll("(;\\s*)+$", "").trim();
+        if (normalized.isBlank()) {
+            return "";
+        }
+        return normalized.endsWith(";") ? normalized : normalized + ";";
     }
 
     private static String resolvePreferredFontFamily() {

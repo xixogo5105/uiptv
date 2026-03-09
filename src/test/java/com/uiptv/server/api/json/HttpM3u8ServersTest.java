@@ -4,16 +4,25 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
+import com.uiptv.model.Channel;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.PlayerResponse;
+import com.uiptv.model.SeriesWatchState;
+import com.uiptv.server.HttpBingeWatchEntryServer;
+import com.uiptv.server.HttpBingeWatchPlaylistServer;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.M3U8PublicationService;
+import com.uiptv.service.PlayerService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -24,6 +33,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -148,6 +158,56 @@ class HttpM3u8ServersTest extends DbBackedTest {
         assertFalse(legacyExchange.getResponseBodyText().isEmpty());
     }
 
+    @Test
+    void bingeWatchPlaylistServer_returnsDynamicPlaylist() throws Exception {
+        Account saved = saveSeriesAccount();
+        String token = BingeWatchService.getInstance().createSession(
+                saved,
+                "series-1",
+                "cat-1",
+                "2",
+                List.of(seriesEpisode("ep-21", "2", "1"), seriesEpisode("ep-22", "2", "2")),
+                new SeriesWatchState()
+        );
+
+        HttpBingeWatchPlaylistServer handler = new HttpBingeWatchPlaylistServer();
+        StubHttpExchange exchange = new StubHttpExchange("/bingewatch.m3u8?token=" + token, "GET");
+
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        assertTrue(exchange.getResponseBodyText().contains("/bingwatch?token="));
+        assertTrue(exchange.getResponseBodyText().contains("episodeId=ep-21"));
+    }
+
+    @Test
+    void bingeWatchEntryServer_redirectsToFreshPlayerUrl() throws Exception {
+        Account saved = saveSeriesAccount();
+        String token = BingeWatchService.getInstance().createSession(
+                saved,
+                "series-1",
+                "cat-1",
+                "2",
+                List.of(seriesEpisode("ep-22", "2", "2")),
+                new SeriesWatchState()
+        );
+
+        PlayerService playerService = Mockito.mock(PlayerService.class);
+        Mockito.when(playerService.get(Mockito.any(), Mockito.any(), Mockito.eq("ep-22"), Mockito.eq("series-1"), Mockito.eq("cat-1")))
+                .thenReturn(new PlayerResponse("http://stream.example/ep-22.m3u8"));
+
+        HttpBingeWatchEntryServer handler = new HttpBingeWatchEntryServer();
+        try (MockedStatic<PlayerService> playerServiceStatic = Mockito.mockStatic(PlayerService.class)) {
+            playerServiceStatic.when(PlayerService::getInstance).thenReturn(playerService);
+            StubHttpExchange exchange = new StubHttpExchange("/bingwatch?token=" + token + "&episodeId=ep-22", "GET");
+
+            handler.handle(exchange);
+
+            assertEquals(307, exchange.getResponseCode());
+            assertEquals("http://stream.example/ep-22.m3u8", exchange.getResponseHeaders().getFirst("Location"));
+        }
+    }
+
     private void assertValidTsResponse(StubHttpExchange exchange, String expectedUrl) {
         assertEquals(200, exchange.getResponseCode());
         assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("video/mp2t"));
@@ -160,6 +220,24 @@ class HttpM3u8ServersTest extends DbBackedTest {
         Bookmark bookmark = new Bookmark("bookmark-account", "Sports", "ch-1", "Channel One", "ffmpeg%20http%3A%2F%2Foriginal%2Fstream.ts", "http://portal", "cat-1");
         bookmark.setDbId("b-ignore");
         return bookmark;
+    }
+
+    private Account saveSeriesAccount() {
+        Account account = new Account("series-account", "user", "pass", "http://unused", "00:11:22:33:44:55", null, null, null, null, null, AccountType.XTREME_API, null, "http://unused/list.m3u8", false);
+        AccountService.getInstance().save(account);
+        Account saved = AccountService.getInstance().getByName("series-account");
+        saved.setAction(Account.AccountAction.series);
+        return saved;
+    }
+
+    private Channel seriesEpisode(String id, String season, String episodeNumber) {
+        Channel channel = new Channel();
+        channel.setChannelId(id);
+        channel.setName("Episode " + episodeNumber);
+        channel.setSeason(season);
+        channel.setEpisodeNum(episodeNumber);
+        channel.setCmd("http://origin/" + id + ".m3u8");
+        return channel;
     }
 
     private static class StubHttpExchange extends HttpExchange {

@@ -5,6 +5,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.player.YoutubeDL;
 
 import java.net.URI;
+import java.util.Locale;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -113,6 +114,30 @@ public class PlayerUrlUtils {
         }
         // Reject known broken pattern with empty stream parameter.
         return !normalized.contains("stream=&");
+    }
+
+    public static boolean isLikelyOnDemandPlaybackUrl(String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        String normalized = extractPlayableUrl(url);
+        if (isBlank(normalized)) {
+            return false;
+        }
+        String lower = normalized.trim().toLowerCase(Locale.ROOT);
+        if (lower.contains("/play/movie.php")) {
+            return lower.contains("type=movie") || lower.contains("type=series");
+        }
+        return !lower.contains("/live/play/")
+                && (lower.endsWith(".mkv")
+                || lower.endsWith(".mp4")
+                || lower.endsWith(".avi")
+                || lower.endsWith(".mov")
+                || lower.endsWith(".m4v")
+                || lower.endsWith(".wmv")
+                || lower.endsWith(".flv")
+                || lower.endsWith(".webm")
+                || lower.endsWith(".ts"));
     }
 
     private static URI resolvePortalUri(Account account) {

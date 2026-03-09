@@ -46,6 +46,16 @@ class PlayerUrlUtilsTest {
         assertTrue(PlayerUrlUtils.isUsableLiveCmd("ffmpeg http://portal.example/live/stream=1&token=x"));
     }
 
+    @Test
+    void isLikelyOnDemandPlaybackUrl_detectsStalkerMoviePlaybackUrls() {
+        assertTrue(PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(
+                "http://ch-4k-top.org:80/play/movie.php?mac=00%3A1A%3A79%3A5A%3A23%3ADE&stream=1877383.ts&play_token=b478eaoCsD&type=series"));
+        assertTrue(PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(
+                "ffmpeg http://portal.example/play/movie.php?stream=123.mkv&type=movie"));
+        assertFalse(PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(
+                "http://portal.example/live/play/12345"));
+    }
+
     private Account stalkerAccount(String serverPortalUrl) {
         Account account = new Account();
         account.setType(AccountType.STALKER_PORTAL);

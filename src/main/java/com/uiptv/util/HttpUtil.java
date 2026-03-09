@@ -16,14 +16,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("java:S1874")
 public class HttpUtil {
+    private static final int MAX_LOG_BODY_CHARS = Integer.getInteger("uiptv.http.log.max.body.chars", 4000);
+    private static final List<String> SENSITIVE_HEADERS = List.of("authorization", "cookie", "set-cookie", "proxy-authorization");
+
     private HttpUtil() {
     }
 
@@ -66,6 +74,8 @@ public class HttpUtil {
                 EntityUtils.consumeQuietly(entity);
             }
             return new HttpResult(
+                    request.getMethod(),
+                    requestUriForLog(request),
                     response.getCode(),
                     responseBody,
                     headersToMap(request.getHeaders()),
@@ -80,12 +90,127 @@ public class HttpUtil {
         HttpEntity entity = response.getEntity();
         InputStream bodyStream = entity == null ? InputStream.nullInputStream() : entity.getContent();
         return new StreamResult(
+                request.getMethod(),
+                requestUriForLog(request),
                 response.getCode(),
                 headersToMap(request.getHeaders()),
                 headersToMap(response.getHeaders()),
                 bodyStream,
                 response
         );
+    }
+
+    public static String formatHttpLog(String requestUrl, HttpResult response, Map<String, String> requestParams) {
+        if (response == null) {
+            return "HTTP request log unavailable: response was null";
+        }
+        StringBuilder out = new StringBuilder(1024);
+        out.append("HTTP ")
+                .append(nonBlank(response.requestMethod(), "GET"))
+                .append(' ')
+                .append(nonBlank(response.requestUri(), nonBlank(requestUrl, "<unknown>")))
+                .append(System.lineSeparator());
+        out.append("Status: ").append(response.statusCode()).append(System.lineSeparator());
+
+        if (requestParams != null && !requestParams.isEmpty()) {
+            appendSection(out, "Request Params", formatParams(requestParams));
+        }
+
+        appendSection(out, "Request Headers", formatHeaders(response.requestHeaders()));
+        appendSection(out, "Response Headers", formatHeaders(response.responseHeaders()));
+        appendSection(out, "Response Body", abbreviateBody(response.body()));
+        return out.toString().trim();
+    }
+
+    private static void appendSection(StringBuilder out, String title, String content) {
+        out.append(System.lineSeparator())
+                .append(title)
+                .append(':')
+                .append(System.lineSeparator())
+                .append(indent(nonBlank(content, "<none>")))
+                .append(System.lineSeparator());
+    }
+
+    private static String formatParams(Map<String, String> params) {
+        return params.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
+                .map(entry -> entry.getKey() + "=" + quote(entry.getValue()))
+                .collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    private static String formatHeaders(Map<String, List<String>> headers) {
+        if (headers == null || headers.isEmpty()) {
+            return "<none>";
+        }
+        Map<String, List<String>> sorted = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        sorted.putAll(headers);
+        return sorted.entrySet().stream()
+                .map(entry -> entry.getKey() + ": " + formatHeaderValues(entry.getKey(), entry.getValue()))
+                .collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    private static String formatHeaderValues(String headerName, List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "";
+        }
+        if (isSensitiveHeader(headerName)) {
+            return "<redacted>";
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(HttpUtil::quote)
+                .collect(Collectors.joining(", "));
+    }
+
+    private static boolean isSensitiveHeader(String headerName) {
+        if (headerName == null) {
+            return false;
+        }
+        String lower = headerName.toLowerCase(Locale.ROOT);
+        return SENSITIVE_HEADERS.contains(lower);
+    }
+
+    private static String abbreviateBody(String body) {
+        if (body == null || body.isBlank()) {
+            return "<empty>";
+        }
+        String normalized = body.replace("\r\n", "\n").replace('\r', '\n').trim();
+        if (looksBinary(normalized)) {
+            return "<binary " + normalized.getBytes(StandardCharsets.UTF_8).length + " bytes>";
+        }
+        if (normalized.length() <= MAX_LOG_BODY_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_LOG_BODY_CHARS)
+                + System.lineSeparator()
+                + "... [truncated " + (normalized.length() - MAX_LOG_BODY_CHARS) + " chars]";
+    }
+
+    private static boolean looksBinary(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isISOControl(c) && !Character.isWhitespace(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String indent(String value) {
+        return value.lines()
+                .map(line -> "  " + line)
+                .collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    private static String quote(String value) {
+        if (value == null) {
+            return "\"\"";
+        }
+        return "\"" + value + "\"";
+    }
+
+    private static String nonBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private static HttpUriRequestBase buildRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) {
@@ -135,6 +260,15 @@ public class HttpUtil {
         return method.trim().toUpperCase();
     }
 
+    private static String requestUriForLog(HttpUriRequestBase request) {
+        try {
+            URI uri = request.getUri();
+            return uri == null ? "" : uri.toString();
+        } catch (Exception _) {
+            return "";
+        }
+    }
+
     private static RequestConfig buildRequestConfig(RequestOptions options) {
         RequestOptions effective = options == null ? RequestOptions.defaults() : options;
         Timeout connectTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
@@ -165,11 +299,19 @@ public class HttpUtil {
     }
 
     public record HttpResult(
+            String requestMethod,
+            String requestUri,
             int statusCode,
             String body,
             Map<String, List<String>> requestHeaders,
             Map<String, List<String>> responseHeaders
     ) {
+        public HttpResult(int statusCode,
+                          String body,
+                          Map<String, List<String>> requestHeaders,
+                          Map<String, List<String>> responseHeaders) {
+            this("", "", statusCode, body, requestHeaders, responseHeaders);
+        }
     }
 
     public static final class RequestOptions {
@@ -221,22 +363,36 @@ public class HttpUtil {
     }
 
     public static final class StreamResult implements AutoCloseable {
+        private final String requestMethod;
+        private final String requestUri;
         private final int statusCode;
         private final Map<String, List<String>> requestHeaders;
         private final Map<String, List<String>> responseHeaders;
         private final InputStream bodyStream;
         private final CloseableHttpResponse response;
 
-        public StreamResult(int statusCode,
+        public StreamResult(String requestMethod,
+                            String requestUri,
+                            int statusCode,
                             Map<String, List<String>> requestHeaders,
                             Map<String, List<String>> responseHeaders,
                             InputStream bodyStream,
                             CloseableHttpResponse response) {
+            this.requestMethod = requestMethod;
+            this.requestUri = requestUri;
             this.statusCode = statusCode;
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.bodyStream = bodyStream;
             this.response = response;
+        }
+
+        public String requestMethod() {
+            return requestMethod;
+        }
+
+        public String requestUri() {
+            return requestUri;
         }
 
         public int statusCode() {

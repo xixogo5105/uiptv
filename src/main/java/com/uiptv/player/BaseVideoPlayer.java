@@ -8,6 +8,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.PlayerService;
 import com.uiptv.util.StyleClassDecorator;
+import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -968,11 +969,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected void updatePlaybackTimeUi(long currentTimeMs, long totalTimeMs, boolean seekable) {
         long safeCurrent = Math.max(0, currentTimeMs);
         boolean hasKnownTotal = totalTimeMs > 0;
-        boolean isLiveLike = !hasKnownTotal || !seekable;
+        boolean isLikelyOnDemand = PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(currentMediaUri);
+        boolean isLiveLike = isLikelyOnDemand ? false : !hasKnownTotal || !seekable;
 
         if (!isLiveLike) {
             long safeTotal = Math.max(0, totalTimeMs);
-            timeLabel.setText(formatTime(safeCurrent) + " / " + formatTime(safeTotal));
+            timeLabel.setText(hasKnownTotal
+                    ? formatTime(safeCurrent) + " / " + formatTime(safeTotal)
+                    : formatTime(safeCurrent) + " / --:--");
             timeSlider.setDisable(false);
             if (!isUserSeeking && safeTotal > 0) {
                 timeSlider.setValue(clamp01((double) safeCurrent / safeTotal));
