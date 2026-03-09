@@ -178,7 +178,7 @@ public class VodWatchingNowUI extends VBox {
         card.setPadding(new Insets(8));
         card.getStyleClass().add("uiptv-card");
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.coverUrl, 72, 108, VOD_WATCHING_NOW_CACHE);
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 72, 108, VOD_WATCHING_NOW_CACHE);
         poster.setVisible(ThumbnailAwareUI.areThumbnailsEnabled());
         poster.setManaged(ThumbnailAwareUI.areThumbnailsEnabled());
 
@@ -279,20 +279,20 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private void addMetadataLines(VBox details, VodPanelData data) {
-        if (!isBlank(data.rating)) {
-            data.ratingNode = new Label(I18n.tr("autoImdbPrefix", data.rating));
+        if (!isBlank(data.metadata.rating)) {
+            data.ratingNode = new Label(I18n.tr("autoImdbPrefix", data.metadata.rating));
             details.getChildren().add(data.ratingNode);
         }
-        if (!isBlank(data.releaseDate)) {
-            data.releaseNode = new Label(I18n.tr("autoReleasePrefix", data.releaseDate));
+        if (!isBlank(data.metadata.releaseDate)) {
+            data.releaseNode = new Label(I18n.tr("autoReleasePrefix", data.metadata.releaseDate));
             details.getChildren().add(data.releaseNode);
         }
         if (!isBlank(data.duration)) {
             data.durationNode = new Label(I18n.tr("autoDurationPrefix", data.duration));
             details.getChildren().add(data.durationNode);
         }
-        if (!isBlank(data.plot)) {
-            data.plotNode = new Label(data.plot);
+        if (!isBlank(data.metadata.plot)) {
+            data.plotNode = new Label(data.metadata.plot);
             data.plotNode.setWrapText(true);
             data.plotNode.setMaxWidth(Double.MAX_VALUE);
             data.plotNode.setMinWidth(0);
@@ -307,7 +307,7 @@ public class VodWatchingNowUI extends VBox {
         if (data.imdbLoadingNode != null) {
             details.getChildren().remove(data.imdbLoadingNode);
         }
-        data.imdbBadgeNode = SeriesCardUiSupport.createImdbRatingPill(data.rating, data.imdbUrl);
+        data.imdbBadgeNode = SeriesCardUiSupport.createImdbRatingPill(data.metadata.rating, data.imdbUrl);
         if (data.imdbBadgeNode != null) {
             details.getChildren().add(2, data.imdbBadgeNode);
         }
@@ -346,12 +346,12 @@ public class VodWatchingNowUI extends VBox {
         if (data == null || imdb == null) {
             return;
         }
-        if (isBlank(data.coverUrl)) {
-            data.coverUrl = normalizeImageUrl(imdb.optString("cover", ""), data.account);
+        if (isBlank(data.metadata.coverUrl)) {
+            data.metadata.coverUrl = normalizeImageUrl(imdb.optString("cover", ""), data.account);
         }
-        data.plot = firstNonBlank(data.plot, imdb.optString("plot", ""));
-        data.releaseDate = firstNonBlank(data.releaseDate, imdb.optString("releaseDate", ""));
-        data.rating = firstNonBlank(data.rating, imdb.optString("rating", ""));
+        data.metadata.plot = firstNonBlank(data.metadata.plot, imdb.optString("plot", ""));
+        data.metadata.releaseDate = firstNonBlank(data.metadata.releaseDate, imdb.optString("releaseDate", ""));
+        data.metadata.rating = firstNonBlank(data.metadata.rating, imdb.optString("rating", ""));
         data.imdbUrl = firstNonBlank(data.imdbUrl, imdb.optString("imdbUrl", ""));
     }
 
@@ -595,14 +595,25 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private static final class VodPanelData {
+        private static final class DisplayMetadata {
+            private String coverUrl;
+            private String plot;
+            private String releaseDate;
+            private String rating;
+
+            private DisplayMetadata(String coverUrl, String plot, String releaseDate, String rating) {
+                this.coverUrl = coverUrl;
+                this.plot = plot;
+                this.releaseDate = releaseDate;
+                this.rating = rating;
+            }
+        }
+
         private final Account account;
         private final VodWatchState state;
         private final Channel playbackChannel;
         private final String displayTitle;
-        private String coverUrl;
-        private String plot;
-        private String releaseDate;
-        private String rating;
+        private final DisplayMetadata metadata;
         private final String duration;
         private String imdbUrl = "";
         private boolean imdbLoaded;
@@ -614,22 +625,19 @@ public class VodWatchingNowUI extends VBox {
         private HBox imdbBadgeNode;
         private HBox imdbLoadingNode;
 
-        private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle, String duration) {
+        private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle, DisplayMetadata metadata, String duration) {
             this.account = account;
             this.state = state;
             this.playbackChannel = playbackChannel;
             this.displayTitle = displayTitle;
+            this.metadata = metadata;
             this.duration = duration;
         }
 
         private static VodPanelData create(Account account, VodWatchState state, Channel playbackChannel, String displayTitle,
                                            String coverUrl, String plot, String releaseDate, String rating, String duration) {
-            VodPanelData data = new VodPanelData(account, state, playbackChannel, displayTitle, duration);
-            data.coverUrl = coverUrl;
-            data.plot = plot;
-            data.releaseDate = releaseDate;
-            data.rating = rating;
-            return data;
+            DisplayMetadata metadata = new DisplayMetadata(coverUrl, plot, releaseDate, rating);
+            return new VodPanelData(account, state, playbackChannel, displayTitle, metadata, duration);
         }
     }
 }

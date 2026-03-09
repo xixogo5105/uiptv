@@ -30,6 +30,7 @@ import static javafx.application.Platform.runLater;
 public final class PlaybackUIService {
     private static final String LOG_PREFIX = "BingeWatch: ";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
+    private static final String DEFAULT_MODE = "series";
     static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
 
@@ -225,31 +226,13 @@ public final class PlaybackUIService {
 
     private static String buildBrowserDirectPlaybackUrl(String url, Account account, Channel channel) {
         JSONObject payload = new JSONObject();
-        String mode = account != null && account.getAction() != null ? safe(account.getAction().name()).toLowerCase() : "series";
-        if (!"itv".equals(mode) && !"vod".equals(mode) && !"series".equals(mode)) {
-            mode = "series";
-        }
+        String mode = determineMode(account);
         payload.put("mode", mode);
         payload.put("directUrl", url == null ? "" : url);
         payload.put("accountId", account == null ? "" : safe(account.getDbId()));
         payload.put("categoryId", channel == null ? "" : safe(channel.getCategoryId()));
 
-        JSONObject channelJson = new JSONObject();
-        channelJson.put("dbId", channel == null ? "" : safe(channel.getDbId()));
-        channelJson.put("channelId", channel == null ? "" : safe(channel.getChannelId()));
-        channelJson.put("name", channel == null ? "" : safe(channel.getName()));
-        channelJson.put("logo", channel == null ? "" : safe(channel.getLogo()));
-        channelJson.put("cmd", channel == null ? "" : safe(channel.getCmd()));
-        channelJson.put("cmd_1", channel == null ? "" : safe(channel.getCmd_1()));
-        channelJson.put("cmd_2", channel == null ? "" : safe(channel.getCmd_2()));
-        channelJson.put("cmd_3", channel == null ? "" : safe(channel.getCmd_3()));
-        channelJson.put("drmType", channel == null ? "" : safe(channel.getDrmType()));
-        channelJson.put("drmLicenseUrl", channel == null ? "" : safe(channel.getDrmLicenseUrl()));
-        channelJson.put("clearKeysJson", channel == null ? "" : safe(channel.getClearKeysJson()));
-        channelJson.put("inputstreamaddon", channel == null ? "" : safe(channel.getInputstreamaddon()));
-        channelJson.put("manifestType", channel == null ? "" : safe(channel.getManifestType()));
-        channelJson.put("season", channel == null ? "" : safe(channel.getSeason()));
-        channelJson.put("episodeNum", channel == null ? "" : safe(channel.getEpisodeNum()));
+        JSONObject channelJson = buildChannelJson(channel);
         payload.put("channel", channelJson);
 
         String bingeWatchToken = extractBingeWatchToken(url);
@@ -287,6 +270,39 @@ public final class PlaybackUIService {
             return "";
         }
         return normalized;
+    }
+
+    private static String determineMode(Account account) {
+        if (account == null || account.getAction() == null) {
+            return DEFAULT_MODE;
+        }
+        String mode = safe(account.getAction().name()).toLowerCase();
+        if ("itv".equals(mode) || "vod".equals(mode) || DEFAULT_MODE.equals(mode)) {
+            return mode;
+        }
+        return DEFAULT_MODE;
+    }
+
+    private static JSONObject buildChannelJson(Channel channel) {
+        JSONObject channelJson = new JSONObject();
+        if (channel != null) {
+            channelJson.put("dbId", safe(channel.getDbId()));
+            channelJson.put("channelId", safe(channel.getChannelId()));
+            channelJson.put("name", safe(channel.getName()));
+            channelJson.put("logo", safe(channel.getLogo()));
+            channelJson.put("cmd", safe(channel.getCmd()));
+            channelJson.put("cmd_1", safe(channel.getCmd_1()));
+            channelJson.put("cmd_2", safe(channel.getCmd_2()));
+            channelJson.put("cmd_3", safe(channel.getCmd_3()));
+            channelJson.put("drmType", safe(channel.getDrmType()));
+            channelJson.put("drmLicenseUrl", safe(channel.getDrmLicenseUrl()));
+            channelJson.put("clearKeysJson", safe(channel.getClearKeysJson()));
+            channelJson.put("inputstreamaddon", safe(channel.getInputstreamaddon()));
+            channelJson.put("manifestType", safe(channel.getManifestType()));
+            channelJson.put("season", safe(channel.getSeason()));
+            channelJson.put("episodeNum", safe(channel.getEpisodeNum()));
+        }
+        return channelJson;
     }
 
     private static final class HttpUtilLike {
