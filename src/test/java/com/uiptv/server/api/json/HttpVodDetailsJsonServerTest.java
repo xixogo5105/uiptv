@@ -129,6 +129,7 @@ class HttpVodDetailsJsonServerTest extends DbBackedTest {
 
         @Override
         public void close() {
+            // No resources to release for this lightweight exchange stub.
         }
 
         @Override
@@ -173,10 +174,12 @@ class HttpVodDetailsJsonServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            // Test stub does not persist exchange attributes.
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // Test stub uses fixed in-memory streams.
         }
 
         @Override

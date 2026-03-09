@@ -21,6 +21,10 @@
             <img src="/icon.ico" alt="UIPTV">
             <span>UIPTV Player</span>
         </a>
+        <div id="media-meta" aria-live="polite">
+            <div id="media-title"></div>
+            <div id="media-subtitle"></div>
+        </div>
         <div class="top-actions">
             <label class="top-action" for="audio-select" title="Audio tracks">
                 <i class="bi bi-music-note-list"></i>
@@ -48,8 +52,16 @@
             </button>
         </div>
     </div>
-    <video id="video" controls autoplay playsinline></video>
-    <div id="status">Preparing playback...</div>
+    <div id="content">
+        <aside id="playlist-panel" hidden>
+            <div id="playlist-header">Playlist</div>
+            <div id="playlist-items" role="list"></div>
+        </aside>
+        <div id="player-stage">
+            <video id="video" controls autoplay playsinline></video>
+            <div id="status">Preparing playback...</div>
+        </div>
+    </div>
 </div>
 <script src="/javascript/player.js?v=20260224a"></script>
 </body>

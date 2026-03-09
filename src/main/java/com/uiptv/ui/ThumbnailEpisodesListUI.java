@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.util.I18n;
 
 import com.uiptv.model.Account;
@@ -39,6 +41,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -55,6 +58,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final HBox header = new HBox(12);
     private final ImageView seriesPosterNode = new ImageView();
     private final VBox headerDetails = new VBox(4);
+    private final HBox titleRow = new HBox(8);
     private final Label titleNode = new Label();
     private final Label ratingNode = new Label();
     private final Label genreNode = new Label();
@@ -70,6 +74,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private boolean watchingNowDetailStylingApplied = false;
     private VBox bodyContainer;
     private final Map<EpisodeItem, VBox> renderedCardsByItem = new HashMap<>();
+    private Consumer<JSONObject> seasonInfoListener;
     private String pendingTargetSeason;
     private String pendingTargetEpisodeId;
     private String pendingTargetEpisodeNumber;
@@ -218,6 +223,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private void initHeader() {
         header.setAlignment(Pos.TOP_LEFT);
         header.getStyleClass().add("uiptv-outline-pane");
+        header.setPadding(new Insets(5));
 
         seriesPosterNode.setFitWidth(170);
         seriesPosterNode.setFitHeight(250);
@@ -228,16 +234,18 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         titleNode.setWrapText(true);
         titleNode.setMaxWidth(Double.MAX_VALUE);
         titleNode.setMinWidth(0);
+        HBox.setHgrow(titleNode, Priority.ALWAYS);
         plotNode.setWrapText(true);
         plotNode.setMaxWidth(Double.MAX_VALUE);
         plotNode.setMinWidth(0);
         plotNode.setMinHeight(Region.USE_PREF_SIZE);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
         headerDetails.setMaxWidth(Double.MAX_VALUE);
         headerDetails.setFillWidth(true);
         headerDetails.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(plotNode, Priority.ALWAYS);
         plotNode.prefWidthProperty().bind(headerDetails.widthProperty().subtract(6));
-        titleNode.prefWidthProperty().bind(headerDetails.widthProperty().subtract(6));
         ProgressIndicator imdbProgress = new ProgressIndicator();
         imdbProgress.setPrefSize(14, 14);
         imdbProgress.setMinSize(14, 14);
@@ -250,7 +258,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         reloadEpisodesButton.setFocusTraversable(true);
         reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
 
-        headerDetails.getChildren().setAll(titleNode);
+        titleRow.getChildren().setAll(titleNode, bingeWatchButton);
+        headerDetails.getChildren().setAll(titleRow);
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
 
         header.getChildren().setAll(seriesPosterNode, headerDetails);
@@ -275,9 +284,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
         titleNode.setText(title);
 
-        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode, bingeWatchButton, reloadEpisodesButton);
+        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode, reloadEpisodesButton);
         if (imdbBadgeNode != null) {
             headerDetails.getChildren().remove(imdbBadgeNode);
+        }
+        titleRow.getChildren().setAll(titleNode, bingeWatchButton);
+        if (!headerDetails.getChildren().contains(titleRow)) {
+            headerDetails.getChildren().add(0, titleRow);
         }
 
         String rating = seasonInfo.optString(KEY_RATING, "");
@@ -312,14 +325,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             headerDetails.getChildren().add(plotNode);
         }
         updateBingeWatchButton();
-        headerDetails.getChildren().add(bingeWatchButton);
-        headerDetails.getChildren().add(reloadEpisodesButton);
 
-        String cover = normalizeImageUrl(seasonInfo.optString(KEY_COVER, ""));
+        String cover = sanitizePosterUrl(normalizeImageUrl(seasonInfo.optString(KEY_COVER, "")));
         if (isBlank(cover)) {
-            cover = allEpisodeItems.stream().map(EpisodeItem::getLogo).filter(s -> !isBlank(s)).findFirst().orElse("");
+            cover = allEpisodeItems.stream().map(EpisodeItem::getLogo).map(this::sanitizePosterUrl).filter(s -> !isBlank(s)).findFirst().orElse("");
         }
         if (!isBlank(cover)) {
+            seasonInfo.put(KEY_COVER, cover);
             String finalCover = cover;
             ImageCacheManager.loadImageAsync(cover, EPISODE_CACHE)
                     .thenAccept(image -> {
@@ -330,6 +342,27 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                         }
                     });
         }
+        publishSeasonInfo();
+    }
+
+    private void publishSeasonInfo() {
+        if (seasonInfoListener != null) {
+            seasonInfoListener.accept(new JSONObject(seasonInfo.toString()));
+        }
+    }
+
+    private String sanitizePosterUrl(String url) {
+        if (isBlank(url)) {
+            return "";
+        }
+        if (url.startsWith("data:image/")) {
+            int commaIndex = url.indexOf(',');
+            int payloadLength = commaIndex >= 0 && commaIndex < url.length() - 1 ? url.length() - commaIndex - 1 : 0;
+            if (payloadLength < 512) {
+                return "";
+            }
+        }
+        return url;
     }
 
     private void reloadEpisodesFromPortal() {
@@ -358,6 +391,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     public void reloadFromServer() {
         reloadEpisodesFromPortal();
+    }
+
+    public void setSeasonInfoListener(Consumer<JSONObject> seasonInfoListener) {
+        this.seasonInfoListener = seasonInfoListener;
     }
 
     private void refreshSeasonTabs() {
@@ -615,7 +652,11 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         String season = firstNonBlank(selectedSeason(), "1");
         bingeWatchButton.setText(buildBingeWatchMenuLabel(season));
         bingeWatchButton.getItems().clear();
+        boolean usingLitePlayer = MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.LITE;
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            if (usingLitePlayer && PlaybackUIService.EMBEDDED_PLAYER_PATH.equals(option.playerPath())) {
+                continue;
+            }
             MenuItem playerItem = new MenuItem(option.label());
             playerItem.setOnAction(event -> bingeWatchSeason(season, option.playerPath()));
             bingeWatchButton.getItems().add(playerItem);

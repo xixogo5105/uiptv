@@ -7,6 +7,8 @@ import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
+import uk.co.caprica.vlcj.media.Media;
+import uk.co.caprica.vlcj.media.MediaRef;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
@@ -74,94 +76,164 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private MediaPlayerEventAdapter createMediaPlayerEvents() {
         return new MediaPlayerEventAdapter() {
             @Override
+            public void mediaChanged(MediaPlayer mp, MediaRef mediaRef) {
+                handleMediaChanged(mediaRef);
+            }
+
+            @Override
             public void playing(MediaPlayer mp) {
-                Platform.runLater(() -> {
-                    retryCount = 0;
-                    loadingSpinner.setVisible(false);
-                    btnPlayPause.setGraphic(pauseIcon);
-                    updateVideoSize();
-                    refreshTrackMenus();
-                });
+                handlePlaying();
             }
 
             @Override
             public void paused(MediaPlayer mp) {
-                Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
+                handlePaused();
             }
 
             @Override
             public void positionChanged(MediaPlayer mp, float newPosition) {
-                if (!isUserSeeking) {
-                    Platform.runLater(() -> {
-                        if (!timeSlider.isDisable()) {
-                            timeSlider.setValue(newPosition);
-                        }
-                    });
-                }
+                handlePositionChanged(newPosition);
             }
 
             @Override
             public void timeChanged(MediaPlayer mp, long newTime) {
-                Platform.runLater(() -> {
-                    long totalTime = mp.status().length();
-                    boolean seekable = mp.status().isSeekable();
-                    updatePlaybackTimeUi(newTime, totalTime, seekable);
-                    refreshRenderedImageStreamInfo();
-                });
+                handleTimeChanged(mp, newTime);
             }
 
             @Override
             public void finished(MediaPlayer mp) {
-                Platform.runLater(() -> {
-                    btnPlayPause.setGraphic(playIcon);
-                    if (isRepeating && isRetrying.get()) {
-                        handleRepeat();
-                    }
-                });
+                handleFinished();
             }
 
             @Override
             public void stopped(MediaPlayer mp) {
-                Platform.runLater(() -> {
-                    btnPlayPause.setGraphic(playIcon);
-                    timeSlider.setValue(0);
-                    timeSlider.setDisable(false);
-                    timeLabel.setText(I18n.tr("auto00000000"));
-                    loadingSpinner.setVisible(false);
-                    videoSourceWidth = 0;
-                    videoSourceHeight = 0;
-                    lastStreamInfoLabel = "";
-                });
+                handleStopped();
             }
 
             @Override
             public void error(MediaPlayer mp) {
-                Platform.runLater(() -> {
-                    loadingSpinner.setVisible(false);
-                    com.uiptv.util.AppLog.addLog("VlcVideoPlayer: An error occurred in the media player.");
-                    errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
-                    errorLabel.setVisible(true);
-                    if (isRepeating && isRetrying.get()) {
-                        handleRepeat();
-                    }
-                });
+                handleError();
             }
 
             @Override
             public void elementaryStreamAdded(MediaPlayer mp, TrackType type, int id) {
-                refreshTrackMenusIfAudio(type);
+                handleElementaryStreamEvent(type);
             }
 
             @Override
             public void elementaryStreamDeleted(MediaPlayer mp, TrackType type, int id) {
-                refreshTrackMenusIfAudio(type);
+                handleElementaryStreamEvent(type);
             }
 
             @Override
             public void elementaryStreamSelected(MediaPlayer mp, TrackType type, int id) {
-                refreshTrackMenusIfAudio(type);
+                handleElementaryStreamEvent(type);
             }
         };
+    }
+
+    private void handleMediaChanged(MediaRef mediaRef) {
+        String mediaUri = extractMediaUri(mediaRef);
+        if (!mediaUri.isBlank()) {
+            Platform.runLater(() -> updateBingeWatchEpisodeFromActiveMedia(mediaUri));
+        }
+    }
+
+    private void handlePlaying() {
+        Platform.runLater(() -> {
+            retryCount = 0;
+            loadingSpinner.setVisible(false);
+            btnPlayPause.setGraphic(pauseIcon);
+            updateVideoSize();
+            refreshTrackMenus();
+        });
+    }
+
+    private void handlePaused() {
+        Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
+    }
+
+    private void handlePositionChanged(float newPosition) {
+        if (isUserSeeking) {
+            return;
+        }
+        Platform.runLater(() -> {
+            if (!timeSlider.isDisable()) {
+                timeSlider.setValue(newPosition);
+            }
+        });
+    }
+
+    private void handleTimeChanged(MediaPlayer mp, long newTime) {
+        Platform.runLater(() -> {
+            long totalTime = mp.status().length();
+            boolean seekable = mp.status().isSeekable();
+            updatePlaybackTimeUi(newTime, totalTime, seekable);
+            refreshRenderedImageStreamInfo();
+        });
+    }
+
+    private void handleFinished() {
+        Platform.runLater(() -> {
+            btnPlayPause.setGraphic(playIcon);
+            if (isRepeating && isRetrying.get()) {
+                handleRepeat();
+            }
+        });
+    }
+
+    private void handleStopped() {
+        Platform.runLater(() -> {
+            btnPlayPause.setGraphic(playIcon);
+            timeSlider.setValue(0);
+            timeSlider.setDisable(false);
+            timeLabel.setText(I18n.tr("auto00000000"));
+            loadingSpinner.setVisible(false);
+            videoSourceWidth = 0;
+            videoSourceHeight = 0;
+            lastStreamInfoLabel = "";
+        });
+    }
+
+    private void handleError() {
+        Platform.runLater(() -> {
+            loadingSpinner.setVisible(false);
+            com.uiptv.util.AppLog.addLog("VlcVideoPlayer: An error occurred in the media player.");
+            errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
+            errorLabel.setVisible(true);
+            if (isRepeating && isRetrying.get()) {
+                handleRepeat();
+            }
+        });
+    }
+
+    private void handleElementaryStreamEvent(TrackType type) {
+        refreshTrackMenusIfAudio(type);
+    }
+
+    private String extractMediaUri(MediaRef mediaRef) {
+        if (mediaRef == null) {
+            return "";
+        }
+        Media media = null;
+        try {
+            media = mediaRef.newMedia();
+            if (media == null) {
+                return "";
+            }
+            String mediaUri = media.info().mrl();
+            return mediaUri == null ? "" : mediaUri;
+        } catch (Exception _) {
+            return "";
+        } finally {
+            if (media != null) {
+                try {
+                    media.release();
+                } catch (Exception _) {
+                    // Best-effort cleanup for transient media refs from VLC callbacks.
+                }
+            }
+        }
     }
 
     private void refreshTrackMenusIfAudio(TrackType type) {
@@ -287,6 +359,26 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (player != null) {
             player.controls().setPosition(position);
         }
+    }
+
+    @Override
+    protected void seekBySeconds(int deltaSeconds) {
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        if (player == null) {
+            return;
+        }
+        long currentTime = Math.max(0L, player.status().time());
+        long totalTime = player.status().length();
+        long targetTime = currentTime + (deltaSeconds * 1000L);
+        if (totalTime > 0) {
+            targetTime = Math.clamp(targetTime, 0L, totalTime);
+        } else {
+            targetTime = Math.max(0L, targetTime);
+        }
+        player.controls().setTime(targetTime);
     }
 
     @Override

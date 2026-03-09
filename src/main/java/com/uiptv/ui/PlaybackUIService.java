@@ -12,8 +12,13 @@ import com.uiptv.util.AppLog;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
@@ -77,12 +82,19 @@ public final class PlaybackUIService {
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix) {
+        playDirectUrl(playerPath, url, errorPrefix, null, null);
+    }
+
+    public static void playDirectUrl(String playerPath, String url, String errorPrefix, Account account, Channel channel) {
         if (isBlank(url)) {
             showErrorAlert(isBlank(errorPrefix) ? PLAYLIST_RESOLUTION_FAILURE : errorPrefix + "unable to resolve playlist URL.");
             return;
         }
         AppLog.addLog(LOG_PREFIX + "Launching direct URL playerPath=" + playerPath + " url=" + url);
         PlayerResponse response = new PlayerResponse(url);
+        if (channel != null) {
+            response.setFromChannel(channel, account);
+        }
         if (isEmbeddedPlayerPath(playerPath)) {
             Configuration configuration = ConfigurationService.getInstance().read();
             AppLog.addLog(LOG_PREFIX + "Launch mode=embedded enabled=" + (configuration != null && configuration.isEmbeddedPlayer()));
@@ -90,8 +102,13 @@ public final class PlaybackUIService {
             return;
         }
         if (isBrowserPlayerPath(playerPath)) {
-            AppLog.addLog(LOG_PREFIX + "Launch mode=browser url=" + url);
-            ServerUrlUtil.openInBrowser(url);
+            if (!ServerUrlUtil.ensureServerForWebPlayback()) {
+                showErrorAlert(isBlank(errorPrefix) ? PLAYLIST_RESOLUTION_FAILURE : errorPrefix + "unable to start local web player.");
+                return;
+            }
+            String browserUrl = buildBrowserDirectPlaybackUrl(url, account, channel);
+            AppLog.addLog(LOG_PREFIX + "Launch mode=browser url=" + browserUrl + " source=" + url);
+            ServerUrlUtil.openInBrowser(browserUrl);
             return;
         }
         if (isBlank(playerPath)) {
@@ -142,7 +159,14 @@ public final class PlaybackUIService {
             return false;
         }
         String browserUrl = PlayerService.getInstance()
-                .buildDrmBrowserPlaybackUrl(request.account, request.channel, request.categoryId, mode);
+                .buildDrmBrowserPlaybackUrl(
+                        request.account,
+                        request.channel,
+                        request.categoryId,
+                        mode,
+                        request.seriesId,
+                        request.seriesCategoryId
+                );
         ServerUrlUtil.openInBrowser(browserUrl);
         return true;
     }
@@ -197,6 +221,93 @@ public final class PlaybackUIService {
 
     private static String normalizePlayerPath(String playerPath) {
         return playerPath == null ? "" : playerPath.trim();
+    }
+
+    private static String buildBrowserDirectPlaybackUrl(String url, Account account, Channel channel) {
+        JSONObject payload = new JSONObject();
+        String mode = account != null && account.getAction() != null ? safe(account.getAction().name()).toLowerCase() : "series";
+        if (!"itv".equals(mode) && !"vod".equals(mode) && !"series".equals(mode)) {
+            mode = "series";
+        }
+        payload.put("mode", mode);
+        payload.put("directUrl", url == null ? "" : url);
+        payload.put("accountId", account == null ? "" : safe(account.getDbId()));
+        payload.put("categoryId", channel == null ? "" : safe(channel.getCategoryId()));
+
+        JSONObject channelJson = new JSONObject();
+        channelJson.put("dbId", channel == null ? "" : safe(channel.getDbId()));
+        channelJson.put("channelId", channel == null ? "" : safe(channel.getChannelId()));
+        channelJson.put("name", channel == null ? "" : safe(channel.getName()));
+        channelJson.put("logo", channel == null ? "" : safe(channel.getLogo()));
+        channelJson.put("cmd", channel == null ? "" : safe(channel.getCmd()));
+        channelJson.put("cmd_1", channel == null ? "" : safe(channel.getCmd_1()));
+        channelJson.put("cmd_2", channel == null ? "" : safe(channel.getCmd_2()));
+        channelJson.put("cmd_3", channel == null ? "" : safe(channel.getCmd_3()));
+        channelJson.put("drmType", channel == null ? "" : safe(channel.getDrmType()));
+        channelJson.put("drmLicenseUrl", channel == null ? "" : safe(channel.getDrmLicenseUrl()));
+        channelJson.put("clearKeysJson", channel == null ? "" : safe(channel.getClearKeysJson()));
+        channelJson.put("inputstreamaddon", channel == null ? "" : safe(channel.getInputstreamaddon()));
+        channelJson.put("manifestType", channel == null ? "" : safe(channel.getManifestType()));
+        channelJson.put("season", channel == null ? "" : safe(channel.getSeason()));
+        channelJson.put("episodeNum", channel == null ? "" : safe(channel.getEpisodeNum()));
+        payload.put("channel", channelJson);
+
+        String bingeWatchToken = extractBingeWatchToken(url);
+        if (!isBlank(bingeWatchToken)) {
+            payload.put("bingeWatchToken", bingeWatchToken);
+        }
+
+        String encoded = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
+        return ServerUrlUtil.getLocalServerUrl()
+                + "/player.html?launch="
+                + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
+                + "&v=20260309b";
+    }
+
+    private static String extractBingeWatchToken(String url) {
+        if (isBlank(url) || !url.contains("/bingewatch.m3u8")) {
+            return "";
+        }
+        try {
+            String token = HttpUtilLike.getQueryParam(url, "token");
+            return token == null ? "" : token.trim();
+        } catch (Exception _) {
+            return "";
+        }
+    }
+
+    private static String safe(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim();
+        if ("null".equalsIgnoreCase(normalized) || "undefined".equalsIgnoreCase(normalized)) {
+            return "";
+        }
+        return normalized;
+    }
+
+    private static final class HttpUtilLike {
+        private static String getQueryParam(String url, String key) {
+            URI uri = URI.create(url);
+            String query = uri.getRawQuery();
+            if (query == null || query.isBlank()) {
+                return "";
+            }
+            for (String part : query.split("&")) {
+                int idx = part.indexOf('=');
+                if (idx <= 0) {
+                    continue;
+                }
+                String name = java.net.URLDecoder.decode(part.substring(0, idx), StandardCharsets.UTF_8);
+                if (key.equals(name)) {
+                    return java.net.URLDecoder.decode(part.substring(idx + 1), StandardCharsets.UTF_8);
+                }
+            }
+            return "";
+        }
     }
 
     public static final class PlaybackRequest {

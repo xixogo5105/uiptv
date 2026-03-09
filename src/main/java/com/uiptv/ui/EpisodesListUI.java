@@ -5,6 +5,9 @@ import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import org.json.JSONObject;
+
+import java.util.function.Consumer;
 
 public class EpisodesListUI extends HBox {
     private final Account account;
@@ -16,6 +19,7 @@ public class EpisodesListUI extends HBox {
     private SeriesWatchState lastWatchedState;
     private boolean loadingCompleteCalled = false;
     private boolean thumbnailListenerRegistered = false;
+    private Consumer<JSONObject> seasonInfoListener;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
@@ -63,6 +67,11 @@ public class EpisodesListUI extends HBox {
         withThumbnailDelegate(ThumbnailEpisodesListUI::reloadFromServer);
     }
 
+    public void setSeasonInfoListener(Consumer<JSONObject> seasonInfoListener) {
+        this.seasonInfoListener = seasonInfoListener;
+        withThumbnailDelegate(thumbnail -> thumbnail.setSeasonInfoListener(seasonInfoListener));
+    }
+
     private void registerThumbnailModeListener() {
         if (thumbnailListenerRegistered) {
             return;
@@ -92,6 +101,9 @@ public class EpisodesListUI extends HBox {
         delegate = next;
         if (lastEpisodeList != null) {
             delegate.setItems(lastEpisodeList);
+        }
+        if (seasonInfoListener != null) {
+            withThumbnailDelegate(thumbnail -> thumbnail.setSeasonInfoListener(seasonInfoListener));
         }
         if (lastWatchedState != null) {
             delegate.navigateToLastWatched(lastWatchedState);

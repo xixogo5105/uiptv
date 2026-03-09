@@ -53,6 +53,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private static final Pattern MONTH_DATE_PATTERN = Pattern.compile("(?i)\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},\\s+\\d{4}\\b");
     private static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b");
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2}\\b");
+    public static final String AUTO_RELOAD_FROM_SERVER = "autoReloadFromServer";
     private final VBox contentBox = new VBox(8);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
@@ -455,6 +456,10 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void showThumbnailSeriesList(List<SeriesPanelData> rows) {
         for (SeriesPanelData data : rows) {
+            if (thumbnailsEnabled() && isBlank(resolveSeriesPosterUrl(data)) && !data.imdbLoaded && !data.imdbLoading) {
+                data.imdbLoading = true;
+                lazyLoadImdb(data, null);
+            }
             contentBox.getChildren().add(createSeriesListCard(data));
         }
         selectedSeriesCard = null;
@@ -525,7 +530,9 @@ public abstract class BaseWatchingNowUI extends VBox {
         card.setPadding(new Insets(6));
         card.getStyleClass().add("uiptv-card");
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.seasonInfo.optString(KEY_COVER, ""), 52, 74, WATCHING_NOW_CACHE);
+        ImageView poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 52, 74, WATCHING_NOW_CACHE);
+        data.seriesListPosterNode = poster;
+        loadSeriesListPosterImage(data);
         VBox text = new VBox(2);
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
@@ -633,7 +640,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         contentBox.setPadding(Insets.EMPTY);
 
         boolean thumbnailsEnabled = thumbnailsEnabled();
-        HBox topBar = new HBox(0);
+        HBox topBar = new HBox(8);
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.setPadding(Insets.EMPTY);
         topBar.setMaxWidth(Double.MAX_VALUE);
@@ -644,7 +651,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         });
         topBar.getChildren().add(back);
 
-        VBox body = new VBox(thumbnailsEnabled ? 2 : 0);
+        VBox body = new VBox(10);
         body.setPadding(Insets.EMPTY);
         body.setMaxWidth(Double.MAX_VALUE);
         body.setMaxHeight(Double.MAX_VALUE);
@@ -660,8 +667,26 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data.episodeList != null) {
             episodesListUI.setItems(data.episodeList);
         }
+        episodesListUI.setSeasonInfoListener(seasonInfo -> {
+            if (seasonInfo == null) {
+                return;
+            }
+            Platform.runLater(() -> {
+                mergeMissingSeasonInfo(data.seasonInfo, seasonInfo);
+                String cover = seasonInfo.optString(KEY_COVER, "");
+                if (!isBlank(cover)) {
+                    data.seasonInfo.put(KEY_COVER, cover);
+                }
+                loadSeriesListPosterImage(data);
+            });
+        });
         episodesListUI.navigateToLastWatched(data.state);
         episodesListUI.setLoadingComplete();
+        if (episodesListUI.canReloadFromServer()) {
+            Button reload = new Button(I18n.tr(AUTO_RELOAD_FROM_SERVER));
+            reload.setOnAction(event -> episodesListUI.reloadFromServer());
+            topBar.getChildren().add(reload);
+        }
         body.getChildren().add(episodesListUI);
         VBox.setVgrow(body, Priority.ALWAYS);
         VBox.setVgrow(episodesListUI, Priority.ALWAYS);
@@ -749,7 +774,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private Button resolveReloadEpisodesButton(SeriesPanelData data) {
         if (data.reloadEpisodesButton == null) {
-            data.reloadEpisodesButton = new Button(I18n.tr("autoReloadFromServer"));
+            data.reloadEpisodesButton = new Button(I18n.tr(AUTO_RELOAD_FROM_SERVER));
             data.reloadEpisodesButton.setFocusTraversable(true);
             data.reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal(data));
         }
@@ -1190,19 +1215,39 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (pane != null) {
             pane.setText(buildSeriesPaneTitle(data));
         }
+        loadSeriesListPosterImage(data);
+        if (isBlank(selectedSeriesKey)) {
+            renderCurrentView();
+            return;
+        }
         applySeasonInfoToHeader(data);
         loadSeriesPosterImage(data);
         refreshSeasonTables(data);
     }
 
     private void loadSeriesPosterImage(SeriesPanelData data) {
-        String cover = data.seasonInfo.optString(KEY_COVER, "");
+        String cover = resolveSeriesPosterUrl(data);
         if (isBlank(cover)) {
             return;
         }
         ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
             if (img != null) {
                 Platform.runLater(() -> data.seriesPosterNode.setImage(img));
+            }
+        });
+    }
+
+    private void loadSeriesListPosterImage(SeriesPanelData data) {
+        if (data == null || data.seriesListPosterNode == null) {
+            return;
+        }
+        String cover = resolveSeriesPosterUrl(data);
+        if (isBlank(cover)) {
+            return;
+        }
+        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
+            if (img != null) {
+                Platform.runLater(() -> data.seriesListPosterNode.setImage(img));
             }
         });
     }
@@ -1322,7 +1367,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 applySeasonInfoToHeader(data);
                 lazyLoadImdb(data, null);
                 if (data.reloadEpisodesButton != null) {
-                    data.reloadEpisodesButton.setText(I18n.tr("autoReloadFromServer"));
+                    data.reloadEpisodesButton.setText(I18n.tr(AUTO_RELOAD_FROM_SERVER));
                     data.reloadEpisodesButton.setDisable(false);
                 }
             });
@@ -1600,7 +1645,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             applySeasonInfoToHeader(selected);
         }
         if (selected.seriesPosterNode != null) {
-            String cover = selected.seasonInfo.optString(KEY_COVER, "");
+            String cover = resolveSeriesPosterUrl(selected);
             if (!isBlank(cover)) {
                 ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
                     if (img != null) {
@@ -1616,6 +1661,54 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private boolean isDisplayable() {
         return getScene() != null && isVisible();
+    }
+
+    private String resolveSeriesPosterUrl(SeriesPanelData data) {
+        if (data == null) {
+            return "";
+        }
+        String cover = sanitizePosterUrl(normalizeImageUrl(data.seasonInfo.optString(KEY_COVER, ""), data.account));
+        if (!isBlank(cover)) {
+            return cover;
+        }
+        if (data.episodeList != null && data.episodeList.getSeasonInfo() != null) {
+            cover = sanitizePosterUrl(normalizeImageUrl(data.episodeList.getSeasonInfo().getCover(), data.account));
+            if (!isBlank(cover)) {
+                return cover;
+            }
+        }
+        return data.episodes.stream()
+                .map(e -> sanitizePosterUrl(normalizeImageUrl(e == null ? "" : e.imageUrl, data.account)))
+                .filter(s -> !isBlank(s))
+                .findFirst()
+                .orElseGet(() -> resolveEpisodeListPosterUrl(data));
+    }
+
+    private String resolveEpisodeListPosterUrl(SeriesPanelData data) {
+        if (data == null || data.episodeList == null || data.episodeList.getEpisodes() == null) {
+            return "";
+        }
+        return data.episodeList.getEpisodes().stream()
+                .map(episode -> episode != null && episode.getInfo() != null
+                        ? sanitizePosterUrl(normalizeImageUrl(episode.getInfo().getMovieImage(), data.account))
+                        : "")
+                .filter(s -> !isBlank(s))
+                .findFirst()
+                .orElse("");
+    }
+
+    private String sanitizePosterUrl(String url) {
+        if (isBlank(url)) {
+            return "";
+        }
+        if (url.startsWith("data:image/")) {
+            int commaIndex = url.indexOf(',');
+            int payloadLength = commaIndex >= 0 && commaIndex < url.length() - 1 ? url.length() - commaIndex - 1 : 0;
+            if (payloadLength < 512) {
+                return "";
+            }
+        }
+        return url;
     }
 
     private String inferSeason(Episode episode) {
@@ -2097,6 +2190,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         private HBox imdbLoadingNode;
         private Button reloadEpisodesButton;
         private ImageView seriesPosterNode;
+        private ImageView seriesListPosterNode;
         private TabPane seasonTabs;
         private final Map<String, VBox> seasonCardsBySeason = new LinkedHashMap<>();
         private final Map<WatchingEpisode, Label> watchingLabels = new HashMap<>();

@@ -1,10 +1,16 @@
 (function () {
     const statusEl = document.getElementById('status');
     const videoEl = document.getElementById('video');
+    const mediaTitleEl = document.getElementById('media-title');
+    const mediaSubtitleEl = document.getElementById('media-subtitle');
+    const playlistPanelEl = document.getElementById('playlist-panel');
+    const playlistItemsEl = document.getElementById('playlist-items');
     const reloadBtn = document.getElementById('reload-btn');
     const audioSelectEl = document.getElementById('audio-select');
     const subtitleSelectEl = document.getElementById('subtitle-select');
     let shakaPlayer = null;
+    let activeLaunch = null;
+    let activeBingeWatch = null;
     const AUTOPLAY_BLOCK_RE = /user didn't interact with the document first|play\(\) failed because/i;
 
     const setStatus = (message) => {
@@ -40,11 +46,82 @@
         }
     };
 
+    const parseDirectLaunch = () => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const directUrl = cleanValue(params.get('directUrl'));
+            if (!directUrl) return null;
+            return {
+                url: directUrl,
+                mode: cleanValue(params.get('mode')) || 'series'
+            };
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const setMetadata = (launch, responseData) => {
+        if (!mediaTitleEl || !mediaSubtitleEl) return;
+        const channel = responseData?.channel || launch?.channel || {};
+        const title = cleanValue(responseData?.title) || cleanValue(channel.name) || 'UIPTV Player';
+        const season = cleanValue(channel.season || responseData?.channel?.season);
+        const episodeNum = cleanValue(channel.episodeNum || responseData?.channel?.episodeNum || responseData?.bingeWatch?.currentEpisodeId);
+        const subtitleParts = [];
+        if (launch?.bingeWatchToken || responseData?.bingeWatch?.token) {
+            subtitleParts.push('Binge Watch');
+        }
+        if (season) {
+            subtitleParts.push(`Season ${season}`);
+        }
+        if (episodeNum) {
+            subtitleParts.push(`Episode ${episodeNum}`);
+        }
+        mediaTitleEl.textContent = title;
+        mediaSubtitleEl.textContent = subtitleParts.join(' • ');
+    };
+
+    const appendChannelMetadata = (query, launch) => {
+        const channel = launch?.channel || {};
+        query.set('accountId', cleanValue(launch?.accountId));
+        query.set('categoryId', cleanValue(launch?.categoryId));
+        query.set('channelId', cleanValue(channel.channelId || channel.id));
+        query.set('name', cleanValue(channel.name));
+        query.set('logo', cleanValue(channel.logo));
+        query.set('cmd', cleanValue(channel.cmd));
+        query.set('cmd_1', cleanValue(channel.cmd_1));
+        query.set('cmd_2', cleanValue(channel.cmd_2));
+        query.set('cmd_3', cleanValue(channel.cmd_3));
+        query.set('drmType', cleanValue(channel.drmType));
+        query.set('drmLicenseUrl', cleanValue(channel.drmLicenseUrl));
+        query.set('clearKeysJson', cleanValue(channel.clearKeysJson));
+        query.set('inputstreamaddon', cleanValue(channel.inputstreamaddon));
+        query.set('manifestType', cleanValue(channel.manifestType));
+        query.set('season', cleanValue(channel.season));
+        query.set('episodeNum', cleanValue(channel.episodeNum));
+    };
+
     const appendPlaybackCompatParams = (query, mode) => {
         const normalizedMode = String(mode || 'itv').toLowerCase();
         query.set('mode', normalizedMode);
         query.set('streamType', normalizedMode === 'itv' ? 'live' : 'video');
         query.set('action', normalizedMode);
+    };
+
+    const getPlaybackEndpoint = (mode, launch) => {
+        const normalizedMode = String(mode || 'itv').toLowerCase();
+        if (cleanValue(launch?.bingeWatchToken)) {
+            return '/player/bingewatch';
+        }
+        if (normalizedMode === 'series') {
+            return '/player/series';
+        }
+        if (normalizedMode === 'vod') {
+            return '/player/vod';
+        }
+        if (normalizedMode === 'itv') {
+            return '/player/live';
+        }
+        return '/player';
     };
 
     const cleanValue = (value) => {
@@ -61,7 +138,7 @@
 
         const query = new URLSearchParams();
         query.set('accountId', cleanValue(payload?.accountId));
-        query.set('categoryId', cleanValue(payload?.categoryId));
+        query.set('categoryId', cleanValue(payload?.seriesCategoryId || payload?.categoryId));
         query.set('mode', mode);
 
         const channelIdentifier = cleanValue(channel.channelId || channel.id);
@@ -84,10 +161,171 @@
         query.set('manifestType', cleanValue(channel.manifestType));
         if (mode === 'series') {
             query.set('seriesId', channelIdentifier);
+            query.set('seriesParentId', cleanValue(payload?.seriesParentId));
         }
 
         appendPlaybackCompatParams(query, mode);
-        return `${window.location.origin}/player?${query.toString()}`;
+        return `${window.location.origin}${getPlaybackEndpoint(mode, payload)}?${query.toString()}`;
+    };
+
+    const buildDirectPlayerRequestUrl = (launch) => {
+        const query = new URLSearchParams();
+        const mode = String(launch?.mode || 'series').toLowerCase();
+        if (cleanValue(launch?.bingeWatchToken)) {
+            query.set('bingeWatchToken', cleanValue(launch.bingeWatchToken));
+            query.set('episodeId', cleanValue(launch?.episodeId));
+        } else {
+            query.set('url', cleanValue(launch?.directUrl || launch?.url));
+        }
+        appendChannelMetadata(query, launch);
+        appendPlaybackCompatParams(query, mode);
+        return `${window.location.origin}${getPlaybackEndpoint(mode, launch)}?${query.toString()}`;
+    };
+
+    const destroyPlayer = async () => {
+        if (shakaPlayer) {
+            try {
+                await shakaPlayer.destroy();
+            } catch (_) {
+                // Ignore cleanup errors.
+            }
+            shakaPlayer = null;
+        }
+        videoEl.removeAttribute('src');
+        videoEl.load();
+        resetTrackMenus();
+    };
+
+    const updateBingeWatchState = (responseData) => {
+        const binge = responseData?.bingeWatch;
+        if (!binge?.token || !Array.isArray(binge.items) || binge.items.length === 0) {
+            activeBingeWatch = null;
+            renderPlaylist();
+            return;
+        }
+        const currentEpisodeId = cleanValue(binge.currentEpisodeId);
+        const currentIndex = Math.max(0, binge.items.findIndex(item => cleanValue(item.episodeId) === currentEpisodeId));
+        activeBingeWatch = {
+            token: cleanValue(binge.token),
+            items: binge.items,
+            currentIndex
+        };
+        renderPlaylist();
+    };
+
+    const renderPlaylist = () => {
+        if (!playlistPanelEl || !playlistItemsEl) {
+            return;
+        }
+        if (!activeBingeWatch || !Array.isArray(activeBingeWatch.items) || activeBingeWatch.items.length === 0) {
+            playlistPanelEl.hidden = true;
+            playlistItemsEl.innerHTML = '';
+            return;
+        }
+        playlistPanelEl.hidden = false;
+        playlistItemsEl.innerHTML = '';
+        activeBingeWatch.items.forEach((item, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `playlist-item${index === activeBingeWatch.currentIndex ? ' active' : ''}`;
+            button.setAttribute('role', 'listitem');
+            const episodeId = cleanValue(item.episodeId);
+            const title = cleanValue(item.episodeName) || `Episode ${cleanValue(item.episodeNumber || episodeId)}`;
+            const meta = [];
+            if (cleanValue(item.season)) {
+                meta.push(`Season ${cleanValue(item.season)}`);
+            }
+            if (cleanValue(item.episodeNumber)) {
+                meta.push(`Episode ${cleanValue(item.episodeNumber)}`);
+            }
+            button.innerHTML = `<span class="playlist-item-title"></span><span class="playlist-item-meta"></span>`;
+            button.querySelector('.playlist-item-title').textContent = title;
+            button.querySelector('.playlist-item-meta').textContent = meta.join(' • ');
+            button.addEventListener('click', () => {
+                if (index === activeBingeWatch.currentIndex || !activeLaunch) {
+                    return;
+                }
+                const nextLaunch = {
+                    ...activeLaunch,
+                    episodeId,
+                    channel: {
+                        ...(activeLaunch.channel || {}),
+                        channelId: episodeId,
+                        name: title,
+                        season: cleanValue(item.season),
+                        episodeNum: cleanValue(item.episodeNumber)
+                    }
+                };
+                destroyPlayer()
+                    .then(() => requestAndStartPlayback(nextLaunch))
+                    .catch((error) => {
+                        setStatus('Unable to play playlist item: ' + (error?.message || String(error)));
+                    });
+            });
+            playlistItemsEl.appendChild(button);
+        });
+    };
+
+    const requestAndStartPlayback = async (launch) => {
+        activeLaunch = launch;
+        setStatus('Requesting playback URL...');
+        const response = await fetch(buildDirectPlayerRequestUrl(launch));
+        const responseData = await response.json();
+        const playbackUrl = cleanValue(responseData?.url);
+        if (!playbackUrl) {
+            throw new Error('Player response did not return a URL.');
+        }
+        responseData.url = playbackUrl;
+        updateBingeWatchState(responseData);
+        setMetadata(launch, responseData);
+
+        setStatus('Starting playback...');
+        const hasDrm = !!responseData.drm;
+        const lowerUrl = String(responseData.url).toLowerCase();
+        const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
+        const isHlsUrl = lowerUrl.includes('.m3u8');
+        const isDashUrl = lowerUrl.includes('.mpd');
+
+        let started = true;
+        if (hasDrm) {
+            started = await loadShaka(responseData);
+        } else if (canNativeHls && isHlsUrl) {
+            started = await loadNative(responseData.url);
+        } else if (isDashUrl) {
+            started = await loadShaka(responseData);
+        } else {
+            started = await loadNative(responseData.url);
+        }
+
+        if (started === false) {
+            setStatus('Ready to play. Press play.');
+        } else {
+            setStatus('');
+        }
+    };
+
+    const playNextBingeWatchEpisode = async () => {
+        if (!activeBingeWatch || !activeLaunch) {
+            return;
+        }
+        const nextIndex = activeBingeWatch.currentIndex + 1;
+        if (nextIndex >= activeBingeWatch.items.length) {
+            return;
+        }
+        const nextItem = activeBingeWatch.items[nextIndex];
+        const nextLaunch = {
+            ...activeLaunch,
+            episodeId: cleanValue(nextItem.episodeId),
+            channel: {
+                ...(activeLaunch.channel || {}),
+                channelId: cleanValue(nextItem.episodeId),
+                name: cleanValue(nextItem.episodeName) || cleanValue((activeLaunch.channel || {}).name),
+                season: cleanValue(nextItem.season),
+                episodeNum: cleanValue(nextItem.episodeNumber)
+            }
+        };
+        await destroyPlayer();
+        await requestAndStartPlayback(nextLaunch);
     };
 
     const loadNative = async (url) => {
@@ -196,44 +434,48 @@
 
     const start = async () => {
         const payload = parseLaunchPayload();
-        if (!payload || !payload.channel) {
-            setStatus('Invalid launch payload.');
-            return;
-        }
+        const directLaunch = parseDirectLaunch();
         videoEl.controls = true;
 
         try {
-            setStatus('Requesting playback URL...');
-            const response = await fetch(buildPlayerRequestUrl(payload));
-            const responseData = await response.json();
-            const playbackUrl = cleanValue(responseData?.url);
-            if (!playbackUrl) {
-                throw new Error('Player response did not return a URL.');
+            const launch = directLaunch || (payload && (payload.channel || payload.directUrl || payload.bingeWatchToken) ? payload : null);
+            if (!launch && !(payload && payload.channel)) {
+                setStatus('Invalid launch payload.');
+                return;
             }
-            responseData.url = playbackUrl;
-
-            setStatus('Starting playback...');
-            const hasDrm = !!responseData.drm;
-            const lowerUrl = String(responseData.url).toLowerCase();
-            const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
-            const isHlsUrl = lowerUrl.includes('.m3u8');
-            const isDashUrl = lowerUrl.includes('.mpd');
-
-            let started = true;
-            if (hasDrm) {
-                started = await loadShaka(responseData);
-            } else if (canNativeHls && isHlsUrl) {
-                started = await loadNative(responseData.url);
-            } else if (isDashUrl) {
-                started = await loadShaka(responseData);
+            if (launch) {
+                await requestAndStartPlayback(launch);
             } else {
-                started = await loadNative(responseData.url);
-            }
+                const requestUrl = buildPlayerRequestUrl(payload);
+                const response = await fetch(requestUrl);
+                const responseData = await response.json();
+                const playbackUrl = cleanValue(responseData?.url);
+                if (!playbackUrl) {
+                    throw new Error('Player response did not return a URL.');
+                }
+                responseData.url = playbackUrl;
+                setMetadata(payload, responseData);
+                const hasDrm = !!responseData.drm;
+                const lowerUrl = String(responseData.url).toLowerCase();
+                const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
+                const isHlsUrl = lowerUrl.includes('.m3u8');
+                const isDashUrl = lowerUrl.includes('.mpd');
 
-            if (started === false) {
-                setStatus('Ready to play. Press play.');
-            } else {
-                setStatus('');
+                let started = true;
+                if (hasDrm) {
+                    started = await loadShaka(responseData);
+                } else if (canNativeHls && isHlsUrl) {
+                    started = await loadNative(responseData.url);
+                } else if (isDashUrl) {
+                    started = await loadShaka(responseData);
+                } else {
+                    started = await loadNative(responseData.url);
+                }
+                if (started === false) {
+                    setStatus('Ready to play. Press play.');
+                } else {
+                    setStatus('');
+                }
             }
         } catch (e) {
             setStatus('Unable to play channel: ' + (e?.message || String(e)));
@@ -245,6 +487,14 @@
             const mediaError = videoEl.error;
             const code = mediaError?.code ? ` (code ${mediaError.code})` : '';
             setStatus(`Playback failed${code}.`);
+        });
+        videoEl.addEventListener('ended', () => {
+            if (!activeBingeWatch) {
+                return;
+            }
+            playNextBingeWatchEpisode().catch((error) => {
+                setStatus('Unable to continue binge watch: ' + (error?.message || String(error)));
+            });
         });
     }
 
@@ -333,14 +583,7 @@
     }
 
     window.addEventListener('beforeunload', async () => {
-        if (shakaPlayer) {
-            try {
-                await shakaPlayer.destroy();
-            } catch (_) {
-                // Ignore cleanup errors.
-            }
-            shakaPlayer = null;
-        }
+        await destroyPlayer();
     });
 
     resetTrackMenus();

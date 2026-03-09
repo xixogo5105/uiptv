@@ -6,7 +6,11 @@ import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.model.SeriesWatchState;
+import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.service.SeriesWatchStateChangeListener;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
@@ -44,6 +48,9 @@ import javafx.util.Duration;
 import javafx.event.EventHandler;
 
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -57,6 +64,8 @@ import static com.uiptv.widget.UIptvAlert.showError;
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
+    public static final String PLAYER_ICON_BUTTON = "player-icon-button";
+    public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
 
     // State
     protected boolean isMuted = true;
@@ -91,6 +100,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnReload;
     protected Button btnPip;
     protected Button btnStop;
+    protected Button btnRewind;
+    protected Button btnFastForward;
     protected Button btnAspectRatio;
     protected Button btnHideBar;
     protected Button btnTracks;
@@ -102,6 +113,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected ImageView repeatOffIcon;
     protected ImageView fullscreenIcon;
     protected ImageView fullscreenExitIcon;
+    protected ImageView rewindIcon;
+    protected ImageView fastForwardIcon;
     protected ImageView muteOnIcon;
     protected ImageView muteOffIcon;
     protected ImageView reloadIcon;
@@ -128,6 +141,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isTracksMenuOpen = false;
     protected Scene activeInputRecoveryScene;
     protected Scene pipInputRecoveryScene;
+    protected boolean isLiveLikeContent = true;
+    protected String activeBingeWatchToken = "";
+    protected String activeBingeWatchEpisodeId = "";
+    private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
 
     // Resizing Logic
@@ -174,6 +191,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected abstract void setVolume(double volume);
     protected abstract void setMute(boolean mute);
     protected abstract void seek(float position); // 0.0 to 1.0
+    protected abstract void seekBySeconds(int deltaSeconds);
     protected abstract void updateVideoSize();
     protected abstract void pauseMedia();
     protected abstract void resumeMedia();
@@ -190,6 +208,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
+        btnRewind = createTransportButton(rewindIcon, "Rewind 15s");
+        btnFastForward = createTransportButton(fastForwardIcon, "Fast forward 15s");
         btnRepeat = createIconButton(repeatOffIcon);
         btnRepeat.setOpacity(0.7);
         btnReload = createIconButton(reloadIcon);
@@ -201,24 +221,22 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnHideBar = createIconButton(hideBarIcon);
         btnHideBar.setTooltip(new Tooltip(I18n.tr("autoHideThisBar")));
 
-        if (supportsTrackSelection()) {
-            btnTracks = createTrackRootButton();
-            tracksContextMenu = new ContextMenu();
-            I18n.preparePopupControl(tracksContextMenu, btnTracks);
-            tracksContextMenu.getStyleClass().add("player-tracks-menu");
-            tracksContextMenu.setOnHidden(e -> isTracksMenuOpen = false);
-            btnTracks.setOnAction(e -> {
-                if (tracksContextMenu == null) return;
-                if (tracksContextMenu.isShowing()) {
-                    tracksContextMenu.hide();
-                    return;
-                }
-                isTracksMenuOpen = true;
-                controlsContainer.setVisible(true);
-                refreshTrackMenus();
-                tracksContextMenu.show(btnTracks, Side.TOP, 0, 0);
-            });
-        }
+        btnTracks = createTrackRootButton();
+        tracksContextMenu = new ContextMenu();
+        I18n.preparePopupControl(tracksContextMenu, btnTracks);
+        tracksContextMenu.getStyleClass().add("player-tracks-menu");
+        tracksContextMenu.setOnHidden(e -> isTracksMenuOpen = false);
+        btnTracks.setOnAction(e -> {
+            if (tracksContextMenu == null) return;
+            if (tracksContextMenu.isShowing()) {
+                tracksContextMenu.hide();
+                return;
+            }
+            isTracksMenuOpen = true;
+            controlsContainer.setVisible(true);
+            refreshTrackMenus();
+            tracksContextMenu.show(btnTracks, Side.TOP, 0, 0);
+        });
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -226,15 +244,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnMute = createIconButton(muteOnIcon);
 
         volumeSlider = new Slider(0, 100, 50);
-        volumeSlider.setPrefWidth(100);
+        volumeSlider.setPrefWidth(88);
         volumeSlider.getStyleClass().add("video-player-slider");
 
-        HBox buttonRow = new HBox(3);
+        HBox buttonRow = new HBox(1.5);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
-        if (supportsTrackSelection()) {
-            buttonRow.getChildren().add(btnTracks);
-        }
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
+        buttonRow.getChildren().add(btnTracks);
         buttonRow.getChildren().add(btnHideBar);
 
         timeSlider = new Slider(0, 1, 0);
@@ -243,12 +259,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         timeLabel = new Label(I18n.tr("auto00000000"));
         timeLabel.getStyleClass().add("player-time-label");
 
-        HBox timeRow = new HBox(5);
+        HBox timeRow = new HBox(2.5);
         timeRow.setAlignment(Pos.CENTER_LEFT);
         timeRow.getChildren().addAll(timeSlider, timeLabel);
         applyFixedControlBarOrientation(buttonRow, timeRow, volumeSlider, timeSlider);
 
-        controlsContainer = new VBox(4);
+        controlsContainer = new VBox(2);
         controlsContainer.setPadding(new Insets(5));
         controlsContainer.getStyleClass().add("player-controls-container");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
@@ -356,6 +372,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         });
         btnStop.setOnAction(e -> stop());
+        btnRewind.setOnAction(e -> seekBySeconds(-15));
+        btnFastForward.setOnAction(e -> seekBySeconds(15));
         btnRepeat.setOnAction(e -> {
             isRepeating = !isRepeating;
             btnRepeat.setGraphic(isRepeating ? repeatOnIcon : repeatOffIcon);
@@ -659,24 +677,41 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected void refreshTrackMenus() {
-        if (!supportsTrackSelection() || tracksContextMenu == null) {
+        if (tracksContextMenu == null) {
             return;
         }
         List<MenuItem> items = tracksContextMenu.getItems();
         items.clear();
-        updateTrackMenu(items, getAudioTrackOptions(), getSelectedAudioTrackId(), this::selectAudioTrack, "No audio tracks");
-        if (supportsSubtitleTrackSelection()) {
+        appendTrackSection(items, "Audio", getAudioTrackOptions(), getSelectedAudioTrackId(), this::selectAudioTrack, "No audio tracks");
+
+        List<TrackOption> playlistOptions = getPlaylistTrackOptions();
+        if (!playlistOptions.isEmpty()) {
             if (!items.isEmpty()) {
                 items.add(new SeparatorMenuItem());
             }
-            updateTrackMenu(items, getSubtitleTrackOptions(), getSelectedSubtitleTrackId(), this::selectSubtitleTrack, "No subtitle tracks");
+            appendTrackSection(items, "Playlist", playlistOptions, getSelectedPlaylistTrackId(), this::selectPlaylistTrack, "No playlist items");
+        }
+        if (items.isEmpty()) {
+            MenuItem noneItem = new MenuItem("No options");
+            noneItem.getStyleClass().add(PLAYER_TRACKS_MENU_ITEM);
+            noneItem.setDisable(true);
+            items.add(noneItem);
         }
     }
 
-    private void updateTrackMenu(List<MenuItem> targetItems, List<TrackOption> options, int selectedTrackId, IntConsumer onTrackSelected, String emptyLabel) {
+    private void appendTrackSection(List<MenuItem> targetItems,
+                                    String sectionTitle,
+                                    List<TrackOption> options,
+                                    int selectedTrackId,
+                                    IntConsumer onTrackSelected,
+                                    String emptyLabel) {
+        MenuItem headerItem = new MenuItem(sectionTitle);
+        headerItem.getStyleClass().add(PLAYER_TRACKS_MENU_ITEM);
+        headerItem.setDisable(true);
+        targetItems.add(headerItem);
         if (options == null || options.isEmpty()) {
             MenuItem noneItem = new MenuItem(emptyLabel);
-            noneItem.getStyleClass().add("player-tracks-menu-item");
+            noneItem.getStyleClass().add(PLAYER_TRACKS_MENU_ITEM);
             noneItem.setDisable(true);
             targetItems.add(noneItem);
             return;
@@ -687,7 +722,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             RadioMenuItem item = new RadioMenuItem(option.label);
             item.setToggleGroup(group);
             item.setSelected(option.id == selectedTrackId);
-            item.getStyleClass().add("player-tracks-menu-item");
+            item.getStyleClass().add(PLAYER_TRACKS_MENU_ITEM);
             item.setOnAction(e -> {
                 onTrackSelected.accept(option.id);
                 refreshTrackMenus();
@@ -712,14 +747,21 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         String uri;
         if (response != null) {
             uri = response.getUrl();
-            this.currentAccount = response.getAccount();
-            this.currentChannel = response.getChannel();
+            if (response.getAccount() != null) {
+                this.currentAccount = response.getAccount();
+            }
+            if (response.getChannel() != null) {
+                this.currentChannel = response.getChannel();
+            }
         } else {
             uri = null;
         }
 
         if (isNotBlank(uri)) {
             this.currentMediaUri = uri;
+            updateBingeWatchContext(uri);
+            syncBingeWatchEpisodeFromWatchState();
+            updateBingeWatchWatchStateListener();
             preparePlayerUiForPlayback();
 
             setMute(isMuted);
@@ -736,6 +778,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerContainer.setManaged(true);
         playerContainer.setMinHeight(275);
         isPointerInsidePlayer = false;
+        isLiveLikeContent = true;
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
         controlsContainer.setVisible(false);
@@ -743,20 +786,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         timeSlider.setValue(0);
         timeLabel.setText(I18n.tr("auto00000000"));
         restoreVisibleCursor();
+        updateTrackButtonVisibility();
+        updateTransportButtonsVisibility();
+        updateRepeatButtonVisibility();
 
-        nowShowingFlow.getChildren().clear();
-        if (currentChannel != null && isNotBlank(currentChannel.getName())) {
-            Text channelNameText = new Text(currentChannel.getName());
-            channelNameText.getStyleClass().add("player-channel-title");
-            applyFixedControlBarOrientation(channelNameText);
-            streamInfoText.setText("");
-            nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
-            nowShowingFlow.setVisible(true);
-            nowShowingFlow.setManaged(true);
-        } else {
-            nowShowingFlow.setVisible(false);
-            nowShowingFlow.setManaged(false);
-        }
+        streamInfoText.setText("");
+        refreshNowShowingHeader();
     }
 
     @Override
@@ -765,6 +800,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         isRetrying.set(false);
         idleTimer.stop();
         isPointerInsidePlayer = false;
+        activeBingeWatchToken = "";
+        activeBingeWatchEpisodeId = "";
+        removeBingeWatchWatchStateListener();
+        isLiveLikeContent = true;
+        updateTrackButtonVisibility();
+        updateRepeatButtonVisibility();
         stopMedia();
         playerContainer.setMinHeight(0);
         playerContainer.setVisible(false);
@@ -775,6 +816,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stopForReload() {
+        removeBingeWatchWatchStateListener();
         if (Platform.isFxApplicationThread()) {
             stopMedia();
             disposeMedia();
@@ -969,8 +1011,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected void updatePlaybackTimeUi(long currentTimeMs, long totalTimeMs, boolean seekable) {
         long safeCurrent = Math.max(0, currentTimeMs);
         boolean hasKnownTotal = totalTimeMs > 0;
-        boolean isLikelyOnDemand = PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(currentMediaUri);
-        boolean isLiveLike = isLikelyOnDemand ? false : !hasKnownTotal || !seekable;
+        boolean isLikelyOnDemand = isOnDemandContent();
+        boolean isLiveLike = !isLikelyOnDemand && (!hasKnownTotal || !seekable);
+        isLiveLikeContent = isLiveLike;
+        updateTransportButtonsVisibility();
 
         if (!isLiveLike) {
             long safeTotal = Math.max(0, totalTimeMs);
@@ -1456,6 +1500,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         reloadIcon = createIconView("reload.png", true);
         fullscreenIcon = createIconView("fullscreen.png", true);
         fullscreenExitIcon = createIconView("fullscreen-exit.png", true);
+        rewindIcon = createIconView("reverse-rewind.png", true);
+        fastForwardIcon = createIconView("fast-forward.png", true);
         muteOnIcon = createIconView("mute-on.png", true);
         muteOffIcon = createIconView("mute-off.png", true);
         pipIcon = createIconView("picture-in-picture.png", true);
@@ -1506,8 +1552,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private Button createIconButton(ImageView icon) {
         Button btn = new Button();
         btn.setGraphic(icon);
-        btn.setPadding(new Insets(4));
-        btn.getStyleClass().add("player-icon-button");
+        btn.setPadding(new Insets(3));
+        btn.getStyleClass().add(PLAYER_ICON_BUTTON);
+        return btn;
+    }
+
+    private Button createTransportButton(ImageView icon, String tooltip) {
+        Button btn = new Button();
+        btn.setGraphic(icon);
+        btn.getStyleClass().add(PLAYER_ICON_BUTTON);
+        btn.setPadding(new Insets(3));
+        btn.setTooltip(new Tooltip(tooltip));
+        btn.setVisible(false);
+        btn.setManaged(false);
         return btn;
     }
 
@@ -1520,10 +1577,286 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         upIcon.setEffect(whiteColorAdjust);
         btn.setGraphic(upIcon);
         btn.setText("");
-        btn.setTooltip(new Tooltip("Audio/Subtitles"));
-        btn.getStyleClass().add("player-icon-button");
-        btn.setPadding(new Insets(4));
+        btn.setTooltip(new Tooltip("Audio / Playlist"));
+        btn.getStyleClass().add(PLAYER_ICON_BUTTON);
+        btn.setPadding(new Insets(3));
         return btn;
+    }
+
+    private boolean isOnDemandContent() {
+        if (PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(currentMediaUri)) {
+            return true;
+        }
+        if (currentAccount != null && currentAccount.getAction() != null && Account.NOT_LIVE_TV_CHANNELS.contains(currentAccount.getAction())) {
+            return true;
+        }
+        return isNotBlank(activeBingeWatchToken);
+    }
+
+    private void updateTransportButtonsVisibility() {
+        boolean showSeekButtons = !isLiveLikeContent;
+        btnRewind.setVisible(showSeekButtons);
+        btnRewind.setManaged(showSeekButtons);
+        btnFastForward.setVisible(showSeekButtons);
+        btnFastForward.setManaged(showSeekButtons);
+    }
+
+    private void updateRepeatButtonVisibility() {
+        boolean showRepeatButton = !isNotBlank(activeBingeWatchToken);
+        btnRepeat.setVisible(showRepeatButton);
+        btnRepeat.setManaged(showRepeatButton);
+    }
+
+    private void updateTrackButtonVisibility() {
+        boolean showTracksButton = supportsTrackSelection() || isNotBlank(activeBingeWatchToken);
+        btnTracks.setVisible(showTracksButton);
+        btnTracks.setManaged(showTracksButton);
+    }
+
+    private List<TrackOption> getPlaylistTrackOptions() {
+        if (!isNotBlank(activeBingeWatchToken)) {
+            return Collections.emptyList();
+        }
+        List<BingeWatchService.PlaylistItem> playlistItems = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        if (playlistItems.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<TrackOption> options = new ArrayList<>(playlistItems.size());
+        for (int i = 0; i < playlistItems.size(); i++) {
+            BingeWatchService.PlaylistItem item = playlistItems.get(i);
+            options.add(new TrackOption(i, formatPlaylistLabel(item)));
+        }
+        if (!isNotBlank(activeBingeWatchEpisodeId)) {
+            activeBingeWatchEpisodeId = playlistItems.get(0).episodeId();
+        }
+        return options;
+    }
+
+    private String formatPlaylistLabel(BingeWatchService.PlaylistItem item) {
+        if (item == null) {
+            return "";
+        }
+        String episodeNumber = item.episodeNumber();
+        if (isNotBlank(episodeNumber)) {
+            return I18n.formatEpisodeLabel(episodeNumber) + ": " + item.episodeName();
+        }
+        return item.episodeName();
+    }
+
+    private String buildDisplayTitle() {
+        String baseTitle = currentChannel == null ? "" : currentChannel.getName();
+        if (!isNotBlank(activeBingeWatchToken)) {
+            return baseTitle;
+        }
+        BingeWatchService.PlaylistItem currentItem = getCurrentPlaylistItem();
+        if (currentItem == null) {
+            return baseTitle;
+        }
+        String episodeLabel = formatDisplayEpisodeCode(currentItem);
+        if (!isNotBlank(baseTitle)) {
+            return episodeLabel;
+        }
+        if (!isNotBlank(episodeLabel) || episodeLabel.equals(baseTitle)) {
+            return baseTitle;
+        }
+        return baseTitle + ": " + episodeLabel;
+    }
+
+    private String formatDisplayEpisodeCode(BingeWatchService.PlaylistItem item) {
+        if (item == null) {
+            return "";
+        }
+        String seasonCode = normalizeEpisodeIndex(item.season(), "S");
+        String episodeCode = normalizeEpisodeIndex(item.episodeNumber(), "E");
+        if (isNotBlank(seasonCode) && isNotBlank(episodeCode)) {
+            return seasonCode + ":" + episodeCode;
+        }
+        return formatPlaylistLabel(item);
+    }
+
+    private String normalizeEpisodeIndex(String value, String prefix) {
+        if (!isNotBlank(value)) {
+            return "";
+        }
+        try {
+            int number = Integer.parseInt(value.trim());
+            return String.format("%s%02d", prefix, Math.max(number, 0));
+        } catch (NumberFormatException _) {
+            return prefix + value.trim();
+        }
+    }
+
+    protected void refreshNowShowingHeader() {
+        if (nowShowingFlow == null || streamInfoText == null) {
+            return;
+        }
+        nowShowingFlow.getChildren().clear();
+        String displayTitle = buildDisplayTitle();
+        if (isNotBlank(displayTitle)) {
+            Text channelNameText = new Text(displayTitle);
+            channelNameText.getStyleClass().add("player-channel-title");
+            applyFixedControlBarOrientation(channelNameText);
+            nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
+        } else {
+            nowShowingFlow.getChildren().add(streamInfoText);
+        }
+        nowShowingFlow.setVisible(true);
+        nowShowingFlow.setManaged(true);
+    }
+
+    private BingeWatchService.PlaylistItem getCurrentPlaylistItem() {
+        if (!isNotBlank(activeBingeWatchToken)) {
+            return null;
+        }
+        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        if (items.isEmpty()) {
+            return null;
+        }
+        for (BingeWatchService.PlaylistItem item : items) {
+            if (item.episodeId().equals(activeBingeWatchEpisodeId)) {
+                return item;
+            }
+        }
+        return items.get(0);
+    }
+
+    private int getSelectedPlaylistTrackId() {
+        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).episodeId().equals(activeBingeWatchEpisodeId)) {
+                return i;
+            }
+        }
+        return Integer.MIN_VALUE;
+    }
+
+    private void selectPlaylistTrack(int index) {
+        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        if (index < 0 || index >= items.size()) {
+            return;
+        }
+        BingeWatchService.PlaylistItem selected = items.get(index);
+        String playlistUrl = BingeWatchService.getInstance().buildPlaylistUrl(activeBingeWatchToken, selected.episodeId());
+        if (!isNotBlank(playlistUrl)) {
+            return;
+        }
+        activeBingeWatchEpisodeId = selected.episodeId();
+        PlayerResponse response = new PlayerResponse(playlistUrl);
+        response.setAccount(currentAccount);
+        response.setChannel(currentChannel);
+        play(response);
+    }
+
+    private void updateBingeWatchContext(String uri) {
+        activeBingeWatchToken = extractBingeWatchQueryValue(uri, "token");
+        activeBingeWatchEpisodeId = extractBingeWatchQueryValue(uri, "episodeId");
+        if (!isNotBlank(activeBingeWatchToken)) {
+            activeBingeWatchEpisodeId = "";
+            return;
+        }
+        if (!isNotBlank(activeBingeWatchEpisodeId)) {
+            List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+            if (!items.isEmpty()) {
+                activeBingeWatchEpisodeId = items.get(0).episodeId();
+            }
+        }
+    }
+
+    protected void updateBingeWatchEpisodeFromActiveMedia(String uri) {
+        if (!isNotBlank(uri) || (!uri.contains("bingwatch") && !uri.contains("bingewatch"))) {
+            return;
+        }
+        String nextToken = extractBingeWatchQueryValue(uri, "token");
+        String nextEpisodeId = extractBingeWatchQueryValue(uri, "episodeId");
+        boolean changed = false;
+        if (isNotBlank(nextToken) && !nextToken.equals(activeBingeWatchToken)) {
+            activeBingeWatchToken = nextToken;
+            changed = true;
+        }
+        if (isNotBlank(nextEpisodeId) && !nextEpisodeId.equals(activeBingeWatchEpisodeId)) {
+            activeBingeWatchEpisodeId = nextEpisodeId;
+            changed = true;
+        }
+        if (changed) {
+            refreshNowShowingHeader();
+            refreshTrackMenus();
+        }
+    }
+
+    private void updateBingeWatchWatchStateListener() {
+        removeBingeWatchWatchStateListener();
+        if (!hasBingeWatchSeriesContext()) {
+            return;
+        }
+        bingeWatchStateChangeListener = (accountId, seriesId) -> {
+            if (!matchesActiveBingeWatchSeries(accountId, seriesId)) {
+                return;
+            }
+            SeriesWatchState state = SeriesWatchStateService.getInstance()
+                    .getSeriesLastWatched(currentAccount.getDbId(), currentChannel.getChannelId());
+            if (state == null || !isNotBlank(state.getEpisodeId()) || state.getEpisodeId().equals(activeBingeWatchEpisodeId)) {
+                return;
+            }
+            Platform.runLater(() -> {
+                activeBingeWatchEpisodeId = state.getEpisodeId();
+                refreshNowShowingHeader();
+                refreshTrackMenus();
+            });
+        };
+        SeriesWatchStateService.getInstance().addChangeListener(bingeWatchStateChangeListener);
+    }
+
+    private void removeBingeWatchWatchStateListener() {
+        if (bingeWatchStateChangeListener != null) {
+            SeriesWatchStateService.getInstance().removeChangeListener(bingeWatchStateChangeListener);
+            bingeWatchStateChangeListener = null;
+        }
+    }
+
+    private void syncBingeWatchEpisodeFromWatchState() {
+        if (!hasBingeWatchSeriesContext()) {
+            return;
+        }
+        SeriesWatchState state = SeriesWatchStateService.getInstance()
+                .getSeriesLastWatched(currentAccount.getDbId(), currentChannel.getChannelId());
+        if (state != null && isNotBlank(state.getEpisodeId())) {
+            activeBingeWatchEpisodeId = state.getEpisodeId();
+        }
+    }
+
+    private boolean hasBingeWatchSeriesContext() {
+        return isNotBlank(activeBingeWatchToken)
+                && currentAccount != null
+                && isNotBlank(currentAccount.getDbId())
+                && currentChannel != null
+                && isNotBlank(currentChannel.getChannelId());
+    }
+
+    private boolean matchesActiveBingeWatchSeries(String accountId, String seriesId) {
+        return hasBingeWatchSeriesContext()
+                && currentAccount.getDbId().equals(accountId)
+                && currentChannel.getChannelId().equals(seriesId);
+    }
+
+    private String extractBingeWatchQueryValue(String uri, String key) {
+        if (!isNotBlank(uri) || (!uri.contains("bingwatch") && !uri.contains("bingewatch"))) {
+            return "";
+        }
+        int queryIndex = uri.indexOf('?');
+        if (queryIndex < 0 || queryIndex >= uri.length() - 1) {
+            return "";
+        }
+        String query = uri.substring(queryIndex + 1);
+        for (String pair : query.split("&")) {
+            int separator = pair.indexOf('=');
+            if (separator <= 0) {
+                continue;
+            }
+            if (key.equals(pair.substring(0, separator))) {
+                return URLDecoder.decode(pair.substring(separator + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return "";
     }
 
     private static void markHiddenBarMessageShown() {

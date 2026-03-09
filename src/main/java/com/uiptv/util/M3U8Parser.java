@@ -1,6 +1,7 @@
 package com.uiptv.util;
 
 import com.uiptv.shared.PlaylistEntry;
+import org.json.JSONObject;
 import com.uiptv.widget.UIptvAlert;
 
 import java.io.BufferedReader;
@@ -291,7 +292,22 @@ public class M3U8Parser {
 
     private static Map<String, String> parseClearKeys(String keyString) {
         Map<String, String> keys = new HashMap<>();
-        for (String pair : keyString.split(";")) {
+        if (!isNotBlank(keyString)) {
+            return keys;
+        }
+        String normalized = keyString.trim();
+        if (normalized.startsWith("{") && normalized.endsWith("}")) {
+            try {
+                JSONObject json = new JSONObject(normalized);
+                for (String key : json.keySet()) {
+                    keys.put(key, json.optString(key));
+                }
+                return keys;
+            } catch (Exception _) {
+                // Fall through to legacy pair parsing for malformed inputs.
+            }
+        }
+        for (String pair : normalized.split(";")) {
             String[] parts = pair.split(":");
             if (parts.length == 2) {
                 keys.put(parts[0], parts[1]);

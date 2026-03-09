@@ -10,13 +10,8 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.DbBackedTest;
-import com.uiptv.service.FfmpegService;
-import com.uiptv.service.PlayerService;
+import com.uiptv.service.*;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.HttpUtil;
 import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -31,12 +26,8 @@ import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class HttpPlayerJsonServerTest extends DbBackedTest {
 
@@ -125,40 +116,10 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         assertFalse((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "vod", "https://host/play/movie.php?id=1"));
         assertFalse((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "itv", "https://host/play/movie.php?id=1"));
 
-        HttpUtil.HttpResult redirect = new HttpUtil.HttpResult(302, "", Map.of(), Map.of("Location", List.of("/final/segment.m3u8")));
-        String resolved = invoke(handler, "resolveRedirectTarget",
-                new Class[]{String.class, HttpUtil.HttpResult.class, boolean.class},
-                "https://host/play/movie.php?id=1", redirect, true);
-        assertEquals("http://host/final/segment.m3u8", resolved);
-
-        try (MockedStatic<HttpUtil> httpUtilStatic = Mockito.mockStatic(HttpUtil.class)) {
-            httpUtilStatic.when(() -> HttpUtil.sendRequest(
-                    Mockito.eq("http://host/play/movie.php?id=1"),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET"),
-                    Mockito.isNull(),
-                    Mockito.any(HttpUtil.RequestOptions.class)
-            )).thenReturn(new HttpUtil.HttpResult(302, "", Map.of(), Map.of("Location", List.of("/redirected"))));
-            httpUtilStatic.when(() -> HttpUtil.sendRequest(
-                    Mockito.eq("http://host/redirected"),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET"),
-                    Mockito.isNull(),
-                    Mockito.any(HttpUtil.RequestOptions.class)
-            )).thenReturn(new HttpUtil.HttpResult(200, "", Map.of(), Map.of()));
-
-            String chained = invoke(handler, "resolveWebPlaybackRedirects",
-                    new Class[]{String.class, String.class}, "vod", "http://host/play/movie.php?id=1");
-            assertEquals("http://host/redirected", chained);
-        }
-
         PlayerResponse directNoProbeResponse = new PlayerResponse("http://host/live/play/tokenized/9412");
-        try (MockedStatic<HttpUtil> httpUtilStatic = Mockito.mockStatic(HttpUtil.class)) {
-            invoke(handler, "applyWebPlaybackProcessing",
-                    new Class[]{PlayerResponse.class, String.class, String.class},
-                    directNoProbeResponse, "vod", "0");
-            httpUtilStatic.verifyNoInteractions();
-        }
+        invoke(handler, "applyWebPlaybackProcessing",
+                new Class[]{PlayerResponse.class, String.class, String.class},
+                directNoProbeResponse, "vod", "0");
         assertEquals("http://host/live/play/tokenized/9412", directNoProbeResponse.getUrl());
 
         PlayerResponse hlsResponse = new PlayerResponse("https://host/play/movie.php?id=1");

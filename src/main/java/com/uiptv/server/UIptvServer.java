@@ -74,6 +74,10 @@ public class UIptvServer {
         server.createContext("/watchingNow", new HttpWatchingNowJsonServer());
         server.createContext("/vodDetails", new HttpVodDetailsJsonServer());
         server.createContext("/player", new HttpPlayerJsonServer());
+        server.createContext("/player/live", new HttpPlayerJsonServer());
+        server.createContext("/player/vod", new HttpPlayerJsonServer());
+        server.createContext("/player/series", new HttpPlayerJsonServer());
+        server.createContext("/player/bingewatch", new HttpPlayerJsonServer());
         server.createContext("/bookmarks", new HttpBookmarksJsonServer());
         server.createContext("/config", new HttpConfigJsonServer());
         server.createContext("/playlist.m3u8", new HttpM3u8PlayListServer());

@@ -12,6 +12,7 @@ import com.uiptv.widget.AutoGrowVBox;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.Observable;
+import javafx.beans.binding.BooleanBinding;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -515,7 +516,7 @@ public class ChannelListUI extends HBox {
             return Set.of();
         }
         return VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).stream()
-                .filter(state -> state != null)
+                .filter(Objects::nonNull)
                 .map(state -> normalizeExact(state.getCategoryId()) + "|" + normalizeExact(state.getVodId()))
                 .collect(Collectors.toSet());
     }
@@ -969,64 +970,18 @@ public class ChannelListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         if (account.getAction() == vod) {
-            row.setOnContextMenuRequested(event -> {
-                populateVodContextMenu(rowMenu, row.getItem());
-                if (!rowMenu.getItems().isEmpty()) {
-                    rowMenu.show(row, event.getScreenX(), event.getScreenY());
-                }
-                event.consume();
-            });
-            row.contextMenuProperty().bind(
-                    Bindings.when(row.emptyProperty())
-                            .then((ContextMenu) null)
-                            .otherwise(rowMenu)
-            );
+            configureVodContextMenu(row, rowMenu);
             return;
         }
 
         Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
         rowMenu.getItems().add(bookmarkMenu);
+        configureBookmarkMenu(row, rowMenu, bookmarkMenu);
+        addPlayerItems(row, rowMenu);
+        bindRowContextMenu(row, rowMenu);
+    }
 
-        rowMenu.setOnShowing(event -> {
-            bookmarkMenu.getItems().clear();
-            ChannelItem item = row.getItem();
-            if (item == null) return;
-
-            new Thread(() -> {
-                BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
-                Bookmark existingBookmark = findMatchingBookmark(item.getChannel(), ctx, loadBookmarksForAccount());
-                List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
-
-                Platform.runLater(() -> {
-                    MenuItem allItem = new MenuItem(I18n.tr("autoAll"));
-                    allItem.setOnAction(e -> saveBookmark(item, null));
-                    bookmarkMenu.getItems().add(allItem);
-                    bookmarkMenu.getItems().add(new SeparatorMenuItem());
-
-                    for (BookmarkCategory category : categories) {
-                        MenuItem categoryItem = new MenuItem(category.getName());
-                        categoryItem.setOnAction(e -> saveBookmark(item, category.getId()));
-                        bookmarkMenu.getItems().add(categoryItem);
-                    }
-
-                    if (existingBookmark != null) {
-                        bookmarkMenu.getItems().add(new SeparatorMenuItem());
-                        MenuItem unbookmarkItem = new MenuItem(I18n.tr("autoRemoveBookmark"));
-                        unbookmarkItem.getStyleClass().add("danger-menu-item");
-                        unbookmarkItem.setOnAction(e -> new Thread(() -> {
-                            BookmarkService.getInstance().remove(existingBookmark.getDbId());
-                            Platform.runLater(() -> {
-                                item.setBookmarked(false);
-                                table.refresh();
-                                refreshBookmarkStatesAsync();
-                            });
-                        }).start());
-                        bookmarkMenu.getItems().add(unbookmarkItem);
-                    }
-                });
-            }).start();
-        });
-
+    private void addPlayerItems(TableRow<ChannelItem> row, ContextMenu rowMenu) {
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
             MenuItem playerItem = new MenuItem(option.label());
             playerItem.setOnAction(event -> {
@@ -1035,19 +990,95 @@ public class ChannelListUI extends HBox {
             });
             rowMenu.getItems().add(playerItem);
         }
+    }
 
+    private void bindRowContextMenu(TableRow<ChannelItem> row, ContextMenu rowMenu) {
         row.contextMenuProperty().bind(
-                Bindings.when(
-                                row.emptyProperty().or(
-                                        Bindings.createBooleanBinding(() ->
-                                                        account.getAction() == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
-                                                row.itemProperty()
-                                        )
-                                )
-                        )
+                Bindings.when(row.emptyProperty().or(buildSeriesCommandMissingBinding(row)))
                         .then((ContextMenu) null)
                         .otherwise(rowMenu)
         );
+    }
+
+    private BooleanBinding buildSeriesCommandMissingBinding(TableRow<ChannelItem> row) {
+        return Bindings.createBooleanBinding(
+                () -> account.getAction() == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
+                row.itemProperty()
+        );
+    }
+
+    private void configureVodContextMenu(TableRow<ChannelItem> row, ContextMenu rowMenu) {
+        row.setOnContextMenuRequested(event -> {
+            populateVodContextMenu(rowMenu, row.getItem());
+            if (!rowMenu.getItems().isEmpty()) {
+                rowMenu.show(row, event.getScreenX(), event.getScreenY());
+            }
+            event.consume();
+        });
+        row.contextMenuProperty().bind(
+                Bindings.when(row.emptyProperty())
+                        .then((ContextMenu) null)
+                        .otherwise(rowMenu)
+        );
+    }
+
+    private void configureBookmarkMenu(TableRow<ChannelItem> row, ContextMenu rowMenu, Menu bookmarkMenu) {
+        rowMenu.setOnShowing(event -> {
+            bookmarkMenu.getItems().clear();
+            ChannelItem item = row.getItem();
+            if (item == null) {
+                return;
+            }
+            loadBookmarkMenuItemsAsync(item, bookmarkMenu);
+        });
+    }
+
+    private void loadBookmarkMenuItemsAsync(ChannelItem item, Menu bookmarkMenu) {
+        new Thread(() -> {
+            BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+            Bookmark existingBookmark = findMatchingBookmark(item.getChannel(), ctx, loadBookmarksForAccount());
+            List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+            Platform.runLater(() -> populateBookmarkMenuItems(item, bookmarkMenu, categories, existingBookmark));
+        }).start();
+    }
+
+    private void populateBookmarkMenuItems(ChannelItem item,
+                                           Menu bookmarkMenu,
+                                           List<BookmarkCategory> categories,
+                                           Bookmark existingBookmark) {
+        MenuItem allItem = new MenuItem(I18n.tr("autoAll"));
+        allItem.setOnAction(e -> saveBookmark(item, null));
+        bookmarkMenu.getItems().add(allItem);
+        bookmarkMenu.getItems().add(new SeparatorMenuItem());
+
+        for (BookmarkCategory category : categories) {
+            MenuItem categoryItem = new MenuItem(category.getName());
+            categoryItem.setOnAction(e -> saveBookmark(item, category.getId()));
+            bookmarkMenu.getItems().add(categoryItem);
+        }
+
+        if (existingBookmark != null) {
+            bookmarkMenu.getItems().add(new SeparatorMenuItem());
+            bookmarkMenu.getItems().add(buildRemoveBookmarkItem(item, existingBookmark));
+        }
+    }
+
+    private MenuItem buildRemoveBookmarkItem(ChannelItem item, Bookmark existingBookmark) {
+        MenuItem unbookmarkItem = new MenuItem(I18n.tr("autoRemoveBookmark"));
+        unbookmarkItem.getStyleClass().add("danger-menu-item");
+        unbookmarkItem.setOnAction(e -> removeBookmarkAsync(item, existingBookmark));
+        return unbookmarkItem;
+    }
+
+    private void removeBookmarkAsync(ChannelItem item, Bookmark existingBookmark) {
+        new Thread(() -> {
+            BookmarkService.getInstance().remove(existingBookmark.getDbId());
+            Platform.runLater(() -> {
+                item.setBookmarked(false);
+                table.refresh();
+                refreshBookmarkStatesAsync();
+            });
+        }).start();
     }
 
     private void populateVodContextMenu(ContextMenu rowMenu, ChannelItem item) {

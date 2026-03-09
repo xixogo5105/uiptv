@@ -15,9 +15,13 @@ class AbstractFfmpegHlsServiceTest {
     @Test
     void privateCommandBuilders_coverLiveAndVodBranches() throws Exception {
         @SuppressWarnings("unchecked")
-        List<String> prefix = (List<String>) invoke("buildHlsCommandPrefix", new Class[]{String.class, boolean.class}, "http://example/live.ts", true);
+        List<String> prefix = (List<String>) invoke("buildHlsCommandPrefix",
+                new Class[]{String.class, boolean.class, long.class},
+                "http://example/live.ts", true, 1500L);
         assertTrue(prefix.contains("ffmpeg"));
         assertTrue(prefix.contains("+genpts"));
+        assertTrue(prefix.contains("-ss"));
+        assertTrue(prefix.contains("1.500"));
 
         List<String> liveArgs = new ArrayList<>();
         invoke("addHlsOutputArgs", new Class[]{List.class, String.class, boolean.class, boolean.class}, liveArgs, "http://127.0.0.1/hls/stream.m3u8", false, false);

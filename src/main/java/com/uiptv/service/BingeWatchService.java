@@ -94,6 +94,56 @@ public class BingeWatchService {
         return ServerUrlUtil.getLocalServerUrl() + PLAYLIST_PATH + urlEncode(token);
     }
 
+    public String buildPlaylistUrl(String token, String startEpisodeId) {
+        if (isBlank(token)) {
+            return "";
+        }
+        if (isBlank(startEpisodeId)) {
+            return buildPlaylistUrl(token);
+        }
+        Session session = sessions.get(token);
+        if (session == null) {
+            return "";
+        }
+        int startIndex = 0;
+        for (int i = 0; i < session.episodes().size(); i++) {
+            if (startEpisodeId.equals(session.episodes().get(i).episodeId())) {
+                startIndex = i;
+                break;
+            }
+        }
+        if (startIndex <= 0) {
+            return buildPlaylistUrl(token);
+        }
+
+        String newToken = UUID.randomUUID().toString();
+        sessions.put(newToken, new Session(
+                session.accountId(),
+                session.seriesId(),
+                session.seriesCategoryId(),
+                session.season(),
+                new ArrayList<>(session.episodes().subList(startIndex, session.episodes().size()))
+        ));
+        return buildPlaylistUrl(newToken);
+    }
+
+    public List<PlaylistItem> getPlaylistItems(String token) {
+        Session session = sessions.get(token);
+        if (session == null || session.episodes() == null || session.episodes().isEmpty()) {
+            return List.of();
+        }
+        List<PlaylistItem> items = new ArrayList<>(session.episodes().size());
+        for (SessionEpisode episode : session.episodes()) {
+            items.add(new PlaylistItem(
+                    episode.episodeId(),
+                    episode.episodeName(),
+                    episode.season(),
+                    episode.episodeNumber()
+            ));
+        }
+        return items;
+    }
+
     public String renderPlaylist(String token) {
         Session session = sessions.get(token);
         if (session == null) {
@@ -292,6 +342,9 @@ public class BingeWatchService {
     }
 
     record SessionEpisode(String episodeId, String episodeName, String season, String episodeNumber, String channelJson) {
+    }
+
+    public record PlaylistItem(String episodeId, String episodeName, String season, String episodeNumber) {
     }
 
     public record ResolvedEpisode(String url, String episodeName) {

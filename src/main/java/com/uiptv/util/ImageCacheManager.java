@@ -17,11 +17,13 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -125,7 +127,21 @@ public class ImageCacheManager {
         }
         String normalizedCaller = normalizeCaller(caller);
         String cacheKey = normalizedCaller + ":" + url;
-        if (url == null || !url.startsWith("http")) {
+        if (url == null || url.isBlank()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (url.startsWith("data:")) {
+            Image inlineImage = IMAGE_CACHE.get(cacheKey);
+            if (inlineImage != null) {
+                return CompletableFuture.completedFuture(inlineImage);
+            }
+            Image decoded = decodeInlineImage(url);
+            if (decoded != null) {
+                IMAGE_CACHE.put(cacheKey, decoded);
+            }
+            return CompletableFuture.completedFuture(decoded);
+        }
+        if (!url.startsWith("http")) {
             return CompletableFuture.completedFuture(null);
         }
         trimTransientCachesIfNeeded();
@@ -157,6 +173,24 @@ public class ImageCacheManager {
                             return null;
                         }).whenComplete((img, ex) -> LOADING_TASKS.remove(cacheKey))
         );
+    }
+
+    private static Image decodeInlineImage(String url) {
+        try {
+            int commaIndex = url.indexOf(',');
+            if (commaIndex <= 0 || commaIndex >= url.length() - 1) {
+                return null;
+            }
+            String metadata = url.substring(5, commaIndex);
+            String payload = url.substring(commaIndex + 1);
+            byte[] bytes = metadata.contains(";base64")
+                    ? Base64.getDecoder().decode(payload)
+                    : URLDecoder.decode(payload, java.nio.charset.StandardCharsets.UTF_8).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            Image image = new Image(new ByteArrayInputStream(bytes), MAX_IMAGE_DECODE_WIDTH, MAX_IMAGE_DECODE_HEIGHT, true, true);
+            return image.isError() ? null : image;
+        } catch (Exception _) {
+            return null;
+        }
     }
 
     private static Image fetchImageWithFallback(String url, String cacheKey, String caller) {

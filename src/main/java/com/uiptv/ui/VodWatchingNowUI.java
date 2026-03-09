@@ -39,8 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
-
 public class VodWatchingNowUI extends VBox {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_CARD_LINKS = "cardLinks";
@@ -134,7 +132,7 @@ public class VodWatchingNowUI extends VBox {
         String rating = firstNonBlank(provider == null ? "" : provider.getRating(), "");
         String duration = firstNonBlank(provider == null ? "" : provider.getDuration(), "");
         Channel playbackChannel = provider != null ? provider : buildFallbackChannel(state);
-        return new VodPanelData(account, state, playbackChannel, title, logo, plot, releaseDate, rating, duration);
+        return VodPanelData.create(account, state, playbackChannel, title, logo, plot, releaseDate, rating, duration);
     }
 
     private Channel resolveProviderChannel(Account account, VodWatchState state) {
@@ -403,35 +401,43 @@ public class VodWatchingNowUI extends VBox {
         if (card == null) {
             return;
         }
-        if (selected) {
-            card.getStyleClass().add("selected-card");
-        } else {
-            card.getStyleClass().remove("selected-card");
-        }
+        toggleStyleClass(card.getStyleClass(), "selected-card", selected);
+        applyLabelSelection(card, selected);
+        applyLinkSelection(card, selected);
+    }
+
+    private void applyLabelSelection(HBox card, boolean selected) {
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
-        if (labelsObj instanceof List<?> labels) {
-            for (Object labelObj : labels) {
-                if (labelObj instanceof Label label) {
-                    if (selected) {
-                        label.getStyleClass().add("selected-card-text");
-                    } else {
-                        label.getStyleClass().remove("selected-card-text");
-                    }
-                }
+        if (!(labelsObj instanceof List<?> labels)) {
+            return;
+        }
+        for (Object labelObj : labels) {
+            if (labelObj instanceof Label label) {
+                toggleStyleClass(label.getStyleClass(), "selected-card-text", selected);
             }
         }
+    }
+
+    private void applyLinkSelection(HBox card, boolean selected) {
         Object linksObj = card.getProperties().get(KEY_CARD_LINKS);
-        if (linksObj instanceof List<?> links) {
-            for (Object linkObj : links) {
-                if (linkObj instanceof Hyperlink link) {
-                    if (selected) {
-                        link.getStyleClass().add("selected-card-link");
-                    } else {
-                        link.getStyleClass().remove("selected-card-link");
-                    }
-                }
+        if (!(linksObj instanceof List<?> links)) {
+            return;
+        }
+        for (Object linkObj : links) {
+            if (linkObj instanceof Hyperlink link) {
+                toggleStyleClass(link.getStyleClass(), "selected-card-link", selected);
             }
         }
+    }
+
+    private void toggleStyleClass(List<String> styleClasses, String styleClass, boolean enabled) {
+        if (enabled) {
+            if (!styleClasses.contains(styleClass)) {
+                styleClasses.add(styleClass);
+            }
+            return;
+        }
+        styleClasses.remove(styleClass);
     }
 
     private void populateContextMenu(ContextMenu menu, VodPanelData data) {
@@ -536,21 +542,33 @@ public class VodWatchingNowUI extends VBox {
         if (isBlank(normalized)) {
             return "";
         }
-        if (normalized.startsWith("http://")
-                || normalized.startsWith("https://")
-                || normalized.startsWith("data:")
-                || normalized.startsWith("file:")) {
+        if (isAbsoluteImageUrl(normalized)) {
             return normalized;
         }
-        URI base = null;
-        try {
-            base = URI.create(firstNonBlank(account == null ? "" : account.getServerPortalUrl(), account == null ? "" : account.getUrl()));
-        } catch (Exception _) {
-            // Keep relative value when the configured account URL cannot be parsed.
-        }
+        URI base = parseAccountBaseUri(account);
         String scheme = base != null && !isBlank(base.getScheme()) ? base.getScheme() : "http";
         String host = base != null ? base.getHost() : null;
         int port = base == null ? -1 : base.getPort();
+        return resolveRelativeImageUrl(normalized, scheme, host, port);
+    }
+
+    private boolean isAbsoluteImageUrl(String normalized) {
+        return normalized.startsWith("http://")
+                || normalized.startsWith("https://")
+                || normalized.startsWith("data:")
+                || normalized.startsWith("file:");
+    }
+
+    private URI parseAccountBaseUri(Account account) {
+        try {
+            return URI.create(firstNonBlank(account == null ? "" : account.getServerPortalUrl(), account == null ? "" : account.getUrl()));
+        } catch (Exception _) {
+            // Keep relative value when the configured account URL cannot be parsed.
+            return null;
+        }
+    }
+
+    private String resolveRelativeImageUrl(String normalized, String scheme, String host, int port) {
         if (normalized.startsWith("//")) {
             return scheme + ":" + normalized;
         }
@@ -596,17 +614,22 @@ public class VodWatchingNowUI extends VBox {
         private HBox imdbBadgeNode;
         private HBox imdbLoadingNode;
 
-        private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle,
-                             String coverUrl, String plot, String releaseDate, String rating, String duration) {
+        private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle, String duration) {
             this.account = account;
             this.state = state;
             this.playbackChannel = playbackChannel;
             this.displayTitle = displayTitle;
-            this.coverUrl = coverUrl;
-            this.plot = plot;
-            this.releaseDate = releaseDate;
-            this.rating = rating;
             this.duration = duration;
+        }
+
+        private static VodPanelData create(Account account, VodWatchState state, Channel playbackChannel, String displayTitle,
+                                           String coverUrl, String plot, String releaseDate, String rating, String duration) {
+            VodPanelData data = new VodPanelData(account, state, playbackChannel, displayTitle, duration);
+            data.coverUrl = coverUrl;
+            data.plot = plot;
+            data.releaseDate = releaseDate;
+            data.rating = rating;
+            return data;
         }
     }
 }

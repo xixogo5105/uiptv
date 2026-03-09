@@ -21,6 +21,8 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 @SuppressWarnings({"java:S1075", "java:S135"})
 public class HttpProxyStreamServer implements HttpHandler {
+    private static final String PATH_LIVE_PLAY = "/live/play/";
+    private static final String PATH_PLAY_MOVIE = "/play/movie.php";
     private static final String HEADER_ACCEPT = "Accept";
     private static final String HEADER_ACCEPT_RANGES = "Accept-Ranges";
     private static final String HEADER_ACCESS_CONTROL_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
@@ -186,8 +188,8 @@ public class HttpProxyStreamServer implements HttpHandler {
         addHeaderIfPresent(upstreamHeaders, HEADER_ORIGIN, origin);
         addHeaderIfPresent(upstreamHeaders, HEADER_REFERER, referer);
         addStalkerCookieFromUrl(upstreamHeaders, currentUrl, cookies);
-        if (!cookies.isEmpty() && !upstreamHeaders.containsKey(HEADER_COOKIE)) {
-            upstreamHeaders.put(HEADER_COOKIE, String.join("; ", cookies));
+        if (!cookies.isEmpty()) {
+            upstreamHeaders.computeIfAbsent(HEADER_COOKIE, _ -> String.join("; ", cookies));
         }
         return upstreamHeaders;
     }
@@ -234,9 +236,9 @@ public class HttpProxyStreamServer implements HttpHandler {
             return false;
         }
         String lower = currentUrl.toLowerCase();
-        return lower.contains("/live/play/")
-                || lower.contains("/play/movie.php")
-                || lower.matches(".*/\\d+(\\?.*)?$");
+        return lower.contains(PATH_LIVE_PLAY)
+                || lower.contains(PATH_PLAY_MOVIE)
+                || hasNumericLastPathSegment(lower);
     }
 
     private boolean isStalkerPortalStream(String currentUrl) {
@@ -244,7 +246,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             return false;
         }
         String lower = currentUrl.toLowerCase();
-        return (lower.contains("/live/play/") || lower.contains("/play/movie.php"))
+        return (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE))
                 && (lower.contains("play_token=") || lower.contains("mac="));
     }
 
@@ -372,7 +374,7 @@ public class HttpProxyStreamServer implements HttpHandler {
     private String downgradeHttpsToHttp(String url) {
         if (isBlank(url)) return url;
         String lower = url.toLowerCase();
-        if (lower.startsWith("https://") && (lower.contains("/live/play/") || lower.contains("/play/movie.php") || lower.matches(".*/\\d+(\\?.*)?$"))) {
+        if (lower.startsWith("https://") && (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE) || hasNumericLastPathSegment(lower))) {
             return "http://" + url.substring("https://".length());
         }
         return url;
@@ -400,7 +402,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             }
 
             String last = segments.get(segments.size() - 1);
-            if (!last.matches("^\\d+$")) {
+            if (!isAsciiDigits(last)) {
                 return originalUrl;
             }
 
@@ -437,5 +439,30 @@ public class HttpProxyStreamServer implements HttpHandler {
             return "";
         }
         return value.substring(dot + 1).toLowerCase();
+    }
+
+    private boolean hasNumericLastPathSegment(String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        int queryStart = url.indexOf('?');
+        String pathOnly = queryStart >= 0 ? url.substring(0, queryStart) : url;
+        int lastSlash = pathOnly.lastIndexOf('/');
+        if (lastSlash < 0 || lastSlash == pathOnly.length() - 1) {
+            return false;
+        }
+        return isAsciiDigits(pathOnly.substring(lastSlash + 1));
+    }
+
+    private boolean isAsciiDigits(String value) {
+        if (isBlank(value)) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 }

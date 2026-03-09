@@ -432,10 +432,17 @@ public abstract class BaseEpisodesListUI extends HBox {
             showErrorAlert(BINGE_WATCH_FAILED_PREFIX + "unable to prepare the season playlist.");
             return;
         }
+        Channel bingeWatchChannel = new Channel();
+        bingeWatchChannel.setChannelId(seriesId);
+        bingeWatchChannel.setName(firstNonBlank(seasonInfo.optString("name", ""), categoryTitle, buildBingeWatchMenuLabel(normalizedSeason)));
+        bingeWatchChannel.setSeason(normalizedSeason);
+        bingeWatchChannel.setLogo(seasonInfo.optString("cover", ""));
         PlaybackUIService.playDirectUrl(
                 playerPath,
                 BingeWatchService.getInstance().buildPlaylistUrl(token),
-                "Binge watch playback failed: "
+                "Binge watch playback failed: ",
+                account,
+                bingeWatchChannel
         );
     }
 

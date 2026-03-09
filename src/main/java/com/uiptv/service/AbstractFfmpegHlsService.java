@@ -53,16 +53,20 @@ abstract class AbstractFfmpegHlsService {
         return ServerUrlUtil.getLocalServerUrl() + "/hls/" + STREAM_FILENAME;
     }
 
-    protected static List<String> buildCopyHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist) {
-        List<String> command = buildHlsCommandPrefix(inputUrl, vodStylePlaylist);
+    protected static List<String> buildCopyHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist, long startOffsetMs) {
+        List<String> command = buildHlsCommandPrefix(inputUrl, vodStylePlaylist, startOffsetMs);
         command.add("-c");
         command.add("copy");
         addHlsOutputArgs(command, outputUrl, vodStylePlaylist, false);
         return command;
     }
 
-    protected static List<String> buildTranscodeHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist) {
-        List<String> command = buildHlsCommandPrefix(inputUrl, vodStylePlaylist);
+    protected static List<String> buildCopyHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist) {
+        return buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist, 0L);
+    }
+
+    protected static List<String> buildTranscodeHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist, long startOffsetMs) {
+        List<String> command = buildHlsCommandPrefix(inputUrl, vodStylePlaylist, startOffsetMs);
         command.add("-map");
         command.add("0:v:0?");
         command.add("-map");
@@ -86,13 +90,21 @@ abstract class AbstractFfmpegHlsService {
         return command;
     }
 
-    private static List<String> buildHlsCommandPrefix(String inputUrl, boolean vodStylePlaylist) {
+    protected static List<String> buildTranscodeHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist) {
+        return buildTranscodeHlsCommand(inputUrl, outputUrl, vodStylePlaylist, 0L);
+    }
+
+    private static List<String> buildHlsCommandPrefix(String inputUrl, boolean vodStylePlaylist, long startOffsetMs) {
         List<String> command = new ArrayList<>();
         command.add("ffmpeg");
         command.add("-nostdin");
         if (vodStylePlaylist) {
             command.add("-fflags");
             command.add("+genpts");
+            if (startOffsetMs > 0) {
+                command.add("-ss");
+                command.add(String.format(java.util.Locale.ROOT, "%.3f", startOffsetMs / 1000.0));
+            }
         }
         command.add("-i");
         command.add(inputUrl);

@@ -74,6 +74,32 @@ body {
     height: 20px;
 }
 
+#media-meta {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+#media-title,
+#media-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#media-title {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+#media-subtitle {
+    font-size: 12px;
+    color: var(--muted-color);
+}
+
 .top-actions {
     display: flex;
     align-items: center;
@@ -123,6 +149,83 @@ body {
     background: #000;
 }
 
+#content {
+    position: absolute;
+    top: 53px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    min-height: 0;
+}
+
+#player-stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#playlist-panel {
+    width: 300px;
+    flex: 0 0 300px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(20, 20, 20, 0.96);
+    border-right: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+#playlist-header {
+    padding: 14px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#playlist-items {
+    overflow: auto;
+    padding: 8px;
+}
+
+.playlist-item {
+    width: 100%;
+    display: block;
+    text-align: left;
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.playlist-item:hover {
+    background: var(--chip-hover-bg);
+    border-color: var(--chip-hover-border);
+}
+
+.playlist-item.active {
+    background: rgba(13, 110, 253, 0.18);
+    border-color: rgba(13, 110, 253, 0.45);
+}
+
+.playlist-item-title {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.playlist-item-meta {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted-color);
+}
+
 #status {
     position: absolute;
     top: 64px;
@@ -146,8 +249,26 @@ body {
         font-size: 0.9rem;
     }
 
+    #media-meta {
+        order: 3;
+        width: 100%;
+    }
+
     .top-actions {
         width: 100%;
+    }
+
+    #content {
+        top: 81px;
+        flex-direction: column;
+    }
+
+    #playlist-panel {
+        width: auto;
+        flex: 0 0 auto;
+        max-height: 36vh;
+        border-right: 0;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .top-action {

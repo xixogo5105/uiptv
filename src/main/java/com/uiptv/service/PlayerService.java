@@ -165,11 +165,14 @@ public class PlayerService {
                 || !isBlank(channel.getManifestType());
     }
 
-    public String buildDrmBrowserPlaybackUrl(Account account, Channel channel, String categoryId, String mode) {
+    public String buildDrmBrowserPlaybackUrl(Account account, Channel channel, String categoryId, String mode,
+                                             String seriesParentId, String seriesCategoryId) {
         JSONObject payload = new JSONObject();
         payload.put("mode", normalizeMode(mode, account));
         payload.put("accountId", account == null ? "" : safe(account.getDbId()));
         payload.put("categoryId", safe(categoryId));
+        payload.put("seriesParentId", safe(seriesParentId));
+        payload.put("seriesCategoryId", safe(seriesCategoryId));
 
         JSONObject channelJson = new JSONObject();
         channelJson.put("dbId", channel == null ? "" : safe(channel.getDbId()));
@@ -191,6 +194,10 @@ public class PlayerService {
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
         return localServerOrigin() + "/player.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260301f";
+    }
+
+    public String buildDrmBrowserPlaybackUrl(Account account, Channel channel, String categoryId, String mode) {
+        return buildDrmBrowserPlaybackUrl(account, channel, categoryId, mode, "", "");
     }
 
     private static String localServerOrigin() {

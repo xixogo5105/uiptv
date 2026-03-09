@@ -27,6 +27,7 @@ public class DatabaseUtils {
     private static final String COLUMN_NUMBER = "number";
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
+    private static final String COLUMN_UPDATED_AT = "updatedAt";
     private static Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();
     private static final Set<String> KNOWN_TABLE_NAMES = new HashSet<>();
 
@@ -103,7 +104,7 @@ public class DatabaseUtils {
                 new DataColumn("lightThemeCssContent", "TEXT"),
                 new DataColumn("darkThemeCssName", "TEXT"),
                 new DataColumn("darkThemeCssContent", "TEXT"),
-                new DataColumn("updatedAt", "TEXT")
+                new DataColumn(COLUMN_UPDATED_AT, "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -220,7 +221,7 @@ public class DatabaseUtils {
                 new DataColumn("vodName", "TEXT"),
                 new DataColumn("vodCmd", "TEXT"),
                 new DataColumn("vodLogo", "TEXT"),
-                new DataColumn("updatedAt", INTEGER_TYPE)
+                new DataColumn(COLUMN_UPDATED_AT, INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.SERIES_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -286,7 +287,7 @@ public class DatabaseUtils {
                 new DataColumn("episodeName", "TEXT"),
                 new DataColumn("season", "TEXT"),
                 new DataColumn("episodeNum", INTEGER_TYPE),
-                new DataColumn("updatedAt", INTEGER_TYPE),
+                new DataColumn(COLUMN_UPDATED_AT, INTEGER_TYPE),
                 new DataColumn("source", "TEXT"),
                 new DataColumn("seriesCategorySnapshot", "TEXT"),
                 new DataColumn("seriesChannelSnapshot", "TEXT"),

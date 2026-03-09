@@ -31,7 +31,7 @@ public class FfmpegService extends AbstractFfmpegHlsService {
     }
 
     static List<String> buildHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist) {
-        return buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist);
+        return buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist, 0L);
     }
 
     public synchronized void stopTransmuxing() {

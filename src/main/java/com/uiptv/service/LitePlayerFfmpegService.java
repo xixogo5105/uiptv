@@ -21,7 +21,11 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         TRANSCODE
     }
 
-    public record PreparedPlayback(String sourceUrl, String playbackUrl, PlaybackStrategy strategy) {
+    public record PreparedPlayback(String sourceUrl, String playbackUrl, PlaybackStrategy strategy, long estimatedDurationMs, long startOffsetMs) {
+        public PreparedPlayback(String sourceUrl, String playbackUrl, PlaybackStrategy strategy) {
+            this(sourceUrl, playbackUrl, strategy, 0L, 0L);
+        }
+
         public boolean usesFfmpeg() {
             return strategy != PlaybackStrategy.DIRECT;
         }
@@ -39,11 +43,17 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         final String formatName;
         final String videoCodec;
         final String audioCodec;
+        final long durationMs;
 
-        ProbeResult(String formatName, String videoCodec, String audioCodec) {
+        ProbeResult(String formatName, String videoCodec, String audioCodec, long durationMs) {
             this.formatName = formatName == null ? "" : formatName;
             this.videoCodec = videoCodec == null ? "" : videoCodec;
             this.audioCodec = audioCodec == null ? "" : audioCodec;
+            this.durationMs = Math.max(0L, durationMs);
+        }
+
+        ProbeResult(String formatName, String videoCodec, String audioCodec) {
+            this(formatName, videoCodec, audioCodec, 0L);
         }
 
         boolean hasVideo() {
@@ -66,38 +76,44 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         return SingletonHelper.INSTANCE;
     }
 
-    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback) {
+    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback, long startOffsetMs) {
         String sourceUrl = normalizeSourceUrl(rawUri);
         if (isBlank(sourceUrl)) {
-            return new PreparedPlayback("", "", PlaybackStrategy.DIRECT);
+            return new PreparedPlayback("", "", PlaybackStrategy.DIRECT, 0L, 0L);
         }
 
         boolean vodStylePlaylist = account != null && Account.NOT_LIVE_TV_CHANNELS.contains(account.getAction());
+        ProbeResult probe = probeSource(sourceUrl);
+        long normalizedOffset = Math.max(0L, startOffsetMs);
         PlaybackStrategy strategy = chooseStrategy(sourceUrl, forceCompatibilityFallback);
         if (strategy == PlaybackStrategy.DIRECT) {
-            return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT);
+            return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probe), 0L);
         }
 
         if (!ServerUrlUtil.ensureServerForWebPlayback()) {
-            return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT);
+            return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probe), 0L);
         }
 
         try {
             boolean ready = strategy == PlaybackStrategy.COPY
-                    ? startCopyPlayback(sourceUrl, vodStylePlaylist)
-                    : startTranscodePlayback(sourceUrl, vodStylePlaylist);
+                    ? startCopyPlayback(sourceUrl, vodStylePlaylist, normalizedOffset)
+                    : startTranscodePlayback(sourceUrl, vodStylePlaylist, normalizedOffset);
             if (ready) {
-                return new PreparedPlayback(sourceUrl, getLocalHlsPlaybackUrl(), strategy);
+                return new PreparedPlayback(sourceUrl, getLocalHlsPlaybackUrl(), strategy, estimateDurationMs(probe), normalizedOffset);
             }
         } catch (Exception e) {
             com.uiptv.util.AppLog.addLog("LitePlayerFfmpegService: failed to prepare " + strategy + " playback: " + e.getMessage());
         }
-        return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT);
+        return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probe), 0L);
+    }
+
+    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback) {
+        return preparePlayback(rawUri, account, forceCompatibilityFallback, 0L);
     }
 
     public PreparedPlayback prepareDirectPlayback(String rawUri) {
         String sourceUrl = normalizeSourceUrl(rawUri);
-        return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT);
+        return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probeSource(sourceUrl)), 0L);
     }
 
     public boolean isManagedPlaybackUrl(String url) {
@@ -108,14 +124,14 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         stopManagedHlsStream();
     }
 
-    boolean startCopyPlayback(String inputUrl, boolean vodStylePlaylist) throws IOException {
+    boolean startCopyPlayback(String inputUrl, boolean vodStylePlaylist, long startOffsetMs) throws IOException {
         String outputUrl = ServerUrlUtil.getLocalServerUrl() + "/hls-upload/" + STREAM_FILENAME;
-        return startManagedHlsStream(buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist));
+        return startManagedHlsStream(buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist, startOffsetMs));
     }
 
-    boolean startTranscodePlayback(String inputUrl, boolean vodStylePlaylist) throws IOException {
+    boolean startTranscodePlayback(String inputUrl, boolean vodStylePlaylist, long startOffsetMs) throws IOException {
         String outputUrl = ServerUrlUtil.getLocalServerUrl() + "/hls-upload/" + STREAM_FILENAME;
-        return startManagedHlsStream(buildTranscodeHlsCommand(inputUrl, outputUrl, vodStylePlaylist));
+        return startManagedHlsStream(buildTranscodeHlsCommand(inputUrl, outputUrl, vodStylePlaylist, startOffsetMs));
     }
 
     static PlaybackStrategy chooseStrategy(String sourceUrl, boolean forceCompatibilityFallback) {
@@ -123,6 +139,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
             return PlaybackStrategy.DIRECT;
         }
         String lower = sourceUrl.toLowerCase(Locale.ROOT);
+        ProbeResult probe = probeSource(sourceUrl);
         if (lower.startsWith(ServerUrlUtil.getLocalServerUrl().toLowerCase(Locale.ROOT) + "/hls/")) {
             return PlaybackStrategy.DIRECT;
         }
@@ -130,7 +147,6 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
             return PlaybackStrategy.DIRECT;
         }
 
-        ProbeResult probe = probeSource(sourceUrl);
         if (probe != null) {
             return chooseStrategy(sourceUrl, probe, forceCompatibilityFallback);
         }
@@ -265,8 +281,28 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
     private static ProbeResult toProbeResult(JSONObject root) {
         JSONObject format = root.optJSONObject("format");
         String formatName = format == null ? "" : format.optString("format_name", "");
+        long durationMs = parseDurationMs(format == null ? null : format.opt("duration"));
         CodecPair codecs = extractCodecs(root.optJSONArray("streams"));
-        return new ProbeResult(formatName, codecs.videoCodec(), codecs.audioCodec());
+        return new ProbeResult(formatName, codecs.videoCodec(), codecs.audioCodec(), durationMs);
+    }
+
+    private static long parseDurationMs(Object rawDuration) {
+        if (rawDuration == null) {
+            return 0L;
+        }
+        try {
+            double seconds = Double.parseDouble(String.valueOf(rawDuration));
+            if (!Double.isFinite(seconds) || seconds <= 0) {
+                return 0L;
+            }
+            return Math.round(seconds * 1000.0);
+        } catch (NumberFormatException _) {
+            return 0L;
+        }
+    }
+
+    private static long estimateDurationMs(ProbeResult probe) {
+        return probe == null ? 0L : probe.durationMs;
     }
 
     private static CodecPair extractCodecs(JSONArray streams) {

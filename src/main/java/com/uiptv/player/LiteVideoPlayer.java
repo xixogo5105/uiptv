@@ -1,6 +1,7 @@
 package com.uiptv.player;
 
 import com.uiptv.model.Configuration;
+import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.LitePlayerFfmpegService;
 import com.uiptv.util.I18n;
@@ -10,7 +11,6 @@ import javafx.beans.value.ChangeListener;
 import javafx.scene.Node;
 import javafx.scene.media.*;
 import javafx.util.Duration;
-
 
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -24,6 +24,10 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private volatile boolean usingFfmpegFallback;
     private volatile boolean attemptedCompatibilityFallback;
     private volatile String currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
+    private volatile long estimatedTotalDurationMs;
+    private volatile long playbackStartOffsetMs;
+    private volatile long playbackWallClockStartedAtMs;
+    private volatile long lastObservedPlaybackTimeMs;
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
@@ -51,10 +55,14 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void playMedia(String uri) {
         attemptedCompatibilityFallback = false;
-        startPlayback(uri, false);
+        if (isBingeWatchPlayback()) {
+            startBingeWatchPlayback(false, 0L);
+            return;
+        }
+        startPlayback(uri, false, 0L);
     }
 
-    private void startPlayback(String uri, boolean forceCompatibilityFallback) {
+    private void startPlayback(String uri, boolean forceCompatibilityFallback, long startOffsetMs) {
         if (isBlank(uri)) {
             stop();
             return;
@@ -65,7 +73,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
         new Thread(() -> {
             try {
-                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback);
+                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback, startOffsetMs);
                 applyPreparedPlayback(preparedPlayback, forceCompatibilityFallback);
                 Platform.runLater(() -> createAndPlayMediaPlayer(preparedPlayback.playbackUrl()));
             } catch (Exception e) {
@@ -74,24 +82,37 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         }).start();
     }
 
-    @Override
-    protected void stopMedia() {
-        if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaView.setMediaPlayer(null);
-        }
-        if (usingFfmpegFallback) {
-            LitePlayerFfmpegService.getInstance().stopPlayback();
-            usingFfmpegFallback = false;
-        }
-        currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
+    private void startBingeWatchPlayback(boolean forceCompatibilityFallback, long startOffsetMs) {
         compatibilityFallbackTimer.stop();
+        releaseExistingPlayback();
+
+        new Thread(() -> {
+            try {
+                String episodeId = resolveActiveBingeWatchEpisodeId();
+                if (isBlank(episodeId)) {
+                    throw new IllegalStateException("No binge watch episode is selected.");
+                }
+                BingeWatchService.ResolvedEpisode resolvedEpisode = BingeWatchService.getInstance()
+                        .resolveEpisode(activeBingeWatchToken, episodeId);
+                if (resolvedEpisode == null || isBlank(resolvedEpisode.url())) {
+                    throw new IllegalStateException("Unable to resolve binge watch episode URL.");
+                }
+                activeBingeWatchEpisodeId = episodeId;
+                this.currentMediaUri = resolvedEpisode.url();
+                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback, startOffsetMs);
+                applyPreparedPlayback(preparedPlayback, forceCompatibilityFallback);
+                Platform.runLater(() -> createAndPlayMediaPlayer(preparedPlayback.playbackUrl()));
+            } catch (Exception e) {
+                handlePlaybackError("Error resolving binge watch episode URL.", e);
+            }
+        }).start();
     }
 
     @Override
-    protected void disposeMedia() {
+    protected void stopMedia() {
         if (mediaPlayer != null) {
-            mediaPlayer.dispose();
+            safeStopPlayer(mediaPlayer);
+            mediaView.setMediaPlayer(null);
             mediaPlayer = null;
         }
         if (usingFfmpegFallback) {
@@ -99,6 +120,28 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             usingFfmpegFallback = false;
         }
         currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
+        estimatedTotalDurationMs = 0L;
+        playbackStartOffsetMs = 0L;
+        playbackWallClockStartedAtMs = 0L;
+        lastObservedPlaybackTimeMs = 0L;
+        compatibilityFallbackTimer.stop();
+    }
+
+    @Override
+    protected void disposeMedia() {
+        if (mediaPlayer != null) {
+            safeDisposePlayer(mediaPlayer);
+            mediaPlayer = null;
+        }
+        if (usingFfmpegFallback) {
+            LitePlayerFfmpegService.getInstance().stopPlayback();
+            usingFfmpegFallback = false;
+        }
+        currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
+        estimatedTotalDurationMs = 0L;
+        playbackStartOffsetMs = 0L;
+        playbackWallClockStartedAtMs = 0L;
+        lastObservedPlaybackTimeMs = 0L;
         compatibilityFallbackTimer.stop();
     }
 
@@ -118,27 +161,71 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void seek(float position) {
-        if (mediaPlayer != null && mediaPlayer.getTotalDuration() != null) {
-            Duration total = mediaPlayer.getTotalDuration();
+        if (usingFfmpegFallback) {
+            return;
+        }
+        if (tryManagedSeekByPosition(position)) {
+            return;
+        }
+        if (mediaPlayer != null) {
+            Duration total = safeTotalDuration(mediaPlayer);
             if (total != null && total.greaterThan(Duration.ZERO) && !total.isIndefinite()) {
-                mediaPlayer.seek(total.multiply(position));
+                safeSeekPlayer(mediaPlayer, total.multiply(position));
             }
         }
     }
 
     @Override
+    protected void seekBySeconds(int deltaSeconds) {
+        if (usingFfmpegFallback) {
+            return;
+        }
+        if (tryManagedSeekByDelta(deltaSeconds)) {
+            return;
+        }
+        if (mediaPlayer == null) {
+            return;
+        }
+        Duration current = safeCurrentTime(mediaPlayer);
+        if (current == null) {
+            return;
+        }
+        Duration target = current.add(Duration.seconds(deltaSeconds));
+        if (target.lessThan(Duration.ZERO)) {
+            target = Duration.ZERO;
+        }
+        Duration total = safeTotalDuration(mediaPlayer);
+        if (total != null && total.greaterThan(Duration.ZERO) && !total.isIndefinite() && target.greaterThan(total)) {
+            target = total;
+        }
+        safeSeekPlayer(mediaPlayer, target);
+    }
+
+    @Override
     protected boolean isPlaying() {
-        return mediaPlayer != null && mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING;
+        return mediaPlayer != null && safeStatus(mediaPlayer) == MediaPlayer.Status.PLAYING;
     }
 
     @Override
     protected void pauseMedia() {
-        if (mediaPlayer != null) mediaPlayer.pause();
+        if (mediaPlayer != null) {
+            try {
+                mediaPlayer.pause();
+            } catch (RuntimeException _) {
+                // Ignore late pause requests while the JavaFX backend is swapping players.
+            }
+        }
     }
 
     @Override
     protected void resumeMedia() {
-        if (mediaPlayer != null) mediaPlayer.play();
+        if (mediaPlayer != null) {
+            try {
+                mediaPlayer.play();
+            } catch (RuntimeException _) {
+                // Ignore late play requests while the JavaFX backend is swapping players.
+            }
+        }
     }
 
     @Override
@@ -239,6 +326,8 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         btnPlayPause.setGraphic(playIcon);
         timeSlider.setValue(0);
         loadingSpinner.setVisible(false);
+        playbackWallClockStartedAtMs = 0L;
+        lastObservedPlaybackTimeMs = 0L;
         compatibilityFallbackTimer.stop();
     }
 
@@ -246,7 +335,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         loadingSpinner.setVisible(false);
         compatibilityFallbackTimer.stop();
         if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
-            startPlayback(currentMediaUri, true);
+            startPlayback(currentMediaUri, true, playbackStartOffsetMs);
             return;
         }
         if (!errorLabel.isVisible()) {
@@ -279,8 +368,9 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     private void releaseExistingPlayback() {
         if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaPlayer.dispose();
+            safeStopPlayer(mediaPlayer);
+            safeDisposePlayer(mediaPlayer);
+            mediaPlayer = null;
         }
         if (usingFfmpegFallback) {
             LitePlayerFfmpegService.getInstance().stopPlayback();
@@ -292,6 +382,10 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         usingFfmpegFallback = preparedPlayback.usesFfmpeg();
         attemptedCompatibilityFallback = forceCompatibilityFallback || preparedPlayback.usesFfmpeg();
         currentPlaybackModeLabel = preparedPlayback.displayModeLabel();
+        estimatedTotalDurationMs = preparedPlayback.estimatedDurationMs();
+        playbackStartOffsetMs = preparedPlayback.startOffsetMs();
+        playbackWallClockStartedAtMs = 0L;
+        lastObservedPlaybackTimeMs = 0L;
     }
 
     private void createAndPlayMediaPlayer(String sourceUrl) {
@@ -325,7 +419,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                 com.uiptv.util.AppLog.addLog("LiteVideoPlayer: direct playback failed, retrying with FFmpeg compatibility path.");
                 loadingSpinner.setVisible(true);
                 errorLabel.setVisible(false);
-                startPlayback(currentMediaUri, true);
+                startPlayback(currentMediaUri, true, playbackStartOffsetMs);
                 return;
             }
             com.uiptv.util.AppLog.addLog("MediaPlayer Error: " + mediaException.getMessage() + " (" + mediaException.getType() + ")");
@@ -339,6 +433,9 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handleEndOfMedia(MediaPlayer player) {
+        if (isBingeWatchPlayback() && advanceBingeWatchEpisode()) {
+            return;
+        }
         if (isRepeating && isRetrying.get()) {
             handleRepeat();
             return;
@@ -362,17 +459,48 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     }
 
     protected void updateTimeLabel() {
-        if (mediaPlayer != null && mediaPlayer.getCurrentTime() != null && mediaPlayer.getTotalDuration() != null) {
-            Duration currentTime = mediaPlayer.getCurrentTime();
-            Duration totalDuration = mediaPlayer.getTotalDuration();
+        if (mediaPlayer != null) {
+            Duration currentTime = safeCurrentTime(mediaPlayer);
+            Duration totalDuration = safeTotalDuration(mediaPlayer);
+            if (currentTime == null || totalDuration == null) {
+                timeLabel.setText(I18n.tr("auto00000000"));
+                timeSlider.setDisable(false);
+                if (!isUserSeeking) {
+                    timeSlider.setValue(0);
+                }
+                return;
+            }
             boolean hasKnownTotal = totalDuration != null && totalDuration.greaterThan(Duration.ZERO) && !totalDuration.isIndefinite();
-            long totalMs = hasKnownTotal ? (long) totalDuration.toMillis() : -1L;
-            // JavaFX media API does not expose seekable() directly; indefinite total is treated as live-like.
-            boolean seekable = hasKnownTotal;
-            updatePlaybackTimeUi((long) currentTime.toMillis(), totalMs, seekable);
+            long observedCurrentMs = Math.max(0L, (long) currentTime.toMillis());
+            if (observedCurrentMs > 0L) {
+                lastObservedPlaybackTimeMs = observedCurrentMs;
+                playbackWallClockStartedAtMs = System.currentTimeMillis() - observedCurrentMs;
+            } else if (usingFfmpegFallback && estimatedTotalDurationMs > 0L && isPlaying()) {
+                if (playbackWallClockStartedAtMs <= 0L) {
+                    playbackWallClockStartedAtMs = System.currentTimeMillis();
+                }
+                long wallClockElapsed = System.currentTimeMillis() - playbackWallClockStartedAtMs;
+                observedCurrentMs = Math.max(lastObservedPlaybackTimeMs, wallClockElapsed);
+            }
+            long currentMs = playbackStartOffsetMs + observedCurrentMs;
+            long totalMs = hasKnownTotal
+                    ? Math.max(estimatedTotalDurationMs, playbackStartOffsetMs + (long) totalDuration.toMillis())
+                    : estimatedTotalDurationMs;
+            boolean seekable = hasKnownTotal && !usingFfmpegFallback;
+            updatePlaybackTimeUi(currentMs, totalMs, seekable);
+            if (usingFfmpegFallback) {
+                timeSlider.setDisable(true);
+                btnRewind.setDisable(true);
+                btnFastForward.setDisable(true);
+            } else {
+                btnRewind.setDisable(false);
+                btnFastForward.setDisable(false);
+            }
         } else {
             timeLabel.setText(I18n.tr("auto00000000"));
             timeSlider.setDisable(false);
+            btnRewind.setDisable(false);
+            btnFastForward.setDisable(false);
             if (!isUserSeeking) {
                 timeSlider.setValue(0);
             }
@@ -396,6 +524,9 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     protected void onPlaybackStarted() {
         retryCount = 0;
         loadingSpinner.setVisible(false);
+        if (playbackWallClockStartedAtMs <= 0L) {
+            playbackWallClockStartedAtMs = System.currentTimeMillis() - lastObservedPlaybackTimeMs;
+        }
     }
 
     @Override
@@ -403,11 +534,11 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         return false;
     }
 
-    private LitePlayerFfmpegService.PreparedPlayback resolvePlayback(String rawUri, boolean forceCompatibilityFallback) {
+    private LitePlayerFfmpegService.PreparedPlayback resolvePlayback(String rawUri, boolean forceCompatibilityFallback, long startOffsetMs) {
         if (!forceCompatibilityFallback && !isLitePlayerFfmpegEnabled()) {
             return LitePlayerFfmpegService.getInstance().prepareDirectPlayback(rawUri);
         }
-        return LitePlayerFfmpegService.getInstance().preparePlayback(rawUri, currentAccount, forceCompatibilityFallback);
+        return LitePlayerFfmpegService.getInstance().preparePlayback(rawUri, currentAccount, forceCompatibilityFallback, startOffsetMs);
     }
 
     private boolean canUseCompatibilityFallback(String sourceUrl) {
@@ -438,8 +569,86 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             com.uiptv.util.AppLog.addLog("LiteVideoPlayer: no usable video signal detected, retrying with FFmpeg compatibility path.");
             loadingSpinner.setVisible(true);
             errorLabel.setVisible(false);
-            startPlayback(currentMediaUri, true);
+            startPlayback(currentMediaUri, true, playbackStartOffsetMs);
         }
+    }
+
+    private boolean isBingeWatchPlayback() {
+        return activeBingeWatchToken != null && !activeBingeWatchToken.isBlank();
+    }
+
+    private String resolveActiveBingeWatchEpisodeId() {
+        if (!isBlank(activeBingeWatchEpisodeId)) {
+            return activeBingeWatchEpisodeId;
+        }
+        java.util.List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        if (items.isEmpty()) {
+            return "";
+        }
+        return items.get(0).episodeId();
+    }
+
+    private boolean advanceBingeWatchEpisode() {
+        if (!isBingeWatchPlayback()) {
+            return false;
+        }
+        java.util.List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        if (items.isEmpty()) {
+            return false;
+        }
+        int currentIndex = 0;
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).episodeId().equals(activeBingeWatchEpisodeId)) {
+                currentIndex = i;
+                break;
+            }
+        }
+        int nextIndex = currentIndex + 1;
+        if (nextIndex >= items.size()) {
+            return false;
+        }
+        activeBingeWatchEpisodeId = items.get(nextIndex).episodeId();
+        Platform.runLater(this::refreshNowShowingHeader);
+        startBingeWatchPlayback(false, 0L);
+        return true;
+    }
+
+    private boolean tryManagedSeekByPosition(float position) {
+        if (!canUseEstimatedSeeking()) {
+            return false;
+        }
+        long clampedTarget = Math.max(0L, Math.min(estimatedTotalDurationMs, Math.round(estimatedTotalDurationMs * position)));
+        restartPlaybackAtOffset(clampedTarget);
+        return true;
+    }
+
+    private boolean tryManagedSeekByDelta(int deltaSeconds) {
+        if (!canUseEstimatedSeeking()) {
+            return false;
+        }
+        long currentMs = playbackStartOffsetMs;
+        if (mediaPlayer != null && mediaPlayer.getCurrentTime() != null) {
+            currentMs += Math.max(0L, (long) mediaPlayer.getCurrentTime().toMillis());
+        }
+        long targetMs = currentMs + (deltaSeconds * 1000L);
+        if (targetMs < 0L) {
+            targetMs = 0L;
+        }
+        if (estimatedTotalDurationMs > 0L) {
+            targetMs = Math.min(targetMs, estimatedTotalDurationMs);
+        }
+        restartPlaybackAtOffset(targetMs);
+        return true;
+    }
+
+    private boolean canUseEstimatedSeeking() {
+        return false;
+    }
+
+    private void restartPlaybackAtOffset(long targetOffsetMs) {
+        loadingSpinner.setVisible(true);
+        errorLabel.setVisible(false);
+        startPlayback(currentMediaUri, true, targetOffsetMs);
     }
 
     private boolean hasUsableVideoSignal() {
@@ -462,5 +671,53 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             }
         }
         return false;
+    }
+
+    private Duration safeCurrentTime(MediaPlayer player) {
+        try {
+            return player.getCurrentTime();
+        } catch (RuntimeException _) {
+            return null;
+        }
+    }
+
+    private Duration safeTotalDuration(MediaPlayer player) {
+        try {
+            return player.getTotalDuration();
+        } catch (RuntimeException _) {
+            return null;
+        }
+    }
+
+    private MediaPlayer.Status safeStatus(MediaPlayer player) {
+        try {
+            return player.getStatus();
+        } catch (RuntimeException _) {
+            return MediaPlayer.Status.UNKNOWN;
+        }
+    }
+
+    private void safeSeekPlayer(MediaPlayer player, Duration target) {
+        try {
+            player.seek(target);
+        } catch (RuntimeException _) {
+            // Ignore late seek requests while the JavaFX backend is swapping players.
+        }
+    }
+
+    private void safeStopPlayer(MediaPlayer player) {
+        try {
+            player.stop();
+        } catch (RuntimeException _) {
+            // Ignore late stop requests while the JavaFX backend is swapping players.
+        }
+    }
+
+    private void safeDisposePlayer(MediaPlayer player) {
+        try {
+            player.dispose();
+        } catch (RuntimeException _) {
+            // Ignore late dispose requests while the JavaFX backend is swapping players.
+        }
     }
 }

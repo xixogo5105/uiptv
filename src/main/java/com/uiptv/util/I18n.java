@@ -398,7 +398,7 @@ public final class I18n {
             return;
         }
         Object previousFamily = node.getProperties().remove(LOCALE_FONT_FAMILY_KEY);
-        if (!(previousFamily instanceof String) || ((String) previousFamily).isBlank()) {
+        if (!(previousFamily instanceof String family) || family.isBlank()) {
             return;
         }
 
@@ -426,14 +426,31 @@ public final class I18n {
         if (existingStyle == null || existingStyle.isBlank()) {
             return "";
         }
-        String normalized = INLINE_FONT_FAMILY_RULE_PATTERN.matcher(existingStyle).replaceAll("")
-                .replaceAll("\\s*;\\s*", "; ")
-                .trim();
-        normalized = normalized.replaceAll("^(;\\s*)+", "").replaceAll("(;\\s*)+$", "").trim();
+        String normalized = INLINE_FONT_FAMILY_RULE_PATTERN.matcher(existingStyle).replaceAll("").trim();
+        normalized = normalizeInlineStyleSeparators(normalized);
         if (normalized.isBlank()) {
             return "";
         }
         return normalized.endsWith(";") ? normalized : normalized + ";";
+    }
+
+    private static String normalizeInlineStyleSeparators(String style) {
+        if (style == null || style.isBlank()) {
+            return "";
+        }
+        String[] parts = style.split(";");
+        StringBuilder normalized = new StringBuilder();
+        for (String part : parts) {
+            String trimmed = part == null ? "" : part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (!normalized.isEmpty()) {
+                normalized.append("; ");
+            }
+            normalized.append(trimmed);
+        }
+        return normalized.toString();
     }
 
     private static String resolvePreferredFontFamily() {
