@@ -222,8 +222,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         titleNode.getStyleClass().add("strong-label");
         titleNode.setWrapText(true);
         titleNode.setMaxWidth(Double.MAX_VALUE);
+        titleNode.setMinWidth(0);
         plotNode.setWrapText(true);
         plotNode.setMaxWidth(Double.MAX_VALUE);
+        plotNode.setMinWidth(0);
         plotNode.setMinHeight(Region.USE_PREF_SIZE);
         headerDetails.setMaxWidth(Double.MAX_VALUE);
         headerDetails.setFillWidth(true);
@@ -567,29 +569,32 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (item == null) {
             return;
         }
-
-        if (!item.isWatched()) {
-            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
-            watchingNowItem.setOnAction(e -> markEpisodeAsWatched(item));
-            rowMenu.getItems().add(watchingNowItem);
-            rowMenu.getItems().add(new SeparatorMenuItem());
-        }
-
-        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
-            MenuItem playerItem = new MenuItem(option.label());
-            playerItem.setOnAction(e -> {
-                rowMenu.hide();
-                play(item, option.playerPath());
-            });
-            rowMenu.getItems().add(playerItem);
-        }
-
-        if (item.isWatched()) {
-            rowMenu.getItems().add(new SeparatorMenuItem());
-            MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
-            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
-            removeWatchingNowItem.setOnAction(e -> clearWatchedMarker());
-            rowMenu.getItems().add(removeWatchingNowItem);
+        for (WatchingNowActionMenu.ActionDescriptor action : WatchingNowActionMenu.buildEpisodeStyleActions(
+                item.isWatched(),
+                PlaybackUIService.getConfiguredPlayerOptions()
+        )) {
+            switch (action.kind()) {
+                case WATCHING_NOW -> {
+                    MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+                    watchingNowItem.setOnAction(e -> markEpisodeAsWatched(item));
+                    rowMenu.getItems().add(watchingNowItem);
+                }
+                case SEPARATOR -> rowMenu.getItems().add(new SeparatorMenuItem());
+                case PLAYER -> {
+                    MenuItem playerItem = new MenuItem(action.label());
+                    playerItem.setOnAction(e -> {
+                        rowMenu.hide();
+                        play(item, action.playerPath());
+                    });
+                    rowMenu.getItems().add(playerItem);
+                }
+                case REMOVE_WATCHING_NOW -> {
+                    MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+                    removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+                    removeWatchingNowItem.setOnAction(e -> clearWatchedMarker());
+                    rowMenu.getItems().add(removeWatchingNowItem);
+                }
+            }
         }
     }
 

@@ -72,8 +72,10 @@ public class ChannelListUI extends HBox {
             }
     );
     private boolean bookmarkListenerRegistered = false;
+    private boolean vodWatchStateListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
+    private final VodWatchStateChangeListener vodWatchStateChangeListener = (accountId, vodId) -> refreshBookmarkStatesAsync();
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
@@ -124,6 +126,7 @@ public class ChannelListUI extends HBox {
         if (newChannels != null && !newChannels.isEmpty()) {
             itemsLoaded.set(true);
             List<Bookmark> accountBookmarks = loadBookmarksForAccount();
+            Set<String> savedVodKeys = loadVodWatchStateKeys();
             List<ChannelItem> newItems = new ArrayList<>();
             newChannels.forEach(i -> {
                 if (i == null) {
@@ -135,7 +138,9 @@ public class ChannelListUI extends HBox {
                 }
                 channelList.add(i);
                 BookmarkContext ctx = resolveBookmarkContext(i);
-                boolean isBookmarked = isChannelBookmarked(i, ctx, accountBookmarks);
+                boolean isBookmarked = account.getAction() == vod
+                        ? isVodSaved(i, ctx, savedVodKeys)
+                        : isChannelBookmarked(i, ctx, accountBookmarks);
                 if (account.getAction() == series) {
                     String seriesCategoryId = resolveSeriesCategoryId(i, ctx);
                     boolean inProgress = SeriesWatchStateService.getInstance()
@@ -388,6 +393,10 @@ public class ChannelListUI extends HBox {
         }
         BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = true;
+        if (account.getAction() == vod && !vodWatchStateListenerRegistered) {
+            VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
+            vodWatchStateListenerRegistered = true;
+        }
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
@@ -397,6 +406,10 @@ public class ChannelListUI extends HBox {
             } else if (!bookmarkListenerRegistered) {
                 BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
+                if (account.getAction() == vod && !vodWatchStateListenerRegistered) {
+                    VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
+                    vodWatchStateListenerRegistered = true;
+                }
                 refreshBookmarkStatesAsync();
             }
         });
@@ -462,6 +475,10 @@ public class ChannelListUI extends HBox {
         }
         BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = false;
+        if (vodWatchStateListenerRegistered) {
+            VodWatchStateService.getInstance().removeChangeListener(vodWatchStateChangeListener);
+            vodWatchStateListenerRegistered = false;
+        }
     }
 
     private void refreshBookmarkStatesAsync() {
@@ -470,9 +487,13 @@ public class ChannelListUI extends HBox {
         }
         new Thread(() -> {
             List<Bookmark> accountBookmarks = loadBookmarksForAccount();
+            Set<String> savedVodKeys = loadVodWatchStateKeys();
             runLater(() -> {
                 for (ChannelItem item : channelItems) {
-                    boolean isBookmarked = isChannelBookmarked(item.getChannel(), resolveBookmarkContext(item.getChannel()), accountBookmarks);
+                    BookmarkContext context = resolveBookmarkContext(item.getChannel());
+                    boolean isBookmarked = account.getAction() == vod
+                            ? isVodSaved(item.getChannel(), context, savedVodKeys)
+                            : isChannelBookmarked(item.getChannel(), context, accountBookmarks);
                     item.setBookmarked(isBookmarked);
                 }
                 table.refresh();
@@ -481,9 +502,22 @@ public class ChannelListUI extends HBox {
     }
 
     private List<Bookmark> loadBookmarksForAccount() {
+        if (account.getAction() == vod) {
+            return List.of();
+        }
         return BookmarkService.getInstance().read().stream()
                 .filter(b -> account.getAccountName().equals(b.getAccountName()))
                 .toList();
+    }
+
+    private Set<String> loadVodWatchStateKeys() {
+        if (account.getAction() != vod || isBlank(account.getDbId())) {
+            return Set.of();
+        }
+        return VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).stream()
+                .filter(state -> state != null)
+                .map(state -> normalizeExact(state.getCategoryId()) + "|" + normalizeExact(state.getVodId()))
+                .collect(Collectors.toSet());
     }
 
     private boolean isAllCategoryView() {
@@ -492,6 +526,13 @@ public class ChannelListUI extends HBox {
 
     private boolean isChannelBookmarked(Channel channel, BookmarkContext context, List<Bookmark> bookmarks) {
         return findMatchingBookmark(channel, context, bookmarks) != null;
+    }
+
+    private boolean isVodSaved(Channel channel, BookmarkContext context, Set<String> savedVodKeys) {
+        if (channel == null || savedVodKeys == null || savedVodKeys.isEmpty()) {
+            return false;
+        }
+        return savedVodKeys.contains(normalizeExact(context == null ? null : context.categoryId) + "|" + normalizeExact(channel.getChannelId()));
     }
 
     private Bookmark findMatchingBookmark(Channel channel, BookmarkContext context, List<Bookmark> bookmarks) {
@@ -927,6 +968,22 @@ public class ChannelListUI extends HBox {
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
 
+        if (account.getAction() == vod) {
+            row.setOnContextMenuRequested(event -> {
+                populateVodContextMenu(rowMenu, row.getItem());
+                if (!rowMenu.getItems().isEmpty()) {
+                    rowMenu.show(row, event.getScreenX(), event.getScreenY());
+                }
+                event.consume();
+            });
+            row.contextMenuProperty().bind(
+                    Bindings.when(row.emptyProperty())
+                            .then((ContextMenu) null)
+                            .otherwise(rowMenu)
+            );
+            return;
+        }
+
         Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
         rowMenu.getItems().add(bookmarkMenu);
 
@@ -993,6 +1050,40 @@ public class ChannelListUI extends HBox {
         );
     }
 
+    private void populateVodContextMenu(ContextMenu rowMenu, ChannelItem item) {
+        rowMenu.getItems().clear();
+        if (item == null) {
+            return;
+        }
+        for (WatchingNowActionMenu.ActionDescriptor action : WatchingNowActionMenu.buildEpisodeStyleActions(
+                item.isBookmarked(),
+                PlaybackUIService.getConfiguredPlayerOptions()
+        )) {
+            switch (action.kind()) {
+                case WATCHING_NOW -> {
+                    MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+                    watchingNowItem.setOnAction(e -> saveVodWatchingNow(item));
+                    rowMenu.getItems().add(watchingNowItem);
+                }
+                case SEPARATOR -> rowMenu.getItems().add(new SeparatorMenuItem());
+                case PLAYER -> {
+                    MenuItem playerItem = new MenuItem(action.label());
+                    playerItem.setOnAction(event -> {
+                        rowMenu.hide();
+                        play(item, action.playerPath());
+                    });
+                    rowMenu.getItems().add(playerItem);
+                }
+                case REMOVE_WATCHING_NOW -> {
+                    MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+                    removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+                    removeWatchingNowItem.setOnAction(e -> removeVodWatchingNow(item));
+                    rowMenu.getItems().add(removeWatchingNowItem);
+                }
+            }
+        }
+    }
+
     private void saveBookmark(ChannelItem item, String bookmarkCategoryId) {
         new Thread(() -> {
             BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
@@ -1015,6 +1106,36 @@ public class ChannelListUI extends HBox {
             BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {
                 item.setBookmarked(true);
+                table.refresh();
+                refreshBookmarkStatesAsync();
+            });
+        }).start();
+    }
+
+    private void saveVodWatchingNow(ChannelItem item) {
+        if (item == null || item.getChannel() == null) {
+            return;
+        }
+        new Thread(() -> {
+            BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+            VodWatchStateService.getInstance().save(account, ctx == null ? categoryId : ctx.categoryId, item.getChannel());
+            Platform.runLater(() -> {
+                item.setBookmarked(true);
+                table.refresh();
+                refreshBookmarkStatesAsync();
+            });
+        }).start();
+    }
+
+    private void removeVodWatchingNow(ChannelItem item) {
+        if (item == null || item.getChannel() == null || isBlank(account.getDbId())) {
+            return;
+        }
+        new Thread(() -> {
+            BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+            VodWatchStateService.getInstance().remove(account.getDbId(), ctx == null ? categoryId : ctx.categoryId, item.getChannelId());
+            Platform.runLater(() -> {
+                item.setBookmarked(false);
                 table.refresh();
                 refreshBookmarkStatesAsync();
             });

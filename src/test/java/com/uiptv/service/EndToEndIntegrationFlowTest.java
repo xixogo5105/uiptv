@@ -366,7 +366,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         PlayerResponse drmPlay = PlayerService.getInstance().get(drmAccount, drmChannel);
         assertNotNull(drmPlay.getUrl());
-        assertTrue(PlayerService.getInstance().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("drmLaunch="));
+        assertTrue(PlayerService.getInstance().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("launch="));
 
         Account stalkerPlayAccount = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalkerPlayAccount.setAction(itv);

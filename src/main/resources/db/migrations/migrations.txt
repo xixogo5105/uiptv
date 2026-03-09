@@ -49,3 +49,5 @@
 0169_add_configuration_tmdb_read_access_token.sql
 0170_add_configuration_ui_zoom_percent.sql
 0171_add_configuration_enable_lite_player_ffmpeg.sql
+0172_create_vod_watch_state_table.sql
+0173_create_vod_watch_state_unique_index.sql

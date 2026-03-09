@@ -1305,7 +1305,7 @@ createApp({
         const parseDrmLaunchPayload = () => {
             try {
                 const params = new URLSearchParams(window.location.search);
-                const encoded = params.get('drmLaunch');
+                const encoded = params.get('launch');
                 if (!encoded) return null;
                 const decoded = decodeBase64Url(encoded);
                 if (!decoded) return null;

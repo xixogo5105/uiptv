@@ -142,6 +142,17 @@ CREATE TABLE IF NOT EXISTS VodChannel (
     cachedAt INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS VodWatchState (
+    id INTEGER PRIMARY KEY,
+    accountId TEXT,
+    categoryId TEXT,
+    vodId TEXT,
+    vodName TEXT,
+    vodCmd TEXT,
+    vodLogo TEXT,
+    updatedAt INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS SeriesCategory (
     id INTEGER PRIMARY KEY,
     categoryId TEXT NOT NULL,
@@ -230,3 +241,6 @@ CREATE TABLE IF NOT EXISTS BookmarkOrder (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique
 ON SeriesWatchState (accountId, mode, categoryId, seriesId);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vod_watch_unique
+ON VodWatchState (accountId, categoryId, vodId);

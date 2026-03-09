@@ -532,14 +532,23 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         String titleText = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         String accountText = data.account.getAccountName();
-        Label title = new Label(titleText + " (" + accountText + ")");
+        Label title = new Label(titleText);
         title.getStyleClass().add(STRONG_LABEL);
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
+        title.setMinWidth(0);
         title.setMinHeight(Region.USE_PREF_SIZE);
+
+        Label accountLabel = new Label("[" + accountText + "]");
+        accountLabel.setWrapText(true);
+        accountLabel.setMaxWidth(Double.MAX_VALUE);
+        accountLabel.setMinWidth(0);
+        accountLabel.setMinHeight(Region.USE_PREF_SIZE);
 
         Hyperlink removeLink = new Hyperlink(I18n.tr("autoRemove"));
         removeLink.getStyleClass().add("danger-link");
+        removeLink.setMinWidth(Region.USE_PREF_SIZE);
+        removeLink.setMaxWidth(Region.USE_PREF_SIZE);
         removeLink.setFocusTraversable(true);
         removeLink.setOnAction(event -> {
             event.consume();
@@ -552,6 +561,8 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         Hyperlink viewEpisodesLink = new Hyperlink(I18n.tr("autoViewEpisodes"));
         viewEpisodesLink.getStyleClass().add("watching-now-view-link");
+        viewEpisodesLink.setMinWidth(Region.USE_PREF_SIZE);
+        viewEpisodesLink.setMaxWidth(Region.USE_PREF_SIZE);
         viewEpisodesLink.setFocusTraversable(true);
         viewEpisodesLink.setOnAction(event -> {
             event.consume();
@@ -565,7 +576,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         HBox.setHgrow(linkSpacer, Priority.ALWAYS);
         linkRow.getChildren().addAll(linkSpacer, viewEpisodesLink);
 
-        text.getChildren().addAll(title, removeLink, linkRow);
+        text.getChildren().addAll(title, accountLabel, removeLink, linkRow);
 
         card.getChildren().addAll(poster, text);
         card.setOnMouseClicked(event -> {
@@ -577,7 +588,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 setSelectedSeriesCard(card);
             }
         });
-        card.getProperties().put(KEY_CARD_LABELS, List.of(title));
+        card.getProperties().put(KEY_CARD_LABELS, List.of(title, accountLabel));
         card.getProperties().put("cardLinks", List.of(viewEpisodesLink));
         return card;
     }
@@ -842,7 +853,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         play.getStyleClass().setAll("button");
         play.getStyleClass().add("small-pill-button");
         play.setMinWidth(Region.USE_PREF_SIZE);
-        play.setMaxWidth(Double.MAX_VALUE);
+        play.setMaxWidth(Region.USE_PREF_SIZE);
         play.setMinHeight(Region.USE_PREF_SIZE);
         play.setFocusTraversable(true);
         play.setOnAction(event -> {
@@ -860,6 +871,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         Label title = new Label(buildEpisodeDisplayTitle(row.season, row.episodeNum, row.title));
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
+        title.setMinWidth(0);
         title.setMinHeight(Region.USE_PREF_SIZE);
         title.getStyleClass().add(STRONG_LABEL);
 
@@ -868,11 +880,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         cardLabels.add(title);
         if (!isBlank(row.rating)) {
             Label rating = new Label(I18n.tr("autoRatingPrefix", row.rating));
+            rating.setMinWidth(0);
             text.getChildren().add(rating);
             cardLabels.add(rating);
         }
         if (!isBlank(row.releaseDate)) {
             Label release = new Label(I18n.tr("autoReleasePrefix", shortDateOnly(row.releaseDate)));
+            release.setMinWidth(0);
             text.getChildren().add(release);
             cardLabels.add(release);
         }
@@ -883,6 +897,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             Label plot = new Label(row.plot);
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
+            plot.setMinWidth(0);
             plot.setMinHeight(Region.USE_PREF_SIZE);
             root.getChildren().add(plot);
             cardLabels.add(plot);

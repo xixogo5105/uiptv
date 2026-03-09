@@ -5,6 +5,7 @@
     const audioSelectEl = document.getElementById('audio-select');
     const subtitleSelectEl = document.getElementById('subtitle-select');
     let shakaPlayer = null;
+    const AUTOPLAY_BLOCK_RE = /user didn't interact with the document first|play\(\) failed because/i;
 
     const setStatus = (message) => {
         if (!statusEl) return;
@@ -29,7 +30,7 @@
     const parseLaunchPayload = () => {
         try {
             const params = new URLSearchParams(window.location.search);
-            const encoded = params.get('drmLaunch');
+            const encoded = params.get('launch');
             if (!encoded) return null;
             const decoded = decodeBase64Url(encoded);
             if (!decoded) return null;
@@ -63,9 +64,9 @@
         query.set('categoryId', cleanValue(payload?.categoryId));
         query.set('mode', mode);
 
-        const channelDbId = cleanValue(channel.dbId);
         const channelIdentifier = cleanValue(channel.channelId || channel.id);
-        if (channelDbId) {
+        const channelDbId = cleanValue(channel.dbId);
+        if (mode === 'itv' && channelDbId) {
             query.set('channelId', channelDbId);
         } else {
             query.set('channelId', channelIdentifier);
@@ -91,8 +92,10 @@
 
     const loadNative = async (url) => {
         videoEl.src = url;
-        await ensurePlaying();
+        return await ensurePlaying();
     };
+
+    const isAutoplayBlockError = (error) => AUTOPLAY_BLOCK_RE.test(String(error?.message || error || ''));
 
     const ensurePlaying = async () => {
         try {
@@ -104,9 +107,13 @@
                 videoEl.muted = true;
                 await videoEl.play();
             } catch (_) {
+                if (isAutoplayBlockError(e)) {
+                    return false;
+                }
                 throw e;
             }
         }
+        return true;
     };
 
     const resetTrackMenus = () => {
@@ -184,13 +191,13 @@
 
         await shakaPlayer.load(responseData.url);
         populateTrackMenus();
-        await ensurePlaying();
+        return await ensurePlaying();
     };
 
     const start = async () => {
         const payload = parseLaunchPayload();
         if (!payload || !payload.channel) {
-            setStatus('Invalid DRM launch payload.');
+            setStatus('Invalid launch payload.');
             return;
         }
         videoEl.controls = true;
@@ -207,18 +214,27 @@
 
             setStatus('Starting playback...');
             const hasDrm = !!responseData.drm;
+            const lowerUrl = String(responseData.url).toLowerCase();
             const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
-            const isHlsUrl = String(responseData.url).toLowerCase().includes('.m3u8');
+            const isHlsUrl = lowerUrl.includes('.m3u8');
+            const isDashUrl = lowerUrl.includes('.mpd');
 
+            let started = true;
             if (hasDrm) {
-                await loadShaka(responseData);
+                started = await loadShaka(responseData);
             } else if (canNativeHls && isHlsUrl) {
-                await loadNative(responseData.url);
+                started = await loadNative(responseData.url);
+            } else if (isDashUrl) {
+                started = await loadShaka(responseData);
             } else {
-                await loadShaka(responseData);
+                started = await loadNative(responseData.url);
             }
 
-            setStatus('');
+            if (started === false) {
+                setStatus('Ready to play. Press play.');
+            } else {
+                setStatus('');
+            }
         } catch (e) {
             setStatus('Unable to play channel: ' + (e?.message || String(e)));
         }

@@ -1,29 +1,57 @@
 package com.uiptv.ui;
 
+import com.uiptv.util.I18n;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.util.List;
+
 public class WatchingNowUI extends VBox {
-    private BaseWatchingNowUI delegate;
+    private TabPane tabPane;
+    private BaseWatchingNowUI seriesDelegate;
+    private VodWatchingNowUI vodDelegate;
     private boolean thumbnailListenerRegistered = false;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public WatchingNowUI() {
-        delegate = buildDelegate();
-        getChildren().add(delegate);
-        VBox.setVgrow(delegate, Priority.ALWAYS);
+        tabPane = buildTabs();
+        getChildren().add(tabPane);
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
         registerThumbnailModeListener();
     }
 
     public void forceReload() {
-        delegate.forceReload();
+        seriesDelegate.forceReload();
+        vodDelegate.forceReload();
     }
 
     public void refreshIfNeeded() {
-        delegate.refreshIfNeeded();
+        seriesDelegate.refreshIfNeeded();
+        vodDelegate.refreshIfNeeded();
     }
 
-    private BaseWatchingNowUI buildDelegate() {
+    private TabPane buildTabs() {
+        seriesDelegate = buildSeriesDelegate();
+        vodDelegate = new VodWatchingNowUI();
+
+        TabPane tabs = new TabPane();
+        List<String> tabLabels = tabLabels();
+        Tab seriesTab = new Tab(tabLabels.get(0), seriesDelegate);
+        seriesTab.setClosable(false);
+        Tab vodTab = new Tab(tabLabels.get(1), vodDelegate);
+        vodTab.setClosable(false);
+        tabs.getTabs().setAll(seriesTab, vodTab);
+        tabs.getSelectionModel().select(0);
+        return tabs;
+    }
+
+    static List<String> tabLabels() {
+        return List.of(I18n.tr("autoSeries"), I18n.tr("autoVod"));
+    }
+
+    private BaseWatchingNowUI buildSeriesDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
             return new ThumbnailWatchingNowUI();
         }
@@ -48,14 +76,15 @@ public class WatchingNowUI extends VBox {
     }
 
     private void refreshThumbnailMode() {
-        boolean shouldUseThumbnails = ThumbnailAwareUI.areThumbnailsEnabled();
-        boolean isThumbnailDelegate = delegate instanceof ThumbnailWatchingNowUI;
-        if (shouldUseThumbnails == isThumbnailDelegate) {
-            return;
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        String selectedTabText = selectedTab == null ? "" : selectedTab.getText();
+        tabPane = buildTabs();
+        getChildren().setAll(tabPane);
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        if (I18n.tr("autoVod").equals(selectedTabText)) {
+            tabPane.getSelectionModel().select(1);
+        } else {
+            tabPane.getSelectionModel().select(0);
         }
-        BaseWatchingNowUI next = buildDelegate();
-        getChildren().setAll(next);
-        VBox.setVgrow(next, Priority.ALWAYS);
-        delegate = next;
     }
 }
