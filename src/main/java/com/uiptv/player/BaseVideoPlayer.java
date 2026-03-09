@@ -1584,17 +1584,20 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private boolean isOnDemandContent() {
-        if (PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(currentMediaUri)) {
+        if (currentAccount != null && currentAccount.getAction() != null && Account.NOT_LIVE_TV_CHANNELS.contains(currentAccount.getAction())) {
             return true;
         }
-        if (currentAccount != null && currentAccount.getAction() != null && Account.NOT_LIVE_TV_CHANNELS.contains(currentAccount.getAction())) {
+        if (currentAccount != null && currentAccount.getAction() != null) {
+            return false;
+        }
+        if (PlayerUrlUtils.isLikelyOnDemandPlaybackUrl(currentMediaUri)) {
             return true;
         }
         return isNotBlank(activeBingeWatchToken);
     }
 
     private void updateTransportButtonsVisibility() {
-        boolean showSeekButtons = !isLiveLikeContent;
+        boolean showSeekButtons = isOnDemandContent();
         btnRewind.setVisible(showSeekButtons);
         btnRewind.setManaged(showSeekButtons);
         btnFastForward.setVisible(showSeekButtons);

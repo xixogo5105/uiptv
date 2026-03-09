@@ -40,7 +40,7 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final String HEADER_SET_COOKIE = "Set-Cookie";
     private static final String HEADER_X_USER_AGENT = "X-User-Agent";
     private static final String MAG_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3";
-    private static final String USER_AGENT = "UIPTV/1.0";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
     private static final long UNKNOWN_CONTENT_LENGTH = 0L;
 
     @Override

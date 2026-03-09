@@ -3,12 +3,14 @@ package com.uiptv.service;
 import com.uiptv.util.ServerUrlUtil;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 abstract class AbstractFfmpegHlsService {
     protected static final String STREAM_FILENAME = "stream.m3u8";
+    private static final String FFMPEG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
     private static final Object PROCESS_LOCK = new Object();
     private static Process currentProcess;
 
@@ -106,9 +108,45 @@ abstract class AbstractFfmpegHlsService {
                 command.add(String.format(java.util.Locale.ROOT, "%.3f", startOffsetMs / 1000.0));
             }
         }
+        addInputHttpHeaders(command, inputUrl);
         command.add("-i");
         command.add(inputUrl);
         return command;
+    }
+
+    private static void addInputHttpHeaders(List<String> command, String inputUrl) {
+        if (inputUrl == null) {
+            return;
+        }
+        String lower = inputUrl.trim().toLowerCase();
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            return;
+        }
+        command.add("-user_agent");
+        command.add(FFMPEG_USER_AGENT);
+        String origin = originOf(inputUrl);
+        if (!origin.isEmpty()) {
+            command.add("-headers");
+            command.add("Origin: " + origin + "\r\nReferer: " + origin + "/\r\n");
+        }
+    }
+
+    private static String originOf(String url) {
+        try {
+            URI uri = URI.create(url.trim());
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme == null || scheme.isBlank() || host == null || host.isBlank()) {
+                return "";
+            }
+            int port = uri.getPort();
+            boolean defaultPort = port < 0
+                    || ("http".equalsIgnoreCase(scheme) && port == 80)
+                    || ("https".equalsIgnoreCase(scheme) && port == 443);
+            return defaultPort ? scheme + "://" + host : scheme + "://" + host + ":" + port;
+        } catch (Exception _) {
+            return "";
+        }
     }
 
     private static void addHlsOutputArgs(List<String> command, String outputUrl, boolean vodStylePlaylist, boolean transcoded) {

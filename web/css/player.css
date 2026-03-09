@@ -130,6 +130,11 @@ body {
     border-color: var(--chip-hover-border);
 }
 
+.top-action[aria-pressed="true"] {
+    background: rgba(13, 110, 253, 0.2);
+    border-color: rgba(13, 110, 253, 0.4);
+}
+
 .top-action select {
     border: 0;
     background: transparent;
@@ -173,6 +178,10 @@ body {
     background: rgba(20, 20, 20, 0.96);
     border-right: 1px solid var(--border-color);
     overflow: hidden;
+}
+
+#playlist-panel[hidden] {
+    display: none !important;
 }
 
 #playlist-header {

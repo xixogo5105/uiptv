@@ -6,17 +6,41 @@
     const playlistPanelEl = document.getElementById('playlist-panel');
     const playlistItemsEl = document.getElementById('playlist-items');
     const reloadBtn = document.getElementById('reload-btn');
+    const repeatBtn = document.getElementById('repeat-btn');
     const audioSelectEl = document.getElementById('audio-select');
     const subtitleSelectEl = document.getElementById('subtitle-select');
+    const qualitySelectEl = document.getElementById('quality-select');
     let shakaPlayer = null;
     let activeLaunch = null;
     let activeBingeWatch = null;
-    const AUTOPLAY_BLOCK_RE = /user didn't interact with the document first|play\(\) failed because/i;
+    let repeatEnabled = false;
+    let repeatReloadInFlight = false;
+    const AUTOPLAY_BLOCK_RE = /notallowederror|user (didn't|did not) interact with the document first|user gesture|request is not allowed/i;
+    const STATUS_AUTOPLAY_BLOCKED = 'Autoplay blocked by browser. Press Play to start.';
+    const PLAYBACK_STRATEGY_CACHE_KEY = 'uiptv.playback.strategy.v1';
+    const DEFAULT_STARTUP_TIMEOUT_MS = 12000;
 
     const setStatus = (message) => {
         if (!statusEl) return;
         statusEl.textContent = message || '';
         statusEl.style.display = message ? 'block' : 'none';
+    };
+
+    const launchMode = (launch) => cleanValue(launch?.mode || 'itv').toLowerCase();
+
+    const updateRepeatButton = () => {
+        if (!repeatBtn) return;
+        repeatBtn.setAttribute('aria-pressed', repeatEnabled ? 'true' : 'false');
+        repeatBtn.title = repeatEnabled ? 'Auto-reload on stream end: ON' : 'Auto-reload on stream end: OFF';
+        const label = repeatBtn.querySelector('span');
+        if (label) {
+            label.textContent = repeatEnabled ? 'Repeat On' : 'Repeat Off';
+        }
+    };
+
+    const applyDefaultRepeatForLaunch = (launch) => {
+        repeatEnabled = launchMode(launch) === 'itv';
+        updateRepeatButton();
     };
 
     const decodeBase64Url = (value) => {
@@ -132,6 +156,66 @@
         return normalized;
     };
 
+    const safeParseJson = (rawValue, fallbackValue) => {
+        try {
+            return JSON.parse(rawValue);
+        } catch (_) {
+            return fallbackValue;
+        }
+    };
+
+    const extractHost = (value) => {
+        const normalized = cleanValue(value);
+        if (!normalized || normalized.startsWith('/')) {
+            return '';
+        }
+        try {
+            return new URL(normalized, window.location.origin).host || '';
+        } catch (_) {
+            return '';
+        }
+    };
+
+    const buildStrategyCacheKey = (launch, responseData) => {
+        const mode = cleanValue(launch?.mode || 'itv').toLowerCase();
+        const accountId = cleanValue(launch?.accountId);
+        const channel = launch?.channel || {};
+        const channelId = cleanValue(channel.channelId || channel.id);
+        const providerHost = extractHost(channel.cmd) || extractHost(launch?.directUrl || launch?.url);
+        const responseHost = extractHost(responseData?.url);
+        return [mode, accountId || 'anon', providerHost || responseHost || channelId || 'unknown'].join('|');
+    };
+
+    const readStrategyCache = () => {
+        if (!window.localStorage) {
+            return {};
+        }
+        return safeParseJson(localStorage.getItem(PLAYBACK_STRATEGY_CACHE_KEY), {}) || {};
+    };
+
+    const getCachedStrategy = (launch, responseData) => {
+        const key = buildStrategyCacheKey(launch, responseData);
+        const map = readStrategyCache();
+        return cleanValue(map[key]).toLowerCase();
+    };
+
+    const rememberStrategy = (launch, responseData, strategy) => {
+        if (!window.localStorage) {
+            return;
+        }
+        const key = buildStrategyCacheKey(launch, responseData);
+        if (!key) {
+            return;
+        }
+        const map = readStrategyCache();
+        map[key] = cleanValue(strategy).toLowerCase();
+        try {
+            localStorage.setItem(PLAYBACK_STRATEGY_CACHE_KEY, JSON.stringify(map));
+        } catch (_) {
+            // Ignore storage quota/availability errors.
+        }
+    };
+
     const buildPlayerRequestUrl = (payload) => {
         const channel = payload?.channel || {};
         const mode = String(payload?.mode || 'itv').toLowerCase();
@@ -180,6 +264,17 @@
         appendChannelMetadata(query, launch);
         appendPlaybackCompatParams(query, mode);
         return `${window.location.origin}${getPlaybackEndpoint(mode, launch)}?${query.toString()}`;
+    };
+
+    const addCacheBuster = (url, key) => {
+        try {
+            const parsed = new URL(url, window.location.origin);
+            parsed.searchParams.set(key, String(Date.now()));
+            return parsed.toString();
+        } catch (_) {
+            const separator = url.includes('?') ? '&' : '?';
+            return `${url}${separator}${encodeURIComponent(key)}=${Date.now()}`;
+        }
     };
 
     const destroyPlayer = async () => {
@@ -259,18 +354,190 @@
                 destroyPlayer()
                     .then(() => requestAndStartPlayback(nextLaunch))
                     .catch((error) => {
-                        setStatus('Unable to play playlist item: ' + (error?.message || String(error)));
+                        setStatus('Unable to play playlist item: ' + describePlaybackError(error));
                     });
             });
             playlistItemsEl.appendChild(button);
         });
     };
 
-    const requestAndStartPlayback = async (launch) => {
-        activeLaunch = launch;
-        setStatus('Requesting playback URL...');
-        const response = await fetch(buildDirectPlayerRequestUrl(launch));
-        const responseData = await response.json();
+    const buildProxyUrl = (url) => {
+        const normalized = cleanValue(url);
+        if (!normalized || normalized.startsWith('/') || normalized.startsWith('blob:') || normalized.startsWith('data:')) {
+            return '';
+        }
+        if (normalized.includes('/proxy-stream?src=')) {
+            return normalized;
+        }
+        return `${window.location.origin}/proxy-stream?src=${encodeURIComponent(normalized)}`;
+    };
+
+    const isAdaptiveUrl = (url) => {
+        const lower = String(url || '').toLowerCase();
+        return lower.includes('.m3u8') || lower.includes('.mpd') || lower.includes('/hls/stream.m3u8');
+    };
+
+    const uniqueStrategies = (values) => {
+        const output = [];
+        for (const value of values) {
+            const normalized = cleanValue(value).toLowerCase();
+            if (!normalized || output.includes(normalized)) {
+                continue;
+            }
+            output.push(normalized);
+        }
+        return output;
+    };
+
+    const normalizeStrategyName = (value) => {
+        const normalized = cleanValue(value).toLowerCase().replace(/_/g, '-');
+        if (normalized === 'shaka' || normalized === 'native' || normalized === 'native-proxy') {
+            return normalized;
+        }
+        return '';
+    };
+
+    const resolvePrimaryStrategy = (responseData, launch) => {
+        const hasDrm = !!responseData?.drm;
+        if (hasDrm) {
+            return 'shaka';
+        }
+        const cached = normalizeStrategyName(getCachedStrategy(launch, responseData));
+        if (cached) {
+            return cached;
+        }
+        const hint = normalizeStrategyName(responseData?.strategyHint);
+        if (hint) {
+            return hint;
+        }
+        const lowerUrl = String(responseData?.url || '').toLowerCase();
+        if (lowerUrl.includes('.mpd') || lowerUrl.includes('/hls/stream.m3u8')) {
+            return 'shaka';
+        }
+        const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
+        if (lowerUrl.includes('.m3u8') && !canNativeHls) {
+            return 'shaka';
+        }
+        return 'native';
+    };
+
+    const buildStrategyPlan = (responseData, launch) => {
+        const hasDrm = !!responseData?.drm;
+        if (hasDrm) {
+            return ['shaka'];
+        }
+        const normalizedUrl = cleanValue(responseData?.url);
+        const plan = [resolvePrimaryStrategy(responseData, launch)];
+        plan.push('native');
+        if (buildProxyUrl(normalizedUrl)) {
+            plan.push('native-proxy');
+        }
+        if (isAdaptiveUrl(normalizedUrl)) {
+            plan.push('shaka');
+        }
+        return uniqueStrategies(plan);
+    };
+
+    const startupTimeoutMsForMode = (launch) => {
+        const mode = cleanValue(launch?.mode || 'itv').toLowerCase();
+        if (mode === 'itv') {
+            return 9000;
+        }
+        if (mode === 'vod' || mode === 'series') {
+            return 14000;
+        }
+        return DEFAULT_STARTUP_TIMEOUT_MS;
+    };
+
+    const waitForPlaybackStart = async (timeoutMs) => {
+        await new Promise((resolve, reject) => {
+            let done = false;
+            let timeoutId = null;
+            const finish = (fn, payload) => {
+                if (done) return;
+                done = true;
+                cleanup();
+                fn(payload);
+            };
+            const onPlaying = () => finish(resolve);
+            const onError = () => {
+                const mediaError = videoEl.error;
+                const code = mediaError?.code ? `code ${mediaError.code}` : 'unknown';
+                finish(reject, new Error(`media-error-${code}`));
+            };
+            const cleanup = () => {
+                videoEl.removeEventListener('playing', onPlaying);
+                videoEl.removeEventListener('error', onError);
+                if (timeoutId !== null) {
+                    clearTimeout(timeoutId);
+                }
+            };
+            videoEl.addEventListener('playing', onPlaying, {once: true});
+            videoEl.addEventListener('error', onError, {once: true});
+            timeoutId = window.setTimeout(() => finish(reject, new Error('startup-timeout')), timeoutMs);
+            if (!videoEl.paused && videoEl.readyState >= 2) {
+                onPlaying();
+            }
+        });
+    };
+
+    const playbackUrlForStrategy = (strategy, originalUrl) => {
+        const normalized = cleanValue(originalUrl);
+        if (!normalized) {
+            return '';
+        }
+        if (strategy === 'native-proxy') {
+            return buildProxyUrl(normalized);
+        }
+        return normalized;
+    };
+
+    const attemptStrategy = async (strategy, responseData, launch, timeoutMs) => {
+        const playbackUrl = playbackUrlForStrategy(strategy, responseData?.url);
+        if (!playbackUrl) {
+            throw new Error('empty-playback-url');
+        }
+        const shakaPayload = {...responseData, url: playbackUrl};
+        let started;
+        if (strategy === 'shaka') {
+            started = await loadShaka(shakaPayload);
+        } else {
+            started = await loadNative(playbackUrl);
+        }
+        if (started === false) {
+            return {autoplayBlocked: true, playbackUrl};
+        }
+        await waitForPlaybackStart(timeoutMs);
+        rememberStrategy(launch, responseData, strategy);
+        return {autoplayBlocked: false, playbackUrl};
+    };
+
+    const startPlaybackWithFallback = async (launch, responseData) => {
+        const plan = buildStrategyPlan(responseData, launch);
+        const timeoutMs = startupTimeoutMsForMode(launch);
+        let lastError = null;
+
+        for (const strategy of plan) {
+            try {
+                setStatus(`Starting playback (${strategy})...`);
+                const result = await attemptStrategy(strategy, responseData, launch, timeoutMs);
+                if (result.autoplayBlocked) {
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                lastError = error;
+                await destroyPlayer();
+            }
+        }
+
+        if (lastError) {
+            throw lastError;
+        }
+        throw new Error('no-playback-strategy');
+    };
+
+    const playResolvedResponse = async (launch, responseData) => {
         const playbackUrl = cleanValue(responseData?.url);
         if (!playbackUrl) {
             throw new Error('Player response did not return a URL.');
@@ -279,29 +546,25 @@
         updateBingeWatchState(responseData);
         setMetadata(launch, responseData);
 
-        setStatus('Starting playback...');
-        const hasDrm = !!responseData.drm;
-        const lowerUrl = String(responseData.url).toLowerCase();
-        const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
-        const isHlsUrl = lowerUrl.includes('.m3u8');
-        const isDashUrl = lowerUrl.includes('.mpd');
-
-        let started = true;
-        if (hasDrm) {
-            started = await loadShaka(responseData);
-        } else if (canNativeHls && isHlsUrl) {
-            started = await loadNative(responseData.url);
-        } else if (isDashUrl) {
-            started = await loadShaka(responseData);
-        } else {
-            started = await loadNative(responseData.url);
-        }
-
+        const started = await startPlaybackWithFallback(launch, responseData);
         if (started === false) {
-            setStatus('Ready to play. Press play.');
+            setStatus(STATUS_AUTOPLAY_BLOCKED);
         } else {
             setStatus('');
         }
+    };
+
+    const requestAndStartPlayback = async (launch, options = {}) => {
+        activeLaunch = launch;
+        repeatReloadInFlight = false;
+        setStatus('Requesting playback URL...');
+        let requestUrl = buildDirectPlayerRequestUrl(launch);
+        if (options.cacheBust) {
+            requestUrl = addCacheBuster(requestUrl, '_repeatTs');
+        }
+        const response = await fetch(requestUrl, {cache: 'no-store'});
+        const responseData = await response.json();
+        await playResolvedResponse(launch, responseData);
     };
 
     const playNextBingeWatchEpisode = async () => {
@@ -333,7 +596,34 @@
         return await ensurePlaying();
     };
 
-    const isAutoplayBlockError = (error) => AUTOPLAY_BLOCK_RE.test(String(error?.message || error || ''));
+    const isAutoplayBlockError = (error) => {
+        const name = String(error?.name || '');
+        const message = String(error?.message || error || '');
+        return AUTOPLAY_BLOCK_RE.test(`${name} ${message}`.toLowerCase());
+    };
+
+    const describePlaybackError = (error) => {
+        const message = String(error?.message || error || '').toLowerCase();
+        if (!message) {
+            return 'Unable to play stream.';
+        }
+        if (message.includes('notallowederror') || message.includes('user gesture') || message.includes('request is not allowed')) {
+            return STATUS_AUTOPLAY_BLOCKED;
+        }
+        if (message.includes('media-error-code 4') || message.includes('src_not_supported')) {
+            return 'Unsupported stream format/codec in browser. Try proxy/transmux.';
+        }
+        if (message.includes('media-error-code 2') || message.includes('network')) {
+            return 'Network/auth error while loading stream.';
+        }
+        if (message.includes('media-error-code 3') || message.includes('decode')) {
+            return 'Browser failed to decode this stream.';
+        }
+        if (message.includes('startup-timeout') || message.includes('timeout')) {
+            return 'Playback timed out while starting stream.';
+        }
+        return 'Unable to play stream: ' + (error?.message || String(error));
+    };
 
     const ensurePlaying = async () => {
         try {
@@ -344,11 +634,11 @@
             try {
                 videoEl.muted = true;
                 await videoEl.play();
-            } catch (_) {
-                if (isAutoplayBlockError(e)) {
+            } catch (mutedError) {
+                if (isAutoplayBlockError(e) || isAutoplayBlockError(mutedError)) {
                     return false;
                 }
-                throw e;
+                throw mutedError;
             }
         }
         return true;
@@ -363,6 +653,61 @@
             subtitleSelectEl.innerHTML = '<option value="off">Subtitles Off</option>';
             subtitleSelectEl.disabled = true;
         }
+        if (qualitySelectEl) {
+            qualitySelectEl.innerHTML = '<option value="auto">Quality Auto</option>';
+            qualitySelectEl.disabled = true;
+        }
+    };
+
+    const qualityLabelForTrack = (track) => {
+        const height = Number(track?.height || 0);
+        const width = Number(track?.width || 0);
+        const bandwidth = Number(track?.bandwidth || 0);
+        const fps = Number(track?.frameRate || 0);
+        const parts = [];
+        if (height > 0) {
+            parts.push(`${height}p`);
+        } else if (width > 0) {
+            parts.push(`${width}w`);
+        } else {
+            parts.push('Adaptive');
+        }
+        if (fps > 0) {
+            parts.push(`${Math.round(fps)}fps`);
+        }
+        if (bandwidth > 0) {
+            parts.push(`${(bandwidth / 1000000).toFixed(1)}Mbps`);
+        }
+        return parts.join(' ');
+    };
+
+    const populateQualityMenu = () => {
+        if (!shakaPlayer || !qualitySelectEl) return;
+        const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
+        qualitySelectEl.innerHTML = '<option value="auto">Quality Auto</option>';
+        const sorted = variants
+            .slice()
+            .sort((a, b) => (Number(b.height || 0) - Number(a.height || 0))
+                || (Number(b.bandwidth || 0) - Number(a.bandwidth || 0)));
+        const unique = [];
+        for (const track of sorted) {
+            const key = `${track.height || 0}|${track.bandwidth || 0}|${track.frameRate || 0}`;
+            if (unique.some(item => item.key === key)) {
+                continue;
+            }
+            unique.push({key, track});
+        }
+        for (const item of unique) {
+            const track = item.track;
+            const option = document.createElement('option');
+            option.value = String(track.id);
+            option.textContent = qualityLabelForTrack(track);
+            qualitySelectEl.appendChild(option);
+        }
+        qualitySelectEl.disabled = unique.length === 0;
+        const activeTrack = variants.find(track => track.active);
+        const abrEnabled = shakaPlayer.getConfiguration ? !!shakaPlayer.getConfiguration()?.abr?.enabled : true;
+        qualitySelectEl.value = abrEnabled || !activeTrack ? 'auto' : String(activeTrack.id);
     };
 
     const populateTrackMenus = () => {
@@ -399,6 +744,8 @@
             }
             subtitleSelectEl.disabled = textTracks.length === 0;
         }
+
+        populateQualityMenu();
     };
 
     const loadShaka = async (responseData) => {
@@ -414,6 +761,9 @@
         shakaPlayer.addEventListener('error', (event) => {
             const detail = event?.detail?.message || 'Unknown Shaka error';
             setStatus('Playback error: ' + detail);
+        });
+        shakaPlayer.addEventListener('adaptation', () => {
+            populateTrackMenus();
         });
 
         if (responseData?.drm) {
@@ -444,57 +794,47 @@
                 return;
             }
             if (launch) {
+                applyDefaultRepeatForLaunch(launch);
                 await requestAndStartPlayback(launch);
             } else {
+                activeLaunch = payload;
+                repeatReloadInFlight = false;
+                applyDefaultRepeatForLaunch(payload);
                 const requestUrl = buildPlayerRequestUrl(payload);
                 const response = await fetch(requestUrl);
                 const responseData = await response.json();
-                const playbackUrl = cleanValue(responseData?.url);
-                if (!playbackUrl) {
-                    throw new Error('Player response did not return a URL.');
-                }
-                responseData.url = playbackUrl;
-                setMetadata(payload, responseData);
-                const hasDrm = !!responseData.drm;
-                const lowerUrl = String(responseData.url).toLowerCase();
-                const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
-                const isHlsUrl = lowerUrl.includes('.m3u8');
-                const isDashUrl = lowerUrl.includes('.mpd');
-
-                let started = true;
-                if (hasDrm) {
-                    started = await loadShaka(responseData);
-                } else if (canNativeHls && isHlsUrl) {
-                    started = await loadNative(responseData.url);
-                } else if (isDashUrl) {
-                    started = await loadShaka(responseData);
-                } else {
-                    started = await loadNative(responseData.url);
-                }
-                if (started === false) {
-                    setStatus('Ready to play. Press play.');
-                } else {
-                    setStatus('');
-                }
+                await playResolvedResponse(payload, responseData);
             }
         } catch (e) {
-            setStatus('Unable to play channel: ' + (e?.message || String(e)));
+            setStatus('Unable to play channel: ' + describePlaybackError(e));
         }
     };
 
     if (videoEl) {
         videoEl.addEventListener('error', () => {
             const mediaError = videoEl.error;
-            const code = mediaError?.code ? ` (code ${mediaError.code})` : '';
-            setStatus(`Playback failed${code}.`);
+            const code = mediaError?.code ? `media-error-code ${mediaError.code}` : 'media-error-code unknown';
+            setStatus(describePlaybackError(new Error(code)));
         });
         videoEl.addEventListener('ended', () => {
-            if (!activeBingeWatch) {
+            if (activeBingeWatch) {
+                playNextBingeWatchEpisode().catch((error) => {
+                    setStatus('Unable to continue binge watch: ' + (error?.message || String(error)));
+                });
                 return;
             }
-            playNextBingeWatchEpisode().catch((error) => {
-                setStatus('Unable to continue binge watch: ' + (error?.message || String(error)));
-            });
+            if (!repeatEnabled || repeatReloadInFlight || !activeLaunch) {
+                return;
+            }
+            repeatReloadInFlight = true;
+            destroyPlayer()
+                .then(() => requestAndStartPlayback(activeLaunch, {cacheBust: true}))
+                .catch((error) => {
+                    setStatus('Unable to reload stream: ' + describePlaybackError(error));
+                })
+                .finally(() => {
+                    repeatReloadInFlight = false;
+                });
         });
     }
 
@@ -554,6 +894,13 @@
         });
     }
 
+    if (repeatBtn) {
+        repeatBtn.addEventListener('click', () => {
+            repeatEnabled = !repeatEnabled;
+            updateRepeatButton();
+        });
+    }
+
     if (audioSelectEl) {
         audioSelectEl.addEventListener('change', () => {
             if (!shakaPlayer) return;
@@ -582,10 +929,31 @@
         });
     }
 
+    if (qualitySelectEl) {
+        qualitySelectEl.addEventListener('change', () => {
+            if (!shakaPlayer) return;
+            const selected = String(qualitySelectEl.value || 'auto');
+            if (selected === 'auto') {
+                shakaPlayer.configure({abr: {enabled: true}});
+                populateTrackMenus();
+                return;
+            }
+            const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
+            const track = variants.find(t => String(t.id) === selected);
+            if (!track) {
+                return;
+            }
+            shakaPlayer.configure({abr: {enabled: false}});
+            shakaPlayer.selectVariantTrack(track, true);
+            populateTrackMenus();
+        });
+    }
+
     window.addEventListener('beforeunload', async () => {
         await destroyPlayer();
     });
 
     resetTrackMenus();
+    updateRepeatButton();
     start();
 })();

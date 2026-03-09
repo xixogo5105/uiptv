@@ -28,10 +28,21 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private static final String PATH_PLAYER_LIVE = "/player/live";
     private static final String PATH_PLAYER_SERIES = "/player/series";
     private static final String PATH_PLAYER_VOD = "/player/vod";
+    private static final String JSON_KEY_STRATEGY_HINT = "strategyHint";
     private static final String HTTP_PREFIX = "http://";
     private static final String HTTPS_PREFIX = "https://";
     private static final String MODE_SERIES = "series";
     private static final String MODE_VOD = "vod";
+    private static final String MODE_ITV = "itv";
+    private static final String URL_FRAGMENT_DASH_MPD = ".mpd";
+    private static final String URL_FRAGMENT_HLS_M3U8 = ".m3u8";
+    private static final String URL_FRAGMENT_LOCAL_HLS = "/hls/stream.m3u8";
+    private static final String URL_FRAGMENT_PROXY_STREAM = "/proxy-stream?src=";
+    private static final String URL_FRAGMENT_EXTENSION_TS = "extension=ts";
+    private static final String URL_SUFFIX_TS = ".ts";
+    private static final String URL_SUFFIX_MPEGTS = ".mpegts";
+    private static final String QUERY_PARAM_TOKEN = "token=";
+    private static final String QUERY_PARAM_PLAY_TOKEN = "play_token=";
     private static final String PATH_LIVE_PLAY = "/live/play/";
     private static final String PATH_PLAY_MOVIE = "/play/movie.php";
     public static final String SEASON = "season";
@@ -159,7 +170,9 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
     private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl) {
         boolean forceWebHls = shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
+        boolean forceLiveTransmux = shouldForceLiveTransmux(mode, originalUrl);
         return forceWebHls
+                || forceLiveTransmux
                 || (ConfigurationService.getInstance().read().isEnableFfmpegTranscoding()
                 && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl()));
     }
@@ -328,6 +341,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         PlayerResponse response = resolved.response();
         JSONObject json = new JSONObject();
         json.put("url", response == null ? "" : response.getUrl());
+        putIfNotBlank(json, JSON_KEY_STRATEGY_HINT, determineStrategyHint(response));
         appendChannelJson(json, response);
         appendDrmJson(json, response);
         appendBingeWatchJson(json, resolved);
@@ -413,6 +427,38 @@ public class HttpPlayerJsonServer implements HttpHandler {
         } catch (Exception _) {
             return null;
         }
+    }
+
+    private String determineStrategyHint(PlayerResponse response) {
+        if (response == null || isBlank(response.getUrl())) {
+            return StrategyHint.NATIVE.name();
+        }
+        String lowerUrl = response.getUrl().toLowerCase();
+        if (hasDrmMetadata(response) || isDashUrl(lowerUrl) || isLocalTransmuxedHls(lowerUrl)) {
+            return StrategyHint.SHAKA.name();
+        }
+        if (isLocalProxyUrl(lowerUrl)) {
+            return StrategyHint.NATIVE_PROXY.name();
+        }
+        return StrategyHint.NATIVE.name();
+    }
+
+    private boolean isDashUrl(String url) {
+        return url.contains(URL_FRAGMENT_DASH_MPD);
+    }
+
+    private boolean isLocalTransmuxedHls(String url) {
+        return url.contains(URL_FRAGMENT_LOCAL_HLS);
+    }
+
+    private boolean isLocalProxyUrl(String url) {
+        return url.contains(URL_FRAGMENT_PROXY_STREAM);
+    }
+
+    private enum StrategyHint {
+        SHAKA,
+        NATIVE_PROXY,
+        NATIVE
     }
 
     private boolean hasChannelMetadata(Channel channel) {
@@ -562,6 +608,50 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         return isForcedWebPath(url.toLowerCase());
+    }
+
+    private boolean shouldForceLiveTransmux(String mode, String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!MODE_ITV.equals(normalizedMode)) {
+            return false;
+        }
+        String lowerUrl = url.toLowerCase();
+        if (isAdaptivePlaybackUrl(lowerUrl) && !hasTokenizedAccess(lowerUrl)) {
+            return false;
+        }
+        return isLikelyMpegTsUrl(lowerUrl)
+                || hasTrailingNumericPath(lowerUrl)
+                || lowerUrl.contains(PATH_LIVE_PLAY)
+                || hasTokenizedAccess(lowerUrl);
+    }
+
+    private boolean isLikelyMpegTsUrl(String lowerUrl) {
+        if (isBlank(lowerUrl)) {
+            return false;
+        }
+        String path = stripQuery(lowerUrl);
+        return lowerUrl.contains(URL_FRAGMENT_EXTENSION_TS)
+                || path.endsWith(URL_SUFFIX_TS)
+                || path.endsWith(URL_SUFFIX_MPEGTS);
+    }
+
+    private boolean isAdaptivePlaybackUrl(String lowerUrl) {
+        if (isBlank(lowerUrl)) {
+            return false;
+        }
+        return lowerUrl.contains(URL_FRAGMENT_HLS_M3U8)
+                || lowerUrl.contains(URL_FRAGMENT_DASH_MPD)
+                || lowerUrl.contains(URL_FRAGMENT_LOCAL_HLS);
+    }
+
+    private boolean hasTokenizedAccess(String lowerUrl) {
+        if (isBlank(lowerUrl)) {
+            return false;
+        }
+        return lowerUrl.contains(QUERY_PARAM_TOKEN) || lowerUrl.contains(QUERY_PARAM_PLAY_TOKEN);
     }
 
     private String sanitizeParam(String value) {
