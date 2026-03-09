@@ -11,6 +11,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
+@SuppressWarnings("java:S6548")
 public class VodWatchStateService {
     private final Set<VodWatchStateChangeListener> listeners = new CopyOnWriteArraySet<>();
 

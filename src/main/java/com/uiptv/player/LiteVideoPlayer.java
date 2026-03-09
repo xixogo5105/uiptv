@@ -459,52 +459,21 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     }
 
     protected void updateTimeLabel() {
-        if (mediaPlayer != null) {
-            Duration currentTime = safeCurrentTime(mediaPlayer);
-            Duration totalDuration = safeTotalDuration(mediaPlayer);
-            if (currentTime == null || totalDuration == null) {
-                timeLabel.setText(I18n.tr("auto00000000"));
-                timeSlider.setDisable(false);
-                if (!isUserSeeking) {
-                    timeSlider.setValue(0);
-                }
-                return;
-            }
-            boolean hasKnownTotal = totalDuration != null && totalDuration.greaterThan(Duration.ZERO) && !totalDuration.isIndefinite();
-            long observedCurrentMs = Math.max(0L, (long) currentTime.toMillis());
-            if (observedCurrentMs > 0L) {
-                lastObservedPlaybackTimeMs = observedCurrentMs;
-                playbackWallClockStartedAtMs = System.currentTimeMillis() - observedCurrentMs;
-            } else if (usingFfmpegFallback && estimatedTotalDurationMs > 0L && isPlaying()) {
-                if (playbackWallClockStartedAtMs <= 0L) {
-                    playbackWallClockStartedAtMs = System.currentTimeMillis();
-                }
-                long wallClockElapsed = System.currentTimeMillis() - playbackWallClockStartedAtMs;
-                observedCurrentMs = Math.max(lastObservedPlaybackTimeMs, wallClockElapsed);
-            }
-            long currentMs = playbackStartOffsetMs + observedCurrentMs;
-            long totalMs = hasKnownTotal
-                    ? Math.max(estimatedTotalDurationMs, playbackStartOffsetMs + (long) totalDuration.toMillis())
-                    : estimatedTotalDurationMs;
-            boolean seekable = hasKnownTotal && !usingFfmpegFallback;
-            updatePlaybackTimeUi(currentMs, totalMs, seekable);
-            if (usingFfmpegFallback) {
-                timeSlider.setDisable(true);
-                btnRewind.setDisable(true);
-                btnFastForward.setDisable(true);
-            } else {
-                btnRewind.setDisable(false);
-                btnFastForward.setDisable(false);
-            }
-        } else {
-            timeLabel.setText(I18n.tr("auto00000000"));
-            timeSlider.setDisable(false);
-            btnRewind.setDisable(false);
-            btnFastForward.setDisable(false);
-            if (!isUserSeeking) {
-                timeSlider.setValue(0);
-            }
+        if (mediaPlayer == null) {
+            resetPlaybackUi();
+            return;
         }
+
+        Duration currentTime = safeCurrentTime(mediaPlayer);
+        Duration totalDuration = safeTotalDuration(mediaPlayer);
+        if (currentTime == null || totalDuration == null) {
+            resetPlaybackUi();
+            return;
+        }
+
+        PlaybackProgress progress = computePlaybackProgress(currentTime, totalDuration);
+        updatePlaybackTimeUi(progress.currentMs(), progress.totalMs(), progress.seekable());
+        setSeekControlsEnabled(!usingFfmpegFallback);
     }
 
     protected void handlePlaybackError(String message, Exception e) {
@@ -617,7 +586,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         if (!canUseEstimatedSeeking()) {
             return false;
         }
-        long clampedTarget = Math.max(0L, Math.min(estimatedTotalDurationMs, Math.round(estimatedTotalDurationMs * position)));
+        long clampedTarget = Math.clamp(Math.round(estimatedTotalDurationMs * position), 0L, estimatedTotalDurationMs);
         restartPlaybackAtOffset(clampedTarget);
         return true;
     }
@@ -642,13 +611,58 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     }
 
     private boolean canUseEstimatedSeeking() {
-        return false;
+        return usingFfmpegFallback && estimatedTotalDurationMs > 0L && !isBlank(currentMediaUri);
     }
 
     private void restartPlaybackAtOffset(long targetOffsetMs) {
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
         startPlayback(currentMediaUri, true, targetOffsetMs);
+    }
+
+    private void resetPlaybackUi() {
+        timeLabel.setText(I18n.tr("auto00000000"));
+        setSeekControlsEnabled(true);
+        if (!isUserSeeking) {
+            timeSlider.setValue(0);
+        }
+    }
+
+    private PlaybackProgress computePlaybackProgress(Duration currentTime, Duration totalDuration) {
+        boolean hasKnownTotal = totalDuration.greaterThan(Duration.ZERO) && !totalDuration.isIndefinite();
+        long observedCurrentMs = resolveObservedCurrentMs(currentTime);
+        long currentMs = playbackStartOffsetMs + observedCurrentMs;
+        long totalMs = hasKnownTotal
+                ? Math.max(estimatedTotalDurationMs, playbackStartOffsetMs + (long) totalDuration.toMillis())
+                : estimatedTotalDurationMs;
+        boolean seekable = hasKnownTotal && !usingFfmpegFallback;
+        return new PlaybackProgress(currentMs, totalMs, seekable);
+    }
+
+    private long resolveObservedCurrentMs(Duration currentTime) {
+        long observedCurrentMs = Math.max(0L, (long) currentTime.toMillis());
+        if (observedCurrentMs > 0L) {
+            lastObservedPlaybackTimeMs = observedCurrentMs;
+            playbackWallClockStartedAtMs = System.currentTimeMillis() - observedCurrentMs;
+            return observedCurrentMs;
+        }
+        if (!canUseEstimatedSeeking() || !isPlaying()) {
+            return observedCurrentMs;
+        }
+        if (playbackWallClockStartedAtMs <= 0L) {
+            playbackWallClockStartedAtMs = System.currentTimeMillis();
+        }
+        long wallClockElapsed = System.currentTimeMillis() - playbackWallClockStartedAtMs;
+        return Math.max(lastObservedPlaybackTimeMs, wallClockElapsed);
+    }
+
+    private void setSeekControlsEnabled(boolean enabled) {
+        timeSlider.setDisable(!enabled);
+        btnRewind.setDisable(!enabled);
+        btnFastForward.setDisable(!enabled);
+    }
+
+    private record PlaybackProgress(long currentMs, long totalMs, boolean seekable) {
     }
 
     private boolean hasUsableVideoSignal() {

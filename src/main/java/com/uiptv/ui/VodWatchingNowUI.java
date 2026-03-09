@@ -132,7 +132,8 @@ public class VodWatchingNowUI extends VBox {
         String rating = firstNonBlank(provider == null ? "" : provider.getRating(), "");
         String duration = firstNonBlank(provider == null ? "" : provider.getDuration(), "");
         Channel playbackChannel = provider != null ? provider : buildFallbackChannel(state);
-        return VodPanelData.create(account, state, playbackChannel, title, logo, plot, releaseDate, rating, duration);
+        VodPanelData.DisplayMetadata metadata = VodPanelData.DisplayMetadata.of(logo, plot, releaseDate, rating);
+        return VodPanelData.create(account, state, playbackChannel, title, metadata, duration);
     }
 
     private Channel resolveProviderChannel(Account account, VodWatchState state) {
@@ -607,6 +608,10 @@ public class VodWatchingNowUI extends VBox {
                 this.releaseDate = releaseDate;
                 this.rating = rating;
             }
+
+            private static DisplayMetadata of(String coverUrl, String plot, String releaseDate, String rating) {
+                return new DisplayMetadata(coverUrl, plot, releaseDate, rating);
+            }
         }
 
         private final Account account;
@@ -635,8 +640,7 @@ public class VodWatchingNowUI extends VBox {
         }
 
         private static VodPanelData create(Account account, VodWatchState state, Channel playbackChannel, String displayTitle,
-                                           String coverUrl, String plot, String releaseDate, String rating, String duration) {
-            DisplayMetadata metadata = new DisplayMetadata(coverUrl, plot, releaseDate, rating);
+                                           DisplayMetadata metadata, String duration) {
             return new VodPanelData(account, state, playbackChannel, displayTitle, metadata, duration);
         }
     }
