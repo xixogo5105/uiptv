@@ -545,6 +545,15 @@ createApp({
             headFill: account?.pinSvgHeadFill || DEFAULT_PIN_SVG.headFill
         });
 
+        const resolvePinColor = () => {
+            let activeTheme = theme.value;
+            if (activeTheme === 'system') {
+                const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                activeTheme = prefersLight ? 'light' : 'dark';
+            }
+            return activeTheme === 'dark' ? '#e6edf7' : '#1f2937';
+        };
+
         const numericDbId = (account) => {
             const value = Number.parseInt(String(account?.dbId || ''), 10);
             return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
@@ -3032,6 +3041,7 @@ createApp({
             supportsVodSeriesForSelectedAccount,
             isPinnedAccount,
             resolvePinSvg,
+            resolvePinColor,
 
             switchTab,
             setContentMode,

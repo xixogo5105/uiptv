@@ -324,21 +324,17 @@
                                 <div class="title">{{ listLoadingMessage }}</div>
                             </div>
                         </div>
-                        <div :key="account.dbId" @click="selectAccount(account)" class="card-item"
+                        <div :key="account.dbId" @click="selectAccount(account)" class="card-item account-card"
                              v-for="account in filteredAccounts" v-if="!listLoading">
-                            <div class="icon-placeholder"><i class="bi bi-person-circle"></i></div>
                             <div class="content-wrapper">
                                 <div class="title account-title">
-                                    <svg :viewBox="resolvePinSvg(account).viewBox" aria-hidden="true"
-                                         class="account-pin-icon" v-if="isPinnedAccount(account)">
-                                        <path :d="resolvePinSvg(account).stemPath"
-                                              :fill="resolvePinSvg(account).stemFill"></path>
-                                        <path :d="resolvePinSvg(account).headPath"
-                                              :fill="resolvePinSvg(account).headFill"></path>
-                                    </svg>
+                                    <span class="account-pin-slot">
+                                        <span :class="{ 'is-hidden': !isPinnedAccount(account) }"
+                                              aria-hidden="true"
+                                              class="account-pin-css"></span>
+                                    </span>
                                     <span>{{ account.accountName }}</span>
                                 </div>
-                                <div class="subtitle">Account</div>
                             </div>
                         </div>
                     </div>

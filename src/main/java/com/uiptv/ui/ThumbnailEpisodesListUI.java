@@ -254,7 +254,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
         bingeWatchButton.setFocusTraversable(true);
         bingeWatchButton.getStyleClass().setAll("button");
-        bingeWatchButton.getStyleClass().add("small-pill-button");
+        bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
+        bingeWatchButton.setOnShowing(event -> {
+            ContextMenu menu = bingeWatchButton.getContextMenu();
+            if (menu != null && !menu.getStyleClass().contains("binge-watch-context-menu")) {
+                menu.getStyleClass().add("binge-watch-context-menu");
+            }
+        });
         reloadEpisodesButton.setFocusTraversable(true);
         reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
 
@@ -497,7 +503,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
         Button playButton = new Button(I18n.tr("autoPlay2"));
         playButton.getStyleClass().setAll("button");
-        playButton.getStyleClass().add("small-pill-button");
+        playButton.getStyleClass().add("episode-play-button");
         playButton.setMinWidth(Region.USE_PREF_SIZE);
         playButton.setMaxWidth(Double.MAX_VALUE);
         playButton.setMinHeight(Region.USE_PREF_SIZE);
@@ -658,6 +664,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 continue;
             }
             MenuItem playerItem = new MenuItem(option.label());
+            playerItem.getStyleClass().add("binge-watch-menu-item");
             playerItem.setOnAction(event -> bingeWatchSeason(season, option.playerPath()));
             bingeWatchButton.getItems().add(playerItem);
         }

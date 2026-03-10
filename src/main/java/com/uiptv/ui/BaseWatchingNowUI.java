@@ -718,7 +718,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         Button play = new Button(I18n.tr("autoPlay"));
         play.getStyleClass().setAll("button");
-        play.getStyleClass().add("small-pill-button");
+        play.getStyleClass().add("episode-play-button");
         play.setMinWidth(Region.USE_PREF_SIZE);
         play.setMaxWidth(Region.USE_PREF_SIZE);
         play.setMinHeight(Region.USE_PREF_SIZE);
@@ -855,6 +855,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
         ContextMenu rowMenu = new ContextMenu();
+        rowMenu.getStyleClass().add("episode-context-menu");
         I18n.preparePopupControl(rowMenu, target);
         if (item == null) {
             return;
@@ -874,6 +875,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         rowMenu.getItems().clear();
         if (!item.watched) {
             MenuItem watchingNow = new MenuItem(I18n.tr("autoWatchingNow"));
+            watchingNow.getStyleClass().add("episode-menu-item");
             watchingNow.setOnAction(e -> {
                 markEpisodeAsWatched(item);
                 updateWatchingStatusUI(data, item);
@@ -883,6 +885,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
             MenuItem playerItem = new MenuItem(option.label());
+            playerItem.getStyleClass().add("episode-menu-item");
             playerItem.setOnAction(e -> playEpisode(data, item, option.playerPath()));
             rowMenu.getItems().add(playerItem);
         }
@@ -890,6 +893,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             rowMenu.getItems().add(new SeparatorMenuItem());
             MenuItem removeWatchingNow = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
             removeWatchingNow.getStyleClass().add("danger-menu-item");
+            removeWatchingNow.getStyleClass().add("episode-menu-item");
             removeWatchingNow.setOnAction(e -> {
                 clearWatchedMarker(item);
                 clearWatchingStatusUI(data);

@@ -373,6 +373,38 @@
     -fx-background-radius: 6;
 }
 
+.menu-item.episode-menu-item,
+.menu-item.episode-menu-item .label {
+    -fx-font-weight: normal;
+}
+
+.episode-play-button,
+.episode-play-button > .label {
+    -fx-font-size: -uiptv-base-font-size;
+    -fx-font-weight: normal;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 6;
+}
+
+.context-menu.binge-watch-context-menu .menu-item,
+.context-menu.binge-watch-context-menu .menu-item .label {
+    -fx-font-size: -uiptv-base-font-size;
+    -fx-font-weight: normal;
+}
+
+.context-menu.episode-context-menu .menu-item,
+.context-menu.episode-context-menu .menu-item .label {
+    -fx-font-weight: normal;
+}
+
+.binge-watch-menu-button,
+.binge-watch-menu-button > .label {
+    -fx-font-size: -uiptv-base-font-size;
+    -fx-font-weight: normal;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 6;
+}
+
 .selected-card {
     -fx-background-color: -fx-selection-bar;
 }

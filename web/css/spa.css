@@ -36,6 +36,8 @@
     --scrollbar-track: #020408;
     --scrollbar-thumb: #16315f;
     --scrollbar-thumb-hover: #2f6fdd;
+    --pin-color: var(--channel-on-air-bg);
+    --pin-center: #0b1020;
 
     /* Video.js specific variables (Dark Theme) */
     --vjs-player-bg: #000;
@@ -86,6 +88,8 @@
     --scrollbar-track: #f1f1f1;
     --scrollbar-thumb: #c1c1c1;
     --scrollbar-thumb-hover: #a8a8a8;
+    --pin-color: var(--channel-on-air-bg);
+    --pin-center: #f8fafc;
 
     /* Video.js specific variables (Light Theme) */
     --vjs-player-bg: #f8f9fa;
@@ -138,6 +142,8 @@
         --scrollbar-track: #f1f1f1;
         --scrollbar-thumb: #c1c1c1;
         --scrollbar-thumb-hover: #a8a8a8;
+        --pin-color: var(--channel-on-air-bg);
+        --pin-center: #f8fafc;
 
         /* Video.js specific variables (System Light Theme) */
         --vjs-player-bg: #f8f9fa;
@@ -509,6 +515,14 @@ body {
     border: 1px solid var(--card-border);
 }
 
+.card-item.account-card {
+    padding: 6px 8px;
+}
+
+.card-item.account-card .title {
+    font-size: 0.82rem;
+}
+
 .card-item:hover {
     background-color: var(--card-hover-bg);
     border-color: var(--card-hover-border);
@@ -762,10 +776,39 @@ body {
     gap: 6px;
 }
 
-.account-pin-icon {
+.account-pin-slot {
     width: 16px;
     height: 16px;
     flex: 0 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pin-color);
+}
+
+.account-pin-css {
+    width: 12px;
+    height: 12px;
+    background-color: var(--pin-color);
+    border-radius: 6px 6px 0 6px;
+    position: relative;
+    transform: rotate(45deg);
+    display: block;
+}
+
+.account-pin-css::after {
+    content: "";
+    width: 5px;
+    height: 5px;
+    background: var(--pin-center);
+    position: absolute;
+    left: 26%;
+    top: 26%;
+    border-radius: 6px;
+}
+
+.account-pin-css.is-hidden {
+    opacity: 0;
 }
 
 /* Responsive Layout */
