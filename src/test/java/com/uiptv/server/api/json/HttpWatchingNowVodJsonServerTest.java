@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpWatchingNowVodJsonServerTest extends DbBackedTest {
@@ -217,10 +216,12 @@ class HttpWatchingNowVodJsonServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            // No-op for test stub.
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // No-op for test stub.
         }
 
         @Override

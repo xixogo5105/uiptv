@@ -133,7 +133,7 @@ public class BookmarkChannelListUI extends HBox {
             Map<String, Account> accountByName = AccountService.getInstance().getAll();
             Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName);
             List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, accountByName, channelByAccountAndChannel);
-            if (loadedItems == null) {
+            if (generation != reloadGeneration.get()) {
                 return;
             }
 
@@ -156,7 +156,7 @@ public class BookmarkChannelListUI extends HBox {
         List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
         for (Bookmark bookmark : bookmarks) {
             if (generation != reloadGeneration.get()) {
-                return null;
+                return List.of();
             }
             loadedItems.add(createBookmarkItem(bookmark, accountByName, channelByAccountAndChannel));
             maybeStreamPartialReload(generation, loadedItems);

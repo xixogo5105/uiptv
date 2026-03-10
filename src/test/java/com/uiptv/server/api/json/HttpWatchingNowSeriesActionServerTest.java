@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpWatchingNowSeriesActionServerTest extends DbBackedTest {
@@ -82,7 +83,7 @@ class HttpWatchingNowSeriesActionServerTest extends DbBackedTest {
         StubHttpExchange deleteExchange = new StubHttpExchange("/watchingNowSeriesAction", "DELETE", delete.toString());
         handler.handle(deleteExchange);
         assertEquals(200, deleteExchange.getResponseCode());
-        assertTrue(SeriesWatchStateDb.get().getBySeries(account.getDbId(), "series-cat", "series-1") == null);
+        assertNull(SeriesWatchStateDb.get().getBySeries(account.getDbId(), "series-cat", "series-1"));
     }
 
     private Account createAccount(String name) {
@@ -183,10 +184,12 @@ class HttpWatchingNowSeriesActionServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            // No-op for test stub.
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // No-op for test stub.
         }
 
         @Override

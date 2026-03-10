@@ -82,7 +82,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private String watchedSeriesId;
     private String watchedEpisodeId;
     private String watchedSeriesCategoryId;
-    private String watchedSeriesCategoryDbId;
     private String watchedSeriesEpisodeName;
     private String watchedSeriesSeason;
     private String watchedSeriesEpisodeNum;
@@ -516,7 +515,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         watchedSeriesId = seriesId;
         watchedEpisodeId = episode3.optString("channelId");
         watchedSeriesCategoryId = categoryApiId;
-        watchedSeriesCategoryDbId = categoryDbId;
         watchedSeriesEpisodeName = episode3.optString("name");
         watchedSeriesSeason = episode3.optString("season");
         watchedSeriesEpisodeNum = episode3.optString("episodeNum");
@@ -891,18 +889,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
         assertEquals(200, proxyStream.statusCode());
         assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
-    }
-
-    private long hlsTsDeleteGraceMillis() {
-        String raw = System.getProperty("uiptv.hls.ts.delete.grace.millis");
-        if (raw != null && !raw.isBlank()) {
-            try {
-                return Long.parseLong(raw);
-            } catch (NumberFormatException _) {
-                // Fall through to the short default.
-            }
-        }
-        return 500L;
     }
 
     private void assertWebChannelJsonServerApi() throws Exception {
@@ -1327,18 +1313,4 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         exchange.close();
     }
 
-    private void waitForCondition(long timeoutMillis, CheckedBooleanSupplier condition) throws Exception {
-        long deadline = System.currentTimeMillis() + timeoutMillis;
-        while (System.currentTimeMillis() < deadline) {
-            if (condition.getAsBoolean()) {
-                return;
-            }
-            Thread.onSpinWait();
-        }
-    }
-
-    @FunctionalInterface
-    private interface CheckedBooleanSupplier {
-        boolean getAsBoolean() throws Exception;
-    }
 }

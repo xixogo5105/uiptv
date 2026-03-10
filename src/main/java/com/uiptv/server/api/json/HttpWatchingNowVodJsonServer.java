@@ -64,13 +64,18 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
         }
         Channel provider = resolveProviderChannel(account, state);
         Channel playbackChannel = provider != null ? provider : buildFallbackChannel(state);
+        VodMetadata metadata = buildMetadata(provider, state);
+        return new VodRow(account, state, playbackChannel, metadata);
+    }
+
+    private VodMetadata buildMetadata(Channel provider, VodWatchState state) {
         String title = firstNonBlank(provider == null ? "" : provider.getName(), state.getVodName(), state.getVodId());
         String logo = firstNonBlank(provider == null ? "" : provider.getLogo(), state.getVodLogo());
         String plot = firstNonBlank(provider == null ? "" : provider.getDescription(), "");
         String releaseDate = firstNonBlank(provider == null ? "" : provider.getReleaseDate(), "");
         String rating = firstNonBlank(provider == null ? "" : provider.getRating(), "");
         String duration = firstNonBlank(provider == null ? "" : provider.getDuration(), "");
-        return new VodRow(account, state, playbackChannel, title, logo, plot, releaseDate, rating, duration);
+        return new VodMetadata(title, logo, plot, releaseDate, rating, duration);
     }
 
     private Channel resolveProviderChannel(Account account, VodWatchState state) {
@@ -123,18 +128,18 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
         private final long updatedAt;
         private final Channel playItem;
 
-        private VodRow(Account account, VodWatchState state, Channel playItem, String title, String logo, String plot, String releaseDate, String rating, String duration) {
+        private VodRow(Account account, VodWatchState state, Channel playItem, VodMetadata metadata) {
             this.accountId = safeStatic(account.getDbId());
             this.accountName = safeStatic(account.getAccountName());
             this.accountType = safeStatic(account.getType() != null ? account.getType().name() : "");
             this.categoryId = safeStatic(state.getCategoryId());
             this.vodId = safeStatic(state.getVodId());
-            this.vodName = safeStatic(title);
-            this.vodLogo = safeStatic(logo);
-            this.plot = safeStatic(plot);
-            this.releaseDate = safeStatic(releaseDate);
-            this.rating = safeStatic(rating);
-            this.duration = safeStatic(duration);
+            this.vodName = safeStatic(metadata.title());
+            this.vodLogo = safeStatic(metadata.logo());
+            this.plot = safeStatic(metadata.plot());
+            this.releaseDate = safeStatic(metadata.releaseDate());
+            this.rating = safeStatic(metadata.rating());
+            this.duration = safeStatic(metadata.duration());
             this.updatedAt = state.getUpdatedAt();
             this.playItem = playItem;
         }
@@ -162,5 +167,8 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
         private static String safeStatic(String value) {
             return value == null ? "" : value;
         }
+    }
+
+    private record VodMetadata(String title, String logo, String plot, String releaseDate, String rating, String duration) {
     }
 }
