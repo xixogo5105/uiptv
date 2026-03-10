@@ -434,9 +434,30 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         bookmarkService.saveBookmarkOrder(List.of(beforeOrder.get(1).getDbId(), beforeOrder.get(0).getDbId()));
         List<Bookmark> afterOrder = bookmarkService.getBookmarksByCategory("cat-e2e");
         assertEquals(2, afterOrder.size());
+        assertBookmarkPagination(bookmarkService);
         bookmarkService.toggleBookmark(secondBookmark);
         assertFalse(bookmarkService.isChannelBookmarked(secondBookmark));
         bookmarkService.removeCategory(bookmarkCategory);
+    }
+
+    private void assertBookmarkPagination(BookmarkService bookmarkService) {
+        JSONArray full = new JSONArray(bookmarkService.readToJson());
+        assertTrue(full.length() >= 2);
+
+        JSONArray page1 = new JSONArray(bookmarkService.readToJson(0, 1));
+        JSONArray page2 = new JSONArray(bookmarkService.readToJson(1, 1));
+        assertEquals(1, page1.length());
+        assertEquals(1, page2.length());
+
+        String firstId = page1.getJSONObject(0).optString("dbId");
+        String secondId = page2.getJSONObject(0).optString("dbId");
+        assertFalse(firstId.isBlank());
+        assertFalse(secondId.isBlank());
+        assertNotEquals(firstId, secondId);
+
+        JSONArray twoItems = new JSONArray(bookmarkService.readToJson(0, 2));
+        assertEquals(2, twoItems.length());
+        assertEquals(firstId, twoItems.getJSONObject(0).optString("dbId"));
     }
 
     private void clearCacheAndDeleteOnePerType(CacheService cacheService, AccountService accountService) {

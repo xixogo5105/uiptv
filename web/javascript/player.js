@@ -2,10 +2,16 @@
     const statusEl = document.getElementById('status');
     const videoEl = document.getElementById('video');
     const mediaTitleEl = document.getElementById('media-title');
+    const mediaTitleTextEl = document.getElementById('media-title-text');
+    const mediaLoadingSpinnerEl = document.getElementById('media-loading-spinner');
     const mediaSubtitleEl = document.getElementById('media-subtitle');
     const resolutionLabelEl = document.getElementById('resolution-label');
     const playlistPanelEl = document.getElementById('playlist-panel');
     const playlistItemsEl = document.getElementById('playlist-items');
+    const themeBtn = document.getElementById('theme-btn');
+    const themeIcon = document.getElementById('theme-icon');
+    const pipBtn = document.getElementById('pip-btn');
+    const stopBtn = document.getElementById('stop-btn');
     const reloadBtn = document.getElementById('reload-btn');
     const repeatBtn = document.getElementById('repeat-btn');
     const audioMenuBtn = document.getElementById('audio-menu-btn');
@@ -18,6 +24,7 @@
     const qualityMenuEl = document.getElementById('quality-menu');
     const qualityLabelEl = document.getElementById('quality-label');
     const APP_TITLE = 'UIPTV Player';
+    const playbackUtils = window.UIPTVPlaybackUtils;
     let shakaPlayer = null;
     let mpegtsPlayer = null;
     let activeLaunch = null;
@@ -40,9 +47,74 @@
     const STALL_MONITOR_INTERVAL_MS = 3000;
     const STALL_TRIGGER_MS = 9000;
     const STALL_RECOVERY_COOLDOWN_MS = 12000;
+    const THEME_STORAGE_KEY = 'uiptv_theme';
     const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
         ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
         : null;
+
+    let currentTheme = 'system';
+
+    const resolveSystemTheme = () => {
+        if (!window.matchMedia) {
+            return 'light';
+        }
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    };
+
+    const applyTheme = (theme) => {
+        currentTheme = theme || 'system';
+        if (currentTheme === 'system') {
+            document.documentElement.setAttribute('data-theme', resolveSystemTheme());
+        } else {
+            document.documentElement.setAttribute('data-theme', currentTheme);
+        }
+        updateThemeButton();
+    };
+
+    const updateThemeButton = () => {
+        if (!themeBtn || !themeIcon) return;
+        const theme = currentTheme || 'system';
+        themeBtn.title = `Theme: ${theme}`;
+        if (theme === 'system') {
+            themeIcon.className = 'bi bi-display';
+        } else if (theme === 'dark') {
+            themeIcon.className = 'bi bi-moon-fill';
+        } else {
+            themeIcon.className = 'bi bi-sun-fill';
+        }
+    };
+
+    const initTheme = () => {
+        const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'system';
+        applyTheme(storedTheme);
+        if (window.matchMedia) {
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            const handler = () => {
+                if ((currentTheme || 'system') === 'system') {
+                    applyTheme('system');
+                }
+            };
+            if (typeof mediaQuery.addEventListener === 'function') {
+                mediaQuery.addEventListener('change', handler);
+            } else if (typeof mediaQuery.addListener === 'function') {
+                mediaQuery.addListener(handler);
+            }
+        }
+        window.addEventListener('storage', (event) => {
+            if (event.key === THEME_STORAGE_KEY) {
+                applyTheme(event.newValue || 'system');
+            }
+        });
+    };
+
+    const toggleTheme = () => {
+        const theme = currentTheme || 'system';
+        let next = 'system';
+        if (theme === 'system') next = 'dark';
+        else if (theme === 'dark') next = 'light';
+        localStorage.setItem(THEME_STORAGE_KEY, next);
+        applyTheme(next);
+    };
 
     const setStatus = (message) => {
         if (!statusEl) return;
@@ -51,10 +123,19 @@
     };
 
     const renderMediaTitle = () => {
-        if (!mediaTitleEl) return;
         const title = cleanValue(mediaBaseTitle);
         const mode = cleanValue(playbackMode);
-        mediaTitleEl.textContent = title && mode ? `${title} [${mode}]` : title;
+        const label = title && mode ? `${title} [${mode}]` : title;
+        if (mediaTitleTextEl) {
+            mediaTitleTextEl.textContent = label;
+        } else if (mediaTitleEl) {
+            mediaTitleEl.textContent = label;
+        }
+        if (mediaLoadingSpinnerEl) {
+            const isLoading = playbackMode === 'loading';
+            mediaLoadingSpinnerEl.hidden = !isLoading;
+            mediaLoadingSpinnerEl.style.display = isLoading ? 'inline-block' : 'none';
+        }
     };
 
     const renderMediaSubtitle = () => {
@@ -91,20 +172,7 @@
         document.title = mode ? `${title} [${mode}] | ${APP_TITLE}` : `${title} | ${APP_TITLE}`;
     };
 
-    const resolvePlaybackModeLabel = (url, strategy = '') => {
-        const lowerUrl = cleanValue(url).toLowerCase();
-        const normalizedStrategy = cleanValue(strategy).toLowerCase();
-        if (normalizedStrategy === 'youtube') return 'youtube';
-        if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-        if (lowerUrl.includes('/hls/stream.m3u8')) return 'hls';
-        if (normalizedStrategy === 'mpegts') return 'mpegts';
-        if (normalizedStrategy === 'shaka') {
-            if (lowerUrl.includes('.mpd')) return 'dash';
-            if (lowerUrl.includes('.m3u8')) return 'hls';
-            return 'shaka';
-        }
-        return 'direct';
-    };
+    const resolvePlaybackModeLabel = (url, strategy = '') => playbackUtils.resolvePlaybackModeLabel(url, strategy);
 
     const launchMode = (launch) => cleanValue(launch?.mode || 'itv').toLowerCase();
 
@@ -184,6 +252,28 @@
         mediaSubtitleParts = subtitleParts;
         renderMediaTitle();
         renderMediaSubtitle();
+        updateDocumentTitle();
+    };
+
+
+    const togglePictureInPicture = async () => {
+        if (!videoEl || !document.pictureInPictureEnabled) return;
+        try {
+            if (document.pictureInPictureElement === videoEl) {
+                await document.exitPictureInPicture();
+            } else {
+                await videoEl.requestPictureInPicture();
+            }
+        } catch (_) {
+            // Ignore PIP errors.
+        }
+    };
+
+    const stopPlayback = async () => {
+        await destroyPlayer();
+        playbackMode = '';
+        setStatus('Playback stopped.');
+        renderMediaTitle();
         updateDocumentTitle();
     };
 
@@ -753,23 +843,11 @@
     };
 
     const isTsLikeResponse = (responseData) => {
-        const lowerUrl = String(responseData?.url || '').toLowerCase();
         const manifestType = cleanValue(responseData?.drm?.manifestType || responseData?.manifestType).toLowerCase();
-        return manifestType === 'ts'
-            || manifestType === 'mpegts'
-            || manifestType === 'mpeg2ts'
-            || lowerUrl.includes('.ts?')
-            || lowerUrl.endsWith('.ts')
-            || lowerUrl.includes('.m2ts?')
-            || lowerUrl.endsWith('.m2ts')
-            || lowerUrl.includes('extension=ts')
-            || lowerUrl.includes('/live/play/');
+        return playbackUtils.isTsLikeUrl(responseData?.url, manifestType);
     };
 
-    const canUseMpegts = () => {
-        const engine = window.mpegts;
-        return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
-    };
+    const canUseMpegts = () => playbackUtils.canUseMpegts();
 
     const resolvePrimaryStrategy = (responseData, launch) => {
         const hasDrm = !!responseData?.drm;
@@ -1523,15 +1601,36 @@
     };
 
     if (reloadBtn) {
-        reloadBtn.addEventListener('click', () => {
-            clearWebCacheAndReload();
+        reloadBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, clearWebCacheAndReload, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
         });
     }
 
     if (repeatBtn) {
-        repeatBtn.addEventListener('click', () => {
-            repeatEnabled = !repeatEnabled;
-            updateRepeatButton();
+        repeatBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, () => {
+                repeatEnabled = !repeatEnabled;
+                updateRepeatButton();
+            }, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
+        });
+    }
+
+    if (themeBtn) {
+        themeBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, toggleTheme);
+        });
+    }
+
+
+    if (pipBtn) {
+        pipBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, togglePictureInPicture, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
+        });
+    }
+
+    if (stopBtn) {
+        stopBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, stopPlayback);
         });
     }
 
@@ -1563,5 +1662,6 @@
     resetTrackMenus();
     renderResolutionPill();
     updateRepeatButton();
+    initTheme();
     start();
 })();

@@ -377,7 +377,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         account.setAction(Account.AccountAction.series);
-        SeriesWatchStateService.getInstance().markSeriesEpisodeManualIfNewer(
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account,
                 seriesCategoryId,
                 seriesId,

@@ -23,6 +23,9 @@
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <!-- MPEG-TS over MSE -->
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
+    <script src="/javascript/playback-utils.js?v=20260310a"></script>
+    <script src="/javascript/player-controls.js?v=20260310a"></script>
+    <script src="/javascript/bookmark-watch-utils.js?v=20260310d"></script>
 </head>
 <body>
 
@@ -469,37 +472,89 @@
 
                 <!-- Watching Now Tab -->
                 <div v-if="activeTab === 'watchingNow'">
-                    <div class="grid-container">
-                        <div v-if="listLoading" class="card-item">
-                            <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
-                            <div class="content-wrapper">
-                                <div class="title">{{ listLoadingMessage }}</div>
+                    <div class="d-flex align-items-center justify-content-between px-2 pb-2">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Watching Now">
+                            <button
+                                    class="btn"
+                                    :class="watchingNowTab === 'series' ? 'btn-primary' : 'btn-outline-secondary'"
+                                    @click="setWatchingNowTab('series')">Series
+                            </button>
+                            <button
+                                    class="btn"
+                                    :class="watchingNowTab === 'vod' ? 'btn-primary' : 'btn-outline-secondary'"
+                                    @click="setWatchingNowTab('vod')">Movies
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="watchingNowTab === 'series'">
+                        <div class="grid-container">
+                            <div v-if="listLoading" class="card-item">
+                                <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ listLoadingMessage }}</div>
+                                </div>
+                            </div>
+                            <div
+                                    v-if="!listLoading"
+                                    v-for="row in filteredWatchingNowRows"
+                                    :key="row.key"
+                                    class="card-item"
+                                    :class="{
+                                        'border border-primary': selectedWatchingNowKey === row.key,
+                                        'channel-on-air': isActiveWatchingNowRow(row)
+                                    }"
+                                    @click="openWatchingNowSeriesDetail(row)">
+                                <span class="channel-live-marker" :class="{ active: isActiveWatchingNowRow(row) }" aria-hidden="true">
+                                    <i v-if="isActiveWatchingNowRow(row)" class="bi bi-broadcast"></i>
+                                </span>
+                                <img v-if="row.seriesPoster" :src="row.seriesPoster" @load="imageLoad" @error="imageError" alt="series poster">
+                                <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ row.seriesTitle }}</div>
+                                    <div class="subtitle">{{ row.accountName }}</div>
+                                </div>
+                            </div>
+                            <div v-if="!listLoading && filteredWatchingNowRows.length === 0" class="card-item">
+                                <div class="icon-placeholder"><i class="bi bi-info-circle"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">No currently watched series found.</div>
+                                </div>
                             </div>
                         </div>
-                        <div
-                                v-if="!listLoading"
-                                v-for="row in filteredWatchingNowRows"
-                                :key="row.key"
-                                class="card-item"
-                                :class="{
-                                    'border border-primary': selectedWatchingNowKey === row.key,
-                                    'channel-on-air': isActiveWatchingNowRow(row)
-                                }"
-                                @click="openWatchingNowSeriesDetail(row)">
-                            <span class="channel-live-marker" :class="{ active: isActiveWatchingNowRow(row) }" aria-hidden="true">
-                                <i v-if="isActiveWatchingNowRow(row)" class="bi bi-broadcast"></i>
-                            </span>
-                            <img v-if="row.seriesPoster" :src="row.seriesPoster" @load="imageLoad" @error="imageError" alt="series poster">
-                            <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
-                            <div class="content-wrapper">
-                                <div class="title">{{ row.seriesTitle }}</div>
-                                <div class="subtitle">{{ row.accountName }}</div>
+                    </div>
+                    <div v-else>
+                        <div class="grid-container">
+                            <div v-if="watchingNowVodLoading" class="card-item">
+                                <div class="icon-placeholder"><span class="spinner-border spinner-border-sm text-light"></span></div>
+                                <div class="content-wrapper">
+                                    <div class="title">Loading Watching Now...</div>
+                                </div>
                             </div>
-                        </div>
-                        <div v-if="!listLoading && filteredWatchingNowRows.length === 0" class="card-item">
-                            <div class="icon-placeholder"><i class="bi bi-info-circle"></i></div>
-                            <div class="content-wrapper">
-                                <div class="title">No currently watched series found.</div>
+                            <div
+                                    v-if="!watchingNowVodLoading"
+                                    v-for="row in filteredWatchingNowVodRows"
+                                    :key="row.key"
+                                    class="card-item"
+                                    :class="{
+                                        'border border-primary': selectedWatchingNowVodKey === row.key,
+                                        'channel-on-air': isActiveWatchingNowVodRow(row)
+                                    }"
+                                    @click="playWatchingNowVodRow(row)">
+                                <span class="channel-live-marker" :class="{ active: isActiveWatchingNowVodRow(row) }" aria-hidden="true">
+                                    <i v-if="isActiveWatchingNowVodRow(row)" class="bi bi-broadcast"></i>
+                                </span>
+                                <img v-if="row.vodLogo" :src="row.vodLogo" @load="imageLoad" @error="imageError" alt="vod poster">
+                                <div v-else class="icon-placeholder"><i class="bi bi-film"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">{{ row.vodName }}</div>
+                                    <div class="subtitle">{{ row.accountName }}</div>
+                                </div>
+                            </div>
+                            <div v-if="!watchingNowVodLoading && filteredWatchingNowVodRows.length === 0" class="card-item">
+                                <div class="icon-placeholder"><i class="bi bi-info-circle"></i></div>
+                                <div class="content-wrapper">
+                                    <div class="title">No currently watched VOD found.</div>
+                                </div>
                             </div>
                         </div>
                     </div>

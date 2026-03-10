@@ -36,6 +36,23 @@ body {
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
+.spinner-border {
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 0.18em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spinner-border 0.75s linear infinite;
+    vertical-align: -0.12em;
+}
+
+@keyframes spinner-border {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
 #app {
     width: 100%;
     height: 100%;
@@ -203,6 +220,10 @@ body {
     height: 100%;
     background: #000;
     z-index: 0;
+}
+
+[data-theme="light"] #video {
+    background: #fff;
 }
 
 #content {

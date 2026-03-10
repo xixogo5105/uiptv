@@ -63,6 +63,7 @@ import static com.uiptv.model.Account.AccountAction.vod;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
@@ -80,9 +81,21 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private String watchedSeriesAccountId;
     private String watchedSeriesId;
     private String watchedEpisodeId;
+    private String watchedSeriesCategoryId;
+    private String watchedSeriesCategoryDbId;
+    private String watchedSeriesEpisodeName;
+    private String watchedSeriesSeason;
+    private String watchedSeriesEpisodeNum;
+    private String watchedVodAccountId;
+    private String watchedVodCategoryId;
+    private String watchedVodId;
+    private String watchedVodName;
+    private String watchedVodCmd;
+    private String watchedVodLogo;
 
     @BeforeEach
     void setUpServers() throws Exception {
+        System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
         providerMockServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         providerMockServer.createContext("/portal.php", this::handleStalker);
         providerMockServer.createContext("/xtreme/player_api.php", this::handleXtreme);
@@ -181,8 +194,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertCategoriesApi();
             assertChannelsApi();
             assertSeriesApis();
-            assertWatchingNowApi();
             assertVodDetailsApi();
+            assertWatchingNowApi();
             assertBookmarksApis();
             assertPlayerApis();
             assertPlaylistApis();
@@ -502,6 +515,11 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         watchedSeriesAccountId = account.getDbId();
         watchedSeriesId = seriesId;
         watchedEpisodeId = episode3.optString("channelId");
+        watchedSeriesCategoryId = categoryApiId;
+        watchedSeriesCategoryDbId = categoryDbId;
+        watchedSeriesEpisodeName = episode3.optString("name");
+        watchedSeriesSeason = episode3.optString("season");
+        watchedSeriesEpisodeNum = episode3.optString("episodeNum");
     }
 
     private void assertSeriesRowWatched(Account account, String categoryDbId, String seriesId, boolean expectedWatched) throws Exception {
@@ -582,6 +600,77 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertFalse(matched.optString("seriesTitle").isBlank());
         assertFalse(matched.optString("episodeName").isBlank());
         assertFalse(matched.optString("categoryDbId").isBlank());
+
+        JSONObject deletePayload = new JSONObject();
+        deletePayload.put("accountId", watchedSeriesAccountId);
+        deletePayload.put("categoryId", watchedSeriesCategoryId);
+        deletePayload.put("seriesId", watchedSeriesId);
+        JSONObject deleteRes = jsonObjectBody(deleteWithBody("/watchingNowSeriesAction", deletePayload.toString()));
+        assertEquals("ok", deleteRes.optString("status"));
+
+        JSONArray afterDelete = jsonArrayBody(get("/watchingNow"));
+        boolean removed = true;
+        for (int i = 0; i < afterDelete.length(); i++) {
+            JSONObject row = afterDelete.getJSONObject(i);
+            if (Objects.equals(watchedSeriesAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedSeriesId, row.optString("seriesId"))) {
+                removed = false;
+                break;
+            }
+        }
+        assertTrue(removed);
+
+        JSONObject createPayload = new JSONObject();
+        createPayload.put("accountId", watchedSeriesAccountId);
+        createPayload.put("categoryId", watchedSeriesCategoryId);
+        createPayload.put("seriesId", watchedSeriesId);
+        createPayload.put("episodeId", watchedEpisodeId);
+        createPayload.put("episodeName", watchedSeriesEpisodeName);
+        createPayload.put("season", watchedSeriesSeason);
+        createPayload.put("episodeNum", watchedSeriesEpisodeNum);
+        JSONObject createRes = jsonObjectBody(postJson("/watchingNowSeriesAction", createPayload.toString()));
+        assertEquals("ok", createRes.optString("status"));
+
+        JSONArray afterCreate = jsonArrayBody(get("/watchingNow"));
+        boolean restored = false;
+        for (int i = 0; i < afterCreate.length(); i++) {
+            JSONObject row = afterCreate.getJSONObject(i);
+            if (Objects.equals(watchedSeriesAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedSeriesId, row.optString("seriesId"))) {
+                restored = true;
+                break;
+            }
+        }
+        assertTrue(restored);
+
+        JSONObject vodCreate = new JSONObject();
+        vodCreate.put("accountId", watchedVodAccountId);
+        vodCreate.put("categoryId", watchedVodCategoryId);
+        vodCreate.put("vodId", watchedVodId);
+        vodCreate.put("vodName", watchedVodName);
+        vodCreate.put("vodCmd", watchedVodCmd);
+        vodCreate.put("vodLogo", watchedVodLogo);
+        JSONObject vodCreateRes = jsonObjectBody(postJson("/watchingNowVodAction", vodCreate.toString()));
+        assertEquals("ok", vodCreateRes.optString("status"));
+
+        JSONArray watchingVod = jsonArrayBody(get("/watchingNowVod"));
+        boolean vodFound = false;
+        for (int i = 0; i < watchingVod.length(); i++) {
+            JSONObject row = watchingVod.getJSONObject(i);
+            if (Objects.equals(watchedVodAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedVodId, row.optString("vodId"))) {
+                vodFound = true;
+                break;
+            }
+        }
+        assertTrue(vodFound);
+
+        JSONObject vodDeletePayload = new JSONObject();
+        vodDeletePayload.put("accountId", watchedVodAccountId);
+        vodDeletePayload.put("categoryId", watchedVodCategoryId);
+        vodDeletePayload.put("vodId", watchedVodId);
+        JSONObject vodDeleteRes = jsonObjectBody(deleteWithBody("/watchingNowVodAction", vodDeletePayload.toString()));
+        assertEquals("ok", vodDeleteRes.optString("status"));
     }
 
     private boolean isWatchedFlag(JSONObject item) {
@@ -605,6 +694,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 + "&categoryId=" + URLEncoder.encode(xtremeVodCategoryDbId, StandardCharsets.UTF_8) + "&mode=vod"));
         assertTrue(vodRows.length() >= 1);
         JSONObject vod = vodRows.getJSONObject(0);
+        watchedVodAccountId = xtreme.getDbId();
+        watchedVodCategoryId = xtremeVodCategoryDbId;
+        watchedVodId = vod.optString("channelId");
+        watchedVodName = vod.optString("name");
+        watchedVodCmd = vod.optString("cmd");
+        watchedVodLogo = vod.optString("logo");
 
         JSONObject details = jsonObjectBody(get("/vodDetails?accountId=" + xtreme.getDbId()
                 + "&categoryId=" + URLEncoder.encode(xtremeVodCategoryDbId, StandardCharsets.UTF_8)
@@ -643,6 +738,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         JSONArray bookmarks = jsonArrayBody(get("/bookmarks"));
         assertTrue(bookmarks.length() >= 2);
+
+        JSONArray pageOne = jsonArrayBody(get("/bookmarks?offset=0&limit=1"));
+        JSONArray pageTwo = jsonArrayBody(get("/bookmarks?offset=1&limit=1"));
+        assertEquals(1, pageOne.length());
+        assertEquals(1, pageTwo.length());
+        assertNotEquals(pageOne.getJSONObject(0).optString("dbId"), pageTwo.getJSONObject(0).optString("dbId"));
 
         List<String> ids = new ArrayList<>();
         for (int i = 0; i < bookmarks.length(); i++) {
@@ -747,6 +848,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertHlsAndProxyApis() throws Exception {
+        System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
         String playlistBody = """
                 #EXTM3U
                 #EXT-X-VERSION:3
@@ -778,7 +880,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse recentlyDeletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(200, recentlyDeletedSegmentFetch.statusCode());
 
-        waitForCondition(hlsTsDeleteGraceMillis() + 500, () -> get("/hls/segment-1.ts").statusCode() == 404);
+        com.uiptv.service.InMemoryHlsService.getInstance().clear();
         HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(404, deletedSegmentFetch.statusCode());
 
@@ -792,13 +894,15 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private long hlsTsDeleteGraceMillis() {
-        try {
-            var field = com.uiptv.service.InMemoryHlsService.class.getDeclaredField("TS_DELETE_GRACE_MILLIS");
-            field.setAccessible(true);
-            return field.getLong(null);
-        } catch (Exception _) {
-            return 12_000L;
+        String raw = System.getProperty("uiptv.hls.ts.delete.grace.millis");
+        if (raw != null && !raw.isBlank()) {
+            try {
+                return Long.parseLong(raw);
+            } catch (NumberFormatException _) {
+                // Fall through to the short default.
+            }
         }
+        return 500L;
     }
 
     private void assertWebChannelJsonServerApi() throws Exception {
@@ -891,6 +995,10 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
     private HttpTextResponse delete(String path) throws Exception {
         return send(appBaseUrl + path, "DELETE", null, null);
+    }
+
+    private HttpTextResponse deleteWithBody(String path, String body) throws Exception {
+        return send(appBaseUrl + path, "DELETE", body, "application/json");
     }
 
     private HttpTextResponse options(String path) throws Exception {

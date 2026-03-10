@@ -16,10 +16,17 @@ createApp({
         const selectedBookmarkCategoryId = ref('');
         const watchingNowRows = ref([]);
         const selectedWatchingNowKey = ref('');
+        const watchingNowTab = ref('series');
         const watchingNowDrilldown = ref(false);
         const watchingNowLoadedAt = ref(0);
         const WATCHING_NOW_CACHE_TTL_MS = 120000;
         let watchingNowFetchPromise = null;
+        const watchingNowVodRows = ref([]);
+        const selectedWatchingNowVodKey = ref('');
+        const watchingNowVodLoadedAt = ref(0);
+        const WATCHING_NOW_VOD_CACHE_TTL_MS = 120000;
+        let watchingNowVodFetchPromise = null;
+        const watchingNowVodLoading = ref(false);
         const selectedAccountId = ref(null);
 
         const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
@@ -505,7 +512,7 @@ createApp({
                 if (viewState.value === 'episodes') return 'Search episodes...';
             }
             if (activeTab.value === 'bookmarks') return 'Search bookmarks...';
-            if (activeTab.value === 'watchingNow') return 'Search series or episodes...';
+            if (activeTab.value === 'watchingNow') return 'Search series or movies...';
             return 'Search...';
         });
 
@@ -611,6 +618,16 @@ createApp({
             });
         });
 
+        const filteredWatchingNowVodRows = computed(() => {
+            const q = String(searchQuery.value || '').trim().toLowerCase();
+            if (!q) return watchingNowVodRows.value;
+            return (watchingNowVodRows.value || []).filter(row => {
+                if ((row?.vodName || '').toLowerCase().includes(q)) return true;
+                if ((row?.accountName || '').toLowerCase().includes(q)) return true;
+                return false;
+            });
+        });
+
         const APP_TITLE = 'UIPTV';
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
         const currentChannelDebugTitle = computed(() => {
@@ -625,40 +642,10 @@ createApp({
             document.title = channelTitle ? `${channelTitle} | ${APP_TITLE}` : APP_TITLE;
         };
 
-        const isTsLikeUrl = (url, manifestType = '') => {
-            const lowerUrl = String(url || '').trim().toLowerCase();
-            const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
-            return normalizedManifestType === 'ts'
-                || normalizedManifestType === 'mpegts'
-                || normalizedManifestType === 'mpeg2ts'
-                || lowerUrl.includes('.ts?')
-                || lowerUrl.endsWith('.ts')
-                || lowerUrl.includes('.m2ts?')
-                || lowerUrl.endsWith('.m2ts')
-                || lowerUrl.includes('extension=ts')
-                || lowerUrl.includes('/live/play/')
-                || /\/\d+(?:\?|$)/.test(lowerUrl);
-        };
-
-        const canUseMpegts = () => {
-            const engine = window.mpegts;
-            return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
-        };
-
-        const resolvePlaybackModeLabel = (url, engine = '') => {
-            const lowerUrl = String(url || '').trim().toLowerCase();
-            const normalizedEngine = String(engine || '').trim().toLowerCase();
-            if (normalizedEngine === 'youtube') return 'youtube';
-            if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-            if (lowerUrl.includes('/hls/stream.m3u8')) return 'hls';
-            if (normalizedEngine === 'mpegts') return 'mpegts';
-            if (normalizedEngine === 'shaka') {
-                if (lowerUrl.includes('.mpd')) return 'dash';
-                if (lowerUrl.includes('.m3u8')) return 'hls';
-                return 'shaka';
-            }
-            return 'direct';
-        };
+        const playbackUtils = window.UIPTVPlaybackUtils;
+        const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
+        const canUseMpegts = () => playbackUtils.canUseMpegts();
+        const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
 
         const resolveChannelIdentity = (channel) => {
             if (!channel) return '';
@@ -801,6 +788,17 @@ createApp({
             return !!selectedSeriesId && selectedSeriesId === String(row.seriesId || '').trim();
         };
 
+        const isActiveWatchingNowVodRow = (row) => {
+            if (!row) return false;
+            return matchesCurrentPlayback({
+                id: row.vodId || row?.playItem?.channelId || '',
+                accountId: row.accountId || '',
+                accountName: row.accountName || '',
+                mode: 'vod',
+                name: row.vodName || row?.playItem?.name || ''
+            });
+        };
+
         const isPendingPlaybackTarget = (target) => {
             if (!playbackLoading.value) return false;
             return pendingPlaybackKey.value === buildPlaybackTargetKey(target);
@@ -822,20 +820,7 @@ createApp({
             bookmarkId: bookmark?.dbId || ''
         });
 
-        const buildForcedHlsPlaybackRequestUrl = (rawUrl) => {
-            const baseUrl = String(rawUrl || '').trim();
-            if (!baseUrl) return '';
-            try {
-                const parsed = new URL(baseUrl, window.location.origin);
-                if (String(parsed.searchParams.get('preferHls') || '').trim() === '1') {
-                    return '';
-                }
-                parsed.searchParams.set('preferHls', '1');
-                return parsed.toString();
-            } catch (_) {
-                return '';
-            }
-        };
+        const buildForcedHlsPlaybackRequestUrl = (rawUrl) => playbackUtils.buildForcedHlsPlaybackRequestUrl(rawUrl);
 
         const tryForcedHlsFallback = async (channel) => {
             const sourceUrl = String(channel?.url || '').trim().toLowerCase();
@@ -906,8 +891,55 @@ createApp({
             ) || null;
         };
 
+        const resolveCurrentSeriesId = (channel) => {
+            if (!channel) return '';
+            return String(
+                channel.seriesParentId
+                || channel.seriesId
+                || channel.parentSeriesId
+                || getModeState('series')?.selectedSeriesId
+                || ''
+            ).trim();
+        };
+
+        const resolveCurrentVodId = (channel) => {
+            if (!channel) return '';
+            return String(channel.vodId || channel.channelId || channel.id || '').trim();
+        };
+
+        const isCurrentSeriesInWatchingNow = computed(() => {
+            const current = currentChannel.value;
+            if (!current || normalizePlaybackMode(current.mode) !== 'series') return false;
+            const seriesId = resolveCurrentSeriesId(current);
+            if (!seriesId) return false;
+            const accountId = String(current.accountId || '').trim();
+            return (watchingNowRows.value || []).some(row => {
+                if (String(row?.seriesId || '').trim() !== seriesId) return false;
+                return !accountId || String(row?.accountId || '').trim() === accountId;
+            });
+        });
+
+        const isCurrentVodInWatchingNow = computed(() => {
+            const current = currentChannel.value;
+            if (!current || normalizePlaybackMode(current.mode) !== 'vod') return false;
+            const vodId = resolveCurrentVodId(current);
+            if (!vodId) return false;
+            const accountId = String(current.accountId || '').trim();
+            return (watchingNowVodRows.value || []).some(row => {
+                if (String(row?.vodId || '').trim() !== vodId) return false;
+                return !accountId || String(row?.accountId || '').trim() === accountId;
+            });
+        });
+
         const isCurrentFavorite = computed(() => {
             if (!currentChannel.value) return false;
+            const mode = normalizePlaybackMode(currentChannel.value?.mode || contentMode.value);
+            if (mode === 'series') {
+                return isCurrentSeriesInWatchingNow.value;
+            }
+            if (mode === 'vod') {
+                return isCurrentVodInWatchingNow.value;
+            }
             return !!findBookmarkForChannel(currentChannel.value);
         });
 
@@ -1227,38 +1259,35 @@ createApp({
         };
 
         const BOOKMARK_PAGE_SIZE = 25;
+        const bookmarkWatchUtils = window.UIPTVBookmarkWatchUtils;
 
         const loadBookmarks = async () => {
-            try {
-                listLoading.value = true;
-                listLoadingMessage.value = 'Loading bookmarks...';
-                bookmarks.value = [];
-                let offset = 0;
-                while (true) {
-                    const response = await fetch(`${window.location.origin}/bookmarks?offset=${offset}&limit=${BOOKMARK_PAGE_SIZE}`);
-                    const batch = await response.json();
-                    if (!Array.isArray(batch) || batch.length === 0) {
-                        break;
-                    }
-                    bookmarks.value = [...bookmarks.value, ...batch.map(normalizeBookmark)];
+            listLoading.value = true;
+            listLoadingMessage.value = 'Loading bookmarks...';
+            await bookmarkWatchUtils.loadBookmarksPaged({
+                origin: window.location.origin,
+                pageSize: BOOKMARK_PAGE_SIZE,
+                normalize: (item) => normalizeBookmark(item),
+                onReset: () => {
+                    bookmarks.value = [];
+                },
+                onBatch: (batch) => {
+                    bookmarks.value = [...bookmarks.value, ...batch];
+                },
+                onAfterBatch: () => {
                     ensureSelectedBookmarkCategory();
-                    offset += batch.length;
-                    if (batch.length < BOOKMARK_PAGE_SIZE) {
-                        break;
-                    }
-                    await nextTick();
+                },
+                nextTick,
+                onError: (e) => console.error('Failed to load bookmarks', e),
+                onDone: () => {
+                    listLoading.value = false;
                 }
-            } catch (e) {
-                console.error('Failed to load bookmarks', e);
-            } finally {
-                listLoading.value = false;
-            }
+            });
         };
 
         const loadBookmarkCategories = async () => {
             try {
-                const response = await fetch(`${window.location.origin}/bookmarks?view=categories`);
-                bookmarkCategories.value = await response.json();
+                bookmarkCategories.value = await bookmarkWatchUtils.loadBookmarkCategories(window.location.origin);
                 ensureSelectedBookmarkCategory();
             } catch (e) {
                 console.error('Failed to load bookmark categories', e);
@@ -1276,6 +1305,12 @@ createApp({
             seriesPoster: resolveLogoUrl(row.seriesPoster),
             episodes: Array.isArray(row.episodes) ? row.episodes.map(normalizeChannel) : []
         });
+
+        const normalizeWatchingNowVodRow = (row = {}) => bookmarkWatchUtils.normalizeWatchingNowVodRow(
+            row,
+            resolveLogoUrl,
+            normalizeChannel
+        );
 
         const loadWatchingNow = async ({ force = false, background = false } = {}) => {
             const hasRows = Array.isArray(watchingNowRows.value) && watchingNowRows.value.length > 0;
@@ -1299,9 +1334,7 @@ createApp({
                     watchingNowLoadedAt.value = Date.now();
                     const selectedKey = String(selectedWatchingNowKey.value || '');
                     const exists = watchingNowRows.value.some(row => String(row?.key || '') === selectedKey);
-                    selectedWatchingNowKey.value = exists
-                        ? selectedKey
-                        : String(watchingNowRows.value[0]?.key || '');
+                    selectedWatchingNowKey.value = exists ? selectedKey : '';
                 } catch (e) {
                     console.error('Failed to load watching now', e);
                     if (!hasRows) {
@@ -1319,6 +1352,48 @@ createApp({
                 return await watchingNowFetchPromise;
             } finally {
                 watchingNowFetchPromise = null;
+            }
+        };
+
+        const loadWatchingNowVod = async ({ force = false, background = false } = {}) => {
+            const hasRows = Array.isArray(watchingNowVodRows.value) && watchingNowVodRows.value.length > 0;
+            const cacheAgeMs = Date.now() - Number(watchingNowVodLoadedAt.value || 0);
+            const isFresh = hasRows && cacheAgeMs < WATCHING_NOW_VOD_CACHE_TTL_MS;
+            if (!force && isFresh) {
+                return watchingNowVodRows.value;
+            }
+            if (watchingNowVodFetchPromise) {
+                return await watchingNowVodFetchPromise;
+            }
+
+            watchingNowVodFetchPromise = (async () => {
+                try {
+                    if (!background) {
+                        watchingNowVodLoading.value = true;
+                    }
+                    const rows = await bookmarkWatchUtils.fetchWatchingNowVod(window.location.origin);
+                    watchingNowVodRows.value = rows.map(normalizeWatchingNowVodRow);
+                    watchingNowVodLoadedAt.value = Date.now();
+                    const selectedKey = String(selectedWatchingNowVodKey.value || '');
+                    const exists = watchingNowVodRows.value.some(row => String(row?.key || '') === selectedKey);
+                    selectedWatchingNowVodKey.value = exists ? selectedKey : '';
+                } catch (e) {
+                    console.error('Failed to load watching now vod', e);
+                    if (!hasRows) {
+                        watchingNowVodRows.value = [];
+                        selectedWatchingNowVodKey.value = '';
+                    }
+                } finally {
+                    if (!background) {
+                        watchingNowVodLoading.value = false;
+                    }
+                }
+            })();
+
+            try {
+                return await watchingNowVodFetchPromise;
+            } finally {
+                watchingNowVodFetchPromise = null;
             }
         };
 
@@ -1459,12 +1534,21 @@ createApp({
             }
             searchQuery.value = '';
             if (tab === 'watchingNow') {
+                if (!watchingNowTab.value) {
+                    watchingNowTab.value = 'series';
+                }
                 loadWatchingNow({ force: false, background: !!watchingNowRows.value.length });
+                loadWatchingNowVod({ force: false, background: !!watchingNowVodRows.value.length });
             }
+        };
+
+        const setWatchingNowTab = (tab) => {
+            watchingNowTab.value = tab === 'vod' ? 'vod' : 'series';
         };
 
         const openWatchingNowSeriesDetail = async (row) => {
             if (!row) return;
+            watchingNowTab.value = 'series';
             selectedWatchingNowKey.value = String(row.key || '');
             watchingNowDrilldown.value = true;
             activeTab.value = 'accounts';
@@ -1487,6 +1571,44 @@ createApp({
                 name: row.seriesTitle || 'Series',
                 logo: resolveLogoUrl(row.seriesPoster || '')
             });
+        };
+
+        const playWatchingNowVodRow = (row) => {
+            if (!row) return;
+            watchingNowTab.value = 'vod';
+            selectedWatchingNowVodKey.value = String(row.key || '');
+            contentMode.value = 'vod';
+            currentContext.value.accountId = row.accountId || null;
+            currentContext.value.accountType = row.accountType || null;
+            currentContext.value.categoryId = row.categoryId || '';
+            const base = normalizeChannel(row.playItem || {});
+            const channelIdentifier = base.dbId || base.channelId || base.id || row.vodId || '';
+            const playbackUrl = buildPlayerUrlForChannel({
+                ...base,
+                channelId: base.channelId || channelIdentifier,
+                categoryId: row.categoryId || base.categoryId || '',
+                name: base.name || row.vodName || 'VOD',
+                logo: base.logo || row.vodLogo || ''
+            }, 'vod');
+            const nextChannel = {
+                id: channelIdentifier,
+                dbId: base.dbId || '',
+                channelId: base.channelId || channelIdentifier,
+                name: base.name || row.vodName || 'VOD',
+                logo: resolveLogoUrl(base.logo || row.vodLogo || ''),
+                cmd: base.cmd || '',
+                drmType: base.drmType || '',
+                drmLicenseUrl: base.drmLicenseUrl || '',
+                clearKeysJson: base.clearKeysJson || '',
+                inputstreamaddon: base.inputstreamaddon || '',
+                manifestType: base.manifestType || '',
+                accountId: row.accountId || '',
+                categoryId: row.categoryId || '',
+                type: 'channel',
+                mode: 'vod',
+                playRequestUrl: playbackUrl
+            };
+            startPlayback(playbackUrl, nextChannel);
         };
 
         const selectAccount = async (account) => {
@@ -1623,10 +1745,11 @@ createApp({
                 return `${window.location.origin}/player?${query.toString()}`;
             }
 
-            if (channelDbId) {
+            const useDbId = modeToUse === 'itv' && channelDbId;
+            if (useDbId) {
                 query.set('channelId', channelDbId);
             } else {
-                query.set('channelId', channelIdentifier);
+                query.set('channelId', channelIdentifier || channelDbId);
                 query.set('name', channel.name || '');
                 query.set('logo', channel.logo || '');
                 query.set('cmd', channel.cmd || '');
@@ -1777,6 +1900,7 @@ createApp({
                 manifestType: channel.manifestType,
                 season: modeToUse === 'series' ? resolvePlaybackSeason(channel) : '',
                 episodeNum: modeToUse === 'series' ? resolvePlaybackEpisodeNumber(channel) : '',
+                seriesParentId: modeToUse === 'series' ? String(getModeState('series')?.selectedSeriesId || '') : '',
                 accountId: currentContext.value.accountId,
                 categoryId: playbackCategoryId,
                 type: 'channel',
@@ -1818,6 +1942,7 @@ createApp({
                 categoryId: bookmark.categoryId || '',
                 channelId: bookmark.channelId || '',
                 cmd: bookmark.cmd || '',
+                seriesParentId: bookmark.seriesParentId || bookmark.seriesId || '',
                 bookmarkId: bookmark.dbId,
                 type: 'bookmark',
                 mode: bookmarkMode,
@@ -1972,6 +2097,7 @@ createApp({
                 await initPlayer(channelData);
                 if (currentChannel.value?.mode === 'series') {
                     await refreshSeriesEpisodeWatchState();
+                    await ensureSeriesWatchingNow();
                 }
             } catch (e) {
                 if (e?.name === 'AbortError') return;
@@ -2208,20 +2334,8 @@ createApp({
             }
         };
 
-        const normalizeWebPlaybackUrl = (rawUrl) => {
-            const value = String(rawUrl || '').trim();
-            if (!value) return value;
-            return downgradeHttpsToHttpForKnownPaths(value);
-        };
-
-        const downgradeHttpsToHttpForKnownPaths = (url) => {
-            const value = String(url || '').trim();
-            const lower = value.toLowerCase();
-            if (lower.startsWith('https://') && (lower.includes('/live/play/') || lower.includes('/play/movie.php'))) {
-                return `http://${value.slice('https://'.length)}`;
-            }
-            return value;
-        };
+        const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
+        const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
 
         const extractYoutubeId = (value) => {
             const raw = String(value || '').trim();
@@ -2432,8 +2546,107 @@ createApp({
             refreshShakaTracks(playerInstance.value);
         };
 
+        const toggleSeriesWatchingNow = async () => {
+            const current = currentChannel.value;
+            if (!current) return;
+            const seriesId = resolveCurrentSeriesId(current);
+            const episodeId = String(current.channelId || current.id || '').trim();
+            const accountId = String(current.accountId || '').trim();
+            if (!seriesId || !episodeId || !accountId) return;
+            const payload = {
+                accountId,
+                categoryId: String(current.categoryId || currentContext.value.categoryId || ''),
+                seriesId,
+                episodeId,
+                episodeName: current.name || current.channelName || '',
+                season: current.season || '',
+                episodeNum: current.episodeNum || ''
+            };
+            const shouldRemove = isCurrentSeriesInWatchingNow.value;
+            try {
+                await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
+                    method: shouldRemove ? 'DELETE' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                await loadWatchingNow({ force: true, background: true });
+            } catch (e) {
+                console.error('Failed to update watching now series', e);
+            }
+        };
+
+        const upsertSeriesWatchingNow = async () => {
+            const current = currentChannel.value;
+            if (!current) return;
+            const seriesId = resolveCurrentSeriesId(current);
+            const episodeId = String(current.channelId || current.id || '').trim();
+            const accountId = String(current.accountId || '').trim();
+            if (!seriesId || !episodeId || !accountId) return;
+            const payload = {
+                accountId,
+                categoryId: String(current.categoryId || currentContext.value.categoryId || ''),
+                seriesId,
+                episodeId,
+                episodeName: current.name || current.channelName || '',
+                season: current.season || '',
+                episodeNum: current.episodeNum || ''
+            };
+            try {
+                await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                await loadWatchingNow({ force: true, background: true });
+            } catch (e) {
+                console.error('Failed to update watching now series', e);
+            }
+        };
+
+        const toggleVodWatchingNow = async () => {
+            const current = currentChannel.value;
+            if (!current) return;
+            const vodId = resolveCurrentVodId(current);
+            const accountId = String(current.accountId || '').trim();
+            if (!vodId || !accountId) return;
+            const payload = {
+                accountId,
+                categoryId: String(current.categoryId || currentContext.value.categoryId || ''),
+                vodId,
+                vodName: current.name || current.channelName || '',
+                vodCmd: current.cmd || '',
+                vodLogo: resolveLogoUrl(current.logo || '')
+            };
+            const shouldRemove = isCurrentVodInWatchingNow.value;
+            try {
+                await fetch(`${window.location.origin}/watchingNowVodAction`, {
+                    method: shouldRemove ? 'DELETE' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                await loadWatchingNowVod({ force: true, background: true });
+            } catch (e) {
+                console.error('Failed to update watching now vod', e);
+            }
+        };
+
+        const ensureSeriesWatchingNow = async () => {
+            const current = currentChannel.value;
+            if (!current || normalizePlaybackMode(current.mode) !== 'series') return;
+            await upsertSeriesWatchingNow();
+        };
+
         const toggleFavorite = async () => {
             if (!currentChannel.value) return;
+            const mode = normalizePlaybackMode(currentChannel.value?.mode || contentMode.value);
+            if (mode === 'series') {
+                await toggleSeriesWatchingNow();
+                return;
+            }
+            if (mode === 'vod') {
+                await toggleVodWatchingNow();
+                return;
+            }
             const existing = findBookmarkForChannel(currentChannel.value);
             try {
                 if (existing?.dbId) {
@@ -2503,14 +2716,7 @@ createApp({
         };
 
         const onPlayerControlClick = async (event, action, ...args) => {
-            if (event) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            if (typeof action === 'function') {
-                await action(...args);
-            }
-            await ensurePlaybackNotPaused();
+            await window.UIPTVControls.onControlClick(event, action, ensurePlaybackNotPaused, ...args);
         };
 
         const imageError = (e) => {
@@ -2642,6 +2848,10 @@ createApp({
             selectedWatchingNowKey.value = '';
             watchingNowDrilldown.value = false;
             watchingNowLoadedAt.value = 0;
+            watchingNowVodRows.value = [];
+            selectedWatchingNowVodKey.value = '';
+            watchingNowVodLoadedAt.value = 0;
+            watchingNowVodLoading.value = false;
             repeatEnabled.value = false;
             listLoading.value = false;
             selectedSeriesSeason.value = '';
@@ -2660,7 +2870,8 @@ createApp({
                 loadAccounts(),
                 loadBookmarkCategories(),
                 loadBookmarks(),
-                loadWatchingNow()
+                loadWatchingNow(),
+                loadWatchingNowVod()
             ]);
 
             const storedTheme = localStorage.getItem('uiptv_theme');
@@ -2691,7 +2902,10 @@ createApp({
             filteredSeriesEpisodes,
             filteredBookmarks,
             filteredWatchingNowRows,
+            filteredWatchingNowVodRows,
             selectedWatchingNowKey,
+            watchingNowTab,
+            selectedWatchingNowVodKey,
             watchingNowDrilldown,
             bookmarkCategoryTabs,
             bookmarkPrimaryTabs,
@@ -2711,6 +2925,7 @@ createApp({
             isActiveChannel,
             isActiveBookmark,
             isActiveWatchingNowRow,
+            isActiveWatchingNowVodRow,
             isDisabledChannel,
             isDisabledBookmark,
             isCurrentFavorite,
@@ -2720,6 +2935,7 @@ createApp({
             showBookmarkModal,
             listLoading,
             listLoadingMessage,
+            watchingNowVodLoading,
             canReorderBookmarks,
             draggedBookmarkId,
             dragOverBookmarkId,
@@ -2758,7 +2974,9 @@ createApp({
             playChannel,
             handleChannelSelection,
             playBookmark,
+            playWatchingNowVodRow,
             openWatchingNowSeriesDetail,
+            setWatchingNowTab,
             onBookmarkCardClick,
             onBookmarkDragStart,
             onBookmarkDragOver,

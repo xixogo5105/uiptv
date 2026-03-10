@@ -108,6 +108,11 @@ public class BookmarkChannelListUI extends HBox {
         loadedOnce = true;
         long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
+        showLoadingPlaceholderIfEmpty(generation);
+        startReloadThread(generation);
+    }
+
+    private void showLoadingPlaceholderIfEmpty(long generation) {
         runLater(() -> {
             if (generation != reloadGeneration.get()) {
                 return;
@@ -116,41 +121,63 @@ public class BookmarkChannelListUI extends HBox {
                 bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoLoadingBookmarks")));
             }
         });
-        new Thread(() -> {
-            try {
-                List<Bookmark> bookmarks = BookmarkService.getInstance().read();
-                Map<String, Account> accountByName = AccountService.getInstance().getAll();
-                Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName);
-                List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
+    }
 
-                for (Bookmark bookmark : bookmarks) {
-                    if (generation != reloadGeneration.get()) {
-                        return;
-                    }
-                    loadedItems.add(createBookmarkItem(bookmark, accountByName, channelByAccountAndChannel));
-                    if (loadedItems.size() % BOOKMARK_STREAM_BATCH_SIZE == 0) {
-                        List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
-                        runLater(() -> applyPartialReload(generation, snapshot));
-                    }
-                }
+    private void startReloadThread(long generation) {
+        new Thread(() -> reloadBookmarks(generation)).start();
+    }
 
-                List<BookmarkCategory> categories = new ArrayList<>();
-                categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
-                categories.addAll(BookmarkService.getInstance().getAllCategories());
-                long revision = BookmarkService.getInstance().getChangeRevision();
-
-                runLater(() -> applyReloadResult(generation, loadedItems, categories, revision));
-            } catch (Exception _) {
-                // Keep the bookmark pane usable and show the existing placeholder on reload failure.
-                runLater(() -> {
-                    if (generation != reloadGeneration.get()) {
-                        return;
-                    }
-                    reloadInProgress = false;
-                    bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoUnableToLoadBookmarks")));
-                });
+    private void reloadBookmarks(long generation) {
+        try {
+            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            Map<String, Account> accountByName = AccountService.getInstance().getAll();
+            Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName);
+            List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, accountByName, channelByAccountAndChannel);
+            if (loadedItems == null) {
+                return;
             }
-        }).start();
+
+            List<BookmarkCategory> categories = new ArrayList<>();
+            categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
+            categories.addAll(BookmarkService.getInstance().getAllCategories());
+            long revision = BookmarkService.getInstance().getChangeRevision();
+
+            runLater(() -> applyReloadResult(generation, loadedItems, categories, revision));
+        } catch (Exception _) {
+            // Keep the bookmark pane usable and show the existing placeholder on reload failure.
+            runLater(() -> handleReloadFailure(generation));
+        }
+    }
+
+    private List<BookmarkItem> buildLoadedBookmarkItems(long generation,
+                                                       List<Bookmark> bookmarks,
+                                                       Map<String, Account> accountByName,
+                                                       Map<String, Channel> channelByAccountAndChannel) {
+        List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
+        for (Bookmark bookmark : bookmarks) {
+            if (generation != reloadGeneration.get()) {
+                return null;
+            }
+            loadedItems.add(createBookmarkItem(bookmark, accountByName, channelByAccountAndChannel));
+            maybeStreamPartialReload(generation, loadedItems);
+        }
+        return loadedItems;
+    }
+
+    private void maybeStreamPartialReload(long generation, List<BookmarkItem> loadedItems) {
+        if (loadedItems.size() % BOOKMARK_STREAM_BATCH_SIZE != 0) {
+            return;
+        }
+        List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
+        runLater(() -> applyPartialReload(generation, snapshot));
+    }
+
+    private void handleReloadFailure(long generation) {
+        if (generation != reloadGeneration.get()) {
+            return;
+        }
+        reloadInProgress = false;
+        bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoUnableToLoadBookmarks")));
     }
 
     private void applyReloadResult(long generation, List<BookmarkItem> loadedItems, List<BookmarkCategory> categories, long revision) {

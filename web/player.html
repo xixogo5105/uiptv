@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="/css/player.css?v=20260310b">
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
+    <script src="/javascript/playback-utils.js?v=20260310a"></script>
+    <script src="/javascript/player-controls.js?v=20260310a"></script>
 </head>
 <body>
 <div id="app">
@@ -23,10 +25,17 @@
             <span>UIPTV Player</span>
         </a>
         <div id="media-meta" aria-live="polite">
-            <div id="media-title"></div>
+            <div id="media-title">
+                <span id="media-title-text"></span>
+                <span id="media-loading-spinner" class="spinner-border spinner-border-sm text-info" role="status" aria-hidden="true" hidden></span>
+            </div>
             <div id="media-subtitle"></div>
         </div>
         <div class="top-actions">
+            <button id="theme-btn" class="top-action" type="button" title="Theme: system">
+                <i id="theme-icon" class="bi bi-display"></i>
+                <span>Theme</span>
+            </button>
             <div class="top-action-menu">
                 <button id="audio-menu-btn" class="top-action" type="button" title="Audio tracks">
                     <i class="bi bi-music-note-list"></i>
@@ -64,9 +73,17 @@
                 <i class="bi bi-repeat"></i>
                 <span>Repeat</span>
             </button>
+            <button id="pip-btn" class="top-action" type="button" title="Picture in Picture">
+                <i class="bi bi-pip"></i>
+                <span>PIP</span>
+            </button>
             <button id="reload-btn" class="top-action" type="button" title="Hard reload">
                 <i class="bi bi-arrow-repeat"></i>
                 <span>Reload</span>
+            </button>
+            <button id="stop-btn" class="top-action" type="button" title="Stop playback">
+                <i class="bi bi-stop-circle"></i>
+                <span>Stop</span>
             </button>
         </div>
     </div>

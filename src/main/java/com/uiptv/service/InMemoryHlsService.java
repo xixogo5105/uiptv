@@ -14,7 +14,7 @@ public class InMemoryHlsService {
     private volatile long lastTsPutAt = 0L;
     private volatile long lastClientAccessAt = 0L;
     private static final int MAX_SEGMENTS = Integer.getInteger("uiptv.hls.max.segments", 180);
-    private static final long TS_DELETE_GRACE_MILLIS = Long.getLong("uiptv.hls.ts.delete.grace.millis", 20_000L);
+    private static final long DEFAULT_TS_DELETE_GRACE_MILLIS = 20_000L;
     private final ScheduledExecutorService deleteScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "uiptv-hls-delete-grace");
         thread.setDaemon(true);
@@ -68,7 +68,7 @@ public class InMemoryHlsService {
         ScheduledFuture<?> scheduled = deleteScheduler.schedule(() -> {
             removeNow(name);
             pendingDeletes.remove(name);
-        }, TS_DELETE_GRACE_MILLIS, TimeUnit.MILLISECONDS);
+        }, tsDeleteGraceMillis(), TimeUnit.MILLISECONDS);
         pendingDeletes.put(name, scheduled);
     }
 
@@ -97,6 +97,10 @@ public class InMemoryHlsService {
 
     public long getTsSegmentCount() {
         return storage.keySet().stream().filter(k -> k.endsWith(".ts")).count();
+    }
+
+    private long tsDeleteGraceMillis() {
+        return Long.getLong("uiptv.hls.ts.delete.grace.millis", DEFAULT_TS_DELETE_GRACE_MILLIS);
     }
 
     private void cleanupOldSegments() {

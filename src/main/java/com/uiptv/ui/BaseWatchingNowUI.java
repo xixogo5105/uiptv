@@ -1112,7 +1112,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         updateWatchingStatusUI(data, item);
 
         item.account.setAction(Account.AccountAction.series);
-        SeriesWatchStateService.getInstance().markSeriesEpisodeManualIfNewer(
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 item.account,
                 item.state.getCategoryId(),
                 item.state.getSeriesId(),
@@ -1131,31 +1131,6 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void updateWatchingStatusUI(SeriesPanelData data, WatchingEpisode currentEpisode) {
         if (data == null || currentEpisode == null) return;
-
-        // Check if we should update the UI based on whether the new episode is "newer"
-        // We need to find the currently watched episode first
-        WatchingEpisode previouslyWatched = null;
-        for (WatchingEpisode ep : data.episodes) {
-            if (ep.watched) {
-                previouslyWatched = ep;
-                break;
-            }
-        }
-
-        boolean shouldUpdate = true;
-        if (previouslyWatched != null) {
-            int currentSeason = parseNumberOrDefault(currentEpisode.season, 0);
-            int currentEpNum = parseNumberOrDefault(currentEpisode.episodeNum, 0);
-            int prevSeason = parseNumberOrDefault(previouslyWatched.season, 0);
-            int prevEpNum = parseNumberOrDefault(previouslyWatched.episodeNum, 0);
-
-            shouldUpdate = currentSeason >= prevSeason
-                    && (currentSeason != prevSeason || currentEpNum > prevEpNum);
-        }
-
-        if (!shouldUpdate) {
-            return;
-        }
 
         // Hide all watching labels
         for (Map.Entry<WatchingEpisode, Label> entry : data.watchingLabels.entrySet()) {
