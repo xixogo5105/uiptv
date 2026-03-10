@@ -57,9 +57,8 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
         if (dedupedStates.isEmpty()) {
             return;
         }
-        AccountSeriesIndex seriesIndex = buildSeriesIndex(account, new ArrayList<>(dedupedStates.values()));
         for (SeriesWatchState state : dedupedStates.values()) {
-            PanelRow row = buildRow(account, state, seriesIndex);
+            PanelRow row = buildRow(account, state);
             if (row != null) {
                 rows.add(row);
             }
@@ -72,7 +71,7 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
             if (state == null || StringUtils.isBlank(state.getSeriesId())) {
                 continue;
             }
-            String key = safe(state.getSeriesId());
+            String key = normalizeSeriesIdentity(state.getSeriesId());
             SeriesWatchState existing = deduped.get(key);
             if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
                 deduped.put(key, state);
@@ -81,8 +80,17 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
         return deduped;
     }
 
-    private PanelRow buildRow(Account account, SeriesWatchState state, AccountSeriesIndex index) {
-        SeriesCacheInfo cacheInfo = resolveSeriesInfoFromCache(state, index);
+    private PanelRow buildRow(Account account, SeriesWatchState state) {
+        SnapshotScope scope = resolveSnapshotScope(state);
+        String rawSeriesId = safe(state.getSeriesId());
+        String scopedCategoryId = firstNonBlank(scope.categoryId, safe(state.getCategoryId()));
+        String scopedSeriesId = firstNonBlank(scope.parentChannelId, rawSeriesId);
+        SeriesCacheInfo cacheInfo = resolveSeriesInfoFromCache(account, scopedCategoryId, scopedSeriesId);
+        if (!StringUtils.isBlank(scope.seriesTitle)) {
+            cacheInfo = new SeriesCacheInfo(scope.seriesTitle, firstNonBlank(scope.seriesPoster, cacheInfo.seriesPoster), true, cacheInfo.categoryDbId);
+        } else if (!StringUtils.isBlank(scope.seriesPoster)) {
+            cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, scope.seriesPoster, cacheInfo.resolvedFromCache, cacheInfo.categoryDbId);
+        }
         if (!cacheInfo.resolvedFromCache && safe(state.getSeriesId()).matches("^\\d+$")) {
             return null;
         }
@@ -92,110 +100,100 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
                 safe(account.getType() != null ? account.getType().name() : ""),
                 safe(state.getCategoryId()),
                 cacheInfo.categoryDbId,
-                safe(state.getSeriesId()),
+                rawSeriesId,
                 safe(state.getEpisodeId()),
                 safe(state.getEpisodeName()),
                 safe(state.getSeason()),
                 state.getEpisodeNum(),
-                firstNonBlank(cacheInfo.seriesTitle, safe(state.getSeriesId())),
+                firstNonBlank(cacheInfo.seriesTitle, rawSeriesId),
                 cacheInfo.seriesPoster,
                 state.getUpdatedAt()
         );
     }
 
-    private AccountSeriesIndex buildSeriesIndex(Account account, List<SeriesWatchState> states) {
-        AccountSeriesIndex index = new AccountSeriesIndex();
-        if (account == null || StringUtils.isBlank(account.getDbId())) {
-            return index;
+    private SeriesCacheInfo resolveSeriesInfoFromCache(Account account, String categoryId, String seriesId) {
+        SeriesCacheInfo directMatch = resolveSeriesInfoFromCandidateCategories(account, categoryId, seriesId);
+        if (!needsSeriesCacheFallback(directMatch, seriesId)) {
+            return directMatch;
         }
-
-        indexCategories(account, index);
-        List<String> watchedSeriesIds = watchedSeriesIds(states);
-        if (watchedSeriesIds.isEmpty()) {
-            return index;
-        }
-
-        indexSeriesChannels(account, watchedSeriesIds, index);
-        return index;
+        SeriesCacheInfo fallback = resolveSeriesInfoFromAllCategories(account, seriesId, directMatch);
+        return fallback != null ? fallback : directMatch;
     }
 
-    private void indexCategories(Account account, AccountSeriesIndex index) {
+    private SeriesCacheInfo resolveSeriesInfoFromCandidateCategories(Account account, String categoryId, String seriesId) {
+        String defaultTitle = safe(seriesId);
+        for (String candidate : buildSeriesCategoryCandidates(account, categoryId)) {
+            Channel match = findSeriesChannel(account, candidate, seriesId);
+            if (match != null) {
+                return buildSeriesCacheInfo(match, defaultTitle, true, resolveSeriesCategoryDbId(account, categoryId));
+            }
+        }
+        return new SeriesCacheInfo(firstNonBlank(defaultTitle, safe(seriesId)), "", false, resolveSeriesCategoryDbId(account, categoryId));
+    }
+
+    private boolean needsSeriesCacheFallback(SeriesCacheInfo cacheInfo, String seriesId) {
+        return cacheInfo == null
+                || StringUtils.isBlank(cacheInfo.seriesTitle)
+                || cacheInfo.seriesTitle.equals(safe(seriesId));
+    }
+
+    private SeriesCacheInfo resolveSeriesInfoFromAllCategories(Account account, String seriesId, SeriesCacheInfo current) {
         List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
         for (Category category : categories) {
-            if (category == null || StringUtils.isBlank(category.getDbId())) {
-                continue;
-            }
-            String categoryDbId = safe(category.getDbId());
-            index.categoryDbIds.add(categoryDbId);
-            String categoryApiId = safe(category.getCategoryId());
-            if (!StringUtils.isBlank(categoryApiId)) {
-                index.categoryApiToDb.putIfAbsent(categoryApiId, categoryDbId);
+            Channel match = findSeriesChannel(account, category.getDbId(), seriesId);
+            if (match != null) {
+                String defaultTitle = current == null ? safe(seriesId) : current.seriesTitle;
+                return buildSeriesCacheInfo(match, defaultTitle, true, safe(category.getDbId()));
             }
         }
+        return null;
     }
 
-    private List<String> watchedSeriesIds(List<SeriesWatchState> states) {
-        return (states == null ? List.<SeriesWatchState>of() : states).stream()
-                .map(SeriesWatchState::getSeriesId)
-                .map(this::safe)
-                .filter(id -> !StringUtils.isBlank(id))
-                .distinct()
-                .toList();
-    }
-
-    private void indexSeriesChannels(Account account, List<String> watchedSeriesIds, AccountSeriesIndex index) {
-        List<Channel> channels = SeriesChannelDb.get().getChannelsBySeriesIds(account, watchedSeriesIds);
-        for (Channel channel : channels) {
-            if (channel == null || StringUtils.isBlank(channel.getChannelId())) {
-                continue;
-            }
-            String seriesId = safe(channel.getChannelId());
-            index.bySeriesId.putIfAbsent(seriesId, channel);
-            String categoryDbId = safe(channel.getCategoryId());
-            if (!StringUtils.isBlank(categoryDbId)) {
-                index.byCategoryAndSeries.putIfAbsent(categoryDbId + "|" + seriesId, channel);
-            }
-        }
-    }
-
-    private SeriesCacheInfo resolveSeriesInfoFromCache(SeriesWatchState state, AccountSeriesIndex index) {
-        String title = safe(state.getSeriesId());
-        String poster = "";
-        String categoryDbId = resolveCategoryDbId(state.getCategoryId(), index);
-        boolean resolved = false;
-
+    private List<String> buildSeriesCategoryCandidates(Account account, String apiCategoryId) {
+        String categoryDbId = resolveSeriesCategoryDbId(account, apiCategoryId);
+        List<String> candidates = new ArrayList<>();
+        candidates.add(safe(apiCategoryId));
         if (!StringUtils.isBlank(categoryDbId)) {
-            String key = categoryDbId + "|" + safe(state.getSeriesId());
-            Channel match = index.byCategoryAndSeries.get(key);
-            if (match != null) {
-                title = firstNonBlank(match.getName(), title);
-                poster = firstNonBlank(match.getLogo(), poster);
-                resolved = true;
-            }
+            candidates.add(categoryDbId);
         }
-
-        if (title.equals(safe(state.getSeriesId()))) {
-            Channel match = index.bySeriesId.get(safe(state.getSeriesId()));
-            if (match != null) {
-                title = firstNonBlank(match.getName(), title);
-                poster = firstNonBlank(match.getLogo(), poster);
-                resolved = true;
-            }
-        }
-
-        return new SeriesCacheInfo(title, poster, categoryDbId, resolved);
+        return candidates;
     }
 
-    private String resolveCategoryDbId(String rawCategoryId, AccountSeriesIndex index) {
-        String value = safe(rawCategoryId);
-        if (StringUtils.isBlank(value) || index == null) {
+    private Channel findSeriesChannel(Account account, String categoryId, String seriesId) {
+        if (account == null || StringUtils.isBlank(categoryId) || StringUtils.isBlank(seriesId)) {
+            return null;
+        }
+        List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryId);
+        String normalizedSeriesId = normalizeSeriesIdentity(seriesId);
+        for (Channel channel : channels) {
+            if (channel == null) {
+                continue;
+            }
+            String channelId = safe(channel.getChannelId());
+            if (channelId.equals(safe(seriesId)) || (!StringUtils.isBlank(normalizedSeriesId) && channelId.equals(normalizedSeriesId))) {
+                return channel;
+            }
+        }
+        return null;
+    }
+
+    private SeriesCacheInfo buildSeriesCacheInfo(Channel match, String defaultTitle, boolean resolved, String categoryDbId) {
+        String title = firstNonBlank(match.getName(), defaultTitle);
+        String poster = firstNonBlank(match.getLogo(), "");
+        return new SeriesCacheInfo(firstNonBlank(title, defaultTitle), poster, resolved, categoryDbId);
+    }
+
+    private String resolveSeriesCategoryDbId(Account account, String apiCategoryId) {
+        if (account == null || StringUtils.isBlank(account.getDbId()) || StringUtils.isBlank(apiCategoryId)) {
             return "";
         }
-        String fromApi = index.categoryApiToDb.get(value);
-        if (!StringUtils.isBlank(fromApi)) {
-            return fromApi;
+        List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
+        for (Category category : categories) {
+            if (safe(category.getCategoryId()).equals(safe(apiCategoryId))) {
+                return safe(category.getDbId());
+            }
         }
-        return index.categoryDbIds.contains(value) ? value : "";
+        return "";
     }
 
     private String firstNonBlank(String... values) {
@@ -209,25 +207,80 @@ public class HttpWatchingNowJsonServer implements HttpHandler {
         return value == null ? "" : value.trim();
     }
 
+    private String normalizeSeriesIdentity(String seriesId) {
+        String normalized = safe(seriesId);
+        if (StringUtils.isBlank(normalized)) {
+            return "";
+        }
+        if (!normalized.contains(":")) {
+            return normalized;
+        }
+        String[] parts = normalized.split(":");
+        for (String part : parts) {
+            String p = safe(part);
+            if (!StringUtils.isBlank(p)) {
+                return p;
+            }
+        }
+        return normalized;
+    }
+
+    private SnapshotScope resolveSnapshotScope(SeriesWatchState state) {
+        String categoryId = safe(state == null ? "" : state.getCategoryId());
+        String parentChannelId = safe(state == null ? "" : state.getSeriesId());
+        String title = "";
+        String poster = "";
+        if (state == null) {
+            return new SnapshotScope(categoryId, parentChannelId, title, poster);
+        }
+        try {
+            Category category = Category.fromJson(state.getSeriesCategorySnapshot());
+            if (category != null) {
+                categoryId = firstNonBlank(category.getCategoryId(), categoryId);
+            }
+        } catch (Exception _) {
+            // Snapshot payloads are optional; keep original category id.
+        }
+        try {
+            Channel channel = Channel.fromJson(state.getSeriesChannelSnapshot());
+            if (channel != null) {
+                parentChannelId = firstNonBlank(channel.getChannelId(), parentChannelId);
+                categoryId = firstNonBlank(channel.getCategoryId(), categoryId);
+                title = firstNonBlank(channel.getName(), title);
+                poster = firstNonBlank(channel.getLogo(), poster);
+            }
+        } catch (Exception _) {
+            // Snapshot payloads are optional; keep original series/channel scope.
+        }
+        return new SnapshotScope(categoryId, parentChannelId, title, poster);
+    }
+
     private static class SeriesCacheInfo {
         private final String seriesTitle;
         private final String seriesPoster;
-        private final String categoryDbId;
         private final boolean resolvedFromCache;
+        private final String categoryDbId;
 
-        private SeriesCacheInfo(String seriesTitle, String seriesPoster, String categoryDbId, boolean resolvedFromCache) {
+        private SeriesCacheInfo(String seriesTitle, String seriesPoster, boolean resolvedFromCache, String categoryDbId) {
             this.seriesTitle = seriesTitle;
             this.seriesPoster = seriesPoster;
-            this.categoryDbId = categoryDbId;
             this.resolvedFromCache = resolvedFromCache;
+            this.categoryDbId = categoryDbId;
         }
     }
 
-    private static class AccountSeriesIndex {
-        private final Map<String, String> categoryApiToDb = new HashMap<>();
-        private final Set<String> categoryDbIds = new HashSet<>();
-        private final Map<String, Channel> bySeriesId = new HashMap<>();
-        private final Map<String, Channel> byCategoryAndSeries = new HashMap<>();
+    private static class SnapshotScope {
+        private final String categoryId;
+        private final String parentChannelId;
+        private final String seriesTitle;
+        private final String seriesPoster;
+
+        private SnapshotScope(String categoryId, String parentChannelId, String seriesTitle, String seriesPoster) {
+            this.categoryId = categoryId == null ? "" : categoryId;
+            this.parentChannelId = parentChannelId == null ? "" : parentChannelId;
+            this.seriesTitle = seriesTitle == null ? "" : seriesTitle;
+            this.seriesPoster = seriesPoster == null ? "" : seriesPoster;
+        }
     }
 
     private static class PanelRow {

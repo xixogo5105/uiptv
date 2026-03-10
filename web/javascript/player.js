@@ -25,6 +25,7 @@
     const qualityLabelEl = document.getElementById('quality-label');
     const APP_TITLE = 'UIPTV Player';
     const playbackUtils = window.UIPTVPlaybackUtils;
+    const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
     let shakaPlayer = null;
     let mpegtsPlayer = null;
     let activeLaunch = null;
@@ -41,7 +42,7 @@
     let stallRecoveryInFlight = false;
     let lastStallRecoveryAt = 0;
     const AUTOPLAY_BLOCK_RE = /notallowederror|user (didn't|did not) interact with the document first|user gesture|request is not allowed/i;
-    const STATUS_AUTOPLAY_BLOCKED = 'Autoplay blocked by browser. Press Play to start.';
+    const STATUS_AUTOPLAY_BLOCKED = 'Autoplay blocked by browser. Click anywhere to start.';
     const PLAYBACK_STRATEGY_CACHE_KEY = 'uiptv.playback.strategy.v1';
     const DEFAULT_STARTUP_TIMEOUT_MS = 12000;
     const STALL_MONITOR_INTERVAL_MS = 3000;
@@ -235,7 +236,7 @@
     const setMetadata = (launch, responseData) => {
         if (!mediaTitleEl || !mediaSubtitleEl) return;
         const channel = responseData?.channel || launch?.channel || {};
-        const title = cleanValue(responseData?.title) || cleanValue(channel.name) || APP_TITLE;
+        const title = normalizeDisplayText(cleanValue(responseData?.title) || cleanValue(channel.name) || APP_TITLE);
         const season = cleanValue(channel.season || responseData?.channel?.season);
         const episodeNum = cleanValue(channel.episodeNum || responseData?.channel?.episodeNum || responseData?.bingeWatch?.currentEpisodeId);
         const subtitleParts = [];
@@ -763,7 +764,7 @@
             button.className = `playlist-item${index === activeBingeWatch.currentIndex ? ' active' : ''}`;
             button.setAttribute('role', 'listitem');
             const episodeId = cleanValue(item.episodeId);
-            const title = cleanValue(item.episodeName) || `Episode ${cleanValue(item.episodeNumber || episodeId)}`;
+            const title = normalizeDisplayText(cleanValue(item.episodeName)) || `Episode ${cleanValue(item.episodeNumber || episodeId)}`;
             const meta = [];
             if (cleanValue(item.season)) {
                 meta.push(`Season ${cleanValue(item.season)}`);
@@ -1028,6 +1029,7 @@
         if (started === false) {
             setStatus(STATUS_AUTOPLAY_BLOCKED);
             stopStallMonitor();
+            armAutoplayResume();
         } else {
             setStatus('');
             startStallMonitor();
@@ -1037,6 +1039,9 @@
     const requestAndStartPlayback = async (launch, options = {}) => {
         activeLaunch = launch;
         repeatReloadInFlight = false;
+        if (videoEl) {
+            videoEl.muted = true;
+        }
         playbackMode = 'loading';
         setPlaybackResolution('');
         renderMediaTitle();
@@ -1166,6 +1171,40 @@
             }
         }
         return true;
+    };
+
+    let autoplayResumeArmed = false;
+    const armAutoplayResume = () => {
+        if (autoplayResumeArmed) {
+            return;
+        }
+        autoplayResumeArmed = true;
+        const handler = async () => {
+            autoplayResumeArmed = false;
+            if (!videoEl) {
+                setStatus(STATUS_AUTOPLAY_BLOCKED);
+                return;
+            }
+            const wasMuted = videoEl.muted;
+            videoEl.muted = false;
+            try {
+                const started = await ensurePlaying();
+                if (started === false) {
+                    videoEl.muted = wasMuted;
+                    setStatus(STATUS_AUTOPLAY_BLOCKED);
+                    armAutoplayResume();
+                    return;
+                }
+                setStatus('');
+                startStallMonitor();
+            } catch (e) {
+                videoEl.muted = wasMuted;
+                setStatus(STATUS_AUTOPLAY_BLOCKED);
+                armAutoplayResume();
+            }
+        };
+        document.addEventListener('click', handler, {once: true});
+        document.addEventListener('keydown', handler, {once: true});
     };
 
     const resetTrackMenus = () => {
@@ -1477,6 +1516,9 @@
                 activeLaunch = payload;
                 repeatReloadInFlight = false;
                 applyDefaultRepeatForLaunch(payload);
+                if (videoEl) {
+                    videoEl.muted = true;
+                }
                 const requestUrl = buildPlayerRequestUrl(payload);
                 const response = await fetch(requestUrl);
                 const responseData = await response.json();

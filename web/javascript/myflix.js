@@ -78,6 +78,40 @@ createApp({
         const playbackUtils = window.UIPTVPlaybackUtils;
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
+        const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
+
+        const resolveDisplayName = (item = {}) => {
+            const id = String(item.channelId || item.id || item.dbId || '').trim();
+            const candidates = [
+                item.name,
+                item.seriesTitle,
+                item.seriesName,
+                item.title,
+                item.channelName,
+                item.displayName
+            ];
+            let name = '';
+            for (const candidate of candidates) {
+                const normalized = String(normalizeDisplayText(candidate) || '').trim();
+                if (normalized) {
+                    name = normalized;
+                    break;
+                }
+            }
+            if (name && id) {
+                const idPair = `${id}:${id}`;
+                if (name === id || name === idPair) {
+                    for (const candidate of [item.seriesTitle, item.seriesName, item.title, item.channelName]) {
+                        const normalized = String(normalizeDisplayText(candidate) || '').trim();
+                        if (normalized && normalized !== name) {
+                            name = normalized;
+                            break;
+                        }
+                    }
+                }
+            }
+            return name;
+        };
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
         const buildForcedHlsPlaybackRequestUrl = (rawUrl) => playbackUtils.buildForcedHlsPlaybackRequestUrl(rawUrl);
@@ -181,7 +215,7 @@ createApp({
             const tabs = [{ id: '', name: 'All' }];
             for (const category of (bookmarkCategories.value || [])) {
                 const id = String(category?.id || '').trim();
-                const name = String(category?.name || '').trim();
+                const name = String(normalizeDisplayText(category?.name || '') || '').trim();
                 if (!id || !name) continue;
                 tabs.push({ id, name });
             }
@@ -204,6 +238,9 @@ createApp({
 
         const normalizeChannel = (item = {}) => ({
             ...normalizeWatchedFlag(item),
+            name: resolveDisplayName(item) || normalizeDisplayText(item.name) || item.name || '',
+            channelName: normalizeDisplayText(item.channelName) || item.channelName || '',
+            title: normalizeDisplayText(item.title) || item.title || '',
             logo: resolveLogoUrl(item.logo)
         });
 

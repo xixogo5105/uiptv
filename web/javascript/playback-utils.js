@@ -64,12 +64,35 @@
         }
     };
 
+    const normalizeDisplayText = (value) => {
+        const raw = String(value ?? '');
+        if (!raw) return raw;
+        const suspicious = /[\u00C0-\u00FF]|â|Ã|ð|Ð|þ|Þ|ý|Ý/.test(raw);
+        if (!suspicious) {
+            return raw;
+        }
+        try {
+            const bytes = Uint8Array.from(raw, char => char.charCodeAt(0));
+            const decoded = new TextDecoder('utf-8', {fatal: false}).decode(bytes);
+            if (!decoded || decoded === raw) {
+                return raw;
+            }
+            if (decoded.includes('\uFFFD') && !raw.includes('\uFFFD')) {
+                return raw;
+            }
+            return decoded;
+        } catch (_) {
+            return raw;
+        }
+    };
+
     window.UIPTVPlaybackUtils = {
         isTsLikeUrl,
         canUseMpegts,
         resolvePlaybackModeLabel,
         downgradeHttpsToHttpForKnownPaths,
         normalizeWebPlaybackUrl,
-        buildForcedHlsPlaybackRequestUrl
+        buildForcedHlsPlaybackRequestUrl,
+        normalizeDisplayText
     };
 })();

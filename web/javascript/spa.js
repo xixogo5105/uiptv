@@ -578,7 +578,7 @@ createApp({
             const tabs = [{ id: '', name: 'All' }];
             for (const category of (bookmarkCategories.value || [])) {
                 const id = String(category?.id || '').trim();
-                const name = String(category?.name || '').trim();
+                const name = String(normalizeDisplayText(category?.name || '') || '').trim();
                 if (!id || !name) continue;
                 tabs.push({ id, name });
             }
@@ -628,10 +628,14 @@ createApp({
             });
         });
 
+        const normalizeDisplayText = (value) =>
+            window.UIPTVPlaybackUtils?.normalizeDisplayText
+                ? window.UIPTVPlaybackUtils.normalizeDisplayText(value)
+                : String(value ?? '');
         const APP_TITLE = 'UIPTV';
-        const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
+        const currentChannelName = computed(() => currentChannel.value ? normalizeDisplayText(currentChannel.value.name) : '');
         const currentChannelDebugTitle = computed(() => {
-            const name = String(currentChannelName.value || '').trim();
+            const name = String(normalizeDisplayText(currentChannelName.value) || '').trim();
             const mode = String(playbackMode.value || '').trim();
             if (!name) return '';
             return mode ? `${name} [${mode}]` : name;
@@ -663,7 +667,40 @@ createApp({
         };
 
         const normalizePlaybackMode = (value, fallback = '') => String(value || fallback || '').trim().toLowerCase();
-        const normalizePlaybackName = (value) => String(value || '').trim().toLowerCase();
+        const normalizePlaybackName = (value) => String(normalizeDisplayText(value) || '').trim().toLowerCase();
+
+        const resolveDisplayName = (item = {}) => {
+            const id = String(item.channelId || item.id || item.dbId || '').trim();
+            const candidates = [
+                item.name,
+                item.seriesTitle,
+                item.seriesName,
+                item.title,
+                item.channelName,
+                item.displayName
+            ];
+            let name = '';
+            for (const candidate of candidates) {
+                const normalized = String(normalizeDisplayText(candidate) || '').trim();
+                if (normalized) {
+                    name = normalized;
+                    break;
+                }
+            }
+            if (name && id) {
+                const idPair = `${id}:${id}`;
+                if (name === id || name === idPair) {
+                    for (const candidate of [item.seriesTitle, item.seriesName, item.title, item.channelName]) {
+                        const normalized = String(normalizeDisplayText(candidate) || '').trim();
+                        if (normalized && normalized !== name) {
+                            name = normalized;
+                            break;
+                        }
+                    }
+                }
+            }
+            return name;
+        };
 
         const matchesSeriesProgress = (target = {}, current = {}) => {
             const targetSeason = digitsOnly(target.season || resolvePlaybackSeason(target));
@@ -853,6 +890,8 @@ createApp({
 
         const normalizeChannel = (channel = {}) => ({
             ...channel,
+            name: resolveDisplayName(channel) || normalizeDisplayText(channel.name) || channel.name || '',
+            channelName: normalizeDisplayText(channel.channelName) || channel.channelName || '',
             logo: resolveLogoUrl(channel.logo),
             watched: channel.watched === true
                 || channel.watched === 1
@@ -862,6 +901,8 @@ createApp({
 
         const normalizeBookmark = (bookmark = {}) => ({
             ...bookmark,
+            channelName: normalizeDisplayText(bookmark.channelName) || bookmark.channelName || '',
+            accountName: normalizeDisplayText(bookmark.accountName) || bookmark.accountName || '',
             logo: resolveLogoUrl(bookmark.logo)
         });
 
