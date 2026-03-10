@@ -2012,6 +2012,16 @@ createApp({
             selectedTextTrackId.value = 'off';
         };
 
+        const stopPlaybackAndHide = async () => {
+            // Ensure UI hides immediately on explicit stop.
+            playbackLoading.value = false;
+            playbackMode.value = '';
+            isPlaying.value = false;
+            currentChannel.value = null;
+            playbackError.value = '';
+            await stopPlayback(false);
+        };
+
         const initPlayer = async (channel) => {
             const uri = channel.url;
             if (!uri) {
@@ -2734,6 +2744,7 @@ createApp({
             onBookmarkDrop,
             onBookmarkDragEnd,
             stopPlayback,
+            stopPlaybackAndHide,
             toggleFavorite,
             reloadPlayback,
             toggleRepeat,
