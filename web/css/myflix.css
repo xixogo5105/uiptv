@@ -38,18 +38,16 @@ html, body {
 
 body {
     font-family: "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
-    background:
-            linear-gradient(180deg, rgba(12, 14, 20, 0.7), rgba(7, 8, 12, 0.95)),
-            radial-gradient(1200px 700px at 20% -20%, rgba(var(--accent-rgb), 0.22), transparent 60%),
-            var(--bg);
+    background: linear-gradient(180deg, rgba(12, 14, 20, 0.7), rgba(7, 8, 12, 0.95)),
+    radial-gradient(1200px 700px at 20% -20%, rgba(var(--accent-rgb), 0.22), transparent 60%),
+    var(--bg);
     color: var(--text);
 }
 
 [data-theme="light"] body {
-    background:
-            linear-gradient(180deg, rgba(249, 251, 255, 0.96), rgba(240, 245, 251, 0.98)),
-            radial-gradient(1000px 560px at 8% -14%, rgba(var(--accent-rgb), 0.1), transparent 60%),
-            var(--bg);
+    background: linear-gradient(180deg, rgba(249, 251, 255, 0.96), rgba(240, 245, 251, 0.98)),
+    radial-gradient(1000px 560px at 8% -14%, rgba(var(--accent-rgb), 0.1), transparent 60%),
+    var(--bg);
 }
 
 .myflix-app {
@@ -266,9 +264,8 @@ body {
     height: clamp(260px, 44vw, 560px);
     overflow: hidden;
     position: relative;
-    background:
-            linear-gradient(to bottom, rgba(4, 4, 4, 0.2), rgba(4, 4, 4, 0.95)),
-            linear-gradient(to right, rgba(var(--accent-rgb), 0.25), transparent 55%);
+    background: linear-gradient(to bottom, rgba(4, 4, 4, 0.2), rgba(4, 4, 4, 0.95)),
+    linear-gradient(to right, rgba(var(--accent-rgb), 0.25), transparent 55%);
 }
 
 #player-placeholder {
@@ -856,6 +853,18 @@ body {
     justify-content: center;
     color: var(--muted);
     padding: 12px;
+}
+
+.nf-account-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nf-pin-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
 }
 
 .nf-series-page {

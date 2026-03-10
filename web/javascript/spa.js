@@ -1,4 +1,4 @@
-const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+const {createApp, ref, computed, onMounted, nextTick, watch} = Vue;
 
 createApp({
     setup() {
@@ -29,7 +29,7 @@ createApp({
         const watchingNowVodLoading = ref(false);
         const selectedAccountId = ref(null);
 
-        const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
+        const currentContext = ref({accountId: null, categoryId: null, accountType: null});
         const currentChannel = ref(null);
         const playbackMode = ref('');
         const isPlaying = ref(false);
@@ -358,7 +358,7 @@ createApp({
             requestAnimationFrame(() => {
                 const node = document.getElementById(anchorId);
                 if (!node) return;
-                node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                node.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'});
             });
         };
 
@@ -371,7 +371,7 @@ createApp({
             }
             return Array.from(unique)
                 .sort((a, b) => Number(a) - Number(b))
-                .map(s => ({ value: s, label: `Season ${s}` }));
+                .map(s => ({value: s, label: `Season ${s}`}));
         });
 
         const ensureSeriesSeasonSelected = () => {
@@ -417,17 +417,17 @@ createApp({
             if (!raw) return '';
             const d = new Date(raw);
             if (!Number.isNaN(d.getTime())) {
-                const day = new Intl.DateTimeFormat('en', { day: 'numeric', timeZone: 'UTC' }).format(d);
-                const month = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(d);
-                const year = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'UTC' }).format(d);
+                const day = new Intl.DateTimeFormat('en', {day: 'numeric', timeZone: 'UTC'}).format(d);
+                const month = new Intl.DateTimeFormat('en', {month: 'short', timeZone: 'UTC'}).format(d);
+                const year = new Intl.DateTimeFormat('en', {year: 'numeric', timeZone: 'UTC'}).format(d);
                 return `${day} ${month} ${year}`;
             }
             const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
             if (m) {
                 const tmp = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
                 if (!Number.isNaN(tmp.getTime())) {
-                    const day = new Intl.DateTimeFormat('en', { day: 'numeric', timeZone: 'UTC' }).format(tmp);
-                    const month = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(tmp);
+                    const day = new Intl.DateTimeFormat('en', {day: 'numeric', timeZone: 'UTC'}).format(tmp);
+                    const month = new Intl.DateTimeFormat('en', {month: 'short', timeZone: 'UTC'}).format(tmp);
                     return `${day} ${month} ${m[1]}`;
                 }
             }
@@ -529,6 +529,22 @@ createApp({
             return s === 'true' || s === '1' || s === 'yes' || s === 'y';
         };
 
+        const DEFAULT_PIN_SVG = {
+            viewBox: '0 0 320 320',
+            stemPath: 'm 289.99122,309.99418 c -0.66028,0.58344 -50.08221,-43.19021 -52.50936,-45.29992 -2.42734,-2.10956 -51.06934,-43.57426 -52.83626,-46.26739 -1.76673,-2.69328 13.04928,-12.78624 13.70956,-13.36969 0.66024,-0.58341 12.52054,-14.06148 14.94736,-11.95215 2.42733,2.10957 37.03325,55.97684 38.80018,58.66996 1.76673,2.69328 38.54876,57.6358 37.88852,58.21919 z',
+            headPath: 'm 56.34936,106.22036 c 20.30938,0.88278 45.68909,32.12704 73.173,75.95489 18.76942,29.93108 45.31357,11.58173 54.19751,2.7927 8.31501,-8.2259 25.42173,-32.179 -3.72915,-51.99008 -42.68539,-29.00919 -72.93354,-55.50764 -73.173,-75.954905 L 81.58356,81.621661 Z',
+            stemFill: '#cad2d2',
+            headFill: '#e30000'
+        };
+
+        const resolvePinSvg = (account) => ({
+            viewBox: account?.pinSvgViewBox || DEFAULT_PIN_SVG.viewBox,
+            stemPath: account?.pinSvgStemPath || DEFAULT_PIN_SVG.stemPath,
+            headPath: account?.pinSvgHeadPath || DEFAULT_PIN_SVG.headPath,
+            stemFill: account?.pinSvgStemFill || DEFAULT_PIN_SVG.stemFill,
+            headFill: account?.pinSvgHeadFill || DEFAULT_PIN_SVG.headFill
+        });
+
         const numericDbId = (account) => {
             const value = Number.parseInt(String(account?.dbId || ''), 10);
             return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
@@ -542,7 +558,7 @@ createApp({
                 if (aPinned !== bPinned) return aPinned ? -1 : 1;
                 const byId = numericDbId(a) - numericDbId(b);
                 if (byId !== 0) return byId;
-                return String(a?.accountName || '').localeCompare(String(b?.accountName || ''), undefined, { sensitivity: 'base' });
+                return String(a?.accountName || '').localeCompare(String(b?.accountName || ''), undefined, {sensitivity: 'base'});
             });
             return list;
         });
@@ -575,12 +591,12 @@ createApp({
         });
 
         const bookmarkCategoryTabs = computed(() => {
-            const tabs = [{ id: '', name: 'All' }];
+            const tabs = [{id: '', name: 'All'}];
             for (const category of (bookmarkCategories.value || [])) {
                 const id = String(category?.id || '').trim();
                 const name = String(normalizeDisplayText(category?.name || '') || '').trim();
                 if (!id || !name) continue;
-                tabs.push({ id, name });
+                tabs.push({id, name});
             }
             return tabs;
         });
@@ -713,15 +729,15 @@ createApp({
         };
 
         const matchesCurrentPlayback = ({
-            id = '',
-            accountId = '',
-            accountName = '',
-            mode = '',
-            name = '',
-            season = '',
-            episodeNum = '',
-            bookmarkId = ''
-        } = {}) => {
+                                            id = '',
+                                            accountId = '',
+                                            accountName = '',
+                                            mode = '',
+                                            name = '',
+                                            season = '',
+                                            episodeNum = '',
+                                            bookmarkId = ''
+                                        } = {}) => {
             const current = currentChannel.value;
             if (!current) return false;
 
@@ -752,7 +768,7 @@ createApp({
                 if (targetName && currentName && targetName !== currentName) return false;
             }
 
-            if (currentMode === 'series' && !matchesSeriesProgress({ season, episodeNum }, current)) {
+            if (currentMode === 'series' && !matchesSeriesProgress({season, episodeNum}, current)) {
                 return false;
             }
 
@@ -764,14 +780,14 @@ createApp({
         };
 
         const buildPlaybackTargetKey = ({
-            id = '',
-            accountId = '',
-            accountName = '',
-            mode = '',
-            season = '',
-            episodeNum = '',
-            bookmarkId = ''
-        } = {}) => {
+                                            id = '',
+                                            accountId = '',
+                                            accountName = '',
+                                            mode = '',
+                                            season = '',
+                                            episodeNum = '',
+                                            bookmarkId = ''
+                                        } = {}) => {
             return [
                 normalizePlaybackMode(mode),
                 String(accountId || '').trim(),
@@ -1000,14 +1016,21 @@ createApp({
             }
         };
 
+        const isAllCategory = (category) => {
+            const title = String(category?.title || '').trim().toLowerCase();
+            const dbId = String(category?.dbId || '').trim().toLowerCase();
+            const categoryId = String(category?.categoryId || '').trim().toLowerCase();
+            return title === 'all' || dbId === 'all' || categoryId === 'all';
+        };
+
         const withSyntheticAllCategory = (items, accountType) => {
             const list = Array.isArray(items) ? [...items] : [];
             const normalizedType = String(accountType || '').toUpperCase();
             const isStalkerOrXtreme = normalizedType === 'STALKER_PORTAL' || normalizedType === 'XTREME_API';
-            const hasAll = list.some(c => String(c?.title || '').toLowerCase() === 'all');
+            const hasAll = list.some(isAllCategory);
             if (hasAll) return list;
             if (isStalkerOrXtreme && list.length < 2) return list;
-            return [{ dbId: 'All', categoryId: 'All', title: 'All' }, ...list];
+            return [{dbId: 'all', categoryId: 'all', title: 'All'}, ...list];
         };
 
         const loadCategories = async (accountIdOrObj, forceReload = false) => {
@@ -1202,7 +1225,7 @@ createApp({
                 season: currentChannel.value.season || '',
                 episodeNum: currentChannel.value.episodeNum || ''
             };
-            episodes.value = episodes.value.map(ep => ({ ...ep, watched: isEpisodeMatch(watched, ep) }));
+            episodes.value = episodes.value.map(ep => ({...ep, watched: isEpisodeMatch(watched, ep)}));
             modeState.episodes = [...episodes.value];
         };
 
@@ -1228,7 +1251,7 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(refreshedEpisodes, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 if (activeTab.value === 'watchingNow') {
-                    await loadWatchingNow({ force: true, background: true });
+                    await loadWatchingNow({force: true, background: true});
                 }
             } catch (e) {
                 console.warn('Failed to refresh series watch state', e);
@@ -1283,7 +1306,7 @@ createApp({
                         mergeDetailIfBlank(detail, serverDetail, 'imdbUrl');
                         mergeDetailIfBlank(detail, serverDetail, 'duration');
                     }
-                    modeState.detail = { ...detail };
+                    modeState.detail = {...detail};
                     vodDetail.value = modeState.detail;
                 } catch (e) {
                     console.error('Failed to load VOD details', e);
@@ -1353,7 +1376,7 @@ createApp({
             normalizeChannel
         );
 
-        const loadWatchingNow = async ({ force = false, background = false } = {}) => {
+        const loadWatchingNow = async ({force = false, background = false} = {}) => {
             const hasRows = Array.isArray(watchingNowRows.value) && watchingNowRows.value.length > 0;
             const cacheAgeMs = Date.now() - Number(watchingNowLoadedAt.value || 0);
             const isFresh = hasRows && cacheAgeMs < WATCHING_NOW_CACHE_TTL_MS;
@@ -1396,7 +1419,7 @@ createApp({
             }
         };
 
-        const loadWatchingNowVod = async ({ force = false, background = false } = {}) => {
+        const loadWatchingNowVod = async ({force = false, background = false} = {}) => {
             const hasRows = Array.isArray(watchingNowVodRows.value) && watchingNowVodRows.value.length > 0;
             const cacheAgeMs = Date.now() - Number(watchingNowVodLoadedAt.value || 0);
             const isFresh = hasRows && cacheAgeMs < WATCHING_NOW_VOD_CACHE_TTL_MS;
@@ -1501,7 +1524,7 @@ createApp({
                     });
                 await fetch(`${window.location.origin}/bookmarks`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         bookmarkOrders
                     })
@@ -1578,8 +1601,8 @@ createApp({
                 if (!watchingNowTab.value) {
                     watchingNowTab.value = 'series';
                 }
-                loadWatchingNow({ force: false, background: !!watchingNowRows.value.length });
-                loadWatchingNowVod({ force: false, background: !!watchingNowVodRows.value.length });
+                loadWatchingNow({force: false, background: !!watchingNowRows.value.length});
+                loadWatchingNowVod({force: false, background: !!watchingNowVodRows.value.length});
             }
         };
 
@@ -2047,7 +2070,7 @@ createApp({
                         const data = await response.json();
                         if (String(modeState.selectedSeriesId || '') !== String(seriesId || '')) return;
 
-                        const detail = { ...(modeState.detail || {}) };
+                        const detail = {...(modeState.detail || {})};
                         if (data?.seasonInfo) {
                             const info = data.seasonInfo;
                             mergeDetailIfBlank(detail, info, 'name');
@@ -2109,11 +2132,12 @@ createApp({
             if (playbackFetchController) {
                 try {
                     playbackFetchController.abort();
-                } catch (_) {}
+                } catch (_) {
+                }
             }
             const controller = new AbortController();
             playbackFetchController = controller;
-            const targetChannel = nextChannel ? { ...nextChannel } : currentChannel.value;
+            const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
             pendingPlaybackKey.value = buildPlaybackTargetKey({
                 id: targetChannel?.channelId || targetChannel?.id || '',
                 accountId: targetChannel?.accountId || '',
@@ -2126,7 +2150,7 @@ createApp({
             playbackLoading.value = true;
             playbackMode.value = 'loading';
             playbackError.value = '';
-            const channelDataPromise = fetch(url, { signal: controller.signal }).then(response => response.json());
+            const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
             await stopPlayback(true);
             if (requestId !== playbackRequestId) return;
             currentChannel.value = targetChannel;
@@ -2160,7 +2184,8 @@ createApp({
             if (!preserveUi && playbackFetchController) {
                 try {
                     playbackFetchController.abort();
-                } catch (_) {}
+                } catch (_) {
+                }
                 playbackFetchController = null;
                 pendingPlaybackKey.value = '';
             }
@@ -2271,7 +2296,7 @@ createApp({
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
             if (!canUseMpegts()) {
-                await loadNative({ ...channel, url: sourceUrl });
+                await loadNative({...channel, url: sourceUrl});
                 return;
             }
 
@@ -2284,10 +2309,11 @@ createApp({
                 if (mpegtsPlayer.value) {
                     try {
                         mpegtsPlayer.value.destroy();
-                    } catch (_) {}
+                    } catch (_) {
+                    }
                     mpegtsPlayer.value = null;
                 }
-                return tryForcedHlsFallback({ ...channel, url: sourceUrl });
+                return tryForcedHlsFallback({...channel, url: sourceUrl});
             };
 
             try {
@@ -2319,7 +2345,7 @@ createApp({
                 if (await tryMpegTsHlsFallback()) {
                     return;
                 }
-                await loadNative({ ...channel, url: sourceUrl });
+                await loadNative({...channel, url: sourceUrl});
             }
         };
 
@@ -2383,7 +2409,11 @@ createApp({
             if (!raw) return '';
 
             const decoded = (() => {
-                try { return decodeURIComponent(raw); } catch (_) { return raw; }
+                try {
+                    return decodeURIComponent(raw);
+                } catch (_) {
+                    return raw;
+                }
             })();
 
             // Handle ffmpeg prefix if present.
@@ -2406,7 +2436,11 @@ createApp({
             const nested = cleaned.match(/(?:^|[?&])url=([^&]+)/i);
             if (nested?.[1]) {
                 const nestedDecoded = (() => {
-                    try { return decodeURIComponent(nested[1]); } catch (_) { return nested[1]; }
+                    try {
+                        return decodeURIComponent(nested[1]);
+                    } catch (_) {
+                        return nested[1];
+                    }
                 })();
                 for (const re of directPatterns) {
                     const m = nestedDecoded.match(re);
@@ -2450,12 +2484,12 @@ createApp({
             if (channel.drm) {
                 const drmConfig = {};
                 if (channel.drm.licenseUrl) {
-                    drmConfig.servers = { [channel.drm.type]: channel.drm.licenseUrl };
+                    drmConfig.servers = {[channel.drm.type]: channel.drm.licenseUrl};
                 }
                 if (channel.drm.clearKeys) {
                     drmConfig.clearKeys = channel.drm.clearKeys;
                 }
-                player.configure({ drm: drmConfig });
+                player.configure({drm: drmConfig});
             }
 
             try {
@@ -2539,12 +2573,12 @@ createApp({
             if (!playerInstance.value) return;
             const [language, role, label] = String(trackId || '').split('|');
             const target = (audioTracks.value || []).find(track =>
-                String(track.id) === String(trackId)
-                || (
-                    String(track.language || '') === String(language || '')
-                    && String(track.role || '') === String(role || '')
-                    && String(track.label || '') === String(label || '')
-                )
+                    String(track.id) === String(trackId)
+                    || (
+                        String(track.language || '') === String(language || '')
+                        && String(track.role || '') === String(role || '')
+                        && String(track.label || '') === String(label || '')
+                    )
             );
             if (target && typeof playerInstance.value.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
                 playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
@@ -2607,10 +2641,10 @@ createApp({
             try {
                 await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
                     method: shouldRemove ? 'DELETE' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                await loadWatchingNow({ force: true, background: true });
+                await loadWatchingNow({force: true, background: true});
             } catch (e) {
                 console.error('Failed to update watching now series', e);
             }
@@ -2635,10 +2669,10 @@ createApp({
             try {
                 await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                await loadWatchingNow({ force: true, background: true });
+                await loadWatchingNow({force: true, background: true});
             } catch (e) {
                 console.error('Failed to update watching now series', e);
             }
@@ -2662,10 +2696,10 @@ createApp({
             try {
                 await fetch(`${window.location.origin}/watchingNowVodAction`, {
                     method: shouldRemove ? 'DELETE' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                await loadWatchingNowVod({ force: true, background: true });
+                await loadWatchingNowVod({force: true, background: true});
             } catch (e) {
                 console.error('Failed to update watching now vod', e);
             }
@@ -2697,7 +2731,7 @@ createApp({
                 } else {
                     await fetch(`${window.location.origin}/bookmarks`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
                             accountId: currentChannel.value.accountId || '',
                             categoryId: currentChannel.value.categoryId || '',
@@ -2795,7 +2829,7 @@ createApp({
         };
 
         const scrollToTop = () => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({top: 0, behavior: 'smooth'});
         };
 
         const toggleTheme = () => {
@@ -2845,10 +2879,12 @@ createApp({
 
             try {
                 localStorage.clear();
-            } catch (_) {}
+            } catch (_) {
+            }
             try {
                 sessionStorage.clear();
-            } catch (_) {}
+            } catch (_) {
+            }
 
             try {
                 if (window.indexedDB && typeof indexedDB.databases === 'function') {
@@ -2882,7 +2918,7 @@ createApp({
             episodes.value = [];
             stickyStates.value = createStickyStates();
             selectedAccountId.value = null;
-            currentContext.value = { accountId: null, categoryId: null, accountType: null };
+            currentContext.value = {accountId: null, categoryId: null, accountType: null};
             searchQuery.value = '';
             selectedBookmarkCategoryId.value = '';
             watchingNowRows.value = [];
@@ -2929,7 +2965,7 @@ createApp({
 
         watch(currentChannelDebugTitle, () => {
             setBrowserTitle();
-        }, { immediate: true });
+        }, {immediate: true});
 
         return {
             activeTab,
@@ -2994,6 +3030,8 @@ createApp({
             contentMode,
             contentModeLabels,
             supportsVodSeriesForSelectedAccount,
+            isPinnedAccount,
+            resolvePinSvg,
 
             switchTab,
             setContentMode,

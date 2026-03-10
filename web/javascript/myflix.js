@@ -1,4 +1,4 @@
-const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
+const {createApp, ref, computed, onMounted, onUnmounted, nextTick} = Vue;
 
 createApp({
     setup() {
@@ -73,7 +73,7 @@ createApp({
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
         const playbackMode = ref('');
-        const modeLoadingCount = ref({ itv: 0, vod: 0, series: 0, bookmarks: 0, watchingNow: 0, watchingNowVod: 0 });
+        const modeLoadingCount = ref({itv: 0, vod: 0, series: 0, bookmarks: 0, watchingNow: 0, watchingNowVod: 0});
 
         const playbackUtils = window.UIPTVPlaybackUtils;
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
@@ -129,6 +129,22 @@ createApp({
             const s = String(raw).trim().toLowerCase();
             return s === 'true' || s === '1' || s === 'yes' || s === 'y';
         };
+
+        const DEFAULT_PIN_SVG = {
+            viewBox: '0 0 320 320',
+            stemPath: 'm 289.99122,309.99418 c -0.66028,0.58344 -50.08221,-43.19021 -52.50936,-45.29992 -2.42734,-2.10956 -51.06934,-43.57426 -52.83626,-46.26739 -1.76673,-2.69328 13.04928,-12.78624 13.70956,-13.36969 0.66024,-0.58341 12.52054,-14.06148 14.94736,-11.95215 2.42733,2.10957 37.03325,55.97684 38.80018,58.66996 1.76673,2.69328 38.54876,57.6358 37.88852,58.21919 z',
+            headPath: 'm 56.34936,106.22036 c 20.30938,0.88278 45.68909,32.12704 73.173,75.95489 18.76942,29.93108 45.31357,11.58173 54.19751,2.7927 8.31501,-8.2259 25.42173,-32.179 -3.72915,-51.99008 -42.68539,-29.00919 -72.93354,-55.50764 -73.173,-75.954905 L 81.58356,81.621661 Z',
+            stemFill: '#cad2d2',
+            headFill: '#e30000'
+        };
+
+        const resolvePinSvg = (account) => ({
+            viewBox: account?.pinSvgViewBox || DEFAULT_PIN_SVG.viewBox,
+            stemPath: account?.pinSvgStemPath || DEFAULT_PIN_SVG.stemPath,
+            headPath: account?.pinSvgHeadPath || DEFAULT_PIN_SVG.headPath,
+            stemFill: account?.pinSvgStemFill || DEFAULT_PIN_SVG.stemFill,
+            headFill: account?.pinSvgHeadFill || DEFAULT_PIN_SVG.headFill
+        });
         const numericDbId = (account) => {
             const value = Number.parseInt(String(account?.dbId || ''), 10);
             return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
@@ -142,7 +158,7 @@ createApp({
                 if (aPinned !== bPinned) return aPinned ? -1 : 1;
                 const byId = numericDbId(a) - numericDbId(b);
                 if (byId !== 0) return byId;
-                return String(a?.accountName || '').localeCompare(String(b?.accountName || ''), undefined, { sensitivity: 'base' });
+                return String(a?.accountName || '').localeCompare(String(b?.accountName || ''), undefined, {sensitivity: 'base'});
             });
             return list;
         });
@@ -211,13 +227,20 @@ createApp({
                 || null;
         });
 
+        const isAllCategory = (category) => {
+            const title = String(category?.title || '').trim().toLowerCase();
+            const dbId = String(category?.dbId || '').trim().toLowerCase();
+            const categoryId = String(category?.categoryId || '').trim().toLowerCase();
+            return title === 'all' || dbId === 'all' || categoryId === 'all';
+        };
+
         const bookmarkCategoryTabs = computed(() => {
-            const tabs = [{ id: '', name: 'All' }];
+            const tabs = [{id: '', name: 'All'}];
             for (const category of (bookmarkCategories.value || [])) {
                 const id = String(category?.id || '').trim();
                 const name = String(normalizeDisplayText(category?.name || '') || '').trim();
                 if (!id || !name) continue;
-                tabs.push({ id, name });
+                tabs.push({id, name});
             }
             return tabs;
         });
@@ -249,8 +272,16 @@ createApp({
         const filteredModeCategories = (mode) => filterBySearch(browsers[mode].categories.value, 'title');
         const filteredModeChannels = (mode) => filterBySearch(browsers[mode].channels.value, 'name');
         const filteredModeEpisodes = (mode) => filterBySearch(browsers[mode].episodes.value, 'name');
-        const visibleChannelsByMode = ref({ itv: CHANNEL_BATCH_SIZE, vod: CHANNEL_BATCH_SIZE, series: CHANNEL_BATCH_SIZE });
-        const visibleEpisodesByMode = ref({ itv: EPISODE_BATCH_SIZE, vod: EPISODE_BATCH_SIZE, series: EPISODE_BATCH_SIZE });
+        const visibleChannelsByMode = ref({
+            itv: CHANNEL_BATCH_SIZE,
+            vod: CHANNEL_BATCH_SIZE,
+            series: CHANNEL_BATCH_SIZE
+        });
+        const visibleEpisodesByMode = ref({
+            itv: EPISODE_BATCH_SIZE,
+            vod: EPISODE_BATCH_SIZE,
+            series: EPISODE_BATCH_SIZE
+        });
         const visibleSeriesDetailEpisodesCount = ref(DETAIL_EPISODE_BATCH_SIZE);
 
         const visibleModeChannels = (mode) => {
@@ -315,7 +346,7 @@ createApp({
             }
             return Array.from(unique)
                 .sort((a, b) => Number(a) - Number(b))
-                .map(s => ({ value: s, label: `Season ${s}` }));
+                .map(s => ({value: s, label: `Season ${s}`}));
         });
 
         const filteredSeriesDetailEpisodes = computed(() => {
@@ -425,7 +456,7 @@ createApp({
             requestAnimationFrame(() => {
                 const node = document.getElementById(anchorId);
                 if (!node) return;
-                node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                node.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'});
             });
         };
 
@@ -692,10 +723,10 @@ createApp({
             const list = Array.isArray(items) ? [...items] : [];
             const normalizedType = String(accountType || '').toUpperCase();
             const isStalkerOrXtreme = normalizedType === 'STALKER_PORTAL' || normalizedType === 'XTREME_API';
-            const hasAll = list.some(c => String(c?.title || '').toLowerCase() === 'all');
+            const hasAll = list.some(isAllCategory);
             if (hasAll) return list;
             if (isStalkerOrXtreme && list.length < 2) return list;
-            return [{ dbId: 'All', categoryId: 'All', title: 'All' }, ...list];
+            return [{dbId: 'all', categoryId: 'all', title: 'All'}, ...list];
         };
 
         const channelIdentityKey = (channel) => {
@@ -1015,7 +1046,7 @@ createApp({
                         b.episodes.value = normalizeChannelList(data.episodes);
                     }
                     b.episodes.value = enrichEpisodesFromMeta(b.episodes.value, detail);
-                    b.detail.value = { ...detail };
+                    b.detail.value = {...detail};
                     setDefaultSeriesSeason(resolvePreferredSeriesSeason(b.episodes.value, selectedSeriesSeason.value, {
                         season: b.selectedSeason.value,
                         episodeId: b.selectedEpisodeId.value,
@@ -1384,7 +1415,7 @@ createApp({
                 if (!target) return;
                 const rect = target.getBoundingClientRect();
                 const absoluteTop = rect.top + window.pageYOffset;
-                window.scrollTo({ top: Math.max(absoluteTop - 8, 0), behavior: 'smooth' });
+                window.scrollTo({top: Math.max(absoluteTop - 8, 0), behavior: 'smooth'});
             });
         };
 
@@ -1509,7 +1540,7 @@ createApp({
                 season: currentChannel.value.season || '',
                 episodeNum: currentChannel.value.episodeNum || ''
             };
-            b.episodes.value = b.episodes.value.map(ep => ({ ...ep, watched: isEpisodeMatch(watched, ep) }));
+            b.episodes.value = b.episodes.value.map(ep => ({...ep, watched: isEpisodeMatch(watched, ep)}));
         };
 
         const refreshSeriesEpisodeWatchState = async (lifecycleId) => {
@@ -1552,7 +1583,7 @@ createApp({
             playbackMode.value = 'loading';
             lastPlaybackUrl.value = url || '';
             repeatInFlight.value = false;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({top: 0, behavior: 'smooth'});
 
             try {
                 const response = await fetch(url);
@@ -1561,9 +1592,12 @@ createApp({
                 if (!isPlaybackRequestActive(lifecycleId)) return;
                 if (!channelData?.url && currentChannel.value?.cmd) {
                     const fallbackUrl = normalizeWebPlaybackUrl(String(currentChannel.value.cmd).trim().replace(/^ffmpeg\s+/i, ''));
-                    await initPlayer({ url: fallbackUrl }, lifecycleId);
+                    await initPlayer({url: fallbackUrl}, lifecycleId);
                 } else {
-                    await initPlayer({ ...(channelData || {}), url: normalizeWebPlaybackUrl(channelData?.url) }, lifecycleId);
+                    await initPlayer({
+                        ...(channelData || {}),
+                        url: normalizeWebPlaybackUrl(channelData?.url)
+                    }, lifecycleId);
                 }
                 if (currentChannel.value?.mode === 'series') {
                     await refreshSeriesEpisodeWatchState(lifecycleId);
@@ -1719,15 +1753,15 @@ createApp({
             const isTs = isTsLikeUrl(normalizedUri, manifestType);
 
             if (hasDRM) {
-                await loadShaka({ ...channel, url: uri }, lifecycleId);
+                await loadShaka({...channel, url: uri}, lifecycleId);
             } else if (isTs) {
-                await loadMpegTs({ ...channel, url: uri }, lifecycleId);
+                await loadMpegTs({...channel, url: uri}, lifecycleId);
             } else if (isApple && canNative) {
-                await loadNative({ ...channel, url: uri }, lifecycleId);
+                await loadNative({...channel, url: uri}, lifecycleId);
             } else if (canNative && uri.endsWith('.m3u8')) {
-                await loadNative({ ...channel, url: uri }, lifecycleId);
+                await loadNative({...channel, url: uri}, lifecycleId);
             } else {
-                await loadShaka({ ...channel, url: uri }, lifecycleId);
+                await loadShaka({...channel, url: uri}, lifecycleId);
             }
         };
 
@@ -1740,7 +1774,7 @@ createApp({
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
             if (!canUseMpegts()) {
-                await loadNative({ ...channel, url: sourceUrl }, lifecycleId);
+                await loadNative({...channel, url: sourceUrl}, lifecycleId);
                 return;
             }
 
@@ -1786,10 +1820,11 @@ createApp({
                 if (mpegtsPlayer.value) {
                     try {
                         mpegtsPlayer.value.destroy();
-                    } catch (_) {}
+                    } catch (_) {
+                    }
                     mpegtsPlayer.value = null;
                 }
-                await loadNative({ ...channel, url: sourceUrl }, lifecycleId);
+                await loadNative({...channel, url: sourceUrl}, lifecycleId);
             }
         };
 
@@ -1800,10 +1835,11 @@ createApp({
             if (mpegtsPlayer.value) {
                 try {
                     mpegtsPlayer.value.destroy();
-                } catch (_) {}
+                } catch (_) {
+                }
                 mpegtsPlayer.value = null;
             }
-            return tryForcedHlsFallback({ ...channel, url: sourceUrl }, lifecycleId);
+            return tryForcedHlsFallback({...channel, url: sourceUrl}, lifecycleId);
         };
 
         const tryForcedHlsFallback = async (channel, lifecycleId) => {
@@ -1892,7 +1928,8 @@ createApp({
                 }
                 try {
                     await player.destroy();
-                } catch (_) {}
+                } catch (_) {
+                }
             };
             playerInstance.value = player;
             if (!isPlaybackRequestActive(lifecycleId)) {
@@ -1907,9 +1944,9 @@ createApp({
 
             if (channel.drm) {
                 const drmConfig = {};
-                if (channel.drm.licenseUrl) drmConfig.servers = { [channel.drm.type]: channel.drm.licenseUrl };
+                if (channel.drm.licenseUrl) drmConfig.servers = {[channel.drm.type]: channel.drm.licenseUrl};
                 if (channel.drm.clearKeys) drmConfig.clearKeys = channel.drm.clearKeys;
-                player.configure({ drm: drmConfig });
+                player.configure({drm: drmConfig});
             }
 
             try {
@@ -1992,7 +2029,7 @@ createApp({
             try {
                 await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
                     method: shouldRemove ? 'DELETE' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
                 await loadWatchingNow();
@@ -2020,7 +2057,7 @@ createApp({
             try {
                 await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
                 await loadWatchingNow();
@@ -2047,7 +2084,7 @@ createApp({
             try {
                 await fetch(`${window.location.origin}/watchingNowVodAction`, {
                     method: shouldRemove ? 'DELETE' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
                 await loadWatchingNowVod();
@@ -2082,7 +2119,7 @@ createApp({
                 } else {
                     await fetch(`${window.location.origin}/bookmarks`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
                             accountId: currentChannel.value.accountId || '',
                             categoryId: currentChannel.value.categoryId || '',
@@ -2259,10 +2296,12 @@ createApp({
 
             try {
                 localStorage.clear();
-            } catch (_) {}
+            } catch (_) {
+            }
             try {
                 sessionStorage.clear();
-            } catch (_) {}
+            } catch (_) {
+            }
 
             try {
                 if (window.indexedDB && typeof indexedDB.databases === 'function') {
@@ -2346,6 +2385,8 @@ createApp({
             selectedAccount,
             selectAccountTypeFilter,
             showVodSeriesSections,
+            isPinnedAccount,
+            resolvePinSvg,
             filteredModeCategories,
             filteredModeChannels,
             filteredModeEpisodes,

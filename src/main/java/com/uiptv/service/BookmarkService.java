@@ -1,37 +1,22 @@
 package com.uiptv.service;
 
 import com.uiptv.db.BookmarkDb;
-import com.uiptv.db.ChannelDb;
-import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
-import com.uiptv.model.Channel;
 import com.uiptv.util.ServerUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class BookmarkService {
-    private final LogoResolverService logoResolverService;
     private final AtomicLong changeRevision = new AtomicLong(1);
-    private volatile long lastUpdatedEpochMs = System.currentTimeMillis();
     private final Set<BookmarkChangeListener> changeListeners = new CopyOnWriteArraySet<>();
+    private volatile long lastUpdatedEpochMs = System.currentTimeMillis();
 
     private BookmarkService() {
-        this.logoResolverService = LogoResolverService.getInstance();
-    }
-
-    private static class SingletonHelper {
-        private static final BookmarkService INSTANCE = new BookmarkService();
     }
 
     public static BookmarkService getInstance() {
@@ -87,8 +72,8 @@ public class BookmarkService {
 
     public String readToJson() {
         List<Bookmark> bookmarks = new ArrayList<>(BookmarkDb.get().getBookmarks());
-        enrichBookmarkLogos(bookmarks);
-        return ServerUtils.objectToJson(bookmarks);
+        List<BookmarkResolver.ResolvedBookmark> resolved = new BookmarkResolver().resolveBookmarks(bookmarks);
+        return ServerUtils.objectToJson(resolved.stream().map(BookmarkResolver.ResolvedBookmark::getBookmark).toList());
     }
 
     public String readToJson(int offset, int limit) {
@@ -98,57 +83,8 @@ public class BookmarkService {
         int safeOffset = Math.max(0, offset);
         int safeLimit = Math.max(0, limit);
         List<Bookmark> bookmarks = new ArrayList<>(BookmarkDb.get().getBookmarksPage(safeOffset, safeLimit));
-        enrichBookmarkLogos(bookmarks);
-        return ServerUtils.objectToJson(bookmarks);
-    }
-
-    private void enrichBookmarkLogos(List<Bookmark> bookmarks) {
-        for (Bookmark bookmark : bookmarks) {
-            try {
-                if (shouldSkipLogoEnrichment(bookmark)) {
-                    continue;
-                }
-                String logo = resolveBookmarkLogo(bookmark);
-                if (isBlank(logo)) {
-                    logo = logoResolverService.resolve(bookmark.getChannelName(), null);
-                }
-                bookmark.setLogo(logo);
-            } catch (Exception _) {
-                // Best-effort enrichment only. Never fail /bookmarks response.
-            }
-        }
-    }
-
-    private boolean shouldSkipLogoEnrichment(Bookmark bookmark) {
-        return bookmark == null || isNotBlank(bookmark.getLogo());
-    }
-
-    private String resolveBookmarkLogo(Bookmark bookmark) {
-        String logo = extractLogoFromChannelJson(bookmark.getChannelJson());
-        if (isBlank(logo)) {
-            logo = resolveLogoFromChannelCache(bookmark);
-        }
-        return logo;
-    }
-
-    private String resolveLogoFromChannelCache(Bookmark bookmark) {
-        if (bookmark == null || isBlank(bookmark.getChannelId()) || isBlank(bookmark.getAccountName())) {
-            return "";
-        }
-        Account account = AccountService.getInstance().getByName(bookmark.getAccountName());
-        if (account == null || isBlank(account.getDbId())) {
-            return "";
-        }
-        Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId());
-        return channel != null ? channel.getLogo() : "";
-    }
-
-    private String extractLogoFromChannelJson(String channelJson) {
-        if (isBlank(channelJson)) {
-            return "";
-        }
-        Channel parsed = Channel.fromJson(channelJson);
-        return parsed != null ? parsed.getLogo() : "";
+        List<BookmarkResolver.ResolvedBookmark> resolved = new BookmarkResolver().resolveBookmarks(bookmarks);
+        return ServerUtils.objectToJson(resolved.stream().map(BookmarkResolver.ResolvedBookmark::getBookmark).toList());
     }
 
     // Category operations
@@ -210,5 +146,9 @@ public class BookmarkService {
                 // Listener failures must never break bookmark mutation flow.
             }
         }
+    }
+
+    private static class SingletonHelper {
+        private static final BookmarkService INSTANCE = new BookmarkService();
     }
 }

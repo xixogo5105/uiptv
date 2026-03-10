@@ -79,7 +79,7 @@ class SharedCoverageTest {
         assertEquals("88", parsed.getId());
         assertEquals("9", parsed.getEpisodeNum());
         assertEquals("http://stream", parsed.getCmd());
-        assertEquals("http://img/root-ignored.jpg", parsed.getInfo().getMovieImage());
+        assertEquals("http://img/info.jpg", parsed.getInfo().getMovieImage());
         assertNull(Episode.fromJson("{bad-json"));
     }
 

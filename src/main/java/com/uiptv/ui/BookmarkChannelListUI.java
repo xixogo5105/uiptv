@@ -1,14 +1,9 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.*;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.BookmarkChangeListener;
-import com.uiptv.service.BookmarkService;
-import com.uiptv.service.ChannelService;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.CategoryService;
-import com.uiptv.util.I18n;
+import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ImageCacheManager;
 import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.SearchableTableViewWithButton;
@@ -27,16 +22,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -47,15 +37,12 @@ import static javafx.application.Platform.runLater;
 public class BookmarkChannelListUI extends HBox {
     private static final DataFormat SERIALIZED_MIME_TYPE = new DataFormat("application/x-java-serialized-object");
     private static final String BOOKMARK_CACHE = "bookmark";
+    private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private final SearchableTableViewWithButton<BookmarkItem> bookmarkTable = new SearchableTableViewWithButton<>();
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
-    private boolean isPromptShowing = false;
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
-    private volatile long lastKnownBookmarkRevision = 0;
-    private volatile boolean reloadInProgress = false;
-    private volatile boolean loadedOnce = false;
     private final AtomicLong reloadGeneration = new AtomicLong(0);
     private final AtomicLong bookmarkOrderSaveGeneration = new AtomicLong(0);
     private final ExecutorService bookmarkOrderSaveExecutor = Executors.newSingleThreadExecutor(r -> {
@@ -63,10 +50,15 @@ public class BookmarkChannelListUI extends HBox {
         thread.setDaemon(true);
         return thread;
     });
+    private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
+    private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
+    private boolean isPromptShowing = false;
+    private volatile long lastKnownBookmarkRevision = 0;
+    private volatile boolean reloadInProgress = false;
+    private volatile boolean loadedOnce = false;
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
-    private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || reloadInProgress || suppressAutoReloadOnBookmarkChange) {
             return;
@@ -75,7 +67,6 @@ public class BookmarkChannelListUI extends HBox {
             forceReload();
         }
     });
-    private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
 
     public BookmarkChannelListUI() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
@@ -130,9 +121,8 @@ public class BookmarkChannelListUI extends HBox {
     private void reloadBookmarks(long generation) {
         try {
             List<Bookmark> bookmarks = BookmarkService.getInstance().read();
-            Map<String, Account> accountByName = AccountService.getInstance().getAll();
-            Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName);
-            List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, accountByName, channelByAccountAndChannel);
+            BookmarkResolver.ResolutionContext context = bookmarkResolver.prepare(bookmarks);
+            List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
             if (generation != reloadGeneration.get()) {
                 return;
             }
@@ -150,15 +140,14 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private List<BookmarkItem> buildLoadedBookmarkItems(long generation,
-                                                       List<Bookmark> bookmarks,
-                                                       Map<String, Account> accountByName,
-                                                       Map<String, Channel> channelByAccountAndChannel) {
+                                                        List<Bookmark> bookmarks,
+                                                        BookmarkResolver.ResolutionContext context) {
         List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
         for (Bookmark bookmark : bookmarks) {
             if (generation != reloadGeneration.get()) {
                 return List.of();
             }
-            loadedItems.add(createBookmarkItem(bookmark, accountByName, channelByAccountAndChannel));
+            loadedItems.add(createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, context)));
             maybeStreamPartialReload(generation, loadedItems);
         }
         return loadedItems;
@@ -568,17 +557,9 @@ public class BookmarkChannelListUI extends HBox {
                 && Objects.equals(left.getLogo(), right.getLogo());
     }
 
-    private BookmarkItem createBookmarkItem(Bookmark bookmark, Map<String, Account> accountByName, Map<String, Channel> channelByAccountAndChannel) {
-        Account account = accountByName.get(bookmark.getAccountName());
-        BookmarkRenderData renderData = resolveBookmarkRenderData(bookmark);
-        if (needsChannelFallback(renderData)) {
-            mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), channelByAccountAndChannel));
-        }
-
-        Account.AccountAction accountAction = bookmark.getAccountAction();
-        if (accountAction == null) {
-            accountAction = account != null ? account.getAction() : Account.AccountAction.itv;
-        }
+    private BookmarkItem createBookmarkItem(BookmarkResolver.ResolvedBookmark resolved) {
+        Bookmark bookmark = resolved.getBookmark();
+        Account.AccountAction accountAction = resolved.getAccountAction();
         return new BookmarkItem(
                 new SimpleStringProperty(bookmark.getDbId()),
                 new SimpleStringProperty(bookmark.getChannelName()),
@@ -589,130 +570,14 @@ public class BookmarkChannelListUI extends HBox {
                 new SimpleStringProperty(bookmark.getServerPortalUrl()),
                 new SimpleStringProperty(bookmark.getChannelName() + " (" + bookmark.getAccountName() + ")"),
                 new SimpleStringProperty(bookmark.getCategoryId()),
-                new SimpleStringProperty(renderData.logo),
+                new SimpleStringProperty(resolved.getLogo()),
                 accountAction,
-                renderData.drmType,
-                renderData.drmLicenseUrl,
-                renderData.clearKeysJson,
-                renderData.inputstreamaddon,
-                renderData.manifestType
+                resolved.getDrmType(),
+                resolved.getDrmLicenseUrl(),
+                resolved.getClearKeysJson(),
+                resolved.getInputstreamaddon(),
+                resolved.getManifestType()
         );
-    }
-
-    private Channel resolveBookmarkChannelSnapshot(Bookmark bookmark) {
-        if (bookmark == null) {
-            return null;
-        }
-        if (isNotBlank(bookmark.getChannelJson())) {
-            Channel channel = Channel.fromJson(bookmark.getChannelJson());
-            if (channel != null) {
-                return channel;
-            }
-        }
-        if (isNotBlank(bookmark.getVodJson())) {
-            Channel channel = Channel.fromJson(bookmark.getVodJson());
-            if (channel != null) {
-                return channel;
-            }
-        }
-        if (isNotBlank(bookmark.getSeriesJson())) {
-            Episode episode = Episode.fromJson(bookmark.getSeriesJson());
-            if (episode != null) {
-                Channel channel = new Channel();
-                channel.setLogo(episode.getInfo() != null ? episode.getInfo().getMovieImage() : "");
-                return channel;
-            }
-        }
-        return null;
-    }
-
-    private boolean needsChannelFallback(BookmarkRenderData renderData) {
-        return renderData == null
-                || isBlank(renderData.logo)
-                || isBlank(renderData.drmType)
-                || isBlank(renderData.drmLicenseUrl)
-                || isBlank(renderData.clearKeysJson)
-                || isBlank(renderData.inputstreamaddon)
-                || isBlank(renderData.manifestType);
-    }
-
-    private BookmarkRenderData resolveBookmarkRenderData(Bookmark bookmark) {
-        BookmarkRenderData renderData = BookmarkRenderData.fromBookmark(bookmark);
-        mergeRenderData(renderData, resolveBookmarkChannelSnapshot(bookmark));
-        return renderData;
-    }
-
-    private Map<String, Channel> preloadFallbackChannels(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
-        Map<String, Channel> channelByAccountAndChannel = new HashMap<>();
-        if (bookmarks == null || bookmarks.isEmpty() || accountByName == null || accountByName.isEmpty()) {
-            return channelByAccountAndChannel;
-        }
-
-        Map<String, List<String>> requestedChannelIdsByAccountId = collectFallbackChannelIds(bookmarks, accountByName);
-        loadFallbackChannelsIntoCache(requestedChannelIdsByAccountId, channelByAccountAndChannel);
-
-        return channelByAccountAndChannel;
-    }
-
-    private Map<String, List<String>> collectFallbackChannelIds(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
-        Map<String, List<String>> requestedChannelIdsByAccountId = new HashMap<>();
-        for (Bookmark bookmark : bookmarks) {
-            if (!requiresFallbackLookup(bookmark, accountByName)) {
-                continue;
-            }
-            Account account = accountByName.get(bookmark.getAccountName());
-            requestedChannelIdsByAccountId
-                    .computeIfAbsent(account.getDbId(), ignored -> new ArrayList<>())
-                    .add(bookmark.getChannelId());
-        }
-        return requestedChannelIdsByAccountId;
-    }
-
-    private boolean requiresFallbackLookup(Bookmark bookmark, Map<String, Account> accountByName) {
-        if (bookmark == null) {
-            return false;
-        }
-        BookmarkRenderData renderData = resolveBookmarkRenderData(bookmark);
-        if (!needsChannelFallback(renderData)) {
-            return false;
-        }
-        Account account = accountByName.get(bookmark.getAccountName());
-        return account != null && isNotBlank(account.getDbId()) && isNotBlank(bookmark.getChannelId());
-    }
-
-    private void loadFallbackChannelsIntoCache(Map<String, List<String>> requestedChannelIdsByAccountId,
-                                               Map<String, Channel> channelByAccountAndChannel) {
-        for (Map.Entry<String, List<String>> entry : requestedChannelIdsByAccountId.entrySet()) {
-            List<Channel> channels = ChannelService.getInstance().getChannelsByChannelIdsAndAccount(entry.getValue(), entry.getKey());
-            cacheChannelsByAccountAndId(entry.getKey(), channels, channelByAccountAndChannel);
-        }
-    }
-
-    private void cacheChannelsByAccountAndId(String accountId, List<Channel> channels, Map<String, Channel> channelByAccountAndChannel) {
-        for (Channel channel : channels) {
-            if (channel == null || isBlank(channel.getChannelId())) {
-                continue;
-            }
-            channelByAccountAndChannel.put(accountId + "|" + channel.getChannelId(), channel);
-        }
-    }
-
-    private Channel lookupFallbackChannel(Account account, String channelId, Map<String, Channel> channelByAccountAndChannel) {
-        if (account == null || isBlank(account.getDbId()) || isBlank(channelId)) {
-            return null;
-        }
-        String key = account.getDbId() + "|" + channelId;
-        if (channelByAccountAndChannel.containsKey(key)) {
-            return channelByAccountAndChannel.get(key);
-        }
-        Channel channel = null;
-        try {
-            channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(channelId, account.getDbId());
-        } catch (Exception _) {
-            // Best-effort fallback only. UI reload should never fail on an auxiliary channel lookup.
-        }
-        channelByAccountAndChannel.put(key, channel);
-        return channel;
     }
 
     private void openCategoryManagementPopup() {
@@ -843,37 +708,6 @@ public class BookmarkChannelListUI extends HBox {
         return category != null ? category.getId() : null;
     }
 
-    private void mergeRenderData(BookmarkRenderData target, Channel channel) {
-        if (target == null || channel == null) {
-            return;
-        }
-        if (isBlank(target.logo)) target.logo = channel.getLogo();
-        if (isBlank(target.drmType)) target.drmType = channel.getDrmType();
-        if (isBlank(target.drmLicenseUrl)) target.drmLicenseUrl = channel.getDrmLicenseUrl();
-        if (isBlank(target.clearKeysJson)) target.clearKeysJson = channel.getClearKeysJson();
-        if (isBlank(target.inputstreamaddon)) target.inputstreamaddon = channel.getInputstreamaddon();
-        if (isBlank(target.manifestType)) target.manifestType = channel.getManifestType();
-    }
-
-    private static class BookmarkRenderData {
-        private String logo;
-        private String drmType;
-        private String drmLicenseUrl;
-        private String clearKeysJson;
-        private String inputstreamaddon;
-        private String manifestType;
-
-        private static BookmarkRenderData fromBookmark(Bookmark bookmark) {
-            BookmarkRenderData data = new BookmarkRenderData();
-            data.logo = bookmark.getLogo();
-            data.drmType = bookmark.getDrmType();
-            data.drmLicenseUrl = bookmark.getDrmLicenseUrl();
-            data.clearKeysJson = bookmark.getClearKeysJson();
-            data.inputstreamaddon = bookmark.getInputstreamaddon();
-            data.manifestType = bookmark.getManifestType();
-            return data;
-        }
-    }
 
     private void persistBookmarkOrderAsync(Map<String, Integer> bookmarkOrders) {
         final long saveGeneration = bookmarkOrderSaveGeneration.incrementAndGet();
@@ -1121,9 +955,12 @@ public class BookmarkChannelListUI extends HBox {
         }
         String sourceCategoryDbId = resolveSourceCategoryDbId(account, item, bookmark);
         return switch (account.getAction()) {
-            case itv -> ChannelService.getInstance().findCachedLiveChannel(account, item.getChannelId(), item.getChannelName());
-            case vod -> ChannelService.getInstance().findCachedVodChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
-            case series -> ChannelService.getInstance().findCachedSeriesChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
+            case itv ->
+                    ChannelService.getInstance().findCachedLiveChannel(account, item.getChannelId(), item.getChannelName());
+            case vod ->
+                    ChannelService.getInstance().findCachedVodChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
+            case series ->
+                    ChannelService.getInstance().findCachedSeriesChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
         };
     }
 

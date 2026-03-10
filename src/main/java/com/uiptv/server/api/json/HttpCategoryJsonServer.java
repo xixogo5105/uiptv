@@ -3,11 +3,14 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.StringUtils;
 
 import java.io.IOException;
+import java.util.List;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -22,8 +25,9 @@ public class HttpCategoryJsonServer implements HttpHandler {
             return;
         }
         applyMode(account, getParam(ex, "mode"));
-        String response = StringUtils.EMPTY + CategoryService.getInstance().readToJson(account);
-        generateJsonResponse(ex, response);
+        List<Category> categories = CategoryService.getInstance().get(account);
+        List<Category> resolved = new CategoryResolver().resolveCategories(account, categories);
+        generateJsonResponse(ex, StringUtils.EMPTY + com.uiptv.util.ServerUtils.objectToJson(resolved));
     }
 
     private void applyMode(Account account, String mode) {

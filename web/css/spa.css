@@ -339,6 +339,7 @@ body {
     z-index: 15;
     display: flex;
 }
+
 /* Sidebar */
 .sidebar {
     background-color: var(--sidebar-bg);
@@ -397,15 +398,18 @@ body {
     background-color: var(--input-bg) !important;
     color: var(--input-icon) !important;
 }
+
 #searchInput {
     font-size: 0.85rem;
     background-color: var(--input-bg) !important;
     border-color: var(--input-border) !important;
     color: var(--input-text) !important;
 }
+
 #searchInput::placeholder {
     color: var(--input-placeholder) !important;
 }
+
 #searchInput:focus {
     box-shadow: none;
     border-color: var(--input-border);
@@ -445,7 +449,7 @@ body {
 
 .video-js .vjs-big-play-button {
     background-color: var(--vjs-big-play-button-bg) !important;
-    border-color: var(--vjs-big-play-button-border) !importan;
+    border-color: var(--vjs-big-play-button-border) ! importan;
     color: var(--vjs-text-color) !important;
 }
 
@@ -720,13 +724,16 @@ body {
     color: var(--modal-text) !important;
     border-color: var(--modal-border) !important;
 }
+
 .modal-header, .modal-footer {
     border-color: var(--modal-border) !important;
 }
+
 .btn-close-white {
     /* Adjust close button for light theme if needed, but Bootstrap handles it via filter usually.
        If we are in light theme, we might want standard btn-close. */
 }
+
 [data-theme="light"] .btn-close-white {
     filter: none;
 }
@@ -747,6 +754,18 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);
+}
+
+.account-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.account-pin-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
 }
 
 /* Responsive Layout */

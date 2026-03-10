@@ -2,12 +2,10 @@ package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.VodWatchState;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.VodWatchStateService;
+import com.uiptv.service.WatchingNowVodResolver;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -17,9 +15,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpWatchingNowVodJsonServer implements HttpHandler {
+    private final WatchingNowVodResolver resolver = new WatchingNowVodResolver();
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String method = ex.getRequestMethod();
@@ -38,16 +37,8 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
 
     private String buildPayload() {
         List<VodRow> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
-            if (account == null || isBlank(account.getDbId())) {
-                continue;
-            }
-            for (VodWatchState state : VodWatchStateService.getInstance().getAllByAccount(account.getDbId())) {
-                VodRow row = buildRow(account, state);
-                if (row != null) {
-                    rows.add(row);
-                }
-            }
+        for (WatchingNowVodResolver.VodRow row : resolver.resolveAll()) {
+            rows.add(toVodRow(row));
         }
         rows.sort(Comparator.comparingLong((VodRow row) -> row.updatedAt).reversed()
                 .thenComparing(row -> row.vodName, String.CASE_INSENSITIVE_ORDER));
@@ -58,59 +49,15 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
         return payload.toString();
     }
 
-    private VodRow buildRow(Account account, VodWatchState state) {
-        if (account == null || state == null || isBlank(state.getVodId())) {
-            return null;
-        }
-        Channel provider = resolveProviderChannel(account, state);
-        Channel playbackChannel = provider != null ? provider : buildFallbackChannel(state);
-        VodMetadata metadata = buildMetadata(provider, state);
-        return new VodRow(account, state, playbackChannel, metadata);
-    }
-
-    private VodMetadata buildMetadata(Channel provider, VodWatchState state) {
-        String title = firstNonBlank(provider == null ? "" : provider.getName(), state.getVodName(), state.getVodId());
-        String logo = firstNonBlank(provider == null ? "" : provider.getLogo(), state.getVodLogo());
-        String plot = firstNonBlank(provider == null ? "" : provider.getDescription(), "");
-        String releaseDate = firstNonBlank(provider == null ? "" : provider.getReleaseDate(), "");
-        String rating = firstNonBlank(provider == null ? "" : provider.getRating(), "");
-        String duration = firstNonBlank(provider == null ? "" : provider.getDuration(), "");
-        return new VodMetadata(title, logo, plot, releaseDate, rating, duration);
-    }
-
-    private Channel resolveProviderChannel(Account account, VodWatchState state) {
-        Channel direct = VodChannelDb.get().getChannelByChannelId(state.getVodId(), safe(state.getCategoryId()), account.getDbId());
-        if (direct != null) {
-            return direct;
-        }
-        List<Channel> matches = VodChannelDb.get().getAll(
-                " WHERE accountId=? AND channelId=?",
-                new String[]{account.getDbId(), state.getVodId()}
-        );
-        return matches.isEmpty() ? null : matches.getFirst();
-    }
-
-    private Channel buildFallbackChannel(VodWatchState state) {
-        Channel channel = new Channel();
-        channel.setChannelId(state.getVodId());
-        channel.setCategoryId(state.getCategoryId());
-        channel.setName(state.getVodName());
-        channel.setCmd(state.getVodCmd());
-        channel.setLogo(state.getVodLogo());
-        return channel;
-    }
-
-    private String safe(String value) {
-        return value == null ? "" : value;
-    }
-
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (!isBlank(value)) {
-                return value;
-            }
-        }
-        return "";
+    private VodRow toVodRow(WatchingNowVodResolver.VodRow row) {
+        return new VodRow(row.getAccount(), row.getState(), row.getPlaybackChannel(), new VodMetadata(
+                row.getDisplayTitle(),
+                row.getMetadata().getLogo(),
+                row.getMetadata().getPlot(),
+                row.getMetadata().getReleaseDate(),
+                row.getMetadata().getRating(),
+                row.getMetadata().getDuration()
+        ));
     }
 
     private static final class VodRow {
@@ -144,6 +91,10 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
             this.playItem = playItem;
         }
 
+        private static String safeStatic(String value) {
+            return value == null ? "" : value;
+        }
+
         private JSONObject toJson() {
             JSONObject item = new JSONObject();
             item.put("accountId", accountId);
@@ -163,12 +114,9 @@ public class HttpWatchingNowVodJsonServer implements HttpHandler {
             }
             return item;
         }
-
-        private static String safeStatic(String value) {
-            return value == null ? "" : value;
-        }
     }
 
-    private record VodMetadata(String title, String logo, String plot, String releaseDate, String rating, String duration) {
+    private record VodMetadata(String title, String logo, String plot, String releaseDate, String rating,
+                               String duration) {
     }
 }

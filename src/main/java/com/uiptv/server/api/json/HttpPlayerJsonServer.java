@@ -2,12 +2,10 @@ package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.uiptv.db.ChannelDb;
-import com.uiptv.db.SeriesCategoryDb;
-import com.uiptv.db.VodChannelDb;
-import com.uiptv.model.*;
+import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
-import com.uiptv.shared.Episode;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONArray;
@@ -24,6 +22,12 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 @SuppressWarnings("java:S1075")
 public class HttpPlayerJsonServer implements HttpHandler {
+    public static final String SEASON = "season";
+    public static final String EPISODE_NUM = "episodeNum";
+    public static final String MANIFEST_TYPE = "manifestType";
+    public static final String INPUTSTREAMADDON = "inputstreamaddon";
+    public static final String CLEAR_KEYS_JSON = "clearKeysJson";
+    public static final String DRM_LICENSE_URL = "drmLicenseUrl";
     private static final String PATH_PLAYER_BINGEWATCH = "/player/bingewatch";
     private static final String PATH_PLAYER_LIVE = "/player/live";
     private static final String PATH_PLAYER_SERIES = "/player/series";
@@ -50,12 +54,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private static final String STRATEGY_HINT_NATIVE_PROXY = "NATIVE_PROXY";
     private static final String STRATEGY_HINT_NATIVE = "NATIVE";
     private static final boolean WEB_VOD_STYLE_PLAYLIST = false;
-    public static final String SEASON = "season";
-    public static final String EPISODE_NUM = "episodeNum";
-    public static final String MANIFEST_TYPE = "manifestType";
-    public static final String INPUTSTREAMADDON = "inputstreamaddon";
-    public static final String CLEAR_KEYS_JSON = "clearKeysJson";
-    public static final String DRM_LICENSE_URL = "drmLicenseUrl";
+    private final PlayerRequestResolver playerRequestResolver = new PlayerRequestResolver();
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -260,102 +259,15 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
-        Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
-        Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
-        applyMode(account, mode);
-        if (bookmark.getAccountAction() != null) {
-            account.setAction(bookmark.getAccountAction());
-        }
-        Channel channel = resolveBookmarkChannel(bookmark);
-        String scopedCategoryId = resolveSeriesCategoryId(account, bookmark.getCategoryId());
-        return PlayerService.getInstance().get(account, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
-    }
-
-    private Channel resolveBookmarkChannel(Bookmark bookmark) {
-        Channel channel = readBookmarkSnapshot(bookmark);
-        if (channel != null) {
-            return channel;
-        }
-        return createLegacyBookmarkChannel(bookmark);
-    }
-
-    private Channel readBookmarkSnapshot(Bookmark bookmark) {
-        if (isNotBlank(bookmark.getSeriesJson())) {
-            Episode episode = Episode.fromJson(bookmark.getSeriesJson());
-            if (episode != null) {
-                Channel channel = new Channel();
-                channel.setCmd(episode.getCmd());
-                channel.setName(episode.getTitle());
-                channel.setChannelId(episode.getId());
-                if (episode.getInfo() != null) {
-                    channel.setLogo(episode.getInfo().getMovieImage());
-                }
-                return channel;
-            }
-        }
-        if (isNotBlank(bookmark.getChannelJson())) {
-            return Channel.fromJson(bookmark.getChannelJson());
-        }
-        if (isNotBlank(bookmark.getVodJson())) {
-            return Channel.fromJson(bookmark.getVodJson());
-        }
-        return null;
-    }
-
-    private Channel createLegacyBookmarkChannel(Bookmark bookmark) {
-        Channel channel = new Channel();
-        channel.setCmd(bookmark.getCmd());
-        channel.setChannelId(bookmark.getChannelId());
-        channel.setName(bookmark.getChannelName());
-        channel.setDrmType(bookmark.getDrmType());
-        channel.setDrmLicenseUrl(bookmark.getDrmLicenseUrl());
-        channel.setClearKeysJson(bookmark.getClearKeysJson());
-        channel.setInputstreamaddon(bookmark.getInputstreamaddon());
-        channel.setManifestType(bookmark.getManifestType());
-        return channel;
+        return playerRequestResolver.resolveBookmarkPlayback(bookmarkId, mode, seriesParentId);
     }
 
     private PlayerResponse resolveDirectPlayback(HttpExchange ex, String accountId, String categoryId, String channelId,
                                                  String mode, String seriesParentId) throws IOException {
         Account account = AccountService.getInstance().getById(accountId);
-        applyMode(account, mode);
-        Channel channel = mergeRequestChannel(resolveRequestedChannel(account, categoryId, channelId, mode), channelId, ex);
         String seriesId = getParam(ex, "seriesId");
-        String scopedCategoryId = resolveSeriesCategoryId(account, categoryId);
-        return PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId);
-    }
-
-    private Channel resolveRequestedChannel(Account account, String categoryId, String channelId, String mode) {
-        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (MODE_VOD.equals(normalizedMode) && account != null) {
-            Channel vodChannel = VodChannelDb.get().getChannelByChannelId(channelId, categoryId, account.getDbId());
-            if (vodChannel != null) {
-                return vodChannel;
-            }
-            return VodChannelDb.get().getChannelByChannelIdAndAccount(channelId, account.getDbId());
-        }
-        return ChannelDb.get().getChannelById(channelId, categoryId);
-    }
-
-    private Channel mergeRequestChannel(Channel channel, String channelId, HttpExchange ex) {
         Channel requestChannel = buildRequestChannel(channelId, ex);
-        if (channel == null) {
-            return requestChannel;
-        }
-        fillIfBlank(channel::getName, channel::setName, requestChannel.getName());
-        fillIfBlank(channel::getLogo, channel::setLogo, requestChannel.getLogo());
-        fillIfBlank(channel::getCmd, channel::setCmd, requestChannel.getCmd());
-        fillIfBlank(channel::getCmd_1, channel::setCmd_1, requestChannel.getCmd_1());
-        fillIfBlank(channel::getCmd_2, channel::setCmd_2, requestChannel.getCmd_2());
-        fillIfBlank(channel::getCmd_3, channel::setCmd_3, requestChannel.getCmd_3());
-        fillIfBlank(channel::getDrmType, channel::setDrmType, requestChannel.getDrmType());
-        fillIfBlank(channel::getDrmLicenseUrl, channel::setDrmLicenseUrl, requestChannel.getDrmLicenseUrl());
-        fillIfBlank(channel::getClearKeysJson, channel::setClearKeysJson, requestChannel.getClearKeysJson());
-        fillIfBlank(channel::getInputstreamaddon, channel::setInputstreamaddon, requestChannel.getInputstreamaddon());
-        fillIfBlank(channel::getManifestType, channel::setManifestType, requestChannel.getManifestType());
-        fillIfBlank(channel::getSeason, channel::setSeason, requestChannel.getSeason());
-        fillIfBlank(channel::getEpisodeNum, channel::setEpisodeNum, requestChannel.getEpisodeNum());
-        return channel;
+        return playerRequestResolver.resolveDirectPlayback(account, categoryId, channelId, mode, seriesParentId, seriesId, requestChannel);
     }
 
     private Channel buildRequestChannel(String channelId, HttpExchange ex) {
@@ -375,14 +287,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         channel.setSeason(sanitizeParam(getParam(ex, SEASON)));
         channel.setEpisodeNum(sanitizeParam(getParam(ex, EPISODE_NUM)));
         return channel;
-    }
-
-    private void fillIfBlank(java.util.function.Supplier<String> getter,
-                             java.util.function.Consumer<String> setter,
-                             String value) {
-        if (isBlank(getter.get()) && isNotBlank(value)) {
-            setter.accept(value);
-        }
     }
 
     private String buildJsonResponse(ResolvedWebPlayback resolved) {
@@ -530,37 +434,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return normalized;
     }
 
-    private record ResolvedWebPlayback(PlayerResponse response,
-                                       String bingeWatchToken,
-                                       String currentEpisodeId,
-                                       List<BingeWatchService.PlaylistItem> playlistItems) {
-    }
-
-    private void applyMode(Account account, String mode) {
-        if (account == null || isBlank(mode)) {
-            return;
-        }
-        try {
-            account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
-        } catch (Exception _) {
-            account.setAction(Account.AccountAction.itv);
-        }
-    }
-
-    private String resolveSeriesCategoryId(Account account, String rawCategoryId) {
-        if (account == null || account.getAction() != Account.AccountAction.series) {
-            return "";
-        }
-        if (isBlank(rawCategoryId)) {
-            return "";
-        }
-        Category category = SeriesCategoryDb.get().getById(rawCategoryId);
-        if (category != null && isNotBlank(category.getCategoryId())) {
-            return category.getCategoryId();
-        }
-        return rawCategoryId;
-    }
-
     private boolean isHvecEnabled(String value) {
         return isEnabledFlag(value);
     }
@@ -626,7 +499,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return lower.contains(PATH_LIVE_PLAY)
                 || hasTrailingNumericPath(lower);
     }
-
 
     private boolean shouldForceWebHlsForUrl(String mode, String url) {
         if (isBlank(url)) {
@@ -811,5 +683,11 @@ public class HttpPlayerJsonServer implements HttpHandler {
             }
         }
         return true;
+    }
+
+    private record ResolvedWebPlayback(PlayerResponse response,
+                                       String bingeWatchToken,
+                                       String currentEpisodeId,
+                                       List<BingeWatchService.PlaylistItem> playlistItems) {
     }
 }

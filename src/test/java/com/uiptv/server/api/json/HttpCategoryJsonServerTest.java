@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpCategoryJsonServerTest {
 
@@ -52,17 +54,19 @@ class HttpCategoryJsonServerTest {
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
             Mockito.when(accountService.getById("1")).thenReturn(account);
-            Mockito.when(categoryService.readToJson(account)).thenReturn("[{\"id\":\"10\"}]");
+            Category category = new Category("10", "Sports", "sports", false, 0);
+            category.setDbId("10");
+            Mockito.when(categoryService.get(account)).thenReturn(java.util.List.of(category));
 
             StubHttpExchange validMode = new StubHttpExchange("/category?accountId=1&mode=SERIES", "GET");
             new HttpCategoryJsonServer().handle(validMode);
             assertEquals(series, account.getAction());
-            assertEquals("[{\"id\":\"10\"}]", validMode.getResponseBodyText());
+            assertTrue(validMode.getResponseBodyText().contains("Sports"));
 
             StubHttpExchange invalidMode = new StubHttpExchange("/category?accountId=1&mode=not-a-mode", "GET");
             new HttpCategoryJsonServer().handle(invalidMode);
             assertEquals(itv, account.getAction());
-            assertEquals("[{\"id\":\"10\"}]", invalidMode.getResponseBodyText());
+            assertTrue(invalidMode.getResponseBodyText().contains("Sports"));
         }
     }
 

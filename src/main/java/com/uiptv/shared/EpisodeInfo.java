@@ -37,6 +37,7 @@ public class EpisodeInfo extends BaseJson {
         // Prefer episode-level thumbnails first, then generic poster keys.
         this.movieImage = firstNonBlank(
                 map,
+                "movieImage",
                 "movie_image",
                 "thumbnail",
                 "still_path",

@@ -1,16 +1,11 @@
 package com.uiptv.ui;
 
-import com.uiptv.util.I18n;
-
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.CacheService;
-import com.uiptv.service.CacheServiceImpl;
-import com.uiptv.service.CategoryService;
+import com.uiptv.service.*;
 import com.uiptv.util.AccountType;
-import com.uiptv.service.ConfigurationService;
+import com.uiptv.util.I18n;
 import com.uiptv.widget.AutoGrowPaneVBox;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
@@ -25,37 +20,25 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.stage.Stage;
 import javafx.scene.shape.SVGPath;
+import javafx.stage.Stage;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
-import static com.uiptv.model.Account.CACHE_SUPPORTED;
-import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
-import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
-import static com.uiptv.widget.UIptvAlert.showErrorAlert;
+import static com.uiptv.model.Account.*;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final CacheService cacheService = new CacheServiceImpl();
-    SearchableFilterableTableView table = new SearchableFilterableTableView();
-    AccountService accountService = AccountService.getInstance();
+    private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
@@ -63,12 +46,14 @@ public class AccountListUI extends HBox {
     private final Button backButton = createBackButton();
     private final Button homeButton = createHomeButton();
     private final VBox detailContent = new VBox();
-    @Setter
-    private ManageAccountUI manageAccountUI;
     private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
     private final Deque<Node> viewStack = new ArrayDeque<>();
-    private Node currentContent;
     private final VBox embeddedContainer = new VBox();
+    SearchableFilterableTableView table = new SearchableFilterableTableView();
+    AccountService accountService = AccountService.getInstance();
+    @Setter
+    private ManageAccountUI manageAccountUI;
+    private Node currentContent;
     private Callback<Object> onEditCallback;
     private Callback<Object> onDeleteCallback;
     private boolean isPromptShowing = false;
@@ -104,17 +89,14 @@ public class AccountListUI extends HBox {
     public void refresh() {
         List<AccountItem> catList = new ArrayList<>();
 
-        Map<String, Account> spClients = accountService.getAll();
-        if (spClients != null) {
-            spClients.keySet().forEach(k -> {
-                Account account = spClients.get(k);
-                catList.add(new AccountItem(
-                        new SimpleStringProperty(account.getAccountName()),
-                        new SimpleStringProperty(account.getDbId()),
-                        new SimpleStringProperty(account.getType().name()),
-                        account.isPinToTop()
-                ));
-            });
+        List<AccountResolver.AccountRow> resolved = accountResolver.resolveAccounts();
+        for (AccountResolver.AccountRow account : resolved) {
+            catList.add(new AccountItem(
+                    new SimpleStringProperty(account.getAccountName()),
+                    new SimpleStringProperty(account.getDbId()),
+                    new SimpleStringProperty(account.getType()),
+                    account.isPinToTop()
+            ));
         }
         table.setItems(FXCollections.observableArrayList(catList));
         table.filterByAccountType();
@@ -292,12 +274,12 @@ public class AccountListUI extends HBox {
             private final Pane spacer = new Pane();
 
             {
-                pinStem.setContent("m 289.99122,309.99418 c -0.66028,0.58344 -50.08221,-43.19021 -52.50936,-45.29992 -2.42734,-2.10956 -51.06934,-43.57426 -52.83626,-46.26739 -1.76673,-2.69328 13.04928,-12.78624 13.70956,-13.36969 0.66024,-0.58341 12.52054,-14.06148 14.94736,-11.95215 2.42733,2.10957 37.03325,55.97684 38.80018,58.66996 1.76673,2.69328 38.54876,57.6358 37.88852,58.21919 z");
-                pinStem.setFill(Color.web("#cad2d2"));
-                pinHead.setContent("m 56.34936,106.22036 c 20.30938,0.88278 45.68909,32.12704 73.173,75.95489 18.76942,29.93108 45.31357,11.58173 54.19751,2.7927 8.31501,-8.2259 25.42173,-32.179 -3.72915,-51.99008 -42.68539,-29.00919 -72.93354,-55.50764 -73.173,-75.954905 L 81.58356,81.621661 Z");
-                pinHead.setFill(Color.web("#e30000"));
-                pinIcon.setScaleX(0.075);
-                pinIcon.setScaleY(0.075);
+                pinStem.setContent(AccountResolver.PIN_SVG_STEM_PATH);
+                pinStem.setFill(Color.web(AccountResolver.PIN_SVG_STEM_FILL));
+                pinHead.setContent(AccountResolver.PIN_SVG_HEAD_PATH);
+                pinHead.setFill(Color.web(AccountResolver.PIN_SVG_HEAD_FILL));
+                pinIcon.setScaleX(AccountResolver.PIN_SVG_SCALE);
+                pinIcon.setScaleY(AccountResolver.PIN_SVG_SCALE);
                 pinIconWrapper.setPrefSize(24, 24);
                 pinIconWrapper.setMinSize(24, 24);
                 pinIconWrapper.setMaxSize(24, 24);
@@ -438,7 +420,7 @@ public class AccountListUI extends HBox {
                 boolean vodSupported = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
                 vod.setVisible(vodSupported);
                 series.setVisible(vodSupported);
-                
+
                 boolean cacheSupported = CACHE_SUPPORTED.contains(account.getType());
                 reloadCache.setVisible(cacheSupported);
             }

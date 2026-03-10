@@ -1,15 +1,10 @@
 package com.uiptv.service;
 
-import com.uiptv.db.AccountDb;
-import com.uiptv.db.BookmarkDb;
-import com.uiptv.db.CategoryDb;
-import com.uiptv.db.ChannelDb;
-import com.uiptv.db.SeriesWatchStateDb;
+import com.uiptv.db.*;
 import com.uiptv.model.Account;
 import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.ServerUtils;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,10 +17,6 @@ public class AccountService {
     private final Map<String, String> sessionTokenByAccountKey = new ConcurrentHashMap<>();
 
     private AccountService() {
-    }
-
-    private static class SingletonHelper {
-        private static final AccountService INSTANCE = new AccountService();
     }
 
     public static AccountService getInstance() {
@@ -79,7 +70,7 @@ public class AccountService {
     }
 
     public String readToJson() {
-        return ServerUtils.objectToJson(new ArrayList<>(getAll().values()));
+        return ServerUtils.objectToJson(new AccountResolver().resolveAccounts());
     }
 
     /**
@@ -141,5 +132,9 @@ public class AccountService {
             return account.getAccountName().trim().toLowerCase();
         }
         return "";
+    }
+
+    private static class SingletonHelper {
+        private static final AccountService INSTANCE = new AccountService();
     }
 }

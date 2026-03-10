@@ -1,26 +1,19 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.VodWatchState;
-import com.uiptv.service.AccountService;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.VodWatchStateChangeListener;
 import com.uiptv.service.VodWatchStateService;
+import com.uiptv.service.WatchingNowVodResolver;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageCacheManager;
+import com.uiptv.util.ImageUrlNormalizer;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -29,16 +22,12 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import org.json.JSONObject;
 
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.StringUtils.isBlank;
+
 public class VodWatchingNowUI extends VBox {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_CARD_LINKS = "cardLinks";
@@ -48,10 +37,11 @@ public class VodWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, VodPanelData> panelDataByKey = new LinkedHashMap<>();
+    private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
     private volatile boolean dirty = true;
+    private final VodWatchStateChangeListener changeListener = this::onDataChanged;
     private boolean listenerRegistered = false;
     private HBox selectedCard;
-    private final VodWatchStateChangeListener changeListener = this::onDataChanged;
 
     public VodWatchingNowUI() {
         setPadding(new Insets(5));
@@ -103,16 +93,14 @@ public class VodWatchingNowUI extends VBox {
 
     private List<VodPanelData> buildRows() {
         List<VodPanelData> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
-            if (account == null || isBlank(account.getDbId())) {
-                continue;
+        for (WatchingNowVodResolver.VodRow row : vodResolver.resolveAll()) {
+            Account account = row.getAccount();
+            if (account != null) {
+                account.setAction(vod);
             }
-            account.setAction(vod);
-            for (VodWatchState state : VodWatchStateService.getInstance().getAllByAccount(account.getDbId())) {
-                VodPanelData panel = buildPanel(account, state);
-                if (panel != null) {
-                    rows.add(panel);
-                }
+            VodPanelData panel = buildPanel(row);
+            if (panel != null) {
+                rows.add(panel);
             }
         }
         rows.sort(Comparator.comparingLong((VodPanelData data) -> data.state.getUpdatedAt()).reversed()
@@ -120,42 +108,21 @@ public class VodWatchingNowUI extends VBox {
         return rows;
     }
 
-    private VodPanelData buildPanel(Account account, VodWatchState state) {
-        if (account == null || state == null || isBlank(state.getVodId())) {
+    private VodPanelData buildPanel(WatchingNowVodResolver.VodRow row) {
+        if (row == null || row.getAccount() == null || row.getState() == null || isBlank(row.getState().getVodId())) {
             return null;
         }
-        Channel provider = resolveProviderChannel(account, state);
-        String title = firstNonBlank(provider == null ? "" : provider.getName(), state.getVodName(), state.getVodId());
-        String logo = firstNonBlank(normalizeImageUrl(provider == null ? "" : provider.getLogo(), account), normalizeImageUrl(state.getVodLogo(), account));
-        String plot = firstNonBlank(provider == null ? "" : provider.getDescription(), "");
-        String releaseDate = firstNonBlank(provider == null ? "" : provider.getReleaseDate(), "");
-        String rating = firstNonBlank(provider == null ? "" : provider.getRating(), "");
-        String duration = firstNonBlank(provider == null ? "" : provider.getDuration(), "");
-        Channel playbackChannel = provider != null ? provider : buildFallbackChannel(state);
-        VodPanelData.DisplayMetadata metadata = VodPanelData.DisplayMetadata.of(logo, plot, releaseDate, rating);
-        return VodPanelData.create(account, state, playbackChannel, title, metadata, duration);
-    }
-
-    private Channel resolveProviderChannel(Account account, VodWatchState state) {
-        Channel direct = VodChannelDb.get().getChannelByChannelId(state.getVodId(), safe(state.getCategoryId()), account.getDbId());
-        if (direct != null) {
-            return direct;
-        }
-        List<Channel> matches = VodChannelDb.get().getAll(
-                " WHERE accountId=? AND channelId=?",
-                new String[]{account.getDbId(), state.getVodId()}
+        Account account = row.getAccount();
+        VodWatchState state = row.getState();
+        WatchingNowVodResolver.VodMetadata meta = row.getMetadata();
+        String logo = normalizeImageUrl(meta.getLogo(), account);
+        VodPanelData.DisplayMetadata metadata = VodPanelData.DisplayMetadata.of(
+                logo,
+                meta.getPlot(),
+                meta.getReleaseDate(),
+                meta.getRating()
         );
-        return matches.isEmpty() ? null : matches.getFirst();
-    }
-
-    private Channel buildFallbackChannel(VodWatchState state) {
-        Channel channel = new Channel();
-        channel.setChannelId(state.getVodId());
-        channel.setCategoryId(state.getCategoryId());
-        channel.setName(state.getVodName());
-        channel.setCmd(state.getVodCmd());
-        channel.setLogo(state.getVodLogo());
-        return channel;
+        return VodPanelData.create(account, state, row.getPlaybackChannel(), row.getDisplayTitle(), metadata, meta.getDuration());
     }
 
     private void render(List<VodPanelData> rows) {
@@ -539,47 +506,7 @@ public class VodWatchingNowUI extends VBox {
         if (!ThumbnailAwareUI.areThumbnailsEnabled() || isBlank(value)) {
             return "";
         }
-        String normalized = value.trim().replace("\\/", "/");
-        if (isBlank(normalized)) {
-            return "";
-        }
-        if (isAbsoluteImageUrl(normalized)) {
-            return normalized;
-        }
-        URI base = parseAccountBaseUri(account);
-        String scheme = base != null && !isBlank(base.getScheme()) ? base.getScheme() : "http";
-        String host = base != null ? base.getHost() : null;
-        int port = base == null ? -1 : base.getPort();
-        return resolveRelativeImageUrl(normalized, scheme, host, port);
-    }
-
-    private boolean isAbsoluteImageUrl(String normalized) {
-        return normalized.startsWith("http://")
-                || normalized.startsWith("https://")
-                || normalized.startsWith("data:")
-                || normalized.startsWith("file:");
-    }
-
-    private URI parseAccountBaseUri(Account account) {
-        try {
-            return URI.create(firstNonBlank(account == null ? "" : account.getServerPortalUrl(), account == null ? "" : account.getUrl()));
-        } catch (Exception _) {
-            // Keep relative value when the configured account URL cannot be parsed.
-            return null;
-        }
-    }
-
-    private String resolveRelativeImageUrl(String normalized, String scheme, String host, int port) {
-        if (normalized.startsWith("//")) {
-            return scheme + ":" + normalized;
-        }
-        if (normalized.startsWith("/") && !isBlank(host)) {
-            return scheme + "://" + host + (port > 0 ? ":" + port : "") + normalized;
-        }
-        if (normalized.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
-            return scheme + "://" + normalized;
-        }
-        return normalized;
+        return ImageUrlNormalizer.normalizeImageUrl(value, account);
     }
 
     private String firstNonBlank(String... values) {
@@ -596,6 +523,35 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private static final class VodPanelData {
+        private final Account account;
+        private final VodWatchState state;
+        private final Channel playbackChannel;
+        private final String displayTitle;
+        private final DisplayMetadata metadata;
+        private final String duration;
+        private String imdbUrl = "";
+        private boolean imdbLoaded;
+        private boolean imdbLoading;
+        private Label ratingNode;
+        private Label releaseNode;
+        private Label durationNode;
+        private Label plotNode;
+        private HBox imdbBadgeNode;
+        private HBox imdbLoadingNode;
+        private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle, DisplayMetadata metadata, String duration) {
+            this.account = account;
+            this.state = state;
+            this.playbackChannel = playbackChannel;
+            this.displayTitle = displayTitle;
+            this.metadata = metadata;
+            this.duration = duration;
+        }
+
+        private static VodPanelData create(Account account, VodWatchState state, Channel playbackChannel, String displayTitle,
+                                           DisplayMetadata metadata, String duration) {
+            return new VodPanelData(account, state, playbackChannel, displayTitle, metadata, duration);
+        }
+
         private static final class DisplayMetadata {
             private String coverUrl;
             private String plot;
@@ -612,36 +568,6 @@ public class VodWatchingNowUI extends VBox {
             private static DisplayMetadata of(String coverUrl, String plot, String releaseDate, String rating) {
                 return new DisplayMetadata(coverUrl, plot, releaseDate, rating);
             }
-        }
-
-        private final Account account;
-        private final VodWatchState state;
-        private final Channel playbackChannel;
-        private final String displayTitle;
-        private final DisplayMetadata metadata;
-        private final String duration;
-        private String imdbUrl = "";
-        private boolean imdbLoaded;
-        private boolean imdbLoading;
-        private Label ratingNode;
-        private Label releaseNode;
-        private Label durationNode;
-        private Label plotNode;
-        private HBox imdbBadgeNode;
-        private HBox imdbLoadingNode;
-
-        private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle, DisplayMetadata metadata, String duration) {
-            this.account = account;
-            this.state = state;
-            this.playbackChannel = playbackChannel;
-            this.displayTitle = displayTitle;
-            this.metadata = metadata;
-            this.duration = duration;
-        }
-
-        private static VodPanelData create(Account account, VodWatchState state, Channel playbackChannel, String displayTitle,
-                                           DisplayMetadata metadata, String duration) {
-            return new VodPanelData(account, state, playbackChannel, displayTitle, metadata, duration);
         }
     }
 }

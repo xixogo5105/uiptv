@@ -1,9 +1,6 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.SeriesCategoryDb;
-import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.model.Account;
-import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.*;
@@ -12,7 +9,7 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageCacheManager;
-import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.ImageUrlNormalizer;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -25,7 +22,6 @@ import javafx.scene.layout.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.net.URI;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -40,6 +36,7 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 @SuppressWarnings("java:S5843")
 public abstract class BaseWatchingNowUI extends VBox {
+    public static final String AUTO_RELOAD_FROM_SERVER = "autoReloadFromServer";
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
@@ -53,17 +50,13 @@ public abstract class BaseWatchingNowUI extends VBox {
     private static final Pattern MONTH_DATE_PATTERN = Pattern.compile("(?i)\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},\\s+\\d{4}\\b");
     private static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b");
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2}\\b");
-    public static final String AUTO_RELOAD_FROM_SERVER = "autoReloadFromServer";
+    private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.imdb.maxEntries", 200);
     private final VBox contentBox = new VBox(8);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
-    private volatile boolean dirty = true;
-    private String selectedSeriesKey = "";
-    private String renderedDetailKey = "";
-    private HBox selectedSeriesCard;
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
-    private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.imdb.maxEntries", 200);
+    private final WatchingNowSeriesResolver seriesResolver = new WatchingNowSeriesResolver();
     private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -72,8 +65,12 @@ public abstract class BaseWatchingNowUI extends VBox {
                 }
             }
     );
-    private boolean watchStateListenerRegistered = false;
+    private volatile boolean dirty = true;
+    private String selectedSeriesKey = "";
+    private String renderedDetailKey = "";
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
+    private HBox selectedSeriesCard;
+    private boolean watchStateListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
         setPadding(new Insets(5));
@@ -140,8 +137,8 @@ public abstract class BaseWatchingNowUI extends VBox {
             return rows;
         }
         account.setAction(Account.AccountAction.series);
-        for (SeriesWatchState state : dedupeSeriesStates(account.getDbId(), null).values()) {
-            SeriesPanelData panel = buildPanel(account, state);
+        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveForAccount(account)) {
+            SeriesPanelData panel = buildPanel(row);
             if (panel != null) {
                 rows.add(panel);
             }
@@ -149,55 +146,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         return rows;
     }
 
-    private Map<String, SeriesWatchState> dedupeSeriesStates(String accountId, String seriesIdFilter) {
-        Map<String, SeriesWatchState> deduped = new LinkedHashMap<>();
-        for (SeriesWatchState state : SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountId)) {
-            if (!isEligibleSeriesState(state, seriesIdFilter)) {
-                continue;
-            }
-            String key = normalizeSeriesIdentity(state.getSeriesId());
-            SeriesWatchState existing = deduped.get(key);
-            if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
-                deduped.put(key, state);
-            }
-        }
-        return deduped;
-    }
-
-    private String normalizeSeriesIdentity(String seriesId) {
-        String normalized = safe(seriesId);
-        if (isBlank(normalized)) {
-            return "";
-        }
-        if (!normalized.contains(":")) {
-            return normalized;
-        }
-        String[] parts = normalized.split(":");
-        for (String part : parts) {
-            String p = safe(part);
-            if (!isBlank(p)) {
-                return p;
-            }
-        }
-        return normalized;
-    }
-
-    private boolean isEligibleSeriesState(SeriesWatchState state, String seriesIdFilter) {
-        return state != null
-                && !isBlank(state.getSeriesId())
-                && (isBlank(seriesIdFilter) || safe(state.getSeriesId()).equals(safe(seriesIdFilter)));
-    }
-
-    private SeriesPanelData buildPanel(Account account, SeriesWatchState state) {
-        SnapshotScope scope = resolveSnapshotScope(state);
-        SeriesWatchState scopedState = copyStateWithScope(state, scope.categoryId, scope.parentChannelId);
-
-        SeriesCacheInfo cacheInfo = resolveSeriesInfoFromCache(account, scopedState);
-        if (!isBlank(scope.seriesTitle)) {
-            cacheInfo = new SeriesCacheInfo(scope.seriesTitle, firstNonBlank(scope.seriesPoster, cacheInfo.seriesPoster), true);
-        } else if (!isBlank(scope.seriesPoster)) {
-            cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, scope.seriesPoster, cacheInfo.resolvedFromCache);
-        }
+    private SeriesPanelData buildPanel(WatchingNowSeriesResolver.SeriesRow row) {
+        Account account = row.getAccount();
+        SeriesWatchState scopedState = row.getState();
+        SeriesCacheInfo cacheInfo = new SeriesCacheInfo(row.getSeriesTitle(), row.getSeriesPoster(), row.isResolvedFromCache());
         if (!cacheInfo.resolvedFromCache && scopedState.getSeriesId().matches("^\\d+$")) {
             return null;
         }
@@ -215,7 +167,8 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         JSONObject seasonInfo = new JSONObject();
         seasonInfo.put("name", cacheInfo.seriesTitle);
-        if (isBlank(cacheInfo.seriesPoster)) {
+        String normalizedPoster = normalizeImageUrl(cacheInfo.seriesPoster, account);
+        if (isBlank(normalizedPoster)) {
             String firstEpisodePoster = episodes.stream()
                     .map(e -> e.imageUrl)
                     .filter(s -> !isBlank(s))
@@ -223,8 +176,9 @@ public abstract class BaseWatchingNowUI extends VBox {
                     .orElse("");
             cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, firstEpisodePoster, cacheInfo.resolvedFromCache);
         }
-        if (!isBlank(cacheInfo.seriesPoster)) {
-            seasonInfo.put(KEY_COVER, cacheInfo.seriesPoster);
+        String cover = normalizeImageUrl(cacheInfo.seriesPoster, account);
+        if (!isBlank(cover)) {
+            seasonInfo.put(KEY_COVER, cover);
         }
 
         SeriesPanelData panel = new SeriesPanelData(account, scopedState, cacheInfo.seriesTitle, seasonInfo, episodes, list);
@@ -243,136 +197,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         mergeMissingSeasonInfo(data.seasonInfo, cached.seasonInfo);
         data.imdbLoaded = true;
         data.imdbLoading = false;
-    }
-
-    private SeriesCacheInfo resolveSeriesInfoFromCache(Account account, SeriesWatchState state) {
-        SeriesCacheInfo directMatch = resolveSeriesInfoFromCandidateCategories(account, state);
-        if (!needsSeriesCacheFallback(directMatch, state)) {
-            return directMatch;
-        }
-        SeriesCacheInfo fallbackMatch = resolveSeriesInfoFromAllCategories(account, state, directMatch);
-        return fallbackMatch != null ? fallbackMatch : directMatch;
-    }
-
-    private SeriesCacheInfo resolveSeriesInfoFromCandidateCategories(Account account, SeriesWatchState state) {
-        String defaultTitle = state.getSeriesId();
-        for (String categoryCandidate : buildSeriesCategoryCandidates(account, state)) {
-            Channel match = findSeriesChannel(account, categoryCandidate, state.getSeriesId());
-            if (match != null) {
-                return buildSeriesCacheInfo(match, account, defaultTitle, true);
-            }
-        }
-        return new SeriesCacheInfo(firstNonBlank(defaultTitle, state.getSeriesId()), "", false);
-    }
-
-    private List<String> buildSeriesCategoryCandidates(Account account, SeriesWatchState state) {
-        String categoryDbId = resolveSeriesCategoryDbId(account, state.getCategoryId());
-        List<String> categoryCandidates = new ArrayList<>();
-        categoryCandidates.add(safe(state.getCategoryId()));
-        if (!isBlank(categoryDbId)) {
-            categoryCandidates.add(categoryDbId);
-        }
-        return categoryCandidates;
-    }
-
-    private boolean needsSeriesCacheFallback(SeriesCacheInfo cacheInfo, SeriesWatchState state) {
-        return cacheInfo == null
-                || isBlank(cacheInfo.seriesTitle)
-                || cacheInfo.seriesTitle.equals(state.getSeriesId());
-    }
-
-    private SeriesCacheInfo resolveSeriesInfoFromAllCategories(Account account, SeriesWatchState state, SeriesCacheInfo current) {
-        List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
-        for (Category category : categories) {
-            Channel match = findSeriesChannel(account, category.getDbId(), state.getSeriesId());
-            if (match != null) {
-                String defaultTitle = current == null ? state.getSeriesId() : current.seriesTitle;
-                return buildSeriesCacheInfo(match, account, defaultTitle, true);
-            }
-        }
-        return null;
-    }
-
-    private Channel findSeriesChannel(Account account, String categoryId, String seriesId) {
-        if (isBlank(categoryId)) {
-            return null;
-        }
-        List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryId);
-        return channels.stream()
-                .filter(c -> safe(c.getChannelId()).equals(safe(seriesId)))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private SeriesCacheInfo buildSeriesCacheInfo(Channel match, Account account, String defaultTitle, boolean resolved) {
-        String title = firstNonBlank(match.getName(), defaultTitle);
-        String poster = firstNonBlank(normalizeImageUrl(match.getLogo(), account), "");
-        return new SeriesCacheInfo(firstNonBlank(title, defaultTitle), poster, resolved);
-    }
-
-    private SnapshotScope resolveSnapshotScope(SeriesWatchState state) {
-        String categoryId = safe(state == null ? "" : state.getCategoryId());
-        String parentChannelId = safe(state == null ? "" : state.getSeriesId());
-        String title = "";
-        String poster = "";
-        if (state == null) {
-            return new SnapshotScope(categoryId, parentChannelId, title, poster);
-        }
-        try {
-            Category category = Category.fromJson(state.getSeriesCategorySnapshot());
-            if (category != null) {
-                categoryId = firstNonBlank(category.getCategoryId(), categoryId);
-            }
-        } catch (Exception _) {
-            // Snapshot payloads are optional; keep the original category id when parsing fails.
-        }
-        try {
-            Channel channel = Channel.fromJson(state.getSeriesChannelSnapshot());
-            if (channel != null) {
-                parentChannelId = firstNonBlank(channel.getChannelId(), parentChannelId);
-                categoryId = firstNonBlank(channel.getCategoryId(), categoryId);
-                title = firstNonBlank(channel.getName(), title);
-                poster = firstNonBlank(channel.getLogo(), poster);
-            }
-        } catch (Exception _) {
-            // Snapshot payloads are optional; keep the original series/channel scope when parsing fails.
-        }
-        return new SnapshotScope(categoryId, parentChannelId, title, poster);
-    }
-
-    private SeriesWatchState copyStateWithScope(SeriesWatchState source, String categoryId, String parentChannelId) {
-        SeriesWatchState scoped = new SeriesWatchState();
-        if (source == null) {
-            return scoped;
-        }
-        scoped.setDbId(source.getDbId());
-        scoped.setAccountId(source.getAccountId());
-        scoped.setMode(source.getMode());
-        scoped.setCategoryId(firstNonBlank(categoryId, source.getCategoryId()));
-        scoped.setSeriesId(firstNonBlank(parentChannelId, source.getSeriesId()));
-        scoped.setEpisodeId(source.getEpisodeId());
-        scoped.setEpisodeName(source.getEpisodeName());
-        scoped.setSeason(source.getSeason());
-        scoped.setEpisodeNum(source.getEpisodeNum());
-        scoped.setUpdatedAt(source.getUpdatedAt());
-        scoped.setSource(source.getSource());
-        scoped.setSeriesCategorySnapshot(source.getSeriesCategorySnapshot());
-        scoped.setSeriesChannelSnapshot(source.getSeriesChannelSnapshot());
-        scoped.setSeriesEpisodeSnapshot(source.getSeriesEpisodeSnapshot());
-        return scoped;
-    }
-
-    private String resolveSeriesCategoryDbId(Account account, String apiCategoryId) {
-        if (account == null || isBlank(account.getDbId()) || isBlank(apiCategoryId)) {
-            return "";
-        }
-        List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
-        for (Category category : categories) {
-            if (safe(category.getCategoryId()).equals(safe(apiCategoryId))) {
-                return safe(category.getDbId());
-            }
-        }
-        return "";
     }
 
     private List<WatchingEpisode> mapEpisodesFromCache(Account account,
@@ -1524,20 +1348,16 @@ public abstract class BaseWatchingNowUI extends VBox {
             return updated;
         }
         account.setAction(Account.AccountAction.series);
-        for (SeriesWatchState state : dedupeSeriesStates(account.getDbId(), seriesId).values()) {
-            SeriesPanelData panel = buildPanel(account, state);
+        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveForAccount(account)) {
+            if (!isBlank(seriesId) && !safe(row.getState().getSeriesId()).equals(safe(seriesId))) {
+                continue;
+            }
+            SeriesPanelData panel = buildPanel(row);
             if (panel != null) {
                 updated.add(panel);
             }
         }
         return updated;
-    }
-
-    private static final class EpisodeMetaIndex {
-        private final Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
-        private final Map<String, JSONObject> byTitle = new HashMap<>();
-        private final Map<String, JSONObject> byLooseTitle = new HashMap<>();
-        private final Map<String, JSONObject> byEpisodeOnly = new HashMap<>();
     }
 
     private void applySeriesDelta(String accountId, String seriesId, List<SeriesPanelData> updated) {
@@ -1950,108 +1770,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private String normalizeImageUrl(String imageUrl, Account account) {
-        if (isBlank(imageUrl)) {
-            return "";
-        }
-        String value = imageUrl.trim().replace("\\/", "/");
-        value = trimWrappedImageQuotes(value);
-        if (isBlank(value)) {
-            return "";
-        }
-        if (isAbsoluteImageUrl(value) || isInlineImageUrl(value)) {
-            return value;
-        }
-        URI base = resolveBaseUri(account);
-        String scheme = resolveBaseScheme(base);
-        String host = resolveBaseHost(base);
-        int port = base == null ? -1 : base.getPort();
-        if (value.startsWith("//")) {
-            return scheme + ":" + value;
-        }
-        if (value.startsWith("/")) {
-            return buildRootRelativeImageUrl(value, scheme, host, port);
-        }
-        if (value.matches("^[a-zA-Z0-9.-]+(?::\\d+)?/.*")) {
-            return scheme + "://" + value;
-        }
-        return buildRelativeImageUrl(value, scheme, host, port);
-    }
-
-    private URI resolveBaseUri(Account account) {
-        if (account == null) {
-            return null;
-        }
-        List<String> candidates = List.of(account.getServerPortalUrl(), account.getUrl());
-        for (String candidate : candidates) {
-            URI resolved = parseCandidateBaseUri(candidate);
-            if (resolved != null) {
-                return resolved;
-            }
-        }
-        return null;
-    }
-
-    private String trimWrappedImageQuotes(String value) {
-        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-            return value.substring(1, value.length() - 1).trim();
-        }
-        return value;
-    }
-
-    private boolean isAbsoluteImageUrl(String value) {
-        return value.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*");
-    }
-
-    private boolean isInlineImageUrl(String value) {
-        return value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("file:");
-    }
-
-    private String resolveBaseScheme(URI base) {
-        return base != null && !isBlank(base.getScheme()) ? base.getScheme() : "https";
-    }
-
-    private String resolveBaseHost(URI base) {
-        return base != null && !isBlank(base.getHost()) ? base.getHost() : "";
-    }
-
-    private String buildRootRelativeImageUrl(String value, String scheme, String host, int port) {
-        if (!isBlank(host)) {
-            return scheme + "://" + host + formatPort(port) + value;
-        }
-        return value;
-    }
-
-    private String buildRelativeImageUrl(String value, String scheme, String host, int port) {
-        String normalized = value.startsWith("./") ? value.substring(2) : value;
-        if (!isBlank(host)) {
-            return scheme + "://" + host + formatPort(port) + "/" + normalized;
-        }
-        return ServerUrlUtil.getLocalServerUrl() + "/" + normalized;
-    }
-
-    private String formatPort(int port) {
-        return port > 0 ? ":" + port : "";
-    }
-
-    private URI parseCandidateBaseUri(String candidate) {
-        if (isBlank(candidate)) {
-            return null;
-        }
-        try {
-            URI uri = URI.create(candidate.trim());
-            if (!isBlank(uri.getHost())) {
-                return uri;
-            }
-            if (isBlank(uri.getScheme())) {
-                URI withScheme = URI.create("http://" + candidate.trim());
-                if (!isBlank(withScheme.getHost())) {
-                    return withScheme;
-                }
-            }
-        } catch (Exception _) {
-            // Invalid image/base URIs should not break rendering; the caller will keep the raw URL.
-        }
-        return null;
+        return ImageUrlNormalizer.normalizeImageUrl(imageUrl, account);
     }
 
     private String firstNonBlank(String... values) {
@@ -2117,6 +1836,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         return safe(account.getDbId()) + "|" + safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
     }
 
+    private static final class EpisodeMetaIndex {
+        private final Map<String, JSONObject> bySeasonEpisode = new HashMap<>();
+        private final Map<String, JSONObject> byTitle = new HashMap<>();
+        private final Map<String, JSONObject> byLooseTitle = new HashMap<>();
+        private final Map<String, JSONObject> byEpisodeOnly = new HashMap<>();
+    }
+
     /**
      * Simple data class for series list table view
      */
@@ -2170,10 +1896,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         private final String seriesTitle;
         private final JSONObject seasonInfo;
         private final List<WatchingEpisode> episodes;
+        private final Map<String, VBox> seasonCardsBySeason = new LinkedHashMap<>();
+        private final Map<WatchingEpisode, Label> watchingLabels = new HashMap<>();
         private EpisodeList episodeList;
         private boolean imdbLoaded;
         private boolean imdbLoading;
-
         private Label titleNode;
         private Label ratingNode;
         private Label genreNode;
@@ -2185,8 +1912,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         private ImageView seriesPosterNode;
         private ImageView seriesListPosterNode;
         private TabPane seasonTabs;
-        private final Map<String, VBox> seasonCardsBySeason = new LinkedHashMap<>();
-        private final Map<WatchingEpisode, Label> watchingLabels = new HashMap<>();
         private VBox selectedEpisodeCard;
 
         private SeriesPanelData(Account account, SeriesWatchState state, String seriesTitle, JSONObject seasonInfo, List<WatchingEpisode> episodes, EpisodeList episodeList) {
@@ -2198,20 +1923,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             this.episodeList = episodeList == null ? new EpisodeList() : episodeList;
             this.imdbLoaded = false;
             this.imdbLoading = false;
-        }
-    }
-
-    private static final class SnapshotScope {
-        private final String categoryId;
-        private final String parentChannelId;
-        private final String seriesTitle;
-        private final String seriesPoster;
-
-        private SnapshotScope(String categoryId, String parentChannelId, String seriesTitle, String seriesPoster) {
-            this.categoryId = categoryId == null ? "" : categoryId.trim();
-            this.parentChannelId = parentChannelId == null ? "" : parentChannelId.trim();
-            this.seriesTitle = seriesTitle == null ? "" : seriesTitle;
-            this.seriesPoster = seriesPoster == null ? "" : seriesPoster;
         }
     }
 

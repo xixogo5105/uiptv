@@ -1,12 +1,12 @@
 package com.uiptv.ui;
 
-import com.uiptv.util.I18n;
-
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
-import com.uiptv.service.ChannelService;
+import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
+import com.uiptv.service.ChannelService;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -31,8 +31,6 @@ import java.util.function.BooleanSupplier;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
-import static com.uiptv.util.AccountType.M3U8_LOCAL;
-import static com.uiptv.util.AccountType.M3U8_URL;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -41,11 +39,7 @@ public class CategoryListUI extends HBox {
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private final Account account;
     private final boolean embeddedMode;
-    SearchableTableView<CategoryItem> table = new SearchableTableView<>();
-    TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr("autoCategories"));
-    TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
-    private AtomicBoolean currentRequestCancelled;
     private final VBox leftPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
     private final Label detailTitle = new Label();
@@ -55,6 +49,10 @@ public class CategoryListUI extends HBox {
     private final Tab itvTab = new Tab(I18n.tr("categoryTabLiveTv"));
     private final Tab vodTab = new Tab(I18n.tr("categoryTabVideoOnDemand"));
     private final Tab seriesTab = new Tab(I18n.tr("categoryTabTvSeries"));
+    SearchableTableView<CategoryItem> table = new SearchableTableView<>();
+    TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr("autoCategories"));
+    TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
+    private AtomicBoolean currentRequestCancelled;
     private Account.AccountAction activeMode;
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
@@ -76,31 +74,9 @@ public class CategoryListUI extends HBox {
     }
 
     public void setItems(List<Category> list) {
-        List<Category> processedList = new ArrayList<>(list);
-
-        // Filter out "Uncategorized" for M3U accounts if it has no channels
-        if (account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL) {
-            processedList = processedList.stream()
-                    .filter(category -> {
-                        if ("Uncategorized".equalsIgnoreCase(category.getTitle())) {
-                            // Keep Uncategorized only when it actually has cached channels.
-                            return ChannelService.getInstance().hasCachedLiveChannelsByDbCategoryId(category.getDbId());
-                        }
-                        return true;
-                    })
-                    .toList();
-        }
+        List<Category> processedList = new CategoryResolver().resolveCategories(account, list);
 
         List<CategoryItem> catList = new ArrayList<>();
-        boolean hasAllCategory = processedList.stream().anyMatch(this::isAllCategory);
-        boolean shouldAddAll = !(account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) || processedList.size() >= 2;
-        if (!hasAllCategory && shouldAddAll) {
-            catList.add(new CategoryItem(
-                    new SimpleStringProperty(ALL_CATEGORY_SENTINEL),
-                    new SimpleStringProperty("All"),
-                    new SimpleStringProperty(ALL_CATEGORY_SENTINEL)
-            ));
-        }
         processedList.forEach(i -> catList.add(new CategoryItem(new SimpleStringProperty(i.getDbId()), new SimpleStringProperty(i.getTitle()), new SimpleStringProperty(i.getCategoryId()))));
         ModeState state = modeStates.computeIfAbsent(activeMode, k -> new ModeState());
         state.categories = new ArrayList<>(processedList);
@@ -369,11 +345,11 @@ public class CategoryListUI extends HBox {
         }
         // Check if channels are already loaded for this account
         boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(mode) || account.getType() == AccountType.RSS_FEED;
-        
+
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
         }
-        
+
         Thread runningThread = currentLoadingThread.get();
         if (runningThread != null && runningThread.isAlive()) {
             RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
@@ -498,12 +474,6 @@ public class CategoryListUI extends HBox {
         return Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean();
     }
 
-    private static class ModeState {
-        private List<Category> categories = new ArrayList<>();
-        private CategoryItem selectedCategory;
-        private ChannelListUI channelListUI;
-    }
-
     private boolean isAllCategory(Category category) {
         if (category == null) {
             return false;
@@ -543,6 +513,12 @@ public class CategoryListUI extends HBox {
             return "categoryId:" + item.getCategoryId().trim();
         }
         return "title:" + (item.getCategoryTitle() == null ? "" : item.getCategoryTitle().trim().toLowerCase());
+    }
+
+    private static class ModeState {
+        private List<Category> categories = new ArrayList<>();
+        private CategoryItem selectedCategory;
+        private ChannelListUI channelListUI;
     }
 
     public static class CategoryItem {

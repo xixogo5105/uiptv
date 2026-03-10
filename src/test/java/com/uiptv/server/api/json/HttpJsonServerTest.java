@@ -51,7 +51,8 @@ class HttpJsonServerTest extends DbBackedTest {
 
         assertEquals(200, exchange.getResponseCode());
         JSONArray response = new JSONArray(exchange.getResponseBodyText());
-        assertEquals(2, response.length());
+        assertEquals(3, response.length());
+        assertEquals("All", response.getJSONObject(0).getString("title"));
         assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("application/json"));
     }
 

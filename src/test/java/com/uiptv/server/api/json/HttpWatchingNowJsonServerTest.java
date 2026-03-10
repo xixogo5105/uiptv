@@ -96,8 +96,45 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
         JSONObject row = response.getJSONObject(0);
         assertEquals("series-slug", row.getString("seriesId"));
         assertEquals("series-slug", row.getString("seriesTitle"));
-        assertEquals("", row.getString("categoryDbId"));
+        assertEquals("unknown-category", row.getString("categoryDbId"));
         assertEquals("", row.getString("seriesPoster"));
+    }
+
+    @Test
+    void handle_prefersSnapshotTitle_andResolvesNormalizedSeriesId() throws Exception {
+        Account account = createSeriesAccount("watching-now-snapshot");
+
+        SeriesCategoryDb.get().saveAll(List.of(
+                new Category("cat-api-1", "Drama", "drama", false, 0)
+        ), account);
+        Category drama = SeriesCategoryDb.get().getCategories(account).getFirst();
+
+        SeriesChannelDb.get().saveAll(List.of(
+                channel("11706", "Tulsa King (UK)", "https://img/tulsa.png")
+        ), drama.getDbId(), account);
+
+        SeriesWatchState snapshotState = state(account, drama.getCategoryId(), "11706:11706", "ep-1", "Episode 1", "1", 1, 200L);
+        Channel snapshotChannel = new Channel();
+        snapshotChannel.setChannelId("11706");
+        snapshotChannel.setCategoryId(drama.getCategoryId());
+        snapshotChannel.setName("Tulsa King (UK)");
+        snapshotChannel.setLogo("https://img/tulsa.png");
+        snapshotState.setSeriesChannelSnapshot(new JSONObject(snapshotChannel.toJson()).toString());
+        SeriesWatchStateDb.get().upsert(snapshotState);
+
+        HttpWatchingNowJsonServer handler = new HttpWatchingNowJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/watching-now", "GET");
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONArray response = new JSONArray(exchange.getResponseBodyText());
+        assertEquals(1, response.length());
+
+        JSONObject row = response.getJSONObject(0);
+        assertEquals("11706", row.getString("seriesId"));
+        assertEquals("Tulsa King (UK)", row.getString("seriesTitle"));
+        assertEquals("https://img/tulsa.png", row.getString("seriesPoster"));
+        assertEquals(drama.getDbId(), row.getString("categoryDbId"));
     }
 
     private Account createSeriesAccount(String name) {

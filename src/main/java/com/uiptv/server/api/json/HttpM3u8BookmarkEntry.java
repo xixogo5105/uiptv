@@ -36,7 +36,7 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
 
     private static String bookmarkPlayerResponse(Bookmark bookmark) throws IOException {
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
-        
+
         String originalCmd = bookmark.getCmd();
         bookmark.setCmd(URLDecoder.decode(originalCmd, UTF_8));
 
@@ -71,7 +71,7 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
         }
 
         PlayerResponse playerResponse = PlayerService.getInstance().get(account, channel, bookmark.getChannelId());
-        
+
         bookmark.setCmd(originalCmd);
         return playerResponse.getUrl();
     }
