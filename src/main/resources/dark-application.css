@@ -354,7 +354,7 @@
 }
 
 .strong-label {
-    -fx-font-size: 1.08em;
+    -fx-font-size: 1.10em;
     -fx-font-weight: normal;
     -fx-text-fill: derive(-fx-text-base-color, 12%);
 }
