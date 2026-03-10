@@ -3,20 +3,29 @@
     const videoEl = document.getElementById('video');
     const mediaTitleEl = document.getElementById('media-title');
     const mediaSubtitleEl = document.getElementById('media-subtitle');
+    const resolutionLabelEl = document.getElementById('resolution-label');
     const playlistPanelEl = document.getElementById('playlist-panel');
     const playlistItemsEl = document.getElementById('playlist-items');
     const reloadBtn = document.getElementById('reload-btn');
     const repeatBtn = document.getElementById('repeat-btn');
-    const audioSelectEl = document.getElementById('audio-select');
-    const subtitleSelectEl = document.getElementById('subtitle-select');
-    const qualitySelectEl = document.getElementById('quality-select');
+    const audioMenuBtn = document.getElementById('audio-menu-btn');
+    const audioMenuEl = document.getElementById('audio-menu');
+    const audioLabelEl = document.getElementById('audio-label');
+    const subtitleMenuBtn = document.getElementById('subtitle-menu-btn');
+    const subtitleMenuEl = document.getElementById('subtitle-menu');
+    const subtitleLabelEl = document.getElementById('subtitle-label');
+    const qualityMenuBtn = document.getElementById('quality-menu-btn');
+    const qualityMenuEl = document.getElementById('quality-menu');
+    const qualityLabelEl = document.getElementById('quality-label');
     const APP_TITLE = 'UIPTV Player';
     let shakaPlayer = null;
     let mpegtsPlayer = null;
     let activeLaunch = null;
     let activeBingeWatch = null;
     let mediaBaseTitle = '';
+    let mediaSubtitleParts = [];
     let playbackMode = '';
+    let playbackResolution = '';
     let repeatEnabled = false;
     let repeatReloadInFlight = false;
     let stallMonitorTimer = null;
@@ -31,6 +40,9 @@
     const STALL_MONITOR_INTERVAL_MS = 3000;
     const STALL_TRIGGER_MS = 9000;
     const STALL_RECOVERY_COOLDOWN_MS = 12000;
+    const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
+        ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
+        : null;
 
     const setStatus = (message) => {
         if (!statusEl) return;
@@ -43,6 +55,30 @@
         const title = cleanValue(mediaBaseTitle);
         const mode = cleanValue(playbackMode);
         mediaTitleEl.textContent = title && mode ? `${title} [${mode}]` : title;
+    };
+
+    const renderMediaSubtitle = () => {
+        if (!mediaSubtitleEl) {
+            return;
+        }
+        const parts = mediaSubtitleParts.slice();
+        if (cleanValue(playbackResolution)) {
+            parts.push(playbackResolution);
+        }
+        mediaSubtitleEl.textContent = parts.join(' • ');
+    };
+
+    const renderResolutionPill = () => {
+        if (!resolutionLabelEl) {
+            return;
+        }
+        resolutionLabelEl.textContent = cleanValue(playbackResolution) || 'Resolution';
+    };
+
+    const setPlaybackResolution = (value) => {
+        playbackResolution = cleanValue(value);
+        renderMediaSubtitle();
+        renderResolutionPill();
     };
 
     const updateDocumentTitle = () => {
@@ -145,8 +181,9 @@
             subtitleParts.push(`Episode ${episodeNum}`);
         }
         mediaBaseTitle = title;
+        mediaSubtitleParts = subtitleParts;
         renderMediaTitle();
-        mediaSubtitleEl.textContent = subtitleParts.join(' • ');
+        renderMediaSubtitle();
         updateDocumentTitle();
     };
 
@@ -196,6 +233,165 @@
             return '';
         }
         return normalized;
+    };
+
+    const normalizeLanguageCode = (value) => {
+        const normalized = cleanValue(value).toLowerCase();
+        if (!normalized || normalized === 'und' || normalized === 'unk' || normalized === 'unknown') {
+            return '';
+        }
+        return normalized;
+    };
+
+    const humanizeToken = (value) => {
+        const normalized = cleanValue(value).replace(/[_-]+/g, ' ');
+        if (!normalized) {
+            return '';
+        }
+        return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    };
+
+    const displayLanguage = (value) => {
+        const normalized = normalizeLanguageCode(value);
+        if (!normalized) {
+            return 'Unknown';
+        }
+        if (!languageNames) {
+            return humanizeToken(normalized);
+        }
+        try {
+            return languageNames.of(normalized) || humanizeToken(normalized);
+        } catch (_) {
+            const base = normalized.split('-')[0];
+            try {
+                return languageNames.of(base) || humanizeToken(normalized);
+            } catch (_) {
+                return humanizeToken(normalized);
+            }
+        }
+    };
+
+    const normalizeTrackLabel = (value) => {
+        const normalized = cleanValue(value);
+        const lower = normalized.toLowerCase();
+        if (!normalized || lower === 'und' || lower === 'unk' || lower === 'unknown') {
+            return '';
+        }
+        return normalized;
+    };
+
+    const resolutionLabel = (width, height) => {
+        const numericWidth = Number(width || 0);
+        const numericHeight = Number(height || 0);
+        if (numericHeight >= 2160 || numericWidth >= 3840) return '4K';
+        if (numericHeight >= 1440 || numericWidth >= 2560) return '1440p';
+        if (numericHeight >= 1080 || numericWidth >= 1920) return '1080p';
+        if (numericHeight >= 720 || numericWidth >= 1280) return '720p';
+        if (numericHeight >= 576) return '576p';
+        if (numericHeight >= 480) return '480p';
+        if (numericHeight > 0) return `${numericHeight}p`;
+        if (numericWidth > 0) return `${numericWidth}px`;
+        return '';
+    };
+
+    const currentVideoResolution = () => resolutionLabel(videoEl?.videoWidth, videoEl?.videoHeight);
+
+    const audioTrackKey = (track) => {
+        return [
+            cleanValue(track?.language).toLowerCase(),
+            cleanValue(track?.roles?.[0] || track?.role).toLowerCase(),
+            cleanValue(track?.label).toLowerCase()
+        ].join('|');
+    };
+
+    const describeAudioTrack = (track, index = 0) => {
+        const parts = [];
+        const language = displayLanguage(track?.language);
+        if (language) {
+            parts.push(language);
+        }
+        const label = normalizeTrackLabel(track?.label);
+        if (label && label.toLowerCase() !== cleanValue(track?.language).toLowerCase()) {
+            parts.push(label);
+        }
+        const role = humanizeToken(track?.roles?.[0] || track?.role);
+        if (role) {
+            parts.push(role);
+        }
+        const channels = Number(track?.channelsCount || 0);
+        if (channels > 0) {
+            parts.push(`${channels}ch`);
+        }
+        const codec = cleanValue(track?.audioCodec).toUpperCase();
+        if (codec) {
+            parts.push(codec);
+        }
+        return parts.join(' • ') || `Audio ${index + 1}`;
+    };
+
+    const describeTextTrack = (track, index = 0) => {
+        const parts = [];
+        const language = displayLanguage(track?.language);
+        if (language) {
+            parts.push(language);
+        }
+        const label = normalizeTrackLabel(track?.label);
+        if (label && label.toLowerCase() !== cleanValue(track?.language).toLowerCase()) {
+            parts.push(label);
+        }
+        const kind = humanizeToken(track?.kind || track?.roles?.[0]);
+        if (kind) {
+            parts.push(kind);
+        }
+        return parts.join(' • ') || `Subtitle ${index + 1}`;
+    };
+
+    const closeAllMenus = () => {
+        [audioMenuEl, subtitleMenuEl, qualityMenuEl].forEach((menu) => {
+            if (menu) {
+                menu.hidden = true;
+            }
+        });
+    };
+
+    const toggleMenu = (menuEl) => {
+        if (!menuEl) {
+            return;
+        }
+        const willOpen = menuEl.hidden;
+        closeAllMenus();
+        menuEl.hidden = !willOpen;
+    };
+
+    const setButtonLabel = (labelEl, fallback, value) => {
+        if (!labelEl) {
+            return;
+        }
+        labelEl.textContent = cleanValue(value) || fallback;
+    };
+
+    const renderMenuItems = (menuEl, items, onSelect) => {
+        if (!menuEl) {
+            return;
+        }
+        menuEl.innerHTML = '';
+        items.forEach((item) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `top-menu-item${item.active ? ' active' : ''}${item.muted ? ' top-menu-item-muted' : ''}`;
+            button.textContent = item.label;
+            button.disabled = !!item.disabled;
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (item.disabled) {
+                    return;
+                }
+                onSelect(item);
+                closeAllMenus();
+            });
+            menuEl.appendChild(button);
+        });
     };
 
     const safeParseJson = (rawValue, fallbackValue) => {
@@ -360,6 +556,7 @@
         }
         videoEl.removeAttribute('src');
         videoEl.load();
+        setPlaybackResolution('');
         resetTrackMenus();
     };
 
@@ -763,6 +960,7 @@
         activeLaunch = launch;
         repeatReloadInFlight = false;
         playbackMode = 'loading';
+        setPlaybackResolution('');
         renderMediaTitle();
         updateDocumentTitle();
         setStatus('Requesting playback URL...');
@@ -893,18 +1091,16 @@
     };
 
     const resetTrackMenus = () => {
-        if (audioSelectEl) {
-            audioSelectEl.innerHTML = '<option value="">Audio</option>';
-            audioSelectEl.disabled = true;
-        }
-        if (subtitleSelectEl) {
-            subtitleSelectEl.innerHTML = '<option value="off">Subtitles Off</option>';
-            subtitleSelectEl.disabled = true;
-        }
-        if (qualitySelectEl) {
-            qualitySelectEl.innerHTML = '<option value="auto">Quality Auto</option>';
-            qualitySelectEl.disabled = true;
-        }
+        renderMenuItems(audioMenuEl, [{label: 'No audio tracks', disabled: true, muted: true}], () => {});
+        renderMenuItems(subtitleMenuEl, [{label: 'No subtitles', disabled: true, muted: true}], () => {});
+        renderMenuItems(qualityMenuEl, [{label: 'Quality Auto', disabled: true, muted: true}], () => {});
+        if (audioMenuBtn) audioMenuBtn.disabled = true;
+        if (subtitleMenuBtn) subtitleMenuBtn.disabled = true;
+        if (qualityMenuBtn) qualityMenuBtn.disabled = true;
+        setButtonLabel(audioLabelEl, 'Audio', '');
+        setButtonLabel(subtitleLabelEl, 'Subtitles', '');
+        setButtonLabel(qualityLabelEl, 'Quality', '');
+        closeAllMenus();
     };
 
     const qualityLabelForTrack = (track) => {
@@ -913,14 +1109,13 @@
         const bandwidth = Number(track?.bandwidth || 0);
         const fps = Number(track?.frameRate || 0);
         const parts = [];
-        if (height > 0) {
-            parts.push(`${height}p`);
-        } else if (width > 0) {
-            parts.push(`${width}w`);
+        const quality = resolutionLabel(width, height);
+        if (quality) {
+            parts.push(quality);
         } else {
             parts.push('Adaptive');
         }
-        if (fps > 0) {
+        if (fps >= 24) {
             parts.push(`${Math.round(fps)}fps`);
         }
         if (bandwidth > 0) {
@@ -929,10 +1124,48 @@
         return parts.join(' ');
     };
 
+    const refreshResolutionFromShaka = () => {
+        if (!shakaPlayer || typeof shakaPlayer.getVariantTracks !== 'function') {
+            setPlaybackResolution(currentVideoResolution());
+            return;
+        }
+        const activeTrack = (shakaPlayer.getVariantTracks() || []).find(track => track && track.active) || null;
+        setPlaybackResolution(activeTrack ? qualityLabelForTrack(activeTrack).split(' ')[0] : currentVideoResolution());
+    };
+
+    const populateNativeSubtitleMenu = () => {
+        if (!subtitleMenuEl || shakaPlayer) {
+            return;
+        }
+        const tracks = Array.from(videoEl?.textTracks || []);
+        const items = [{
+            id: 'off',
+            label: 'Subtitles Off',
+            active: !tracks.some(track => track.mode === 'showing')
+        }];
+        let activeLabel = '';
+        tracks.forEach((track, index) => {
+            const label = describeTextTrack(track, index);
+            const active = track.mode === 'showing';
+            if (active) {
+                activeLabel = label;
+            }
+            items.push({
+                id: String(index),
+                label,
+                active
+            });
+        });
+        renderMenuItems(subtitleMenuEl, items, (item) => {
+            switchSubtitleTrack(item.id);
+        });
+        if (subtitleMenuBtn) subtitleMenuBtn.disabled = tracks.length === 0;
+        setButtonLabel(subtitleLabelEl, 'Subtitles', activeLabel);
+    };
+
     const populateQualityMenu = () => {
-        if (!shakaPlayer || !qualitySelectEl) return;
+        if (!shakaPlayer || !qualityMenuEl) return;
         const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
-        qualitySelectEl.innerHTML = '<option value="auto">Quality Auto</option>';
         const sorted = variants
             .slice()
             .sort((a, b) => (Number(b.height || 0) - Number(a.height || 0))
@@ -945,55 +1178,113 @@
             }
             unique.push({key, track});
         }
-        for (const item of unique) {
-            const track = item.track;
-            const option = document.createElement('option');
-            option.value = String(track.id);
-            option.textContent = qualityLabelForTrack(track);
-            qualitySelectEl.appendChild(option);
-        }
-        qualitySelectEl.disabled = unique.length === 0;
         const activeTrack = variants.find(track => track.active);
         const abrEnabled = shakaPlayer.getConfiguration ? !!shakaPlayer.getConfiguration()?.abr?.enabled : true;
-        qualitySelectEl.value = abrEnabled || !activeTrack ? 'auto' : String(activeTrack.id);
+        const activeLabel = abrEnabled || !activeTrack ? 'Auto' : qualityLabelForTrack(activeTrack);
+        const items = [{
+            id: 'auto',
+            label: 'Quality Auto',
+            active: abrEnabled || !activeTrack
+        }];
+        unique.forEach((item) => {
+            items.push({
+                id: String(item.track.id),
+                label: qualityLabelForTrack(item.track),
+                active: !abrEnabled && activeTrack && String(activeTrack.id) === String(item.track.id)
+            });
+        });
+        renderMenuItems(qualityMenuEl, items, (item) => {
+            if (item.id === 'auto') {
+                if (typeof shakaPlayer.configure === 'function') {
+                    shakaPlayer.configure({abr: {enabled: true}});
+                }
+                populateTrackMenus();
+                return;
+            }
+            const track = variants.find(t => String(t.id) === item.id);
+            if (!track) {
+                return;
+            }
+            shakaPlayer.configure({abr: {enabled: false}});
+            shakaPlayer.selectVariantTrack(track, true);
+            populateTrackMenus();
+        });
+        if (qualityMenuBtn) qualityMenuBtn.disabled = unique.length === 0;
+        setButtonLabel(qualityLabelEl, 'Quality', activeLabel);
     };
 
     const populateTrackMenus = () => {
         if (!shakaPlayer) return;
 
-        if (audioSelectEl) {
+        if (audioMenuEl) {
             const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
-            const audioTracks = variants
-                .filter(track => !track.audioOnly)
-                .filter((track, idx, arr) => arr.findIndex(other =>
-                    String(other.language || '') === String(track.language || '')
-                    && String(other.label || '') === String(track.label || '')
-                    && String(other.audioCodec || '') === String(track.audioCodec || '')
-                ) === idx);
-            audioSelectEl.innerHTML = '<option value="">Audio</option>';
-            for (const track of audioTracks) {
-                const option = document.createElement('option');
-                option.value = String(track.id);
-                option.textContent = `${track.language || 'Audio'}${track.label ? ` - ${track.label}` : ''}`;
-                if (track.active) option.selected = true;
-                audioSelectEl.appendChild(option);
+            const activeTrack = variants.find(track => track && track.active) || null;
+            const activeKey = activeTrack ? audioTrackKey(activeTrack) : '';
+            const audioTracks = [];
+            const seen = new Set();
+            for (const track of variants) {
+                if (!track || track.audioOnly) {
+                    continue;
+                }
+                const key = audioTrackKey(track);
+                if (seen.has(key)) {
+                    continue;
+                }
+                seen.add(key);
+                audioTracks.push({
+                    ...track,
+                    menuKey: key,
+                    active: key === activeKey
+                });
             }
-            audioSelectEl.disabled = audioTracks.length === 0;
+            let activeLabel = '';
+            const items = audioTracks.map((track, index) => {
+                const label = describeAudioTrack(track, index);
+                if (track.active) {
+                    activeLabel = label;
+                }
+                return {
+                    id: String(track.menuKey),
+                    label,
+                    active: track.active
+                };
+            });
+            renderMenuItems(audioMenuEl, items.length ? items : [{label: 'No audio tracks', disabled: true, muted: true}], (item) => {
+                switchAudioTrack(item.id);
+            });
+            if (audioMenuBtn) audioMenuBtn.disabled = audioTracks.length === 0;
+            setButtonLabel(audioLabelEl, 'Audio', activeLabel);
         }
 
-        if (subtitleSelectEl) {
+        if (subtitleMenuEl) {
             const textTracks = shakaPlayer.getTextTracks ? (shakaPlayer.getTextTracks() || []) : [];
-            subtitleSelectEl.innerHTML = '<option value="off">Subtitles Off</option>';
-            for (const track of textTracks) {
-                const option = document.createElement('option');
-                option.value = String(track.id);
-                option.textContent = `${track.language || 'Subtitle'}${track.label ? ` - ${track.label}` : ''}`;
-                subtitleSelectEl.appendChild(option);
-            }
-            subtitleSelectEl.disabled = textTracks.length === 0;
+            const activeTextTrack = textTracks.find(track => track && track.active);
+            const items = [{
+                id: 'off',
+                label: 'Subtitles Off',
+                active: !activeTextTrack
+            }];
+            let activeLabel = '';
+            textTracks.forEach((track, index) => {
+                const label = describeTextTrack(track, index);
+                if (track.active) {
+                    activeLabel = label;
+                }
+                items.push({
+                    id: String(track.id),
+                    label,
+                    active: !!track.active
+                });
+            });
+            renderMenuItems(subtitleMenuEl, items, (item) => {
+                switchSubtitleTrack(item.id);
+            });
+            if (subtitleMenuBtn) subtitleMenuBtn.disabled = textTracks.length === 0;
+            setButtonLabel(subtitleLabelEl, 'Subtitles', activeLabel);
         }
 
         populateQualityMenu();
+        refreshResolutionFromShaka();
     };
 
     const loadShaka = async (responseData) => {
@@ -1013,6 +1304,15 @@
         shakaPlayer.addEventListener('adaptation', () => {
             populateTrackMenus();
         });
+        shakaPlayer.addEventListener('variantchanged', () => {
+            populateTrackMenus();
+        });
+        shakaPlayer.addEventListener('trackschanged', () => {
+            populateTrackMenus();
+        });
+        shakaPlayer.addEventListener('textchanged', () => {
+            populateTrackMenus();
+        });
 
         if (responseData?.drm) {
             const drmConfig = {};
@@ -1028,6 +1328,56 @@
         await shakaPlayer.load(responseData.url);
         populateTrackMenus();
         return await ensurePlaying();
+    };
+
+    const switchAudioTrack = (selectedKey) => {
+        if (!shakaPlayer) {
+            return;
+        }
+        const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
+        const target = variants.find(track => audioTrackKey(track) === selectedKey);
+        if (!target) {
+            return;
+        }
+        if (typeof shakaPlayer.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
+            shakaPlayer.selectAudioLanguage(target.language || '', target.roles?.[0] || '');
+        } else if (typeof shakaPlayer.selectVariantTrack === 'function') {
+            shakaPlayer.selectVariantTrack(target, false);
+        }
+        populateTrackMenus();
+    };
+
+    const switchSubtitleTrack = async (selected) => {
+        if (shakaPlayer) {
+            if (selected === 'off') {
+                if (typeof shakaPlayer.setTextTrackVisibility === 'function') {
+                    await shakaPlayer.setTextTrackVisibility(false);
+                }
+                populateTrackMenus();
+                return;
+            }
+            const track = (shakaPlayer.getTextTracks ? shakaPlayer.getTextTracks() : []).find(t => String(t.id) === selected);
+            if (!track) {
+                return;
+            }
+            if (typeof shakaPlayer.selectTextTrack === 'function') {
+                shakaPlayer.selectTextTrack(track);
+            }
+            if (typeof shakaPlayer.setTextTrackVisibility === 'function') {
+                await shakaPlayer.setTextTrackVisibility(true);
+            }
+            populateTrackMenus();
+            return;
+        }
+
+        const nativeTextTracks = Array.from(videoEl?.textTracks || []);
+        if (!nativeTextTracks.length) {
+            return;
+        }
+        nativeTextTracks.forEach((track, index) => {
+            track.mode = selected === String(index) ? 'showing' : 'disabled';
+        });
+        populateNativeSubtitleMenu();
     };
 
     const start = async () => {
@@ -1087,6 +1437,17 @@
         });
         videoEl.addEventListener('timeupdate', markPlaybackProgress);
         videoEl.addEventListener('playing', markPlaybackProgress);
+        videoEl.addEventListener('loadedmetadata', () => {
+            if (!shakaPlayer) {
+                populateNativeSubtitleMenu();
+            }
+            setPlaybackResolution(currentVideoResolution());
+        });
+        videoEl.addEventListener('resize', () => {
+            if (!shakaPlayer) {
+                setPlaybackResolution(currentVideoResolution());
+            }
+        });
         videoEl.addEventListener('stalled', () => {
             recoverFromStall();
         });
@@ -1094,6 +1455,22 @@
             recoverFromStall();
         });
     }
+
+    [audioMenuBtn, subtitleMenuBtn, qualityMenuBtn, audioMenuEl, subtitleMenuEl, qualityMenuEl].forEach((element) => {
+        if (!element) {
+            return;
+        }
+        element.addEventListener('mousedown', (event) => {
+            event.stopPropagation();
+        });
+        element.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    });
+
+    document.addEventListener('click', () => {
+        closeAllMenus();
+    });
 
     const clearWebCacheAndReload = async () => {
         try {
@@ -1158,51 +1535,24 @@
         });
     }
 
-    if (audioSelectEl) {
-        audioSelectEl.addEventListener('change', () => {
-            if (!shakaPlayer) return;
-            const selected = String(audioSelectEl.value || '');
-            if (!selected) return;
-            const track = (shakaPlayer.getVariantTracks ? shakaPlayer.getVariantTracks() : []).find(t => String(t.id) === selected);
-            if (track) {
-                shakaPlayer.selectVariantTrack(track, true);
-            }
+    if (audioMenuBtn) {
+        audioMenuBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            toggleMenu(audioMenuEl);
         });
     }
 
-    if (subtitleSelectEl) {
-        subtitleSelectEl.addEventListener('change', async () => {
-            if (!shakaPlayer) return;
-            const selected = String(subtitleSelectEl.value || 'off');
-            if (selected === 'off') {
-                await shakaPlayer.setTextTrackVisibility(false);
-                return;
-            }
-            const track = (shakaPlayer.getTextTracks ? shakaPlayer.getTextTracks() : []).find(t => String(t.id) === selected);
-            if (track) {
-                shakaPlayer.selectTextTrack(track);
-                await shakaPlayer.setTextTrackVisibility(true);
-            }
+    if (subtitleMenuBtn) {
+        subtitleMenuBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            toggleMenu(subtitleMenuEl);
         });
     }
 
-    if (qualitySelectEl) {
-        qualitySelectEl.addEventListener('change', () => {
-            if (!shakaPlayer) return;
-            const selected = String(qualitySelectEl.value || 'auto');
-            if (selected === 'auto') {
-                shakaPlayer.configure({abr: {enabled: true}});
-                populateTrackMenus();
-                return;
-            }
-            const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
-            const track = variants.find(t => String(t.id) === selected);
-            if (!track) {
-                return;
-            }
-            shakaPlayer.configure({abr: {enabled: false}});
-            shakaPlayer.selectVariantTrack(track, true);
-            populateTrackMenus();
+    if (qualityMenuBtn) {
+        qualityMenuBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            toggleMenu(qualityMenuEl);
         });
     }
 
@@ -1211,6 +1561,7 @@
     });
 
     resetTrackMenus();
+    renderResolutionPill();
     updateRepeatButton();
     start();
 })();

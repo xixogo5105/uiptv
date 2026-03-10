@@ -72,7 +72,7 @@
     --card-subtitle: #6c757d;
     --channel-on-air-bg: #0d6efd;
     --channel-on-air-border: #0a58ca;
-    --channel-on-air-text: #fff;
+    --channel-on-air-text: #0d6efd;
     --channel-on-air-muted: rgba(255, 255, 255, 0.9);
     --channel-on-air-pill-bg: rgba(255, 255, 255, 0.18);
     --icon-color: #6c757d;
@@ -124,7 +124,7 @@
         --card-subtitle: #6c757d;
         --channel-on-air-bg: #0d6efd;
         --channel-on-air-border: #0a58ca;
-        --channel-on-air-text: #fff;
+        --channel-on-air-text: #0d6efd;
         --channel-on-air-muted: rgba(255, 255, 255, 0.9);
         --channel-on-air-pill-bg: rgba(255, 255, 255, 0.18);
         --icon-color: #6c757d;
@@ -213,7 +213,7 @@ body {
     justify-content: center;
     align-items: center;
     position: relative;
-    background: #000;
+    background: var(--player-bg);
 }
 
 #player-placeholder {
@@ -230,12 +230,12 @@ body {
     width: 100%;
     height: 100%;
     position: relative;
-    background: #000;
+    background: var(--player-bg);
 }
 
 #player video,
 #player iframe {
-    background: #000;
+    background: var(--player-bg);
 }
 
 .player-loading-overlay {
@@ -244,7 +244,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #000;
+    background: var(--player-bg);
     z-index: 12;
 }
 
@@ -264,6 +264,36 @@ body {
 
 #player-overlay button {
     pointer-events: auto;
+}
+
+#player-overlay .dropdown,
+#player-overlay .dropdown-menu,
+#player-overlay .dropdown-item,
+#player-overlay .dropdown-item-text,
+#player-overlay .dropdown-divider {
+    pointer-events: auto;
+}
+
+#player-overlay .dropdown-menu {
+    z-index: 32;
+    background: rgba(0, 0, 0, 0.96);
+    border: 1px solid rgba(47, 111, 221, 0.55);
+    backdrop-filter: blur(8px);
+}
+
+#player-overlay .dropdown-item,
+#player-overlay .dropdown-item-text {
+    color: #f2f5fb;
+}
+
+#player-overlay .dropdown-item:hover,
+#player-overlay .dropdown-item:focus {
+    color: #ffffff;
+    background: rgba(13, 110, 253, 0.28);
+}
+
+#player-overlay .dropdown-divider {
+    border-top-color: rgba(255, 255, 255, 0.12);
 }
 
 #player:hover #player-overlay {

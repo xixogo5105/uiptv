@@ -43,7 +43,7 @@ body {
 }
 
 #topbar {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
@@ -56,7 +56,8 @@ body {
     background: var(--topbar-bg);
     border-bottom: 1px solid var(--border-color);
     backdrop-filter: blur(6px);
-    z-index: 12;
+    z-index: 2000;
+    pointer-events: auto;
 }
 
 .brand {
@@ -124,6 +125,11 @@ body {
     padding: 0 10px;
 }
 
+.top-action-menu {
+    position: relative;
+    z-index: 2100;
+}
+
 .top-action:hover {
     color: var(--text-color);
     background: var(--chip-hover-bg);
@@ -135,23 +141,68 @@ body {
     border-color: rgba(13, 110, 253, 0.4);
 }
 
-.top-action select {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font-size: 12px;
-    min-width: 90px;
-    outline: none;
+.top-action:disabled {
+    cursor: default;
+    opacity: 0.72;
 }
 
-.top-action select option {
-    color: #212529;
+.top-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    max-height: 320px;
+    overflow: auto;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--chip-hover-border);
+    background: rgba(0, 0, 0, 0.96);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    z-index: 2200;
+    pointer-events: auto;
+}
+
+.top-menu[hidden] {
+    display: none !important;
+}
+
+.top-action-indicator {
+    cursor: default;
+}
+
+.top-menu-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text-color);
+    display: block;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.top-menu-item:hover {
+    background: rgba(13, 110, 253, 0.22);
+}
+
+.top-menu-item.active {
+    background: rgba(13, 110, 253, 0.3);
+}
+
+.top-menu-item-muted {
+    color: var(--muted-color);
+    cursor: default;
 }
 
 #video {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     background: #000;
+    z-index: 0;
 }
 
 #content {
@@ -168,6 +219,7 @@ body {
     position: relative;
     flex: 1 1 auto;
     min-width: 0;
+    overflow: hidden;
 }
 
 #playlist-panel {

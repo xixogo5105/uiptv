@@ -50,6 +50,9 @@ createApp({
         const pendingPlaybackKey = ref('');
         let playbackRequestId = 0;
         let playbackFetchController = null;
+        const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
+            ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
+            : null;
 
         const thumbnailsEnabled = ref(true);
 
@@ -115,6 +118,110 @@ createApp({
             .replace(/[^a-z0-9 ]/g, ' ')
             .replace(/\s+/g, ' ')
             .trim();
+
+        const normalizeLanguageCode = (value) => {
+            const normalized = String(value || '').trim().toLowerCase();
+            if (!normalized || normalized === 'und' || normalized === 'unk' || normalized === 'unknown') {
+                return '';
+            }
+            return normalized;
+        };
+
+        const humanizeToken = (value) => {
+            const normalized = String(value || '').trim().replace(/[_-]+/g, ' ');
+            if (!normalized) {
+                return '';
+            }
+            return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+        };
+
+        const displayLanguage = (value) => {
+            const normalized = normalizeLanguageCode(value);
+            if (!normalized) {
+                return 'Unknown';
+            }
+            if (!languageNames) {
+                return humanizeToken(normalized);
+            }
+            try {
+                return languageNames.of(normalized) || humanizeToken(normalized);
+            } catch (_) {
+                const base = normalized.split('-')[0];
+                try {
+                    return languageNames.of(base) || humanizeToken(normalized);
+                } catch (_) {
+                    return humanizeToken(normalized);
+                }
+            }
+        };
+
+        const normalizeTrackLabel = (value) => {
+            const normalized = String(value || '').trim();
+            const lower = normalized.toLowerCase();
+            if (!normalized || lower === 'und' || lower === 'unk' || lower === 'unknown') {
+                return '';
+            }
+            return normalized;
+        };
+
+        const formatVideoTrackLabel = (track) => {
+            if (!track) return 'Auto';
+            const height = Number(track.height || 0);
+            const width = Number(track.width || 0);
+            const bandwidth = Number(track.bandwidth || 0);
+            const fps = Number(track.frameRate || 0);
+            const parts = [];
+            if (height >= 2160 || width >= 3840) {
+                parts.push('4K');
+            } else if (height > 0) {
+                parts.push(`${height}p`);
+            } else if (width > 0) {
+                parts.push(`${width}px`);
+            } else {
+                parts.push('Adaptive');
+            }
+            if (fps >= 24) {
+                parts.push(`${Math.round(fps)}fps`);
+            }
+            if (bandwidth > 0) {
+                parts.push(`${(bandwidth / 1000000).toFixed(1)}Mbps`);
+            }
+            return parts.join(' ');
+        };
+
+        const formatAudioTrackLabel = (track, index = 0) => {
+            const parts = [];
+            const language = displayLanguage(track?.language);
+            if (language) {
+                parts.push(language);
+            }
+            const role = humanizeToken(track?.role || track?.roles?.[0]);
+            if (role) {
+                parts.push(role);
+            }
+            const label = normalizeTrackLabel(track?.label);
+            if (label && label.toLowerCase() !== String(track?.language || '').trim().toLowerCase()) {
+                parts.push(label);
+            }
+            return parts.join(' • ') || `Audio ${index + 1}`;
+        };
+
+        const formatTextTrackLabel = (track, index = 0) => {
+            const parts = [];
+            const language = displayLanguage(track?.language);
+            if (language) {
+                parts.push(language);
+            }
+            const kind = humanizeToken(track?.kind || track?.roles?.[0]);
+            if (kind) {
+                parts.push(kind);
+            }
+            const label = normalizeTrackLabel(track?.label);
+            if (label && label.toLowerCase() !== String(track?.language || '').trim().toLowerCase()) {
+                parts.push(label);
+            }
+            return parts.join(' • ') || `Subtitle ${index + 1}`;
+        };
 
         const resolveEpisodeNumber = (episode) => {
             if (!episode) return '';
@@ -2255,7 +2362,7 @@ createApp({
                     && String(track.label || '') === String(label || '')
                 )
             );
-            if (target && typeof playerInstance.value.selectAudioLanguage === 'function') {
+            if (target && typeof playerInstance.value.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
                 playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
                 refreshShakaTracks(playerInstance.value);
                 return;
@@ -2642,7 +2749,10 @@ createApp({
             switchVideoTrack,
             switchVideoAuto,
             switchAudioTrack,
-            switchTextTrack
+            switchTextTrack,
+            formatVideoTrackLabel,
+            formatAudioTrackLabel,
+            formatTextTrackLabel
         };
     }
 }).mount('#app');

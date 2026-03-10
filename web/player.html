@@ -11,7 +11,7 @@
     <link rel="icon" type="image/x-icon" href="/icon.ico">
     <title>UIPTV Player</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/css/player.css?v=20260224a">
+    <link rel="stylesheet" href="/css/player.css?v=20260310b">
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
 </head>
@@ -27,24 +27,31 @@
             <div id="media-subtitle"></div>
         </div>
         <div class="top-actions">
-            <label class="top-action" for="audio-select" title="Audio tracks">
-                <i class="bi bi-music-note-list"></i>
-                <select id="audio-select">
-                    <option value="">Audio</option>
-                </select>
-            </label>
-            <label class="top-action" for="subtitle-select" title="Subtitles">
-                <i class="bi bi-badge-cc"></i>
-                <select id="subtitle-select">
-                    <option value="off">Subtitles Off</option>
-                </select>
-            </label>
-            <label class="top-action" for="quality-select" title="Playback quality">
-                <i class="bi bi-badge-hd"></i>
-                <select id="quality-select">
-                    <option value="auto">Quality Auto</option>
-                </select>
-            </label>
+            <div class="top-action-menu">
+                <button id="audio-menu-btn" class="top-action" type="button" title="Audio tracks">
+                    <i class="bi bi-music-note-list"></i>
+                    <span id="audio-label">Audio</span>
+                </button>
+                <div id="audio-menu" class="top-menu" hidden></div>
+            </div>
+            <div class="top-action-menu">
+                <button id="subtitle-menu-btn" class="top-action" type="button" title="Subtitles">
+                    <i class="bi bi-badge-cc"></i>
+                    <span id="subtitle-label">Subtitles</span>
+                </button>
+                <div id="subtitle-menu" class="top-menu" hidden></div>
+            </div>
+            <div class="top-action-menu">
+                <button id="quality-menu-btn" class="top-action" type="button" title="Playback quality">
+                    <i class="bi bi-badge-hd"></i>
+                    <span id="quality-label">Quality</span>
+                </button>
+                <div id="quality-menu" class="top-menu" hidden></div>
+            </div>
+            <div id="resolution-pill" class="top-action top-action-indicator" title="Current stream resolution">
+                <i class="bi bi-aspect-ratio"></i>
+                <span id="resolution-label">Resolution</span>
+            </div>
             <a class="top-action" href="/index.html" title="Home">
                 <i class="bi bi-grid-3x3-gap-fill"></i>
                 <span>Home</span>
@@ -74,6 +81,6 @@
         </div>
     </div>
 </div>
-    <script src="/javascript/player.js?v=20260310b"></script>
+    <script src="/javascript/player.js?v=20260310c"></script>
 </body>
 </html>

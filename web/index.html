@@ -17,7 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
             crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="/css/spa.css?v=20260310b">
+    <link rel="stylesheet" href="/css/spa.css?v=20260310c">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <!-- Shaka Player -->
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
@@ -474,7 +474,7 @@
                                         <li><hr class="dropdown-divider"></li>
                                         <li v-for="track in videoTracks" :key="track.id">
                                             <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchVideoTrack, track.id)">
-                                                {{ track.height }}p
+                                                {{ formatVideoTrackLabel(track) }}
                                                 <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
                                             </a>
                                         </li>
@@ -486,9 +486,9 @@
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="audioMenuButton">
                                         <li v-if="!audioTracks || audioTracks.length === 0"><span class="dropdown-item-text text-muted">No audio tracks</span></li>
-                                        <li v-for="track in audioTracks" :key="'audio-' + track.id">
+                                        <li v-for="(track, index) in audioTracks" :key="'audio-' + track.id">
                                             <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchAudioTrack, track.id)">
-                                                {{ track.language || 'Audio' }}<span v-if="track.role"> · {{ track.role }}</span><span v-if="track.label"> · {{ track.label }}</span>
+                                                {{ formatAudioTrackLabel(track, index) }}
                                                 <span v-if="track.active" class="badge bg-primary ms-2">Active</span>
                                             </a>
                                         </li>
@@ -506,12 +506,9 @@
                                             </a>
                                         </li>
                                         <li v-if="!textTracks || textTracks.length === 0"><span class="dropdown-item-text text-muted">No subtitles</span></li>
-                                        <li v-for="track in textTracks" :key="'sub-' + track.id">
+                                        <li v-for="(track, index) in textTracks" :key="'sub-' + track.id">
                                             <a class="dropdown-item" href="#" @click="onPlayerControlClick($event, switchTextTrack, track.id)">
-                                                {{ track.language || 'Subtitle' }}
-                                                <span v-if="track.kind"> · {{ track.kind }}</span>
-                                                <span v-if="track.roles && track.roles.length"> · {{ track.roles[0] }}</span>
-                                                <span v-if="track.label"> · {{ track.label }}</span>
+                                                {{ formatTextTrackLabel(track, index) }}
                                                 <span v-if="String(selectedTextTrackId) === String(track.id)" class="badge bg-primary ms-2">Active</span>
                                             </a>
                                         </li>
@@ -570,7 +567,7 @@
     </div>
 </div>
 
-<script src="/javascript/spa.js?v=20260310b"></script>
+<script src="/javascript/spa.js?v=20260310c"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
