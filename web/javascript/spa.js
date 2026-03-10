@@ -1226,13 +1226,32 @@ createApp({
             playChannel(detail.playItem);
         };
 
+        const BOOKMARK_PAGE_SIZE = 25;
+
         const loadBookmarks = async () => {
             try {
-                const response = await fetch(`${window.location.origin}/bookmarks`);
-                bookmarks.value = (await response.json()).map(normalizeBookmark);
-                ensureSelectedBookmarkCategory();
+                listLoading.value = true;
+                listLoadingMessage.value = 'Loading bookmarks...';
+                bookmarks.value = [];
+                let offset = 0;
+                while (true) {
+                    const response = await fetch(`${window.location.origin}/bookmarks?offset=${offset}&limit=${BOOKMARK_PAGE_SIZE}`);
+                    const batch = await response.json();
+                    if (!Array.isArray(batch) || batch.length === 0) {
+                        break;
+                    }
+                    bookmarks.value = [...bookmarks.value, ...batch.map(normalizeBookmark)];
+                    ensureSelectedBookmarkCategory();
+                    offset += batch.length;
+                    if (batch.length < BOOKMARK_PAGE_SIZE) {
+                        break;
+                    }
+                    await nextTick();
+                }
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
+            } finally {
+                listLoading.value = false;
             }
         };
 
@@ -2637,10 +2656,12 @@ createApp({
 
         onMounted(async () => {
             await loadConfig();
-            await loadAccounts();
-            await loadBookmarkCategories();
-            await loadBookmarks();
-            await loadWatchingNow();
+            await Promise.all([
+                loadAccounts(),
+                loadBookmarkCategories(),
+                loadBookmarks(),
+                loadWatchingNow()
+            ]);
 
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) {

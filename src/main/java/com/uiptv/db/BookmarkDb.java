@@ -40,11 +40,22 @@ public class BookmarkDb extends BaseDb {
         return getBookmarksOrdered(null);
     }
 
+    public List<Bookmark> getBookmarksPage(int offset, int limit) {
+        if (limit <= 0) {
+            return getBookmarksOrdered(null);
+        }
+        return getBookmarksOrdered(null, Math.max(0, offset), limit);
+    }
+
     public List<Bookmark> getBookmarksByCategory(String categoryId) {
         return getBookmarksOrdered(categoryId);
     }
 
     private List<Bookmark> getBookmarksOrdered(String categoryId) {
+        return getBookmarksOrdered(categoryId, -1, -1);
+    }
+
+    private List<Bookmark> getBookmarksOrdered(String categoryId, int offset, int limit) {
         List<Bookmark> bookmarks = new ArrayList<>();
         StringBuilder sql = new StringBuilder("SELECT b.*, bo.display_order FROM ")
                 .append(BOOKMARK_TABLE.getTableName()).append(" b ")
@@ -57,10 +68,18 @@ public class BookmarkDb extends BaseDb {
         }
 
         sql.append("ORDER BY CASE WHEN bo.display_order IS NULL THEN 1 ELSE 0 END, bo.display_order ASC, b.id ASC");
+        if (limit > 0) {
+            sql.append(" LIMIT ? OFFSET ? ");
+        }
 
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql.toString())) {
+            int index = 1;
             if (categoryId != null) {
-                statement.setString(1, categoryId);
+                statement.setString(index++, categoryId);
+            }
+            if (limit > 0) {
+                statement.setInt(index++, Math.max(0, limit));
+                statement.setInt(index, Math.max(0, offset));
             }
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {

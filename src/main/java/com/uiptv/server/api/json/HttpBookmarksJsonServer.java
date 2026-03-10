@@ -46,6 +46,12 @@ public class HttpBookmarksJsonServer implements HttpHandler {
                 generateJsonResponse(ex, objectToJson(BookmarkService.getInstance().getAllCategories()));
                 return;
             }
+            int offset = parseIntParam(queryParam(ex, "offset"), 0);
+            int limit = parseIntParam(queryParam(ex, "limit"), 0);
+            if (limit > 0) {
+                generateJsonResponse(ex, BookmarkService.getInstance().readToJson(offset, limit));
+                return;
+            }
             generateJsonResponse(ex, BookmarkService.getInstance().readToJson());
             return;
         }
@@ -266,6 +272,14 @@ public class HttpBookmarksJsonServer implements HttpHandler {
             return value == null ? "" : value;
         } catch (Exception _) {
             return "";
+        }
+    }
+
+    private int parseIntParam(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception _) {
+            return fallback;
         }
     }
 }

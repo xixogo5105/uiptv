@@ -66,6 +66,7 @@ public class BookmarkChannelListUI extends HBox {
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
+    private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || reloadInProgress || suppressAutoReloadOnBookmarkChange) {
             return;
@@ -127,6 +128,10 @@ public class BookmarkChannelListUI extends HBox {
                         return;
                     }
                     loadedItems.add(createBookmarkItem(bookmark, accountByName, channelByAccountAndChannel));
+                    if (loadedItems.size() % BOOKMARK_STREAM_BATCH_SIZE == 0) {
+                        List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
+                        runLater(() -> applyPartialReload(generation, snapshot));
+                    }
                 }
 
                 List<BookmarkCategory> categories = new ArrayList<>();
@@ -174,6 +179,22 @@ public class BookmarkChannelListUI extends HBox {
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
+    }
+
+    private void applyPartialReload(long generation, List<BookmarkItem> partialItems) {
+        if (generation != reloadGeneration.get() || partialItems == null) {
+            return;
+        }
+        if (partialItems.isEmpty()) {
+            return;
+        }
+        if (allBookmarkItems.size() >= partialItems.size()) {
+            return;
+        }
+        allBookmarkItems.clear();
+        allBookmarkItems.addAll(partialItems);
+        filterView();
+        bookmarkTable.getTableView().setPlaceholder(null);
     }
 
     private void registerBookmarkChangeListener() {

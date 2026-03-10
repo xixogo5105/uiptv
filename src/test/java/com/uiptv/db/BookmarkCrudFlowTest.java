@@ -6,6 +6,7 @@ import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Channel;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.DbBackedTest;
+import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -176,6 +177,41 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         List<Bookmark> afterUpdate = bookmarkService.read();
         assertEquals(List.of("One", "Two"), afterUpdate.stream().map(Bookmark::getChannelName).toList());
         assertEquals(List.of(1, 2), readDisplayOrders(afterUpdate.stream().map(Bookmark::getDbId).toList()));
+    }
+
+    @Test
+    void testBookmarkPaginationJsonAndDbPages() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkDb bookmarkDb = BookmarkDb.get();
+
+        for (int i = 1; i <= 60; i++) {
+            Bookmark bookmark = new Bookmark("acc-page", "Fav", "ch-" + i, "Ch " + i, "cmd://" + i, "http://portal", "cat-page");
+            bookmarkService.save(bookmark);
+        }
+
+        JSONArray full = new JSONArray(bookmarkService.readToJson());
+        assertEquals(60, full.length());
+
+        JSONArray page1 = new JSONArray(bookmarkService.readToJson(0, 25));
+        JSONArray page2 = new JSONArray(bookmarkService.readToJson(25, 25));
+        JSONArray page3 = new JSONArray(bookmarkService.readToJson(50, 25));
+        JSONArray page4 = new JSONArray(bookmarkService.readToJson(75, 25));
+
+        assertEquals(25, page1.length());
+        assertEquals(25, page2.length());
+        assertEquals(10, page3.length());
+        assertEquals(0, page4.length());
+
+        List<Bookmark> dbPage1 = bookmarkDb.getBookmarksPage(0, 25);
+        List<Bookmark> dbPage2 = bookmarkDb.getBookmarksPage(25, 25);
+        List<Bookmark> dbPage3 = bookmarkDb.getBookmarksPage(50, 25);
+
+        assertEquals(25, dbPage1.size());
+        assertEquals(25, dbPage2.size());
+        assertEquals(10, dbPage3.size());
+        assertEquals("Ch 1", dbPage1.get(0).getChannelName());
+        assertEquals("Ch 26", dbPage2.get(0).getChannelName());
+        assertEquals("Ch 51", dbPage3.get(0).getChannelName());
     }
 
     @Test

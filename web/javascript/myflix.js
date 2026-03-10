@@ -1164,15 +1164,30 @@ createApp({
             playChannel(detail.playItem, 'vod');
         };
 
+        const BOOKMARK_PAGE_SIZE = 25;
+
         const loadBookmarks = async () => {
             try {
                 startModeLoading('bookmarks');
-                const response = await fetch(`${window.location.origin}/bookmarks`);
-                const data = await response.json();
-                bookmarks.value = Array.isArray(data)
-                    ? data.map(b => ({ ...b, logo: resolveLogoUrl(b.logo) }))
-                    : [];
-                ensureSelectedBookmarkCategory();
+                bookmarks.value = [];
+                let offset = 0;
+                while (true) {
+                    const response = await fetch(`${window.location.origin}/bookmarks?offset=${offset}&limit=${BOOKMARK_PAGE_SIZE}`);
+                    const data = await response.json();
+                    const batch = Array.isArray(data)
+                        ? data.map(b => ({ ...b, logo: resolveLogoUrl(b.logo) }))
+                        : [];
+                    if (batch.length === 0) {
+                        break;
+                    }
+                    bookmarks.value = [...bookmarks.value, ...batch];
+                    ensureSelectedBookmarkCategory();
+                    offset += batch.length;
+                    if (batch.length < BOOKMARK_PAGE_SIZE) {
+                        break;
+                    }
+                    await nextTick();
+                }
             } catch (e) {
                 console.error('Failed to load bookmarks', e);
             } finally {

@@ -91,6 +91,17 @@ public class BookmarkService {
         return ServerUtils.objectToJson(bookmarks);
     }
 
+    public String readToJson(int offset, int limit) {
+        if (limit <= 0) {
+            return readToJson();
+        }
+        int safeOffset = Math.max(0, offset);
+        int safeLimit = Math.max(0, limit);
+        List<Bookmark> bookmarks = new ArrayList<>(BookmarkDb.get().getBookmarksPage(safeOffset, safeLimit));
+        enrichBookmarkLogos(bookmarks);
+        return ServerUtils.objectToJson(bookmarks);
+    }
+
     private void enrichBookmarkLogos(List<Bookmark> bookmarks) {
         for (Bookmark bookmark : bookmarks) {
             try {
