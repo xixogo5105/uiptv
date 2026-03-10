@@ -216,7 +216,9 @@ public class VodWatchingNowUI extends VBox {
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
         card.getProperties().put(KEY_CARD_LINKS, List.of());
         card.setOnMouseClicked(event -> {
-            cardMenu.hide();
+            if (event.getButton() == MouseButton.PRIMARY) {
+                cardMenu.hide();
+            }
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 setSelectedCard(card);
                 play(data, null);
