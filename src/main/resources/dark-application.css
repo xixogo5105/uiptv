@@ -354,7 +354,9 @@
 }
 
 .strong-label {
-    -fx-font-weight: bold;
+    -fx-font-size: 1.08em;
+    -fx-font-weight: normal;
+    -fx-text-fill: derive(-fx-text-base-color, 12%);
 }
 
 .dim-label {
@@ -573,7 +575,7 @@
 }
 
 .watching-now-view-link {
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-text-fill: #8ec5ff;
 }
 
@@ -582,7 +584,7 @@
 }
 
 .danger-link {
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-text-fill: #ff8a80;
 }
 
