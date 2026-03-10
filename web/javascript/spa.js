@@ -518,6 +518,26 @@ createApp({
             document.title = channelTitle ? `${channelTitle} | ${APP_TITLE}` : APP_TITLE;
         };
 
+        const isTsLikeUrl = (url, manifestType = '') => {
+            const lowerUrl = String(url || '').trim().toLowerCase();
+            const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
+            return normalizedManifestType === 'ts'
+                || normalizedManifestType === 'mpegts'
+                || normalizedManifestType === 'mpeg2ts'
+                || lowerUrl.includes('.ts?')
+                || lowerUrl.endsWith('.ts')
+                || lowerUrl.includes('.m2ts?')
+                || lowerUrl.endsWith('.m2ts')
+                || lowerUrl.includes('extension=ts')
+                || lowerUrl.includes('/live/play/')
+                || /\/\d+(?:\?|$)/.test(lowerUrl);
+        };
+
+        const canUseMpegts = () => {
+            const engine = window.mpegts;
+            return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
+        };
+
         const resolvePlaybackModeLabel = (url, engine = '') => {
             const lowerUrl = String(url || '').trim().toLowerCase();
             const normalizedEngine = String(engine || '').trim().toLowerCase();
@@ -713,16 +733,7 @@ createApp({
         const tryForcedHlsFallback = async (channel) => {
             const sourceUrl = String(channel?.url || '').trim().toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').trim().toLowerCase();
-            const isMpegTsLike = manifestType === 'ts'
-                || manifestType === 'mpegts'
-                || manifestType === 'mpeg2ts'
-                || sourceUrl.includes('.ts?')
-                || sourceUrl.endsWith('.ts')
-                || sourceUrl.includes('.m2ts?')
-                || sourceUrl.endsWith('.m2ts')
-                || sourceUrl.includes('extension=ts')
-                || sourceUrl.includes('/live/play/')
-                || /\/\d+(?:\?|$)/.test(sourceUrl);
+            const isMpegTsLike = isTsLikeUrl(sourceUrl, manifestType);
             const isAdaptive = sourceUrl.includes('.m3u8');
             if (!sourceUrl || sourceUrl.includes('/hls/stream.m3u8') || (!isAdaptive && !isMpegTsLike)) {
                 return false;
@@ -1929,17 +1940,11 @@ createApp({
             bindPlaybackEvents(video);
 
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
-            const canNative = video.canPlayType('application/vnd.apple.mpegurl');
+            const canNative = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
             const hasDRM = channel.drm != null;
             const normalizedUri = String(uri || '').toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
-            const isTs = manifestType === 'ts'
-                || manifestType === 'mpegts'
-                || manifestType === 'mpeg2ts'
-                || normalizedUri.includes('.ts?')
-                || normalizedUri.endsWith('.ts')
-                || normalizedUri.includes('.m2ts?')
-                || normalizedUri.endsWith('.m2ts');
+            const isTs = isTsLikeUrl(normalizedUri, manifestType);
 
             if (hasDRM) {
                 await loadShaka(channel);
@@ -1962,8 +1967,7 @@ createApp({
             bindPlaybackEvents(video);
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
-            const canUseMpegts = !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
-            if (!canUseMpegts) {
+            if (!canUseMpegts()) {
                 await loadNative({ ...channel, url: sourceUrl });
                 return;
             }
@@ -2533,7 +2537,7 @@ createApp({
             }
         });
 
-        watch([currentChannelDebugTitle, playbackLoading], () => {
+        watch(currentChannelDebugTitle, () => {
             setBrowserTitle();
         }, { immediate: true });
 

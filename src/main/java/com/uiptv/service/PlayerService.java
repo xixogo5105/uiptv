@@ -173,24 +173,7 @@ public class PlayerService {
         payload.put("categoryId", safe(categoryId));
         payload.put("seriesParentId", safe(seriesParentId));
         payload.put("seriesCategoryId", safe(seriesCategoryId));
-
-        JSONObject channelJson = new JSONObject();
-        channelJson.put("dbId", channel == null ? "" : safe(channel.getDbId()));
-        channelJson.put("channelId", channel == null ? "" : safe(channel.getChannelId()));
-        channelJson.put("name", channel == null ? "" : safe(channel.getName()));
-        channelJson.put("logo", channel == null ? "" : safe(channel.getLogo()));
-        channelJson.put("cmd", channel == null ? "" : safe(channel.getCmd()));
-        channelJson.put("cmd_1", channel == null ? "" : safe(channel.getCmd_1()));
-        channelJson.put("cmd_2", channel == null ? "" : safe(channel.getCmd_2()));
-        channelJson.put("cmd_3", channel == null ? "" : safe(channel.getCmd_3()));
-        channelJson.put("drmType", channel == null ? "" : safe(channel.getDrmType()));
-        channelJson.put("drmLicenseUrl", channel == null ? "" : safe(channel.getDrmLicenseUrl()));
-        channelJson.put("clearKeysJson", channel == null ? "" : safe(channel.getClearKeysJson()));
-        channelJson.put("inputstreamaddon", channel == null ? "" : safe(channel.getInputstreamaddon()));
-        channelJson.put("manifestType", channel == null ? "" : safe(channel.getManifestType()));
-        channelJson.put("season", channel == null ? "" : safe(channel.getSeason()));
-        channelJson.put("episodeNum", channel == null ? "" : safe(channel.getEpisodeNum()));
-        payload.put("channel", channelJson);
+        payload.put("channel", buildChannelPayload(channel));
 
         String encoded = Base64.getUrlEncoder()
                 .withoutPadding()
@@ -204,6 +187,30 @@ public class PlayerService {
 
     private static String localServerOrigin() {
         return ServerUrlUtil.getLocalServerUrl();
+    }
+
+    private static JSONObject buildChannelPayload(Channel channel) {
+        JSONObject channelJson = new JSONObject();
+        channelJson.put("dbId", safeChannelValue(channel, Channel::getDbId));
+        channelJson.put("channelId", safeChannelValue(channel, Channel::getChannelId));
+        channelJson.put("name", safeChannelValue(channel, Channel::getName));
+        channelJson.put("logo", safeChannelValue(channel, Channel::getLogo));
+        channelJson.put("cmd", safeChannelValue(channel, Channel::getCmd));
+        channelJson.put("cmd_1", safeChannelValue(channel, Channel::getCmd_1));
+        channelJson.put("cmd_2", safeChannelValue(channel, Channel::getCmd_2));
+        channelJson.put("cmd_3", safeChannelValue(channel, Channel::getCmd_3));
+        channelJson.put("drmType", safeChannelValue(channel, Channel::getDrmType));
+        channelJson.put("drmLicenseUrl", safeChannelValue(channel, Channel::getDrmLicenseUrl));
+        channelJson.put("clearKeysJson", safeChannelValue(channel, Channel::getClearKeysJson));
+        channelJson.put("inputstreamaddon", safeChannelValue(channel, Channel::getInputstreamaddon));
+        channelJson.put("manifestType", safeChannelValue(channel, Channel::getManifestType));
+        channelJson.put("season", safeChannelValue(channel, Channel::getSeason));
+        channelJson.put("episodeNum", safeChannelValue(channel, Channel::getEpisodeNum));
+        return channelJson;
+    }
+
+    private static String safeChannelValue(Channel channel, java.util.function.Function<Channel, String> getter) {
+        return channel == null ? "" : safe(getter.apply(channel));
     }
 
     private static String normalizeMode(String mode, Account account) {

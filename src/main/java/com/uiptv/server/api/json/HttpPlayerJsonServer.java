@@ -49,6 +49,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private static final String STRATEGY_HINT_SHAKA = "SHAKA";
     private static final String STRATEGY_HINT_NATIVE_PROXY = "NATIVE_PROXY";
     private static final String STRATEGY_HINT_NATIVE = "NATIVE";
+    private static final boolean WEB_VOD_STYLE_PLAYLIST = false;
     public static final String SEASON = "season";
     public static final String EPISODE_NUM = "episodeNum";
     public static final String MANIFEST_TYPE = "manifestType";
@@ -62,7 +63,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             String mode = resolveRequestedMode(ex, getParam(ex, "mode"));
             String hvec = getParam(ex, "hvec");
             ResolvedWebPlayback resolved = resolvePlayback(ex, mode);
-            applyWebPlaybackProcessing(resolved.response(), mode, hvec, isTruthy(getParam(ex, QUERY_PARAM_PREFER_HLS)));
+            applyWebPlaybackProcessing(resolved.response(), mode, hvec, isEnabledFlag(getParam(ex, QUERY_PARAM_PREFER_HLS)));
             generateJsonResponse(ex, buildJsonResponse(resolved));
         } catch (Exception e) {
             if (isClientDisconnect(e)) {
@@ -112,7 +113,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return MODE_VOD;
         }
         if (PATH_PLAYER_LIVE.equals(path)) {
-            return "itv";
+            return MODE_ITV;
         }
         return "";
     }
@@ -162,10 +163,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return new ResolvedWebPlayback(response, token, currentEpisodeId, items);
     }
 
-    private void applyWebPlaybackProcessing(PlayerResponse response, String mode, String hvec) {
-        applyWebPlaybackProcessing(response, mode, hvec, false);
-    }
-
     private void applyWebPlaybackProcessing(PlayerResponse response, String mode, String hvec, boolean preferHls) {
         if (response == null || isBlank(response.getUrl())) {
             stopTransmuxingIfActive();
@@ -190,12 +187,10 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
     private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl, boolean preferHls) {
         boolean forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
-        boolean forceLiveTransmux = shouldForceLiveTransmux(mode, originalUrl);
-        if (!forceWebHls && shouldPreferDirectLivePlayback(mode, originalUrl)) {
+        if (shouldPreferDirectLivePlayback(mode, originalUrl) && !forceWebHls) {
             return false;
         }
         return forceWebHls
-                || forceLiveTransmux
                 || (ConfigurationService.getInstance().read().isEnableFfmpegTranscoding()
                 && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl()));
     }
@@ -203,7 +198,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private void applyTransmuxedPlayback(PlayerResponse response, String mode, String originalUrl, String hvec, boolean preferHls) {
         boolean forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
         String sourceUrl = response.getUrl();
-        boolean vodStylePlaylist = shouldUseVodStylePlaylist(mode);
+        boolean vodStylePlaylist = shouldUseVodStylePlaylist();
         if (startTransmuxing(sourceUrl, forceWebHls, vodStylePlaylist)) {
             setHlsPlayback(response, hvec);
             return;
@@ -229,16 +224,13 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return true;
         }
         String proxied = buildLocalProxyUrl(sourceUrl);
-        if (!sourceUrl.equals(proxied) && tryStartTransmuxingInput(proxied, vodStylePlaylist)) {
-            return true;
-        }
-        return false;
+        return !sourceUrl.equals(proxied) && tryStartTransmuxingInput(proxied, vodStylePlaylist);
     }
 
-    private boolean shouldUseVodStylePlaylist(String mode) {
+    private boolean shouldUseVodStylePlaylist() {
         // Keep rolling playlists for web playback so advertised segments stay aligned
         // with in-memory eviction and avoid stale segment fetches.
-        return false;
+        return WEB_VOD_STYLE_PLAYLIST;
     }
 
     private void stopTransmuxingIfActive() {
@@ -263,7 +255,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private void setHlsPlayback(PlayerResponse response, String hvec) {
-        response.setUrl(isHvecEnabled(hvec) ? "/hls/stream.m3u8?hvec=1" : "/hls/stream.m3u8");
+        response.setUrl(isHvecEnabled(hvec) ? URL_FRAGMENT_LOCAL_HLS + "?hvec=1" : URL_FRAGMENT_LOCAL_HLS);
         response.setManifestType("hls");
     }
 
@@ -570,11 +562,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private boolean isHvecEnabled(String value) {
-        if (isBlank(value)) {
-            return false;
-        }
-        String normalized = value.trim().toLowerCase();
-        return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
+        return isEnabledFlag(value);
     }
 
     private boolean shouldForceWebHls(String mode, PlayerResponse response) {
@@ -615,7 +603,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private String buildLocalProxyUrl(String sourceUrl) {
-        return ServerUrlUtil.getLocalServerUrl() + "/proxy-stream?src=" + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
+        return ServerUrlUtil.getLocalServerUrl() + URL_FRAGMENT_PROXY_STREAM + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
     }
 
     private boolean shouldBypassLocalProxyWebPlayback(PlayerResponse response, String mode, String url) {
@@ -672,19 +660,9 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return isForcedWebPath(url.toLowerCase());
     }
 
-    private boolean shouldForceLiveTransmux(String mode, String url) {
-        if (shouldPreferDirectLivePlayback(mode, url)) {
-            return false;
-        }
-        return false;
-    }
-
     private boolean shouldPreferDirectLivePlayback(String mode, String url) {
-        if (isBlank(url)) {
-            return false;
-        }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!MODE_ITV.equals(normalizedMode)) {
+        if (isBlank(url) || !MODE_ITV.equals(normalizedMode)) {
             return false;
         }
         String lowerUrl = url.toLowerCase();
@@ -733,7 +711,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return normalized;
     }
 
-    private boolean isTruthy(String value) {
+    private boolean isEnabledFlag(String value) {
         if (isBlank(value)) {
             return false;
         }

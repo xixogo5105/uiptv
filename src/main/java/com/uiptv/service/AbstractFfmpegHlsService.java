@@ -218,7 +218,7 @@ abstract class AbstractFfmpegHlsService {
             return;
         }
         synchronized (PROCESS_LOCK) {
-            if (!STALL_WATCHDOG_ENABLED || watchdogStarted) {
+            if (watchdogStarted) {
                 return;
             }
             WATCHDOG.scheduleWithFixedDelay(AbstractFfmpegHlsService::checkAndRecoverStalledStream,
@@ -267,17 +267,19 @@ abstract class AbstractFfmpegHlsService {
         if (currentCommand == null || currentCommand.isEmpty()) {
             return;
         }
+        Process processToRestart = currentProcess;
         try {
-            if (currentProcess != null && currentProcess.isAlive()) {
-                currentProcess.destroy();
-                if (!currentProcess.waitFor(1, TimeUnit.SECONDS)) {
-                    currentProcess.destroyForcibly();
+            if (processToRestart != null && processToRestart.isAlive()) {
+                processToRestart.destroy();
+                if (!processToRestart.waitFor(1, TimeUnit.SECONDS)) {
+                    processToRestart.destroyForcibly();
                 }
             }
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+            destroyProcessForcibly(processToRestart);
         } catch (Exception _) {
-            if (currentProcess != null) {
-                currentProcess.destroyForcibly();
-            }
+            destroyProcessForcibly(processToRestart);
         }
         // Do not clear in-memory HLS state during watchdog restarts. Keeping recent
         // playlist/segments avoids a hard playback break while ffmpeg reconnects.
@@ -291,6 +293,12 @@ abstract class AbstractFfmpegHlsService {
             lastWatchdogRestartAt = System.currentTimeMillis();
         } catch (IOException _) {
             // Keep current command metadata so a later watchdog tick can retry again.
+        }
+    }
+
+    private static void destroyProcessForcibly(Process process) {
+        if (process != null) {
+            process.destroyForcibly();
         }
     }
 
@@ -312,33 +320,44 @@ abstract class AbstractFfmpegHlsService {
         }
         try {
             URI uri = URI.create(inputUrl.trim());
-            String query = uri.getRawQuery();
-            if (query == null || query.isBlank()) {
-                return uri.toString();
-            }
-            String[] params = query.split("&");
-            StringBuilder filtered = new StringBuilder();
-            for (String param : params) {
-                if (param == null || param.isBlank()) {
-                    continue;
-                }
-                int eq = param.indexOf('=');
-                String key = eq >= 0 ? param.substring(0, eq) : param;
-                if (isVolatileReuseParam(key)) {
-                    continue;
-                }
-                if (!filtered.isEmpty()) {
-                    filtered.append('&');
-                }
-                filtered.append(param);
-            }
-            String path = uri.getRawPath() == null ? "" : uri.getRawPath();
-            String authority = uri.getRawAuthority() == null ? "" : uri.getRawAuthority();
-            String scheme = uri.getScheme() == null ? "" : uri.getScheme();
-            return scheme + "://" + authority + path + (filtered.isEmpty() ? "" : "?" + filtered);
+            String filteredQuery = filterStableReuseQuery(uri.getRawQuery());
+            return buildNormalizedUri(uri, filteredQuery);
         } catch (Exception _) {
             return inputUrl.trim();
         }
+    }
+
+    private static String filterStableReuseQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return "";
+        }
+        StringBuilder filtered = new StringBuilder();
+        for (String param : query.split("&")) {
+            appendStableReuseParam(filtered, param);
+        }
+        return filtered.toString();
+    }
+
+    private static void appendStableReuseParam(StringBuilder filtered, String param) {
+        if (param == null || param.isBlank()) {
+            return;
+        }
+        int eq = param.indexOf('=');
+        String key = eq >= 0 ? param.substring(0, eq) : param;
+        if (isVolatileReuseParam(key)) {
+            return;
+        }
+        if (!filtered.isEmpty()) {
+            filtered.append('&');
+        }
+        filtered.append(param);
+    }
+
+    private static String buildNormalizedUri(URI uri, String filteredQuery) {
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        String authority = uri.getRawAuthority() == null ? "" : uri.getRawAuthority();
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme();
+        return scheme + "://" + authority + path + (filteredQuery.isEmpty() ? "" : "?" + filteredQuery);
     }
 
     private static boolean isVolatileReuseParam(String key) {

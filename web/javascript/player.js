@@ -45,8 +45,6 @@
         mediaTitleEl.textContent = title && mode ? `${title} [${mode}]` : title;
     };
 
-    const currentMediaTitle = () => cleanValue(mediaBaseTitle || mediaTitleEl?.textContent || '');
-
     const updateDocumentTitle = () => {
         const title = cleanValue(mediaBaseTitle);
         const mode = cleanValue(playbackMode);
@@ -334,6 +332,14 @@
         }
     };
 
+    const buildLaunchRequestUrl = (launch, preferHls = false) => {
+        const hasInlineLaunch = !!cleanValue(launch?.bingeWatchToken) || !!cleanValue(launch?.directUrl || launch?.url);
+        const baseUrl = hasInlineLaunch
+            ? buildDirectPlayerRequestUrl(launch)
+            : buildPlayerRequestUrl(launch);
+        return preferHls ? addPreferHls(baseUrl) : baseUrl;
+    };
+
     const destroyPlayer = async () => {
         stopStallMonitor();
         if (mpegtsPlayer) {
@@ -590,7 +596,7 @@
         if (lowerUrl.includes('.mpd') || lowerUrl.includes('/hls/stream.m3u8')) {
             return 'shaka';
         }
-        const canNativeHls = !!videoEl.canPlayType('application/vnd.apple.mpegurl');
+        const canNativeHls = Boolean(videoEl.canPlayType('application/vnd.apple.mpegurl'));
         if (lowerUrl.includes('.m3u8') && !canNativeHls) {
             return 'shaka';
         }
@@ -675,10 +681,7 @@
         let strategyResponse = responseData;
         let playbackUrl = playbackUrlForStrategy(strategy, responseData?.url);
         if (strategy === 'prefer-hls') {
-            const baseRequestUrl = (!!cleanValue(launch?.bingeWatchToken) || !!cleanValue(launch?.directUrl || launch?.url))
-                ? buildDirectPlayerRequestUrl(launch)
-                : buildPlayerRequestUrl(launch);
-            const forcedResponse = await fetch(addPreferHls(baseRequestUrl), {cache: 'no-store'});
+            const forcedResponse = await fetch(buildLaunchRequestUrl(launch, true), {cache: 'no-store'});
             strategyResponse = await forcedResponse.json();
             playbackUrl = cleanValue(strategyResponse?.url);
             if (!playbackUrl || playbackUrl === cleanValue(responseData?.url)) {
@@ -763,14 +766,7 @@
         renderMediaTitle();
         updateDocumentTitle();
         setStatus('Requesting playback URL...');
-        const hasBingeWatch = !!cleanValue(launch?.bingeWatchToken);
-        const hasDirectUrl = !!cleanValue(launch?.directUrl || launch?.url);
-        let requestUrl = (hasBingeWatch || hasDirectUrl)
-            ? buildDirectPlayerRequestUrl(launch)
-            : buildPlayerRequestUrl(launch);
-        if (options.preferHls) {
-            requestUrl = addPreferHls(requestUrl);
-        }
+        let requestUrl = buildLaunchRequestUrl(launch, options.preferHls);
         if (options.cacheBust) {
             requestUrl = addCacheBuster(requestUrl, '_repeatTs');
         }
@@ -786,9 +782,7 @@
             if (!allowFreshRetry || launchMode(launch) !== 'series') {
                 throw error;
             }
-            const retryUrl = addCacheBuster((hasBingeWatch || hasDirectUrl)
-                ? buildDirectPlayerRequestUrl(launch)
-                : buildPlayerRequestUrl(launch), '_freshUrl');
+            const retryUrl = addCacheBuster(buildLaunchRequestUrl(launch), '_freshUrl');
             await destroyPlayer();
             await resolveAndPlay(retryUrl);
         }

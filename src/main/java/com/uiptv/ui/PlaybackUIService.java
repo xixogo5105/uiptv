@@ -8,7 +8,6 @@ import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
-import com.uiptv.util.AppLog;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
