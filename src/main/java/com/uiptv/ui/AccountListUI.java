@@ -18,14 +18,17 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.scene.shape.SVGPath;
 import lombok.Setter;
@@ -101,7 +104,15 @@ public class AccountListUI extends HBox {
 
         Map<String, Account> spClients = accountService.getAll();
         if (spClients != null) {
-            spClients.keySet().forEach(k -> catList.add(new AccountItem(new SimpleStringProperty(spClients.get(k).getAccountName()), new SimpleStringProperty(spClients.get(k).getDbId()), new SimpleStringProperty(spClients.get(k).getType().name()))));
+            spClients.keySet().forEach(k -> {
+                Account account = spClients.get(k);
+                catList.add(new AccountItem(
+                        new SimpleStringProperty(account.getAccountName()),
+                        new SimpleStringProperty(account.getDbId()),
+                        new SimpleStringProperty(account.getType().name()),
+                        account.isPinToTop()
+                ));
+            });
         }
         table.setItems(FXCollections.observableArrayList(catList));
         table.filterByAccountType();
@@ -117,6 +128,7 @@ public class AccountListUI extends HBox {
         accountName.setSortType(TableColumn.SortType.ASCENDING);
         accountName.setSortable(true);
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
+        accountName.setCellFactory(_ -> createAccountNameCell());
         HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
         sceneBox.setMaxHeight(25);
         newAccountButton.setManaged(embeddedMode);
@@ -265,6 +277,54 @@ public class AccountListUI extends HBox {
     private void updateNavButtons() {
         backButton.setDisable(viewStack.isEmpty());
         homeButton.setDisable(false);
+    }
+
+    private TableCell<AccountItem, String> createAccountNameCell() {
+        return new TableCell<>() {
+            private final HBox graphic = new HBox(6);
+            private final SVGPath pinIcon = new SVGPath();
+            private final Label nameLabel = new Label();
+            private final Pane spacer = new Pane();
+
+            {
+                pinIcon.setContent("M8 0 L12 4 L10 6 L10 13 L8 16 L6 13 L6 6 L4 4 Z");
+                pinIcon.setFill(Color.BLACK);
+                pinIcon.setVisible(false);
+                pinIcon.setManaged(false);
+
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                graphic.setAlignment(Pos.CENTER_LEFT);
+                graphic.getChildren().addAll(pinIcon, nameLabel, spacer);
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+
+                AccountItem accountItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
+                        ? getTableView().getItems().get(getIndex())
+                        : null;
+
+                if (accountItem == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+
+                nameLabel.setText(item);
+                boolean pinned = accountItem.isPinToTop();
+                pinIcon.setVisible(pinned);
+                pinIcon.setManaged(pinned);
+                setText(null);
+                setGraphic(graphic);
+            }
+        };
     }
 
     private void registerSceneCleanupListener() {
@@ -520,11 +580,13 @@ public class AccountListUI extends HBox {
         private final SimpleStringProperty accountName;
         private final SimpleStringProperty accountId;
         private final SimpleStringProperty accountType;
+        private final boolean pinToTop;
 
-        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType) {
+        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType, boolean pinToTop) {
             this.accountName = accountName;
             this.accountId = accountId;
             this.accountType = accountType;
+            this.pinToTop = pinToTop;
         }
 
         public String getAccountId() {
@@ -545,6 +607,10 @@ public class AccountListUI extends HBox {
 
         public SimpleStringProperty accountNameProperty() {
             return accountName;
+        }
+
+        public boolean isPinToTop() {
+            return pinToTop;
         }
 
         public String getAccountType() {
