@@ -474,17 +474,6 @@ public class CategoryListUI extends HBox {
         return Thread.currentThread().isInterrupted() || isCancelled.getAsBoolean();
     }
 
-    private boolean isAllCategory(Category category) {
-        if (category == null) {
-            return false;
-        }
-        String candidateCategoryId = category.getCategoryId();
-        String title = category.getTitle();
-        return (candidateCategoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(candidateCategoryId.trim()))
-                || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
-                || (title != null && title.equalsIgnoreCase("All"));
-    }
-
     private boolean isAllCategory(CategoryItem item) {
         if (item == null) {
             return false;

@@ -52,43 +52,61 @@ public class WatchingNowVodResolver {
     }
 
     private VodMetadata resolveMetadataFromProvider(Channel provider) {
+        VodMetadataBuilder builder = buildMetadataBuilder(provider);
+        applyExtraJsonOverrides(builder, provider == null ? "" : provider.getExtraJson());
+        return toVodMetadata(builder);
+    }
+
+    private VodMetadataBuilder buildMetadataBuilder(Channel provider) {
+        VodMetadataBuilder builder = new VodMetadataBuilder();
         if (provider == null) {
+            return builder;
+        }
+        builder.name = safe(provider.getName());
+        builder.logo = safe(provider.getLogo());
+        builder.plot = safe(provider.getDescription());
+        builder.releaseDate = safe(provider.getReleaseDate());
+        builder.rating = safe(provider.getRating());
+        builder.duration = safe(provider.getDuration());
+        return builder;
+    }
+
+    private void applyExtraJsonOverrides(VodMetadataBuilder builder, String extraJson) {
+        if (builder == null || isBlank(extraJson)) {
+            return;
+        }
+        try {
+            org.json.JSONObject json = new org.json.JSONObject(extraJson);
+            builder.name = preferIfBlank(builder.name, json.optString("name"), json.optString("o_name"));
+            builder.logo = preferIfBlank(builder.logo, json.optString("stream_icon"), json.optString("cover_big"), json.optString("cover"));
+            builder.plot = preferIfBlank(builder.plot, json.optString("description"), json.optString("plot"), json.optString("overview"));
+            builder.releaseDate = preferIfBlank(builder.releaseDate, json.optString("release_date"), json.optString("released"), json.optString("year"));
+            builder.rating = preferIfBlank(builder.rating, json.optString("rating_imdb"), json.optString("rating"));
+            builder.duration = preferIfBlank(builder.duration, json.optString("duration"), json.optString("runtime"), json.optString("time"));
+        } catch (Exception _) {
+            // Ignore malformed provider metadata.
+        }
+    }
+
+    private String preferIfBlank(String current, String... candidates) {
+        if (!isBlank(current)) {
+            return current;
+        }
+        return firstNonBlank(candidates);
+    }
+
+    private VodMetadata toVodMetadata(VodMetadataBuilder builder) {
+        if (builder == null) {
             return new VodMetadata("", "", "", "", "");
         }
-        String name = safe(provider.getName());
-        String logo = safe(provider.getLogo());
-        String plot = safe(provider.getDescription());
-        String releaseDate = safe(provider.getReleaseDate());
-        String rating = safe(provider.getRating());
-        String duration = safe(provider.getDuration());
-
-        String extraJson = safe(provider.getExtraJson());
-        if (!isBlank(extraJson)) {
-            try {
-                org.json.JSONObject json = new org.json.JSONObject(extraJson);
-                if (isBlank(name)) {
-                    name = firstNonBlank(json.optString("name"), json.optString("o_name"));
-                }
-                if (isBlank(logo)) {
-                    logo = firstNonBlank(json.optString("stream_icon"), json.optString("cover_big"), json.optString("cover"));
-                }
-                if (isBlank(plot)) {
-                    plot = firstNonBlank(json.optString("description"), json.optString("plot"), json.optString("overview"));
-                }
-                if (isBlank(releaseDate)) {
-                    releaseDate = firstNonBlank(json.optString("release_date"), json.optString("released"), json.optString("year"));
-                }
-                if (isBlank(rating)) {
-                    rating = firstNonBlank(json.optString("rating_imdb"), json.optString("rating"));
-                }
-                if (isBlank(duration)) {
-                    duration = firstNonBlank(json.optString("duration"), json.optString("runtime"), json.optString("time"));
-                }
-            } catch (Exception _) {
-                // Ignore malformed provider metadata.
-            }
-        }
-        return new VodMetadata(safe(logo), safe(plot), safe(releaseDate), safe(rating), safe(duration), safe(name));
+        return new VodMetadata(
+                safe(builder.logo),
+                safe(builder.plot),
+                safe(builder.releaseDate),
+                safe(builder.rating),
+                safe(builder.duration),
+                safe(builder.name)
+        );
     }
 
     private Channel resolveProviderChannel(Account account, VodWatchState state) {
@@ -124,6 +142,15 @@ public class WatchingNowVodResolver {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static final class VodMetadataBuilder {
+        private String logo = "";
+        private String plot = "";
+        private String releaseDate = "";
+        private String rating = "";
+        private String duration = "";
+        private String name = "";
     }
 
     public static final class VodRow {
