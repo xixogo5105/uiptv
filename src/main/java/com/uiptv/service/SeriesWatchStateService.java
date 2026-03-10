@@ -49,7 +49,7 @@ public class SeriesWatchStateService {
         if (isBlank(accountId) || isBlank(seriesId)) {
             return null;
         }
-        String normalizedCategory = normalizeCategoryId(categoryId);
+        String normalizedCategory = normalizeCategoryId(accountId, categoryId);
         SeriesWatchState exact = SeriesWatchStateDb.get().getBySeries(accountId, normalizedCategory, seriesId);
         if (exact != null) {
             return exact;
@@ -87,7 +87,7 @@ public class SeriesWatchStateService {
         boolean allCategories = isBlank(categoryId);
         for (SeriesWatchState state : (allCategories
                 ? SeriesWatchStateDb.get().getByAccount(accountId)
-                : SeriesWatchStateDb.get().getByAccount(accountId, normalizeCategoryId(categoryId)))) {
+                : SeriesWatchStateDb.get().getByAccount(accountId, normalizeCategoryId(accountId, categoryId)))) {
             if (state != null && !isBlank(state.getSeriesId())) {
                 result.put(state.getSeriesId(), state);
             }
@@ -103,7 +103,7 @@ public class SeriesWatchStateService {
         if (isBlank(accountId) || isBlank(seriesId)) {
             return;
         }
-        SeriesWatchStateDb.get().clear(accountId, normalizeCategoryId(categoryId), seriesId);
+        SeriesWatchStateDb.get().clear(accountId, normalizeCategoryId(accountId, categoryId), seriesId);
         notifyListeners(accountId, seriesId);
     }
 
@@ -120,14 +120,14 @@ public class SeriesWatchStateService {
         if (account == null || isBlank(account.getDbId()) || isBlank(seriesId) || isBlank(episodeId)) {
             return;
         }
-        upsertState(account.getDbId(), normalizeCategoryId(categoryId), seriesId, episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), SOURCE_MANUAL);
+        upsertState(account.getDbId(), normalizeCategoryId(account.getDbId(), categoryId), seriesId, episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), SOURCE_MANUAL);
     }
 
     public void markSeriesEpisodeManualIfNewer(Account account, String categoryId, String seriesId, String episodeId, String episodeName, String season, String episodeNum) {
         if (account == null || isBlank(account.getDbId()) || isBlank(seriesId) || isBlank(episodeId)) {
             return;
         }
-        String normalizedCategory = normalizeCategoryId(categoryId);
+        String normalizedCategory = normalizeCategoryId(account.getDbId(), categoryId);
         int nextEpisodeNum = parseEpisodeNum(episodeNum, episodeName);
         int nextSeasonNum = parseSeasonNum(season, episodeName);
         SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(account.getDbId(), normalizedCategory, seriesId);
@@ -155,7 +155,7 @@ public class SeriesWatchStateService {
         if (account == null || channel == null || account.getAction() != series || isBlank(account.getDbId())) {
             return;
         }
-        String resolvedCategoryId = normalizeCategoryId(categoryId);
+        String resolvedCategoryId = normalizeCategoryId(account.getDbId(), categoryId);
         String seriesId = firstNonBlank(parentSeriesId);
         if (isBlank(seriesId)) {
             return;
@@ -208,7 +208,7 @@ public class SeriesWatchStateService {
         SeriesWatchState state = new SeriesWatchState();
         state.setAccountId(accountId);
         state.setMode("series");
-        state.setCategoryId(normalizeCategoryId(categoryId));
+        state.setCategoryId(normalizeCategoryId(accountId, categoryId));
         state.setSeriesId(seriesId);
         state.setEpisodeId(episodeId);
         state.setEpisodeName(episodeName);
@@ -356,6 +356,25 @@ public class SeriesWatchStateService {
 
     private String normalizeCategoryId(String categoryId) {
         return isBlank(categoryId) ? "" : categoryId.trim();
+    }
+
+    private String normalizeCategoryId(String accountId, String categoryId) {
+        String normalized = normalizeCategoryId(categoryId);
+        if (isBlank(accountId) || isBlank(normalized)) {
+            return normalized;
+        }
+        List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{accountId});
+        for (Category category : categories) {
+            if (category == null) {
+                continue;
+            }
+            String dbId = safe(category.getDbId());
+            String apiId = safe(category.getCategoryId());
+            if (normalized.equals(dbId) || normalized.equals(apiId)) {
+                return isBlank(apiId) ? normalized : apiId;
+            }
+        }
+        return normalized;
     }
 
     private String safe(String value) {

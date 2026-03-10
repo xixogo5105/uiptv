@@ -40,18 +40,33 @@ class InMemoryHlsServiceTest {
 
     @Test
     void testCleanupOldSegments() {
-        // MAX_SEGMENTS is 40; add 45 so oldest 5 are evicted.
-        for (int i = 0; i < 45; i++) {
+        int maxSegments = Integer.getInteger("uiptv.hls.max.segments", 180);
+        int extraSegments = 5;
+        int totalSegments = maxSegments + extraSegments;
+
+        for (int i = 0; i < totalSegments; i++) {
             service.put("segment" + i + ".ts", new byte[]{1});
             waitForNextMillisecond();
         }
 
         assertFalse(service.exists("segment0.ts"));
-        assertFalse(service.exists("segment4.ts"));
+        assertFalse(service.exists("segment" + (extraSegments - 1) + ".ts"));
+        assertTrue(service.exists("segment" + extraSegments + ".ts"));
+        assertTrue(service.exists("segment" + (totalSegments - 1) + ".ts"));
+        assertTrue(service.exists("segment" + maxSegments + ".ts"));
+    }
 
-        assertTrue(service.exists("segment5.ts"));
-        assertTrue(service.exists("segment44.ts"));
-        assertTrue(service.exists("segment40.ts"));
+    @Test
+    void testClientAccessTracking() {
+        assertEquals(0L, service.getLastClientAccessAt());
+
+        service.markClientAccess();
+
+        assertTrue(service.getLastClientAccessAt() > 0L);
+
+        service.clear();
+
+        assertEquals(0L, service.getLastClientAccessAt());
     }
 
     private void waitForNextMillisecond() {

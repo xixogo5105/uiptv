@@ -2,14 +2,9 @@ package com.uiptv.service;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.COPY;
 import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.DIRECT;
-import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.TRANSCODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LitePlayerFfmpegServiceTest {
 
@@ -24,9 +19,9 @@ class LitePlayerFfmpegServiceTest {
     }
 
     @Test
-    void chooseStrategy_usesTranscodeForHevcTransportStreamWhenProbeDetectsUnsupportedCodec() {
+    void chooseStrategy_keepsUnsupportedHevcTransportStreamDirectWithoutTranscodeSupport() {
         LitePlayerFfmpegService.ProbeResult probe = new LitePlayerFfmpegService.ProbeResult("mpegts", "hevc", "aac");
-        assertEquals(TRANSCODE, LitePlayerFfmpegService.chooseStrategy("http://example.test/live?extension=ts", probe, false));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/live?extension=ts", probe, false));
     }
 
     @Test
@@ -35,9 +30,9 @@ class LitePlayerFfmpegServiceTest {
     }
 
     @Test
-    void chooseStrategy_usesTranscodeForHevcMp4WhenProbeDetectsUnsupportedCodec() {
+    void chooseStrategy_keepsUnsupportedHevcMp4DirectWithoutTranscodeSupport() {
         LitePlayerFfmpegService.ProbeResult probe = new LitePlayerFfmpegService.ProbeResult("mp4", "hevc", "aac");
-        assertEquals(TRANSCODE, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mp4", probe, false));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mp4", probe, false));
     }
 
     @Test
@@ -47,23 +42,8 @@ class LitePlayerFfmpegServiceTest {
     }
 
     @Test
-    void chooseStrategy_usesTranscodeWhenVideoCodecIsUnsupported() {
+    void chooseStrategy_keepsUnsupportedVideoCodecDirectWhenContainerNeedsCompatibilityFallback() {
         LitePlayerFfmpegService.ProbeResult probe = new LitePlayerFfmpegService.ProbeResult("matroska,webm", "hevc", "aac");
-        assertEquals(TRANSCODE, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", probe, false));
-    }
-
-    @Test
-    void buildTranscodeHlsCommand_usesH264AacProfileForLiteCompatibilityMode() {
-        List<String> command = AbstractFfmpegHlsService.buildTranscodeHlsCommand(
-                "http://example.test/movie.mkv",
-                "http://127.0.0.1:8888/hls-upload/stream.m3u8",
-                true
-        );
-
-        assertTrue(command.contains("libx264"));
-        assertTrue(command.contains("aac"));
-        assertTrue(command.contains("yuv420p"));
-        assertTrue(command.contains("ultrafast"));
-        assertFalse(command.contains("copy"));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", probe, false));
     }
 }

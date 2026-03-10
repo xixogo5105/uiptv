@@ -73,11 +73,8 @@ public class UIptvServer {
         server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
         server.createContext("/watchingNow", new HttpWatchingNowJsonServer());
         server.createContext("/vodDetails", new HttpVodDetailsJsonServer());
-        server.createContext("/player", new HttpPlayerJsonServer());
-        server.createContext("/player/live", new HttpPlayerJsonServer());
-        server.createContext("/player/vod", new HttpPlayerJsonServer());
-        server.createContext("/player/series", new HttpPlayerJsonServer());
-        server.createContext("/player/bingewatch", new HttpPlayerJsonServer());
+        // Single player gateway: /player is canonical, legacy /player/* paths are handled by prefix routing.
+        server.createContext("/player", new HttpPlayerGatewayServer());
         server.createContext("/bookmarks", new HttpBookmarksJsonServer());
         server.createContext("/config", new HttpConfigJsonServer());
         server.createContext("/playlist.m3u8", new HttpM3u8PlayListServer());

@@ -35,7 +35,6 @@ createApp({
         const suppressNextBookmarkClick = ref(false);
         const bookmarkOverflowToggleRef = ref(null);
 
-        const playerKey = ref(0);
         const isYoutube = ref(false);
         const youtubeSrc = ref('');
         const playerInstance = ref(null);
@@ -46,6 +45,10 @@ createApp({
         const textTracks = ref([]);
         const selectedTextTrackId = ref('off');
         const repeatEnabled = ref(false);
+        const playbackLoading = ref(false);
+        const pendingPlaybackKey = ref('');
+        let playbackRequestId = 0;
+        let playbackFetchController = null;
 
         const thumbnailsEnabled = ref(true);
 
@@ -502,6 +505,11 @@ createApp({
 
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
 
+        const resolveChannelIdentity = (channel) => {
+            if (!channel) return '';
+            return String(channel.channelId || channel.id || channel.dbId || '').trim();
+        };
+
         const resolveAccountName = (accountId) => {
             const account = accounts.value.find(a => String(a.dbId) === String(accountId));
             return account?.accountName || '';
@@ -510,6 +518,184 @@ createApp({
         const resolveAccountId = (accountName) => {
             const account = accounts.value.find(a => String(a.accountName || '') === String(accountName || ''));
             return account?.dbId || '';
+        };
+
+        const normalizePlaybackMode = (value, fallback = '') => String(value || fallback || '').trim().toLowerCase();
+        const normalizePlaybackName = (value) => String(value || '').trim().toLowerCase();
+
+        const matchesSeriesProgress = (target = {}, current = {}) => {
+            const targetSeason = digitsOnly(target.season || resolvePlaybackSeason(target));
+            const currentSeason = digitsOnly(current.season || '');
+            if (targetSeason && currentSeason && targetSeason !== currentSeason) return false;
+
+            const targetEpisode = digitsOnly(target.episodeNum || resolvePlaybackEpisodeNumber(target));
+            const currentEpisode = digitsOnly(current.episodeNum || '');
+            return !(targetEpisode && currentEpisode && targetEpisode !== currentEpisode);
+        };
+
+        const matchesCurrentPlayback = ({
+            id = '',
+            accountId = '',
+            accountName = '',
+            mode = '',
+            name = '',
+            season = '',
+            episodeNum = '',
+            bookmarkId = ''
+        } = {}) => {
+            const current = currentChannel.value;
+            if (!current) return false;
+
+            const normalizedBookmarkId = String(bookmarkId || '').trim();
+            if (normalizedBookmarkId && normalizedBookmarkId === String(current.bookmarkId || '').trim()) {
+                return true;
+            }
+
+            const targetMode = normalizePlaybackMode(mode);
+            const currentMode = normalizePlaybackMode(current.mode);
+            if (targetMode && currentMode && targetMode !== currentMode) return false;
+
+            const targetAccountId = String(accountId || '').trim();
+            const currentAccountId = String(current.accountId || '').trim();
+            if (targetAccountId && currentAccountId && targetAccountId !== currentAccountId) return false;
+
+            const targetAccountName = String(accountName || '').trim();
+            const currentAccountName = String(current.accountName || resolveAccountName(current.accountId) || '').trim();
+            if (targetAccountName && currentAccountName && targetAccountName !== currentAccountName) return false;
+
+            const targetId = String(id || '').trim();
+            const currentId = resolveChannelIdentity(current);
+            if (targetId && currentId && targetId !== currentId) return false;
+
+            if (!targetId || !currentId) {
+                const targetName = normalizePlaybackName(name);
+                const currentName = normalizePlaybackName(current.name || current.channelName || '');
+                if (targetName && currentName && targetName !== currentName) return false;
+            }
+
+            if (currentMode === 'series' && !matchesSeriesProgress({ season, episodeNum }, current)) {
+                return false;
+            }
+
+            return !!(
+                normalizedBookmarkId
+                || targetId
+                || normalizePlaybackName(name)
+            );
+        };
+
+        const buildPlaybackTargetKey = ({
+            id = '',
+            accountId = '',
+            accountName = '',
+            mode = '',
+            season = '',
+            episodeNum = '',
+            bookmarkId = ''
+        } = {}) => {
+            return [
+                normalizePlaybackMode(mode),
+                String(accountId || '').trim(),
+                String(accountName || '').trim(),
+                String(bookmarkId || '').trim(),
+                String(id || '').trim(),
+                digitsOnly(season),
+                digitsOnly(episodeNum)
+            ].join('|');
+        };
+
+        const isActiveChannel = (channel) => matchesCurrentPlayback({
+            id: resolveChannelIdentity(channel),
+            accountId: channel?.accountId || currentContext.value.accountId || '',
+            mode: channel?.mode || contentMode.value,
+            name: channel?.name || channel?.channelName || '',
+            season: resolvePlaybackSeason(channel),
+            episodeNum: resolvePlaybackEpisodeNumber(channel)
+        });
+
+        const isActiveBookmark = (bookmark) => matchesCurrentPlayback({
+            id: bookmark?.channelId || bookmark?.id || '',
+            accountId: resolveAccountId(bookmark?.accountName),
+            accountName: bookmark?.accountName || '',
+            mode: bookmark?.accountAction || bookmark?.mode || 'itv',
+            name: bookmark?.channelName || bookmark?.name || '',
+            bookmarkId: bookmark?.dbId || ''
+        });
+
+        const isActiveWatchingNowRow = (row) => {
+            if (!row) return false;
+            if (matchesCurrentPlayback({
+                id: row.episodeId || '',
+                accountId: row.accountId || '',
+                accountName: row.accountName || '',
+                mode: 'series',
+                name: row.episodeName || row.seriesTitle || '',
+                season: row.season || '',
+                episodeNum: row.episodeNum || ''
+            })) {
+                return true;
+            }
+
+            const current = currentChannel.value;
+            if (!current || normalizePlaybackMode(current.mode) !== 'series') return false;
+            const targetAccountId = String(row.accountId || '').trim();
+            const currentAccountId = String(current.accountId || '').trim();
+            if (targetAccountId && currentAccountId && targetAccountId !== currentAccountId) return false;
+
+            const selectedSeriesId = String(getModeState('series').selectedSeriesId || '').trim();
+            return !!selectedSeriesId && selectedSeriesId === String(row.seriesId || '').trim();
+        };
+
+        const isPendingPlaybackTarget = (target) => {
+            if (!playbackLoading.value) return false;
+            return pendingPlaybackKey.value === buildPlaybackTargetKey(target);
+        };
+
+        const isDisabledChannel = (channel) => isPendingPlaybackTarget({
+            id: resolveChannelIdentity(channel),
+            accountId: channel?.accountId || currentContext.value.accountId || '',
+            mode: channel?.mode || contentMode.value,
+            season: resolvePlaybackSeason(channel),
+            episodeNum: resolvePlaybackEpisodeNumber(channel)
+        });
+
+        const isDisabledBookmark = (bookmark) => isPendingPlaybackTarget({
+            id: bookmark?.channelId || bookmark?.id || '',
+            accountId: resolveAccountId(bookmark?.accountName),
+            accountName: bookmark?.accountName || '',
+            mode: bookmark?.accountAction || bookmark?.mode || 'itv',
+            bookmarkId: bookmark?.dbId || ''
+        });
+
+        const buildForcedHlsPlaybackRequestUrl = (rawUrl) => {
+            const baseUrl = String(rawUrl || '').trim();
+            if (!baseUrl) return '';
+            try {
+                const parsed = new URL(baseUrl, window.location.origin);
+                if (String(parsed.searchParams.get('preferHls') || '').trim() === '1') {
+                    return '';
+                }
+                parsed.searchParams.set('preferHls', '1');
+                return parsed.toString();
+            } catch (_) {
+                return '';
+            }
+        };
+
+        const tryForcedHlsFallback = async (channel) => {
+            const sourceUrl = String(channel?.url || '').trim().toLowerCase();
+            if (!sourceUrl || sourceUrl.includes('/hls/stream.m3u8') || !sourceUrl.includes('.m3u8')) {
+                return false;
+            }
+            if (channel?.drm) {
+                return false;
+            }
+            const fallbackRequestUrl = buildForcedHlsPlaybackRequestUrl(currentChannel.value?.playRequestUrl || '');
+            if (!fallbackRequestUrl) {
+                return false;
+            }
+            await startPlayback(fallbackRequestUrl, currentChannel.value);
+            return true;
         };
 
         const resolveLogoUrl = (logo) => {
@@ -1368,7 +1554,7 @@ createApp({
             const playbackUrl = buildPlayerUrlFromLaunchPayload(payload);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id || '';
 
-            currentChannel.value = {
+            const nextChannel = {
                 id: channelIdentifier,
                 dbId: channel.dbId || '',
                 channelId: channel.channelId || channelIdentifier,
@@ -1388,7 +1574,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl);
+            await startPlayback(playbackUrl, nextChannel);
 
             const cleanUrl = `${window.location.origin}${window.location.pathname}`;
             window.history.replaceState({}, document.title, cleanUrl);
@@ -1400,7 +1586,7 @@ createApp({
             const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
             const playbackUrl = buildPlayerUrlForChannel(channel, modeToUse);
-            currentChannel.value = {
+            const nextChannel = {
                 id: channelIdentifier,
                 dbId: channel.dbId || '',
                 channelId: channel.channelId || channelIdentifier,
@@ -1420,7 +1606,22 @@ createApp({
                 mode: modeToUse,
                 playRequestUrl: playbackUrl
             };
-            startPlayback(playbackUrl);
+            if (isPendingPlaybackTarget({
+                id: nextChannel.channelId || nextChannel.id || '',
+                accountId: nextChannel.accountId || '',
+                mode: nextChannel.mode || '',
+                season: nextChannel.season || '',
+                episodeNum: nextChannel.episodeNum || ''
+            }) || matchesCurrentPlayback({
+                id: nextChannel.channelId || nextChannel.id || '',
+                accountId: nextChannel.accountId || '',
+                mode: nextChannel.mode || '',
+                season: nextChannel.season || '',
+                episodeNum: nextChannel.episodeNum || ''
+            })) {
+                return;
+            }
+            startPlayback(playbackUrl, nextChannel);
         };
 
         const playBookmark = (bookmark) => {
@@ -1431,7 +1632,7 @@ createApp({
             appendPlaybackCompatParams(query, bookmarkMode);
             const playbackUrl = `${window.location.origin}/player?${query.toString()}`;
 
-            currentChannel.value = {
+            const nextChannel = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
                 logo: resolveLogoUrl(bookmark.logo),
@@ -1445,7 +1646,22 @@ createApp({
                 mode: bookmarkMode,
                 playRequestUrl: playbackUrl
             };
-            startPlayback(playbackUrl);
+            if (isPendingPlaybackTarget({
+                id: nextChannel.channelId || '',
+                accountId: nextChannel.accountId || '',
+                accountName: nextChannel.accountName || '',
+                mode: nextChannel.mode || '',
+                bookmarkId: nextChannel.bookmarkId || ''
+            }) || matchesCurrentPlayback({
+                id: nextChannel.channelId || '',
+                accountId: nextChannel.accountId || '',
+                accountName: nextChannel.accountName || '',
+                mode: nextChannel.mode || '',
+                bookmarkId: nextChannel.bookmarkId || ''
+            })) {
+                return;
+            }
+            startPlayback(playbackUrl, nextChannel);
         };
 
         const handleChannelSelection = async (channel) => {
@@ -1532,7 +1748,7 @@ createApp({
             if (!video) return;
             video.onended = async () => {
                 if (!repeatEnabled.value || !currentChannel.value?.playRequestUrl) return;
-                await startPlayback(currentChannel.value.playRequestUrl);
+                await startPlayback(currentChannel.value.playRequestUrl, currentChannel.value);
             };
         };
 
@@ -1545,28 +1761,64 @@ createApp({
             video.load();
         };
 
-        const startPlayback = async (url) => {
-            await stopPlayback(true);
-
-            playerKey.value++;
-            isPlaying.value = true;
+        const startPlayback = async (url, nextChannel = null) => {
+            const requestId = ++playbackRequestId;
+            if (playbackFetchController) {
+                try {
+                    playbackFetchController.abort();
+                } catch (_) {}
+            }
+            const controller = new AbortController();
+            playbackFetchController = controller;
+            const targetChannel = nextChannel ? { ...nextChannel } : currentChannel.value;
+            pendingPlaybackKey.value = buildPlaybackTargetKey({
+                id: targetChannel?.channelId || targetChannel?.id || '',
+                accountId: targetChannel?.accountId || '',
+                accountName: targetChannel?.accountName || '',
+                mode: targetChannel?.mode || '',
+                season: targetChannel?.season || '',
+                episodeNum: targetChannel?.episodeNum || '',
+                bookmarkId: targetChannel?.bookmarkId || ''
+            });
+            playbackLoading.value = true;
             playbackError.value = '';
+            const channelDataPromise = fetch(url, { signal: controller.signal }).then(response => response.json());
+            await stopPlayback(true);
+            if (requestId !== playbackRequestId) return;
+            currentChannel.value = targetChannel;
+            isPlaying.value = true;
 
             try {
-                const response = await fetch(url);
-                const channelData = await response.json();
+                const channelData = await channelDataPromise;
+                if (requestId !== playbackRequestId) return;
                 await initPlayer(channelData);
                 if (currentChannel.value?.mode === 'series') {
                     await refreshSeriesEpisodeWatchState();
                 }
             } catch (e) {
+                if (e?.name === 'AbortError') return;
                 console.error('Failed to start playback', e);
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
+            } finally {
+                if (requestId === playbackRequestId) {
+                    playbackLoading.value = false;
+                    pendingPlaybackKey.value = '';
+                    if (playbackFetchController === controller) {
+                        playbackFetchController = null;
+                    }
+                }
             }
         };
 
         const stopPlayback = async (preserveUi = false) => {
+            if (!preserveUi && playbackFetchController) {
+                try {
+                    playbackFetchController.abort();
+                } catch (_) {}
+                playbackFetchController = null;
+                pendingPlaybackKey.value = '';
+            }
             if (playerInstance.value) {
                 try {
                     await playerInstance.value.destroy();
@@ -1587,6 +1839,7 @@ createApp({
             clearVideoElement(videoPlayer.value);
 
             if (!preserveUi) {
+                playbackLoading.value = false;
                 isPlaying.value = false;
                 currentChannel.value = null;
                 playbackError.value = '';
@@ -1743,8 +1996,13 @@ createApp({
                     }
                 }
 
+                if (await tryForcedHlsFallback(channel)) {
+                    return;
+                }
+
                 playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
                 console.warn('Native playback failed.', e);
+                throw e;
             }
         };
 
@@ -1851,8 +2109,12 @@ createApp({
                 player.addEventListener('variantchanged', () => refreshShakaTracks(player));
                 player.addEventListener('adaptation', () => refreshShakaTracks(player));
             } catch (e) {
+                if (await tryForcedHlsFallback(channel)) {
+                    return;
+                }
                 console.error('Shaka: Error loading video:', e);
                 playbackError.value = `Playback failed: ${e?.message || 'Unable to load stream'}`;
+                throw e;
             }
         };
 
@@ -2003,7 +2265,7 @@ createApp({
 
         const reloadPlayback = async () => {
             if (!currentChannel.value?.playRequestUrl) return;
-            await startPlayback(currentChannel.value.playRequestUrl);
+            await startPlayback(currentChannel.value.playRequestUrl, currentChannel.value);
         };
 
         const toggleRepeat = () => {
@@ -2235,6 +2497,11 @@ createApp({
             seriesDetailLoading,
             vodDetailLoading,
             currentChannelName,
+            isActiveChannel,
+            isActiveBookmark,
+            isActiveWatchingNowRow,
+            isDisabledChannel,
+            isDisabledBookmark,
             isCurrentFavorite,
             isPlaying,
             playbackError,
@@ -2245,7 +2512,6 @@ createApp({
             canReorderBookmarks,
             draggedBookmarkId,
             dragOverBookmarkId,
-            playerKey,
             isYoutube,
             youtubeSrc,
             videoPlayer,
@@ -2254,6 +2520,7 @@ createApp({
             textTracks,
             selectedTextTrackId,
             repeatEnabled,
+            playbackLoading,
             theme,
             themeIcon,
             contentMode,

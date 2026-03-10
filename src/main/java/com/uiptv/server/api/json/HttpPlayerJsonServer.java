@@ -43,8 +43,12 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private static final String URL_SUFFIX_MPEGTS = ".mpegts";
     private static final String QUERY_PARAM_TOKEN = "token=";
     private static final String QUERY_PARAM_PLAY_TOKEN = "play_token=";
+    private static final String QUERY_PARAM_PREFER_HLS = "preferHls";
     private static final String PATH_LIVE_PLAY = "/live/play/";
     private static final String PATH_PLAY_MOVIE = "/play/movie.php";
+    private static final String STRATEGY_HINT_SHAKA = "SHAKA";
+    private static final String STRATEGY_HINT_NATIVE_PROXY = "NATIVE_PROXY";
+    private static final String STRATEGY_HINT_NATIVE = "NATIVE";
     public static final String SEASON = "season";
     public static final String EPISODE_NUM = "episodeNum";
     public static final String MANIFEST_TYPE = "manifestType";
@@ -58,11 +62,20 @@ public class HttpPlayerJsonServer implements HttpHandler {
             String mode = resolveRequestedMode(ex, getParam(ex, "mode"));
             String hvec = getParam(ex, "hvec");
             ResolvedWebPlayback resolved = resolvePlayback(ex, mode);
-            applyWebPlaybackProcessing(resolved.response(), mode, hvec);
+            applyWebPlaybackProcessing(resolved.response(), mode, hvec, isTruthy(getParam(ex, QUERY_PARAM_PREFER_HLS)));
             generateJsonResponse(ex, buildJsonResponse(resolved));
         } catch (Exception e) {
+            if (isClientDisconnect(e)) {
+                return;
+            }
             AppLog.addLog("HttpPlayerJsonServer failed: " + e);
-            generateResponseText(ex, 500, "player-error");
+            try {
+                generateResponseText(ex, 500, "player-error");
+            } catch (IOException ioException) {
+                if (!isClientDisconnect(ioException)) {
+                    throw ioException;
+                }
+            }
         }
     }
 
@@ -150,26 +163,33 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private void applyWebPlaybackProcessing(PlayerResponse response, String mode, String hvec) {
+        applyWebPlaybackProcessing(response, mode, hvec, false);
+    }
+
+    private void applyWebPlaybackProcessing(PlayerResponse response, String mode, String hvec, boolean preferHls) {
         if (response == null || isBlank(response.getUrl())) {
+            stopTransmuxingIfActive();
             return;
         }
         String originalUrl = response.getUrl();
         String normalizedUrl = normalizeWebPlaybackUrl(mode, originalUrl);
         response.setUrl(normalizedUrl);
         if (shouldBypassLocalProxyWebPlayback(response, mode, normalizedUrl)) {
+            stopTransmuxingIfActive();
             return;
         }
-        if (!shouldStartTransmuxing(response, mode, originalUrl)) {
+        if (!shouldStartTransmuxing(response, mode, originalUrl, preferHls)) {
+            stopTransmuxingIfActive();
             if (shouldUseLocalProxyWebPlayback(mode, normalizedUrl)) {
                 response.setUrl(buildLocalProxyUrl(normalizedUrl));
             }
             return;
         }
-        applyTransmuxedPlayback(response, mode, originalUrl, hvec);
+        applyTransmuxedPlayback(response, mode, originalUrl, hvec, preferHls);
     }
 
-    private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl) {
-        boolean forceWebHls = shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
+    private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl, boolean preferHls) {
+        boolean forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
         boolean forceLiveTransmux = shouldForceLiveTransmux(mode, originalUrl);
         return forceWebHls
                 || forceLiveTransmux
@@ -177,25 +197,58 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl()));
     }
 
-    private void applyTransmuxedPlayback(PlayerResponse response, String mode, String originalUrl, String hvec) {
-        boolean forceWebHls = shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
+    private void applyTransmuxedPlayback(PlayerResponse response, String mode, String originalUrl, String hvec, boolean preferHls) {
+        boolean forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
         String sourceUrl = response.getUrl();
-        if (startTransmuxing(sourceUrl, forceWebHls)) {
+        boolean vodStylePlaylist = shouldUseVodStylePlaylist(mode);
+        if (startTransmuxing(sourceUrl, forceWebHls, vodStylePlaylist)) {
             setHlsPlayback(response, hvec);
             return;
         }
         String fallbackUrl = forceWebHls ? retryForcedWebHls(sourceUrl) : sourceUrl;
-        if (forceWebHls && !fallbackUrl.equals(sourceUrl) && startTransmuxing(fallbackUrl, true)) {
+        if (forceWebHls && !fallbackUrl.equals(sourceUrl) && startTransmuxing(fallbackUrl, true, vodStylePlaylist)) {
             setHlsPlayback(response, hvec);
             return;
         }
-        response.setUrl(forceWebHls ? buildLocalProxyUrl(fallbackUrl) : fallbackUrl);
+        // Keep original stream URL on fallback so the browser strategy layer can
+        // try native first and only move to proxy when necessary.
+        stopTransmuxingIfActive();
+        response.setUrl(fallbackUrl);
     }
 
-    private boolean startTransmuxing(String sourceUrl, boolean forceWebHls) {
-        String transmuxInput = forceWebHls ? buildLocalProxyUrl(sourceUrl) : sourceUrl;
+    private boolean startTransmuxing(String sourceUrl, boolean forceWebHls, boolean vodStylePlaylist) {
+        if (!forceWebHls) {
+            return tryStartTransmuxingInput(sourceUrl, vodStylePlaylist);
+        }
+        // For forced web-HLS flows, prefer direct server-side ffmpeg input first.
+        // This avoids proxy-induced edge cases for some Stalker TS series URLs.
+        if (tryStartTransmuxingInput(sourceUrl, vodStylePlaylist)) {
+            return true;
+        }
+        String proxied = buildLocalProxyUrl(sourceUrl);
+        if (!sourceUrl.equals(proxied) && tryStartTransmuxingInput(proxied, vodStylePlaylist)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean shouldUseVodStylePlaylist(String mode) {
+        // Keep rolling playlists for web playback so advertised segments stay aligned
+        // with in-memory eviction and avoid stale segment fetches.
+        return false;
+    }
+
+    private void stopTransmuxingIfActive() {
         try {
-            return FfmpegService.getInstance().startTransmuxing(transmuxInput, forceWebHls);
+            FfmpegService.getInstance().stopTransmuxing();
+        } catch (Exception _) {
+            // Stopping stale transmux should not break playback response.
+        }
+    }
+
+    private boolean tryStartTransmuxingInput(String inputUrl, boolean forceWebHls) {
+        try {
+            return FfmpegService.getInstance().startTransmuxing(inputUrl, forceWebHls);
         } catch (Exception _) {
             return false;
         }
@@ -431,16 +484,19 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
     private String determineStrategyHint(PlayerResponse response) {
         if (response == null || isBlank(response.getUrl())) {
-            return StrategyHint.NATIVE.name();
+            return STRATEGY_HINT_NATIVE;
         }
         String lowerUrl = response.getUrl().toLowerCase();
         if (hasDrmMetadata(response) || isDashUrl(lowerUrl) || isLocalTransmuxedHls(lowerUrl)) {
-            return StrategyHint.SHAKA.name();
+            return STRATEGY_HINT_SHAKA;
         }
         if (isLocalProxyUrl(lowerUrl)) {
-            return StrategyHint.NATIVE_PROXY.name();
+            return STRATEGY_HINT_NATIVE_PROXY;
         }
-        return StrategyHint.NATIVE.name();
+        if (isForcedWebPath(lowerUrl)) {
+            return STRATEGY_HINT_NATIVE_PROXY;
+        }
+        return STRATEGY_HINT_NATIVE;
     }
 
     private boolean isDashUrl(String url) {
@@ -453,12 +509,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
 
     private boolean isLocalProxyUrl(String url) {
         return url.contains(URL_FRAGMENT_PROXY_STREAM);
-    }
-
-    private enum StrategyHint {
-        SHAKA,
-        NATIVE_PROXY,
-        NATIVE
     }
 
     private boolean hasChannelMetadata(Channel channel) {
@@ -532,8 +582,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         if (!MODE_SERIES.equals(normalizedMode)) {
             return false;
         }
-        String url = response.getUrl().toLowerCase();
-        return isForcedWebPath(url);
+        return shouldForceSeriesWebHls(response.getUrl().toLowerCase());
     }
 
     private String normalizeWebPlaybackUrl(String mode, String url) {
@@ -596,7 +645,17 @@ public class HttpPlayerJsonServer implements HttpHandler {
         if (!MODE_SERIES.equals(normalizedMode)) {
             return false;
         }
-        return isForcedWebPath(url.toLowerCase());
+        return shouldForceSeriesWebHls(url.toLowerCase());
+    }
+
+    private boolean shouldForceSeriesWebHls(String lowerUrl) {
+        if (isBlank(lowerUrl)) {
+            return false;
+        }
+        if (isAdaptivePlaybackUrl(lowerUrl) || hasKnownProgressiveVideoExtension(lowerUrl) || hasKnownProgressiveVideoQuery(lowerUrl)) {
+            return false;
+        }
+        return isForcedWebPath(lowerUrl);
     }
 
     private boolean shouldUseLocalProxyWebPlayback(String mode, String url) {
@@ -624,8 +683,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
         return isLikelyMpegTsUrl(lowerUrl)
                 || hasTrailingNumericPath(lowerUrl)
-                || lowerUrl.contains(PATH_LIVE_PLAY)
-                || hasTokenizedAccess(lowerUrl);
+                || lowerUrl.contains(PATH_LIVE_PLAY);
     }
 
     private boolean isLikelyMpegTsUrl(String lowerUrl) {
@@ -665,6 +723,30 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return normalized;
     }
 
+    private boolean isTruthy(String value) {
+        if (isBlank(value)) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase();
+        return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
+    }
+
+    private boolean isClientDisconnect(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof IOException) {
+                String message = sanitizeParam(current.getMessage()).toLowerCase();
+                if (message.contains("broken pipe")
+                        || message.contains("connection reset")
+                        || message.contains("stream closed")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
     private boolean isForcedWebPath(String url) {
         if (isBlank(url)) return false;
         return url.contains(PATH_PLAY_MOVIE)
@@ -686,6 +768,35 @@ public class HttpPlayerJsonServer implements HttpHandler {
                 || path.endsWith(".mkv")
                 || path.endsWith(".avi")
                 || path.endsWith(".wmv");
+    }
+
+    private boolean hasKnownProgressiveVideoExtension(String url) {
+        String path = stripQuery(url).toLowerCase();
+        return path.endsWith(".mp4")
+                || path.endsWith(".m4v")
+                || path.endsWith(".mov")
+                || path.endsWith(".webm");
+    }
+
+    private boolean hasKnownProgressiveVideoQuery(String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        boolean streamLooksProgressive = lower.contains("stream=")
+                && (lower.contains(".mp4")
+                || lower.contains(".m4v")
+                || lower.contains(".mov")
+                || lower.contains(".webm"));
+        return streamLooksProgressive
+                || lower.contains(".mp4&")
+                || lower.contains(".m4v&")
+                || lower.contains(".mov&")
+                || lower.contains(".webm&")
+                || lower.contains("extension=mp4")
+                || lower.contains("extension=m4v")
+                || lower.contains("extension=mov")
+                || lower.contains("extension=webm");
     }
 
     private boolean hasTrailingNumericPath(String url) {

@@ -4,7 +4,6 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
-import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 
@@ -22,17 +21,6 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 @SuppressWarnings("java:S6548")
 public class BingeWatchService {
-    private static final String LOG_PREFIX = "BingeWatch: ";
-    private static final String TOKEN_LOG = " token=";
-    private static final String ACCOUNT_ID_LOG = " accountId=";
-    private static final String SERIES_ID_LOG = " seriesId=";
-    private static final String CATEGORY_ID_LOG = " categoryId=";
-    private static final String EPISODE_ID_LOG = " episodeId=";
-    private static final String SEASON_LOG = " season=";
-    private static final String EPISODE_NUM_LOG = " episodeNum=";
-    private static final String TITLE_LOG = " title=";
-    private static final String START_INDEX_LOG = " startIndex=";
-    private static final String TOTAL_LOG = " total=";
     private static final String DEFAULT_SEASON = "1";
     @SuppressWarnings("java:S1075")
     private static final String PLAYLIST_PATH = "/bingewatch.m3u8?token=";
@@ -75,15 +63,6 @@ public class BingeWatchService {
                 safe(season),
                 seasonEpisodes
         ));
-        AppLog.addLog(LOG_PREFIX + "Created session" + TOKEN_LOG + token
-                + ACCOUNT_ID_LOG + account.getDbId()
-                + SERIES_ID_LOG + safe(seriesId)
-                + CATEGORY_ID_LOG + safe(seriesCategoryId)
-                + SEASON_LOG + safe(season)
-                + " episodeCount=" + seasonEpisodes.size());
-        for (SessionEpisode episode : seasonEpisodes) {
-            AppLog.addLog(LOG_PREFIX + "Session item" + TOKEN_LOG + token + formatEpisodeLogSuffix(episode));
-        }
         return token;
     }
 
@@ -147,7 +126,6 @@ public class BingeWatchService {
     public String renderPlaylist(String token) {
         Session session = sessions.get(token);
         if (session == null) {
-            AppLog.addLog(LOG_PREFIX + "Playlist request missed session" + TOKEN_LOG + safe(token));
             return "";
         }
         StringBuilder playlist = new StringBuilder("#EXTM3U\n");
@@ -158,36 +136,27 @@ public class BingeWatchService {
             playlist.append("#EXTINF:-1,").append(title).append("\n");
             playlist.append(buildEntryUrl(token, episode.episodeId())).append("\n");
         }
-        AppLog.addLog(LOG_PREFIX + "Rendered playlist" + TOKEN_LOG + token
-                + " entries=" + session.episodes().size()
-                + " playlistUrl=" + buildPlaylistUrl(token));
-        AppLog.addLog(LOG_PREFIX + "Playlist content" + TOKEN_LOG + token + "\n" + playlist);
         return playlist.toString();
     }
 
     public ResolvedEpisode resolveEpisode(String token, String episodeId) throws IOException {
         Session session = sessions.get(token);
         if (session == null || isBlank(episodeId)) {
-            AppLog.addLog(LOG_PREFIX + "Resolve skipped" + TOKEN_LOG + safe(token) + EPISODE_ID_LOG + safe(episodeId));
             return null;
         }
         SessionEpisode episode = session.findEpisode(episodeId);
         if (episode == null) {
-            AppLog.addLog(LOG_PREFIX + "Resolve could not find episode" + TOKEN_LOG + token + EPISODE_ID_LOG + episodeId);
             return null;
         }
-        AppLog.addLog(LOG_PREFIX + "Resolving" + TOKEN_LOG + token + formatEpisodeLogSuffix(episode));
 
         Account account = AccountService.getInstance().getById(session.accountId());
         if (account == null) {
-            AppLog.addLog(LOG_PREFIX + "Resolve could not load account" + TOKEN_LOG + token + ACCOUNT_ID_LOG + session.accountId());
             return null;
         }
         account.setAction(Account.AccountAction.series);
 
         Channel channel = Channel.fromJson(episode.channelJson());
         if (channel == null) {
-            AppLog.addLog(LOG_PREFIX + "Resolve could not deserialize channel" + TOKEN_LOG + token + EPISODE_ID_LOG + episodeId);
             return null;
         }
 
@@ -209,10 +178,8 @@ public class BingeWatchService {
                 session.seriesCategoryId()
         );
         if (response == null || isBlank(response.getUrl())) {
-            AppLog.addLog(LOG_PREFIX + "Resolve returned empty player response" + TOKEN_LOG + token + EPISODE_ID_LOG + episodeId);
             return null;
         }
-        AppLog.addLog(LOG_PREFIX + "Resolved" + TOKEN_LOG + token + EPISODE_ID_LOG + episodeId + " url=" + response.getUrl());
         return new ResolvedEpisode(response.getUrl(), episode.episodeName());
     }
 
@@ -246,10 +213,8 @@ public class BingeWatchService {
 
         int startIndex = resolveStartIndex(ordered, normalizedSeason, watchState);
         if (startIndex <= 0) {
-            AppLog.addLog(LOG_PREFIX + "Season ordering" + SEASON_LOG + normalizedSeason + START_INDEX_LOG + 0 + TOTAL_LOG + ordered.size());
             return ordered;
         }
-        AppLog.addLog(LOG_PREFIX + "Season ordering" + SEASON_LOG + normalizedSeason + START_INDEX_LOG + startIndex + TOTAL_LOG + ordered.size());
         return new ArrayList<>(ordered.subList(startIndex, ordered.size()));
     }
 
@@ -283,16 +248,6 @@ public class BingeWatchService {
 
     private String urlEncode(String value) {
         return URLEncoder.encode(safe(value), StandardCharsets.UTF_8);
-    }
-
-    private static String formatEpisodeLogSuffix(SessionEpisode episode) {
-        if (episode == null) {
-            return "";
-        }
-        return EPISODE_ID_LOG + episode.episodeId()
-                + SEASON_LOG + episode.season()
-                + EPISODE_NUM_LOG + episode.episodeNumber()
-                + TITLE_LOG + episode.episodeName();
     }
 
     private static String normalizeNumber(String raw) {

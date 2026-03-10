@@ -31,13 +31,14 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
         com.uiptv.util.AppLog.addLog("Resolving playback URL for Stalker Portal account: " + account.getAccountName());
         ensureStalkerSession(account);
+        String resolvedSeries = resolveSeriesParam(account, channel, series);
 
         String rawUrl;
         if (shouldTryLiveCmdFallback(account, channel)) {
-            rawUrl = fetchStalkerLiveUrlWithFallback(account, channel, series);
+            rawUrl = fetchStalkerLiveUrlWithFallback(account, channel, resolvedSeries);
         } else {
             String originalCmd = PlayerUrlUtils.resolveBestChannelCmd(account, channel);
-            rawUrl = fetchStalkerPortalUrl(account, series, originalCmd);
+            rawUrl = fetchStalkerPortalUrl(account, resolvedSeries, originalCmd);
         }
 
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
@@ -47,6 +48,22 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
         return response;
+    }
+
+    private String resolveSeriesParam(Account account, Channel channel, String series) {
+        if (account == null || account.getAction() != Account.AccountAction.series) {
+            return "";
+        }
+        if (!isBlank(series)) {
+            return series;
+        }
+        if (channel == null) {
+            return "";
+        }
+        if (!isBlank(channel.getEpisodeNum())) {
+            return channel.getEpisodeNum();
+        }
+        return isBlank(channel.getChannelId()) ? "" : channel.getChannelId();
     }
 
     private void ensureStalkerSession(Account account) {

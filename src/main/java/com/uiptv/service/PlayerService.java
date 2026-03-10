@@ -188,6 +188,8 @@ public class PlayerService {
         channelJson.put("clearKeysJson", channel == null ? "" : safe(channel.getClearKeysJson()));
         channelJson.put("inputstreamaddon", channel == null ? "" : safe(channel.getInputstreamaddon()));
         channelJson.put("manifestType", channel == null ? "" : safe(channel.getManifestType()));
+        channelJson.put("season", channel == null ? "" : safe(channel.getSeason()));
+        channelJson.put("episodeNum", channel == null ? "" : safe(channel.getEpisodeNum()));
         payload.put("channel", channelJson);
 
         String encoded = Base64.getUrlEncoder()

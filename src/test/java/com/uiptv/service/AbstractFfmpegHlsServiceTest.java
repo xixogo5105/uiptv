@@ -34,8 +34,8 @@ class AbstractFfmpegHlsServiceTest {
 
         List<String> vodArgs = new ArrayList<>();
         invoke("addHlsOutputArgs", new Class[]{List.class, String.class, boolean.class, boolean.class}, vodArgs, "http://127.0.0.1/hls/stream.m3u8", true, true);
-        assertTrue(vodArgs.contains("vod"));
-        assertTrue(vodArgs.contains("independent_segments"));
+        assertTrue(vodArgs.contains("event"));
+        assertTrue(vodArgs.stream().anyMatch(token -> token.contains("independent_segments")));
     }
 
     @Test
@@ -45,6 +45,29 @@ class AbstractFfmpegHlsServiceTest {
         String url = (String) method.invoke(FfmpegService.getInstance());
         assertTrue(url.endsWith("/hls/stream.m3u8"));
         assertEquals(url, method.invoke(LitePlayerFfmpegService.getInstance()));
+    }
+
+    @Test
+    void idleViewerHelpers_stopOnlyAfterThresholdExpires() throws Exception {
+        long idleFromClient = (Long) invoke("calculateViewerIdleAgeMillis",
+                new Class[]{long.class, long.class, long.class},
+                10_000L, 1_000L, 9_000L);
+        assertEquals(1_000L, idleFromClient);
+
+        long idleFromProcessStart = (Long) invoke("calculateViewerIdleAgeMillis",
+                new Class[]{long.class, long.class, long.class},
+                10_000L, 4_000L, 0L);
+        assertEquals(6_000L, idleFromProcessStart);
+
+        assertFalse((Boolean) invoke("shouldStopForViewerIdle",
+                new Class[]{long.class, long.class},
+                29_999L, 30_000L));
+        assertTrue((Boolean) invoke("shouldStopForViewerIdle",
+                new Class[]{long.class, long.class},
+                30_000L, 30_000L));
+        assertFalse((Boolean) invoke("shouldStopForViewerIdle",
+                new Class[]{long.class, long.class},
+                30_000L, 0L));
     }
 
     private static Object invoke(String name, Class<?>[] types, Object... args) throws Exception {

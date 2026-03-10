@@ -14,14 +14,15 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpHlsFileServer implements HttpHandler {
-    private static final int MISSING_TS_RETRY_ATTEMPTS = 10;
-    private static final long MISSING_TS_RETRY_SLEEP_MS = 40;
+    private static final int MISSING_TS_RETRY_ATTEMPTS = Integer.getInteger("uiptv.hls.missing.ts.retry.attempts", 100);
+    private static final long MISSING_TS_RETRY_SLEEP_MS = Long.getLong("uiptv.hls.missing.ts.retry.sleep.millis", 50L);
     private static final byte[] EMPTY_CONTENT = new byte[0];
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String path = ex.getRequestURI().getPath();
         String fileName = path.substring(path.lastIndexOf('/') + 1);
+        InMemoryHlsService.getInstance().markClientAccess();
         byte[] data = waitForUploadIfNeeded(fileName);
 
         if (data.length == 0) {

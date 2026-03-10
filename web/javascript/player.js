@@ -15,10 +15,18 @@
     let activeBingeWatch = null;
     let repeatEnabled = false;
     let repeatReloadInFlight = false;
+    let stallMonitorTimer = null;
+    let lastProgressWallClock = 0;
+    let lastProgressMediaTime = 0;
+    let stallRecoveryInFlight = false;
+    let lastStallRecoveryAt = 0;
     const AUTOPLAY_BLOCK_RE = /notallowederror|user (didn't|did not) interact with the document first|user gesture|request is not allowed/i;
     const STATUS_AUTOPLAY_BLOCKED = 'Autoplay blocked by browser. Press Play to start.';
     const PLAYBACK_STRATEGY_CACHE_KEY = 'uiptv.playback.strategy.v1';
     const DEFAULT_STARTUP_TIMEOUT_MS = 12000;
+    const STALL_MONITOR_INTERVAL_MS = 3000;
+    const STALL_TRIGGER_MS = 9000;
+    const STALL_RECOVERY_COOLDOWN_MS = 12000;
 
     const setStatus = (message) => {
         if (!statusEl) return;
@@ -104,10 +112,19 @@
         mediaSubtitleEl.textContent = subtitleParts.join(' • ');
     };
 
+    const resolveCategoryForMode = (payload, mode) => {
+        const normalizedMode = String(mode || payload?.mode || 'itv').toLowerCase();
+        if (normalizedMode === 'series') {
+            return cleanValue(payload?.seriesCategoryId || payload?.categoryId);
+        }
+        return cleanValue(payload?.categoryId || payload?.seriesCategoryId);
+    };
+
     const appendChannelMetadata = (query, launch) => {
         const channel = launch?.channel || {};
+        const mode = String(launch?.mode || 'itv').toLowerCase();
         query.set('accountId', cleanValue(launch?.accountId));
-        query.set('categoryId', cleanValue(launch?.categoryId));
+        query.set('categoryId', resolveCategoryForMode(launch, mode));
         query.set('channelId', cleanValue(channel.channelId || channel.id));
         query.set('name', cleanValue(channel.name));
         query.set('logo', cleanValue(channel.logo));
@@ -132,19 +149,6 @@
     };
 
     const getPlaybackEndpoint = (mode, launch) => {
-        const normalizedMode = String(mode || 'itv').toLowerCase();
-        if (cleanValue(launch?.bingeWatchToken)) {
-            return '/player/bingewatch';
-        }
-        if (normalizedMode === 'series') {
-            return '/player/series';
-        }
-        if (normalizedMode === 'vod') {
-            return '/player/vod';
-        }
-        if (normalizedMode === 'itv') {
-            return '/player/live';
-        }
         return '/player';
     };
 
@@ -222,7 +226,7 @@
 
         const query = new URLSearchParams();
         query.set('accountId', cleanValue(payload?.accountId));
-        query.set('categoryId', cleanValue(payload?.seriesCategoryId || payload?.categoryId));
+        query.set('categoryId', resolveCategoryForMode(payload, mode));
         query.set('mode', mode);
 
         const channelIdentifier = cleanValue(channel.channelId || channel.id);
@@ -243,6 +247,8 @@
         query.set('clearKeysJson', cleanValue(channel.clearKeysJson));
         query.set('inputstreamaddon', cleanValue(channel.inputstreamaddon));
         query.set('manifestType', cleanValue(channel.manifestType));
+        query.set('season', cleanValue(channel.season));
+        query.set('episodeNum', cleanValue(channel.episodeNum));
         if (mode === 'series') {
             query.set('seriesId', channelIdentifier);
             query.set('seriesParentId', cleanValue(payload?.seriesParentId));
@@ -278,6 +284,7 @@
     };
 
     const destroyPlayer = async () => {
+        stopStallMonitor();
         if (shakaPlayer) {
             try {
                 await shakaPlayer.destroy();
@@ -289,6 +296,85 @@
         videoEl.removeAttribute('src');
         videoEl.load();
         resetTrackMenus();
+    };
+
+    const markPlaybackProgress = () => {
+        lastProgressMediaTime = Number(videoEl?.currentTime || 0);
+        lastProgressWallClock = Date.now();
+    };
+
+    const stopStallMonitor = () => {
+        if (stallMonitorTimer !== null) {
+            window.clearInterval(stallMonitorTimer);
+            stallMonitorTimer = null;
+        }
+        stallRecoveryInFlight = false;
+    };
+
+    const recoverFromStall = async () => {
+        if (!videoEl || stallRecoveryInFlight) {
+            return;
+        }
+        const now = Date.now();
+        if (now - lastStallRecoveryAt < STALL_RECOVERY_COOLDOWN_MS) {
+            return;
+        }
+        stallRecoveryInFlight = true;
+        lastStallRecoveryAt = now;
+        try {
+            // Retry stream fetch in Shaka first if available.
+            if (shakaPlayer && typeof shakaPlayer.retryStreaming === 'function') {
+                try {
+                    shakaPlayer.retryStreaming();
+                } catch (_) {
+                    // Ignore retry API errors.
+                }
+            }
+            // Only nudge to live edge for live channels; on series/vod this causes
+            // visible frame jumps that feel like live-stream skipping.
+            if (launchMode(activeLaunch) === 'itv') {
+                const seekable = videoEl.seekable;
+                if (seekable && seekable.length > 0) {
+                    const liveEdge = seekable.end(seekable.length - 1);
+                    if (Number.isFinite(liveEdge) && liveEdge > 0) {
+                        const target = Math.max(0, liveEdge - 0.8);
+                        if (target > videoEl.currentTime + 0.2) {
+                            videoEl.currentTime = target;
+                        }
+                    }
+                }
+            }
+            await videoEl.play();
+            markPlaybackProgress();
+            setStatus('');
+        } catch (_) {
+            // Ignore transient recovery failures; monitor will retry.
+        } finally {
+            stallRecoveryInFlight = false;
+        }
+    };
+
+    const startStallMonitor = () => {
+        stopStallMonitor();
+        markPlaybackProgress();
+        stallMonitorTimer = window.setInterval(() => {
+            if (!videoEl) {
+                return;
+            }
+            if (videoEl.paused || videoEl.ended) {
+                markPlaybackProgress();
+                return;
+            }
+            const currentTime = Number(videoEl.currentTime || 0);
+            if (Math.abs(currentTime - lastProgressMediaTime) > 0.05) {
+                markPlaybackProgress();
+                return;
+            }
+            const noProgressMs = Date.now() - lastProgressWallClock;
+            if (noProgressMs >= STALL_TRIGGER_MS) {
+                recoverFromStall();
+            }
+        }, STALL_MONITOR_INTERVAL_MS);
     };
 
     const updateBingeWatchState = (responseData) => {
@@ -363,11 +449,14 @@
 
     const buildProxyUrl = (url) => {
         const normalized = cleanValue(url);
-        if (!normalized || normalized.startsWith('/') || normalized.startsWith('blob:') || normalized.startsWith('data:')) {
+        if (!normalized) {
             return '';
         }
         if (normalized.includes('/proxy-stream?src=')) {
             return normalized;
+        }
+        if (normalized.startsWith('/') || normalized.startsWith('blob:') || normalized.startsWith('data:')) {
+            return '';
         }
         return `${window.location.origin}/proxy-stream?src=${encodeURIComponent(normalized)}`;
     };
@@ -375,6 +464,10 @@
     const isAdaptiveUrl = (url) => {
         const lower = String(url || '').toLowerCase();
         return lower.includes('.m3u8') || lower.includes('.mpd') || lower.includes('/hls/stream.m3u8');
+    };
+
+    const isShakaEligibleUrl = (url) => {
+        return isAdaptiveUrl(url);
     };
 
     const uniqueStrategies = (values) => {
@@ -402,15 +495,17 @@
         if (hasDrm) {
             return 'shaka';
         }
+        const lowerUrl = String(responseData?.url || '').toLowerCase();
+        const shakaEligible = isShakaEligibleUrl(lowerUrl);
+
         const cached = normalizeStrategyName(getCachedStrategy(launch, responseData));
-        if (cached) {
+        if (cached && (cached !== 'shaka' || shakaEligible)) {
             return cached;
         }
         const hint = normalizeStrategyName(responseData?.strategyHint);
-        if (hint) {
+        if (hint && (hint !== 'shaka' || shakaEligible)) {
             return hint;
         }
-        const lowerUrl = String(responseData?.url || '').toLowerCase();
         if (lowerUrl.includes('.mpd') || lowerUrl.includes('/hls/stream.m3u8')) {
             return 'shaka';
         }
@@ -549,8 +644,10 @@
         const started = await startPlaybackWithFallback(launch, responseData);
         if (started === false) {
             setStatus(STATUS_AUTOPLAY_BLOCKED);
+            stopStallMonitor();
         } else {
             setStatus('');
+            startStallMonitor();
         }
     };
 
@@ -558,13 +655,32 @@
         activeLaunch = launch;
         repeatReloadInFlight = false;
         setStatus('Requesting playback URL...');
-        let requestUrl = buildDirectPlayerRequestUrl(launch);
+        const hasBingeWatch = !!cleanValue(launch?.bingeWatchToken);
+        const hasDirectUrl = !!cleanValue(launch?.directUrl || launch?.url);
+        let requestUrl = (hasBingeWatch || hasDirectUrl)
+            ? buildDirectPlayerRequestUrl(launch)
+            : buildPlayerRequestUrl(launch);
         if (options.cacheBust) {
             requestUrl = addCacheBuster(requestUrl, '_repeatTs');
         }
-        const response = await fetch(requestUrl, {cache: 'no-store'});
-        const responseData = await response.json();
-        await playResolvedResponse(launch, responseData);
+        const resolveAndPlay = async (url) => {
+            const response = await fetch(url, {cache: 'no-store'});
+            const responseData = await response.json();
+            await playResolvedResponse(launch, responseData);
+        };
+        try {
+            await resolveAndPlay(requestUrl);
+        } catch (error) {
+            const allowFreshRetry = options.allowFreshRetry !== false;
+            if (!allowFreshRetry || launchMode(launch) !== 'series') {
+                throw error;
+            }
+            const retryUrl = addCacheBuster((hasBingeWatch || hasDirectUrl)
+                ? buildDirectPlayerRequestUrl(launch)
+                : buildPlayerRequestUrl(launch), '_freshUrl');
+            await destroyPlayer();
+            await resolveAndPlay(retryUrl);
+        }
     };
 
     const playNextBingeWatchEpisode = async () => {
@@ -835,6 +951,14 @@
                 .finally(() => {
                     repeatReloadInFlight = false;
                 });
+        });
+        videoEl.addEventListener('timeupdate', markPlaybackProgress);
+        videoEl.addEventListener('playing', markPlaybackProgress);
+        videoEl.addEventListener('stalled', () => {
+            recoverFromStall();
+        });
+        videoEl.addEventListener('waiting', () => {
+            recoverFromStall();
         });
     }
 

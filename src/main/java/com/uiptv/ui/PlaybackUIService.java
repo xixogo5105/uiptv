@@ -28,7 +28,6 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
-    private static final String LOG_PREFIX = "BingeWatch: ";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
     static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
@@ -91,14 +90,12 @@ public final class PlaybackUIService {
             showErrorAlert(isBlank(errorPrefix) ? PLAYLIST_RESOLUTION_FAILURE : errorPrefix + "unable to resolve playlist URL.");
             return;
         }
-        AppLog.addLog(LOG_PREFIX + "Launching direct URL playerPath=" + playerPath + " url=" + url);
         PlayerResponse response = new PlayerResponse(url);
         if (channel != null) {
             response.setFromChannel(channel, account);
         }
         if (isEmbeddedPlayerPath(playerPath)) {
             Configuration configuration = ConfigurationService.getInstance().read();
-            AppLog.addLog(LOG_PREFIX + "Launch mode=embedded enabled=" + (configuration != null && configuration.isEmbeddedPlayer()));
             playEmbedded(response, configuration != null && configuration.isEmbeddedPlayer());
             return;
         }
@@ -108,7 +105,6 @@ public final class PlaybackUIService {
                 return;
             }
             String browserUrl = buildBrowserDirectPlaybackUrl(url, account, channel);
-            AppLog.addLog(LOG_PREFIX + "Launch mode=browser url=" + browserUrl + " source=" + url);
             ServerUrlUtil.openInBrowser(browserUrl);
             return;
         }
@@ -116,7 +112,6 @@ public final class PlaybackUIService {
             showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
             return;
         }
-        AppLog.addLog(LOG_PREFIX + "Launch mode=external command=" + playerPath + " arg=" + url);
         com.uiptv.util.Platform.executeCommand(playerPath, url);
     }
 

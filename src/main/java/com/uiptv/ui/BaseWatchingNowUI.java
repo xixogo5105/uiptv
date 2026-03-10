@@ -155,13 +155,31 @@ public abstract class BaseWatchingNowUI extends VBox {
             if (!isEligibleSeriesState(state, seriesIdFilter)) {
                 continue;
             }
-            String key = safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+            String key = normalizeSeriesIdentity(state.getSeriesId());
             SeriesWatchState existing = deduped.get(key);
             if (existing == null || state.getUpdatedAt() > existing.getUpdatedAt()) {
                 deduped.put(key, state);
             }
         }
         return deduped;
+    }
+
+    private String normalizeSeriesIdentity(String seriesId) {
+        String normalized = safe(seriesId);
+        if (isBlank(normalized)) {
+            return "";
+        }
+        if (!normalized.contains(":")) {
+            return normalized;
+        }
+        String[] parts = normalized.split(":");
+        for (String part : parts) {
+            String p = safe(part);
+            if (!isBlank(p)) {
+                return p;
+            }
+        }
+        return normalized;
     }
 
     private boolean isEligibleSeriesState(SeriesWatchState state, String seriesIdFilter) {

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>UIPTV Web</title>
+    <title>UIPTV</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -17,7 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
             crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="/css/spa.css?v=20260224a">
+    <link rel="stylesheet" href="/css/spa.css?v=20260309f">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <!-- Shaka Player -->
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
@@ -31,7 +31,7 @@
     <div class="top-bar d-flex justify-content-between align-items-center px-3 py-2">
         <div class="d-flex align-items-center app-title-link" @click="resetApp">
             <img src="/icon.ico" alt="UIPTV" height="24" class="me-2">
-            <span class="fw-bold text-white">UIPTV Web</span>
+            <span class="fw-bold text-white">UIPTV</span>
         </div>
         <div class="d-flex align-items-center">
             <button class="btn btn-link text-muted me-2 p-0 top-bar-icon" @click="toggleTheme" :title="'Theme: ' + theme">
@@ -142,6 +142,8 @@
                                 :key="bookmark.dbId"
                                 class="card-item"
                                 :class="{
+                                    'channel-on-air': isActiveBookmark(bookmark),
+                                    'playback-disabled': isDisabledBookmark(bookmark),
                                     'bookmark-draggable': canReorderBookmarks,
                                     'bookmark-drag-source': String(draggedBookmarkId || '') === String(bookmark.dbId || ''),
                                     'bookmark-drag-target': String(dragOverBookmarkId || '') === String(bookmark.dbId || '')
@@ -153,6 +155,9 @@
                                 @dragover.prevent="onBookmarkDragOver($event, bookmark)"
                                 @drop.prevent="onBookmarkDrop($event, bookmark)"
                                 @dragend="onBookmarkDragEnd">
+                            <span class="channel-live-marker" :class="{ active: isActiveBookmark(bookmark) }" aria-hidden="true">
+                                <i v-if="isActiveBookmark(bookmark)" class="bi bi-broadcast"></i>
+                            </span>
                             <img v-if="bookmark.logo" :src="bookmark.logo" @load="imageLoad" @error="imageError" alt="logo">
                             <div v-else class="icon-placeholder"><i class="bi bi-bookmark-fill"></i></div>
                             <div class="content-wrapper">
@@ -235,7 +240,19 @@
                                     <div class="title">{{ listLoadingMessage }}</div>
                                 </div>
                             </div>
-                            <div v-if="!listLoading" v-for="channel in filteredChannels" :key="channel.dbId || channel.channelId || channel.id" class="card-item" @click="handleChannelSelection(channel)">
+                            <div
+                                    v-if="!listLoading"
+                                    v-for="channel in filteredChannels"
+                                    :key="channel.dbId || channel.channelId || channel.id"
+                                    class="card-item"
+                                    :class="{
+                                        'channel-on-air': isActiveChannel(channel),
+                                        'playback-disabled': isDisabledChannel(channel)
+                                    }"
+                                    @click="handleChannelSelection(channel)">
+                                <span class="channel-live-marker" :class="{ active: isActiveChannel(channel) }" aria-hidden="true">
+                                    <i v-if="isActiveChannel(channel)" class="bi bi-broadcast"></i>
+                                </span>
                                 <img v-if="channel.logo" :src="channel.logo" @load="imageLoad" @error="imageError" alt="logo">
                                 <div v-else class="icon-placeholder"><i class="bi bi-tv"></i></div>
                                 <div class="content-wrapper">
@@ -348,7 +365,14 @@
                                     :id="getSeriesEpisodeAnchorId(episode)"
                                     :data-watched="episode.watched ? '1' : '0'"
                                     class="card-item episode-row-card"
+                                    :class="{
+                                        'channel-on-air': isActiveChannel(episode),
+                                        'playback-disabled': isDisabledChannel(episode)
+                                    }"
                                     @click="playChannel(episode)">
+                                <span class="channel-live-marker" :class="{ active: isActiveChannel(episode) }" aria-hidden="true">
+                                    <i v-if="isActiveChannel(episode)" class="bi bi-broadcast"></i>
+                                </span>
                                 <img v-if="episode.logo" :src="episode.logo" @load="imageLoad" @error="imageError" alt="logo" class="episode-row-thumb">
                                 <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
                                 <div class="content-wrapper">
@@ -377,8 +401,14 @@
                                 v-for="row in filteredWatchingNowRows"
                                 :key="row.key"
                                 class="card-item"
-                                :class="{ 'border border-primary': selectedWatchingNowKey === row.key }"
+                                :class="{
+                                    'border border-primary': selectedWatchingNowKey === row.key,
+                                    'channel-on-air': isActiveWatchingNowRow(row)
+                                }"
                                 @click="openWatchingNowSeriesDetail(row)">
+                            <span class="channel-live-marker" :class="{ active: isActiveWatchingNowRow(row) }" aria-hidden="true">
+                                <i v-if="isActiveWatchingNowRow(row)" class="bi bi-broadcast"></i>
+                            </span>
                             <img v-if="row.seriesPoster" :src="row.seriesPoster" @load="imageLoad" @error="imageError" alt="series poster">
                             <div v-else class="icon-placeholder"><i class="bi bi-collection-play-fill"></i></div>
                             <div class="content-wrapper">
@@ -401,16 +431,23 @@
         <div class="col-md-9 col-lg-9 main-content order-1 order-md-2">
             <div id="player-wrapper">
                 <div v-if="!isPlaying" id="player-placeholder">
-                    <i class="bi bi-play-circle" style="font-size: 5rem; color: #333;"></i>
-                    <h3>Select a channel to play</h3>
+                    <span v-if="playbackLoading" class="spinner-border text-light mb-3" style="width: 4rem; height: 4rem;" role="status" aria-hidden="true"></span>
+                    <i v-else class="bi bi-play-circle player-placeholder-icon"></i>
+                    <h3>{{ playbackLoading ? 'Starting stream...' : 'Select a channel to play' }}</h3>
                     <p v-if="playbackError" class="text-danger mt-3 px-3">{{ playbackError }}</p>
                 </div>
 
                 <!-- Player Container -->
-                <div v-else :key="playerKey" id="player" class="w-100 h-100 position-relative" @mouseenter="showOverlay = true" @mouseleave="showOverlay = false">
+                <div v-else id="player" class="w-100 h-100 position-relative" @mouseenter="showOverlay = true" @mouseleave="showOverlay = false">
+                    <div v-if="playbackLoading" class="player-loading-overlay">
+                        <span class="spinner-border text-light" style="width: 3.5rem; height: 3.5rem;" role="status" aria-hidden="true"></span>
+                    </div>
                     <div id="player-overlay" :style="{ opacity: showOverlay ? 1 : 0 }">
                         <div class="d-flex justify-content-between align-items-center w-100">
-                            <h4 id="headerTitle">{{ currentChannelName }}</h4>
+                            <div class="d-flex align-items-center">
+                                <h4 id="headerTitle" class="mb-0">{{ currentChannelName }}</h4>
+                                <span v-if="playbackLoading" class="spinner-border spinner-border-sm text-light ms-3" role="status" aria-hidden="true"></span>
+                            </div>
                             <div>
                                 <button class="btn btn-link text-white me-2" @click="onPlayerControlClick($event, toggleFavorite)" title="Favorite">
                                     <i class="bi" :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'"></i>
@@ -533,7 +570,7 @@
     </div>
 </div>
 
-<script src="/javascript/spa.js?v=20260308a"></script>
+<script src="/javascript/spa.js?v=20260309f"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

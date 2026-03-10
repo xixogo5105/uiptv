@@ -11,8 +11,10 @@ public class InMemoryHlsService {
     private final Map<String, byte[]> storage = new ConcurrentHashMap<>();
     private final Map<String, Long> timestamps = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> pendingDeletes = new ConcurrentHashMap<>();
-    private static final int MAX_SEGMENTS = 40;
-    private static final long TS_DELETE_GRACE_MILLIS = Long.getLong("uiptv.hls.ts.delete.grace.millis", 3_000L);
+    private volatile long lastTsPutAt = 0L;
+    private volatile long lastClientAccessAt = 0L;
+    private static final int MAX_SEGMENTS = Integer.getInteger("uiptv.hls.max.segments", 180);
+    private static final long TS_DELETE_GRACE_MILLIS = Long.getLong("uiptv.hls.ts.delete.grace.millis", 20_000L);
     private final ScheduledExecutorService deleteScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "uiptv-hls-delete-grace");
         thread.setDaemon(true);
@@ -34,6 +36,7 @@ public class InMemoryHlsService {
         if (name.endsWith(".ts")) {
             cancelPendingDelete(name);
             cleanupOldSegments();
+            lastTsPutAt = System.currentTimeMillis();
         }
 
         storage.put(name, data);
@@ -45,6 +48,10 @@ public class InMemoryHlsService {
             timestamps.put(name, System.currentTimeMillis());
         }
         return storage.get(name);
+    }
+
+    public void markClientAccess() {
+        lastClientAccessAt = System.currentTimeMillis();
     }
 
     public void remove(String name) {
@@ -76,6 +83,20 @@ public class InMemoryHlsService {
         pendingDeletes.clear();
         storage.clear();
         timestamps.clear();
+        lastTsPutAt = 0L;
+        lastClientAccessAt = 0L;
+    }
+
+    public long getLastTsPutAt() {
+        return lastTsPutAt;
+    }
+
+    public long getLastClientAccessAt() {
+        return lastClientAccessAt;
+    }
+
+    public long getTsSegmentCount() {
+        return storage.keySet().stream().filter(k -> k.endsWith(".ts")).count();
     }
 
     private void cleanupOldSegments() {

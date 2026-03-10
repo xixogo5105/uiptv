@@ -11,6 +11,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
+import com.uiptv.util.AppLog;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
@@ -20,12 +21,16 @@ import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -122,11 +127,17 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
                 directNoProbeResponse, "vod", "0");
         assertEquals("http://host/live/play/tokenized/9412", directNoProbeResponse.getUrl());
 
+        PlayerResponse directLiveAdaptiveResponse = new PlayerResponse("https://host/index.m3u8?token=abc123");
+        invoke(handler, "applyWebPlaybackProcessing",
+                new Class[]{PlayerResponse.class, String.class, String.class},
+                directLiveAdaptiveResponse, "itv", "0");
+        assertEquals("https://host/index.m3u8?token=abc123", directLiveAdaptiveResponse.getUrl());
+
         PlayerResponse hlsResponse = new PlayerResponse("https://host/play/movie.php?id=1");
         FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
         try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
             ffmpegStatic.when(FfmpegService::getInstance).thenReturn(ffmpegService);
-            Mockito.when(ffmpegService.startTransmuxing(Mockito.anyString(), Mockito.eq(true))).thenReturn(true);
+            Mockito.when(ffmpegService.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
 
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class},
@@ -134,6 +145,20 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
 
             assertEquals("/hls/stream.m3u8?hvec=1", hlsResponse.getUrl());
             assertEquals("hls", hlsResponse.getManifestType());
+        }
+
+        PlayerResponse preferredHlsResponse = new PlayerResponse("https://host/index.m3u8?token=abc123");
+        FfmpegService preferredHlsFfmpeg = Mockito.mock(FfmpegService.class);
+        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(preferredHlsFfmpeg);
+            Mockito.when(preferredHlsFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
+
+            invoke(handler, "applyWebPlaybackProcessing",
+                    new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                    preferredHlsResponse, "itv", "0", true);
+
+            assertEquals("/hls/stream.m3u8", preferredHlsResponse.getUrl());
+            assertEquals("hls", preferredHlsResponse.getManifestType());
         }
 
         PlayerResponse vodProxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
@@ -147,7 +172,7 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
                     new Class[]{PlayerResponse.class, String.class, String.class},
                     vodProxyResponse, "vod", "0");
 
-            Mockito.verifyNoInteractions(directFfmpeg);
+            Mockito.verify(directFfmpeg).stopTransmuxing();
             assertTrue(vodProxyResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
         }
 
@@ -157,14 +182,13 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
              MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
             ffmpegStatic.when(FfmpegService::getInstance).thenReturn(fallbackFfmpeg);
             serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
-            Mockito.when(fallbackFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(true))).thenReturn(false);
+            Mockito.when(fallbackFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(false);
 
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class},
                     fallbackResponse, "series", "0");
 
-            assertTrue(fallbackResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
-            assertTrue(fallbackResponse.getUrl().contains("http%3A%2F%2Fhost%2Fplay%2Fmovie.php%3Fid%3D1"));
+            assertEquals("http://host/play/movie.php?id=1", fallbackResponse.getUrl());
         }
 
         PlayerResponse directVodResponse = new PlayerResponse("https://host/live/play/tokenized/9412");
@@ -172,6 +196,35 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
                 new Class[]{PlayerResponse.class, String.class, String.class},
                 directVodResponse, "vod", "0");
         assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
+    }
+
+    @Test
+    void handle_clientDisconnectWhileWritingResponse_isIgnored() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        Configuration configuration = new Configuration();
+        configuration.setEnableFfmpegTranscoding(false);
+        List<String> logs = new ArrayList<>();
+        Consumer<String> listener = logs::add;
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+            AppLog.registerListener(listener);
+            try {
+                BrokenPipeHttpExchange exchange = new BrokenPipeHttpExchange(
+                        "/player?mode=itv&url=http://stream.test/live.m3u8",
+                        "GET"
+                );
+
+                handler.handle(exchange);
+
+                assertEquals(200, exchange.getResponseCode());
+                assertTrue(logs.stream().noneMatch(log -> log.contains("HttpPlayerJsonServer failed")));
+            } finally {
+                AppLog.unregisterListener(listener);
+            }
+        }
     }
 
     @Test
@@ -344,6 +397,27 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         @Override
         public HttpPrincipal getPrincipal() {
             return null;
+        }
+    }
+
+    private static final class BrokenPipeHttpExchange extends StubHttpExchange {
+        private BrokenPipeHttpExchange(String uri, String method) {
+            super(uri, method);
+        }
+
+        @Override
+        public OutputStream getResponseBody() {
+            return new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    throw new IOException("Broken pipe");
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    throw new IOException("Broken pipe");
+                }
+            };
         }
     }
 }

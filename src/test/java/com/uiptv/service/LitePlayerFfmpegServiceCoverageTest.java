@@ -12,7 +12,6 @@ import java.util.List;
 
 import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.COPY;
 import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.DIRECT;
-import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.TRANSCODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,14 +25,11 @@ class LitePlayerFfmpegServiceCoverageTest {
     void preparedPlayback_helpersExposeStrategyState() {
         LitePlayerFfmpegService.PreparedPlayback direct = new LitePlayerFfmpegService.PreparedPlayback("src", "play", DIRECT);
         LitePlayerFfmpegService.PreparedPlayback copy = new LitePlayerFfmpegService.PreparedPlayback("src", "play", COPY);
-        LitePlayerFfmpegService.PreparedPlayback transcode = new LitePlayerFfmpegService.PreparedPlayback("src", "play", TRANSCODE);
 
         assertFalse(direct.usesFfmpeg());
         assertTrue(copy.usesFfmpeg());
-        assertTrue(transcode.usesFfmpeg());
         assertEquals("Lite direct", direct.displayModeLabel());
         assertEquals("Lite using Transmux", copy.displayModeLabel());
-        assertEquals("Lite software decoding", transcode.displayModeLabel());
     }
 
     @Test
@@ -57,8 +53,8 @@ class LitePlayerFfmpegServiceCoverageTest {
         assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mp3", false));
         assertEquals(COPY, LitePlayerFfmpegService.chooseStrategy("http://example.test/live.ts", new LitePlayerFfmpegService.ProbeResult("mpegts", "h264", "aac"), false));
         assertEquals(COPY, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "h264", "aac"), true));
-        assertEquals(TRANSCODE, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "hevc", "opus"), false));
-        assertEquals(TRANSCODE, LitePlayerFfmpegService.chooseStrategy("http://example.test/unknown.bin", new LitePlayerFfmpegService.ProbeResult("", "hevc", "aac"), true));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "hevc", "opus"), false));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/unknown.bin", new LitePlayerFfmpegService.ProbeResult("", "hevc", "aac"), true));
 
         assertTrue(invokeBoolean("isLikelyDirectPlayableContainer", "http://example.test/video.m4v"));
         assertFalse(invokeBoolean("isLikelyDirectPlayableContainer", "http://example.test/video.mkv"));
@@ -97,7 +93,7 @@ class LitePlayerFfmpegServiceCoverageTest {
         assertTrue(FfmpegService.getInstance().isTransmuxingNeeded("http://example.test/live?extension=ts"));
         assertFalse(FfmpegService.getInstance().isTransmuxingNeeded("http://example.test/live.m3u8"));
         assertTrue(liveCopy.contains("delete_segments"));
-        assertTrue(vodCopy.contains("vod"));
+        assertTrue(vodCopy.contains("event"));
         assertTrue(vodCopy.contains("+genpts"));
     }
 
