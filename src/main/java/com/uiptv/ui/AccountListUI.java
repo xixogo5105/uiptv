@@ -284,19 +284,23 @@ public class AccountListUI extends HBox {
     private TableCell<AccountItem, String> createAccountNameCell() {
         return new TableCell<>() {
             private final HBox graphic = new HBox(6);
-            private final SVGPath pinIcon = new SVGPath();
+            private final SVGPath pinStem = new SVGPath();
+            private final SVGPath pinHead = new SVGPath();
+            private final Group pinIcon = new Group(pinStem, pinHead);
             private final StackPane pinIconWrapper = new StackPane(pinIcon);
             private final Label nameLabel = new Label();
             private final Pane spacer = new Pane();
 
             {
-                pinIcon.setContent("M125,0A79.55,79.55,0,0,0,45.48,79.57C45.48,123.49,125,250,125,250s79.52-126.51,79.52-170.43A79.55,79.55,0,0,0,125,0Zm0,117.7a34.09,34.09,0,1,1,34.09-34.09A34.07,34.07,0,0,1,125,117.7Z");
-                pinIcon.setFill(Color.BLACK);
-                pinIcon.setScaleX(0.06);
-                pinIcon.setScaleY(0.06);
-                pinIconWrapper.setPrefSize(16, 16);
-                pinIconWrapper.setMinSize(16, 16);
-                pinIconWrapper.setMaxSize(16, 16);
+                pinStem.setContent("m 289.99122,309.99418 c -0.66028,0.58344 -50.08221,-43.19021 -52.50936,-45.29992 -2.42734,-2.10956 -51.06934,-43.57426 -52.83626,-46.26739 -1.76673,-2.69328 13.04928,-12.78624 13.70956,-13.36969 0.66024,-0.58341 12.52054,-14.06148 14.94736,-11.95215 2.42733,2.10957 37.03325,55.97684 38.80018,58.66996 1.76673,2.69328 38.54876,57.6358 37.88852,58.21919 z");
+                pinStem.setFill(Color.web("#cad2d2"));
+                pinHead.setContent("m 56.34936,106.22036 c 20.30938,0.88278 45.68909,32.12704 73.173,75.95489 18.76942,29.93108 45.31357,11.58173 54.19751,2.7927 8.31501,-8.2259 25.42173,-32.179 -3.72915,-51.99008 -42.68539,-29.00919 -72.93354,-55.50764 -73.173,-75.954905 L 81.58356,81.621661 Z");
+                pinHead.setFill(Color.web("#e30000"));
+                pinIcon.setScaleX(0.075);
+                pinIcon.setScaleY(0.075);
+                pinIconWrapper.setPrefSize(24, 24);
+                pinIconWrapper.setMinSize(24, 24);
+                pinIconWrapper.setMaxSize(24, 24);
                 pinIconWrapper.setVisible(false);
                 pinIconWrapper.setManaged(false);
 
