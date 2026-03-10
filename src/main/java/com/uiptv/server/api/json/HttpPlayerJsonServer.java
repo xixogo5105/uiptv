@@ -191,6 +191,9 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl, boolean preferHls) {
         boolean forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
         boolean forceLiveTransmux = shouldForceLiveTransmux(mode, originalUrl);
+        if (!forceWebHls && shouldPreferDirectLivePlayback(mode, originalUrl)) {
+            return false;
+        }
         return forceWebHls
                 || forceLiveTransmux
                 || (ConfigurationService.getInstance().read().isEnableFfmpegTranscoding()
@@ -670,6 +673,13 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private boolean shouldForceLiveTransmux(String mode, String url) {
+        if (shouldPreferDirectLivePlayback(mode, url)) {
+            return false;
+        }
+        return false;
+    }
+
+    private boolean shouldPreferDirectLivePlayback(String mode, String url) {
         if (isBlank(url)) {
             return false;
         }

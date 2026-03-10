@@ -133,6 +133,12 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
                 directLiveAdaptiveResponse, "itv", "0");
         assertEquals("https://host/index.m3u8?token=abc123", directLiveAdaptiveResponse.getUrl());
 
+        PlayerResponse directLiveTsResponse = new PlayerResponse("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001");
+        invoke(handler, "applyWebPlaybackProcessing",
+                new Class[]{PlayerResponse.class, String.class, String.class},
+                directLiveTsResponse, "itv", "0");
+        assertEquals("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001", directLiveTsResponse.getUrl());
+
         PlayerResponse hlsResponse = new PlayerResponse("https://host/play/movie.php?id=1");
         FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
         try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
@@ -159,6 +165,20 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
 
             assertEquals("/hls/stream.m3u8", preferredHlsResponse.getUrl());
             assertEquals("hls", preferredHlsResponse.getManifestType());
+        }
+
+        PlayerResponse preferredHlsTsResponse = new PlayerResponse("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001");
+        FfmpegService preferredHlsTsFfmpeg = Mockito.mock(FfmpegService.class);
+        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(preferredHlsTsFfmpeg);
+            Mockito.when(preferredHlsTsFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
+
+            invoke(handler, "applyWebPlaybackProcessing",
+                    new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                    preferredHlsTsResponse, "itv", "0", true);
+
+            assertEquals("/hls/stream.m3u8", preferredHlsTsResponse.getUrl());
+            assertEquals("hls", preferredHlsTsResponse.getManifestType());
         }
 
         PlayerResponse vodProxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");

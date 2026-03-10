@@ -1,4 +1,4 @@
-const { createApp, ref, computed, onMounted, nextTick } = Vue;
+const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
 
 createApp({
     setup() {
@@ -24,6 +24,7 @@ createApp({
 
         const currentContext = ref({ accountId: null, categoryId: null, accountType: null });
         const currentChannel = ref(null);
+        const playbackMode = ref('');
         const isPlaying = ref(false);
         const playbackError = ref('');
         const showOverlay = ref(false);
@@ -503,7 +504,34 @@ createApp({
             });
         });
 
+        const APP_TITLE = 'UIPTV';
         const currentChannelName = computed(() => currentChannel.value ? currentChannel.value.name : '');
+        const currentChannelDebugTitle = computed(() => {
+            const name = String(currentChannelName.value || '').trim();
+            const mode = String(playbackMode.value || '').trim();
+            if (!name) return '';
+            return mode ? `${name} [${mode}]` : name;
+        });
+
+        const setBrowserTitle = () => {
+            const channelTitle = String(currentChannelDebugTitle.value || '').trim();
+            document.title = channelTitle ? `${channelTitle} | ${APP_TITLE}` : APP_TITLE;
+        };
+
+        const resolvePlaybackModeLabel = (url, engine = '') => {
+            const lowerUrl = String(url || '').trim().toLowerCase();
+            const normalizedEngine = String(engine || '').trim().toLowerCase();
+            if (normalizedEngine === 'youtube') return 'youtube';
+            if (lowerUrl.includes('/proxy-stream')) return 'proxy';
+            if (lowerUrl.includes('/hls/stream.m3u8')) return 'hls';
+            if (normalizedEngine === 'mpegts') return 'mpegts';
+            if (normalizedEngine === 'shaka') {
+                if (lowerUrl.includes('.mpd')) return 'dash';
+                if (lowerUrl.includes('.m3u8')) return 'hls';
+                return 'shaka';
+            }
+            return 'direct';
+        };
 
         const resolveChannelIdentity = (channel) => {
             if (!channel) return '';
@@ -684,7 +712,19 @@ createApp({
 
         const tryForcedHlsFallback = async (channel) => {
             const sourceUrl = String(channel?.url || '').trim().toLowerCase();
-            if (!sourceUrl || sourceUrl.includes('/hls/stream.m3u8') || !sourceUrl.includes('.m3u8')) {
+            const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').trim().toLowerCase();
+            const isMpegTsLike = manifestType === 'ts'
+                || manifestType === 'mpegts'
+                || manifestType === 'mpeg2ts'
+                || sourceUrl.includes('.ts?')
+                || sourceUrl.endsWith('.ts')
+                || sourceUrl.includes('.m2ts?')
+                || sourceUrl.endsWith('.m2ts')
+                || sourceUrl.includes('extension=ts')
+                || sourceUrl.includes('/live/play/')
+                || /\/\d+(?:\?|$)/.test(sourceUrl);
+            const isAdaptive = sourceUrl.includes('.m3u8');
+            if (!sourceUrl || sourceUrl.includes('/hls/stream.m3u8') || (!isAdaptive && !isMpegTsLike)) {
                 return false;
             }
             if (channel?.drm) {
@@ -1781,6 +1821,7 @@ createApp({
                 bookmarkId: targetChannel?.bookmarkId || ''
             });
             playbackLoading.value = true;
+            playbackMode.value = 'loading';
             playbackError.value = '';
             const channelDataPromise = fetch(url, { signal: controller.signal }).then(response => response.json());
             await stopPlayback(true);
@@ -1840,6 +1881,7 @@ createApp({
 
             if (!preserveUi) {
                 playbackLoading.value = false;
+                playbackMode.value = '';
                 isPlaying.value = false;
                 currentChannel.value = null;
                 playbackError.value = '';
@@ -1870,6 +1912,7 @@ createApp({
             if (youtubeId) {
                 isYoutube.value = true;
                 youtubeSrc.value = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
+                playbackMode.value = resolvePlaybackModeLabel(uri, 'youtube');
                 return;
             }
 
@@ -1925,6 +1968,21 @@ createApp({
                 return;
             }
 
+            let fallbackAttempted = false;
+            const tryMpegTsHlsFallback = async () => {
+                if (fallbackAttempted) {
+                    return false;
+                }
+                fallbackAttempted = true;
+                if (mpegtsPlayer.value) {
+                    try {
+                        mpegtsPlayer.value.destroy();
+                    } catch (_) {}
+                    mpegtsPlayer.value = null;
+                }
+                return tryForcedHlsFallback({ ...channel, url: sourceUrl });
+            };
+
             try {
                 const player = engine.createPlayer(
                     {
@@ -1938,20 +1996,21 @@ createApp({
                     }
                 );
                 mpegtsPlayer.value = player;
-                player.on(engine.Events.ERROR, (_, detail) => {
+                player.on(engine.Events.ERROR, async (_, detail) => {
                     const message = detail?.msg || detail?.message || 'MPEGTS error';
+                    if (await tryMpegTsHlsFallback()) {
+                        return;
+                    }
                     playbackError.value = `Playback error: ${message}`;
                 });
                 player.attachMediaElement(video);
                 player.load();
                 await player.play();
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
-                console.warn('MPEGTS playback failed, falling back to native.', e);
-                if (mpegtsPlayer.value) {
-                    try {
-                        mpegtsPlayer.value.destroy();
-                    } catch (_) {}
-                    mpegtsPlayer.value = null;
+                console.warn('MPEGTS playback failed, trying /hls fallback.', e);
+                if (await tryMpegTsHlsFallback()) {
+                    return;
                 }
                 await loadNative({ ...channel, url: sourceUrl });
             }
@@ -1967,6 +2026,7 @@ createApp({
             video.src = sourceUrl;
             try {
                 await video.play();
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
             } catch (e) {
                 // If backend proxy fails transiently, retry once with cache-busting query.
                 const isProxyUrl = String(sourceUrl || '').includes('/proxy-stream');
@@ -1977,6 +2037,7 @@ createApp({
                         sourceUrl = parsed.toString();
                         video.src = sourceUrl;
                         await video.play();
+                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         return;
                     } catch (retryProxyErr) {
                         console.warn('Proxy retry failed.', retryProxyErr);
@@ -1990,6 +2051,7 @@ createApp({
                         sourceUrl = downgraded;
                         video.src = sourceUrl;
                         await video.play();
+                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         return;
                     } catch (retryErr) {
                         console.warn('HTTP fallback failed.', retryErr);
@@ -2104,6 +2166,7 @@ createApp({
             try {
                 await player.attach(video);
                 await player.load(channel.url);
+                playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka');
                 refreshShakaTracks(player);
                 player.addEventListener('trackschanged', () => refreshShakaTracks(player));
                 player.addEventListener('variantchanged', () => refreshShakaTracks(player));
@@ -2470,6 +2533,10 @@ createApp({
             }
         });
 
+        watch([currentChannelDebugTitle, playbackLoading], () => {
+            setBrowserTitle();
+        }, { immediate: true });
+
         return {
             activeTab,
             viewState,
@@ -2497,6 +2564,8 @@ createApp({
             seriesDetailLoading,
             vodDetailLoading,
             currentChannelName,
+            currentChannelDebugTitle,
+            playbackMode,
             isActiveChannel,
             isActiveBookmark,
             isActiveWatchingNowRow,

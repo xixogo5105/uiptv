@@ -10,9 +10,13 @@
     const audioSelectEl = document.getElementById('audio-select');
     const subtitleSelectEl = document.getElementById('subtitle-select');
     const qualitySelectEl = document.getElementById('quality-select');
+    const APP_TITLE = 'UIPTV Player';
     let shakaPlayer = null;
+    let mpegtsPlayer = null;
     let activeLaunch = null;
     let activeBingeWatch = null;
+    let mediaBaseTitle = '';
+    let playbackMode = '';
     let repeatEnabled = false;
     let repeatReloadInFlight = false;
     let stallMonitorTimer = null;
@@ -32,6 +36,40 @@
         if (!statusEl) return;
         statusEl.textContent = message || '';
         statusEl.style.display = message ? 'block' : 'none';
+    };
+
+    const renderMediaTitle = () => {
+        if (!mediaTitleEl) return;
+        const title = cleanValue(mediaBaseTitle);
+        const mode = cleanValue(playbackMode);
+        mediaTitleEl.textContent = title && mode ? `${title} [${mode}]` : title;
+    };
+
+    const currentMediaTitle = () => cleanValue(mediaBaseTitle || mediaTitleEl?.textContent || '');
+
+    const updateDocumentTitle = () => {
+        const title = cleanValue(mediaBaseTitle);
+        const mode = cleanValue(playbackMode);
+        if (!title) {
+            document.title = APP_TITLE;
+            return;
+        }
+        document.title = mode ? `${title} [${mode}] | ${APP_TITLE}` : `${title} | ${APP_TITLE}`;
+    };
+
+    const resolvePlaybackModeLabel = (url, strategy = '') => {
+        const lowerUrl = cleanValue(url).toLowerCase();
+        const normalizedStrategy = cleanValue(strategy).toLowerCase();
+        if (normalizedStrategy === 'youtube') return 'youtube';
+        if (lowerUrl.includes('/proxy-stream')) return 'proxy';
+        if (lowerUrl.includes('/hls/stream.m3u8')) return 'hls';
+        if (normalizedStrategy === 'mpegts') return 'mpegts';
+        if (normalizedStrategy === 'shaka') {
+            if (lowerUrl.includes('.mpd')) return 'dash';
+            if (lowerUrl.includes('.m3u8')) return 'hls';
+            return 'shaka';
+        }
+        return 'direct';
     };
 
     const launchMode = (launch) => cleanValue(launch?.mode || 'itv').toLowerCase();
@@ -95,7 +133,7 @@
     const setMetadata = (launch, responseData) => {
         if (!mediaTitleEl || !mediaSubtitleEl) return;
         const channel = responseData?.channel || launch?.channel || {};
-        const title = cleanValue(responseData?.title) || cleanValue(channel.name) || 'UIPTV Player';
+        const title = cleanValue(responseData?.title) || cleanValue(channel.name) || APP_TITLE;
         const season = cleanValue(channel.season || responseData?.channel?.season);
         const episodeNum = cleanValue(channel.episodeNum || responseData?.channel?.episodeNum || responseData?.bingeWatch?.currentEpisodeId);
         const subtitleParts = [];
@@ -108,8 +146,10 @@
         if (episodeNum) {
             subtitleParts.push(`Episode ${episodeNum}`);
         }
-        mediaTitleEl.textContent = title;
+        mediaBaseTitle = title;
+        renderMediaTitle();
         mediaSubtitleEl.textContent = subtitleParts.join(' • ');
+        updateDocumentTitle();
     };
 
     const resolveCategoryForMode = (payload, mode) => {
@@ -283,8 +323,27 @@
         }
     };
 
+    const addPreferHls = (url) => {
+        try {
+            const parsed = new URL(url, window.location.origin);
+            parsed.searchParams.set('preferHls', '1');
+            return parsed.toString();
+        } catch (_) {
+            const separator = url.includes('?') ? '&' : '?';
+            return `${url}${separator}preferHls=1`;
+        }
+    };
+
     const destroyPlayer = async () => {
         stopStallMonitor();
+        if (mpegtsPlayer) {
+            try {
+                mpegtsPlayer.destroy();
+            } catch (_) {
+                // Ignore cleanup errors.
+            }
+            mpegtsPlayer = null;
+        }
         if (shakaPlayer) {
             try {
                 await shakaPlayer.destroy();
@@ -484,10 +543,29 @@
 
     const normalizeStrategyName = (value) => {
         const normalized = cleanValue(value).toLowerCase().replace(/_/g, '-');
-        if (normalized === 'shaka' || normalized === 'native' || normalized === 'native-proxy') {
+        if (normalized === 'shaka' || normalized === 'native' || normalized === 'native-proxy' || normalized === 'mpegts') {
             return normalized;
         }
         return '';
+    };
+
+    const isTsLikeResponse = (responseData) => {
+        const lowerUrl = String(responseData?.url || '').toLowerCase();
+        const manifestType = cleanValue(responseData?.drm?.manifestType || responseData?.manifestType).toLowerCase();
+        return manifestType === 'ts'
+            || manifestType === 'mpegts'
+            || manifestType === 'mpeg2ts'
+            || lowerUrl.includes('.ts?')
+            || lowerUrl.endsWith('.ts')
+            || lowerUrl.includes('.m2ts?')
+            || lowerUrl.endsWith('.m2ts')
+            || lowerUrl.includes('extension=ts')
+            || lowerUrl.includes('/live/play/');
+    };
+
+    const canUseMpegts = () => {
+        const engine = window.mpegts;
+        return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
     };
 
     const resolvePrimaryStrategy = (responseData, launch) => {
@@ -506,6 +584,9 @@
         if (hint && (hint !== 'shaka' || shakaEligible)) {
             return hint;
         }
+        if (isTsLikeResponse(responseData) && canUseMpegts()) {
+            return 'mpegts';
+        }
         if (lowerUrl.includes('.mpd') || lowerUrl.includes('/hls/stream.m3u8')) {
             return 'shaka';
         }
@@ -523,6 +604,9 @@
         }
         const normalizedUrl = cleanValue(responseData?.url);
         const plan = [resolvePrimaryStrategy(responseData, launch)];
+        if (isTsLikeResponse(responseData)) {
+            plan.push('prefer-hls');
+        }
         plan.push('native');
         if (buildProxyUrl(normalizedUrl)) {
             plan.push('native-proxy');
@@ -588,14 +672,33 @@
     };
 
     const attemptStrategy = async (strategy, responseData, launch, timeoutMs) => {
-        const playbackUrl = playbackUrlForStrategy(strategy, responseData?.url);
+        let strategyResponse = responseData;
+        let playbackUrl = playbackUrlForStrategy(strategy, responseData?.url);
+        if (strategy === 'prefer-hls') {
+            const baseRequestUrl = (!!cleanValue(launch?.bingeWatchToken) || !!cleanValue(launch?.directUrl || launch?.url))
+                ? buildDirectPlayerRequestUrl(launch)
+                : buildPlayerRequestUrl(launch);
+            const forcedResponse = await fetch(addPreferHls(baseRequestUrl), {cache: 'no-store'});
+            strategyResponse = await forcedResponse.json();
+            playbackUrl = cleanValue(strategyResponse?.url);
+            if (!playbackUrl || playbackUrl === cleanValue(responseData?.url)) {
+                throw new Error('forced-hls-unavailable');
+            }
+            setMetadata(launch, strategyResponse);
+        }
         if (!playbackUrl) {
             throw new Error('empty-playback-url');
         }
-        const shakaPayload = {...responseData, url: playbackUrl};
+        const playbackStrategy = strategy === 'prefer-hls' ? resolvePrimaryStrategy(strategyResponse, launch) : strategy;
+        playbackMode = resolvePlaybackModeLabel(playbackUrl, playbackStrategy);
+        renderMediaTitle();
+        updateDocumentTitle();
+        const shakaPayload = {...strategyResponse, url: playbackUrl};
         let started;
-        if (strategy === 'shaka') {
+        if (playbackStrategy === 'shaka') {
             started = await loadShaka(shakaPayload);
+        } else if (playbackStrategy === 'mpegts') {
+            started = await loadMpegTs(playbackUrl);
         } else {
             started = await loadNative(playbackUrl);
         }
@@ -603,7 +706,9 @@
             return {autoplayBlocked: true, playbackUrl};
         }
         await waitForPlaybackStart(timeoutMs);
-        rememberStrategy(launch, responseData, strategy);
+        if (strategy !== 'prefer-hls') {
+            rememberStrategy(launch, responseData, playbackStrategy);
+        }
         return {autoplayBlocked: false, playbackUrl};
     };
 
@@ -654,12 +759,18 @@
     const requestAndStartPlayback = async (launch, options = {}) => {
         activeLaunch = launch;
         repeatReloadInFlight = false;
+        playbackMode = 'loading';
+        renderMediaTitle();
+        updateDocumentTitle();
         setStatus('Requesting playback URL...');
         const hasBingeWatch = !!cleanValue(launch?.bingeWatchToken);
         const hasDirectUrl = !!cleanValue(launch?.directUrl || launch?.url);
         let requestUrl = (hasBingeWatch || hasDirectUrl)
             ? buildDirectPlayerRequestUrl(launch)
             : buildPlayerRequestUrl(launch);
+        if (options.preferHls) {
+            requestUrl = addPreferHls(requestUrl);
+        }
         if (options.cacheBust) {
             requestUrl = addCacheBuster(requestUrl, '_repeatTs');
         }
@@ -710,6 +821,33 @@
     const loadNative = async (url) => {
         videoEl.src = url;
         return await ensurePlaying();
+    };
+
+    const loadMpegTs = async (url) => {
+        const engine = window.mpegts;
+        if (!canUseMpegts()) {
+            throw new Error('mpegts-not-supported');
+        }
+        const player = engine.createPlayer(
+            {
+                type: 'mpegts',
+                isLive: launchMode(activeLaunch) === 'itv',
+                url
+            },
+            {
+                enableWorker: true,
+                lazyLoad: false
+            }
+        );
+        mpegtsPlayer = player;
+        player.on(engine.Events.ERROR, (_, detail) => {
+            const message = detail?.msg || detail?.message || 'MPEGTS error';
+            setStatus('Playback error: ' + message);
+        });
+        player.attachMediaElement(videoEl);
+        player.load();
+        await player.play();
+        return true;
     };
 
     const isAutoplayBlockError = (error) => {
@@ -902,6 +1040,7 @@
         const payload = parseLaunchPayload();
         const directLaunch = parseDirectLaunch();
         videoEl.controls = true;
+        updateDocumentTitle();
 
         try {
             const launch = directLaunch || (payload && (payload.channel || payload.directUrl || payload.bingeWatchToken) ? payload : null);

@@ -17,7 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
             crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="/css/spa.css?v=20260309f">
+    <link rel="stylesheet" href="/css/spa.css?v=20260310b">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <!-- Shaka Player -->
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
@@ -445,7 +445,7 @@
                     <div id="player-overlay" :style="{ opacity: showOverlay ? 1 : 0 }">
                         <div class="d-flex justify-content-between align-items-center w-100">
                             <div class="d-flex align-items-center">
-                                <h4 id="headerTitle" class="mb-0">{{ currentChannelName }}</h4>
+                                <h4 id="headerTitle" class="mb-0">{{ currentChannelDebugTitle }}</h4>
                                 <span v-if="playbackLoading" class="spinner-border spinner-border-sm text-light ms-3" role="status" aria-hidden="true"></span>
                             </div>
                             <div>
@@ -570,7 +570,7 @@
     </div>
 </div>
 
-<script src="/javascript/spa.js?v=20260309f"></script>
+<script src="/javascript/spa.js?v=20260310b"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
