@@ -20,6 +20,7 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
+import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -27,6 +28,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
@@ -283,18 +285,24 @@ public class AccountListUI extends HBox {
         return new TableCell<>() {
             private final HBox graphic = new HBox(6);
             private final SVGPath pinIcon = new SVGPath();
+            private final StackPane pinIconWrapper = new StackPane(pinIcon);
             private final Label nameLabel = new Label();
             private final Pane spacer = new Pane();
 
             {
-                pinIcon.setContent("M8 0 L12 4 L10 6 L10 13 L8 16 L6 13 L6 6 L4 4 Z");
+                pinIcon.setContent("M125,0A79.55,79.55,0,0,0,45.48,79.57C45.48,123.49,125,250,125,250s79.52-126.51,79.52-170.43A79.55,79.55,0,0,0,125,0Zm0,117.7a34.09,34.09,0,1,1,34.09-34.09A34.07,34.07,0,0,1,125,117.7Z");
                 pinIcon.setFill(Color.BLACK);
-                pinIcon.setVisible(false);
-                pinIcon.setManaged(false);
+                pinIcon.setScaleX(0.06);
+                pinIcon.setScaleY(0.06);
+                pinIconWrapper.setPrefSize(16, 16);
+                pinIconWrapper.setMinSize(16, 16);
+                pinIconWrapper.setMaxSize(16, 16);
+                pinIconWrapper.setVisible(false);
+                pinIconWrapper.setManaged(false);
 
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(pinIcon, nameLabel, spacer);
+                graphic.getChildren().addAll(pinIconWrapper, nameLabel, spacer);
             }
 
             @Override
@@ -319,8 +327,8 @@ public class AccountListUI extends HBox {
 
                 nameLabel.setText(item);
                 boolean pinned = accountItem.isPinToTop();
-                pinIcon.setVisible(pinned);
-                pinIcon.setManaged(pinned);
+                pinIconWrapper.setVisible(pinned);
+                pinIconWrapper.setManaged(pinned);
                 setText(null);
                 setGraphic(graphic);
             }
