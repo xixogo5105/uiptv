@@ -782,21 +782,16 @@ createApp({
             const currentId = resolveChannelIdentity(current);
             if (targetId && currentId && targetId !== currentId) return false;
 
-            if (!targetId || !currentId) {
-                const targetName = normalizePlaybackName(name);
-                const currentName = normalizePlaybackName(current.name || current.channelName || '');
-                if (targetName && currentName && targetName !== currentName) return false;
-            }
+            const targetName = normalizePlaybackName(name);
+            const currentName = normalizePlaybackName(current.name || current.channelName || '');
+            const hasNameMatch = !!(targetName && currentName && targetName === currentName);
 
             if (currentMode === 'series' && !matchesSeriesProgress({season, episodeNum}, current)) {
                 return false;
             }
 
-            return !!(
-                normalizedBookmarkId
-                || targetId
-                || normalizePlaybackName(name)
-            );
+            const hasIdMatch = !!(targetId && currentId && targetId === currentId);
+            return !!(normalizedBookmarkId || hasIdMatch || hasNameMatch);
         };
 
         const buildPlaybackTargetKey = ({

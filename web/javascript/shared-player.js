@@ -121,11 +121,16 @@
         };
 
         const bindActions = (actions = {}, options = {}) => {
+            const alwaysEnabledActions = new Set(['reload', 'strategy-menu']);
             actionHandlers = actions || {};
             const hideMissing = options.hideMissing === true;
             nodes.buttons.forEach((button) => {
                 const action = button.dataset.action;
-                const handler = actionHandlers[action];
+                let handler = actionHandlers[action];
+                if (typeof handler !== 'function' && alwaysEnabledActions.has(action)) {
+                    handler = () => {};
+                    actionHandlers[action] = handler;
+                }
                 if (typeof handler !== 'function') {
                     if (hideMissing) {
                         button.hidden = true;
