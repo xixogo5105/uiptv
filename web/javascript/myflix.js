@@ -85,6 +85,8 @@ createApp({
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
+        const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
+        const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
         const notifyPlayerClosed = (reason = 'stop') => {
             if (!playbackUtils || typeof playbackUtils.notifyPlayerClose !== 'function') {
                 return;
@@ -2128,7 +2130,30 @@ createApp({
         const switchVideoTrack = (trackId) => {
             if (!playerInstance.value) return;
             const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
-            if (track) playerInstance.value.selectVariantTrack(track, true);
+            if (track) {
+                setMaxQualityEnabled(false);
+                if (typeof playerInstance.value.configure === 'function') {
+                    playerInstance.value.configure('abr.enabled', false);
+                }
+                playerInstance.value.selectVariantTrack(track, true);
+                videoTracks.value = playerInstance.value.getVariantTracks();
+            }
+        };
+
+        const switchVideoAuto = () => {
+            if (!playerInstance.value) return;
+            setMaxQualityEnabled(false);
+            if (typeof playerInstance.value.configure === 'function') {
+                playerInstance.value.configure('abr.enabled', true);
+            }
+            videoTracks.value = playerInstance.value.getVariantTracks();
+        };
+
+        const switchVideoMax = () => {
+            if (!playerInstance.value) return;
+            setMaxQualityEnabled(true);
+            applyMaxQualityPreference(playerInstance.value);
+            videoTracks.value = playerInstance.value.getVariantTracks();
         };
 
         const switchAudioTrack = (trackId) => {
@@ -2372,11 +2397,29 @@ createApp({
 
         const syncSharedMenus = () => {
             if (!sharedHeader) return;
+            const maxEnabled = isMaxQualityEnabled();
+            const abrEnabled = (() => {
+                try {
+                    return !!playerInstance.value?.getConfiguration()?.abr?.enabled;
+                } catch (_) {
+                    return false;
+                }
+            })();
             const qualityItems = [];
+            qualityItems.push({
+                label: 'Max',
+                active: maxEnabled,
+                onSelect: () => onPlayerControlClick(null, switchVideoMax)
+            });
+            qualityItems.push({
+                label: 'Auto',
+                active: abrEnabled && !maxEnabled,
+                onSelect: () => onPlayerControlClick(null, switchVideoAuto)
+            });
             (videoTracks.value || []).forEach((track) => {
                 qualityItems.push({
                     label: `${track.height || ''}p`.trim() || 'Auto',
-                    active: !!track.active,
+                    active: !!track.active && !abrEnabled && !maxEnabled,
                     onSelect: () => onPlayerControlClick(null, switchVideoTrack, track.id)
                 });
             });
@@ -2451,8 +2494,37 @@ createApp({
                 || window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.640028"');
         };
 
+        const selectHighestVariantTrack = (player) => {
+            if (!player || typeof player.getVariantTracks !== 'function') return null;
+            const variants = player.getVariantTracks() || [];
+            const candidates = variants.filter(track => track && !track.audioOnly);
+            if (candidates.length === 0) return null;
+            candidates.sort((a, b) => (Number(b.height || 0) - Number(a.height || 0))
+                || (Number(b.bandwidth || 0) - Number(a.bandwidth || 0)));
+            const top = candidates[0];
+            if (top && typeof player.selectVariantTrack === 'function') {
+                player.selectVariantTrack(top, true);
+            }
+            return top;
+        };
+
+        const applyMaxQualityPreference = (player) => {
+            if (!player || !isMaxQualityEnabled()) return false;
+            if (typeof player.configure === 'function') {
+                player.configure('abr.enabled', false);
+            }
+            return !!selectHighestVariantTrack(player);
+        };
+
         const autoSelectBestTrack = (player) => {
             if (!player) return;
+            if (isMaxQualityEnabled()) {
+                applyMaxQualityPreference(player);
+                return;
+            }
+            if (typeof player.configure === 'function') {
+                player.configure('abr.enabled', true);
+            }
             const tracks = (player.getVariantTracks() || []).filter(t => !t.audioOnly);
             if (!tracks.length) return;
 
@@ -2737,6 +2809,8 @@ createApp({
             clearWebCacheAndReload,
             resetApp,
             switchVideoTrack,
+            switchVideoAuto,
+            switchVideoMax,
             switchAudioTrack,
             switchTextTrack
         };

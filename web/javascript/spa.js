@@ -686,6 +686,8 @@ createApp({
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
+        const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
+        const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
         const notifyPlayerClosed = (reason = 'stop') => {
             if (!playbackUtils || typeof playbackUtils.notifyPlayerClose !== 'function') {
                 return;
@@ -2628,8 +2630,33 @@ createApp({
             }
         };
 
+        const selectHighestVariantTrack = (player) => {
+            if (!player || typeof player.getVariantTracks !== 'function') return null;
+            const variants = player.getVariantTracks() || [];
+            const candidates = variants.filter(track => track && !track.audioOnly);
+            if (candidates.length === 0) return null;
+            candidates.sort((a, b) => (Number(b.height || 0) - Number(a.height || 0))
+                || (Number(b.bandwidth || 0) - Number(a.bandwidth || 0)));
+            const top = candidates[0];
+            if (top && typeof player.selectVariantTrack === 'function') {
+                player.selectVariantTrack(top, true);
+            }
+            return top;
+        };
+
+        const applyMaxQualityPreference = (player) => {
+            if (!player || !isMaxQualityEnabled()) return false;
+            if (typeof player.configure === 'function') {
+                player.configure('abr.enabled', false);
+            }
+            return !!selectHighestVariantTrack(player);
+        };
+
         const refreshShakaTracks = (player) => {
             if (!player) return;
+            if (isMaxQualityEnabled()) {
+                applyMaxQualityPreference(player);
+            }
             const allVariants = typeof player.getVariantTracks === 'function' ? (player.getVariantTracks() || []) : [];
             videoTracks.value = allVariants
                 .filter(track => track && !track.audioOnly)
@@ -2671,6 +2698,7 @@ createApp({
             if (!playerInstance.value) return;
             const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
             if (track) {
+                setMaxQualityEnabled(false);
                 playerInstance.value.selectVariantTrack(track, true);
                 if (typeof playerInstance.value.configure === 'function') {
                     playerInstance.value.configure('abr.enabled', false);
@@ -2681,9 +2709,17 @@ createApp({
 
         const switchVideoAuto = () => {
             if (!playerInstance.value) return;
+            setMaxQualityEnabled(false);
             if (typeof playerInstance.value.configure === 'function') {
                 playerInstance.value.configure('abr.enabled', true);
             }
+            refreshShakaTracks(playerInstance.value);
+        };
+
+        const switchVideoMax = () => {
+            if (!playerInstance.value) return;
+            setMaxQualityEnabled(true);
+            applyMaxQualityPreference(playerInstance.value);
             refreshShakaTracks(playerInstance.value);
         };
 
@@ -2980,6 +3016,7 @@ createApp({
 
         const syncSharedMenus = () => {
             if (!sharedHeader) return;
+            const maxEnabled = isMaxQualityEnabled();
             const abrEnabled = (() => {
                 try {
                     return !!playerInstance.value?.getConfiguration()?.abr?.enabled;
@@ -2989,14 +3026,19 @@ createApp({
             })();
             const qualityItems = [];
             qualityItems.push({
+                label: 'Max',
+                active: maxEnabled,
+                onSelect: () => onPlayerControlClick(null, switchVideoMax)
+            });
+            qualityItems.push({
                 label: 'Auto',
-                active: abrEnabled,
+                active: abrEnabled && !maxEnabled,
                 onSelect: () => onPlayerControlClick(null, switchVideoAuto)
             });
             (videoTracks.value || []).forEach((track) => {
                 qualityItems.push({
                     label: formatVideoTrackLabel(track),
-                    active: !!track.active && !abrEnabled,
+                    active: !!track.active && !abrEnabled && !maxEnabled,
                     onSelect: () => onPlayerControlClick(null, switchVideoTrack, track.id)
                 });
             });
@@ -3350,6 +3392,7 @@ createApp({
             resetApp,
             switchVideoTrack,
             switchVideoAuto,
+            switchVideoMax,
             switchAudioTrack,
             switchTextTrack,
             formatVideoTrackLabel,

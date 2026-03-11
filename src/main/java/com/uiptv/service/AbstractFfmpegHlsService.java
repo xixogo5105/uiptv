@@ -14,7 +14,7 @@ abstract class AbstractFfmpegHlsService {
     protected static final String STREAM_FILENAME = "stream.m3u8";
     private static final String FFMPEG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
     private static final int HLS_START_MAX_ATTEMPTS = Integer.getInteger("uiptv.hls.start.max.attempts", 400);
-    private static final int HLS_START_WAIT_MILLIS = Integer.getInteger("uiptv.hls.start.wait.millis", 100);
+    private static final int HLS_START_WAIT_MILLIS = Integer.getInteger("uiptv.hls.start.wait.millis", 10);
     private static final int LIVE_HLS_TIME_SECONDS = Integer.getInteger("uiptv.hls.live.segment.seconds", 2);
     private static final int LIVE_HLS_LIST_SIZE = Integer.getInteger("uiptv.hls.live.list.size", 40);
     private static final int INPUT_RECONNECT_DELAY_MAX_SECONDS = Integer.getInteger("uiptv.hls.input.reconnect.delay.max.seconds", 3);

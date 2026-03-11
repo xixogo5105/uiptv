@@ -86,6 +86,16 @@
         }
     };
 
+    const SHAKA_MAX_QUALITY_KEY = 'uiptv.shaka.quality.max';
+    const getShakaMaxQuality = () => {
+        if (!window.localStorage) return false;
+        return localStorage.getItem(SHAKA_MAX_QUALITY_KEY) === '1';
+    };
+    const setShakaMaxQuality = (enabled) => {
+        if (!window.localStorage) return;
+        localStorage.setItem(SHAKA_MAX_QUALITY_KEY, enabled ? '1' : '0');
+    };
+
     const emitPlayerEvent = (name, detail = {}) => {
         const payload = {
             ...detail,
@@ -119,6 +129,8 @@
         normalizeWebPlaybackUrl,
         buildForcedHlsPlaybackRequestUrl,
         normalizeDisplayText,
+        getShakaMaxQuality,
+        setShakaMaxQuality,
         emitPlayerEvent,
         notifyPlayerClose
     };

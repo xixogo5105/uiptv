@@ -35,6 +35,8 @@
     const playbackUtils = window.UIPTVPlaybackUtils;
     const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
     const headerEl = document.querySelector('[data-uiptv-header]');
+    const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
+    const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
     let shakaPlayer = null;
     let mpegtsPlayer = null;
     let activeLaunch = null;
@@ -1393,6 +1395,34 @@
         return parts.join(' ');
     };
 
+    const selectHighestVariantTrack = () => {
+        if (!shakaPlayer || typeof shakaPlayer.getVariantTracks !== 'function') {
+            return null;
+        }
+        const variants = shakaPlayer.getVariantTracks() || [];
+        const candidates = variants.filter(track => track && !track.audioOnly);
+        if (candidates.length === 0) {
+            return null;
+        }
+        candidates.sort((a, b) => (Number(b.height || 0) - Number(a.height || 0))
+            || (Number(b.bandwidth || 0) - Number(a.bandwidth || 0)));
+        const top = candidates[0];
+        if (top && typeof shakaPlayer.selectVariantTrack === 'function') {
+            shakaPlayer.selectVariantTrack(top, true);
+        }
+        return top;
+    };
+
+    const applyMaxQualityPreference = () => {
+        if (!isMaxQualityEnabled() || !shakaPlayer) {
+            return false;
+        }
+        if (typeof shakaPlayer.configure === 'function') {
+            shakaPlayer.configure({abr: {enabled: false}});
+        }
+        return !!selectHighestVariantTrack();
+    };
+
     const refreshResolutionFromShaka = () => {
         if (!shakaPlayer || typeof shakaPlayer.getVariantTracks !== 'function') {
             setPlaybackResolution(currentVideoResolution());
@@ -1449,21 +1479,33 @@
         }
         const activeTrack = variants.find(track => track.active);
         const abrEnabled = shakaPlayer.getConfiguration ? !!shakaPlayer.getConfiguration()?.abr?.enabled : true;
-        const activeLabel = abrEnabled || !activeTrack ? 'Auto' : qualityLabelForTrack(activeTrack);
+        const maxEnabled = isMaxQualityEnabled();
+        const activeLabel = maxEnabled ? 'Max' : (abrEnabled || !activeTrack ? 'Auto' : qualityLabelForTrack(activeTrack));
         const items = [{
+            id: 'max',
+            label: 'Quality Max',
+            active: maxEnabled
+        }, {
             id: 'auto',
             label: 'Quality Auto',
-            active: abrEnabled || !activeTrack
+            active: abrEnabled && !maxEnabled
         }];
         unique.forEach((item) => {
             items.push({
                 id: String(item.track.id),
                 label: qualityLabelForTrack(item.track),
-                active: !abrEnabled && activeTrack && String(activeTrack.id) === String(item.track.id)
+                active: !abrEnabled && !maxEnabled && activeTrack && String(activeTrack.id) === String(item.track.id)
             });
         });
         renderMenuItems(qualityMenuEl, items, (item) => {
+            if (item.id === 'max') {
+                setMaxQualityEnabled(true);
+                applyMaxQualityPreference();
+                populateTrackMenus();
+                return;
+            }
             if (item.id === 'auto') {
+                setMaxQualityEnabled(false);
                 if (typeof shakaPlayer.configure === 'function') {
                     shakaPlayer.configure({abr: {enabled: true}});
                 }
@@ -1474,6 +1516,7 @@
             if (!track) {
                 return;
             }
+            setMaxQualityEnabled(false);
             shakaPlayer.configure({abr: {enabled: false}});
             shakaPlayer.selectVariantTrack(track, true);
             populateTrackMenus();
@@ -1484,6 +1527,9 @@
 
     const populateTrackMenus = () => {
         if (!shakaPlayer) return;
+        if (isMaxQualityEnabled()) {
+            applyMaxQualityPreference();
+        }
 
         if (audioMenuEl) {
             const variants = shakaPlayer.getVariantTracks ? (shakaPlayer.getVariantTracks() || []) : [];
