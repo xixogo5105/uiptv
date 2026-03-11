@@ -17,6 +17,7 @@
     <script crossorigin="anonymous"
             integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
             src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="/css/shared-player.css?v=20260311a" rel="stylesheet">
     <link href="/css/spa.css?v=20260310c" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <!-- Shaka Player -->
@@ -25,6 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
     <script src="/javascript/playback-utils.js?v=20260310a"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
+    <script src="/javascript/shared-player.js?v=20260311a"></script>
     <script src="/javascript/bookmark-watch-utils.js?v=20260310d"></script>
 </head>
 <body>
@@ -38,111 +40,7 @@
         </div>
         <div class="top-bar-middle d-flex align-items-center">
             <div class="top-bar-left-spacer"></div>
-            <span :title="currentChannelDebugTitle" class="top-bar-now-playing me-3" v-if="isPlaying">
-                <span class="top-bar-title-loading" v-if="playbackMode === 'loading'">
-                    <span aria-hidden="true" class="spinner-border spinner-border-sm text-info" role="status"></span>
-                    <span class="ms-2">{{ currentChannelName || 'Loading' }}</span>
-                </span>
-                <span v-else>{{ currentChannelDebugTitle }}</span>
-            </span>
-            <div class="d-flex align-items-center top-bar-player-controls ms-auto" v-if="isPlaying">
-                <button @click="onPlayerControlClick($event, toggleFavorite)"
-                        class="btn btn-link text-white me-1 top-bar-player-btn" title="Favorite">
-                    <i :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'" class="bi"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, reloadPlayback)"
-                        class="btn btn-link text-white me-1 top-bar-player-btn" title="Reload">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, toggleRepeat)"
-                        class="btn btn-link text-white me-1 top-bar-player-btn" title="Repeat playback">
-                    <i :class="repeatEnabled ? 'bi-repeat-1 text-warning' : 'bi-repeat'" class="bi"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, togglePictureInPicture)"
-                        class="btn btn-link text-white me-1 top-bar-player-btn" title="Picture in Picture">
-                    <i class="bi bi-pip"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, toggleMute)"
-                        :title="isMuted ? 'Unmute' : 'Mute'"
-                        class="btn btn-link text-white me-1 top-bar-player-btn">
-                    <i :class="isMuted ? 'bi-volume-mute-fill text-warning' : 'bi-volume-up'" class="bi"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, requestFullscreenPlayer)"
-                        :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
-                        class="btn btn-link text-white me-1 top-bar-player-btn">
-                    <i :class="isFullscreen ? 'bi-fullscreen-exit' : 'bi-fullscreen'" class="bi"></i>
-                </button>
-                <div class="dropdown d-inline-block">
-                    <button aria-expanded="false" class="btn btn-link text-white me-1 top-bar-player-btn"
-                            data-bs-toggle="dropdown" id="resolutionMenuButton" title="Resolutions"
-                            type="button">
-                        <i class="bi bi-gear-fill"></i>
-                    </button>
-                    <ul aria-labelledby="resolutionMenuButton" class="dropdown-menu dropdown-menu-end">
-                        <li>
-                            <a @click="onPlayerControlClick($event, switchVideoAuto)" class="dropdown-item" href="#">
-                                Auto
-                            </a>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li :key="track.id" v-for="track in videoTracks">
-                            <a @click="onPlayerControlClick($event, switchVideoTrack, track.id)" class="dropdown-item"
-                               href="#">
-                                {{ formatVideoTrackLabel(track) }}
-                                <span class="badge bg-primary ms-2" v-if="track.active">Active</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="dropdown d-inline-block">
-                    <button aria-expanded="false" class="btn btn-link text-white me-1 top-bar-player-btn" data-bs-toggle="dropdown"
-                            id="audioMenuButton" title="Audio tracks" type="button">
-                        <i class="bi bi-music-note-list"></i>
-                    </button>
-                    <ul aria-labelledby="audioMenuButton" class="dropdown-menu dropdown-menu-end">
-                        <li v-if="!audioTracks || audioTracks.length === 0"><span class="dropdown-item-text text-muted">No audio tracks</span>
-                        </li>
-                        <li :key="'audio-' + track.id" v-for="(track, index) in audioTracks">
-                            <a @click="onPlayerControlClick($event, switchAudioTrack, track.id)" class="dropdown-item"
-                               href="#">
-                                {{ formatAudioTrackLabel(track, index) }}
-                                <span class="badge bg-primary ms-2" v-if="track.active">Active</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="dropdown d-inline-block">
-                    <button aria-expanded="false" class="btn btn-link text-white me-1 top-bar-player-btn"
-                            data-bs-toggle="dropdown" id="subtitleMenuButton" title="Subtitles" type="button">
-                        <i class="bi bi-badge-cc"></i>
-                    </button>
-                    <ul aria-labelledby="subtitleMenuButton" class="dropdown-menu dropdown-menu-end">
-                        <li>
-                            <a @click="onPlayerControlClick($event, switchTextTrack, 'off')" class="dropdown-item"
-                               href="#">
-                                Off
-                                <span class="badge bg-primary ms-2" v-if="selectedTextTrackId === 'off'">Active</span>
-                            </a>
-                        </li>
-                        <li v-if="!textTracks || textTracks.length === 0"><span class="dropdown-item-text text-muted">No subtitles</span>
-                        </li>
-                        <li :key="'sub-' + track.id" v-for="(track, index) in textTracks">
-                            <a @click="onPlayerControlClick($event, switchTextTrack, track.id)" class="dropdown-item"
-                               href="#">
-                                {{ formatTextTrackLabel(track, index) }}
-                                <span class="badge bg-primary ms-2"
-                                      v-if="String(selectedTextTrackId) === String(track.id)">Active</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <button @click="stopPlaybackAndHide" class="btn btn-link text-white me-2 top-bar-player-btn"
-                        title="Stop">
-                    <i class="bi bi-stop-circle-fill" style="font-size: 1.2rem;"></i>
-                </button>
-            </div>
+            <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="compact"></div>
         </div>
         <div class="d-flex align-items-center top-bar-actions">
             <button :title="'Theme: ' + theme" @click="toggleTheme"

@@ -17,12 +17,14 @@
     <script crossorigin="anonymous"
             integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
             src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="/css/shared-player.css?v=20260311a" rel="stylesheet">
     <link href="/css/myflix.css?v=20260224a" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
     <script src="/javascript/playback-utils.js?v=20260310a"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
+    <script src="/javascript/shared-player.js?v=20260311a"></script>
     <script src="/javascript/bookmark-watch-utils.js?v=20260310d"></script>
 </head>
 <body>
@@ -34,104 +36,7 @@
         </div>
         <div class="nf-topbar-middle">
             <div class="nf-topbar-left-spacer"></div>
-            <span :title="currentChannelDebugTitle" class="nf-topbar-title" v-if="isPlaying">
-                <span class="nf-title-loading" v-if="playbackMode === 'loading'">
-                    <span aria-hidden="true" class="spinner-border spinner-border-sm text-info" role="status"></span>
-                    <span class="ms-2">{{ currentChannelName || 'Loading' }}</span>
-                </span>
-                <span v-else>{{ currentChannelDebugTitle || 'Now Playing' }}</span>
-            </span>
-            <div class="d-flex align-items-center nf-topbar-controls ms-auto" v-if="isPlaying">
-                <button @click="onPlayerControlClick($event, toggleFavorite)"
-                        class="btn btn-link text-white me-1 nf-topbar-control-btn" title="Favorite">
-                    <i :class="isCurrentFavorite ? 'bi-heart-fill text-danger' : 'bi-heart'" class="bi"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, reloadPlayback)"
-                        class="btn btn-link text-white me-1 nf-topbar-control-btn" title="Reload">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, toggleRepeat)"
-                        class="btn btn-link text-white me-1 nf-topbar-control-btn" title="Repeat playback">
-                    <i :class="repeatEnabled ? 'bi-repeat-1 text-warning' : 'bi-repeat'" class="bi"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, togglePictureInPicture)"
-                        class="btn btn-link text-white me-1 nf-topbar-control-btn" title="Picture in Picture">
-                    <i class="bi bi-pip"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, toggleMute)"
-                        :title="isMuted ? 'Unmute' : 'Mute'"
-                        class="btn btn-link text-white me-1 nf-topbar-control-btn">
-                    <i :class="isMuted ? 'bi-volume-mute-fill text-warning' : 'bi-volume-up'" class="bi"></i>
-                </button>
-                <button @click="onPlayerControlClick($event, requestFullscreenPlayer)"
-                        :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
-                        class="btn btn-link text-white me-1 nf-topbar-control-btn">
-                    <i :class="isFullscreen ? 'bi-fullscreen-exit' : 'bi-fullscreen'" class="bi"></i>
-                </button>
-                <div class="dropdown d-inline-block" v-if="videoTracks && videoTracks.length">
-                    <button aria-expanded="false" class="btn btn-link text-white me-1 nf-topbar-control-btn"
-                            data-bs-toggle="dropdown" id="resolutionMenuButtonTop" title="Resolutions"
-                            type="button">
-                        <i class="bi bi-gear-fill"></i>
-                    </button>
-                    <ul aria-labelledby="resolutionMenuButtonTop" class="dropdown-menu dropdown-menu-end">
-                        <li :key="track.id" v-for="track in videoTracks">
-                            <a @click="onPlayerControlClick($event, switchVideoTrack, track.id)" class="dropdown-item"
-                               href="#">
-                                {{ track.height }}p
-                                <span class="badge bg-primary ms-2" v-if="track.active">Active</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="dropdown d-inline-block">
-                    <button aria-expanded="false" class="btn btn-link text-white me-1 nf-topbar-control-btn"
-                            data-bs-toggle="dropdown" id="audioMenuButtonTop" title="Audio tracks"
-                            type="button">
-                        <i class="bi bi-music-note-list"></i>
-                    </button>
-                    <ul aria-labelledby="audioMenuButtonTop" class="dropdown-menu dropdown-menu-end">
-                        <li v-if="!audioTracks || audioTracks.length === 0"><span class="dropdown-item-text text-muted">No audio tracks</span>
-                        </li>
-                        <li :key="'audio-top-' + track.id" v-for="track in audioTracks">
-                            <a @click="onPlayerControlClick($event, switchAudioTrack, track.id)" class="dropdown-item"
-                               href="#">
-                                {{ track.language || 'Audio' }}<span v-if="track.label"> · {{ track.label }}</span>
-                                <span class="badge bg-primary ms-2" v-if="track.active">Active</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="dropdown d-inline-block">
-                    <button aria-expanded="false" class="btn btn-link text-white me-1 nf-topbar-control-btn"
-                            data-bs-toggle="dropdown" id="subtitleMenuButtonTop" title="Subtitles"
-                            type="button">
-                        <i class="bi bi-badge-cc"></i>
-                    </button>
-                    <ul aria-labelledby="subtitleMenuButtonTop" class="dropdown-menu dropdown-menu-end">
-                        <li>
-                            <a @click="onPlayerControlClick($event, switchTextTrack, 'off')" class="dropdown-item"
-                               href="#">
-                                Off
-                                <span class="badge bg-primary ms-2" v-if="selectedTextTrackId === 'off'">Active</span>
-                            </a>
-                        </li>
-                        <li v-if="!textTracks || textTracks.length === 0"><span class="dropdown-item-text text-muted">No subtitles</span>
-                        </li>
-                        <li :key="'sub-top-' + track.id" v-for="track in textTracks">
-                            <a @click="onPlayerControlClick($event, switchTextTrack, track.id)" class="dropdown-item"
-                               href="#">
-                                {{ track.language || 'Subtitle' }}<span v-if="track.label"> · {{ track.label }}</span>
-                                <span class="badge bg-primary ms-2"
-                                      v-if="String(selectedTextTrackId) === String(track.id)">Active</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <button @click="stopPlaybackAndHide" class="btn btn-link text-white nf-topbar-control-btn" title="Stop">
-                    <i class="bi bi-stop-circle-fill"></i>
-                </button>
-            </div>
+            <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="compact"></div>
         </div>
         <div class="nf-actions">
             <div class="nf-search nf-search-top">
@@ -183,7 +88,7 @@
                             frameborder="0"
                             v-if="isYoutube"
                     ></iframe>
-                    <div class="nf-player-loading" v-if="playerLoading">
+                    <div class="nf-player-loading" v-if="playerLoading && isPlaying">
                         <span aria-hidden="true" class="spinner-border text-light" role="status"></span>
                     </div>
                 </div>
@@ -338,7 +243,6 @@
                                     @click="selectAccount(account)"
                                     class="nf-card nf-card-title-only"
                                     v-for="account in filteredAccounts">
-                                <div class="nf-card-icon"><i class="bi bi-person-circle"></i></div>
                                 <div class="nf-card-title nf-account-title">
                                     <svg :viewBox="resolvePinSvg(account).viewBox" aria-hidden="true"
                                          class="nf-pin-icon" v-if="isPinnedAccount(account)">
@@ -349,7 +253,6 @@
                                     </svg>
                                     <span>{{ account.accountName }}</span>
                                 </div>
-                                <div class="nf-card-subtitle">{{ account.type }}</div>
                             </button>
                             <div class="nf-empty-card" v-if="filteredAccounts.length === 0">No accounts for this
                                 filter.
@@ -719,7 +622,7 @@
         </section>
     </main>
 
-    <div aria-label="Loading" aria-live="polite" class="nf-loading-overlay" role="status" v-if="isBusy && !isPlaying">
+    <div aria-label="Loading" aria-live="polite" class="nf-loading-overlay" role="status" v-if="isBusy && !isPlaying && !playerLoading">
         <div class="nf-loading-box">
             <div class="spinner-border text-light" role="status"></div>
             <div class="nf-loading-text">{{ busyMessage }}</div>

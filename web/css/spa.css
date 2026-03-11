@@ -198,6 +198,11 @@ body {
     height: 100%;
 }
 
+.top-bar-middle .uiptv-shared-player {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .top-bar-left-spacer {
     width: 0;
 }
@@ -213,6 +218,27 @@ body {
     border-radius: 6px;
     padding: 4px 6px;
     max-width: 100%;
+}
+
+.top-bar .uiptv-player-controls {
+    border: 1px solid rgba(47, 111, 221, 0.55);
+    border-radius: 6px;
+    padding: 4px 6px;
+    max-width: 100%;
+}
+
+.top-bar .uiptv-player-title {
+    color: var(--topbar-text);
+    font-size: 0.85rem;
+    max-width: 280px;
+}
+
+.top-bar .uiptv-player-title #media-title-text {
+    color: var(--topbar-text);
+}
+
+.top-bar .uiptv-control-btn {
+    color: var(--topbar-text);
 }
 
 .top-bar-now-playing {

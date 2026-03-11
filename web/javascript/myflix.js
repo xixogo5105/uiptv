@@ -1,4 +1,4 @@
-const {createApp, ref, computed, onMounted, onUnmounted, nextTick} = Vue;
+const {createApp, ref, computed, onMounted, onUnmounted, nextTick, watch} = Vue;
 
 createApp({
     setup() {
@@ -58,6 +58,7 @@ createApp({
         const isMuted = ref(false);
         const isFullscreen = ref(false);
         const thumbnailsEnabled = ref(true);
+        let sharedHeader = null;
 
         const playerKey = ref(0);
         const isYoutube = ref(false);
@@ -83,6 +84,7 @@ createApp({
         const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
 
         const resolveDisplayName = (item = {}) => {
+            if (!item) return '';
             const id = String(item.channelId || item.id || item.dbId || '').trim();
             const candidates = [
                 item.name,
@@ -593,6 +595,7 @@ createApp({
             if (!name) return '';
             return mode ? `${name} [${mode}]` : name;
         });
+        const headerTitle = computed(() => resolveDisplayName(currentChannel.value) || currentChannelName.value || currentChannelDebugTitle.value || 'Now Playing');
         const isModeLoading = (mode) => Number(modeLoadingCount.value?.[mode] || 0) > 0;
         const startModeLoading = (mode) => {
             if (!modeLoadingCount.value[mode]) modeLoadingCount.value[mode] = 0;
@@ -2203,6 +2206,95 @@ createApp({
             await window.UIPTVControls.onControlClick(event, action, ensurePlaybackNotPaused, ...args);
         };
 
+        const mountSharedHeader = () => {
+            const root = document.querySelector('[data-uiptv-shared-player]');
+            if (!root || !window.UIPTVSharedPlayer) return;
+            sharedHeader = window.UIPTVSharedPlayer.mount(root, {variant: root.dataset.variant || 'compact'});
+            if (!sharedHeader) return;
+            sharedHeader.bindActions({
+                favorite: (event) => onPlayerControlClick(event, toggleFavorite),
+                reload: (event) => onPlayerControlClick(event, reloadPlayback),
+                repeat: (event) => onPlayerControlClick(event, toggleRepeat),
+                pip: (event) => onPlayerControlClick(event, togglePictureInPicture),
+                mute: (event) => onPlayerControlClick(event, toggleMute),
+                fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
+                stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
+                'quality-menu': () => {},
+                'audio-menu': () => {},
+                'subtitle-menu': () => {}
+            }, {hideMissing: false});
+            syncSharedHeader();
+            syncSharedMenus();
+        };
+
+        const syncSharedHeader = () => {
+            if (!sharedHeader) return;
+            const baseTitle = isPlaying.value ? headerTitle.value : '';
+            const modeLabel = currentChannelName.value && isPlaying.value ? playbackMode.value : '';
+            sharedHeader.setState({
+                repeatEnabled: repeatEnabled.value,
+                isMuted: isMuted.value,
+                isFullscreen: isFullscreen.value,
+                isFavorite: isCurrentFavorite.value,
+                isPlaying: isPlaying.value
+            });
+            sharedHeader.setTitle({
+                title: baseTitle,
+                mode: modeLabel,
+                loading: false,
+                subtitle: ''
+            });
+        };
+
+        const syncSharedMenus = () => {
+            if (!sharedHeader) return;
+            const qualityItems = [];
+            (videoTracks.value || []).forEach((track) => {
+                qualityItems.push({
+                    label: `${track.height || ''}p`.trim() || 'Auto',
+                    active: !!track.active,
+                    onSelect: () => onPlayerControlClick(null, switchVideoTrack, track.id)
+                });
+            });
+
+            const audioItems = [];
+            if (!audioTracks.value || audioTracks.value.length === 0) {
+                audioItems.push({label: 'No audio tracks', disabled: true, muted: true});
+            } else {
+                audioTracks.value.forEach((track) => {
+                    audioItems.push({
+                        label: `${track.language || 'Audio'}${track.label ? ` · ${track.label}` : ''}`,
+                        active: !!track.active,
+                        onSelect: () => onPlayerControlClick(null, switchAudioTrack, track.id)
+                    });
+                });
+            }
+
+            const subtitleItems = [];
+            subtitleItems.push({
+                label: 'Off',
+                active: String(selectedTextTrackId.value) === 'off',
+                onSelect: () => onPlayerControlClick(null, switchTextTrack, 'off')
+            });
+            if (!textTracks.value || textTracks.value.length === 0) {
+                subtitleItems.push({label: 'No subtitles', disabled: true, muted: true});
+            } else {
+                textTracks.value.forEach((track) => {
+                    subtitleItems.push({
+                        label: `${track.language || 'Subtitle'}${track.label ? ` · ${track.label}` : ''}`,
+                        active: String(selectedTextTrackId.value) === String(track.id),
+                        onSelect: () => onPlayerControlClick(null, switchTextTrack, track.id)
+                    });
+                });
+            }
+
+            sharedHeader.setMenus({
+                quality: qualityItems,
+                audio: audioItems,
+                subtitle: subtitleItems
+            });
+        };
+
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         const resolveActiveVideoElement = async () => {
@@ -2369,6 +2461,7 @@ createApp({
                 isFullscreen.value = !!document.fullscreenElement;
                 unbindFullscreenListener = () => document.removeEventListener('fullscreenchange', onFullscreenChange);
             }
+            mountSharedHeader();
             await loadConfig();
             loadAccounts();
             loadBookmarkCategories();
@@ -2395,6 +2488,14 @@ createApp({
                 }
             }
         });
+
+        watch([isPlaying, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playerLoading, currentChannelName, currentChannelDebugTitle, headerTitle], () => {
+            syncSharedHeader();
+        }, {immediate: true});
+
+        watch([videoTracks, audioTracks, textTracks, selectedTextTrackId], () => {
+            syncSharedMenus();
+        }, {deep: true});
 
         onUnmounted(() => {
             if (typeof unbindSystemThemeListener === 'function') {

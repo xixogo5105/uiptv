@@ -11,6 +11,7 @@
     <link rel="icon" type="image/x-icon" href="/icon.ico">
     <title>UIPTV Player</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/shared-player.css?v=20260311a">
     <link rel="stylesheet" href="/css/player.css?v=20260310b">
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
@@ -24,61 +25,8 @@
             <img src="/icon.ico" alt="UIPTV">
             <span>UIPTV Player</span>
         </a>
-        <div id="media-meta" aria-live="polite">
-            <div id="media-title">
-                <span id="media-title-text"></span>
-                <span id="media-loading-spinner" class="spinner-border spinner-border-sm text-info" role="status" aria-hidden="true" hidden></span>
-            </div>
-            <div id="media-subtitle"></div>
-        </div>
+        <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked" aria-live="polite"></div>
         <div class="top-actions">
-            <div class="player-controls" aria-label="Player controls">
-                <button id="reload-btn" class="top-action" type="button" title="Hard reload">
-                    <i class="bi bi-arrow-clockwise"></i>
-                    <span>Reload</span>
-                </button>
-                <button id="repeat-btn" class="top-action" type="button" title="Auto-reload when stream ends">
-                    <i class="bi bi-repeat"></i>
-                    <span>Repeat</span>
-                </button>
-                <button id="pip-btn" class="top-action" type="button" title="Picture in Picture">
-                    <i class="bi bi-pip"></i>
-                    <span>PIP</span>
-                </button>
-                <button id="mute-btn" class="top-action" type="button" title="Mute">
-                    <i class="bi bi-volume-up"></i>
-                    <span>Mute</span>
-                </button>
-                <button id="fullscreen-btn" class="top-action" type="button" title="Fullscreen">
-                    <i class="bi bi-fullscreen"></i>
-                    <span>Fullscreen</span>
-                </button>
-                <div class="top-action-menu">
-                    <button id="quality-menu-btn" class="top-action" type="button" title="Resolutions">
-                        <i class="bi bi-gear-fill"></i>
-                        <span id="quality-label">Quality</span>
-                    </button>
-                    <div id="quality-menu" class="top-menu" hidden></div>
-                </div>
-                <div class="top-action-menu">
-                    <button id="audio-menu-btn" class="top-action" type="button" title="Audio tracks">
-                        <i class="bi bi-music-note-list"></i>
-                        <span id="audio-label">Audio</span>
-                    </button>
-                    <div id="audio-menu" class="top-menu" hidden></div>
-                </div>
-                <div class="top-action-menu">
-                    <button id="subtitle-menu-btn" class="top-action" type="button" title="Subtitles">
-                        <i class="bi bi-badge-cc"></i>
-                        <span id="subtitle-label">Subtitles</span>
-                    </button>
-                    <div id="subtitle-menu" class="top-menu" hidden></div>
-                </div>
-                <button id="stop-btn" class="top-action" type="button" title="Stop playback">
-                    <i class="bi bi-stop-circle-fill"></i>
-                    <span>Stop</span>
-                </button>
-            </div>
             <div class="top-actions-main">
                 <button id="theme-btn" class="top-action" type="button" title="Theme: system">
                     <i id="theme-icon" class="bi bi-display"></i>
@@ -110,6 +58,10 @@
         </div>
     </div>
 </div>
-    <script src="/javascript/player.js?v=20260310c"></script>
+    <script src="/javascript/shared-player.js?v=20260311a"></script>
+    <script>
+        window.UIPTVSharedPlayer && window.UIPTVSharedPlayer.mount(document.querySelector('[data-uiptv-shared-player]'), {variant: 'stacked'});
+    </script>
+    <script src="/javascript/player.js?v=20260311a"></script>
 </body>
 </html>

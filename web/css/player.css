@@ -127,6 +127,44 @@ body {
     flex-wrap: wrap;
 }
 
+#topbar .uiptv-player-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border: 1px solid rgba(47, 111, 221, 0.55);
+    border-radius: 6px;
+    flex-wrap: wrap;
+}
+
+#topbar .uiptv-control-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    height: 28px;
+    width: 28px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+#topbar .uiptv-control-btn i {
+    font-size: 1.05rem;
+}
+
+#topbar .uiptv-control-btn:hover {
+    background: var(--chip-hover-bg);
+    border-color: var(--chip-hover-border);
+}
+
+#topbar .uiptv-shared-player {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#topbar [data-action="favorite"] {
+    display: none;
+}
+
 .player-controls .top-action {
     background: transparent;
     border: 1px solid transparent;

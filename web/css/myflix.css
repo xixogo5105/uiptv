@@ -10,6 +10,10 @@
     --card: #2c2c2c;
     --card-hover: #383838;
     --chip: rgba(108, 117, 125, 0.24);
+    --account-grad-a: #9e5c16;
+    --account-grad-b: #195e57;
+    --account-bg-1: #0d141c;
+    --account-bg-2: #121d2a;
 }
 
 [data-theme="light"] {
@@ -24,6 +28,10 @@
     --card: #ffffff;
     --card-hover: #f8f9fa;
     --chip: rgba(108, 117, 125, 0.12);
+    --account-grad-a: #ffd59f;
+    --account-grad-b: #a9e8d8;
+    --account-bg-1: #f7f6f2;
+    --account-bg-2: #efece2;
 }
 
 * {
@@ -97,6 +105,11 @@ body {
     gap: 12px;
 }
 
+.nf-topbar-middle .uiptv-shared-player {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .nf-topbar-left-spacer {
     width: 0;
 }
@@ -129,7 +142,37 @@ body {
     align-self: flex-start;
 }
 
+.nf-topbar .uiptv-player-controls {
+    border: 1px solid rgba(47, 111, 221, 0.55);
+    border-radius: 6px;
+    padding: 4px 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.nf-topbar .uiptv-player-title {
+    color: #f8fafc;
+    font-weight: 700;
+    font-size: 0.95rem;
+    max-width: 260px;
+    min-width: 140px;
+}
+
+.nf-topbar .uiptv-player-title #media-title-text {
+    color: inherit;
+}
+
+.nf-topbar .uiptv-control-btn {
+    color: var(--text);
+}
+
 [data-theme="light"] .nf-topbar-title {
+    color: var(--text);
+}
+
+[data-theme="light"] .nf-topbar .uiptv-player-title,
+[data-theme="light"] .nf-topbar .uiptv-player-title #media-title-text {
     color: var(--text);
 }
 
@@ -872,6 +915,41 @@ body {
     gap: 6px;
 }
 
+#row-accounts .nf-account-title {
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+}
+
+#row-accounts .nf-account-title span {
+    display: inline-block;
+    text-align: center;
+}
+
+#row-accounts .nf-card-title-only {
+    background:
+        radial-gradient(circle at 10% 10%, var(--account-grad-a) 0%, transparent 35%),
+        radial-gradient(circle at 90% 20%, var(--account-grad-b) 0%, transparent 40%),
+        linear-gradient(170deg, var(--account-bg-1), var(--account-bg-2));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+[data-theme="light"] #row-accounts .nf-card-title-only {
+    border-color: rgba(21, 32, 51, 0.08);
+}
+
+#row-accounts .nf-account-title span {
+    color: #f3f5f9;
+    text-align: center;
+}
+
+[data-theme="light"] #row-accounts .nf-account-title span {
+    color: #152033;
+}
+
 .nf-pin-icon {
     width: 16px;
     height: 16px;
@@ -1271,6 +1349,10 @@ body {
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.45);
+}
+
+.nf-player-loading .spinner-border {
+    display: none;
 }
 
 .modal-content {

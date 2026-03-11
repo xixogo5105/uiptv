@@ -57,6 +57,7 @@ createApp({
         const isFullscreen = ref(false);
         const playbackLoading = ref(false);
         const pendingPlaybackKey = ref('');
+        let sharedHeader = null;
         let playbackRequestId = 0;
         let playbackFetchController = null;
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
@@ -2839,6 +2840,107 @@ createApp({
             await window.UIPTVControls.onControlClick(event, action, ensurePlaybackNotPaused, ...args);
         };
 
+        const mountSharedHeader = () => {
+            const root = document.querySelector('[data-uiptv-shared-player]');
+            if (!root || !window.UIPTVSharedPlayer) return;
+            sharedHeader = window.UIPTVSharedPlayer.mount(root, {variant: root.dataset.variant || 'compact'});
+            if (!sharedHeader) return;
+            sharedHeader.bindActions({
+                favorite: (event) => onPlayerControlClick(event, toggleFavorite),
+                reload: (event) => onPlayerControlClick(event, reloadPlayback),
+                repeat: (event) => onPlayerControlClick(event, toggleRepeat),
+                pip: (event) => onPlayerControlClick(event, togglePictureInPicture),
+                mute: (event) => onPlayerControlClick(event, toggleMute),
+                fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
+                stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
+                'quality-menu': () => {},
+                'audio-menu': () => {},
+                'subtitle-menu': () => {}
+            }, {hideMissing: false});
+            syncSharedHeader();
+            syncSharedMenus();
+        };
+
+        const syncSharedHeader = () => {
+            if (!sharedHeader) return;
+            const baseTitle = isPlaying.value ? (currentChannelName.value || currentChannelDebugTitle.value || '') : '';
+            const modeLabel = currentChannelName.value && isPlaying.value ? playbackMode.value : '';
+            sharedHeader.setState({
+                repeatEnabled: repeatEnabled.value,
+                isMuted: isMuted.value,
+                isFullscreen: isFullscreen.value,
+                isFavorite: isCurrentFavorite.value,
+                isPlaying: isPlaying.value
+            });
+            sharedHeader.setTitle({
+                title: baseTitle,
+                mode: modeLabel,
+                loading: playbackMode.value === 'loading' || playbackLoading.value,
+                subtitle: ''
+            });
+        };
+
+        const syncSharedMenus = () => {
+            if (!sharedHeader) return;
+            const abrEnabled = (() => {
+                try {
+                    return !!playerInstance.value?.getConfiguration()?.abr?.enabled;
+                } catch (_) {
+                    return false;
+                }
+            })();
+            const qualityItems = [];
+            qualityItems.push({
+                label: 'Auto',
+                active: abrEnabled,
+                onSelect: () => onPlayerControlClick(null, switchVideoAuto)
+            });
+            (videoTracks.value || []).forEach((track) => {
+                qualityItems.push({
+                    label: formatVideoTrackLabel(track),
+                    active: !!track.active && !abrEnabled,
+                    onSelect: () => onPlayerControlClick(null, switchVideoTrack, track.id)
+                });
+            });
+
+            const audioItems = [];
+            if (!audioTracks.value || audioTracks.value.length === 0) {
+                audioItems.push({label: 'No audio tracks', disabled: true, muted: true});
+            } else {
+                audioTracks.value.forEach((track, index) => {
+                    audioItems.push({
+                        label: formatAudioTrackLabel(track, index),
+                        active: !!track.active,
+                        onSelect: () => onPlayerControlClick(null, switchAudioTrack, track.id)
+                    });
+                });
+            }
+
+            const subtitleItems = [];
+            subtitleItems.push({
+                label: 'Off',
+                active: String(selectedTextTrackId.value) === 'off',
+                onSelect: () => onPlayerControlClick(null, switchTextTrack, 'off')
+            });
+            if (!textTracks.value || textTracks.value.length === 0) {
+                subtitleItems.push({label: 'No subtitles', disabled: true, muted: true});
+            } else {
+                textTracks.value.forEach((track, index) => {
+                    subtitleItems.push({
+                        label: formatTextTrackLabel(track, index),
+                        active: String(selectedTextTrackId.value) === String(track.id),
+                        onSelect: () => onPlayerControlClick(null, switchTextTrack, track.id)
+                    });
+                });
+            }
+
+            sharedHeader.setMenus({
+                quality: qualityItems,
+                audio: audioItems,
+                subtitle: subtitleItems
+            });
+        };
+
         const imageError = (e) => {
             e.target.style.display = 'none';
             const icon = e.target.nextElementSibling;
@@ -2993,6 +3095,7 @@ createApp({
                 });
                 isFullscreen.value = !!document.fullscreenElement;
             }
+            mountSharedHeader();
             await loadConfig();
             await Promise.all([
                 loadAccounts(),
@@ -3017,6 +3120,14 @@ createApp({
         watch(currentChannelDebugTitle, () => {
             setBrowserTitle();
         }, {immediate: true});
+
+        watch([isPlaying, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle], () => {
+            syncSharedHeader();
+        }, {immediate: true});
+
+        watch([videoTracks, audioTracks, textTracks, selectedTextTrackId], () => {
+            syncSharedMenus();
+        }, {deep: true});
 
         return {
             activeTab,

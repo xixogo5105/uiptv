@@ -14,6 +14,7 @@
     const pipBtn = document.getElementById('pip-btn');
     const muteBtn = document.getElementById('mute-btn');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const favoriteBtn = document.getElementById('favorite-btn');
     const stopBtn = document.getElementById('stop-btn');
     const reloadBtn = document.getElementById('reload-btn');
     const repeatBtn = document.getElementById('repeat-btn');
@@ -1740,6 +1741,16 @@
     if (pipBtn) {
         pipBtn.addEventListener('click', (event) => {
             window.UIPTVControls.onControlClick(event, togglePictureInPicture, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
+        });
+    }
+
+    if (favoriteBtn) {
+        favoriteBtn.classList.add('uiptv-disabled');
+        favoriteBtn.setAttribute('aria-disabled', 'true');
+        favoriteBtn.title = 'Favorite is not available';
+        favoriteBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
         });
     }
 

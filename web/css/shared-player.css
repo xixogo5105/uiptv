@@ -1,0 +1,153 @@
+.uiptv-shared-player {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.uiptv-player-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.uiptv-player-header[data-variant="stacked"] {
+    align-items: center;
+}
+
+.uiptv-player-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.uiptv-title-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.uiptv-title-line #media-title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.uiptv-subtitle {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.uiptv-player-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    margin-left: auto;
+}
+
+.uiptv-control-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.uiptv-control-btn.uiptv-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.uiptv-control-btn i {
+    font-size: 1.05rem;
+}
+
+.uiptv-control-menu {
+    position: relative;
+}
+
+.uiptv-control-menu span {
+    display: none;
+}
+
+.uiptv-menu {
+    position: absolute;
+    top: 32px;
+    right: 0;
+    min-width: 180px;
+    border-radius: 8px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(47, 111, 221, 0.55);
+    z-index: 2000;
+}
+
+.uiptv-menu-item {
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    text-align: left;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.uiptv-menu-item.active {
+    background: rgba(13, 110, 253, 0.2);
+    border-color: rgba(13, 110, 253, 0.4);
+}
+
+.uiptv-menu-item.muted {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.uiptv-menu-item:hover:not(:disabled) {
+    background: rgba(13, 110, 253, 0.28);
+}
+
+.uiptv-menu-item:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.uiptv-player-header[data-variant="compact"] .uiptv-subtitle {
+    display: none;
+}
+
+.uiptv-player-header[data-variant="compact"] .uiptv-player-title {
+    flex-direction: row;
+    align-items: center;
+}
+
+.uiptv-player-header[data-variant="compact"] .uiptv-player-controls {
+    margin-left: auto;
+}
+
+@media (max-width: 860px) {
+    .uiptv-player-header {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .uiptv-player-header[data-variant="compact"] .uiptv-player-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
