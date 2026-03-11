@@ -38,6 +38,7 @@ public class AccountService {
             sessionTokenByAccountKey.remove(getSessionAccountKey(account));
         }
         SeriesWatchStateDb.get().deleteByAccount(accountId);
+        VodWatchStateDb.get().deleteByAccount(accountId);
         ChannelDb.get().deleteByAccount(accountId);
         CategoryDb.get().deleteByAccount(AccountDb.get().getAccountById(accountId));
         AccountDb.get().delete(accountId);

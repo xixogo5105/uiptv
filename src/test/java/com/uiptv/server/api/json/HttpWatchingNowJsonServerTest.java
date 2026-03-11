@@ -131,7 +131,7 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
         assertEquals(1, response.length());
 
         JSONObject row = response.getJSONObject(0);
-        assertEquals("11706", row.getString("seriesId"));
+        assertEquals("11706:11706", row.getString("seriesId"));
         assertEquals("Tulsa King (UK)", row.getString("seriesTitle"));
         assertEquals("https://img/tulsa.png", row.getString("seriesPoster"));
         assertEquals(drama.getDbId(), row.getString("categoryDbId"));

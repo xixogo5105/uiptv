@@ -40,11 +40,25 @@ class HttpWatchingNowVodJsonServerTest extends DbBackedTest {
         vodA.setReleaseDate("2021");
         vodA.setRating("7.1");
         vodA.setDuration("101");
+        vodA.setExtraJson(new JSONObject()
+                .put("description", "Plot One")
+                .put("release_date", "2021")
+                .put("rating_imdb", "7.1")
+                .put("time", "101")
+                .put("name", "Provider One")
+                .toString());
         Channel vodB = vodChannel("vod-2", "Provider Two", "https://img/two.png");
         vodB.setDescription("Plot Two");
         vodB.setReleaseDate("2022");
         vodB.setRating("8.2");
         vodB.setDuration("120");
+        vodB.setExtraJson(new JSONObject()
+                .put("description", "Plot Two")
+                .put("release_date", "2022")
+                .put("rating_imdb", "8.2")
+                .put("time", "120")
+                .put("name", "Provider Two")
+                .toString());
         VodChannelDb.get().saveAll(List.of(vodA, vodB), categoryId, account);
 
         VodWatchStateDb.get().upsert(vodState(account, categoryId, "vod-1", "Fallback One", 100L));
@@ -60,18 +74,18 @@ class HttpWatchingNowVodJsonServerTest extends DbBackedTest {
 
         JSONObject first = rows.getJSONObject(0);
         assertEquals("vod-2", first.getString("vodId"));
-        assertEquals("Provider Two", first.getString("vodName"));
-        assertEquals("https://img/two.png", first.getString("vodLogo"));
-        assertEquals("", first.getString("plot"));
-        assertEquals("", first.getString("releaseDate"));
-        assertEquals("", first.getString("rating"));
-        assertEquals("", first.getString("duration"));
+        assertEquals("Fallback Two", first.getString("vodName"));
+        assertEquals("https://img/vod-2.png", first.getString("vodLogo"));
+        assertEquals("Plot Two", first.getString("plot"));
+        assertEquals("2022", first.getString("releaseDate"));
+        assertEquals("8.2", first.getString("rating"));
+        assertEquals("120", first.getString("duration"));
         assertEquals(200L, first.getLong("updatedAt"));
         assertTrue(first.has("playItem"));
 
         JSONObject second = rows.getJSONObject(1);
         assertEquals("vod-1", second.getString("vodId"));
-        assertEquals("Provider One", second.getString("vodName"));
+        assertEquals("Fallback One", second.getString("vodName"));
     }
 
     @Test

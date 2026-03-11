@@ -1811,12 +1811,21 @@ createApp({
             return String(channelCategoryId || scopedCategoryId || '');
         };
 
+        const normalizeSeriesParentId = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw || !raw.includes(':')) return raw;
+            const parts = raw.split(':').filter(Boolean);
+            return parts.length ? parts[parts.length - 1] : raw;
+        };
+
         const buildPlayerUrlForChannel = (channel, modeOverride = null) => {
             const modeToUse = String(modeOverride || contentMode.value || 'itv').toLowerCase();
             const channelDbId = channel.dbId || '';
             const channelIdentifier = channel.channelId || channel.id || '';
             const seriesState = getModeState('series');
-            const seriesParentId = modeToUse === 'series' ? String(seriesState?.selectedSeriesId || '') : '';
+            const seriesParentId = modeToUse === 'series'
+                ? normalizeSeriesParentId(seriesState?.selectedSeriesId || '')
+                : '';
             const scopedCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
             const query = new URLSearchParams();
             query.set('accountId', currentContext.value.accountId || '');

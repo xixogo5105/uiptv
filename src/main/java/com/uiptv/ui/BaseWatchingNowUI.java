@@ -151,7 +151,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         Account account = row.getAccount();
         SeriesWatchState scopedState = row.getState();
         SeriesCacheInfo cacheInfo = new SeriesCacheInfo(row.getSeriesTitle(), row.getSeriesPoster(), row.isResolvedFromCache());
-        if (!cacheInfo.resolvedFromCache && scopedState.getSeriesId().matches("^\\d+$")) {
+        if (!cacheInfo.resolvedFromCache && isBlank(cacheInfo.seriesTitle) && scopedState.getSeriesId().matches("^\\d+$")) {
             return null;
         }
         EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);

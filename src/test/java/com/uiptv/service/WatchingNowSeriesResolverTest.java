@@ -50,7 +50,7 @@ class WatchingNowSeriesResolverTest extends DbBackedTest {
         WatchingNowSeriesResolver.SeriesRow row = rows.getFirst();
         assertEquals("Snapshot Title", row.getSeriesTitle());
         assertEquals("https://img/snapshot.png", row.getSeriesPoster());
-        assertEquals("11706:11706", row.getState().getSeriesId());
+        assertEquals("11706", row.getState().getSeriesId());
     }
 
     @Test

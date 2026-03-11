@@ -40,13 +40,13 @@ public class WatchingNowVodResolver {
         }
         Channel provider = resolveProviderChannel(account, state);
         VodMetadata providerMetadata = resolveMetadataFromProvider(provider);
-        String title = firstNonBlank(providerMetadata.name, state.getVodName(), state.getVodId());
-        String logo = firstNonBlank(providerMetadata.logo, state.getVodLogo());
+        String title = firstNonBlank(state.getVodName(), providerMetadata.name, state.getVodId());
+        String logo = firstNonBlank(state.getVodLogo(), providerMetadata.logo);
         String plot = firstNonBlank(providerMetadata.plot, "");
         String releaseDate = firstNonBlank(providerMetadata.releaseDate, "");
         String rating = firstNonBlank(providerMetadata.rating, "");
         String duration = firstNonBlank(providerMetadata.duration, "");
-        Channel playbackChannel = provider != null ? provider : buildFallbackChannel(state);
+        Channel playbackChannel = mergePlaybackChannel(buildFallbackChannel(state), provider);
         VodMetadata metadata = new VodMetadata(logo, plot, releaseDate, rating, duration);
         return new VodRow(account, state, playbackChannel, title, metadata);
     }
@@ -129,6 +129,40 @@ public class WatchingNowVodResolver {
         channel.setCmd(state.getVodCmd());
         channel.setLogo(state.getVodLogo());
         return channel;
+    }
+
+    private Channel mergePlaybackChannel(Channel primary, Channel fallback) {
+        if (primary == null) {
+            return fallback;
+        }
+        if (fallback == null) {
+            return primary;
+        }
+        fillIfBlank(primary::getName, primary::setName, fallback.getName());
+        fillIfBlank(primary::getLogo, primary::setLogo, fallback.getLogo());
+        fillIfBlank(primary::getCmd, primary::setCmd, fallback.getCmd());
+        fillIfBlank(primary::getCmd_1, primary::setCmd_1, fallback.getCmd_1());
+        fillIfBlank(primary::getCmd_2, primary::setCmd_2, fallback.getCmd_2());
+        fillIfBlank(primary::getCmd_3, primary::setCmd_3, fallback.getCmd_3());
+        fillIfBlank(primary::getDrmType, primary::setDrmType, fallback.getDrmType());
+        fillIfBlank(primary::getDrmLicenseUrl, primary::setDrmLicenseUrl, fallback.getDrmLicenseUrl());
+        fillIfBlank(primary::getClearKeysJson, primary::setClearKeysJson, fallback.getClearKeysJson());
+        fillIfBlank(primary::getInputstreamaddon, primary::setInputstreamaddon, fallback.getInputstreamaddon());
+        fillIfBlank(primary::getManifestType, primary::setManifestType, fallback.getManifestType());
+        fillIfBlank(primary::getSeason, primary::setSeason, fallback.getSeason());
+        fillIfBlank(primary::getEpisodeNum, primary::setEpisodeNum, fallback.getEpisodeNum());
+        if (isBlank(primary.getCategoryId())) {
+            primary.setCategoryId(fallback.getCategoryId());
+        }
+        return primary;
+    }
+
+    private void fillIfBlank(java.util.function.Supplier<String> getter,
+                             java.util.function.Consumer<String> setter,
+                             String value) {
+        if (isBlank(getter.get()) && !isBlank(value)) {
+            setter.accept(value);
+        }
     }
 
     private String firstNonBlank(String... values) {

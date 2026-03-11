@@ -44,13 +44,13 @@ class WatchingNowVodResolverTest extends DbBackedTest {
         WatchingNowVodResolver resolver = new WatchingNowVodResolver();
         WatchingNowVodResolver.VodRow row = resolver.resolveForAccount(account).getFirst();
 
-        assertEquals("Provider Movie", row.getDisplayTitle());
-        assertEquals("https://img/provider.png", row.getMetadata().getLogo());
+        assertEquals("Fallback Movie", row.getDisplayTitle());
+        assertEquals("https://img/fallback.png", row.getMetadata().getLogo());
         assertEquals("Plot", row.getMetadata().getPlot());
         assertEquals("2020-01-01", row.getMetadata().getReleaseDate());
         assertEquals("7.5", row.getMetadata().getRating());
         assertEquals("120", row.getMetadata().getDuration());
-        assertEquals("Provider Movie", row.getPlaybackChannel().getName());
+        assertEquals("Fallback Movie", row.getPlaybackChannel().getName());
     }
 
     @Test

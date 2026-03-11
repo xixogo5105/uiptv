@@ -6,9 +6,12 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -83,14 +86,20 @@ public class WatchingNowSeriesResolver {
     }
 
     private SeriesCacheInfo resolveSeriesInfoFromCandidateCategories(Account account, SeriesWatchState state) {
-        String defaultTitle = state.getSeriesId();
+        String rawSeriesId = safe(state.getSeriesId());
+        String defaultTitle = rawSeriesId;
+        String normalizedSeriesId = normalizeSeriesIdentity(rawSeriesId);
+        if (!isBlank(normalizedSeriesId) && !normalizedSeriesId.equals(rawSeriesId)) {
+            defaultTitle = normalizedSeriesId;
+        }
+        List<String> seriesIdCandidates = buildSeriesIdCandidates(rawSeriesId);
         for (String categoryCandidate : buildSeriesCategoryCandidates(account, state)) {
-            Channel match = findSeriesChannel(account, categoryCandidate, state.getSeriesId());
+            Channel match = findSeriesChannel(account, categoryCandidate, seriesIdCandidates);
             if (match != null) {
                 return buildSeriesCacheInfo(match, defaultTitle, true);
             }
         }
-        return new SeriesCacheInfo(firstNonBlank(defaultTitle, state.getSeriesId()), "", false);
+        return new SeriesCacheInfo(firstNonBlank(defaultTitle, rawSeriesId), "", false);
     }
 
     private List<String> buildSeriesCategoryCandidates(Account account, SeriesWatchState state) {
@@ -110,9 +119,10 @@ public class WatchingNowSeriesResolver {
     }
 
     private SeriesCacheInfo resolveSeriesInfoFromAllCategories(Account account, SeriesWatchState state, SeriesCacheInfo current) {
+        List<String> seriesIdCandidates = buildSeriesIdCandidates(state.getSeriesId());
         List<Category> categories = SeriesCategoryDb.get().getAll(" WHERE accountId=?", new String[]{account.getDbId()});
         for (Category category : categories) {
-            Channel match = findSeriesChannel(account, category.getDbId(), state.getSeriesId());
+            Channel match = findSeriesChannel(account, category.getDbId(), seriesIdCandidates);
             if (match != null) {
                 String defaultTitle = current == null ? state.getSeriesId() : current.seriesTitle;
                 return buildSeriesCacheInfo(match, defaultTitle, true);
@@ -121,15 +131,23 @@ public class WatchingNowSeriesResolver {
         return null;
     }
 
-    private Channel findSeriesChannel(Account account, String categoryId, String seriesId) {
-        if (isBlank(categoryId)) {
+    private Channel findSeriesChannel(Account account, String categoryId, List<String> seriesIds) {
+        if (isBlank(categoryId) || seriesIds == null || seriesIds.isEmpty()) {
             return null;
         }
         List<Channel> channels = SeriesChannelDb.get().getChannels(account, categoryId);
-        return channels.stream()
-                .filter(c -> safe(c.getChannelId()).equals(safe(seriesId)))
-                .findFirst()
-                .orElse(null);
+        for (String seriesId : seriesIds) {
+            String target = safe(seriesId);
+            if (isBlank(target)) {
+                continue;
+            }
+            for (Channel channel : channels) {
+                if (channel != null && target.equals(safe(channel.getChannelId()))) {
+                    return channel;
+                }
+            }
+        }
+        return null;
     }
 
     private SeriesCacheInfo buildSeriesCacheInfo(Channel match, String defaultTitle, boolean resolved) {
@@ -157,13 +175,25 @@ public class WatchingNowSeriesResolver {
         try {
             Channel channel = Channel.fromJson(state.getSeriesChannelSnapshot());
             if (channel != null) {
-                parentChannelId = firstNonBlank(channel.getChannelId(), parentChannelId);
-                categoryId = firstNonBlank(channel.getCategoryId(), categoryId);
                 title = firstNonBlank(channel.getName(), title);
                 poster = firstNonBlank(channel.getLogo(), poster);
             }
         } catch (Exception _) {
             // Snapshot payloads are optional; keep the original series/channel scope when parsing fails.
+        }
+        SnapshotData snapshotData = extractSnapshotData(state.getSeriesChannelSnapshot());
+        if (snapshotData != null) {
+            title = firstNonBlank(snapshotData.title, title);
+            poster = firstNonBlank(snapshotData.poster, poster);
+        }
+        SnapshotData episodeData = extractSnapshotData(state.getSeriesEpisodeSnapshot());
+        if (episodeData != null) {
+            if (isBlank(title)) {
+                title = firstNonBlank(episodeData.seriesTitle, title);
+            }
+            if (isBlank(poster)) {
+                poster = firstNonBlank(episodeData.poster, poster);
+            }
         }
         return new SnapshotScope(categoryId, parentChannelId, title, poster);
     }
@@ -213,6 +243,25 @@ public class WatchingNowSeriesResolver {
             return normalized;
         }
         String[] parts = normalized.split(":");
+        boolean allNumeric = true;
+        for (String part : parts) {
+            String p = safe(part);
+            if (isBlank(p)) {
+                continue;
+            }
+            if (!p.matches("^\\d+$")) {
+                allNumeric = false;
+                break;
+            }
+        }
+        if (allNumeric) {
+            for (int i = parts.length - 1; i >= 0; i--) {
+                String p = safe(parts[i]);
+                if (!isBlank(p)) {
+                    return p;
+                }
+            }
+        }
         for (String part : parts) {
             String p = safe(part);
             if (!isBlank(p)) {
@@ -220,6 +269,94 @@ public class WatchingNowSeriesResolver {
             }
         }
         return normalized;
+    }
+
+    private SnapshotData extractSnapshotData(String snapshotJson) {
+        String raw = safe(snapshotJson);
+        if (isBlank(raw)) {
+            return null;
+        }
+        JSONObject payload = null;
+        try {
+            payload = new JSONObject(raw);
+        } catch (Exception _) {
+            try {
+                JSONArray array = new JSONArray(raw);
+                if (!array.isEmpty()) {
+                    Object first = array.get(0);
+                    if (first instanceof JSONObject jsonObject) {
+                        payload = jsonObject;
+                    }
+                }
+            } catch (Exception __) {
+                return null;
+            }
+        }
+        if (payload == null) {
+            return null;
+        }
+        String title = firstNonBlank(
+                safe(payload.optString("seriesTitle")),
+                safe(payload.optString("seriesName")),
+                safe(payload.optString("name")),
+                safe(payload.optString("channelName")),
+                safe(payload.optString("title"))
+        );
+        String seriesTitle = firstNonBlank(
+                safe(payload.optString("seriesTitle")),
+                safe(payload.optString("seriesName"))
+        );
+        String poster = firstNonBlank(
+                safe(payload.optString("logo")),
+                safe(payload.optString("poster")),
+                safe(payload.optString("cover")),
+                safe(payload.optString("movieImage"))
+        );
+        String channelId = firstNonBlank(
+                safe(payload.optString("channelId")),
+                safe(payload.optString("seriesId")),
+                safe(payload.optString("id"))
+        );
+        String categoryId = safe(payload.optString("categoryId"));
+        return new SnapshotData(channelId, categoryId, title, seriesTitle, poster);
+    }
+
+    private static final class SnapshotData {
+        private final String channelId;
+        private final String categoryId;
+        private final String title;
+        private final String seriesTitle;
+        private final String poster;
+
+        private SnapshotData(String channelId, String categoryId, String title, String seriesTitle, String poster) {
+            this.channelId = channelId == null ? "" : channelId;
+            this.categoryId = categoryId == null ? "" : categoryId;
+            this.title = title == null ? "" : title;
+            this.seriesTitle = seriesTitle == null ? "" : seriesTitle;
+            this.poster = poster == null ? "" : poster;
+        }
+    }
+
+    private List<String> buildSeriesIdCandidates(String seriesId) {
+        String raw = safe(seriesId);
+        if (isBlank(raw)) {
+            return List.of();
+        }
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        String normalized = normalizeSeriesIdentity(raw);
+        if (!isBlank(normalized)) {
+            candidates.add(normalized);
+        }
+        if (raw.contains(":")) {
+            for (String part : raw.split(":")) {
+                String p = safe(part);
+                if (!isBlank(p)) {
+                    candidates.add(p);
+                }
+            }
+        }
+        candidates.add(raw);
+        return new ArrayList<>(candidates);
     }
 
     private String firstNonBlank(String... values) {

@@ -1204,6 +1204,13 @@ createApp({
             return String(channelCategoryId || scopedCategoryId || '');
         };
 
+        const normalizeSeriesParentId = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw || !raw.includes(':')) return raw;
+            const parts = raw.split(':').filter(Boolean);
+            return parts.length ? parts[parts.length - 1] : raw;
+        };
+
         const buildPlayerUrlForChannel = (channel, mode, browserState) => {
             const query = new URLSearchParams();
             query.set('accountId', browserState.accountId.value || '');
@@ -1215,7 +1222,7 @@ createApp({
             const channelIdentifier = channel.channelId || channel.id || dbId;
             const seriesEpisodeIdentifier = channel.channelId || channel.id || '';
             const seriesParentId = mode === 'series'
-                ? String(browserState?.detail?.value?.seriesId || browserState?.selectedSeriesId?.value || '')
+                ? normalizeSeriesParentId(browserState?.detail?.value?.seriesId || browserState?.selectedSeriesId?.value || '')
                 : '';
 
             if (mode === 'series') {

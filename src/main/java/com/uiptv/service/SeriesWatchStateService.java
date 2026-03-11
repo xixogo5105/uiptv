@@ -156,7 +156,7 @@ public class SeriesWatchStateService {
             return;
         }
         String resolvedCategoryId = normalizeCategoryId(account.getDbId(), categoryId);
-        String seriesId = firstNonBlank(parentSeriesId);
+        String seriesId = normalizeSeriesId(firstNonBlank(parentSeriesId));
         if (isBlank(seriesId)) {
             return;
         }
@@ -263,6 +263,23 @@ public class SeriesWatchStateService {
         }
     }
 
+    private String normalizeSeriesId(String seriesId) {
+        String raw = seriesId == null ? "" : seriesId.trim();
+        if (isBlank(raw) || !raw.contains(":")) {
+            return raw;
+        }
+        String[] parts = raw.split(":");
+        String last = "";
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String p = safe(parts[i]);
+            if (!isBlank(p)) {
+                last = p;
+                break;
+            }
+        }
+        return isBlank(last) ? raw : last;
+    }
+
     private Category findCategory(String accountId, String categoryId) {
         if (isBlank(accountId) || isBlank(categoryId)) {
             return null;
@@ -284,6 +301,20 @@ public class SeriesWatchStateService {
         if (account == null || isBlank(account.getDbId()) || isBlank(parentChannelId)) {
             return null;
         }
+        List<String> seriesIdCandidates = buildSeriesIdCandidates(parentChannelId);
+        if (seriesIdCandidates.isEmpty()) {
+            return null;
+        }
+        java.util.Set<String> candidateIds = new java.util.LinkedHashSet<>();
+        for (String candidate : seriesIdCandidates) {
+            String normalized = safe(candidate);
+            if (!isBlank(normalized)) {
+                candidateIds.add(normalized);
+            }
+        }
+        if (candidateIds.isEmpty()) {
+            return null;
+        }
         List<String> categoryKeys = new java.util.ArrayList<>();
         if (!isBlank(portalCategoryId)) {
             categoryKeys.add(portalCategoryId);
@@ -293,7 +324,7 @@ public class SeriesWatchStateService {
         }
         for (String key : categoryKeys) {
             for (Channel channel : SeriesChannelDb.get().getChannels(account, key)) {
-                if (channel != null && safe(parentChannelId).equals(safe(channel.getChannelId()))) {
+                if (channel != null && candidateIds.contains(safe(channel.getChannelId()))) {
                     return channel;
                 }
             }
@@ -305,6 +336,10 @@ public class SeriesWatchStateService {
         if (account == null || isBlank(account.getDbId()) || isBlank(parentChannelId) || isBlank(episodeId)) {
             return null;
         }
+        List<String> seriesIdCandidates = buildSeriesIdCandidates(parentChannelId);
+        if (seriesIdCandidates.isEmpty()) {
+            return null;
+        }
         List<String> categoryKeys = new java.util.ArrayList<>();
         if (!isBlank(portalCategoryId)) {
             categoryKeys.add(portalCategoryId);
@@ -313,14 +348,55 @@ public class SeriesWatchStateService {
             categoryKeys.add(matchedCategory.getDbId());
         }
         for (String key : categoryKeys) {
-            List<Channel> episodes = SeriesEpisodeDb.get().getEpisodes(account, key, parentChannelId);
-            for (Channel channel : episodes) {
-                if (channel != null && safe(episodeId).equals(safe(channel.getChannelId()))) {
-                    return channel;
+            for (String candidate : seriesIdCandidates) {
+                List<Channel> episodes = SeriesEpisodeDb.get().getEpisodes(account, key, candidate);
+                for (Channel channel : episodes) {
+                    if (channel != null && safe(episodeId).equals(safe(channel.getChannelId()))) {
+                        return channel;
+                    }
                 }
             }
         }
         return null;
+    }
+
+    private List<String> buildSeriesIdCandidates(String seriesId) {
+        String raw = safe(seriesId);
+        if (isBlank(raw)) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
+        if (raw.contains(":")) {
+            String[] parts = raw.split(":");
+            boolean allNumeric = true;
+            for (String part : parts) {
+                String p = safe(part);
+                if (isBlank(p)) {
+                    continue;
+                }
+                if (!p.matches("^\\d+$")) {
+                    allNumeric = false;
+                    break;
+                }
+            }
+            if (allNumeric) {
+                for (int i = parts.length - 1; i >= 0; i--) {
+                    String p = safe(parts[i]);
+                    if (!isBlank(p)) {
+                        candidates.add(p);
+                        break;
+                    }
+                }
+            }
+            for (String part : parts) {
+                String p = safe(part);
+                if (!isBlank(p)) {
+                    candidates.add(p);
+                }
+            }
+        }
+        candidates.add(raw);
+        return new java.util.ArrayList<>(candidates);
     }
 
     public boolean isMatchingEpisode(SeriesWatchState watchedState,

@@ -42,6 +42,16 @@ public class VodWatchStateDb extends BaseDb {
         return getAll(" WHERE accountId=?", new String[]{accountId});
     }
 
+    public void deleteByAccount(String accountId) {
+        String sql = DELETE_FROM + VOD_WATCH_STATE_TABLE.getTableName() + " WHERE accountId=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, accountId);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to delete VOD watch state by account", e);
+        }
+    }
+
     public void upsert(VodWatchState state) {
         String updateSql = "UPDATE " + VOD_WATCH_STATE_TABLE.getTableName()
                 + " SET vodName=?, vodCmd=?, vodLogo=?, updatedAt=?"
