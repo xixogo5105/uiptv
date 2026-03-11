@@ -18,7 +18,7 @@
         <maven.compiler.target>25</maven.compiler.target>
         <maven.compiler.release>25</maven.compiler.release>
         <vlcj.version>4.12.1</vlcj.version>
-        <lombok.version>1.18.42</lombok.version>
+        <lombok.version>1.18.44</lombok.version>
         <javafx.platform>linux</javafx.platform>
         <sonar.organization>xixogo5105</sonar.organization>
         <sonar.coverage.exclusions>
@@ -53,7 +53,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.42</version>
+            <version>1.18.44</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
