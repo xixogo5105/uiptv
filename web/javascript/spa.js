@@ -686,6 +686,24 @@ createApp({
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
+        const notifyPlayerClosed = (reason = 'stop') => {
+            if (!playbackUtils || typeof playbackUtils.notifyPlayerClose !== 'function') {
+                return;
+            }
+            const channel = currentChannel.value || {};
+            playbackUtils.notifyPlayerClose({
+                reason,
+                mode: channel.mode || '',
+                channelId: channel.channelId || channel.id || '',
+                accountId: channel.accountId || ''
+            });
+        };
+        const resetPlaybackDefaults = () => {
+            strategyOverride.value = 'auto';
+            strategyOverrideKey = '';
+            syncSharedHeader();
+            syncSharedMenus();
+        };
 
         const resolveChannelIdentity = (channel) => {
             if (!channel) return '';
@@ -2160,17 +2178,35 @@ createApp({
             video.load();
         };
 
+        const isSamePlaybackTarget = (a, b) => {
+            if (!a || !b) return false;
+            const aId = String(a.channelId || a.id || '').trim();
+            const bId = String(b.channelId || b.id || '').trim();
+            if (!aId || !bId || aId !== bId) return false;
+            if (String(a.accountId || '') !== String(b.accountId || '')) return false;
+            if (String(a.mode || '') !== String(b.mode || '')) return false;
+            if (String(a.season || '') !== String(b.season || '')) return false;
+            if (String(a.episodeNum || '') !== String(b.episodeNum || '')) return false;
+            if (String(a.bookmarkId || '') !== String(b.bookmarkId || '')) return false;
+            return true;
+        };
+
         const startPlayback = async (url, nextChannel = null, options = {}) => {
             const requestId = ++playbackRequestId;
+            const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
+            const switching = targetChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
+            if (switching) {
+                await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true});
+            }
             if (playbackFetchController) {
                 try {
                     playbackFetchController.abort();
                 } catch (_) {
                 }
+                playbackFetchController = null;
             }
             const controller = new AbortController();
             playbackFetchController = controller;
-            const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
             const channelKey = buildStrategyKey(targetChannel);
             if (channelKey && channelKey !== strategyOverrideKey) {
                 strategyOverride.value = 'auto';
@@ -2196,7 +2232,9 @@ createApp({
                 }
             }
             const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
-            await stopPlayback(true);
+            if (!switching) {
+                await stopPlayback(true);
+            }
             if (requestId !== playbackRequestId) return;
             currentChannel.value = targetChannel;
             isPlaying.value = true;
@@ -2271,7 +2309,16 @@ createApp({
             selectedTextTrackId.value = 'off';
         };
 
-        const stopPlaybackAndHide = async () => {
+        const stopPlaybackAndHide = async (options = {}) => {
+            const notify = options.notify !== false;
+            const reason = options.reason || 'stop';
+            const resetStrategy = options.resetStrategy !== false;
+            if (notify) {
+                notifyPlayerClosed(reason);
+            }
+            if (resetStrategy) {
+                resetPlaybackDefaults();
+            }
             // Ensure UI hides immediately on explicit stop.
             playbackLoading.value = false;
             playbackMode.value = '';

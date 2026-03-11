@@ -86,6 +86,31 @@
         }
     };
 
+    const emitPlayerEvent = (name, detail = {}) => {
+        const payload = {
+            ...detail,
+            ts: Date.now()
+        };
+        try {
+            window.dispatchEvent(new CustomEvent(name, {detail: payload}));
+        } catch (_) {
+            // Ignore dispatch errors.
+        }
+        try {
+            document.dispatchEvent(new CustomEvent(name, {detail: payload}));
+        } catch (_) {
+            // Ignore dispatch errors.
+        }
+        try {
+            localStorage.setItem(`uiptv.player.event.${name}`, JSON.stringify(payload));
+        } catch (_) {
+            // Ignore storage errors.
+        }
+        return payload;
+    };
+
+    const notifyPlayerClose = (detail = {}) => emitPlayerEvent('uiptv:player:close', detail);
+
     window.UIPTVPlaybackUtils = {
         isTsLikeUrl,
         canUseMpegts,
@@ -93,6 +118,8 @@
         downgradeHttpsToHttpForKnownPaths,
         normalizeWebPlaybackUrl,
         buildForcedHlsPlaybackRequestUrl,
-        normalizeDisplayText
+        normalizeDisplayText,
+        emitPlayerEvent,
+        notifyPlayerClose
     };
 })();

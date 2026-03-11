@@ -76,6 +76,9 @@
         if (options.variant && header) {
             header.dataset.variant = options.variant;
         }
+        if (header && !header.dataset.state) {
+            header.dataset.state = 'inactive';
+        }
 
         const nodes = {
             header,
@@ -248,6 +251,12 @@
             const fullscreenBtn = root.querySelector('#fullscreen-btn');
             const favoriteBtn = root.querySelector('#favorite-btn');
             const strategyLabelEl = root.querySelector('#strategy-label');
+            if (nodes.header && typeof isPlaying !== 'undefined') {
+                nodes.header.dataset.state = isPlaying ? 'active' : 'inactive';
+                if (!isPlaying) {
+                    closeMenus();
+                }
+            }
             if (strategyLabelEl && strategyLabel) {
                 strategyLabelEl.textContent = strategyLabel;
             }

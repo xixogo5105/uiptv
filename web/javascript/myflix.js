@@ -67,6 +67,7 @@ createApp({
         const youtubeSrc = ref('');
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
+        let playbackFetchController = null;
         const videoPlayerModal = ref(null);
         const playerModalFrame = ref(null);
         const playerInlineRef = ref(null);
@@ -84,6 +85,24 @@ createApp({
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
+        const notifyPlayerClosed = (reason = 'stop') => {
+            if (!playbackUtils || typeof playbackUtils.notifyPlayerClose !== 'function') {
+                return;
+            }
+            const channel = currentChannel.value || {};
+            playbackUtils.notifyPlayerClose({
+                reason,
+                mode: channel.mode || '',
+                channelId: channel.channelId || channel.id || '',
+                accountId: channel.accountId || ''
+            });
+        };
+        const resetPlaybackDefaults = () => {
+            strategyOverride.value = 'auto';
+            strategyOverrideKey = '';
+            syncSharedHeader();
+            syncSharedMenus();
+        };
 
         const resolveDisplayName = (item = {}) => {
             if (!item) return '';
@@ -1249,7 +1268,7 @@ createApp({
             const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, mode, b);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
             const seriesEpisodeIdentifier = channel.channelId || channel.id || '';
-            currentChannel.value = {
+            const nextChannel = {
                 id: channelIdentifier,
                 dbId: channel.dbId || '',
                 channelId: mode === 'series'
@@ -1275,7 +1294,7 @@ createApp({
                 playRequestUrl: ''
             };
             const playbackUrl = buildPlayerUrlForChannel(channel, mode, b);
-            currentChannel.value.playRequestUrl = playbackUrl;
+            nextChannel.playRequestUrl = playbackUrl;
             if (mode === 'series' && b.detail.value) {
                 // Keep user on the dedicated series page while episodes are playing.
                 b.viewState.value = 'seriesDetail';
@@ -1283,7 +1302,7 @@ createApp({
             if (mode === 'vod' && b.detail.value) {
                 b.viewState.value = 'vodDetail';
             }
-            startPlayback(playbackUrl);
+            startPlayback(playbackUrl, nextChannel);
             scrollToInlinePlayer();
         };
 
@@ -1434,7 +1453,7 @@ createApp({
             query.set('mode', bookmarkMode);
             appendPlaybackCompatParams(query, bookmarkMode);
             const playbackUrl = `${window.location.origin}/player?${query.toString()}`;
-            currentChannel.value = {
+            const nextChannel = {
                 id: bookmark.dbId,
                 name: bookmark.channelName,
                 logo: resolveLogoUrl(bookmark.logo),
@@ -1449,7 +1468,7 @@ createApp({
                 mode: bookmarkMode,
                 playRequestUrl: playbackUrl
             };
-            startPlayback(playbackUrl);
+            startPlayback(playbackUrl, nextChannel);
             scrollToInlinePlayer();
         };
 
@@ -1494,7 +1513,7 @@ createApp({
                 name: base.name || row.vodName || 'VOD',
                 logo: base.logo || row.vodLogo || ''
             }, 'vod', b);
-            currentChannel.value = {
+            const nextChannel = {
                 id: channelIdentifier,
                 dbId: base.dbId || '',
                 channelId: base.channelId || channelIdentifier,
@@ -1513,7 +1532,7 @@ createApp({
                 mode: 'vod',
                 playRequestUrl: playbackUrl
             };
-            startPlayback(playbackUrl);
+            startPlayback(playbackUrl, nextChannel);
             scrollToInlinePlayer();
         };
 
@@ -1578,12 +1597,40 @@ createApp({
             }
         };
 
-        const startPlayback = async (url, options = {}) => {
+        const isSamePlaybackTarget = (a, b) => {
+            if (!a || !b) return false;
+            const aId = String(a.channelId || a.id || '').trim();
+            const bId = String(b.channelId || b.id || '').trim();
+            if (!aId || !bId || aId !== bId) return false;
+            if (String(a.accountId || '') !== String(b.accountId || '')) return false;
+            if (String(a.mode || '') !== String(b.mode || '')) return false;
+            if (String(a.season || '') !== String(b.season || '')) return false;
+            if (String(a.episodeNum || '') !== String(b.episodeNum || '')) return false;
+            return true;
+        };
+
+        const startPlayback = async (url, nextChannel = null, options = {}) => {
             playbackLifecycleId.value++;
             const lifecycleId = playbackLifecycleId.value;
-            await stopPlayback(true, false);
+            const targetChannel = nextChannel || currentChannel.value;
+            const switching = nextChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
+            if (switching) {
+                await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true});
+            } else {
+                await stopPlayback(true, false);
+            }
             if (!isPlaybackRequestActive(lifecycleId)) return;
+            if (playbackFetchController) {
+                try {
+                    playbackFetchController.abort();
+                } catch (_) {
+                }
+                playbackFetchController = null;
+            }
+            const controller = new AbortController();
+            playbackFetchController = controller;
             playerKey.value++;
+            currentChannel.value = targetChannel;
             isPlaying.value = true;
             playbackError.value = '';
             isBusy.value = false;
@@ -1592,26 +1639,26 @@ createApp({
             lastPlaybackUrl.value = url || '';
             repeatInFlight.value = false;
             window.scrollTo({top: 0, behavior: 'smooth'});
-            const channelKey = buildStrategyKey(currentChannel.value);
+            const channelKey = buildStrategyKey(targetChannel);
             if (channelKey && channelKey !== strategyOverrideKey) {
                 strategyOverride.value = 'auto';
                 strategyOverrideKey = channelKey;
             }
             if (String(strategyOverride.value || 'auto') === 'hls' && !options.forcedHlsOverride) {
-                const forcedUrl = buildForcedHlsPlaybackRequestUrl(currentChannel.value?.playRequestUrl || '');
+                const forcedUrl = buildForcedHlsPlaybackRequestUrl(targetChannel?.playRequestUrl || '');
                 if (forcedUrl) {
-                    await startPlayback(forcedUrl, {forcedHlsOverride: true});
+                    await startPlayback(forcedUrl, targetChannel, {forcedHlsOverride: true});
                     return;
                 }
             }
 
             try {
-                const response = await fetch(url);
+                const response = await fetch(url, {signal: controller.signal});
                 if (!isPlaybackRequestActive(lifecycleId)) return;
                 const channelData = await response.json();
                 if (!isPlaybackRequestActive(lifecycleId)) return;
-                if (!channelData?.url && currentChannel.value?.cmd) {
-                    const fallbackUrl = normalizeWebPlaybackUrl(String(currentChannel.value.cmd).trim().replace(/^ffmpeg\s+/i, ''));
+                if (!channelData?.url && targetChannel?.cmd) {
+                    const fallbackUrl = normalizeWebPlaybackUrl(String(targetChannel.cmd).trim().replace(/^ffmpeg\s+/i, ''));
                     await initPlayer({url: fallbackUrl}, lifecycleId);
                 } else {
                     await initPlayer({
@@ -1619,12 +1666,13 @@ createApp({
                         url: normalizeWebPlaybackUrl(channelData?.url)
                     }, lifecycleId);
                 }
-                if (currentChannel.value?.mode === 'series') {
+                if (targetChannel?.mode === 'series') {
                     await refreshSeriesEpisodeWatchState(lifecycleId);
                     await ensureSeriesWatchingNow();
                 }
             } catch (e) {
                 if (!isPlaybackRequestActive(lifecycleId)) return;
+                if (e?.name === 'AbortError') return;
                 console.error('Failed to start playback', e);
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
@@ -1633,6 +1681,9 @@ createApp({
                 playerLoading.value = false;
                 if (!isPlaying.value) {
                     playbackMode.value = '';
+                }
+                if (playbackFetchController === controller) {
+                    playbackFetchController = null;
                 }
             }
         };
@@ -1643,6 +1694,13 @@ createApp({
             }
             const lifecycleId = playbackLifecycleId.value;
             repeatInFlight.value = false;
+            if (!preserveUi && playbackFetchController) {
+                try {
+                    playbackFetchController.abort();
+                } catch (_) {
+                }
+                playbackFetchController = null;
+            }
             if (playerInstance.value) {
                 try {
                     await playerInstance.value.destroy();
@@ -1677,7 +1735,16 @@ createApp({
             selectedTextTrackId.value = 'off';
         };
 
-        const stopPlaybackAndHide = async () => {
+        const stopPlaybackAndHide = async (options = {}) => {
+            const notify = options.notify !== false;
+            const reason = options.reason || 'stop';
+            const resetStrategy = options.resetStrategy !== false;
+            if (notify) {
+                notifyPlayerClosed(reason);
+            }
+            if (resetStrategy) {
+                resetPlaybackDefaults();
+            }
             // Ensure topbar controls/title hide immediately.
             isPlaying.value = false;
             playbackMode.value = '';

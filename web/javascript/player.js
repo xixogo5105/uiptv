@@ -34,6 +34,7 @@
     const APP_TITLE = 'UIPTV Player';
     const playbackUtils = window.UIPTVPlaybackUtils;
     const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
+    const headerEl = document.querySelector('[data-uiptv-header]');
     let shakaPlayer = null;
     let mpegtsPlayer = null;
     let activeLaunch = null;
@@ -64,6 +65,18 @@
         : null;
 
     let currentTheme = 'system';
+
+    const setHeaderState = (active) => {
+        if (!headerEl) return;
+        headerEl.dataset.state = active ? 'active' : 'inactive';
+    };
+
+    const notifyPlayerClose = (detail = {}) => {
+        if (!playbackUtils || typeof playbackUtils.notifyPlayerClose !== 'function') {
+            return;
+        }
+        playbackUtils.notifyPlayerClose(detail);
+    };
 
     const resolveSystemTheme = () => {
         if (!window.matchMedia) {
@@ -344,8 +357,16 @@
     };
 
     const stopPlayback = async () => {
+        notifyPlayerClose({
+            reason: 'stop',
+            mode: launchMode(activeLaunch),
+            channelId: cleanValue(activeLaunch?.channel?.channelId || activeLaunch?.channel?.id),
+            accountId: cleanValue(activeLaunch?.accountId)
+        });
+        setStrategyOverride('auto');
         await destroyPlayer();
         playbackMode = '';
+        setHeaderState(false);
         setStatus('Playback stopped.');
         renderMediaTitle();
         updateDocumentTitle();
@@ -1172,6 +1193,7 @@
         if (videoEl) {
             videoEl.muted = true;
         }
+        setHeaderState(true);
         playbackMode = 'loading';
         setPlaybackResolution('');
         renderMediaTitle();
@@ -1632,6 +1654,7 @@
         const directLaunch = parseDirectLaunch();
         videoEl.controls = true;
         updateDocumentTitle();
+        setHeaderState(false);
 
         try {
             const launch = directLaunch || (payload && (payload.channel || payload.directUrl || payload.bingeWatchToken) ? payload : null);
@@ -1646,6 +1669,7 @@
                 activeLaunch = payload;
                 repeatReloadInFlight = false;
                 applyDefaultRepeatForLaunch(payload);
+                setHeaderState(true);
                 if (videoEl) {
                     videoEl.muted = true;
                 }
@@ -1881,6 +1905,12 @@
     }
 
     window.addEventListener('beforeunload', async () => {
+        notifyPlayerClose({
+            reason: 'unload',
+            mode: launchMode(activeLaunch),
+            channelId: cleanValue(activeLaunch?.channel?.channelId || activeLaunch?.channel?.id),
+            accountId: cleanValue(activeLaunch?.accountId)
+        });
         await destroyPlayer();
     });
 
