@@ -57,6 +57,8 @@ createApp({
         const isFullscreen = ref(false);
         const playbackLoading = ref(false);
         const pendingPlaybackKey = ref('');
+        const strategyOverride = ref('auto');
+        let strategyOverrideKey = '';
         let sharedHeader = null;
         let playbackRequestId = 0;
         let playbackFetchController = null;
@@ -2140,6 +2142,20 @@ createApp({
             isMuted.value = video.muted || video.volume === 0;
         };
 
+        const buildStrategyKey = (channel) => {
+            if (!channel) return '';
+            const id = String(channel.channelId || channel.id || channel.dbId || '').trim();
+            const accountId = String(channel.accountId || '').trim();
+            const url = String(channel.playRequestUrl || channel.url || channel.cmd || '').trim();
+            return [accountId, id, url].join('|');
+        };
+
+        const updateStrategyOverride = (value) => {
+            strategyOverride.value = String(value || 'auto').toLowerCase();
+            syncSharedHeader();
+            syncSharedMenus();
+        };
+
         const clearVideoElement = (video) => {
             if (!video) return;
             video.onended = null;
@@ -2149,7 +2165,7 @@ createApp({
             video.load();
         };
 
-        const startPlayback = async (url, nextChannel = null) => {
+        const startPlayback = async (url, nextChannel = null, options = {}) => {
             const requestId = ++playbackRequestId;
             if (playbackFetchController) {
                 try {
@@ -2160,6 +2176,11 @@ createApp({
             const controller = new AbortController();
             playbackFetchController = controller;
             const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
+            const channelKey = buildStrategyKey(targetChannel);
+            if (channelKey && channelKey !== strategyOverrideKey) {
+                strategyOverride.value = 'auto';
+                strategyOverrideKey = channelKey;
+            }
             pendingPlaybackKey.value = buildPlaybackTargetKey({
                 id: targetChannel?.channelId || targetChannel?.id || '',
                 accountId: targetChannel?.accountId || '',
@@ -2172,6 +2193,13 @@ createApp({
             playbackLoading.value = true;
             playbackMode.value = 'loading';
             playbackError.value = '';
+            if (String(strategyOverride.value || 'auto') === 'hls' && !options.forcedHlsOverride) {
+                const forcedUrl = buildForcedHlsPlaybackRequestUrl(targetChannel?.playRequestUrl || '');
+                if (forcedUrl) {
+                    await startPlayback(forcedUrl, targetChannel, {forcedHlsOverride: true});
+                    return;
+                }
+            }
             const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
             await stopPlayback(true);
             if (requestId !== playbackRequestId) return;
@@ -2194,6 +2222,9 @@ createApp({
             } finally {
                 if (requestId === playbackRequestId) {
                     playbackLoading.value = false;
+                    if (!isPlaying.value) {
+                        playbackMode.value = '';
+                    }
                     pendingPlaybackKey.value = '';
                     if (playbackFetchController === controller) {
                         playbackFetchController = null;
@@ -2289,12 +2320,27 @@ createApp({
 
             bindPlaybackEvents(video);
 
+            const override = String(strategyOverride.value || 'auto').toLowerCase();
             const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
             const canNative = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
             const hasDRM = channel.drm != null;
             const normalizedUri = String(uri || '').toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
             const isTs = isTsLikeUrl(normalizedUri, manifestType);
+
+            if (override === 'proxy') {
+                const proxyUrl = `${window.location.origin}/proxy-stream?src=${encodeURIComponent(uri)}`;
+                await loadNative({...channel, url: proxyUrl});
+                return;
+            }
+            if (override === 'direct') {
+                await loadNative(channel);
+                return;
+            }
+            if (override === 'mpegts') {
+                await loadMpegTs(channel);
+                return;
+            }
 
             if (hasDRM) {
                 await loadShaka(channel);
@@ -2324,6 +2370,9 @@ createApp({
 
             let fallbackAttempted = false;
             const tryMpegTsHlsFallback = async () => {
+                if (String(strategyOverride.value || 'auto') !== 'auto') {
+                    return false;
+                }
                 if (fallbackAttempted) {
                     return false;
                 }
@@ -2383,6 +2432,11 @@ createApp({
                 await video.play();
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
             } catch (e) {
+                if (String(strategyOverride.value || 'auto') !== 'auto') {
+                    playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
+                    console.warn('Native playback failed.', e);
+                    throw e;
+                }
                 // If backend proxy fails transiently, retry once with cache-busting query.
                 const isProxyUrl = String(sourceUrl || '').includes('/proxy-stream');
                 if (isProxyUrl) {
@@ -2855,7 +2909,8 @@ createApp({
                 stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
                 'quality-menu': () => {},
                 'audio-menu': () => {},
-                'subtitle-menu': () => {}
+                'subtitle-menu': () => {},
+                'strategy-menu': () => {}
             }, {hideMissing: false});
             syncSharedHeader();
             syncSharedMenus();
@@ -2870,7 +2925,8 @@ createApp({
                 isMuted: isMuted.value,
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
-                isPlaying: isPlaying.value
+                isPlaying: isPlaying.value,
+                strategyLabel: strategyOverride.value === 'mpegts' ? 'MPEGTS' : strategyOverride.value === 'hls' ? 'HLS' : strategyOverride.value === 'proxy' ? 'Proxy' : strategyOverride.value === 'direct' ? 'Direct' : 'Auto'
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -2935,6 +2991,13 @@ createApp({
             }
 
             sharedHeader.setMenus({
+                strategy: [
+                    {label: 'Auto', active: strategyOverride.value === 'auto', onSelect: () => updateStrategyOverride('auto')},
+                    {label: 'Direct', active: strategyOverride.value === 'direct', onSelect: () => updateStrategyOverride('direct')},
+                    {label: 'MPEGTS', active: strategyOverride.value === 'mpegts', onSelect: () => updateStrategyOverride('mpegts')},
+                    {label: 'HLS', active: strategyOverride.value === 'hls', onSelect: () => updateStrategyOverride('hls')},
+                    {label: 'Proxy', active: strategyOverride.value === 'proxy', onSelect: () => updateStrategyOverride('proxy')}
+                ],
                 quality: qualityItems,
                 audio: audioItems,
                 subtitle: subtitleItems
@@ -3121,7 +3184,7 @@ createApp({
             setBrowserTitle();
         }, {immediate: true});
 
-        watch([isPlaying, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle], () => {
+        watch([isPlaying, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle, strategyOverride], () => {
             syncSharedHeader();
         }, {immediate: true});
 

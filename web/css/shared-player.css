@@ -84,6 +84,18 @@
     display: none;
 }
 
+.uiptv-control-menu.uiptv-strategy-menu span {
+    display: inline;
+    font-size: 0.78rem;
+    margin-left: 4px;
+}
+
+.uiptv-control-menu.uiptv-strategy-menu .uiptv-control-btn {
+    width: auto;
+    padding: 0 6px;
+    gap: 4px;
+}
+
 .uiptv-menu {
     position: absolute;
     top: 32px;
@@ -96,6 +108,7 @@
     gap: 4px;
     background: rgba(0, 0, 0, 0.92);
     border: 1px solid rgba(47, 111, 221, 0.55);
+    color: #f2f5fb;
     z-index: 2000;
 }
 
@@ -125,6 +138,20 @@
 .uiptv-menu-item:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+[data-theme="light"] .uiptv-menu {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(13, 110, 253, 0.3);
+    color: #212529;
+}
+
+[data-theme="light"] .uiptv-menu-item.muted {
+    color: rgba(33, 37, 41, 0.6);
+}
+
+[data-theme="light"] .uiptv-menu-item:hover:not(:disabled) {
+    background: rgba(13, 110, 253, 0.12);
 }
 
 .uiptv-player-header[data-variant="compact"] .uiptv-subtitle {

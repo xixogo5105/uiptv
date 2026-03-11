@@ -74,6 +74,7 @@ body {
     backdrop-filter: blur(6px);
     z-index: 2000;
     pointer-events: auto;
+    overflow: visible;
 }
 
 .brand {
@@ -154,6 +155,68 @@ body {
 #topbar .uiptv-control-btn:hover {
     background: var(--chip-hover-bg);
     border-color: var(--chip-hover-border);
+}
+
+#topbar .uiptv-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 180px;
+    max-height: 320px;
+    overflow: auto;
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid var(--chip-hover-border);
+    background: rgba(0, 0, 0, 0.96);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    z-index: 2300;
+}
+
+#topbar .uiptv-menu[hidden] {
+    display: none !important;
+}
+
+#topbar .uiptv-menu-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text-color);
+    display: block;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+#topbar .uiptv-menu-item:hover:not(:disabled) {
+    background: rgba(13, 110, 253, 0.18);
+}
+
+#topbar .uiptv-menu-item.active {
+    background: rgba(13, 110, 253, 0.25);
+}
+
+#topbar .uiptv-menu-item.muted {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+#topbar .uiptv-menu-item:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+[data-theme="light"] #topbar .uiptv-menu {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(13, 110, 253, 0.3);
+    color: #212529;
+}
+
+[data-theme="light"] #topbar .uiptv-menu-item.muted {
+    color: rgba(33, 37, 41, 0.6);
+}
+
+[data-theme="light"] #topbar .uiptv-menu-item:hover:not(:disabled) {
+    background: rgba(13, 110, 253, 0.12);
 }
 
 #topbar .uiptv-shared-player {
@@ -398,6 +461,10 @@ body {
     color: var(--text-color);
     font-size: 14px;
     z-index: 10;
+}
+
+#status {
+    display: none;
 }
 
 @media (max-width: 860px) {

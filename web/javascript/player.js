@@ -25,6 +25,9 @@
     const subtitleMenuBtn = document.getElementById('subtitle-menu-btn');
     const subtitleMenuEl = document.getElementById('subtitle-menu');
     const subtitleLabelEl = document.getElementById('subtitle-label');
+    const strategyMenuBtn = document.getElementById('strategy-menu-btn');
+    const strategyMenuEl = document.getElementById('strategy-menu');
+    const strategyLabelEl = document.getElementById('strategy-label');
     const qualityMenuBtn = document.getElementById('quality-menu-btn');
     const qualityMenuEl = document.getElementById('quality-menu');
     const qualityLabelEl = document.getElementById('quality-label');
@@ -41,6 +44,8 @@
     let playbackResolution = '';
     let repeatEnabled = false;
     let repeatReloadInFlight = false;
+    let strategyOverride = 'auto';
+    let lastLaunchKey = '';
     let stallMonitorTimer = null;
     let lastProgressWallClock = 0;
     let lastProgressMediaTime = 0;
@@ -124,8 +129,8 @@
 
     const setStatus = (message) => {
         if (!statusEl) return;
-        statusEl.textContent = message || '';
-        statusEl.style.display = message ? 'block' : 'none';
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
     };
 
     const renderMediaTitle = () => {
@@ -506,7 +511,7 @@
     };
 
     const closeAllMenus = () => {
-        [audioMenuEl, subtitleMenuEl, qualityMenuEl].forEach((menu) => {
+        [audioMenuEl, subtitleMenuEl, qualityMenuEl, strategyMenuEl].forEach((menu) => {
             if (menu) {
                 menu.hidden = true;
             }
@@ -550,6 +555,47 @@
                 closeAllMenus();
             });
             menuEl.appendChild(button);
+        });
+    };
+
+    const buildLaunchKey = (launch) => {
+        const channel = launch?.channel || {};
+        const channelId = cleanValue(channel.channelId || channel.id || '');
+        const accountId = cleanValue(launch?.accountId || channel.accountId || '');
+        const url = cleanValue(launch?.directUrl || launch?.url || channel.cmd || '');
+        return [accountId, channelId, url].join('|');
+    };
+
+    const resolveStrategyLabel = (value) => {
+        const normalized = String(value || 'auto').toLowerCase();
+        if (normalized === 'direct') return 'Direct';
+        if (normalized === 'mpegts') return 'MPEGTS';
+        if (normalized === 'hls') return 'HLS';
+        if (normalized === 'proxy') return 'Proxy';
+        return 'Auto';
+    };
+
+    const updateStrategyLabel = () => {
+        if (!strategyLabelEl) return;
+        strategyLabelEl.textContent = resolveStrategyLabel(strategyOverride);
+    };
+
+    const setStrategyOverride = (value) => {
+        strategyOverride = String(value || 'auto').toLowerCase();
+        updateStrategyLabel();
+    };
+
+    const renderStrategyMenu = () => {
+        if (!strategyMenuEl) return;
+        const items = [
+            {label: 'Auto', value: 'auto', active: strategyOverride === 'auto'},
+            {label: 'Direct', value: 'direct', active: strategyOverride === 'direct'},
+            {label: 'MPEGTS', value: 'mpegts', active: strategyOverride === 'mpegts'},
+            {label: 'HLS', value: 'hls', active: strategyOverride === 'hls'},
+            {label: 'Proxy', value: 'proxy', active: strategyOverride === 'proxy'}
+        ];
+        renderMenuItems(strategyMenuEl, items, (item) => {
+            setStrategyOverride(item.value);
         });
     };
 
@@ -1060,7 +1106,15 @@
     };
 
     const startPlaybackWithFallback = async (launch, responseData) => {
-        const plan = buildStrategyPlan(responseData, launch);
+        const override = String(strategyOverride || 'auto').toLowerCase();
+        let plan = buildStrategyPlan(responseData, launch);
+        if (override !== 'auto') {
+            if (override === 'direct') plan = ['native'];
+            else if (override === 'mpegts') plan = ['mpegts'];
+            else if (override === 'hls') plan = ['prefer-hls'];
+            else if (override === 'proxy') plan = ['native-proxy'];
+            else plan = [override];
+        }
         const timeoutMs = startupTimeoutMsForMode(launch);
         let lastError = null;
 
@@ -1075,6 +1129,9 @@
             } catch (error) {
                 lastError = error;
                 await destroyPlayer();
+                if (override !== 'auto') {
+                    break;
+                }
             }
         }
 
@@ -1105,6 +1162,11 @@
     };
 
     const requestAndStartPlayback = async (launch, options = {}) => {
+        const nextKey = buildLaunchKey(launch);
+        if (nextKey && nextKey !== lastLaunchKey) {
+            setStrategyOverride('auto');
+        }
+        lastLaunchKey = nextKey;
         activeLaunch = launch;
         repeatReloadInFlight = false;
         if (videoEl) {
@@ -1279,9 +1341,9 @@
         renderMenuItems(audioMenuEl, [{label: 'No audio tracks', disabled: true, muted: true}], () => {});
         renderMenuItems(subtitleMenuEl, [{label: 'No subtitles', disabled: true, muted: true}], () => {});
         renderMenuItems(qualityMenuEl, [{label: 'Quality Auto', disabled: true, muted: true}], () => {});
-        if (audioMenuBtn) audioMenuBtn.disabled = true;
-        if (subtitleMenuBtn) subtitleMenuBtn.disabled = true;
-        if (qualityMenuBtn) qualityMenuBtn.disabled = true;
+        if (audioMenuBtn) audioMenuBtn.disabled = false;
+        if (subtitleMenuBtn) subtitleMenuBtn.disabled = false;
+        if (qualityMenuBtn) qualityMenuBtn.disabled = false;
         setButtonLabel(audioLabelEl, 'Audio', '');
         setButtonLabel(subtitleLabelEl, 'Subtitles', '');
         setButtonLabel(qualityLabelEl, 'Quality', '');
@@ -1344,7 +1406,7 @@
         renderMenuItems(subtitleMenuEl, items, (item) => {
             switchSubtitleTrack(item.id);
         });
-        if (subtitleMenuBtn) subtitleMenuBtn.disabled = tracks.length === 0;
+        if (subtitleMenuBtn) subtitleMenuBtn.disabled = false;
         setButtonLabel(subtitleLabelEl, 'Subtitles', activeLabel);
     };
 
@@ -1394,7 +1456,7 @@
             shakaPlayer.selectVariantTrack(track, true);
             populateTrackMenus();
         });
-        if (qualityMenuBtn) qualityMenuBtn.disabled = unique.length === 0;
+        if (qualityMenuBtn) qualityMenuBtn.disabled = false;
         setButtonLabel(qualityLabelEl, 'Quality', activeLabel);
     };
 
@@ -1437,7 +1499,7 @@
             renderMenuItems(audioMenuEl, items.length ? items : [{label: 'No audio tracks', disabled: true, muted: true}], (item) => {
                 switchAudioTrack(item.id);
             });
-            if (audioMenuBtn) audioMenuBtn.disabled = audioTracks.length === 0;
+            if (audioMenuBtn) audioMenuBtn.disabled = false;
             setButtonLabel(audioLabelEl, 'Audio', activeLabel);
         }
 
@@ -1464,7 +1526,7 @@
             renderMenuItems(subtitleMenuEl, items, (item) => {
                 switchSubtitleTrack(item.id);
             });
-            if (subtitleMenuBtn) subtitleMenuBtn.disabled = textTracks.length === 0;
+            if (subtitleMenuBtn) subtitleMenuBtn.disabled = false;
             setButtonLabel(subtitleLabelEl, 'Subtitles', activeLabel);
         }
 
@@ -1644,7 +1706,7 @@
         });
     }
 
-    [audioMenuBtn, subtitleMenuBtn, qualityMenuBtn, audioMenuEl, subtitleMenuEl, qualityMenuEl].forEach((element) => {
+    [audioMenuBtn, subtitleMenuBtn, qualityMenuBtn, strategyMenuBtn, audioMenuEl, subtitleMenuEl, qualityMenuEl, strategyMenuEl].forEach((element) => {
         if (!element) {
             return;
         }
@@ -1789,6 +1851,13 @@
         });
     }
 
+    if (strategyMenuBtn) {
+        strategyMenuBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            toggleMenu(strategyMenuEl);
+        });
+    }
+
     if (qualityMenuBtn) {
         qualityMenuBtn.addEventListener('click', (event) => {
             event.preventDefault();
@@ -1811,6 +1880,8 @@
     updateRepeatButton();
     updateMuteButton();
     updateFullscreenButton();
+    updateStrategyLabel();
+    renderStrategyMenu();
     initTheme();
     start();
 })();
