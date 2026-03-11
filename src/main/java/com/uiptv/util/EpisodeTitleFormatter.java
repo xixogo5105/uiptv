@@ -23,6 +23,7 @@ public final class EpisodeTitleFormatter {
         String seasonLabel = I18n.formatSeasonLabel(normalizedSeason);
         String episodeLabel = I18n.formatEpisodeLabel(episodeNumber);
         String cleanTitle = stripGenericEpisodeTitle(normalizedSeason, episodeNumber, title);
+        cleanTitle = stripLeadingEpisodeMarker(normalizedSeason, episodeNumber, cleanTitle);
         if (isBlank(cleanTitle)) {
             return seasonLabel + " - " + episodeLabel;
         }
@@ -49,6 +50,27 @@ public final class EpisodeTitleFormatter {
             return "";
         }
         return value;
+    }
+
+    static String stripLeadingEpisodeMarker(String season, String episodeNumber, String title) {
+        String value = safe(title).trim();
+        if (isBlank(value)) {
+            return "";
+        }
+        String seasonDigits = normalizeDigitsToAscii(safe(season)).replaceAll("\\D+", "");
+        String episodeDigits = normalizeDigitsToAscii(safe(episodeNumber)).replaceAll("\\D+", "");
+        if (isBlank(episodeDigits)) {
+            return value;
+        }
+        String cleaned = value;
+        String separator = "\\s*[-:]*\\s*";
+        if (!isBlank(seasonDigits)) {
+            cleaned = cleaned.replaceFirst("(?i)^\\s*season\\s*" + seasonDigits + "\\s*(?:episode|ep|e)\\s*" + episodeDigits + "\\b" + separator, "");
+            cleaned = cleaned.replaceFirst("(?i)^\\s*s\\s*" + seasonDigits + "\\s*e\\s*" + episodeDigits + "\\b" + separator, "");
+            cleaned = cleaned.replaceFirst("(?i)^\\s*" + seasonDigits + "\\s*x\\s*" + episodeDigits + "\\b" + separator, "");
+        }
+        cleaned = cleaned.replaceFirst("(?i)^\\s*(?:episode|ep|e)\\s*" + episodeDigits + "\\b" + separator, "");
+        return cleaned.trim();
     }
 
     static boolean matchesLocalizedDisplayLabel(String season, String episodeNumber, String title) {

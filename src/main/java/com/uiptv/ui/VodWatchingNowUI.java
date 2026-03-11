@@ -14,6 +14,7 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -152,6 +153,7 @@ public class VodWatchingNowUI extends VBox {
 
         VBox details = new VBox(4);
         details.setMaxWidth(Double.MAX_VALUE);
+        details.setFillWidth(true);
         HBox.setHgrow(details, Priority.ALWAYS);
 
         ContextMenu cardMenu = new ContextMenu();
@@ -201,12 +203,16 @@ public class VodWatchingNowUI extends VBox {
 
         VBox cardBody = new VBox(4);
         cardBody.setMaxWidth(Double.MAX_VALUE);
+        cardBody.setFillWidth(true);
         HBox.setHgrow(cardBody, Priority.ALWAYS);
         cardBody.getChildren().add(topRow);
         if (data.plotNode != null) {
             details.getChildren().remove(data.plotNode);
             data.plotNode.setMaxWidth(Double.MAX_VALUE);
             data.plotNode.setMinWidth(0);
+            data.plotNode.setMinHeight(Region.USE_PREF_SIZE);
+            data.plotNode.setMaxHeight(Double.MAX_VALUE);
+            data.plotNode.prefWidthProperty().bind(cardBody.widthProperty().subtract(6));
             cardBody.getChildren().add(data.plotNode);
         }
 
@@ -264,8 +270,10 @@ public class VodWatchingNowUI extends VBox {
         if (!isBlank(data.metadata.plot)) {
             data.plotNode = new Label(data.metadata.plot);
             data.plotNode.setWrapText(true);
+            data.plotNode.setTextOverrun(OverrunStyle.CLIP);
             data.plotNode.setMaxWidth(Double.MAX_VALUE);
             data.plotNode.setMinWidth(0);
+            data.plotNode.setMinHeight(Region.USE_PREF_SIZE);
             details.getChildren().add(data.plotNode);
         }
     }

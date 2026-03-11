@@ -394,6 +394,10 @@
                                         <span class="badge bg-primary ms-2"
                                               v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                     </div>
+                                    <div class="subtitle episode-subtitle"
+                                         v-if="contentMode === 'vod' && getVodPlot(channel)">
+                                        {{ getVodPlot(channel) }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -620,6 +624,9 @@
                                 <div class="content-wrapper">
                                     <div class="title">{{ row.vodName }}</div>
                                     <div class="subtitle">{{ row.accountName }}</div>
+                                    <div class="subtitle episode-subtitle" v-if="getVodPlot(row)">
+                                        {{ getVodPlot(row) }}
+                                    </div>
                                 </div>
                             </div>
                             <div class="card-item"

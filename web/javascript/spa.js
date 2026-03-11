@@ -657,6 +657,12 @@ createApp({
             window.UIPTVPlaybackUtils?.normalizeDisplayText
                 ? window.UIPTVPlaybackUtils.normalizeDisplayText(value)
                 : String(value ?? '');
+        const getVodPlot = (item) => {
+            if (!item) return '';
+            const candidate = item.plot || item.description || item.overview || '';
+            const normalized = String(normalizeDisplayText(candidate) || '').trim();
+            return normalized || String(candidate || '').trim();
+        };
         const APP_TITLE = 'UIPTV';
         const currentChannelName = computed(() => currentChannel.value ? normalizeDisplayText(currentChannel.value.name) : '');
         const currentChannelDebugTitle = computed(() => {
@@ -2113,7 +2119,7 @@ createApp({
                 return;
             }
             if (contentMode.value === 'vod' && viewState.value === 'channels') {
-                await openVodDetails(channel);
+                playChannel(channel);
                 return;
             }
             playChannel(channel);
@@ -3055,6 +3061,7 @@ createApp({
             getEpisodeDisplayTitle,
             getEpisodeSubtitle,
             getSeriesEpisodeAnchorId,
+            getVodPlot,
             getImdbUrl,
             formatShortDate,
             playVodFromDetail,
