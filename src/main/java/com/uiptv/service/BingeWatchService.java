@@ -4,7 +4,6 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
-import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 
 import java.io.IOException;
@@ -130,9 +129,9 @@ public class BingeWatchService {
         }
         StringBuilder playlist = new StringBuilder("#EXTM3U\n");
         for (SessionEpisode episode : session.episodes()) {
-            String title = isBlank(episode.episodeNumber())
-                    ? episode.episodeName()
-                    : I18n.formatEpisodeLabel(episode.episodeNumber()) + ": " + episode.episodeName();
+            String seasonValue = firstNonBlank(normalizeNumber(episode.season()), DEFAULT_SEASON);
+            String episodeValue = firstNonBlank(normalizeNumber(episode.episodeNumber()), "-");
+            String title = "Season " + seasonValue + " - Episode " + episodeValue;
             playlist.append("#EXTINF:-1,").append(title).append("\n");
             playlist.append(buildEntryUrl(token, episode.episodeId())).append("\n");
         }
