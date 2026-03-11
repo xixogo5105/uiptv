@@ -10,6 +10,7 @@
     const playlistItemsEl = document.getElementById('playlist-items');
     const themeBtn = document.getElementById('theme-btn');
     const themeIcon = document.getElementById('theme-icon');
+    const cacheReloadBtn = document.getElementById('cache-reload-btn');
     const pipBtn = document.getElementById('pip-btn');
     const stopBtn = document.getElementById('stop-btn');
     const reloadBtn = document.getElementById('reload-btn');
@@ -1644,6 +1645,12 @@
 
     if (reloadBtn) {
         reloadBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, clearWebCacheAndReload, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
+        });
+    }
+
+    if (cacheReloadBtn) {
+        cacheReloadBtn.addEventListener('click', (event) => {
             window.UIPTVControls.onControlClick(event, clearWebCacheAndReload, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
         });
     }

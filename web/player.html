@@ -32,59 +32,63 @@
             <div id="media-subtitle"></div>
         </div>
         <div class="top-actions">
-            <button id="theme-btn" class="top-action" type="button" title="Theme: system">
-                <i id="theme-icon" class="bi bi-display"></i>
-                <span>Theme</span>
-            </button>
-            <div class="top-action-menu">
-                <button id="audio-menu-btn" class="top-action" type="button" title="Audio tracks">
-                    <i class="bi bi-music-note-list"></i>
-                    <span id="audio-label">Audio</span>
+            <div class="player-controls" aria-label="Player controls">
+                <button id="reload-btn" class="top-action" type="button" title="Hard reload">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Reload</span>
                 </button>
-                <div id="audio-menu" class="top-menu" hidden></div>
-            </div>
-            <div class="top-action-menu">
-                <button id="subtitle-menu-btn" class="top-action" type="button" title="Subtitles">
-                    <i class="bi bi-badge-cc"></i>
-                    <span id="subtitle-label">Subtitles</span>
+                <button id="repeat-btn" class="top-action" type="button" title="Auto-reload when stream ends">
+                    <i class="bi bi-repeat"></i>
+                    <span>Repeat</span>
                 </button>
-                <div id="subtitle-menu" class="top-menu" hidden></div>
-            </div>
-            <div class="top-action-menu">
-                <button id="quality-menu-btn" class="top-action" type="button" title="Playback quality">
-                    <i class="bi bi-badge-hd"></i>
-                    <span id="quality-label">Quality</span>
+                <button id="pip-btn" class="top-action" type="button" title="Picture in Picture">
+                    <i class="bi bi-pip"></i>
+                    <span>PIP</span>
                 </button>
-                <div id="quality-menu" class="top-menu" hidden></div>
+                <div class="top-action-menu">
+                    <button id="quality-menu-btn" class="top-action" type="button" title="Resolutions">
+                        <i class="bi bi-gear-fill"></i>
+                        <span id="quality-label">Quality</span>
+                    </button>
+                    <div id="quality-menu" class="top-menu" hidden></div>
+                </div>
+                <div class="top-action-menu">
+                    <button id="audio-menu-btn" class="top-action" type="button" title="Audio tracks">
+                        <i class="bi bi-music-note-list"></i>
+                        <span id="audio-label">Audio</span>
+                    </button>
+                    <div id="audio-menu" class="top-menu" hidden></div>
+                </div>
+                <div class="top-action-menu">
+                    <button id="subtitle-menu-btn" class="top-action" type="button" title="Subtitles">
+                        <i class="bi bi-badge-cc"></i>
+                        <span id="subtitle-label">Subtitles</span>
+                    </button>
+                    <div id="subtitle-menu" class="top-menu" hidden></div>
+                </div>
+                <button id="stop-btn" class="top-action" type="button" title="Stop playback">
+                    <i class="bi bi-stop-circle-fill"></i>
+                    <span>Stop</span>
+                </button>
             </div>
-            <div id="resolution-pill" class="top-action top-action-indicator" title="Current stream resolution">
-                <i class="bi bi-aspect-ratio"></i>
-                <span id="resolution-label">Resolution</span>
+            <div class="top-actions-main">
+                <button id="theme-btn" class="top-action" type="button" title="Theme: system">
+                    <i id="theme-icon" class="bi bi-display"></i>
+                    <span>Theme</span>
+                </button>
+                <button id="cache-reload-btn" class="top-action" type="button" title="Clear cache and reload">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span>Reload</span>
+                </button>
+                <a class="top-action" href="/index.html" title="Home">
+                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                    <span>Home</span>
+                </a>
+                <a class="top-action" href="/myflix.html" title="MyFlix">
+                    <i class="bi bi-film"></i>
+                    <span>MyFlix</span>
+                </a>
             </div>
-            <a class="top-action" href="/index.html" title="Home">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-                <span>Home</span>
-            </a>
-            <a class="top-action" href="/myflix.html" title="MyFlix">
-                <i class="bi bi-film"></i>
-                <span>MyFlix</span>
-            </a>
-            <button id="repeat-btn" class="top-action" type="button" title="Auto-reload when stream ends">
-                <i class="bi bi-repeat"></i>
-                <span>Repeat</span>
-            </button>
-            <button id="pip-btn" class="top-action" type="button" title="Picture in Picture">
-                <i class="bi bi-pip"></i>
-                <span>PIP</span>
-            </button>
-            <button id="reload-btn" class="top-action" type="button" title="Hard reload">
-                <i class="bi bi-arrow-repeat"></i>
-                <span>Reload</span>
-            </button>
-            <button id="stop-btn" class="top-action" type="button" title="Stop playback">
-                <i class="bi bi-stop-circle"></i>
-                <span>Stop</span>
-            </button>
         </div>
     </div>
     <div id="content">

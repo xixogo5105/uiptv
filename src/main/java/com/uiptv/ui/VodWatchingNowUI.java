@@ -48,7 +48,9 @@ public class VodWatchingNowUI extends VBox {
         setPadding(new Insets(5));
         setSpacing(5);
         scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(true);
+        scrollPane.setFitToHeight(false);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("transparent-scroll-pane");
         contentBox.setPadding(new Insets(5));
         getChildren().add(scrollPane);
