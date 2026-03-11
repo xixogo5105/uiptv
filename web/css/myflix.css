@@ -62,8 +62,9 @@ body {
     z-index: 50;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 14px 24px;
+    align-items: flex-start;
+    height: 50px;
+    padding: 6px 16px;
     border-bottom: 1px solid var(--line);
     background: rgba(33, 37, 41, 0.92);
     backdrop-filter: blur(8px);
@@ -110,6 +111,8 @@ body {
     color: #f8fafc;
     font-weight: 700;
     font-size: 0.95rem;
+    line-height: 1.2;
+    align-self: center;
     max-width: 260px;
     white-space: nowrap;
     overflow: hidden;
@@ -123,6 +126,7 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 2px;
+    align-self: flex-start;
 }
 
 [data-theme="light"] .nf-topbar-title {
@@ -175,7 +179,7 @@ body {
 
 .nf-actions {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     flex-shrink: 0;
 }
@@ -184,6 +188,13 @@ body {
     width: 260px;
     margin-bottom: 0;
     margin-right: 6px;
+}
+
+.nf-search.nf-search-top {
+    height: 38px;
+    padding: 0 11px;
+    margin-bottom: 0;
+    align-items: center;
 }
 
 .nf-action-btn {
@@ -1282,6 +1293,7 @@ body {
 
 @media (max-width: 640px) {
     .nf-topbar {
+        height: auto;
         padding: 12px;
         align-items: flex-start;
     }

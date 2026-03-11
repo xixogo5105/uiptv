@@ -62,6 +62,16 @@
                         class="btn btn-link text-white me-1 top-bar-player-btn" title="Picture in Picture">
                     <i class="bi bi-pip"></i>
                 </button>
+                <button @click="onPlayerControlClick($event, toggleMute)"
+                        :title="isMuted ? 'Unmute' : 'Mute'"
+                        class="btn btn-link text-white me-1 top-bar-player-btn">
+                    <i :class="isMuted ? 'bi-volume-mute-fill text-warning' : 'bi-volume-up'" class="bi"></i>
+                </button>
+                <button @click="onPlayerControlClick($event, requestFullscreenPlayer)"
+                        :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+                        class="btn btn-link text-white me-1 top-bar-player-btn">
+                    <i :class="isFullscreen ? 'bi-fullscreen-exit' : 'bi-fullscreen'" class="bi"></i>
+                </button>
                 <div class="dropdown d-inline-block">
                     <button aria-expanded="false" class="btn btn-link text-white me-1 top-bar-player-btn"
                             data-bs-toggle="dropdown" id="resolutionMenuButton" title="Resolutions"

@@ -12,9 +12,12 @@
     const themeIcon = document.getElementById('theme-icon');
     const cacheReloadBtn = document.getElementById('cache-reload-btn');
     const pipBtn = document.getElementById('pip-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
     const stopBtn = document.getElementById('stop-btn');
     const reloadBtn = document.getElementById('reload-btn');
     const repeatBtn = document.getElementById('repeat-btn');
+    const playerStageEl = document.getElementById('player-stage');
     const audioMenuBtn = document.getElementById('audio-menu-btn');
     const audioMenuEl = document.getElementById('audio-menu');
     const audioLabelEl = document.getElementById('audio-label');
@@ -182,9 +185,72 @@
         if (!repeatBtn) return;
         repeatBtn.setAttribute('aria-pressed', repeatEnabled ? 'true' : 'false');
         repeatBtn.title = repeatEnabled ? 'Auto-reload on stream end: ON' : 'Auto-reload on stream end: OFF';
+        const icon = repeatBtn.querySelector('i');
         const label = repeatBtn.querySelector('span');
+        if (icon) {
+            icon.className = repeatEnabled ? 'bi bi-repeat-1 text-warning' : 'bi bi-repeat';
+        }
         if (label) {
             label.textContent = repeatEnabled ? 'Repeat On' : 'Repeat Off';
+        }
+    };
+
+    const resolveMuteState = () => {
+        if (!videoEl) return false;
+        return videoEl.muted || videoEl.volume === 0;
+    };
+
+    const updateMuteButton = () => {
+        if (!muteBtn) return;
+        const muted = resolveMuteState();
+        muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+        muteBtn.title = muted ? 'Unmute' : 'Mute';
+        const icon = muteBtn.querySelector('i');
+        const label = muteBtn.querySelector('span');
+        if (icon) {
+            icon.className = muted ? 'bi bi-volume-mute-fill text-warning' : 'bi bi-volume-up';
+        }
+        if (label) {
+            label.textContent = muted ? 'Unmute' : 'Mute';
+        }
+    };
+
+    const toggleMute = () => {
+        if (!videoEl) return;
+        const nextMuted = !videoEl.muted && videoEl.volume === 0 ? false : !videoEl.muted;
+        videoEl.muted = nextMuted;
+        if (!nextMuted && videoEl.volume === 0) {
+            videoEl.volume = 1;
+        }
+        updateMuteButton();
+    };
+
+    const updateFullscreenButton = () => {
+        if (!fullscreenBtn) return;
+        const active = !!document.fullscreenElement;
+        fullscreenBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        fullscreenBtn.title = active ? 'Exit fullscreen' : 'Fullscreen';
+        const icon = fullscreenBtn.querySelector('i');
+        const label = fullscreenBtn.querySelector('span');
+        if (icon) {
+            icon.className = active ? 'bi bi-fullscreen-exit' : 'bi bi-fullscreen';
+        }
+        if (label) {
+            label.textContent = active ? 'Exit Fullscreen' : 'Fullscreen';
+        }
+    };
+
+    const toggleFullscreen = async () => {
+        const target = videoEl;
+        if (!target || !document.fullscreenEnabled) return;
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            } else {
+                await target.requestFullscreen();
+            }
+        } catch (_) {
+            // Ignore fullscreen errors.
         }
     };
 
@@ -1677,6 +1743,21 @@
         });
     }
 
+    if (muteBtn) {
+        muteBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, toggleMute, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
+        });
+    }
+
+    if (fullscreenBtn) {
+        if (!document.fullscreenEnabled) {
+            fullscreenBtn.disabled = true;
+        }
+        fullscreenBtn.addEventListener('click', (event) => {
+            window.UIPTVControls.onControlClick(event, toggleFullscreen);
+        });
+    }
+
     if (stopBtn) {
         stopBtn.addEventListener('click', (event) => {
             window.UIPTVControls.onControlClick(event, stopPlayback);
@@ -1708,9 +1789,17 @@
         await destroyPlayer();
     });
 
+    if (videoEl) {
+        videoEl.addEventListener('volumechange', () => updateMuteButton());
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+
     resetTrackMenus();
     renderResolutionPill();
     updateRepeatButton();
+    updateMuteButton();
+    updateFullscreenButton();
     initTheme();
     start();
 })();

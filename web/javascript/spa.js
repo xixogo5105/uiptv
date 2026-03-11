@@ -53,6 +53,8 @@ createApp({
         const textTracks = ref([]);
         const selectedTextTrackId = ref('off');
         const repeatEnabled = ref(false);
+        const isMuted = ref(false);
+        const isFullscreen = ref(false);
         const playbackLoading = ref(false);
         const pendingPlaybackKey = ref('');
         let playbackRequestId = 0;
@@ -2131,6 +2133,10 @@ createApp({
                 if (!repeatEnabled.value || !currentChannel.value?.playRequestUrl) return;
                 await startPlayback(currentChannel.value.playRequestUrl, currentChannel.value);
             };
+            video.onvolumechange = () => {
+                isMuted.value = video.muted || video.volume === 0;
+            };
+            isMuted.value = video.muted || video.volume === 0;
         };
 
         const clearVideoElement = (video) => {
@@ -2792,6 +2798,30 @@ createApp({
             }
         };
 
+        const toggleMute = () => {
+            const video = videoPlayer.value;
+            if (!video || isYoutube.value) return;
+            if (!video.muted && video.volume === 0) {
+                video.volume = 1;
+            }
+            video.muted = !video.muted;
+            isMuted.value = video.muted || video.volume === 0;
+        };
+
+        const requestFullscreenPlayer = async () => {
+            const video = videoPlayer.value;
+            if (!video || !document.fullscreenEnabled) return;
+            try {
+                if (document.fullscreenElement) {
+                    await document.exitFullscreen();
+                } else {
+                    await video.requestFullscreen();
+                }
+            } catch (e) {
+                console.warn('Fullscreen request failed', e);
+            }
+        };
+
         const ensurePlaybackNotPaused = async () => {
             if (!isPlaying.value || isYoutube.value) return;
             const video = videoPlayer.value;
@@ -2957,6 +2987,12 @@ createApp({
         };
 
         onMounted(async () => {
+            if (document.fullscreenEnabled) {
+                document.addEventListener('fullscreenchange', () => {
+                    isFullscreen.value = !!document.fullscreenElement;
+                });
+                isFullscreen.value = !!document.fullscreenElement;
+            }
             await loadConfig();
             await Promise.all([
                 loadAccounts(),
@@ -3039,6 +3075,8 @@ createApp({
             textTracks,
             selectedTextTrackId,
             repeatEnabled,
+            isMuted,
+            isFullscreen,
             playbackLoading,
             theme,
             themeIcon,
@@ -3084,6 +3122,8 @@ createApp({
             reloadPlayback,
             toggleRepeat,
             togglePictureInPicture,
+            toggleMute,
+            requestFullscreenPlayer,
             onPlayerControlClick,
             imageError,
             imageLoad,

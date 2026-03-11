@@ -55,6 +55,8 @@ createApp({
         const repeatEnabled = ref(false);
         const lastPlaybackUrl = ref('');
         const repeatInFlight = ref(false);
+        const isMuted = ref(false);
+        const isFullscreen = ref(false);
         const thumbnailsEnabled = ref(true);
 
         const playerKey = ref(0);
@@ -120,6 +122,7 @@ createApp({
         const selectedSeriesSeason = ref('');
         const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
         let unbindSystemThemeListener = null;
+        let unbindFullscreenListener = null;
 
         const isVodSeriesSupportedAccount = (account) => !!account && (account.type === 'STALKER_PORTAL' || account.type === 'XTREME_API');
         const isPinnedAccount = (account) => {
@@ -1676,7 +1679,7 @@ createApp({
         };
 
         const requestFullscreenPlayer = async () => {
-            const node = playerModalFrame.value;
+            const node = videoPlayerModal.value;
             if (!node || !document.fullscreenEnabled) return;
             try {
                 if (document.fullscreenElement) await document.exitFullscreen();
@@ -1701,6 +1704,17 @@ createApp({
             }
         };
 
+        const toggleMute = () => {
+            if (isYoutube.value) return;
+            const video = videoPlayerModal.value;
+            if (!video) return;
+            if (!video.muted && video.volume === 0) {
+                video.volume = 1;
+            }
+            video.muted = !video.muted;
+            isMuted.value = video.muted || video.volume === 0;
+        };
+
         const tryAutoRepeat = async () => {
             if (!repeatEnabled.value || !lastPlaybackUrl.value || repeatInFlight.value) return;
             repeatInFlight.value = true;
@@ -1720,6 +1734,10 @@ createApp({
             video.addEventListener('error', () => {
                 tryAutoRepeat();
             });
+            video.addEventListener('volumechange', () => {
+                isMuted.value = video.muted || video.volume === 0;
+            });
+            isMuted.value = video.muted || video.volume === 0;
             video.dataset.uiptvBound = '1';
         };
 
@@ -2343,6 +2361,14 @@ createApp({
         };
 
         onMounted(async () => {
+            if (document.fullscreenEnabled) {
+                const onFullscreenChange = () => {
+                    isFullscreen.value = !!document.fullscreenElement;
+                };
+                document.addEventListener('fullscreenchange', onFullscreenChange);
+                isFullscreen.value = !!document.fullscreenElement;
+                unbindFullscreenListener = () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+            }
             await loadConfig();
             loadAccounts();
             loadBookmarkCategories();
@@ -2374,6 +2400,10 @@ createApp({
             if (typeof unbindSystemThemeListener === 'function') {
                 unbindSystemThemeListener();
                 unbindSystemThemeListener = null;
+            }
+            if (typeof unbindFullscreenListener === 'function') {
+                unbindFullscreenListener();
+                unbindFullscreenListener = null;
             }
         });
 
@@ -2442,6 +2472,8 @@ createApp({
             theme,
             themeIcon,
             repeatEnabled,
+            isMuted,
+            isFullscreen,
 
             selectAccount,
             loadModeCategories,
@@ -2459,6 +2491,7 @@ createApp({
             reloadPlayback,
             toggleRepeat,
             togglePictureInPicture,
+            toggleMute,
             requestFullscreenPlayer,
             onPlayerControlClick,
             toggleFavorite,

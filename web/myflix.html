@@ -58,6 +58,16 @@
                         class="btn btn-link text-white me-1 nf-topbar-control-btn" title="Picture in Picture">
                     <i class="bi bi-pip"></i>
                 </button>
+                <button @click="onPlayerControlClick($event, toggleMute)"
+                        :title="isMuted ? 'Unmute' : 'Mute'"
+                        class="btn btn-link text-white me-1 nf-topbar-control-btn">
+                    <i :class="isMuted ? 'bi-volume-mute-fill text-warning' : 'bi-volume-up'" class="bi"></i>
+                </button>
+                <button @click="onPlayerControlClick($event, requestFullscreenPlayer)"
+                        :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+                        class="btn btn-link text-white me-1 nf-topbar-control-btn">
+                    <i :class="isFullscreen ? 'bi-fullscreen-exit' : 'bi-fullscreen'" class="bi"></i>
+                </button>
                 <div class="dropdown d-inline-block" v-if="videoTracks && videoTracks.length">
                     <button aria-expanded="false" class="btn btn-link text-white me-1 nf-topbar-control-btn"
                             data-bs-toggle="dropdown" id="resolutionMenuButtonTop" title="Resolutions"
@@ -155,7 +165,7 @@
     <main :class="{ 'detail-mode': isDetailPageOpen, 'series-detail-mode': isSeriesDetailOpen }" class="nf-main">
         <div anchor="playerAnchor"></div>
         <section class="nf-inline-player" ref="playerInlineRef" v-if="isPlaying">
-            <div class="nf-inline-player-frame">
+            <div class="nf-inline-player-frame" ref="playerModalFrame">
                 <div class="nf-inline-player-media">
                     <video
                             :key="playerKey"
