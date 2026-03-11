@@ -148,6 +148,11 @@ body {
     border-radius: 4px;
 }
 
+#topbar .uiptv-control-menu.uiptv-strategy-menu .uiptv-control-btn {
+    width: auto;
+    padding: 0 8px;
+}
+
 #topbar .uiptv-control-btn i {
     font-size: 1.05rem;
 }

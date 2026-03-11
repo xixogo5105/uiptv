@@ -80,6 +80,11 @@
     position: relative;
 }
 
+.uiptv-control-menu.uiptv-strategy-menu {
+    order: 99;
+    margin-left: auto;
+}
+
 .uiptv-control-menu span {
     display: none;
 }
@@ -88,6 +93,7 @@
     display: inline;
     font-size: 0.78rem;
     margin-left: 4px;
+    white-space: nowrap;
 }
 
 .uiptv-control-menu.uiptv-strategy-menu .uiptv-control-btn {

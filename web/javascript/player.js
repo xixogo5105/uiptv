@@ -1772,9 +1772,24 @@
         window.location.replace(target);
     };
 
+    const reloadPlayback = async () => {
+        if (!activeLaunch || repeatReloadInFlight) {
+            return;
+        }
+        repeatReloadInFlight = true;
+        try {
+            await destroyPlayer();
+            await requestAndStartPlayback(activeLaunch, {cacheBust: true});
+        } catch (error) {
+            setStatus('Unable to reload stream: ' + describePlaybackError(error));
+        } finally {
+            repeatReloadInFlight = false;
+        }
+    };
+
     if (reloadBtn) {
         reloadBtn.addEventListener('click', (event) => {
-            window.UIPTVControls.onControlClick(event, clearWebCacheAndReload, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
+            window.UIPTVControls.onControlClick(event, reloadPlayback, () => window.UIPTVControls.ensurePlaybackNotPaused(videoEl));
         });
     }
 
