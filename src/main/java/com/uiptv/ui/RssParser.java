@@ -34,7 +34,8 @@ public class RssParser {
                         ""));
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Unable to load RSS feed", e);
+            String details = e.getMessage() == null || e.getMessage().isBlank() ? "" : (": " + e.getMessage().trim());
+            throw new UncheckedIOException("Unable to load RSS feed" + details, e);
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
