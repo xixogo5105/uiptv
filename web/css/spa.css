@@ -841,7 +841,9 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    padding: 0 8px 8px;
+    padding: 0 8px;
+    margin: 6px 0 10px;
+    width: 100%;
     justify-content: center;
     align-items: center;
 }
