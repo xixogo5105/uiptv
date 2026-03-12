@@ -10,6 +10,7 @@ public class PlayerResponse {
     private String clearKeysJson;
     private String inputstreamaddon;
     private String manifestType;
+    private String ffmpegMode;
     private Account account;
     private Channel channel;
 

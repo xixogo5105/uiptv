@@ -198,7 +198,7 @@
         document.title = mode ? `${title} [${mode}] | ${APP_TITLE}` : `${title} | ${APP_TITLE}`;
     };
 
-    const resolvePlaybackModeLabel = (url, strategy = '') => playbackUtils.resolvePlaybackModeLabel(url, strategy);
+    const resolvePlaybackModeLabel = (url, strategy = '', ffmpegMode = '') => playbackUtils.resolvePlaybackModeLabel(url, strategy, ffmpegMode);
 
     const launchMode = (launch) => cleanValue(launch?.mode || 'itv').toLowerCase();
 
@@ -1106,7 +1106,7 @@
             throw new Error('empty-playback-url');
         }
         const playbackStrategy = strategy === 'prefer-hls' ? resolvePrimaryStrategy(strategyResponse, launch) : strategy;
-        playbackMode = resolvePlaybackModeLabel(playbackUrl, playbackStrategy);
+        playbackMode = resolvePlaybackModeLabel(playbackUrl, playbackStrategy, strategyResponse?.ffmpegMode || responseData?.ffmpegMode || '');
         renderMediaTitle();
         updateDocumentTitle();
         const shakaPayload = {...strategyResponse, url: playbackUrl};

@@ -837,6 +837,38 @@ body {
     opacity: 0;
 }
 
+.account-type-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 8px 8px;
+    justify-content: center;
+    align-items: center;
+}
+
+.account-type-chip {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--tab-inactive-text);
+    border-radius: 999px;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.6rem;
+    line-height: 1;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.account-type-chip:hover {
+    background-color: var(--tab-hover-bg);
+    border-color: var(--card-hover-border);
+    color: var(--tab-hover-text);
+}
+
+.account-type-chip.active {
+    background-color: var(--tab-active-bg);
+    border-color: var(--card-hover-border);
+    color: var(--tab-active-text);
+}
+
 /* Responsive Layout */
 @media (max-width: 767.98px) {
     .content-row {

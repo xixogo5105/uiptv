@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <!-- MPEG-TS over MSE -->
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
-    <script src="/javascript/playback-utils.js?v=20260310a"></script>
+    <script src="/javascript/playback-utils.js?v=20260312a"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
     <script src="/javascript/shared-player.js?v=20260311c"></script>
     <script src="/javascript/bookmark-watch-utils.js?v=20260310d"></script>
@@ -224,6 +224,28 @@
                     </div>
 
                     <!-- Accounts List -->
+                    <div class="account-type-filter" v-if="viewState === 'accounts'">
+                        <button :class="{ active: selectedAccountTypeFilter === 'all' }"
+                                @click="selectAccountTypeFilter('all')"
+                                class="account-type-chip">All
+                        </button>
+                        <button :class="{ active: selectedAccountTypeFilter === 'stalker' }"
+                                @click="selectAccountTypeFilter('stalker')"
+                                class="account-type-chip">Stalker
+                        </button>
+                        <button :class="{ active: selectedAccountTypeFilter === 'xtreme' }"
+                                @click="selectAccountTypeFilter('xtreme')"
+                                class="account-type-chip">Xtreme
+                        </button>
+                        <button :class="{ active: selectedAccountTypeFilter === 'm3u' }"
+                                @click="selectAccountTypeFilter('m3u')"
+                                class="account-type-chip">M3U
+                        </button>
+                        <button :class="{ active: selectedAccountTypeFilter === 'rss' }"
+                                @click="selectAccountTypeFilter('rss')"
+                                class="account-type-chip">RSS
+                        </button>
+                    </div>
                     <div class="grid-container" v-if="viewState === 'accounts'">
                         <div class="card-item" v-if="listLoading">
                             <div class="icon-placeholder"><span
@@ -615,7 +637,7 @@
     </div>
 </div>
 
-<script src="/javascript/spa.js?v=20260311a"></script>
+<script src="/javascript/spa.js?v=20260312a"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

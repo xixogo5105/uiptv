@@ -19,16 +19,23 @@
         return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
     };
 
-    const resolvePlaybackModeLabel = (url, engine = '') => {
+    const resolvePlaybackModeLabel = (url, engine = '', ffmpegMode = '') => {
         const lowerUrl = String(url || '').trim().toLowerCase();
         const normalizedEngine = String(engine || '').trim().toLowerCase();
+        const normalizedFfmpeg = String(ffmpegMode || '').trim().toLowerCase();
+        const buildHlsLabel = () => {
+            if (!normalizedFfmpeg) return 'hls';
+            if (normalizedFfmpeg.startsWith('transmux')) return 'HLS Transmux';
+            if (normalizedFfmpeg.startsWith('transcod')) return 'HLS Transcoding';
+            return `HLS ${normalizedFfmpeg}`;
+        };
         if (normalizedEngine === 'youtube') return 'youtube';
         if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-        if (lowerUrl.includes('/hls/stream.m3u8')) return 'hls';
+        if (lowerUrl.includes('/hls/stream.m3u8')) return buildHlsLabel();
         if (normalizedEngine === 'mpegts') return 'mpegts';
         if (normalizedEngine === 'shaka') {
             if (lowerUrl.includes('.mpd')) return 'dash';
-            if (lowerUrl.includes('.m3u8')) return 'hls';
+            if (lowerUrl.includes('.m3u8')) return buildHlsLabel();
             return 'shaka';
         }
         return 'direct';

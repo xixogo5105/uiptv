@@ -199,21 +199,21 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String sourceUrl = response.getUrl();
         boolean vodStylePlaylist = shouldUseVodStylePlaylist();
         if (startTransmuxing(sourceUrl, forceWebHls, vodStylePlaylist)) {
-            setHlsPlayback(response, hvec);
+            setHlsPlayback(response, hvec, "transmux");
             return;
         }
         if (allowTranscoding && startTranscoding(sourceUrl, forceWebHls, vodStylePlaylist)) {
-            setHlsPlayback(response, hvec);
+            setHlsPlayback(response, hvec, "transcode");
             return;
         }
         String fallbackUrl = forceWebHls ? retryForcedWebHls(sourceUrl) : sourceUrl;
         if (forceWebHls && !fallbackUrl.equals(sourceUrl)) {
             if (startTransmuxing(fallbackUrl, true, vodStylePlaylist)) {
-                setHlsPlayback(response, hvec);
+                setHlsPlayback(response, hvec, "transmux");
                 return;
             }
             if (allowTranscoding && startTranscoding(fallbackUrl, true, vodStylePlaylist)) {
-                setHlsPlayback(response, hvec);
+                setHlsPlayback(response, hvec, "transcode");
                 return;
             }
         }
@@ -282,9 +282,10 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return downgraded.equals(sourceUrl) ? sourceUrl : downgraded;
     }
 
-    private void setHlsPlayback(PlayerResponse response, String hvec) {
+    private void setHlsPlayback(PlayerResponse response, String hvec, String ffmpegMode) {
         response.setUrl(isHvecEnabled(hvec) ? URL_FRAGMENT_LOCAL_HLS + "?hvec=1" : URL_FRAGMENT_LOCAL_HLS);
         response.setManifestType("hls");
+        response.setFfmpegMode(ffmpegMode);
     }
 
     private PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
@@ -325,6 +326,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         putIfNotBlank(json, JSON_KEY_STRATEGY_HINT, determineStrategyHint(response));
         appendChannelJson(json, response);
         appendDrmJson(json, response);
+        putIfNotBlank(json, "ffmpegMode", response == null ? null : response.getFfmpegMode());
         appendBingeWatchJson(json, resolved);
         return json.toString();
     }

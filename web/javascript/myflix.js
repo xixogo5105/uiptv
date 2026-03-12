@@ -56,6 +56,7 @@ createApp({
         const lastPlaybackUrl = ref('');
         const repeatInFlight = ref(false);
         const isMuted = ref(false);
+        const controlsVisible = ref(false);
         const isFullscreen = ref(false);
         const thumbnailsEnabled = ref(true);
         const strategyOverride = ref('auto');
@@ -79,6 +80,7 @@ createApp({
         const isBusy = ref(false);
         const busyMessage = ref('Loading...');
         const playbackMode = ref('');
+        const playbackFfmpegMode = ref('');
         const modeLoadingCount = ref({itv: 0, vod: 0, series: 0, bookmarks: 0, watchingNow: 0, watchingNowVod: 0});
 
         const playbackUtils = window.UIPTVPlaybackUtils;
@@ -743,6 +745,9 @@ createApp({
             try {
                 const response = await fetch(window.location.origin + '/accounts');
                 accounts.value = await response.json();
+                if (!selectedAccountId.value && accounts.value.length === 1) {
+                    await selectAccount(accounts.value[0]);
+                }
             } catch (e) {
                 console.error('Failed to load accounts', e);
             }
@@ -884,6 +889,9 @@ createApp({
                 b.categories.value = withSyntheticAllCategory(await response.json(), b.accountType.value);
                 b.viewState.value = 'categories';
                 searchQuery.value = '';
+                if (b.categories.value.length === 1 && isAllCategory(b.categories.value[0])) {
+                    await loadModeChannels(mode, b.categories.value[0].dbId || b.categories.value[0].categoryId || 'all');
+                }
             } catch (e) {
                 console.error('Failed to load categories', e);
             } finally {
@@ -1621,10 +1629,11 @@ createApp({
         const startPlayback = async (url, nextChannel = null, options = {}) => {
             playbackLifecycleId.value++;
             const lifecycleId = playbackLifecycleId.value;
+            controlsVisible.value = true;
             const targetChannel = nextChannel || currentChannel.value;
             const switching = nextChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
             if (switching) {
-                await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true});
+                await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
             } else {
                 await stopPlayback(true, false);
             }
@@ -1666,6 +1675,7 @@ createApp({
                 if (!isPlaybackRequestActive(lifecycleId)) return;
                 const channelData = await response.json();
                 if (!isPlaybackRequestActive(lifecycleId)) return;
+                playbackFfmpegMode.value = String(channelData?.ffmpegMode || '').trim();
                 if (!channelData?.url && targetChannel?.cmd) {
                     const fallbackUrl = normalizeWebPlaybackUrl(String(targetChannel.cmd).trim().replace(/^ffmpeg\s+/i, ''));
                     await initPlayer({url: fallbackUrl}, lifecycleId);
@@ -1748,6 +1758,7 @@ createApp({
             const notify = options.notify !== false;
             const reason = options.reason || 'stop';
             const resetStrategy = options.resetStrategy !== false;
+            const hideControls = options.hideControls !== false;
             if (notify) {
                 notifyPlayerClosed(reason);
             }
@@ -1758,6 +1769,9 @@ createApp({
             isPlaying.value = false;
             playbackMode.value = '';
             currentChannel.value = null;
+            if (hideControls) {
+                controlsVisible.value = false;
+            }
             await stopPlayback(false, true);
         };
 
@@ -1801,14 +1815,15 @@ createApp({
         };
 
         const toggleMute = () => {
+            const nextMuted = !isMuted.value;
+            isMuted.value = nextMuted;
             if (isYoutube.value) return;
             const video = videoPlayerModal.value;
             if (!video) return;
-            if (!video.muted && video.volume === 0) {
+            if (!nextMuted && video.volume === 0) {
                 video.volume = 1;
             }
-            video.muted = !video.muted;
-            isMuted.value = video.muted || video.volume === 0;
+            video.muted = nextMuted;
         };
 
         const tryAutoRepeat = async () => {
@@ -1822,8 +1837,19 @@ createApp({
             }
         };
 
+        const applyMutePreference = (video) => {
+            if (!video) return;
+            const shouldMute = !!isMuted.value;
+            video.muted = shouldMute;
+            if (!shouldMute && video.volume === 0) {
+                video.volume = 1;
+            }
+        };
+
         const bindPlaybackEvents = (video) => {
-            if (!video || video.dataset.uiptvBound === '1') return;
+            if (!video) return;
+            applyMutePreference(video);
+            if (video.dataset.uiptvBound === '1') return;
             video.addEventListener('ended', () => {
                 tryAutoRepeat();
             });
@@ -1864,7 +1890,7 @@ createApp({
                 isYoutube.value = true;
                 const videoId = uri.split('v=')[1] ? uri.split('v=')[1].split('&')[0] : uri.split('/').pop();
                 youtubeSrc.value = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(uri, 'youtube');
+                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(uri, 'youtube', playbackFfmpegMode.value);
                 return;
             }
 
@@ -1958,7 +1984,7 @@ createApp({
                     return;
                 }
                 await player.play();
-                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(sourceUrl, 'mpegts');
+                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(sourceUrl, 'mpegts', playbackFfmpegMode.value);
             } catch (e) {
                 console.warn('MPEGTS playback failed, trying HLS fallback.', e);
                 if (await tryMpegTsHlsFallback(channel, sourceUrl, lifecycleId)) {
@@ -2017,7 +2043,7 @@ createApp({
                 try {
                     if (!isPlaybackRequestActive(lifecycleId)) return;
                     await video.play();
-                    playbackMode.value = playbackUtils.resolvePlaybackModeLabel(sourceUrl, 'native');
+                    playbackMode.value = playbackUtils.resolvePlaybackModeLabel(sourceUrl, 'native', playbackFfmpegMode.value);
                 } catch (e) {
                     if (String(strategyOverride.value || 'auto') !== 'auto') {
                         playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
@@ -2116,7 +2142,7 @@ createApp({
                     await destroyTransientPlayer();
                     return;
                 }
-                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(channel.url, 'shaka');
+                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(channel.url, 'shaka', playbackFfmpegMode.value);
                 videoTracks.value = player.getVariantTracks();
                 audioTracks.value = player.getVariantTracks()
                     .filter(track => !track.audioOnly)
@@ -2384,14 +2410,15 @@ createApp({
 
         const syncSharedHeader = () => {
             if (!sharedHeader) return;
-            const baseTitle = isPlaying.value ? headerTitle.value : '';
-            const modeLabel = currentChannelName.value && isPlaying.value ? playbackMode.value : '';
+            const headerVisible = controlsVisible.value;
+            const baseTitle = headerVisible ? headerTitle.value : '';
+            const modeLabel = currentChannelName.value && headerVisible ? playbackMode.value : '';
             sharedHeader.setState({
                 repeatEnabled: repeatEnabled.value,
                 isMuted: isMuted.value,
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
-                isPlaying: isPlaying.value,
+                isPlaying: headerVisible,
                 strategyLabel: strategyOverride.value === 'mpegts' ? 'MPEGTS' : strategyOverride.value === 'hls' ? 'HLS' : strategyOverride.value === 'proxy' ? 'Proxy' : strategyOverride.value === 'direct' ? 'Direct' : 'Auto'
             });
             sharedHeader.setTitle({
@@ -2699,7 +2726,7 @@ createApp({
             }
         });
 
-        watch([isPlaying, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playerLoading, currentChannelName, currentChannelDebugTitle, headerTitle, strategyOverride], () => {
+        watch([isPlaying, controlsVisible, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playerLoading, currentChannelName, currentChannelDebugTitle, headerTitle, strategyOverride], () => {
             syncSharedHeader();
         }, {immediate: true});
 
