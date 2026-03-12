@@ -261,7 +261,7 @@ public class WatchingNowSeriesResolver {
         JSONObject payload = null;
         try {
             payload = new JSONObject(raw);
-        } catch (Exception parseException) {
+        } catch (Exception _) {
             try {
                 JSONArray array = new JSONArray(raw);
                 if (!array.isEmpty()) {
@@ -270,7 +270,7 @@ public class WatchingNowSeriesResolver {
                         payload = jsonObject;
                     }
                 }
-            } catch (Exception arrayException) {
+            } catch (Exception _) {
                 return null;
             }
         }
