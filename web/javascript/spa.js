@@ -699,7 +699,7 @@ createApp({
         const playbackUtils = window.UIPTVPlaybackUtils;
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
-        const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
+        const resolvePlaybackModeLabel = (url, engine = '', ffmpegMode = '') => playbackUtils.resolvePlaybackModeLabel(url, engine, ffmpegMode);
         const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
         const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
         const notifyPlayerClosed = (reason = 'stop') => {
