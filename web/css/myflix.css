@@ -153,10 +153,10 @@ body {
 
 .nf-topbar .uiptv-player-title {
     color: #f8fafc;
-    font-weight: 700;
-    font-size: 0.95rem;
+    font-weight: 600;
+    font-size: 0.80rem;
     max-width: 260px;
-    min-width: 140px;
+    min-width: 380px;
 }
 
 .nf-topbar .uiptv-player-title #media-title-text {

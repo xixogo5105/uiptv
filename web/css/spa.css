@@ -229,8 +229,9 @@ body {
 
 .top-bar .uiptv-player-title {
     color: var(--topbar-text);
-    font-size: 0.85rem;
-    max-width: 280px;
+    font-weight: 600;
+    font-size: 0.80rem;
+    max-width: 450px;
 }
 
 .top-bar .uiptv-player-title #media-title-text {
@@ -480,8 +481,8 @@ body {
 }
 
 .video-js .vjs-big-play-button {
-    background-color: var(--vjs-big-play-button-bg) !important;
-    border-color: var(--vjs-big-play-button-border) ! importan;
+    background-color: var(--vjs-big-play-button-bg)!important;
+    border-color: var(--vjs-big-play-button-border)!important;
     color: var(--vjs-text-color) !important;
 }
 
