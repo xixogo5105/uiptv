@@ -280,6 +280,24 @@
         updateRepeatButton();
     };
 
+    const triggerRepeatReload = async (message) => {
+        if (!repeatEnabled || repeatReloadInFlight || !activeLaunch) {
+            return;
+        }
+        repeatReloadInFlight = true;
+        try {
+            if (message) {
+                setStatus(message);
+            }
+            await destroyPlayer();
+            await requestAndStartPlayback(activeLaunch, {cacheBust: true});
+        } catch (error) {
+            setStatus('Unable to reload stream: ' + describePlaybackError(error));
+        } finally {
+            repeatReloadInFlight = false;
+        }
+    };
+
     const decodeBase64Url = (value) => {
         const raw = String(value || '').trim();
         if (!raw) return '';
@@ -1272,6 +1290,7 @@
         player.on(engine.Events.ERROR, (_, detail) => {
             const message = detail?.msg || detail?.message || 'MPEGTS error';
             setStatus('Playback error: ' + message);
+            triggerRepeatReload();
         });
         player.attachMediaElement(videoEl);
         player.load();
@@ -1615,6 +1634,7 @@
         shakaPlayer.addEventListener('error', (event) => {
             const detail = event?.detail?.message || 'Unknown Shaka error';
             setStatus('Playback error: ' + detail);
+            triggerRepeatReload();
         });
         shakaPlayer.addEventListener('adaptation', () => {
             populateTrackMenus();
@@ -1733,7 +1753,9 @@
         videoEl.addEventListener('error', () => {
             const mediaError = videoEl.error;
             const code = mediaError?.code ? `media-error-code ${mediaError.code}` : 'media-error-code unknown';
-            setStatus(describePlaybackError(new Error(code)));
+            const message = describePlaybackError(new Error(code));
+            setStatus(message);
+            triggerRepeatReload();
         });
         videoEl.addEventListener('ended', () => {
             if (activeBingeWatch) {
@@ -1742,18 +1764,7 @@
                 });
                 return;
             }
-            if (!repeatEnabled || repeatReloadInFlight || !activeLaunch) {
-                return;
-            }
-            repeatReloadInFlight = true;
-            destroyPlayer()
-                .then(() => requestAndStartPlayback(activeLaunch, {cacheBust: true}))
-                .catch((error) => {
-                    setStatus('Unable to reload stream: ' + describePlaybackError(error));
-                })
-                .finally(() => {
-                    repeatReloadInFlight = false;
-                });
+            triggerRepeatReload();
         });
         videoEl.addEventListener('timeupdate', markPlaybackProgress);
         videoEl.addEventListener('playing', markPlaybackProgress);

@@ -53,6 +53,10 @@ createApp({
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
         const repeatEnabled = ref(false);
+        const repeatOnError = async () => {
+            if (!repeatEnabled.value) return;
+            await tryAutoRepeat();
+        };
         const lastPlaybackUrl = ref('');
         const repeatInFlight = ref(false);
         const isMuted = ref(false);
@@ -1854,7 +1858,7 @@ createApp({
                 tryAutoRepeat();
             });
             video.addEventListener('error', () => {
-                tryAutoRepeat();
+                repeatOnError();
             });
             video.addEventListener('volumechange', () => {
                 isMuted.value = video.muted || video.volume === 0;

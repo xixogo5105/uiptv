@@ -10,6 +10,7 @@
     min-width: 0;
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
 }
 
 .uiptv-player-header[data-state="inactive"] {
@@ -33,12 +34,16 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 .uiptv-title-line #media-title-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.2;
+    font-weight: 600;
 }
 
 .uiptv-subtitle {

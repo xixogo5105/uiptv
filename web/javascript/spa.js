@@ -55,6 +55,7 @@ createApp({
         const textTracks = ref([]);
         const selectedTextTrackId = ref('off');
         const repeatEnabled = ref(false);
+        let repeatReloadInFlight = false;
         const isMuted = ref(false);
         const controlsVisible = ref(false);
         const isFullscreen = ref(false);
@@ -2191,13 +2192,25 @@ createApp({
             if (!video) return;
             applyMutePreference(video);
             video.onended = async () => {
-                if (!repeatEnabled.value || !currentChannel.value?.playRequestUrl) return;
-                await startPlayback(currentChannel.value.playRequestUrl, currentChannel.value);
+                await triggerRepeatReload();
+            };
+            video.onerror = async () => {
+                await triggerRepeatReload();
             };
             video.onvolumechange = () => {
                 isMuted.value = video.muted || video.volume === 0;
             };
             isMuted.value = video.muted || video.volume === 0;
+        };
+
+        const triggerRepeatReload = async () => {
+            if (!repeatEnabled.value || !currentChannel.value?.playRequestUrl || repeatReloadInFlight) return;
+            repeatReloadInFlight = true;
+            try {
+                await startPlayback(currentChannel.value.playRequestUrl, currentChannel.value);
+            } finally {
+                repeatReloadInFlight = false;
+            }
         };
 
         const buildStrategyKey = (channel) => {
