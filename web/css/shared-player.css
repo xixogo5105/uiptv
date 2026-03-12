@@ -26,7 +26,7 @@
     flex-direction: column;
     gap: 2px;
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 1 1 60%;
 }
 
 .uiptv-title-line {
@@ -61,6 +61,7 @@
     padding: 4px 6px;
     border-radius: 6px;
     margin-left: auto;
+    flex: 0 1 auto;
 }
 
 .uiptv-control-btn {
