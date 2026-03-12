@@ -106,6 +106,9 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
     @Test
     void webPlaybackHelpers_coverRedirectNormalization_transmuxing_andFallbacks() throws Exception {
         HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        Configuration configuration = new Configuration();
+        configuration.setEnableFfmpegTranscoding(false);
 
         assertEquals("", invoke(handler, "sanitizeParam", new Class[]{String.class}, (String) null));
         assertEquals("", invoke(handler, "sanitizeParam", new Class[]{String.class}, " undefined "));
@@ -121,101 +124,106 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         assertFalse((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "vod", "https://host/play/movie.php?id=1"));
         assertFalse((Boolean) invoke(handler, "shouldForceWebHlsForUrl", new Class[]{String.class, String.class}, "itv", "https://host/play/movie.php?id=1"));
 
-        PlayerResponse directNoProbeResponse = new PlayerResponse("http://host/live/play/tokenized/9412");
-        invoke(handler, "applyWebPlaybackProcessing",
-                new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                directNoProbeResponse, "vod", "0", false);
-        assertEquals("http://host/live/play/tokenized/9412", directNoProbeResponse.getUrl());
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
 
-        PlayerResponse directLiveAdaptiveResponse = new PlayerResponse("https://host/index.m3u8?token=abc123");
-        invoke(handler, "applyWebPlaybackProcessing",
-                new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                directLiveAdaptiveResponse, "itv", "0", false);
-        assertEquals("https://host/index.m3u8?token=abc123", directLiveAdaptiveResponse.getUrl());
-
-        PlayerResponse directLiveTsResponse = new PlayerResponse("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001");
-        invoke(handler, "applyWebPlaybackProcessing",
-                new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                directLiveTsResponse, "itv", "0", false);
-        assertEquals("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001", directLiveTsResponse.getUrl());
-
-        PlayerResponse hlsResponse = new PlayerResponse("https://host/play/movie.php?id=1");
-        FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
-        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
-            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(ffmpegService);
-            Mockito.when(ffmpegService.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
-
+            PlayerResponse directNoProbeResponse = new PlayerResponse("http://host/live/play/tokenized/9412");
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                    hlsResponse, "series", "1", false);
+                    directNoProbeResponse, "vod", "0", false);
+            assertEquals("http://host/live/play/tokenized/9412", directNoProbeResponse.getUrl());
 
-            assertEquals("/hls/stream.m3u8?hvec=1", hlsResponse.getUrl());
-            assertEquals("hls", hlsResponse.getManifestType());
-        }
-
-        PlayerResponse preferredHlsResponse = new PlayerResponse("https://host/index.m3u8?token=abc123");
-        FfmpegService preferredHlsFfmpeg = Mockito.mock(FfmpegService.class);
-        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
-            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(preferredHlsFfmpeg);
-            Mockito.when(preferredHlsFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
-
+            PlayerResponse directLiveAdaptiveResponse = new PlayerResponse("https://host/index.m3u8?token=abc123");
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                    preferredHlsResponse, "itv", "0", true);
+                    directLiveAdaptiveResponse, "itv", "0", false);
+            assertEquals("https://host/index.m3u8?token=abc123", directLiveAdaptiveResponse.getUrl());
 
-            assertEquals("/hls/stream.m3u8", preferredHlsResponse.getUrl());
-            assertEquals("hls", preferredHlsResponse.getManifestType());
-        }
-
-        PlayerResponse preferredHlsTsResponse = new PlayerResponse("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001");
-        FfmpegService preferredHlsTsFfmpeg = Mockito.mock(FfmpegService.class);
-        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
-            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(preferredHlsTsFfmpeg);
-            Mockito.when(preferredHlsTsFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
-
+            PlayerResponse directLiveTsResponse = new PlayerResponse("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001");
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                    preferredHlsTsResponse, "itv", "0", true);
+                    directLiveTsResponse, "itv", "0", false);
+            assertEquals("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001", directLiveTsResponse.getUrl());
 
-            assertEquals("/hls/stream.m3u8", preferredHlsTsResponse.getUrl());
-            assertEquals("hls", preferredHlsTsResponse.getManifestType());
-        }
+            PlayerResponse hlsResponse = new PlayerResponse("https://host/play/movie.php?id=1");
+            FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
+            try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+                ffmpegStatic.when(FfmpegService::getInstance).thenReturn(ffmpegService);
+                Mockito.when(ffmpegService.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
 
-        PlayerResponse vodProxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
-        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class);
-             MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
-            FfmpegService directFfmpeg = Mockito.mock(FfmpegService.class);
-            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(directFfmpeg);
-            serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
+                invoke(handler, "applyWebPlaybackProcessing",
+                        new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                        hlsResponse, "series", "1", false);
 
+                assertEquals("/hls/stream.m3u8?hvec=1", hlsResponse.getUrl());
+                assertEquals("hls", hlsResponse.getManifestType());
+            }
+
+            PlayerResponse preferredHlsResponse = new PlayerResponse("https://host/index.m3u8?token=abc123");
+            FfmpegService preferredHlsFfmpeg = Mockito.mock(FfmpegService.class);
+            try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+                ffmpegStatic.when(FfmpegService::getInstance).thenReturn(preferredHlsFfmpeg);
+                Mockito.when(preferredHlsFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
+
+                invoke(handler, "applyWebPlaybackProcessing",
+                        new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                        preferredHlsResponse, "itv", "0", true);
+
+                assertEquals("/hls/stream.m3u8", preferredHlsResponse.getUrl());
+                assertEquals("hls", preferredHlsResponse.getManifestType());
+            }
+
+            PlayerResponse preferredHlsTsResponse = new PlayerResponse("http://host/live/play/live.php?stream=1001&extension=ts&play_token=pt1001");
+            FfmpegService preferredHlsTsFfmpeg = Mockito.mock(FfmpegService.class);
+            try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+                ffmpegStatic.when(FfmpegService::getInstance).thenReturn(preferredHlsTsFfmpeg);
+                Mockito.when(preferredHlsTsFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
+
+                invoke(handler, "applyWebPlaybackProcessing",
+                        new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                        preferredHlsTsResponse, "itv", "0", true);
+
+                assertEquals("/hls/stream.m3u8", preferredHlsTsResponse.getUrl());
+                assertEquals("hls", preferredHlsTsResponse.getManifestType());
+            }
+
+            PlayerResponse vodProxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
+            try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class);
+                 MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
+                FfmpegService directFfmpeg = Mockito.mock(FfmpegService.class);
+                ffmpegStatic.when(FfmpegService::getInstance).thenReturn(directFfmpeg);
+                serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
+
+                invoke(handler, "applyWebPlaybackProcessing",
+                        new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                        vodProxyResponse, "vod", "0", false);
+
+                Mockito.verify(directFfmpeg).stopTransmuxing();
+                assertTrue(vodProxyResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
+            }
+
+            PlayerResponse fallbackResponse = new PlayerResponse("https://host/play/movie.php?id=1");
+            FfmpegService fallbackFfmpeg = Mockito.mock(FfmpegService.class);
+            try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class);
+                 MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
+                ffmpegStatic.when(FfmpegService::getInstance).thenReturn(fallbackFfmpeg);
+                serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
+                Mockito.when(fallbackFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(false);
+
+                invoke(handler, "applyWebPlaybackProcessing",
+                        new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                        fallbackResponse, "series", "0", false);
+
+                assertEquals("http://host/play/movie.php?id=1", fallbackResponse.getUrl());
+            }
+
+            PlayerResponse directVodResponse = new PlayerResponse("https://host/live/play/tokenized/9412");
             invoke(handler, "applyWebPlaybackProcessing",
                     new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                    vodProxyResponse, "vod", "0", false);
-
-            Mockito.verify(directFfmpeg).stopTransmuxing();
-            assertTrue(vodProxyResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
+                    directVodResponse, "vod", "0", false);
+            assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
         }
-
-        PlayerResponse fallbackResponse = new PlayerResponse("https://host/play/movie.php?id=1");
-        FfmpegService fallbackFfmpeg = Mockito.mock(FfmpegService.class);
-        try (MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class);
-             MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
-            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(fallbackFfmpeg);
-            serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
-            Mockito.when(fallbackFfmpeg.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(false);
-
-            invoke(handler, "applyWebPlaybackProcessing",
-                    new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                    fallbackResponse, "series", "0", false);
-
-            assertEquals("http://host/play/movie.php?id=1", fallbackResponse.getUrl());
-        }
-
-        PlayerResponse directVodResponse = new PlayerResponse("https://host/live/play/tokenized/9412");
-        invoke(handler, "applyWebPlaybackProcessing",
-                new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
-                directVodResponse, "vod", "0", false);
-        assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
     }
 
     @Test
@@ -306,6 +314,60 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
             assertEquals("ffmpeg http://provider/live/play/token/9412", channelCaptor.getValue().getCmd());
             assertEquals(200, exchange.getResponseCode());
             assertTrue(exchange.getResponseBodyText().contains("\"url\":\"http://provider/live/play/token/9412\""));
+        }
+    }
+
+    @Test
+    void webPlayback_transcodingIsFallbackWhenEnabled() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        Configuration configuration = new Configuration();
+        configuration.setEnableFfmpegTranscoding(true);
+        PlayerResponse response = new PlayerResponse("https://host/play/movie.php?id=1");
+        FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(ffmpegService);
+            Mockito.when(ffmpegService.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(false);
+            Mockito.when(ffmpegService.startTranscoding(Mockito.anyString(), Mockito.eq(false))).thenReturn(true);
+
+            invoke(handler, "applyWebPlaybackProcessing",
+                    new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                    response, "series", "0", false);
+
+            Mockito.verify(ffmpegService, Mockito.times(2)).startTransmuxing(Mockito.anyString(), Mockito.eq(false));
+            Mockito.verify(ffmpegService).startTranscoding(Mockito.anyString(), Mockito.eq(false));
+            assertEquals("/hls/stream.m3u8", response.getUrl());
+            assertEquals("hls", response.getManifestType());
+        }
+    }
+
+    @Test
+    void webPlayback_transcodingIsSkippedWhenDisabled() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        Configuration configuration = new Configuration();
+        configuration.setEnableFfmpegTranscoding(false);
+        PlayerResponse response = new PlayerResponse("https://host/play/movie.php?id=1");
+        FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(ffmpegService);
+            Mockito.when(ffmpegService.startTransmuxing(Mockito.anyString(), Mockito.eq(false))).thenReturn(false);
+
+            invoke(handler, "applyWebPlaybackProcessing",
+                    new Class[]{PlayerResponse.class, String.class, String.class, boolean.class},
+                    response, "series", "0", false);
+
+            Mockito.verify(ffmpegService, Mockito.times(2)).startTransmuxing(Mockito.anyString(), Mockito.eq(false));
+            Mockito.verify(ffmpegService, Mockito.never()).startTranscoding(Mockito.anyString(), Mockito.anyBoolean());
+            assertEquals("http://host/play/movie.php?id=1", response.getUrl());
         }
     }
 

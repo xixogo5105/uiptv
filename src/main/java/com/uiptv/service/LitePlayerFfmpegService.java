@@ -17,7 +17,8 @@ import static com.uiptv.util.StringUtils.isBlank;
 public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
     enum PlaybackStrategy {
         DIRECT,
-        COPY
+        COPY,
+        TRANSCODE
     }
 
     public record PreparedPlayback(String sourceUrl, String playbackUrl, PlaybackStrategy strategy, long estimatedDurationMs, long startOffsetMs) {
@@ -33,6 +34,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
             return switch (strategy) {
                 case DIRECT -> "Lite direct";
                 case COPY -> "Lite using Transmux";
+                case TRANSCODE -> "Lite transcoding";
             };
         }
     }
@@ -74,7 +76,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         return SingletonHelper.INSTANCE;
     }
 
-    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback, long startOffsetMs) {
+    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback, boolean allowTranscoding, long startOffsetMs) {
         String sourceUrl = normalizeSourceUrl(rawUri);
         if (isBlank(sourceUrl)) {
             return new PreparedPlayback("", "", PlaybackStrategy.DIRECT, 0L, 0L);
@@ -83,7 +85,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         boolean vodStylePlaylist = account != null && Account.NOT_LIVE_TV_CHANNELS.contains(account.getAction());
         ProbeResult probe = probeSource(sourceUrl);
         long normalizedOffset = Math.max(0L, startOffsetMs);
-        PlaybackStrategy strategy = chooseStrategy(sourceUrl, forceCompatibilityFallback);
+        PlaybackStrategy strategy = chooseStrategy(sourceUrl, forceCompatibilityFallback, allowTranscoding);
         if (strategy == PlaybackStrategy.DIRECT) {
             return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probe), 0L);
         }
@@ -93,7 +95,11 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         }
 
         try {
-            boolean ready = startCopyPlayback(sourceUrl, vodStylePlaylist, normalizedOffset);
+            boolean ready = switch (strategy) {
+                case COPY -> startCopyPlayback(sourceUrl, vodStylePlaylist, normalizedOffset);
+                case TRANSCODE -> startTranscodePlayback(sourceUrl, vodStylePlaylist, normalizedOffset);
+                default -> false;
+            };
             if (ready) {
                 return new PreparedPlayback(sourceUrl, getLocalHlsPlaybackUrl(), strategy, estimateDurationMs(probe), normalizedOffset);
             }
@@ -103,8 +109,8 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probe), 0L);
     }
 
-    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback) {
-        return preparePlayback(rawUri, account, forceCompatibilityFallback, 0L);
+    public PreparedPlayback preparePlayback(String rawUri, Account account, boolean forceCompatibilityFallback, boolean allowTranscoding) {
+        return preparePlayback(rawUri, account, forceCompatibilityFallback, allowTranscoding, 0L);
     }
 
     public PreparedPlayback prepareDirectPlayback(String rawUri) {
@@ -125,7 +131,12 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         return startManagedHlsStream(buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist, startOffsetMs));
     }
 
-    static PlaybackStrategy chooseStrategy(String sourceUrl, boolean forceCompatibilityFallback) {
+    boolean startTranscodePlayback(String inputUrl, boolean vodStylePlaylist, long startOffsetMs) throws IOException {
+        String outputUrl = ServerUrlUtil.getLocalServerUrl() + "/hls-upload/" + STREAM_FILENAME;
+        return startManagedHlsStream(buildTranscodeHlsCommand(inputUrl, outputUrl, vodStylePlaylist, startOffsetMs));
+    }
+
+    static PlaybackStrategy chooseStrategy(String sourceUrl, boolean forceCompatibilityFallback, boolean allowTranscoding) {
         if (isBlank(sourceUrl)) {
             return PlaybackStrategy.DIRECT;
         }
@@ -139,7 +150,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         }
 
         if (probe != null) {
-            return chooseStrategy(sourceUrl, probe, forceCompatibilityFallback);
+            return chooseStrategy(sourceUrl, probe, forceCompatibilityFallback, allowTranscoding);
         }
 
         if (looksLikeTransportStream(lower)) {
@@ -149,14 +160,14 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
         return PlaybackStrategy.DIRECT;
     }
 
-    static PlaybackStrategy chooseStrategy(String sourceUrl, ProbeResult probe, boolean forceCompatibilityFallback) {
+    static PlaybackStrategy chooseStrategy(String sourceUrl, ProbeResult probe, boolean forceCompatibilityFallback, boolean allowTranscoding) {
         String lower = sourceUrl == null ? "" : sourceUrl.toLowerCase(Locale.ROOT);
         if (probe == null) {
             return PlaybackStrategy.DIRECT;
         }
         boolean codecsCompatible = isLiteCompatibleVideoCodec(probe.videoCodec) && isLiteCompatibleAudioCodec(probe.audioCodec);
         if (!codecsCompatible) {
-            return PlaybackStrategy.DIRECT;
+            return allowTranscoding ? PlaybackStrategy.TRANSCODE : PlaybackStrategy.DIRECT;
         }
 
         if (looksLikeTransportStream(lower) || probe.formatName.toLowerCase(Locale.ROOT).contains("mpegts")) {

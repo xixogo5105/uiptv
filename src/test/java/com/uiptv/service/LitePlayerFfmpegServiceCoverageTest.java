@@ -49,12 +49,12 @@ class LitePlayerFfmpegServiceCoverageTest {
 
     @Test
     void chooseStrategy_andCompatibilityHelpers_coverContainerBranches() throws Exception {
-        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://127.0.0.1:8080/hls/stream.m3u8", false));
-        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mp3", false));
-        assertEquals(COPY, LitePlayerFfmpegService.chooseStrategy("http://example.test/live.ts", new LitePlayerFfmpegService.ProbeResult("mpegts", "h264", "aac"), false));
-        assertEquals(COPY, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "h264", "aac"), true));
-        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "hevc", "opus"), false));
-        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/unknown.bin", new LitePlayerFfmpegService.ProbeResult("", "hevc", "aac"), true));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://127.0.0.1:8080/hls/stream.m3u8", false, false));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mp3", false, false));
+        assertEquals(COPY, LitePlayerFfmpegService.chooseStrategy("http://example.test/live.ts", new LitePlayerFfmpegService.ProbeResult("mpegts", "h264", "aac"), false, false));
+        assertEquals(COPY, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "h264", "aac"), true, false));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/video.mkv", new LitePlayerFfmpegService.ProbeResult("matroska", "hevc", "opus"), false, false));
+        assertEquals(DIRECT, LitePlayerFfmpegService.chooseStrategy("http://example.test/unknown.bin", new LitePlayerFfmpegService.ProbeResult("", "hevc", "aac"), true, false));
 
         assertTrue(invokeBoolean("isLikelyDirectPlayableContainer", "http://example.test/video.m4v"));
         assertFalse(invokeBoolean("isLikelyDirectPlayableContainer", "http://example.test/video.mkv"));

@@ -30,6 +30,11 @@ public class FfmpegService extends AbstractFfmpegHlsService {
         return startManagedHlsStream(buildHlsCommand(inputUrl, outputUrl, vodStylePlaylist));
     }
 
+    public synchronized boolean startTranscoding(String inputUrl, boolean vodStylePlaylist) throws IOException {
+        String outputUrl = ServerUrlUtil.getLocalServerUrl() + "/hls-upload/" + STREAM_FILENAME;
+        return startManagedHlsStream(buildTranscodeHlsCommand(inputUrl, outputUrl, vodStylePlaylist, 0L));
+    }
+
     static List<String> buildHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist) {
         return buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist, 0L);
     }

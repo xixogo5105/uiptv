@@ -507,7 +507,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         if (!forceCompatibilityFallback && !isLitePlayerFfmpegEnabled()) {
             return LitePlayerFfmpegService.getInstance().prepareDirectPlayback(rawUri);
         }
-        return LitePlayerFfmpegService.getInstance().preparePlayback(rawUri, currentAccount, forceCompatibilityFallback, startOffsetMs);
+        return LitePlayerFfmpegService.getInstance().preparePlayback(rawUri, currentAccount, forceCompatibilityFallback, isLitePlayerTranscodingEnabled(), startOffsetMs);
     }
 
     private boolean canUseCompatibilityFallback(String sourceUrl) {
@@ -520,6 +520,13 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private boolean isLitePlayerFfmpegEnabled() {
         Configuration configuration = ConfigurationService.getInstance().read();
         return configuration != null && configuration.isEnableLitePlayerFfmpeg();
+    }
+
+    private boolean isLitePlayerTranscodingEnabled() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        return configuration != null
+                && configuration.isEnableLitePlayerFfmpeg()
+                && configuration.isEnableFfmpegTranscoding();
     }
 
     private void scheduleCompatibilityFallbackCheck() {

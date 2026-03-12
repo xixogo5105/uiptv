@@ -62,8 +62,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
             String mode = resolveRequestedMode(ex, getParam(ex, "mode"));
             String hvec = getParam(ex, "hvec");
             ResolvedWebPlayback resolved = resolvePlayback(ex, mode);
-            applyWebPlaybackProcessing(resolved.response(), mode, hvec, isEnabledFlag(getParam(ex, QUERY_PARAM_PREFER_HLS)));
-            generateJsonResponse(ex, buildJsonResponse(resolved));
+        applyWebPlaybackProcessing(resolved.response(), mode, hvec, isEnabledFlag(getParam(ex, QUERY_PARAM_PREFER_HLS)));
+        generateJsonResponse(ex, buildJsonResponse(resolved));
         } catch (Exception e) {
             if (isClientDisconnect(e)) {
                 return;
@@ -181,7 +181,8 @@ public class HttpPlayerJsonServer implements HttpHandler {
             }
             return;
         }
-        applyTransmuxedPlayback(response, mode, originalUrl, hvec, preferHls);
+        boolean allowTranscoding = ConfigurationService.getInstance().read().isEnableFfmpegTranscoding();
+        applyTransmuxedPlayback(response, mode, originalUrl, hvec, preferHls, allowTranscoding);
     }
 
     private boolean shouldStartTransmuxing(PlayerResponse response, String mode, String originalUrl, boolean preferHls) {
@@ -190,11 +191,10 @@ public class HttpPlayerJsonServer implements HttpHandler {
             return false;
         }
         return forceWebHls
-                || (ConfigurationService.getInstance().read().isEnableFfmpegTranscoding()
-                && FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl()));
+                || FfmpegService.getInstance().isTransmuxingNeeded(response.getUrl());
     }
 
-    private void applyTransmuxedPlayback(PlayerResponse response, String mode, String originalUrl, String hvec, boolean preferHls) {
+    private void applyTransmuxedPlayback(PlayerResponse response, String mode, String originalUrl, String hvec, boolean preferHls, boolean allowTranscoding) {
         boolean forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl);
         String sourceUrl = response.getUrl();
         boolean vodStylePlaylist = shouldUseVodStylePlaylist();
@@ -202,10 +202,20 @@ public class HttpPlayerJsonServer implements HttpHandler {
             setHlsPlayback(response, hvec);
             return;
         }
-        String fallbackUrl = forceWebHls ? retryForcedWebHls(sourceUrl) : sourceUrl;
-        if (forceWebHls && !fallbackUrl.equals(sourceUrl) && startTransmuxing(fallbackUrl, true, vodStylePlaylist)) {
+        if (allowTranscoding && startTranscoding(sourceUrl, forceWebHls, vodStylePlaylist)) {
             setHlsPlayback(response, hvec);
             return;
+        }
+        String fallbackUrl = forceWebHls ? retryForcedWebHls(sourceUrl) : sourceUrl;
+        if (forceWebHls && !fallbackUrl.equals(sourceUrl)) {
+            if (startTransmuxing(fallbackUrl, true, vodStylePlaylist)) {
+                setHlsPlayback(response, hvec);
+                return;
+            }
+            if (allowTranscoding && startTranscoding(fallbackUrl, true, vodStylePlaylist)) {
+                setHlsPlayback(response, hvec);
+                return;
+            }
         }
         // Keep original stream URL on fallback so the browser strategy layer can
         // try native first and only move to proxy when necessary.
@@ -226,6 +236,17 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return !sourceUrl.equals(proxied) && tryStartTransmuxingInput(proxied, vodStylePlaylist);
     }
 
+    private boolean startTranscoding(String sourceUrl, boolean forceWebHls, boolean vodStylePlaylist) {
+        if (!forceWebHls) {
+            return tryStartTranscodingInput(sourceUrl, vodStylePlaylist);
+        }
+        if (tryStartTranscodingInput(sourceUrl, vodStylePlaylist)) {
+            return true;
+        }
+        String proxied = buildLocalProxyUrl(sourceUrl);
+        return !sourceUrl.equals(proxied) && tryStartTranscodingInput(proxied, vodStylePlaylist);
+    }
+
     private boolean shouldUseVodStylePlaylist() {
         // Keep rolling playlists for web playback so advertised segments stay aligned
         // with in-memory eviction and avoid stale segment fetches.
@@ -243,6 +264,14 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private boolean tryStartTransmuxingInput(String inputUrl, boolean forceWebHls) {
         try {
             return FfmpegService.getInstance().startTransmuxing(inputUrl, forceWebHls);
+        } catch (Exception _) {
+            return false;
+        }
+    }
+
+    private boolean tryStartTranscodingInput(String inputUrl, boolean forceWebHls) {
+        try {
+            return FfmpegService.getInstance().startTranscoding(inputUrl, forceWebHls);
         } catch (Exception _) {
             return false;
         }

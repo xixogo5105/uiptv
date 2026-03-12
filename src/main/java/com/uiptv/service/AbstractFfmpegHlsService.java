@@ -110,7 +110,7 @@ abstract class AbstractFfmpegHlsService {
         return buildCopyHlsCommand(inputUrl, outputUrl, vodStylePlaylist, 0L);
     }
 
-    private static List<String> buildHlsCommandPrefix(String inputUrl, boolean vodStylePlaylist, long startOffsetMs) {
+    protected static List<String> buildHlsCommandPrefix(String inputUrl, boolean vodStylePlaylist, long startOffsetMs) {
         List<String> command = new ArrayList<>();
         command.add("ffmpeg");
         command.add("-nostdin");
@@ -126,6 +126,31 @@ abstract class AbstractFfmpegHlsService {
         addInputHttpHeaders(command, inputUrl);
         command.add("-i");
         command.add(inputUrl);
+        return command;
+    }
+
+    protected static List<String> buildTranscodeHlsCommand(String inputUrl, String outputUrl, boolean vodStylePlaylist, long startOffsetMs) {
+        List<String> command = buildHlsCommandPrefix(inputUrl, vodStylePlaylist, startOffsetMs);
+        // Favor low CPU usage with a fast preset and modest quality target.
+        command.add("-c:v");
+        command.add("libx264");
+        command.add("-preset");
+        command.add("ultrafast");
+        command.add("-tune");
+        command.add("zerolatency");
+        command.add("-crf");
+        command.add("28");
+        command.add("-profile:v");
+        command.add("baseline");
+        command.add("-pix_fmt");
+        command.add("yuv420p");
+        command.add("-c:a");
+        command.add("aac");
+        command.add("-b:a");
+        command.add("96k");
+        command.add("-ac");
+        command.add("2");
+        addHlsOutputArgs(command, outputUrl, vodStylePlaylist, true);
         return command;
     }
 
