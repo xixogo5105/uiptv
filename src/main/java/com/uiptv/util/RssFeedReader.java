@@ -22,6 +22,7 @@ public class RssFeedReader {
     }
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+    private static final String HEADER_CONTENT_TYPE = "content-type";
 
     public static class RssItem {
         private String title;
@@ -67,16 +68,16 @@ public class RssFeedReader {
         try (HttpUtil.StreamResult response = HttpUtil.openStream(url, headers, "GET", null, HttpUtil.RequestOptions.defaults())) {
             if (response.statusCode() != HttpUtil.STATUS_OK) {
                 throw new IOException("RSS request failed: HTTP " + response.statusCode()
-                        + " content-type=" + quoteForError(firstHeaderValue(response.responseHeaders(), "content-type")));
+                        + " content-type=" + quoteForError(firstHeaderValue(response.responseHeaders(), HEADER_CONTENT_TYPE)));
             }
 
             BufferedInputStream buffered = new BufferedInputStream(response.bodyStream());
             if (looksLikeHtml(buffered)) {
                 throw new IOException("RSS response was HTML (not a feed). content-type="
-                        + quoteForError(firstHeaderValue(response.responseHeaders(), "content-type")));
+                        + quoteForError(firstHeaderValue(response.responseHeaders(), HEADER_CONTENT_TYPE)));
             }
 
-            try (XmlReader xmlReader = new XmlReader(buffered, true, firstHeaderValue(response.responseHeaders(), "content-type"))) {
+            try (XmlReader xmlReader = new XmlReader(buffered, true, firstHeaderValue(response.responseHeaders(), HEADER_CONTENT_TYPE))) {
                 SyndFeed feed = input.build(xmlReader);
 
                 for (SyndEntry entry : feed.getEntries()) {

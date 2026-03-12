@@ -243,32 +243,14 @@ public class WatchingNowSeriesResolver {
             return normalized;
         }
         String[] parts = normalized.split(":");
-        boolean allNumeric = true;
-        for (String part : parts) {
-            String p = safe(part);
-            if (isBlank(p)) {
-                continue;
-            }
-            if (!p.matches("^\\d+$")) {
-                allNumeric = false;
-                break;
+        if (areAllPartsNumeric(parts)) {
+            String lastNumeric = lastNonBlank(parts);
+            if (!isBlank(lastNumeric)) {
+                return lastNumeric;
             }
         }
-        if (allNumeric) {
-            for (int i = parts.length - 1; i >= 0; i--) {
-                String p = safe(parts[i]);
-                if (!isBlank(p)) {
-                    return p;
-                }
-            }
-        }
-        for (String part : parts) {
-            String p = safe(part);
-            if (!isBlank(p)) {
-                return p;
-            }
-        }
-        return normalized;
+        String first = firstNonBlankPart(parts);
+        return isBlank(first) ? normalized : first;
     }
 
     private SnapshotData extractSnapshotData(String snapshotJson) {
@@ -279,7 +261,7 @@ public class WatchingNowSeriesResolver {
         JSONObject payload = null;
         try {
             payload = new JSONObject(raw);
-        } catch (Exception _) {
+        } catch (Exception parseException) {
             try {
                 JSONArray array = new JSONArray(raw);
                 if (!array.isEmpty()) {
@@ -288,7 +270,7 @@ public class WatchingNowSeriesResolver {
                         payload = jsonObject;
                     }
                 }
-            } catch (Exception __) {
+            } catch (Exception arrayException) {
                 return null;
             }
         }
@@ -312,29 +294,51 @@ public class WatchingNowSeriesResolver {
                 safe(payload.optString("cover")),
                 safe(payload.optString("movieImage"))
         );
-        String channelId = firstNonBlank(
-                safe(payload.optString("channelId")),
-                safe(payload.optString("seriesId")),
-                safe(payload.optString("id"))
-        );
-        String categoryId = safe(payload.optString("categoryId"));
-        return new SnapshotData(channelId, categoryId, title, seriesTitle, poster);
+        return new SnapshotData(title, seriesTitle, poster);
     }
 
     private static final class SnapshotData {
-        private final String channelId;
-        private final String categoryId;
         private final String title;
         private final String seriesTitle;
         private final String poster;
 
-        private SnapshotData(String channelId, String categoryId, String title, String seriesTitle, String poster) {
-            this.channelId = channelId == null ? "" : channelId;
-            this.categoryId = categoryId == null ? "" : categoryId;
+        private SnapshotData(String title, String seriesTitle, String poster) {
             this.title = title == null ? "" : title;
             this.seriesTitle = seriesTitle == null ? "" : seriesTitle;
             this.poster = poster == null ? "" : poster;
         }
+    }
+
+    private boolean areAllPartsNumeric(String[] parts) {
+        boolean allNumeric = true;
+        for (String part : parts) {
+            String p = safe(part);
+            if (!isBlank(p) && !p.matches("^\\d+$")) {
+                allNumeric = false;
+            }
+        }
+        return allNumeric;
+    }
+
+    private String lastNonBlank(String[] parts) {
+        String last = "";
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String p = safe(parts[i]);
+            if (!isBlank(p) && isBlank(last)) {
+                last = p;
+            }
+        }
+        return last;
+    }
+
+    private String firstNonBlankPart(String[] parts) {
+        for (String part : parts) {
+            String p = safe(part);
+            if (!isBlank(p)) {
+                return p;
+            }
+        }
+        return "";
     }
 
     private List<String> buildSeriesIdCandidates(String seriesId) {

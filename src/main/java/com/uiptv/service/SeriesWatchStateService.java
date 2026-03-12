@@ -305,31 +305,12 @@ public class SeriesWatchStateService {
         if (seriesIdCandidates.isEmpty()) {
             return null;
         }
-        java.util.Set<String> candidateIds = new java.util.LinkedHashSet<>();
-        for (String candidate : seriesIdCandidates) {
-            String normalized = safe(candidate);
-            if (!isBlank(normalized)) {
-                candidateIds.add(normalized);
-            }
-        }
+        java.util.Set<String> candidateIds = buildCandidateIdSet(seriesIdCandidates);
         if (candidateIds.isEmpty()) {
             return null;
         }
-        List<String> categoryKeys = new java.util.ArrayList<>();
-        if (!isBlank(portalCategoryId)) {
-            categoryKeys.add(portalCategoryId);
-        }
-        if (matchedCategory != null && !isBlank(matchedCategory.getDbId())) {
-            categoryKeys.add(matchedCategory.getDbId());
-        }
-        for (String key : categoryKeys) {
-            for (Channel channel : SeriesChannelDb.get().getChannels(account, key)) {
-                if (channel != null && candidateIds.contains(safe(channel.getChannelId()))) {
-                    return channel;
-                }
-            }
-        }
-        return null;
+        List<String> categoryKeys = buildCategoryKeys(portalCategoryId, matchedCategory);
+        return findSeriesChannelInCategories(account, categoryKeys, candidateIds);
     }
 
     private Channel findEpisode(Account account, String portalCategoryId, String parentChannelId, String episodeId, Category matchedCategory) {
@@ -340,24 +321,8 @@ public class SeriesWatchStateService {
         if (seriesIdCandidates.isEmpty()) {
             return null;
         }
-        List<String> categoryKeys = new java.util.ArrayList<>();
-        if (!isBlank(portalCategoryId)) {
-            categoryKeys.add(portalCategoryId);
-        }
-        if (matchedCategory != null && !isBlank(matchedCategory.getDbId())) {
-            categoryKeys.add(matchedCategory.getDbId());
-        }
-        for (String key : categoryKeys) {
-            for (String candidate : seriesIdCandidates) {
-                List<Channel> episodes = SeriesEpisodeDb.get().getEpisodes(account, key, candidate);
-                for (Channel channel : episodes) {
-                    if (channel != null && safe(episodeId).equals(safe(channel.getChannelId()))) {
-                        return channel;
-                    }
-                }
-            }
-        }
-        return null;
+        List<String> categoryKeys = buildCategoryKeys(portalCategoryId, matchedCategory);
+        return findEpisodeInCategories(account, categoryKeys, seriesIdCandidates, episodeId);
     }
 
     private List<String> buildSeriesIdCandidates(String seriesId) {
@@ -368,35 +333,111 @@ public class SeriesWatchStateService {
         java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
         if (raw.contains(":")) {
             String[] parts = raw.split(":");
-            boolean allNumeric = true;
-            for (String part : parts) {
-                String p = safe(part);
-                if (isBlank(p)) {
-                    continue;
-                }
-                if (!p.matches("^\\d+$")) {
-                    allNumeric = false;
-                    break;
+            if (areAllPartsNumeric(parts)) {
+                String last = lastNonBlank(parts);
+                if (!isBlank(last)) {
+                    candidates.add(last);
                 }
             }
-            if (allNumeric) {
-                for (int i = parts.length - 1; i >= 0; i--) {
-                    String p = safe(parts[i]);
-                    if (!isBlank(p)) {
-                        candidates.add(p);
-                        break;
-                    }
-                }
-            }
-            for (String part : parts) {
-                String p = safe(part);
-                if (!isBlank(p)) {
-                    candidates.add(p);
-                }
-            }
+            addNonBlankParts(candidates, parts);
         }
         candidates.add(raw);
         return new java.util.ArrayList<>(candidates);
+    }
+
+    private java.util.Set<String> buildCandidateIdSet(List<String> candidates) {
+        java.util.Set<String> candidateIds = new java.util.LinkedHashSet<>();
+        if (candidates == null) {
+            return candidateIds;
+        }
+        for (String candidate : candidates) {
+            String normalized = safe(candidate);
+            if (!isBlank(normalized)) {
+                candidateIds.add(normalized);
+            }
+        }
+        return candidateIds;
+    }
+
+    private List<String> buildCategoryKeys(String portalCategoryId, Category matchedCategory) {
+        List<String> categoryKeys = new java.util.ArrayList<>();
+        if (!isBlank(portalCategoryId)) {
+            categoryKeys.add(portalCategoryId);
+        }
+        if (matchedCategory != null && !isBlank(matchedCategory.getDbId())) {
+            categoryKeys.add(matchedCategory.getDbId());
+        }
+        return categoryKeys;
+    }
+
+    private Channel findSeriesChannelInCategories(Account account, List<String> categoryKeys, java.util.Set<String> candidateIds) {
+        for (String key : categoryKeys) {
+            for (Channel channel : SeriesChannelDb.get().getChannels(account, key)) {
+                if (channel != null && candidateIds.contains(safe(channel.getChannelId()))) {
+                    return channel;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Channel findEpisodeInCategories(Account account,
+                                            List<String> categoryKeys,
+                                            List<String> seriesIdCandidates,
+                                            String episodeId) {
+        for (String key : categoryKeys) {
+            Channel match = findEpisodeInCategory(account, key, seriesIdCandidates, episodeId);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    private Channel findEpisodeInCategory(Account account,
+                                          String categoryKey,
+                                          List<String> seriesIdCandidates,
+                                          String episodeId) {
+        for (String candidate : seriesIdCandidates) {
+            List<Channel> episodes = SeriesEpisodeDb.get().getEpisodes(account, categoryKey, candidate);
+            for (Channel channel : episodes) {
+                if (channel != null && safe(episodeId).equals(safe(channel.getChannelId()))) {
+                    return channel;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean areAllPartsNumeric(String[] parts) {
+        boolean allNumeric = true;
+        for (String part : parts) {
+            String p = safe(part);
+            if (!isBlank(p) && !p.matches("^\\d+$")) {
+                allNumeric = false;
+            }
+        }
+        return allNumeric;
+    }
+
+    private String lastNonBlank(String[] parts) {
+        String last = "";
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String p = safe(parts[i]);
+            if (!isBlank(p) && isBlank(last)) {
+                last = p;
+            }
+        }
+        return last;
+    }
+
+    private void addNonBlankParts(java.util.Set<String> candidates, String[] parts) {
+        for (String part : parts) {
+            String p = safe(part);
+            if (!isBlank(p)) {
+                candidates.add(p);
+            }
+        }
     }
 
     public boolean isMatchingEpisode(SeriesWatchState watchedState,
