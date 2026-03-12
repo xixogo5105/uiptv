@@ -92,6 +92,124 @@
                         <span aria-hidden="true" class="spinner-border text-light" role="status"></span>
                     </div>
                 </div>
+                <aside class="nf-inline-side" v-if="currentChannel?.type === 'bookmark' && filteredBookmarks.length">
+                    <div class="nf-inline-side-header">
+                        <div class="nf-inline-side-title-row">
+                            <span>Bookmarks</span>
+                            <small>{{ filteredBookmarks.length }}</small>
+                        </div>
+                    </div>
+                    <div class="nf-inline-side-list">
+                        <button
+                                :class="{ active: String(currentChannel?.bookmarkId || currentChannel?.id || '') === String(bookmark.dbId || '') }"
+                                :key="'player-bookmark-' + bookmark.dbId"
+                                @click.prevent="playBookmark(bookmark, { scroll: false, preservePlayer: true })"
+                                class="nf-inline-side-item"
+                                type="button"
+                                v-for="bookmark in filteredBookmarks">
+                            <div class="nf-inline-side-thumb">
+                                <img :src="bookmark.logo" alt="bookmark logo" v-if="bookmark.logo">
+                                <div class="nf-inline-side-thumb-fallback" v-else>{{ bookmark.channelName }}</div>
+                            </div>
+                            <div class="nf-inline-side-meta">
+                                <div class="nf-inline-side-item-title">{{ bookmark.channelName }}</div>
+                                <div class="nf-inline-side-item-sub">{{ bookmark.categoryName || 'Category' }}</div>
+                                <div class="nf-inline-side-item-extra">{{ bookmark.accountName }}</div>
+                            </div>
+                        </button>
+                    </div>
+                </aside>
+
+                <aside class="nf-inline-side" v-else-if="currentChannel?.mode === 'series' && filteredWatchingNowRows.length">
+                    <div class="nf-inline-side-header">
+                        <div class="nf-inline-side-title-row">
+                            <span>Watching Series</span>
+                            <small>{{ filteredWatchingNowRows.length }}</small>
+                        </div>
+                    </div>
+                    <div class="nf-inline-side-list">
+                        <button
+                                :class="{ active: String(selectedWatchingNowKey || '') === String(row.key || '') }"
+                                :key="'player-series-now-' + row.key"
+                                @click.prevent="openWatchingNowSeriesDetail(row)"
+                                class="nf-inline-side-item"
+                                type="button"
+                                v-for="row in filteredWatchingNowRows">
+                            <div class="nf-inline-side-thumb">
+                                <img :src="row.seriesPoster" alt="series poster" v-if="row.seriesPoster">
+                                <div class="nf-inline-side-thumb-fallback" v-else>{{ row.seriesTitle }}</div>
+                            </div>
+                            <div class="nf-inline-side-meta">
+                                <div class="nf-inline-side-item-title">{{ row.seriesTitle }}</div>
+                                <div class="nf-inline-side-item-sub">{{ row.categoryName || 'Category' }}</div>
+                                <div class="nf-inline-side-item-extra">{{ row.accountName }}</div>
+                            </div>
+                        </button>
+                    </div>
+                </aside>
+
+                <aside class="nf-inline-side" v-else-if="currentChannel?.mode === 'vod' && filteredWatchingNowVodRows.length">
+                    <div class="nf-inline-side-header">
+                        <div class="nf-inline-side-title-row">
+                            <span>Watching VOD</span>
+                            <small>{{ filteredWatchingNowVodRows.length }}</small>
+                        </div>
+                    </div>
+                    <div class="nf-inline-side-list">
+                        <button
+                                :class="{ active: String(selectedWatchingNowVodKey || '') === String(row.key || '') }"
+                                :key="'player-vod-now-' + row.key"
+                                @click.prevent="playWatchingNowVodRow(row, { scroll: false, preservePlayer: true })"
+                                class="nf-inline-side-item"
+                                type="button"
+                                v-for="row in filteredWatchingNowVodRows">
+                            <div class="nf-inline-side-thumb">
+                                <img :src="row.vodLogo" alt="vod logo" v-if="row.vodLogo">
+                                <div class="nf-inline-side-thumb-fallback" v-else>{{ row.vodName }}</div>
+                            </div>
+                            <div class="nf-inline-side-meta">
+                                <div class="nf-inline-side-item-title">{{ row.vodName }}</div>
+                                <div class="nf-inline-side-item-sub">{{ row.categoryName || 'Category' }}</div>
+                                <div class="nf-inline-side-item-extra">{{ row.accountName }}</div>
+                            </div>
+                        </button>
+                    </div>
+                </aside>
+                <aside class="nf-inline-side" v-else-if="isModeState('itv','channels')">
+                    <div class="nf-inline-side-header">
+                        <div class="nf-inline-side-title-row">
+                            <span>Channels</span>
+                            <small>{{ visibleModeChannels('itv').length }}</small>
+                        </div>
+                    </div>
+                    <div class="nf-inline-side-list">
+                        <button
+                                :class="{ active: String(currentChannel?.channelId || currentChannel?.id || '') === String(channel.channelId || channel.id || '') }"
+                                :key="'player-itv-' + (channel.dbId || channel.channelId || channel.id)"
+                                @click.prevent="handleModeSelection('itv', channel, { scroll: false, preservePlayer: true })"
+                                class="nf-inline-side-item"
+                                type="button"
+                                v-for="channel in visibleModeChannels('itv')">
+                            <div class="nf-inline-side-thumb">
+                                <img :src="channel.logo" alt="channel logo" v-if="channel.logo">
+                                <div class="nf-inline-side-thumb-fallback" v-else>{{ channel.name }}</div>
+                            </div>
+                            <div class="nf-inline-side-meta">
+                                <div class="nf-inline-side-item-title">{{ channel.name }}</div>
+                                <div class="nf-inline-side-item-sub">
+                                    {{
+                                        (filteredModeCategories('itv').find(cat => String(cat.dbId || cat.categoryId || '') === String(channel.categoryId || '')) || {}).title
+                                        || channel.categoryName
+                                        || 'Category'
+                                    }}
+                                </div>
+                                <div class="nf-inline-side-item-extra" v-if="selectedAccount && selectedAccount.accountName">
+                                    {{ selectedAccount.accountName }}
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </aside>
             </div>
         </section>
         <section class="nf-library">

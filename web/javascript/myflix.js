@@ -1284,7 +1284,7 @@ createApp({
             return `${window.location.origin}/player?${query.toString()}`;
         };
 
-        const playChannel = (channel, mode = 'itv') => {
+        const playChannel = (channel, mode = 'itv', options = {}) => {
             const b = browsers[mode];
             const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, mode, b);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
@@ -1323,11 +1323,13 @@ createApp({
             if (mode === 'vod' && b.detail.value) {
                 b.viewState.value = 'vodDetail';
             }
-            startPlayback(playbackUrl, nextChannel);
-            scrollToInlinePlayer();
+            startPlayback(playbackUrl, nextChannel, options);
+            if (options.scroll !== false) {
+                scrollToInlinePlayer();
+            }
         };
 
-        const handleModeSelection = async (mode, channel) => {
+        const handleModeSelection = async (mode, channel, options = {}) => {
             if (mode === 'series') {
                 const b = browsers.series;
                 if (b.viewState.value === 'channels') {
@@ -1348,7 +1350,7 @@ createApp({
                     b.viewState.value = 'vodDetail';
                 }
             }
-            playChannel(channel, mode);
+            playChannel(channel, mode, options);
         };
 
         const playVodFromDetail = () => {
@@ -1467,7 +1469,7 @@ createApp({
             });
         };
 
-        const playBookmark = (bookmark) => {
+        const playBookmark = (bookmark, options = {}) => {
             const bookmarkMode = String(bookmark.accountAction || 'itv').toLowerCase();
             const query = new URLSearchParams();
             query.set('bookmarkId', bookmark.dbId);
@@ -1489,8 +1491,10 @@ createApp({
                 mode: bookmarkMode,
                 playRequestUrl: playbackUrl
             };
-            startPlayback(playbackUrl, nextChannel);
-            scrollToInlinePlayer();
+            startPlayback(playbackUrl, nextChannel, options);
+            if (options.scroll !== false) {
+                scrollToInlinePlayer();
+            }
         };
 
         const openWatchingNowSeriesDetail = async (row) => {
@@ -1517,7 +1521,7 @@ createApp({
             });
         };
 
-        const playWatchingNowVodRow = (row) => {
+        const playWatchingNowVodRow = (row, options = {}) => {
             if (!row) return;
             selectedWatchingNowVodKey.value = String(row.key || '');
             const b = browsers.vod;
@@ -1553,8 +1557,10 @@ createApp({
                 mode: 'vod',
                 playRequestUrl: playbackUrl
             };
-            startPlayback(playbackUrl, nextChannel);
-            scrollToInlinePlayer();
+            startPlayback(playbackUrl, nextChannel, options);
+            if (options.scroll !== false) {
+                scrollToInlinePlayer();
+            }
         };
 
         const isPlaybackRequestActive = (lifecycleId) => lifecycleId === playbackLifecycleId.value;
@@ -1637,7 +1643,11 @@ createApp({
             const targetChannel = nextChannel || currentChannel.value;
             const switching = nextChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
             if (switching) {
-                await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
+                if (options.preservePlayer) {
+                    await stopPlayback(true, false);
+                } else {
+                    await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
+                }
             } else {
                 await stopPlayback(true, false);
             }
@@ -1660,7 +1670,9 @@ createApp({
             playbackMode.value = 'loading';
             lastPlaybackUrl.value = url || '';
             repeatInFlight.value = false;
-            window.scrollTo({top: 0, behavior: 'smooth'});
+            if (options.scroll !== false) {
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }
             const channelKey = buildStrategyKey(targetChannel);
             if (channelKey && channelKey !== strategyOverrideKey) {
                 strategyOverride.value = 'auto';
