@@ -669,7 +669,7 @@ body {
     gap: 12px;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0 40px 8px;
+    padding: 0 40px 28px;
     scroll-behavior: smooth;
     scrollbar-width: none;
 }
@@ -680,6 +680,51 @@ body {
 
 .nf-track-wrap {
     position: relative;
+    padding-bottom: 12px;
+}
+
+.nf-mini-scroll {
+    position: absolute;
+    left: 44px;
+    right: 44px;
+    bottom: 4px;
+    width: auto;
+    height: 8px;
+    padding: 1px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    display: flex;
+    align-items: center;
+    z-index: 6;
+    opacity: 0.75;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    cursor: pointer;
+    touch-action: none;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
+}
+
+.nf-track-wrap:hover .nf-mini-scroll {
+    opacity: 1;
+}
+
+.nf-mini-thumb {
+    height: 100%;
+    width: 26px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.28);
+    transform: translateX(0);
+}
+
+[data-theme="light"] .nf-mini-scroll {
+    background: rgba(15, 23, 42, 0.14);
+    border-color: rgba(15, 23, 42, 0.26);
+}
+
+[data-theme="light"] .nf-mini-thumb {
+    background: rgba(15, 23, 42, 0.55);
+    box-shadow: 0 0 8px rgba(15, 23, 42, 0.22);
 }
 
 .nf-edge-btn {
@@ -948,6 +993,46 @@ body {
 
 [data-theme="light"] #row-accounts .nf-account-title span {
     color: #152033;
+}
+
+.nf-row-account-style .nf-card:not(.nf-card-media) {
+    background:
+        radial-gradient(circle at 10% 10%, var(--account-grad-a) 0%, transparent 35%),
+        radial-gradient(circle at 90% 20%, var(--account-grad-b) 0%, transparent 40%),
+        linear-gradient(170deg, var(--account-bg-1), var(--account-bg-2));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px 14px;
+}
+
+[data-theme="light"] .nf-row-account-style .nf-card:not(.nf-card-media) {
+    border-color: rgba(21, 32, 51, 0.08);
+}
+
+.nf-row-account-style .nf-card-icon {
+    display: none;
+}
+
+.nf-row-account-style .nf-card-title,
+.nf-row-account-style .nf-media-title {
+    width: 100%;
+    text-align: center;
+    color: #f3f5f9;
+    margin: 0;
+    padding: 0;
+}
+
+[data-theme="light"] .nf-row-account-style .nf-card-title,
+[data-theme="light"] .nf-row-account-style .nf-media-title {
+    color: #152033;
+}
+
+.nf-row-account-style .nf-media-title {
+    position: static;
+    font-size: 0.95rem;
 }
 
 .nf-pin-icon {

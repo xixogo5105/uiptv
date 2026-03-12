@@ -134,6 +134,9 @@
                             <div class="nf-empty-card" v-else-if="filteredBookmarks.length === 0">No favorites found.
                             </div>
                         </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-saved">
+                            <span class="nf-mini-thumb"></span>
+                        </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-saved', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
                     </div>
@@ -172,6 +175,9 @@
                                 watched series found.
                             </div>
                         </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-watching-now">
+                            <span class="nf-mini-thumb"></span>
+                        </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-watching-now', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
                     </div>
@@ -207,6 +213,9 @@
                             <div class="nf-empty-card" v-else-if="filteredWatchingNowVodRows.length === 0">No currently
                                 watched VOD found.
                             </div>
+                        </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-watching-vod">
+                            <span class="nf-mini-thumb"></span>
                         </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-watching-vod', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
@@ -258,12 +267,15 @@
                                 filter.
                             </div>
                         </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-accounts">
+                            <span class="nf-mini-thumb"></span>
+                        </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-accounts', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
                     </div>
                 </div>
 
-                <div class="nf-row nf-row-shell" v-if="selectedAccount">
+                <div class="nf-row nf-row-shell" v-if="selectedAccount" :class="{ 'nf-row-account-style': isModeState('itv','categories') }">
                     <div class="nf-row-title">
                         <div class="nf-title-with-back">
                             <button :aria-disabled="isModeState('itv', 'categories') ? 'true' : 'false'" :class="{ ghost: isModeState('itv', 'categories') }"
@@ -310,12 +322,15 @@
                                  v-else-if="isModeState('itv','channels') && filteredModeChannels('itv').length === 0">No channels found.
                             </div>
                         </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-live">
+                            <span class="nf-mini-thumb"></span>
+                        </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-live', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
                     </div>
                 </div>
 
-                <div class="nf-row nf-row-shell" v-if="showVodSeriesSections">
+                <div class="nf-row nf-row-shell" v-if="showVodSeriesSections" :class="{ 'nf-row-account-style': isModeState('vod','categories') }">
                     <div class="nf-row-title">
                         <div class="nf-title-with-back">
                             <button :aria-disabled="isModeState('vod', 'categories') ? 'true' : 'false'" :class="{ ghost: isModeState('vod', 'categories') }"
@@ -362,12 +377,15 @@
                                  v-else-if="isModeState('vod','channels') && filteredModeChannels('vod').length === 0">No VOD items found.
                             </div>
                         </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-vod">
+                            <span class="nf-mini-thumb"></span>
+                        </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-vod', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
                     </div>
                 </div>
 
-                <div class="nf-row nf-row-shell" v-if="showVodSeriesSections">
+                <div class="nf-row nf-row-shell" v-if="showVodSeriesSections" :class="{ 'nf-row-account-style': isModeState('series','categories') }">
                     <div class="nf-row-title">
                         <div class="nf-title-with-back">
                             <button :aria-disabled="isModeState('series', 'categories') ? 'true' : 'false'" :class="{ ghost: isModeState('series', 'categories') }"
@@ -439,6 +457,9 @@
                             <div class="nf-empty-card"
                                  v-else-if="isModeState('series','episodes') && filteredModeEpisodes('series').length === 0">No episodes found.
                             </div>
+                        </div>
+                        <div aria-hidden="true" class="nf-mini-scroll" data-row="row-series">
+                            <span class="nf-mini-thumb"></span>
                         </div>
                         <button class="nf-edge-btn right" onclick="scrollRow('row-series', 1)" type="button"><i
                                 class="bi bi-chevron-right"></i></button>
@@ -660,6 +681,171 @@
         const amount = Math.max(240, Math.floor(row.clientWidth * 0.75));
         row.scrollBy({left: amount * direction, behavior: 'smooth'});
     }
+
+    let miniScrollObserver;
+    let miniScrollRefreshTimer;
+
+    const MINI_SCROLL_DEBUG = false;
+
+    function ensureMiniScrollbars() {
+        document.querySelectorAll('.nf-track-wrap').forEach((wrap) => {
+            const row = wrap.querySelector('.nf-strip');
+            if (!row || !row.id) return;
+            let bar = wrap.querySelector(`.nf-mini-scroll[data-row="${row.id}"]`);
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.className = 'nf-mini-scroll';
+                bar.setAttribute('aria-hidden', 'true');
+                bar.dataset.row = row.id;
+                const thumb = document.createElement('span');
+                thumb.className = 'nf-mini-thumb';
+                bar.appendChild(thumb);
+                wrap.appendChild(bar);
+                if (MINI_SCROLL_DEBUG) {
+                    console.log('[mini-scroll] created bar for', row.id);
+                }
+            }
+        });
+    }
+
+    function initMiniScrollbars() {
+        ensureMiniScrollbars();
+        document.querySelectorAll('.nf-strip').forEach((row) => {
+            if (!row.id) return;
+            if (row.dataset.miniBound === 'true') {
+                if (typeof row._miniUpdate === 'function') {
+                    row._miniUpdate();
+                }
+                return;
+            }
+
+            const update = () => {
+                const bar = document.querySelector(`.nf-mini-scroll[data-row="${row.id}"]`);
+                if (!bar) return;
+                const thumb = bar.querySelector('.nf-mini-thumb');
+                if (!thumb) return;
+                const baseMax = Math.max(0, row.scrollWidth - row.clientWidth);
+                let altMax = 0;
+                const firstChild = row.firstElementChild;
+                const lastChild = row.lastElementChild;
+                if (firstChild && lastChild) {
+                    altMax = Math.max(0, (lastChild.offsetLeft + lastChild.offsetWidth) - row.clientWidth);
+                }
+                const maxScroll = Math.max(baseMax, altMax);
+                if (MINI_SCROLL_DEBUG) {
+                    console.log('[mini-scroll] update', row.id, {maxScroll});
+                }
+                if (maxScroll <= 2) {
+                    bar.style.opacity = '0';
+                    bar.style.visibility = 'hidden';
+                    bar.style.pointerEvents = 'none';
+                    return;
+                }
+                bar.style.visibility = 'visible';
+                bar.style.opacity = '';
+                bar.style.pointerEvents = 'auto';
+                const ratio = row.clientWidth / row.scrollWidth;
+                const thumbWidth = Math.max(24, Math.floor(bar.clientWidth * ratio));
+                const scrollRatio = row.scrollLeft / maxScroll;
+                const maxLeft = bar.clientWidth - thumbWidth;
+                thumb.style.width = `${thumbWidth}px`;
+                thumb.style.transform = `translateX(${Math.round(maxLeft * scrollRatio)}px)`;
+            };
+
+            row._miniUpdate = update;
+            row.dataset.miniBound = 'true';
+            update();
+            requestAnimationFrame(update);
+            setTimeout(update, 200);
+            setTimeout(update, 800);
+            setTimeout(update, 1600);
+
+            row.addEventListener('scroll', update, {passive: true});
+            window.addEventListener('resize', update);
+
+            if (!row._miniResizeObserver) {
+                row._miniResizeObserver = new ResizeObserver(() => {
+                    update();
+                });
+                row._miniResizeObserver.observe(row);
+            }
+
+            if (!row._miniContentObserver) {
+                row._miniContentObserver = new MutationObserver(() => {
+                    update();
+                });
+                row._miniContentObserver.observe(row, {childList: true, subtree: true});
+            }
+
+            const bindBarInteractions = () => {
+                const bar = document.querySelector(`.nf-mini-scroll[data-row="${row.id}"]`);
+                if (!bar || bar.dataset.interactive === 'true') return;
+                const thumb = bar.querySelector('.nf-mini-thumb');
+                if (!thumb) return;
+                const jumpTo = (clientX) => {
+                    const rect = bar.getBoundingClientRect();
+                    const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
+                    if (maxScroll <= 0) return;
+                    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+                    row.scrollTo({left: maxScroll * ratio, behavior: 'smooth'});
+                };
+                bar.addEventListener('click', (event) => {
+                    if (event.target === thumb) return;
+                    jumpTo(event.clientX);
+                });
+                let dragging = false;
+                bar.addEventListener('pointerdown', (event) => {
+                    dragging = true;
+                    bar.setPointerCapture(event.pointerId);
+                    jumpTo(event.clientX);
+                });
+                bar.addEventListener('pointermove', (event) => {
+                    if (!dragging) return;
+                    const rect = bar.getBoundingClientRect();
+                    const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
+                    if (maxScroll <= 0) return;
+                    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+                    row.scrollLeft = maxScroll * ratio;
+                });
+                bar.addEventListener('pointerup', () => {
+                    dragging = false;
+                });
+                bar.addEventListener('pointercancel', () => {
+                    dragging = false;
+                });
+                bar.dataset.interactive = 'true';
+            };
+
+            bindBarInteractions();
+        });
+    }
+
+    function setupMiniScrollbars() {
+        initMiniScrollbars();
+        if (miniScrollRefreshTimer) {
+            clearInterval(miniScrollRefreshTimer);
+        }
+        const refreshUntil = Date.now() + 5000;
+        miniScrollRefreshTimer = setInterval(() => {
+            initMiniScrollbars();
+            if (Date.now() > refreshUntil) {
+                clearInterval(miniScrollRefreshTimer);
+                miniScrollRefreshTimer = null;
+            }
+        }, 300);
+        if (!miniScrollObserver) {
+            miniScrollObserver = new MutationObserver(() => {
+                initMiniScrollbars();
+            });
+            miniScrollObserver.observe(document.body, {childList: true, subtree: true});
+        }
+    }
+
+    window.addEventListener('load', () => {
+        setupMiniScrollbars();
+        setTimeout(setupMiniScrollbars, 600);
+        setTimeout(setupMiniScrollbars, 1400);
+    });
 
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
