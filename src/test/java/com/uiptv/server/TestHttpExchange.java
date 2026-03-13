@@ -13,7 +13,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
-public class TestHttpExchange extends HttpExchange {
+public class TestHttpExchange extends HttpExchange implements AutoCloseable {
     private final URI requestUri;
     private final String method;
     private final Headers requestHeaders = new Headers();

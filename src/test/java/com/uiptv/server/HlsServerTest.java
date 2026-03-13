@@ -5,10 +5,25 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class HlsServerTest {
+
+    private static void awaitCondition(BooleanSupplier condition, long timeoutNanos) {
+        long deadline = System.nanoTime() + timeoutNanos;
+        while (System.nanoTime() < deadline) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+    }
 
     @AfterEach
     void tearDown() {
@@ -27,10 +42,7 @@ class HlsServerTest {
         TestHttpExchange deleteExchange = new TestHttpExchange("/hls-upload/segment.ts", "DELETE");
         handler.handle(deleteExchange);
         assertEquals(200, deleteExchange.getResponseCode());
-        long deadline = System.currentTimeMillis() + 200;
-        while (InMemoryHlsService.getInstance().exists("segment.ts") && System.currentTimeMillis() < deadline) {
-            Thread.sleep(5);
-        }
+        awaitCondition(() -> !InMemoryHlsService.getInstance().exists("segment.ts"), TimeUnit.MILLISECONDS.toNanos(200));
         assertFalse(InMemoryHlsService.getInstance().exists("segment.ts"));
 
         TestHttpExchange postExchange = new TestHttpExchange("/hls-upload/segment.ts", "POST");
@@ -77,19 +89,17 @@ class HlsServerTest {
         HttpHlsFileServer handler = new HttpHlsFileServer();
         String fileName = "delayed.ts";
 
-        Thread uploader = new Thread(() -> {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        CountDownLatch uploadLatch = new CountDownLatch(1);
+        scheduler.schedule(() -> {
             InMemoryHlsService.getInstance().put(fileName, "late".getBytes(StandardCharsets.UTF_8));
-        });
-        uploader.start();
+            uploadLatch.countDown();
+        }, 10, TimeUnit.MILLISECONDS);
 
         TestHttpExchange exchange = new TestHttpExchange("/hls/" + fileName, "GET");
         handler.handle(exchange);
-        uploader.join();
+        uploadLatch.await(1, TimeUnit.SECONDS);
+        scheduler.shutdownNow();
 
         assertEquals(200, exchange.getResponseCode());
         assertEquals("late", new String(exchange.getResponseBodyBytes(), StandardCharsets.UTF_8));

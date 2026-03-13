@@ -46,7 +46,7 @@ class HttpM3u8PlayListServerTest {
 
             Mockito.when(accountService.getById("acc-1")).thenReturn(account);
             Mockito.when(channelDb.getChannelById("ch-1", "cat-1")).thenReturn(channel);
-            Mockito.when(playerService.get(Mockito.eq(account), Mockito.eq(channel)))
+            Mockito.when(playerService.get(account, channel))
                     .thenReturn(new PlayerResponse("http://origin/stream.ts"));
 
             HttpM3u8PlayListServer handler = new HttpM3u8PlayListServer();

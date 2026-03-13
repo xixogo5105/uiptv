@@ -69,8 +69,12 @@ class DatabasePatchesUtilsEdgeCaseTest extends DbBackedTest {
                     () -> executeDirective.invoke(null, conn, "--@rename_table TestTable Other"));
             assertInstanceOf(SQLException.class, unsupported.getCause());
 
-            String sql = "-- comment\nCREATE TABLE TestSql (id INTEGER PRIMARY KEY);\n\n" +
-                    "INSERT INTO TestSql(id) VALUES (1);";
+            String sql = """
+                    -- comment
+                    CREATE TABLE TestSql (id INTEGER PRIMARY KEY);
+                    
+                    INSERT INTO TestSql(id) VALUES (1);
+                    """;
             executeMigrationContent.invoke(null, conn, sql);
             try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM TestSql")) {
                 rs.next();

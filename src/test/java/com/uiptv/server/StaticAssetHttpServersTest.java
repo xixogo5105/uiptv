@@ -85,8 +85,7 @@ class StaticAssetHttpServersTest {
 
             Path tempPath = iconPath.resolveSibling("icon.ico.bak");
             Files.move(iconPath, tempPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            try {
-                TestHttpExchange missingExchange = new TestHttpExchange("/icon.ico", "GET");
+            try (TestHttpExchange missingExchange = new TestHttpExchange("/icon.ico", "GET")) {
                 handler.handle(missingExchange);
                 assertEquals(404, missingExchange.getResponseCode());
             } finally {

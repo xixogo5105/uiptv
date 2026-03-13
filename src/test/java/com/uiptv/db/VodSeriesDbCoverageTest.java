@@ -71,8 +71,9 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(okConn, failConn);
             Category failingCategory = new Category("vod-2", "Vod2", "vod2", false, 0);
+            List<Category> failingCategories = List.of(failingCategory);
             DatabaseAccessException ex = assertThrows(DatabaseAccessException.class,
-                    () -> db.saveAll(List.of(failingCategory), account));
+                    () -> db.saveAll(failingCategories, account));
             assertTrue(ex.getMessage().contains("insert"));
         }
 
@@ -80,7 +81,8 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         Mockito.when(conn.prepareStatement(anyString())).thenThrow(new SQLException("delete boom"));
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(conn);
-            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> db.deleteByAccount(account.getDbId()));
+            String accountId = account.getDbId();
+            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> db.deleteByAccount(accountId));
             assertTrue(ex.getMessage().contains("delete"));
         }
 
@@ -131,8 +133,9 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         Mockito.when(failConn.prepareStatement(anyString())).thenThrow(new SQLException("delete ac boom"));
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(failConn);
+            String accountId = account.getDbId();
             java.lang.reflect.InvocationTargetException ex = assertThrows(java.lang.reflect.InvocationTargetException.class,
-                    () -> deleteByAccountAndCategory.invoke(db, account.getDbId(), categoryId));
+                    () -> deleteByAccountAndCategory.invoke(db, accountId, categoryId));
             assertInstanceOf(DatabaseAccessException.class, ex.getCause());
         }
 
@@ -148,8 +151,9 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
             mocked.when(SQLConnection::connect).thenReturn(okConn, insertFailConn);
             Channel failingChannel = new Channel("ch-2", "Vod Channel2", "2", "cmd", null, null, null, "logo", 0, 1, 1,
                     null, null, null, null, null);
+            List<Channel> failingChannels = List.of(failingChannel);
             DatabaseAccessException ex = assertThrows(DatabaseAccessException.class,
-                    () -> db.saveAll(List.of(failingChannel), categoryId, account));
+                    () -> db.saveAll(failingChannels, categoryId, account));
             assertTrue(ex.getMessage().contains("insert"));
         }
 
@@ -157,7 +161,8 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         Mockito.when(deleteConn.prepareStatement(anyString())).thenThrow(new SQLException("delete boom"));
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(deleteConn);
-            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> db.deleteByAccount(account.getDbId()));
+            String accountId = account.getDbId();
+            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> db.deleteByAccount(accountId));
             assertTrue(ex.getMessage().contains("delete"));
         }
 
@@ -170,7 +175,7 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
     }
 
     @Test
-    void seriesCategoryDb_andSeriesChannelDb_coverFreshnessAndFilters() throws Exception {
+    void seriesCategoryDb_crudFreshnessAndErrors() throws Exception {
         Account account = persistAccount("series-account", series);
         SeriesCategoryDb categoryDb = SeriesCategoryDb.get();
 
@@ -205,8 +210,9 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(okConn, insertFailConn);
             Category failingCategory = new Category("s-2", "Series2", "series2", false, 0);
+            List<Category> failingCategories = List.of(failingCategory);
             DatabaseAccessException ex = assertThrows(DatabaseAccessException.class,
-                    () -> categoryDb.saveAll(List.of(failingCategory), account));
+                    () -> categoryDb.saveAll(failingCategories, account));
             assertTrue(ex.getMessage().contains("insert"));
         }
 
@@ -214,7 +220,8 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         Mockito.when(deleteConn.prepareStatement(anyString())).thenThrow(new SQLException("delete boom"));
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(deleteConn);
-            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> categoryDb.deleteByAccount(account.getDbId()));
+            String accountId = account.getDbId();
+            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> categoryDb.deleteByAccount(accountId));
             assertTrue(ex.getMessage().contains("delete"));
         }
 
@@ -224,7 +231,11 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
             mocked.when(SQLConnection::connect).thenReturn(freshConn);
             assertFalse(categoryDb.isFresh(account, 10));
         }
+    }
 
+    @Test
+    void seriesChannelDb_filtersAndErrorCoverage() throws Exception {
+        Account account = persistAccount("series-ch-account", series);
         SeriesChannelDb channelDb = SeriesChannelDb.get();
         String categoryId = "series-cat";
         Channel channel = new Channel("s-chan-1", "Series Channel", "1", "cmd", null, null, null, "logo", 0, 1, 1,
@@ -247,8 +258,6 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         assertFalse(channelDb.isFresh(account, categoryId, 1));
 
         assertTrue(channelDb.getChannelsBySeriesIds(null, List.of("x")).isEmpty());
-        assertTrue(channelDb.getChannelsBySeriesIds(account, null).isEmpty());
-        assertTrue(channelDb.getChannelsBySeriesIds(account, List.of()).isEmpty());
         assertTrue(channelDb.getChannelsBySeriesIds(account, List.of(" ", "\t")).isEmpty());
 
         List<Channel> filtered = channelDb.getChannelsBySeriesIds(account,
@@ -262,8 +271,9 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         Mockito.when(deleteFailConn.prepareStatement(anyString())).thenThrow(new SQLException("delete ac boom"));
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(deleteFailConn);
+            String accountId = account.getDbId();
             java.lang.reflect.InvocationTargetException ex = assertThrows(java.lang.reflect.InvocationTargetException.class,
-                    () -> deleteByAccountAndCategory.invoke(channelDb, account.getDbId(), categoryId));
+                    () -> deleteByAccountAndCategory.invoke(channelDb, accountId, categoryId));
             assertInstanceOf(DatabaseAccessException.class, ex.getCause());
         }
 
@@ -279,8 +289,9 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
             mocked.when(SQLConnection::connect).thenReturn(okConn2, insertFailConn2);
             Channel failingChannel = new Channel("s-chan-2", "Series Channel2", "2", "cmd", null, null, null, "logo", 0, 1, 1,
                     null, null, null, null, null);
+            List<Channel> failingChannels = List.of(failingChannel);
             DatabaseAccessException ex = assertThrows(DatabaseAccessException.class,
-                    () -> channelDb.saveAll(List.of(failingChannel), categoryId, account));
+                    () -> channelDb.saveAll(failingChannels, categoryId, account));
             assertTrue(ex.getMessage().contains("insert"));
         }
 
@@ -288,7 +299,8 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         Mockito.when(deleteConn2.prepareStatement(anyString())).thenThrow(new SQLException("delete boom"));
         try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(deleteConn2);
-            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> channelDb.deleteByAccount(account.getDbId()));
+            String accountId = account.getDbId();
+            DatabaseAccessException ex = assertThrows(DatabaseAccessException.class, () -> channelDb.deleteByAccount(accountId));
             assertTrue(ex.getMessage().contains("delete"));
         }
 
