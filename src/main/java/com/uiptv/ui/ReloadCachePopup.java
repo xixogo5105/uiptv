@@ -3,7 +3,9 @@ package com.uiptv.ui;
 import com.uiptv.util.I18n;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountInfo;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
@@ -85,6 +87,7 @@ public class ReloadCachePopup extends VBox {
     private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountService accountService = AccountService.getInstance();
+    private final AccountInfoService accountInfoService = AccountInfoService.getInstance();
     private final List<CheckBox> checkBoxes = new ArrayList<>();
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
@@ -456,6 +459,8 @@ public class ReloadCachePopup extends VBox {
             failed = true;
             logMessage(account, LOG_RELOAD_FAILED_PREFIX + " " + shortFailure(e.getMessage()));
             addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));
+        } finally {
+            refreshAccountInfoTitle(account);
         }
         boolean criticalFailure = runOutcomeTracker.hasCriticalFailure(account.getDbId());
         int countedChannels = !criticalFailure && fetchedChannelCount > 0 ? fetchedChannelCount : 0;
@@ -874,6 +879,45 @@ public class ReloadCachePopup extends VBox {
                 panel.appendLog(compact);
             }
         });
+    }
+
+    private void refreshAccountInfoTitle(Account account) {
+        if (account == null || account.getType() != AccountType.STALKER_PORTAL) {
+            return;
+        }
+        if (account.getDbId() == null || account.getDbId().isBlank()) {
+            return;
+        }
+        AccountInfo info = accountInfoService.getByAccountId(account.getDbId());
+        if (info == null) {
+            return;
+        }
+        String statusValue = info.getAccountStatus() != null ? info.getAccountStatus().toDisplay() : "";
+        String expiryValue = AccountInfoUiUtil.formatDate(info.getExpireDate());
+        if (expiryValue.isBlank()) {
+            expiryValue = "Unlimited";
+        }
+        if (statusValue.isBlank()) {
+            statusValue = "unknown";
+        }
+        AccountInfoUiUtil.StatusState statusStateValue = AccountInfoUiUtil.resolveStatusState(statusValue);
+        AccountInfoUiUtil.ExpiryState expiryStateValue = info.getExpireDate() == null || info.getExpireDate().isBlank()
+                ? AccountInfoUiUtil.ExpiryState.OK
+                : AccountInfoUiUtil.resolveExpiryState(info.getExpireDate());
+        final String expiry = expiryValue;
+        final String status = statusValue;
+        final AccountInfoUiUtil.ExpiryState expiryState = expiryStateValue;
+        final AccountInfoUiUtil.StatusState statusState = statusStateValue;
+        Platform.runLater(() -> {
+            AccountLogPanel panel = accountLogPanels.get(account.getDbId());
+            if (panel != null) {
+                panel.updateAccountInfo(expiry, status, expiryState, statusState);
+            }
+        });
+    }
+
+    private String buildAccountLabel(Account account) {
+        return account.getAccountName() + " (" + account.getType().getDisplay() + ")";
     }
 
     private String compactLog(Account account, String message) {
@@ -1365,6 +1409,7 @@ public class ReloadCachePopup extends VBox {
         return compact;
     }
 
+
     private void runOnFxThreadAndWait(Runnable runnable) {
         if (Platform.isFxApplicationThread()) {
             runnable.run();
@@ -1390,7 +1435,14 @@ public class ReloadCachePopup extends VBox {
         private final VBox root = new VBox(6);
         private final HBox header = new HBox(8);
         private final Label accountLabel = new Label();
+        private final Label expiryLabel = new Label();
         private final Label statusLabel = new Label();
+        private final Region expiryIndicator = new Region();
+        private final Region statusIndicator = new Region();
+        private final HBox expiryBox = new HBox(6);
+        private final HBox statusBox = new HBox(6);
+        private final HBox accountInfoBox = new HBox(8);
+        private final Label runStatusLabel = new Label();
         private final Label arrowLabel = new Label("▸");
         private final ProgressIndicator runningIndicator = new ProgressIndicator();
         private final VBox logBody = new VBox(4);
@@ -1398,7 +1450,7 @@ public class ReloadCachePopup extends VBox {
 
         private AccountLogPanel(Account account) {
             this.account = account;
-            this.accountLabel.setText(getAccountLabel());
+            this.accountLabel.setText(buildBaseLabel());
             this.accountLabel.setStyle("-fx-font-weight: bold;");
 
             Region spacer = new Region();
@@ -1414,7 +1466,16 @@ public class ReloadCachePopup extends VBox {
             this.runningIndicator.setVisible(false);
             this.runningIndicator.managedProperty().bind(this.runningIndicator.visibleProperty());
 
-            this.header.getChildren().addAll(accountLabel, spacer, runningIndicator, statusLabel, arrowLabel);
+            setupIndicator(expiryIndicator);
+            setupIndicator(statusIndicator);
+            expiryBox.setAlignment(Pos.CENTER_LEFT);
+            statusBox.setAlignment(Pos.CENTER_LEFT);
+            expiryBox.getChildren().setAll(expiryIndicator, expiryLabel);
+            statusBox.getChildren().setAll(statusIndicator, statusLabel);
+            accountInfoBox.setAlignment(Pos.CENTER_LEFT);
+            accountInfoBox.getChildren().setAll(expiryBox, statusBox);
+
+            this.header.getChildren().addAll(accountLabel, accountInfoBox, spacer, runningIndicator, runStatusLabel, arrowLabel);
 
             this.logBody.setPadding(new Insets(0, 10, 8, 10));
             this.root.getChildren().addAll(header, logBody);
@@ -1424,7 +1485,37 @@ public class ReloadCachePopup extends VBox {
         }
 
         private String getAccountLabel() {
+            return accountLabel.getText();
+        }
+
+        private String buildBaseLabel() {
             return account.getAccountName() + " (" + account.getType().getDisplay() + ")";
+        }
+
+        private void updateAccountInfo(String expiry, String status,
+                                       AccountInfoUiUtil.ExpiryState expiryState,
+                                       AccountInfoUiUtil.StatusState statusState) {
+            String expiryText = I18n.tr("manageAccountInfoExpireDate") + ": " + expiry;
+            String statusText = I18n.tr("manageAccountInfoStatus") + ": " + status;
+            expiryLabel.setText(expiryText);
+            statusLabel.setText(statusText);
+            AccountInfoUiUtil.applyIndicator(expiryIndicator, AccountInfoUiUtil.colorForExpiry(expiryState),
+                    expiryState != AccountInfoUiUtil.ExpiryState.UNKNOWN);
+            AccountInfoUiUtil.applyIndicator(statusIndicator, AccountInfoUiUtil.colorForStatus(statusState),
+                    statusState != AccountInfoUiUtil.StatusState.UNKNOWN);
+            expiryBox.setVisible(true);
+            expiryBox.setManaged(true);
+            statusBox.setVisible(true);
+            statusBox.setManaged(true);
+        }
+
+        private void setupIndicator(Region indicator) {
+            indicator.setMinSize(8, 8);
+            indicator.setPrefSize(8, 8);
+            indicator.setMaxSize(8, 8);
+            indicator.setStyle("-fx-background-radius: 6px;");
+            indicator.setVisible(false);
+            indicator.setManaged(false);
         }
 
         private VBox getRoot() {
@@ -1453,41 +1544,41 @@ public class ReloadCachePopup extends VBox {
             switch (status) {
                 case QUEUED:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(I18n.tr("autoQueued"));
-                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
+                    runStatusLabel.setText(I18n.tr("autoQueued"));
+                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
                     break;
                 case RUNNING:
                     runningIndicator.setVisible(true);
-                    statusLabel.setText(I18n.tr("autoRunning"));
-                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
+                    runStatusLabel.setText(I18n.tr("autoRunning"));
+                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
                     break;
                 case DONE:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(channelCount == null
+                    runStatusLabel.setText(channelCount == null
                             ? I18n.tr("reloadDone")
                             : I18n.tr("reloadDoneWithChannels", channelCount));
-                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
+                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
                     break;
                 case YELLOW:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(channelCount == null
+                    runStatusLabel.setText(channelCount == null
                             ? I18n.tr("reloadPartial")
                             : I18n.tr("reloadPartialWithChannels", channelCount));
-                    statusLabel.setStyle(STYLE_YELLOW_LABEL);
+                    runStatusLabel.setStyle(STYLE_YELLOW_LABEL);
                     break;
                 case EMPTY:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(I18n.tr("autoEmpty0Channels"));
-                    statusLabel.setStyle(STYLE_YELLOW_LABEL);
+                    runStatusLabel.setText(I18n.tr("autoEmpty0Channels"));
+                    runStatusLabel.setStyle(STYLE_YELLOW_LABEL);
                     break;
                 case FAILED:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText(I18n.tr("autoFailed2"));
-                    statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
+                    runStatusLabel.setText(I18n.tr("autoFailed2"));
+                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
                     break;
                 default:
                     runningIndicator.setVisible(false);
-                    statusLabel.setText("");
+                    runStatusLabel.setText("");
                     break;
             }
         }
@@ -1495,8 +1586,8 @@ public class ReloadCachePopup extends VBox {
         private void setStatus(AccountRunStatus status, Integer current, Integer total) {
             if (status == AccountRunStatus.RUNNING && current != null && total != null) {
                 runningIndicator.setVisible(true);
-                statusLabel.setText(I18n.tr("autoRunningProgress", current, total));
-                statusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
+                runStatusLabel.setText(I18n.tr("autoRunningProgress", current, total));
+                runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
             } else {
                 setStatus(status, (Integer) null);
             }

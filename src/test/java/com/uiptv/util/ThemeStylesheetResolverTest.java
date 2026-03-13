@@ -12,8 +12,8 @@ class ThemeStylesheetResolverTest {
         String hundredFive = ThemeStylesheetResolver.buildSceneRootStyle(105);
         String hundredThirtyThree = ThemeStylesheetResolver.buildSceneRootStyle(133);
 
-        assertTrue(ninetyFive.contains("12.350px"));
-        assertTrue(hundredFive.contains("13.650px"));
-        assertTrue(hundredThirtyThree.contains("17.290px"));
+        assertTrue(ninetyFive.contains("12.350"));
+        assertTrue(hundredFive.contains("13.650"));
+        assertTrue(hundredThirtyThree.contains("17.290"));
     }
 }

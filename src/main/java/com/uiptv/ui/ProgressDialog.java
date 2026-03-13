@@ -87,10 +87,8 @@ public class ProgressDialog extends Stage {
         
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox buttonBox = new HBox(10, stopButton, cancelButton);
-        buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        
-        bottomBar.getChildren().addAll(pauseWidget, new Label(I18n.tr("autoDelay")), delayDropdown, spacer, buttonBox);
+
+        bottomBar.getChildren().addAll(pauseWidget, new Label(I18n.tr("autoDelay")), delayDropdown, stopButton, spacer, cancelButton);
 
         // Assemble Root
         root.setTop(progressBar);
@@ -227,5 +225,12 @@ public class ProgressDialog extends Stage {
                 }
             });
         });
+    }
+
+    public void markCompleted() {
+        stopButton.setDisable(true);
+        cancelButton.setText(I18n.tr("commonClose"));
+        cancelButton.setOnAction(event -> close());
+        setOnCloseRequest(event -> close());
     }
 }

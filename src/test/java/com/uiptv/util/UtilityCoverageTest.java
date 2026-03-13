@@ -43,7 +43,7 @@ class UtilityCoverageTest {
         assertEquals("/application.css", ThemeStylesheetResolver.getDefaultResourcePath(false));
         assertEquals("/dark-application.css", ThemeStylesheetResolver.getDefaultResourcePath(true));
         assertTrue(ThemeStylesheetResolver.readDefaultStylesheetContent(ThemeStylesheetResolver.class, false).contains(".root"));
-        assertTrue(ThemeStylesheetResolver.buildSceneRootStyle(125).contains("16.250px"));
+        assertTrue(ThemeStylesheetResolver.buildSceneRootStyle(125).contains("16.250"));
 
         ThemeCssOverrideService overrideService = Mockito.mock(ThemeCssOverrideService.class);
         ThemeCssOverride override = new ThemeCssOverride();

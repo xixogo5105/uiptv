@@ -1,0 +1,1 @@
+--@add_column AccountInfo allowedStbTypesForLocalRecordingJson TEXT

@@ -2,17 +2,24 @@ package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
 
+import com.uiptv.model.Account;
+import com.uiptv.model.AccountInfo;
+import com.uiptv.service.HandshakeService;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.beans.property.ObjectProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
@@ -26,6 +33,7 @@ import java.util.function.BiConsumer;
 import static com.uiptv.widget.UIptvAlert.okButtonType;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class MacAddressManagementPopup extends VBox {
 
@@ -35,16 +43,19 @@ public class MacAddressManagementPopup extends VBox {
     private final Button addButton = new Button(I18n.tr("autoAdd"));
     private final Button removeButton = new Button(I18n.tr("autoRemoveSelected"));
     private final Button setDefaultButton = new Button(I18n.tr("autoSetAsDefault"));
+    private final Button verifyInfoButton = new Button(I18n.tr("autoVerify"));
     private final Button saveButton = new Button(I18n.tr("autoSaveClose"));
     private final Button closeButton = new Button(I18n.tr("autoCancel"));
     private final CheckBox selectAllCheckBox = new CheckBox(I18n.tr("autoSelectAll"));
 
     private ObservableList<MacItem> macItems;
     private String defaultMac;
+    private final Account baseAccount;
     private final BiConsumer<List<String>, String> onSave;
 
-    public MacAddressManagementPopup(Stage owner, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
+    public MacAddressManagementPopup(Stage owner, Account baseAccount, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
         this.defaultMac = currentDefaultMac;
+        this.baseAccount = baseAccount;
         this.onSave = onSave;
         this.macItems = FXCollections.observableArrayList(initialMacs.stream().map(MacItem::new).toList());
         stage = createStage(owner);
@@ -93,6 +104,7 @@ public class MacAddressManagementPopup extends VBox {
         addButton.setOnAction(e -> addMacs());
         removeButton.setOnAction(e -> removeMacs());
         setDefaultButton.setOnAction(e -> setDefaultMac());
+        verifyInfoButton.setOnAction(e -> verifyMacInfo());
         saveButton.setOnAction(e -> saveAndClose());
         closeButton.setOnAction(e -> stage.close());
     }
@@ -100,7 +112,7 @@ public class MacAddressManagementPopup extends VBox {
     private void buildContent() {
         HBox addBox = new HBox(10, addMacField, addButton);
         HBox.setHgrow(addMacField, Priority.ALWAYS);
-        HBox actionBox = new HBox(10, removeButton, setDefaultButton);
+        HBox actionBox = new HBox(10, removeButton, setDefaultButton, verifyInfoButton);
         HBox bottomBox = new HBox(10, saveButton, closeButton);
         bottomBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
         getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label(I18n.tr("autoAddNew")), addBox, new Separator(), bottomBox);
@@ -191,6 +203,75 @@ public class MacAddressManagementPopup extends VBox {
         stage.close();
     }
 
+    private void verifyMacInfo() {
+        if (baseAccount == null || baseAccount.getType() != com.uiptv.util.AccountType.STALKER_PORTAL) {
+            showAlert(I18n.tr("autoFailed"));
+            return;
+        }
+        List<MacItem> targets = macItems.stream().filter(MacItem::isSelected).toList();
+        if (targets.isEmpty()) {
+            targets = macItems;
+        }
+        if (targets.isEmpty()) {
+            return;
+        }
+        verifyInfoButton.setDisable(true);
+        final List<MacItem> finalTargets = new java.util.ArrayList<>(targets);
+        new Thread(() -> {
+            try {
+                for (MacItem item : finalTargets) {
+                    Account account = buildAccountForMac(item.getMac());
+                    AccountInfo info = HandshakeService.getInstance().fetchAccountInfo(account);
+                    updateMacItemInfo(item, info);
+                }
+            } finally {
+                javafx.application.Platform.runLater(() -> {
+                    verifyInfoButton.setDisable(false);
+                    macListView.refresh();
+                });
+            }
+        }).start();
+    }
+
+    private Account buildAccountForMac(String mac) {
+        Account account = new Account(
+                baseAccount.getAccountName(),
+                baseAccount.getUsername(),
+                baseAccount.getPassword(),
+                baseAccount.getUrl(),
+                mac,
+                baseAccount.getMacAddressList(),
+                baseAccount.getSerialNumber(),
+                baseAccount.getDeviceId1(),
+                baseAccount.getDeviceId2(),
+                baseAccount.getSignature(),
+                baseAccount.getType(),
+                baseAccount.getEpg(),
+                baseAccount.getM3u8Path(),
+                baseAccount.isPinToTop()
+        );
+        account.setHttpMethod(baseAccount.getHttpMethod());
+        account.setTimezone(baseAccount.getTimezone());
+        account.setServerPortalUrl(baseAccount.getServerPortalUrl());
+        account.setAction(baseAccount.getAction());
+        return account;
+    }
+
+    private void updateMacItemInfo(MacItem item, AccountInfo info) {
+        String statusText = info != null && info.getAccountStatus() != null
+                ? info.getAccountStatus().toDisplay()
+                : "";
+        String expireText = info != null ? formatDate(info.getExpireDate()) : "";
+        AccountInfoUiUtil.ExpiryState expiryState = AccountInfoUiUtil.resolveExpiryState(info != null ? info.getExpireDate() : "");
+        AccountInfoUiUtil.StatusState statusState = AccountInfoUiUtil.resolveStatusState(statusText);
+        javafx.application.Platform.runLater(() -> {
+            item.setStatusText(statusText);
+            item.setExpiryText(expireText);
+            item.setExpiryState(expiryState);
+            item.setStatusState(statusState);
+        });
+    }
+
     private void showAlert(String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING, message, okButtonType());
         alert.initOwner(stage);
@@ -200,6 +281,10 @@ public class MacAddressManagementPopup extends VBox {
     private static class MacItem {
         private final StringProperty mac = new SimpleStringProperty();
         private final BooleanProperty selected = new SimpleBooleanProperty(false);
+        private final StringProperty statusText = new SimpleStringProperty("");
+        private final StringProperty expiryText = new SimpleStringProperty("");
+        private final ObjectProperty<AccountInfoUiUtil.ExpiryState> expiryState = new SimpleObjectProperty<>(AccountInfoUiUtil.ExpiryState.UNKNOWN);
+        private final ObjectProperty<AccountInfoUiUtil.StatusState> statusState = new SimpleObjectProperty<>(AccountInfoUiUtil.StatusState.UNKNOWN);
 
         public MacItem(String mac) {
             this.mac.set(mac);
@@ -224,11 +309,47 @@ public class MacAddressManagementPopup extends VBox {
         public void setSelected(boolean selected) {
             this.selected.set(selected);
         }
+
+        public String getStatusText() {
+            return statusText.get();
+        }
+
+        public void setStatusText(String statusText) {
+            this.statusText.set(statusText);
+        }
+
+        public String getExpiryText() {
+            return expiryText.get();
+        }
+
+        public void setExpiryText(String expiryText) {
+            this.expiryText.set(expiryText);
+        }
+
+        public AccountInfoUiUtil.ExpiryState getExpiryState() {
+            return expiryState.get();
+        }
+
+        public void setExpiryState(AccountInfoUiUtil.ExpiryState expiryState) {
+            this.expiryState.set(expiryState);
+        }
+
+        public AccountInfoUiUtil.StatusState getStatusState() {
+            return statusState.get();
+        }
+
+        public void setStatusState(AccountInfoUiUtil.StatusState statusState) {
+            this.statusState.set(statusState);
+        }
     }
 
     private class MacListCell extends ListCell<MacItem> {
         private final CheckBox checkBox = new CheckBox();
         private final TextFlow textFlow = new TextFlow();
+        private final Label statusLabel = new Label();
+        private final Label expiryLabel = new Label();
+        private final Region statusIndicator = new Region();
+        private final Region expiryIndicator = new Region();
         private BooleanProperty currentBoundProperty;
 
         @Override
@@ -261,9 +382,41 @@ public class MacAddressManagementPopup extends VBox {
             if (item.getMac().equalsIgnoreCase(defaultMac)) {
                 textFlow.getChildren().addAll(new Text(" ("), defaultTextNode(), new Text(")"));
             }
-            HBox hBox = new HBox(10, checkBox, textFlow);
-            hBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-            return hBox;
+            statusIndicator.setMinSize(8, 8);
+            statusIndicator.setPrefSize(8, 8);
+            statusIndicator.setMaxSize(8, 8);
+            statusIndicator.setStyle("-fx-background-radius: 6px;");
+
+            expiryIndicator.setMinSize(8, 8);
+            expiryIndicator.setPrefSize(8, 8);
+            expiryIndicator.setMaxSize(8, 8);
+            expiryIndicator.setStyle("-fx-background-radius: 6px;");
+
+            statusLabel.setText(item.getStatusText());
+            expiryLabel.setText(item.getExpiryText());
+
+            applyStatusIndicator(item.getStatusState());
+            applyExpiryIndicator(item.getExpiryState());
+
+            HBox statusBox = new HBox(6, statusIndicator, statusLabel);
+            statusBox.setAlignment(Pos.CENTER_LEFT);
+            HBox expiryBox = new HBox(6, expiryIndicator, expiryLabel);
+            expiryBox.setAlignment(Pos.CENTER_LEFT);
+            VBox infoBox = new VBox(2, statusBox, expiryBox);
+
+            boolean hasStatus = isNotBlank(item.getStatusText());
+            boolean hasExpiry = isNotBlank(item.getExpiryText());
+            statusBox.setVisible(hasStatus);
+            statusBox.setManaged(hasStatus);
+            expiryBox.setVisible(hasExpiry);
+            expiryBox.setManaged(hasExpiry);
+            infoBox.setVisible(hasStatus || hasExpiry);
+            infoBox.setManaged(hasStatus || hasExpiry);
+
+            HBox topRow = new HBox(10, checkBox, textFlow);
+            topRow.setAlignment(Pos.CENTER_LEFT);
+            VBox container = new VBox(4, topRow, infoBox);
+            return new HBox(container);
         }
 
         private Text defaultTextNode() {
@@ -271,5 +424,21 @@ public class MacAddressManagementPopup extends VBox {
             defaultText.getStyleClass().add("default-text");
             return defaultText;
         }
+
+        private void applyStatusIndicator(AccountInfoUiUtil.StatusState state) {
+            String color = AccountInfoUiUtil.colorForStatus(state);
+            boolean visible = state != AccountInfoUiUtil.StatusState.UNKNOWN;
+            AccountInfoUiUtil.applyIndicator(statusIndicator, color, visible);
+        }
+
+        private void applyExpiryIndicator(AccountInfoUiUtil.ExpiryState state) {
+            String color = AccountInfoUiUtil.colorForExpiry(state);
+            boolean visible = state != AccountInfoUiUtil.ExpiryState.UNKNOWN;
+            AccountInfoUiUtil.applyIndicator(expiryIndicator, color, visible);
+        }
+    }
+
+    private String formatDate(String value) {
+        return AccountInfoUiUtil.formatDate(value);
     }
 }

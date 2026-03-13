@@ -50,6 +50,26 @@ CREATE TABLE IF NOT EXISTS Account (
     timezone TEXT
 );
 
+CREATE TABLE IF NOT EXISTS AccountInfo (
+    id INTEGER PRIMARY KEY,
+    accountId TEXT NOT NULL UNIQUE,
+    expireDate TEXT,
+    accountStatus TEXT,
+    accountBalance TEXT,
+    tariffName TEXT,
+    tariffPlan TEXT,
+    defaultTimezone TEXT,
+    profileJson TEXT,
+    passHash TEXT,
+    parentPasswordHash TEXT,
+    passwordHash TEXT,
+    settingsPasswordHash TEXT,
+    accountPagePasswordHash TEXT,
+    allowedStbTypesJson TEXT,
+    allowedStbTypesForLocalRecordingJson TEXT,
+    preferredStbType TEXT
+);
+
 CREATE TABLE IF NOT EXISTS Bookmark (
     id INTEGER PRIMARY KEY,
     accountName TEXT,

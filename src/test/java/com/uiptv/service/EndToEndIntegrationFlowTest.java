@@ -263,7 +263,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 StandardCharsets.UTF_8
         );
         assertTrue(decodedCss.contains(".root { -fx-base: #111111; }"));
-        assertTrue(decodedCss.contains("-fx-font-size: 17.290px;"));
+        assertTrue(decodedCss.contains("-fx-font-size: 17.290;"));
     }
 
     private void seedAndImportAccounts() throws Exception {
@@ -836,6 +836,8 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertTrue(c1 >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
                     "Expected merged rows in " + table.getTableName());
         }
+
+        assertAccountInfoSynced(firstPath.toString());
     }
 
     private void createSyncSchema(String dbPath) throws SQLException {
@@ -869,6 +871,28 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 ps.setString(16, "0");
                 ps.setString(17, "GET");
                 ps.setString(18, "UTC");
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT OR REPLACE INTO AccountInfo (id, accountId, expireDate, accountStatus, accountBalance, tariffName, tariffPlan, defaultTimezone, profileJson, passHash, parentPasswordHash, passwordHash, settingsPasswordHash, accountPagePasswordHash, allowedStbTypesJson, allowedStbTypesForLocalRecordingJson, preferredStbType) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setString(1, accountId);
+                ps.setString(2, accountId);
+                ps.setString(3, "2027-02-16 00:00:00");
+                ps.setString(4, "ACTIVE");
+                ps.setString(5, "10.50");
+                ps.setString(6, "sync-tariff");
+                ps.setString(7, "sync-plan");
+                ps.setString(8, "UTC");
+                ps.setString(9, "{\"js\":{\"id\":\"sync\"}}");
+                ps.setString(10, "hash-pass");
+                ps.setString(11, "hash-parent");
+                ps.setString(12, "hash-password");
+                ps.setString(13, "hash-settings");
+                ps.setString(14, "hash-page");
+                ps.setString(15, "[\"mag250\",\"mag270\"]");
+                ps.setString(16, "[\"mag250\"]");
+                ps.setString(17, "mag270");
                 ps.executeUpdate();
             }
 
@@ -917,6 +941,59 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
              PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName);
              ResultSet rs = statement.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    private void assertAccountInfoSynced(String dbPath) throws SQLException {
+        Map<String, String> accountInfo100 = getAccountInfoRow(dbPath, "100");
+        Map<String, String> accountInfo200 = getAccountInfoRow(dbPath, "200");
+
+        assertEquals("ACTIVE", accountInfo100.get("accountStatus"));
+        assertEquals("ACTIVE", accountInfo200.get("accountStatus"));
+        assertEquals("2027-02-16 00:00:00", accountInfo100.get("expireDate"));
+        assertEquals("2027-02-16 00:00:00", accountInfo200.get("expireDate"));
+        assertEquals("sync-tariff", accountInfo100.get("tariffName"));
+        assertEquals("sync-tariff", accountInfo200.get("tariffName"));
+        assertEquals("sync-plan", accountInfo100.get("tariffPlan"));
+        assertEquals("sync-plan", accountInfo200.get("tariffPlan"));
+        assertEquals("UTC", accountInfo100.get("defaultTimezone"));
+        assertEquals("UTC", accountInfo200.get("defaultTimezone"));
+        assertEquals("{\"js\":{\"id\":\"sync\"}}", accountInfo100.get("profileJson"));
+        assertEquals("{\"js\":{\"id\":\"sync\"}}", accountInfo200.get("profileJson"));
+        assertEquals("[\"mag250\",\"mag270\"]", accountInfo100.get("allowedStbTypesJson"));
+        assertEquals("[\"mag250\",\"mag270\"]", accountInfo200.get("allowedStbTypesJson"));
+        assertEquals("mag270", accountInfo100.get("preferredStbType"));
+        assertEquals("mag270", accountInfo200.get("preferredStbType"));
+    }
+
+    private Map<String, String> getAccountInfoRow(String dbPath, String accountId) throws SQLException {
+        String sql = "SELECT expireDate, accountStatus, accountBalance, tariffName, tariffPlan, defaultTimezone, profileJson, " +
+                "passHash, parentPasswordHash, passwordHash, settingsPasswordHash, accountPagePasswordHash, " +
+                "allowedStbTypesJson, allowedStbTypesForLocalRecordingJson, preferredStbType " +
+                "FROM AccountInfo WHERE accountId = ?";
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, accountId);
+            try (ResultSet rs = statement.executeQuery()) {
+                assertTrue(rs.next(), "Expected AccountInfo row for accountId " + accountId);
+                Map<String, String> row = new HashMap<>();
+                row.put("expireDate", rs.getString("expireDate"));
+                row.put("accountStatus", rs.getString("accountStatus"));
+                row.put("accountBalance", rs.getString("accountBalance"));
+                row.put("tariffName", rs.getString("tariffName"));
+                row.put("tariffPlan", rs.getString("tariffPlan"));
+                row.put("defaultTimezone", rs.getString("defaultTimezone"));
+                row.put("profileJson", rs.getString("profileJson"));
+                row.put("passHash", rs.getString("passHash"));
+                row.put("parentPasswordHash", rs.getString("parentPasswordHash"));
+                row.put("passwordHash", rs.getString("passwordHash"));
+                row.put("settingsPasswordHash", rs.getString("settingsPasswordHash"));
+                row.put("accountPagePasswordHash", rs.getString("accountPagePasswordHash"));
+                row.put("allowedStbTypesJson", rs.getString("allowedStbTypesJson"));
+                row.put("allowedStbTypesForLocalRecordingJson", rs.getString("allowedStbTypesForLocalRecordingJson"));
+                row.put("preferredStbType", rs.getString("preferredStbType"));
+                return row;
+            }
         }
     }
 

@@ -73,7 +73,7 @@ public final class ThemeStylesheetResolver {
     }
 
     private static String formatPx(double value) {
-        return String.format(Locale.ROOT, "%.3fpx", value);
+        return String.format(Locale.ROOT, "%.3f", value);
     }
 
     private static String toDataUrl(String cssContent) {

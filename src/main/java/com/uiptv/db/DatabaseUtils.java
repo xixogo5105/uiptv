@@ -35,6 +35,7 @@ public class DatabaseUtils {
         CONFIGURATION_TABLE("Configuration"),
         THEME_CSS_OVERRIDE_TABLE("ThemeCssOverride"),
         ACCOUNT_TABLE("Account"),
+        ACCOUNT_INFO_TABLE("AccountInfo"),
         BOOKMARK_TABLE("Bookmark"),
         CATEGORY_TABLE("Category"),
         CHANNEL_TABLE("Channel"),
@@ -71,6 +72,7 @@ public class DatabaseUtils {
     ));
     public static final Set<DbTable> Syncable = Collections.unmodifiableSet(EnumSet.of(
             DbTable.ACCOUNT_TABLE,
+            DbTable.ACCOUNT_INFO_TABLE,
             DbTable.BOOKMARK_TABLE,
             DbTable.BOOKMARK_CATEGORY_TABLE,
             DbTable.BOOKMARK_ORDER_TABLE
@@ -125,6 +127,25 @@ public class DatabaseUtils {
                 new DataColumn("pinToTop", "TEXT"),
                 new DataColumn("httpMethod", "TEXT"),
                 new DataColumn("timezone", "TEXT")
+        )));
+        dbStructure.put(DbTable.ACCOUNT_INFO_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT NOT NULL UNIQUE"),
+                new DataColumn("expireDate", "TEXT"),
+                new DataColumn("accountStatus", "TEXT"),
+                new DataColumn("accountBalance", "TEXT"),
+                new DataColumn("tariffName", "TEXT"),
+                new DataColumn("tariffPlan", "TEXT"),
+                new DataColumn("defaultTimezone", "TEXT"),
+                new DataColumn("profileJson", "TEXT"),
+                new DataColumn("passHash", "TEXT"),
+                new DataColumn("parentPasswordHash", "TEXT"),
+                new DataColumn("passwordHash", "TEXT"),
+                new DataColumn("settingsPasswordHash", "TEXT"),
+                new DataColumn("accountPagePasswordHash", "TEXT"),
+                new DataColumn("allowedStbTypesJson", "TEXT"),
+                new DataColumn("allowedStbTypesForLocalRecordingJson", "TEXT"),
+                new DataColumn("preferredStbType", "TEXT")
         )));
         dbStructure.put(DbTable.BOOKMARK_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

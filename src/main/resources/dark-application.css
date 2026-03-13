@@ -1,6 +1,6 @@
 .root {
-    -uiptv-base-font-size: 13px;
-    -fx-font-size: 13px;
+    -uiptv-base-font-size: 13;
+    -fx-font-size: 13;
     -fx-accent: #0078D7;
     -fx-focus-color: -fx-accent;
     -fx-base: #1c1c1c; /* Near-black background */
@@ -382,7 +382,7 @@
 
 .episode-play-button,
 .episode-play-button > .label {
-    -fx-font-size: -uiptv-base-font-size;
+    -fx-font-size: 1em;
     -fx-font-weight: normal;
     -fx-padding: 2 6 2 6;
     -fx-background-radius: 6;
@@ -390,7 +390,7 @@
 
 .context-menu.binge-watch-context-menu .menu-item,
 .context-menu.binge-watch-context-menu .menu-item .label {
-    -fx-font-size: -uiptv-base-font-size;
+    -fx-font-size: 1em;
     -fx-font-weight: normal;
 }
 
@@ -401,7 +401,7 @@
 
 .binge-watch-menu-button,
 .binge-watch-menu-button > .label {
-    -fx-font-size: -uiptv-base-font-size;
+    -fx-font-size: 1em;
     -fx-font-weight: normal;
     -fx-padding: 2 6 2 6;
     -fx-background-radius: 6;

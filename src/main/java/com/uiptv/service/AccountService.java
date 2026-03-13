@@ -36,6 +36,7 @@ public class AccountService {
         if (account != null) {
             BookmarkDb.get().deleteByAccountName(account.getAccountName());
             sessionTokenByAccountKey.remove(getSessionAccountKey(account));
+            AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
         }
         SeriesWatchStateDb.get().deleteByAccount(accountId);
         VodWatchStateDb.get().deleteByAccount(accountId);
@@ -46,7 +47,10 @@ public class AccountService {
 
     public void deleteAll() {
         sessionTokenByAccountKey.clear();
-        AccountDb.get().getAccounts().forEach(account -> AccountDb.get().delete(account.getDbId()));
+        AccountDb.get().getAccounts().forEach(account -> {
+            AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
+            AccountDb.get().delete(account.getDbId());
+        });
     }
 
     public Map<String, Account> getAll() {
