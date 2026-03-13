@@ -18,6 +18,9 @@ public final class AccountInfoUiUtil {
     private AccountInfoUiUtil() {
     }
 
+    private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(DATE_TIME_PATTERN);
+
     public enum ExpiryState {
         OK,
         WARNING,
@@ -49,14 +52,14 @@ public final class AccountInfoUiUtil {
                 }
                 Instant instant = Instant.ofEpochSecond(epoch);
                 LocalDateTime dt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
-                return new ParsedDate(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(dt), instant);
-            } catch (Exception ignored) {
+                return new ParsedDate(DATE_TIME_FORMATTER.format(dt), instant);
+            } catch (Exception _) {
                 // Fall back to raw value.
             }
         }
 
         List<DateTimeFormatter> dateTimeFormats = List.of(
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+                DATE_TIME_FORMATTER,
                 DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"),
@@ -67,8 +70,8 @@ public final class AccountInfoUiUtil {
             try {
                 LocalDateTime dt = LocalDateTime.parse(trimmed, formatter);
                 Instant instant = dt.atZone(ZoneId.systemDefault()).toInstant();
-                return new ParsedDate(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(dt), instant);
-            } catch (DateTimeParseException ignored) {
+                return new ParsedDate(DATE_TIME_FORMATTER.format(dt), instant);
+            } catch (DateTimeParseException _) {
                 // Continue.
             }
         }
@@ -84,7 +87,7 @@ public final class AccountInfoUiUtil {
                 LocalDate date = LocalDate.parse(trimmed, formatter);
                 Instant instant = date.atStartOfDay(ZoneId.systemDefault()).toInstant();
                 return new ParsedDate(DateTimeFormatter.ofPattern("yyyy-MM-dd").format(date), instant);
-            } catch (DateTimeParseException ignored) {
+            } catch (DateTimeParseException _) {
                 // Continue.
             }
         }

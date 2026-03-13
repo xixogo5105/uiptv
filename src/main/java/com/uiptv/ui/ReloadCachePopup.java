@@ -916,10 +916,6 @@ public class ReloadCachePopup extends VBox {
         });
     }
 
-    private String buildAccountLabel(Account account) {
-        return account.getAccountName() + " (" + account.getType().getDisplay() + ")";
-    }
-
     private String compactLog(Account account, String message) {
         if (message == null) {
             return "";

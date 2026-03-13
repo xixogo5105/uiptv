@@ -5,6 +5,7 @@ import com.uiptv.model.AccountInfo;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
+@SuppressWarnings("java:S6548")
 public class AccountInfoService {
     private AccountInfoService() {
     }

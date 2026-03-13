@@ -52,6 +52,7 @@ public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String DEFAULT_TIMEZONE = "Europe/London";
+    private static final String PROFILE_DATA_TITLE = "Profile data";
     final FileChooser fileChooser = new FileChooser();
     final Button browserButtonM3u8Path = new Button(I18n.tr("autoBrowse"));
     final UIptvText m3u8Path = new UIptvText("m3u8Path", "manageM3u8FilePathUrlPrompt", 5);
@@ -89,7 +90,7 @@ public class ManageAccountUI extends VBox {
     private final Label accountInfoTariffPlan = new Label();
     private final Label accountInfoDefaultTimezone = new Label();
     private final Button accountInfoProfileCopyButton = new Button(I18n.tr("autoCopy"));
-    private final Label accountInfoProfileTitleLabel = new Label("Profile data");
+    private final Label accountInfoProfileTitleLabel = new Label(PROFILE_DATA_TITLE);
     private final VBox accountInfoProfileContainer = new VBox(6);
     private final BorderPane accountInfoProfileBox = new BorderPane();
     private final VBox accountInfoProfileLines = new VBox(4);
@@ -525,7 +526,7 @@ public class ManageAccountUI extends VBox {
         accountInfoProfileToggleIcon.setStyle("-fx-fill: -fx-text-base-color;");
         accountInfoProfileToggle.getChildren().setAll(accountInfoProfileToggleIcon);
         updateProfileToggleIcon(false);
-        accountInfoProfileTitleLabel.setText("Profile data");
+        accountInfoProfileTitleLabel.setText(PROFILE_DATA_TITLE);
         accountInfoProfileToggle.setOnMouseClicked(event -> toggleProfileLines());
         accountInfoProfileCopyButton.setOnAction(event -> {
             String raw = accountInfoProfileRawJson != null ? accountInfoProfileRawJson : "";
@@ -545,7 +546,7 @@ public class ManageAccountUI extends VBox {
         accountInfoProfileBox.setVisible(show);
         accountInfoProfileBox.setManaged(show);
         updateProfileToggleIcon(show);
-        accountInfoProfileTitleLabel.setText(show ? "Hide profile data" : "Profile data");
+        accountInfoProfileTitleLabel.setText(show ? "Hide profile data" : PROFILE_DATA_TITLE);
     }
 
     private void updateProfileToggleIcon(boolean expanded) {
@@ -778,7 +779,7 @@ public class ManageAccountUI extends VBox {
             accountInfoProfileBox.setVisible(false);
             accountInfoProfileBox.setManaged(false);
             updateProfileToggleIcon(false);
-            accountInfoProfileTitleLabel.setText("Profile data");
+            accountInfoProfileTitleLabel.setText(PROFILE_DATA_TITLE);
         }
     }
 
@@ -846,29 +847,6 @@ public class ManageAccountUI extends VBox {
         AccountInfoUiUtil.ExpiryState state = AccountInfoUiUtil.resolveExpiryState(instant);
         String color = AccountInfoUiUtil.colorForExpiry(state);
         AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, color, true);
-    }
-
-    private Account buildAccountForMac(String mac) {
-        Account account = new Account(
-                name.getText(),
-                username.getText(),
-                password.getText(),
-                url.getText(),
-                mac,
-                macAddressList.getText(),
-                serialNumber.getText(),
-                deviceId1.getText(),
-                deviceId2.getText(),
-                signature.getText(),
-                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue()) ? accountType.getValue() : AccountType.STALKER_PORTAL.getDisplay()),
-                epg.getText(),
-                m3u8Path.getText(),
-                pinToTopCheckBox.isSelected()
-        );
-        account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
-        account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
-        account.setServerPortalUrl(service.ensureServerPortalUrl(account));
-        return account;
     }
 
     private Account getAccountFromForm() {

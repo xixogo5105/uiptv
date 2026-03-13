@@ -33,13 +33,20 @@ public class HandshakeService {
     private static final String PARAM_ACTION = "action";
     private static final String PARAM_JS_HTTP_REQUEST = "JsHttpRequest";
     private static final String PARAM_TOKEN = "token";
-    private static final String PASSWORD_HASH_PREFIX = "pbkdf2_sha256";
-    private static final int PASSWORD_HASH_ITERATIONS = 120_000;
-    private static final int PASSWORD_SALT_BYTES = 16;
-    private static final int PASSWORD_HASH_BYTES = 32;
-    private static final SecureRandom PASSWORD_RANDOM = new SecureRandom();
+    private static final String PASS_HASH_PREFIX = "pbkdf2_sha256";
+    private static final int PASS_HASH_ITERATIONS = 120_000;
+    private static final int PASS_SALT_BYTES = 16;
+    private static final int PASS_HASH_BYTES = 32;
+    private static final SecureRandom PASS_RANDOM = new SecureRandom();
     private static final String DEFAULT_STB_TYPE = "MAG250";
     private static final String DATE_ZERO = "0000-00-00 00:00:00";
+    private static final String MSG_UNABLE_RESOLVE_URL = "Unable to resolve server portal URL for account: ";
+    private static final String MSG_UNABLE_TOKEN = "Unable to retrieve a token:\n\n";
+    private static final String KEY_ACCOUNT_INFO = "account_info";
+    private static final String KEY_TARIFF_NAME = "tariff_name";
+    private static final String KEY_TARIFF_PLAN = "tariff_plan";
+    private static final String KEY_DEFAULT_TIMEZONE = "default_timezone";
+    private static final String KEY_TIMEZONE = "timezone";
     private static final DateTimeFormatter EXTEND_AT_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
 
@@ -94,7 +101,7 @@ public class HandshakeService {
 
     private static Map<String, String> getAccountParams() {
         final Map<String, String> params = new HashMap<>();
-        params.put("type", "account_info");
+        params.put("type", KEY_ACCOUNT_INFO);
         params.put(PARAM_ACTION, "get_main_info");
         params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
         return params;
@@ -112,7 +119,7 @@ public class HandshakeService {
         account.setToken(null);
         AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
@@ -120,7 +127,7 @@ public class HandshakeService {
         AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to retrieve a token:\n\n" + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_TOKEN + finalJson));
             return;
         }
         json = fetch(getProfileParams(account), account);
@@ -141,14 +148,14 @@ public class HandshakeService {
         }
         account.setToken(null);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
             return null;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to retrieve a token:\n\n" + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_TOKEN + finalJson));
             return null;
         }
         json = fetch(getProfileParams(account), account);
@@ -165,7 +172,7 @@ public class HandshakeService {
         account.setToken(null);
         AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to resolve server portal URL for account: " + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
@@ -173,7 +180,7 @@ public class HandshakeService {
         AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Unable to retrieve a token:\n\n" + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_TOKEN + finalJson));
         }
         json = fetch(getProfileParams(account), account);
         AccountInfo info = resolveAccountInfo(account);
@@ -207,10 +214,10 @@ public class HandshakeService {
         updated |= updateIfNotBlank(expireDate, info::getExpireDate, info::setExpireDate);
         AccountStatus derivedStatus = deriveAccountStatus(js);
         updated |= updateIfNotBlank(derivedStatus, info::getAccountStatus, info::setAccountStatus);
-        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(js, "tariff_plan"), nullSafeString(js, "tariff_plan_id")),
+        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(js, KEY_TARIFF_PLAN), nullSafeString(js, "tariff_plan_id")),
                 info::getTariffPlan, info::setTariffPlan);
-        updated |= updateIfNotBlank(nullSafeString(js, "tariff_name"), info::getTariffName, info::setTariffName);
-        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(js, "default_timezone"), nullSafeString(js, "timezone")),
+        updated |= updateIfNotBlank(nullSafeString(js, KEY_TARIFF_NAME), info::getTariffName, info::setTariffName);
+        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(js, KEY_DEFAULT_TIMEZONE), nullSafeString(js, KEY_TIMEZONE)),
                 info::getDefaultTimezone, info::setDefaultTimezone);
         updated |= applyAllowedStbTypes(info, js);
         updated |= applyPasswordHashes(info, js);
@@ -222,26 +229,26 @@ public class HandshakeService {
         if (js == null || info == null) {
             return false;
         }
-        JSONObject accountInfoJson = js.optJSONObject("account_info");
+        JSONObject accountInfoJson = js.optJSONObject(KEY_ACCOUNT_INFO);
         if (accountInfoJson == null) {
             accountInfoJson = js;
         }
         boolean updated = false;
         String balance = firstNonBlank(
-                nullSafeString(accountInfoJson, "account_info"),
+                nullSafeString(accountInfoJson, KEY_ACCOUNT_INFO),
                 nullSafeString(accountInfoJson, "account_balance"),
                 nullSafeString(accountInfoJson, "balance"),
-                nullSafeString(js, "account_info"),
+                nullSafeString(js, KEY_ACCOUNT_INFO),
                 nullSafeString(js, "account_balance"),
                 nullSafeString(js, "balance")
         );
         updated |= updateIfNotBlank(balance, info::getAccountBalance, info::setAccountBalance);
-        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, "tariff_name"), nullSafeString(js, "tariff_name")),
+        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, KEY_TARIFF_NAME), nullSafeString(js, KEY_TARIFF_NAME)),
                 info::getTariffName, info::setTariffName);
-        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, "tariff_plan"), nullSafeString(js, "tariff_plan")),
+        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, KEY_TARIFF_PLAN), nullSafeString(js, KEY_TARIFF_PLAN)),
                 info::getTariffPlan, info::setTariffPlan);
-        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, "default_timezone"), nullSafeString(js, "default_timezone"),
-                nullSafeString(accountInfoJson, "timezone"), nullSafeString(js, "timezone")),
+        updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, KEY_DEFAULT_TIMEZONE), nullSafeString(js, KEY_DEFAULT_TIMEZONE),
+                nullSafeString(accountInfoJson, KEY_TIMEZONE), nullSafeString(js, KEY_TIMEZONE)),
                 info::getDefaultTimezone, info::setDefaultTimezone);
         updated |= applyAllowedStbTypes(info, accountInfoJson);
         if (accountInfoJson != js) {
@@ -501,13 +508,13 @@ public class HandshakeService {
             return "";
         }
         try {
-            byte[] salt = new byte[PASSWORD_SALT_BYTES];
-            PASSWORD_RANDOM.nextBytes(salt);
-            byte[] hash = pbkdf2(rawValue.toCharArray(), salt, PASSWORD_HASH_ITERATIONS, PASSWORD_HASH_BYTES);
-            return PASSWORD_HASH_PREFIX + "$" + PASSWORD_HASH_ITERATIONS + "$"
+            byte[] salt = new byte[PASS_SALT_BYTES];
+            PASS_RANDOM.nextBytes(salt);
+            byte[] hash = pbkdf2(rawValue.toCharArray(), salt, PASS_HASH_ITERATIONS, PASS_HASH_BYTES);
+            return PASS_HASH_PREFIX + "$" + PASS_HASH_ITERATIONS + "$"
                     + Base64.getEncoder().encodeToString(salt) + "$"
                     + Base64.getEncoder().encodeToString(hash);
-        } catch (Exception _) {
+        } catch (java.security.GeneralSecurityException _) {
             return "";
         }
     }
@@ -520,7 +527,7 @@ public class HandshakeService {
         if (parts.length != 4) {
             return false;
         }
-        if (!PASSWORD_HASH_PREFIX.equals(parts[0])) {
+        if (!PASS_HASH_PREFIX.equals(parts[0])) {
             return false;
         }
         int iterations;
@@ -534,12 +541,12 @@ public class HandshakeService {
             byte[] expectedHash = Base64.getDecoder().decode(parts[3]);
             byte[] actualHash = pbkdf2(rawValue.toCharArray(), salt, iterations, expectedHash.length);
             return slowEquals(expectedHash, actualHash);
-        } catch (Exception _) {
+        } catch (java.security.GeneralSecurityException _) {
             return false;
         }
     }
 
-    private byte[] pbkdf2(char[] value, byte[] salt, int iterations, int length) throws Exception {
+    private byte[] pbkdf2(char[] value, byte[] salt, int iterations, int length) throws java.security.GeneralSecurityException {
         PBEKeySpec spec = new PBEKeySpec(value, salt, iterations, length * 8);
         SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
         return factory.generateSecret(spec).getEncoded();
