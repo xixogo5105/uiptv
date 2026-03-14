@@ -396,6 +396,7 @@ public class CategoryListUI extends HBox {
             ChannelListUI channelListUI = channelListUIHolder[0];
 
             try {
+                channelListUI.startLoadingProgressIfNeeded();
                 loadChannelsIntoUi(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems);
             } finally {
                 channelListUI.setLoadingComplete();
@@ -446,7 +447,8 @@ public class CategoryListUI extends HBox {
         if (isLoadingCancelled(isCancelled)) {
             return;
         }
-        ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(), null, channelListUI::addItems, isCancelled::getAsBoolean);
+        ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(), null, channelListUI::addItems, isCancelled::getAsBoolean,
+                progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
     }
 
     private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
@@ -456,7 +458,8 @@ public class CategoryListUI extends HBox {
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
             ChannelService.getInstance().get(selectedCategoryKey(item), account, item.getId(), null,
-                    channelListUI::addItems, isCancelled::getAsBoolean);
+                    channelListUI::addItems, isCancelled::getAsBoolean,
+                    progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
             return;
         }
         for (CategoryItem categoryItem : allItems) {
@@ -465,7 +468,8 @@ public class CategoryListUI extends HBox {
             }
             if (!isAllCategory(categoryItem)) {
                 ChannelService.getInstance().get(selectedCategoryKey(categoryItem), account, categoryItem.getId(), null,
-                        channelListUI::addItems, isCancelled::getAsBoolean);
+                        channelListUI::addItems, isCancelled::getAsBoolean,
+                        progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
             }
         }
     }

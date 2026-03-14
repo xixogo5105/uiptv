@@ -32,6 +32,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Callback;
+import javafx.animation.PauseTransition;
+import javafx.util.Duration;
 
 import java.net.URI;
 import java.util.*;
@@ -88,6 +90,9 @@ public class ChannelListUI extends HBox {
     private final Button detailBackButton = createBackButton();
     private final Label detailTitle = new Label();
     private final VBox detailContent = new VBox();
+    private final ProgressBar loadingProgress = new ProgressBar(0);
+    private final HBox loadingProgressBox = new HBox(loadingProgress);
+    private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
         this(account, categoryTitle, categoryId);
@@ -171,7 +176,80 @@ public class ChannelListUI extends HBox {
             if (!itemsLoaded.get()) {
                 table.setPlaceholder(new Label(I18n.tr("autoNothingFoundFor", categoryTitle)));
             }
+            finalizeLoadingProgress();
         });
+    }
+
+    public void startLoadingProgressIfNeeded() {
+        if (account.getAction() != vod && account.getAction() != series) {
+            return;
+        }
+        runLater(() -> {
+            loadingProgress.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            showLoadingProgress();
+        });
+    }
+
+    public void updateLoadingProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {
+        if (account.getAction() != vod && account.getAction() != series) {
+            return;
+        }
+        runLater(() -> {
+            showLoadingProgress();
+            if (totalItems > 0) {
+                double progress = Math.min(1.0, (double) fetchedItems / (double) totalItems);
+                loadingProgress.setProgress(progress);
+            } else if (pageCount > 0) {
+                double progress = Math.min(1.0, (double) pageNumber / (double) pageCount);
+                loadingProgress.setProgress(progress);
+            } else {
+                loadingProgress.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            }
+        });
+    }
+
+    private void configureLoadingProgressBar() {
+        loadingProgress.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(loadingProgress, Priority.ALWAYS);
+        loadingProgressBox.setAlignment(Pos.CENTER_LEFT);
+        loadingProgressBox.setVisible(false);
+        loadingProgressBox.setManaged(false);
+    }
+
+    private void showLoadingProgress() {
+        cancelLoadingProgressHide();
+        loadingProgressBox.setVisible(true);
+        loadingProgressBox.setManaged(true);
+        loadingProgress.setStyle("");
+    }
+
+    private void finalizeLoadingProgress() {
+        if (account.getAction() != vod && account.getAction() != series) {
+            return;
+        }
+        if (!loadingProgressBox.isVisible()) {
+            return;
+        }
+        loadingProgress.setProgress(1.0);
+        loadingProgress.setStyle("-fx-accent: #28a745;");
+        scheduleLoadingProgressHide();
+    }
+
+    private void scheduleLoadingProgressHide() {
+        cancelLoadingProgressHide();
+        loadingProgressHideTimer = new PauseTransition(Duration.seconds(5));
+        loadingProgressHideTimer.setOnFinished(event -> {
+            loadingProgressBox.setVisible(false);
+            loadingProgressBox.setManaged(false);
+            loadingProgress.setStyle("");
+        });
+        loadingProgressHideTimer.play();
+    }
+
+    private void cancelLoadingProgressHide() {
+        if (loadingProgressHideTimer != null) {
+            loadingProgressHideTimer.stop();
+        }
     }
 
     private void initWidgets() {
@@ -201,7 +279,11 @@ public class ChannelListUI extends HBox {
 
         channelName.setSortType(TableColumn.SortType.ASCENDING);
 
-        AutoGrowVBox auto = new AutoGrowVBox(5, table.getSearchTextField(), table);
+        configureLoadingProgressBar();
+        VBox searchBox = new VBox(5, loadingProgressBox, table.getSearchTextField());
+        AutoGrowVBox auto = new AutoGrowVBox(5, searchBox, table);
+        VBox.setVgrow(searchBox, Priority.NEVER);
+        VBox.setVgrow(table, Priority.ALWAYS);
         VBox.setVgrow(auto, Priority.ALWAYS);
         listPane.getChildren().setAll(auto);
         listPane.setMaxHeight(Double.MAX_VALUE);

@@ -46,6 +46,11 @@ public class ChannelService {
     private static final String FIELD_CENSORED = "censored";
     private static final String FIELD_STATUS = "status";
     private static final int MAX_PAGES_WITHOUT_PAGINATION = 200;
+    private static final long STALKER_BASE_DELAY_MS = Long.getLong("uiptv.stalker.page.delay.ms", 800L);
+    private static final long STALKER_MAX_DELAY_MS = Long.getLong("uiptv.stalker.page.maxDelay.ms", 8000L);
+    private static final long STALKER_JITTER_MS = Long.getLong("uiptv.stalker.page.jitter.ms", 200L);
+    private static final int STALKER_MAX_RETRIES_PER_PAGE = Integer.getInteger("uiptv.stalker.page.maxRetries", 2);
+    private static final Map<String, RequestThrottle> STALKER_THROTTLES = new java.util.concurrent.ConcurrentHashMap<>();
     private final CacheService cacheService;
     private final ContentFilterService contentFilterService;
     private final LogoResolverService logoResolverService;
@@ -99,8 +104,13 @@ public class ChannelService {
     }
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) throws IOException {
+        return get(categoryId, account, dbId, logger, callback, isCancelled, null);
+    }
+
+    public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback,
+                             Supplier<Boolean> isCancelled, Consumer<PageProgress> progressCallback) throws IOException {
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
-            return getNonLiveChannels(categoryId, account, dbId, logger, callback, isCancelled);
+            return getNonLiveChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
         }
         if (account.getType() == AccountType.RSS_FEED) {
             return publishChannels(maybeFilterChannels(rssChannels(categoryId, account), true), callback);
@@ -119,32 +129,44 @@ public class ChannelService {
     }
 
     private List<Channel> getNonLiveChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
-                                             Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+                                             Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                             Consumer<PageProgress> progressCallback) {
         if (account.getType() == STALKER_PORTAL) {
             ensureStalkerSession(account, logger);
         }
         if (shouldUseVodSeriesDbCache(account)) {
-            return getCachedVodSeriesChannels(categoryId, account, dbId, logger, callback, isCancelled);
+            return getCachedVodSeriesChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
         }
-        return getVodOrSeries(categoryId, account, callback, isCancelled, logger);
+        return getVodOrSeries(categoryId, account, callback, isCancelled, logger, progressCallback);
     }
 
     private List<Channel> getCachedVodSeriesChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
-                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                     Consumer<PageProgress> progressCallback) {
         List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
         if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
             log(logger, "Loaded channels from local cache for category " + categoryId + ".");
+            if (progressCallback != null) {
+                progressCallback.accept(new PageProgress(cachedChannels.size(), cachedChannels.size(), 1, 1));
+            }
             return publishChannels(maybeFilterChannels(dedupeChannels(cachedChannels), true), callback);
         }
         log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
-        List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger);
+        boolean streamingCallback = callback != null && account.getType() == STALKER_PORTAL;
+        List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger, callback, progressCallback);
         boolean cancelled = Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
         if (!fetchedChannels.isEmpty() && !cancelled) {
-            saveVodSeriesToDbCache(account, dbId, fetchedChannels);
-            log(logger, "Saved " + fetchedChannels.size() + " channels to local cache.");
+            try {
+                saveVodSeriesToDbCache(account, dbId, fetchedChannels);
+                log(logger, "Channel list complete for category " + categoryId + ". Saved " + fetchedChannels.size() + " channels to local cache.");
+            } catch (Exception e) {
+                log(logger, "Failed to save " + fetchedChannels.size() + " channels to local cache for category " + categoryId + ". Error: " + e.getMessage());
+            }
+        } else if (cancelled) {
+            log(logger, "Channel fetch cancelled before cache save for category " + categoryId + ".");
         }
         List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
-        return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true), callback);
+        return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true), streamingCallback ? null : callback);
     }
 
     private void fetchAndCacheMissingLiveChannels(String categoryId, Account account, String dbId, Consumer<List<Channel>> callback,
@@ -195,8 +217,9 @@ public class ChannelService {
     }
 
     @SuppressWarnings("java:S4276")
-    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) {
-        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger));
+    private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                         LoggerCallback logger, Consumer<PageProgress> progressCallback) {
+        List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger, progressCallback));
         return maybeFilterChannels(cachedChannels, true);
     }
 
@@ -247,13 +270,17 @@ public class ChannelService {
     }
 
     @SuppressWarnings("java:S4276")
-    private List<Channel> fetchVodSeriesFromProviderAllPages(String categoryId, Account account, Supplier<Boolean> isCancelled, LoggerCallback logger) {
+    private List<Channel> fetchVodSeriesFromProviderAllPages(String categoryId, Account account, Supplier<Boolean> isCancelled, LoggerCallback logger,
+                                                             Consumer<List<Channel>> callback, Consumer<PageProgress> progressCallback) {
         List<Channel> channels;
         if (account.getType() == XTREME_API) {
             channels = dedupeChannels(XtremeParser.parseChannels(categoryId, account));
+            if (progressCallback != null) {
+                progressCallback.accept(new PageProgress(channels.size(), channels.size(), 1, 1));
+            }
         } else {
-            // Callback is intentionally null: UI callback is fired once after all pages are fetched.
-            channels = getStalkerPortalChOrSeries(categoryId, account, null, "0", null, isCancelled, true, logger);
+            // Stream pages to the UI as they arrive; full list is still returned for caching.
+            channels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger, progressCallback);
         }
         channels.forEach(this::resolveLogoIfNeeded);
         return channels;
@@ -415,41 +442,79 @@ public class ChannelService {
 
     @SuppressWarnings("java:S107")
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, LoggerCallback logger) {
-        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true, logger);
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, true, logger, null);
     }
 
     @SuppressWarnings("java:S107")
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor) {
-        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, censor, null);
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, censor, null, null);
     }
 
     @SuppressWarnings("java:S107")
     public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, LoggerCallback logger) {
+        return getStalkerPortalChOrSeries(category, account, movieId, seriesId, callback, isCancelled, censor, logger, null);
+    }
+
+    @SuppressWarnings("java:S107")
+    public List<Channel> getStalkerPortalChOrSeries(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback,
+                                                    Supplier<Boolean> isCancelled, boolean censor, LoggerCallback logger,
+                                                    Consumer<PageProgress> progressCallback) {
         log(logger, "Starting portal fetch for category " + category + ".");
         // Different portals are inconsistent on first page index (0 vs 1); try both.
-        List<Channel> channelsFromPageZero = fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 0, logger);
+        List<Channel> channelsFromPageZero = fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 0, logger, progressCallback);
         if (!channelsFromPageZero.isEmpty()) {
             log(logger, "Portal fetch finished with " + channelsFromPageZero.size() + " channels.");
             return channelsFromPageZero;
         }
         log(logger, "No channels on page 0. Retrying from page 1...");
-        List<Channel> fallback = dedupeChannels(fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1, logger));
+        List<Channel> fallback = dedupeChannels(fetchPagedStalkerChannels(category, account, movieId, seriesId, callback, isCancelled, censor, 1, logger, progressCallback));
         log(logger, "Portal fetch finished with " + fallback.size() + " channels.");
         return fallback;
     }
 
     @SuppressWarnings("java:S107")
-    private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage, LoggerCallback logger) {
+    private List<Channel> fetchPagedStalkerChannels(String category, Account account, String movieId, String seriesId, Consumer<List<Channel>> callback,
+                                                    Supplier<Boolean> isCancelled, boolean censor, int startPage, LoggerCallback logger,
+                                                    Consumer<PageProgress> progressCallback) {
         List<Channel> channelList = new ArrayList<>();
         ensureStalkerAccountSession(account, logger);
-        PageFetchResult firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
-        firstPage = retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, firstPage);
+        RequestThrottle throttle = resolveStalkerThrottle(account);
+        int fetchedItems = 0;
+        int totalItems = 0;
+        int pageCount = 0;
+        PageFetchResult firstPage = null;
+        boolean fetchedFirst = false;
+        for (int attempt = 0; attempt <= STALKER_MAX_RETRIES_PER_PAGE && !fetchedFirst; attempt++) {
+            throttle.awaitPermit();
+            try {
+                firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
+                long nextDelay = throttle.onSuccess();
+                log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
+                fetchedFirst = true;
+            } catch (Exception e) {
+                long nextDelay = throttle.onFailure();
+                log(logger, "Failed to fetch page " + startPage + " (attempt " + (attempt + 1) + "). Backing off " + nextDelay + "ms. Error: " + e.getMessage());
+                if (attempt >= STALKER_MAX_RETRIES_PER_PAGE) {
+                    log(logger, "Giving up on page " + startPage + " after " + (attempt + 1) + " attempts.");
+                }
+            }
+        }
+        if (!fetchedFirst || firstPage == null) {
+            return channelList;
+        }
+        firstPage = retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, firstPage, throttle);
         if (isEmptyChannelPage(firstPage)) {
             log(logger, "Page " + startPage + " returned no channels.");
             return channelList;
         }
 
         appendFetchedPage(channelList, firstPage, startPage, callback, logger);
+        fetchedItems += firstPage.channels.size();
+        if (firstPage.pagination != null) {
+            totalItems = Math.max(totalItems, firstPage.pagination.getMaxPageItems());
+            pageCount = Math.max(pageCount, firstPage.pagination.getPageCount());
+        }
+        emitProgress(progressCallback, fetchedItems, totalItems, startPage + 1, pageCount);
 
         int maxAdditionalPages = firstPage.pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(firstPage.pagination.getPageCount() + 1, 2);
         boolean continuePaging = true;
@@ -459,14 +524,46 @@ public class ChannelService {
                 continuePaging = false;
                 continue;
             }
-            PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
+            PageFetchResult page = null;
+            boolean fetched = false;
+            for (int attempt = 0; attempt <= STALKER_MAX_RETRIES_PER_PAGE && !fetched; attempt++) {
+                if (isPageFetchCancelled(isCancelled)) {
+                    log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
+                    continuePaging = false;
+                    break;
+                }
+                throttle.awaitPermit();
+                try {
+                    page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
+                    long nextDelay = throttle.onSuccess();
+                    log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
+                    fetched = true;
+                } catch (Exception e) {
+                    long nextDelay = throttle.onFailure();
+                    log(logger, "Failed to fetch page " + pageNumber + " (attempt " + (attempt + 1) + "). Backing off " + nextDelay + "ms. Error: " + e.getMessage());
+                    if (attempt >= STALKER_MAX_RETRIES_PER_PAGE) {
+                        log(logger, "Giving up on page " + pageNumber + " after " + (attempt + 1) + " attempts.");
+                    }
+                }
+            }
+            if (!fetched || page == null) {
+                continuePaging = false;
+                continue;
+            }
             if (isEmptyChannelPage(page)) {
                 log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
                 continuePaging = false;
             } else {
                 appendFetchedPage(channelList, page, pageNumber, callback, logger);
+                fetchedItems += page.channels.size();
+                if (page.pagination != null) {
+                    totalItems = Math.max(totalItems, page.pagination.getMaxPageItems());
+                    pageCount = Math.max(pageCount, page.pagination.getPageCount());
+                }
+                emitProgress(progressCallback, fetchedItems, totalItems, pageNumber + 1, pageCount);
             }
         }
+        emitProgress(progressCallback, fetchedItems, totalItems > 0 ? totalItems : fetchedItems, pageCount > 0 ? pageCount : Math.max(1, (startPage + 1)), pageCount);
         return dedupeChannels(channelList);
     }
 
@@ -486,13 +583,29 @@ public class ChannelService {
 
     @SuppressWarnings("java:S107")
     private PageFetchResult retryEmptyFirstPage(String category, Account account, String movieId, String seriesId, boolean censor,
-                                                int startPage, LoggerCallback logger, PageFetchResult firstPage) {
+                                                int startPage, LoggerCallback logger, PageFetchResult firstPage, RequestThrottle throttle) {
         if (!isEmptyChannelPage(firstPage) || account.getType() != STALKER_PORTAL) {
             return firstPage;
         }
         log(logger, "No channels returned. Refreshing Stalker session and retrying page " + startPage + " once...");
         HandshakeService.getInstance().hardTokenRefresh(account);
-        return fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
+        if (throttle != null) {
+            throttle.awaitPermit();
+        }
+        try {
+            PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
+            if (throttle != null) {
+                long nextDelay = throttle.onSuccess();
+                log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
+            }
+            return page;
+        } catch (Exception e) {
+            if (throttle != null) {
+                long nextDelay = throttle.onFailure();
+                log(logger, "Failed to retry page " + startPage + ". Backing off " + nextDelay + "ms. Error: " + e.getMessage());
+            }
+            return firstPage;
+        }
     }
 
     private boolean isEmptyChannelPage(PageFetchResult page) {
@@ -515,7 +628,76 @@ public class ChannelService {
         return Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
     }
 
+    private RequestThrottle resolveStalkerThrottle(Account account) {
+        String portalHost = "";
+        if (account != null && !isBlank(account.getServerPortalUrl())) {
+            try {
+                URI uri = URI.create(account.getServerPortalUrl());
+                portalHost = uri.getHost() == null ? account.getServerPortalUrl() : uri.getHost();
+            } catch (Exception _) {
+                portalHost = account.getServerPortalUrl();
+            }
+        }
+        String key = (account == null ? "" : account.getDbId()) + "|" + portalHost + "|" + (account == null ? "" : account.getAction());
+        return STALKER_THROTTLES.computeIfAbsent(key, _ -> new RequestThrottle(STALKER_BASE_DELAY_MS, STALKER_MAX_DELAY_MS, STALKER_JITTER_MS));
+    }
+
+    static final class RequestThrottle {
+        private final long baseDelayMs;
+        private final long maxDelayMs;
+        private final long jitterMs;
+        private long nextAllowedAtMs;
+        private int failures;
+
+        RequestThrottle(long baseDelayMs, long maxDelayMs, long jitterMs) {
+            this.baseDelayMs = Math.max(0, baseDelayMs);
+            this.maxDelayMs = Math.max(this.baseDelayMs, maxDelayMs);
+            this.jitterMs = Math.max(0, jitterMs);
+        }
+
+        synchronized void awaitPermit() {
+            long now = System.currentTimeMillis();
+            long delay = nextAllowedAtMs - now;
+            if (delay <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        synchronized long onSuccess() {
+            failures = 0;
+            return scheduleNext(baseDelayMs);
+        }
+
+        synchronized long onFailure() {
+            failures = Math.min(failures + 1, 6);
+            long backoff = baseDelayMs * (1L << failures);
+            return scheduleNext(Math.min(backoff, maxDelayMs));
+        }
+
+        private long scheduleNext(long baseDelay) {
+            long jitter = jitterMs == 0 ? 0 : java.util.concurrent.ThreadLocalRandom.current().nextLong(-jitterMs, jitterMs + 1);
+            long delay = Math.max(0, baseDelay + jitter);
+            nextAllowedAtMs = System.currentTimeMillis() + delay;
+            return delay;
+        }
+    }
+
     private record PageFetchResult(List<Channel> channels, Pagination pagination) {
+    }
+
+    public record PageProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {
+    }
+
+    private void emitProgress(Consumer<PageProgress> progressCallback, int fetchedItems, int totalItems, int pageNumber, int pageCount) {
+        if (progressCallback == null) {
+            return;
+        }
+        progressCallback.accept(new PageProgress(Math.max(0, fetchedItems), Math.max(0, totalItems), Math.max(1, pageNumber), Math.max(0, pageCount)));
     }
 
     private void ensureStalkerSession(Account account, LoggerCallback logger) {
@@ -533,6 +715,7 @@ public class ChannelService {
         if (logger != null) {
             logger.log(message);
         }
+        log.info(message);
     }
 
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
