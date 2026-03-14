@@ -14,13 +14,13 @@ public class XtremePlayerService implements AccountPlayerService {
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
-        com.uiptv.util.AppLog.addLog("Resolving playback URL for Xtreme account: " + account.getAccountName());
+        com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Resolving playback URL for Xtreme account: " + account.getAccountName());
         String rawUrl = constructXtremeUrl(account, channel, parentSeriesId);
-        com.uiptv.util.AppLog.addLog("Constructed fresh Xtreme URL for " + account.getAction());
+        com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Constructed fresh Xtreme URL for " + account.getAction());
         
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
-        com.uiptv.util.AppLog.addLog("Final resolved URL: " + finalUrl);
-        com.uiptv.util.AppLog.addLog("Playback URL resolved.");
+        com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Final resolved URL: " + finalUrl);
+        com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);
@@ -31,15 +31,15 @@ public class XtremePlayerService implements AccountPlayerService {
         if (channel == null) return "";
         String fallbackCmd = PlayerUrlUtils.resolveBestChannelCmd(account, channel);
         if (isNotBlank(fallbackCmd)) {
-            com.uiptv.util.AppLog.addLog("Found channel cmd: " + fallbackCmd);
+            com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Found channel cmd: " + fallbackCmd);
         }
         String baseUrl = resolveBaseUrl(account);
         if (isBlank(baseUrl)) {
-            com.uiptv.util.AppLog.addLog("Xtreme base URL is blank. Falling back to channel cmd.");
+            com.uiptv.util.AppLog.addWarningLog(XtremePlayerService.class, "Xtreme base URL is blank. Falling back to channel cmd.");
             return fallbackCmd;
         }
         if (!hasRequiredParts(account, channel)) {
-            com.uiptv.util.AppLog.addLog("Xtreme URL parts missing (username/password/channelId). Falling back to channel cmd.");
+            com.uiptv.util.AppLog.addWarningLog(XtremePlayerService.class, "Xtreme URL parts missing (username/password/channelId). Falling back to channel cmd.");
             return fallbackCmd;
         }
         String extension = inferExtensionFromCmd(fallbackCmd);

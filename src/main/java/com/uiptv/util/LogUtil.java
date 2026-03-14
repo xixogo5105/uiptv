@@ -6,6 +6,6 @@ public class LogUtil {
     }
 
     public static void httpLog(String url, HttpUtil.HttpResult response, Map<String, String> params) {
-        com.uiptv.util.AppLog.addLog(HttpUtil.formatHttpLog(url, response, params));
+        com.uiptv.util.AppLog.addInfoLog(LogUtil.class, HttpUtil.formatHttpLog(url, response, params));
     }
 }

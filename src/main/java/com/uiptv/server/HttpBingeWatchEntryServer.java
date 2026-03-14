@@ -26,7 +26,7 @@ public class HttpBingeWatchEntryServer implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         String method = exchange.getRequestMethod();
-        AppLog.addLog(LOG_PREFIX + "HTTP entry request method=" + safeLogValue(method)
+        AppLog.addInfoLog(HttpBingeWatchEntryServer.class, LOG_PREFIX + "HTTP entry request method=" + safeLogValue(method)
                 + " uri=" + safeLogValue(String.valueOf(exchange.getRequestURI())));
         if (!GET.equalsIgnoreCase(method) && !HEAD.equalsIgnoreCase(method)) {
             exchange.getResponseHeaders().set(ALLOW, GET + ", " + HEAD);
@@ -37,7 +37,7 @@ public class HttpBingeWatchEntryServer implements HttpHandler {
         String token = getParam(exchange, TOKEN_PARAM);
         String episodeId = getParam(exchange, EPISODE_ID_PARAM);
         if (isBlank(token) || isBlank(episodeId)) {
-            AppLog.addLog(LOG_PREFIX + "HTTP entry missing params" + TOKEN_LOG + safeLogValue(defaultString(token))
+            AppLog.addWarningLog(HttpBingeWatchEntryServer.class, LOG_PREFIX + "HTTP entry missing params" + TOKEN_LOG + safeLogValue(defaultString(token))
                     + EPISODE_ID_LOG + safeLogValue(defaultString(episodeId)));
             exchange.sendResponseHeaders(404, -1);
             return;
@@ -46,18 +46,18 @@ public class HttpBingeWatchEntryServer implements HttpHandler {
         try {
             BingeWatchService.ResolvedEpisode resolved = BingeWatchService.getInstance().resolveEpisode(token, episodeId);
             if (resolved == null || isBlank(resolved.url())) {
-                AppLog.addLog(LOG_PREFIX + "HTTP entry resolve failed" + TOKEN_LOG + safeLogValue(token)
+                AppLog.addWarningLog(HttpBingeWatchEntryServer.class, LOG_PREFIX + "HTTP entry resolve failed" + TOKEN_LOG + safeLogValue(token)
                         + EPISODE_ID_LOG + safeLogValue(episodeId));
                 generateResponseText(exchange, 404, "Binge watch item not found.");
                 return;
             }
-            AppLog.addLog(LOG_PREFIX + "HTTP entry redirect" + TOKEN_LOG + safeLogValue(token)
+            AppLog.addInfoLog(HttpBingeWatchEntryServer.class, LOG_PREFIX + "HTTP entry redirect" + TOKEN_LOG + safeLogValue(token)
                     + EPISODE_ID_LOG + safeLogValue(episodeId)
                     + " location=" + safeLogValue(resolved.url()));
             exchange.getResponseHeaders().add(LOCATION, resolved.url());
             exchange.sendResponseHeaders(307, -1);
         } catch (Exception ex) {
-            AppLog.addLog(LOG_PREFIX + "HTTP entry exception" + TOKEN_LOG + safeLogValue(token)
+            AppLog.addErrorLog(HttpBingeWatchEntryServer.class, LOG_PREFIX + "HTTP entry exception" + TOKEN_LOG + safeLogValue(token)
                     + EPISODE_ID_LOG + safeLogValue(episodeId)
                     + " error=" + safeLogValue(ex.getMessage()));
             generateResponseText(exchange, 502, "Unable to resolve binge watch episode: " + ex.getMessage());

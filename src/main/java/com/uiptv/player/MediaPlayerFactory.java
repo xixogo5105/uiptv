@@ -29,9 +29,9 @@ public class MediaPlayerFactory {
             try {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
-                com.uiptv.util.AppLog.addLog("VLC found. Using it for embedded player");
+                com.uiptv.util.AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
             } catch (Exception _) {
-                com.uiptv.util.AppLog.addLog("VLC not found. Using Lite player that plays limited set of videos");
+                com.uiptv.util.AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos");
                 instance = new LiteVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.LITE;
             }

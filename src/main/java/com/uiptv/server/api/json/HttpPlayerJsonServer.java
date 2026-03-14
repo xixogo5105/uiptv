@@ -68,7 +68,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
             if (isClientDisconnect(e)) {
                 return;
             }
-            AppLog.addLog("HttpPlayerJsonServer failed: " + e);
+            AppLog.addErrorLog(HttpPlayerJsonServer.class, "HttpPlayerJsonServer failed: " + e);
             try {
                 generateResponseText(ex, 500, "player-error");
             } catch (IOException ioException) {

@@ -15,8 +15,6 @@ import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -34,17 +32,6 @@ public class RootApplication extends Application {
         System.setProperty("apple.awt.application.name", "UIPTV");
         ServerUrlUtil.installServerShutdownHook();
 
-        if (args == null || Arrays.stream(args).noneMatch(s -> s.equalsIgnoreCase("--show-logs"))) {
-            PrintStream dummyStream = new PrintStream(new OutputStream() {
-                @Override
-                public void write(int b) {
-                    // NO-OP
-                }
-            });
-            System.setOut(dummyStream);
-            System.setErr(dummyStream);
-        }
-
         if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
             handleSync(args);
             exit(0);
@@ -57,16 +44,16 @@ public class RootApplication extends Application {
 
     private static void handleSync(String[] args) {
         if (args.length != 3) {
-            com.uiptv.util.AppLog.addLog("Usage: sync <first_db_path> <second_db_path>");
+            com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Usage: sync <first_db_path> <second_db_path>");
             exit(1);
         }
         String firstDB = stripWrappingQuotes(args[1]);
         String secondDB = stripWrappingQuotes(args[2]);
         try {
             syncDatabases(firstDB, secondDB);
-            com.uiptv.util.AppLog.addLog("Sync complete!");
+            com.uiptv.util.AppLog.addInfoLog(RootApplication.class, "Sync complete!");
         } catch (SQLException e) {
-            com.uiptv.util.AppLog.addLog("Error syncing tables: " + e.getMessage());
+            com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Error syncing tables: " + e.getMessage());
         }
     }
 

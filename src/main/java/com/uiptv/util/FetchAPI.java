@@ -44,7 +44,7 @@ public class FetchAPI {
                 return response.body();
             }
         } catch (Exception ex) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Network Error: " + ex.getMessage()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(FetchAPI.class, "Network Error: " + ex.getMessage()));
         }
         return StringUtils.EMPTY;
     }

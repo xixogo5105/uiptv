@@ -46,11 +46,11 @@ public class UIptvAlert {
     }
 
     public static void showMessage(String contents) {
-        com.uiptv.util.AppLog.addLog(contents);
+        com.uiptv.util.AppLog.addInfoLog(UIptvAlert.class, contents);
     }
 
     public static void showMessageKey(String key, Object... args) {
-        com.uiptv.util.AppLog.addLog(I18n.trEnglish(key, args));
+        com.uiptv.util.AppLog.addInfoLog(UIptvAlert.class, I18n.trEnglish(key, args));
     }
 
     public static void showError(String contents) {
@@ -58,9 +58,9 @@ public class UIptvAlert {
     }
 
     public static void showErrorKey(String key, Exception ex, Object... args) {
-        com.uiptv.util.AppLog.addLog(I18n.trEnglish(key, args));
+        com.uiptv.util.AppLog.addErrorLog(UIptvAlert.class, I18n.trEnglish(key, args));
         if (ex != null) {
-            com.uiptv.util.AppLog.addLog(ex.getMessage());
+            com.uiptv.util.AppLog.addErrorLog(UIptvAlert.class, ex.getMessage());
         }
     }
 
@@ -70,8 +70,8 @@ public class UIptvAlert {
 
     public static void showError(String contents, Exception ex) {
         if (ex != null) {
-            com.uiptv.util.AppLog.addLog(contents);
-            com.uiptv.util.AppLog.addLog(ex.getMessage());
+            com.uiptv.util.AppLog.addErrorLog(UIptvAlert.class, contents);
+            com.uiptv.util.AppLog.addErrorLog(UIptvAlert.class, ex.getMessage());
         }
     }
 
@@ -80,7 +80,7 @@ public class UIptvAlert {
     }
     public static void showErrorAlert(String contents, Exception ex) {
         if (ex != null) {
-            com.uiptv.util.AppLog.addLog(ex.getMessage());
+            com.uiptv.util.AppLog.addErrorLog(UIptvAlert.class, ex.getMessage());
         }
         Alert alert = new Alert(Alert.AlertType.ERROR, I18n.tr(contents), closeButtonType());
         alert.setTitle(I18n.tr("commonError"));

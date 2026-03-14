@@ -23,7 +23,7 @@ class UtilityCoverageTest {
 
         AppLog.registerListener(good);
         AppLog.registerListener(bad);
-        AppLog.addLog("test-entry");
+        AppLog.addInfoLog(UtilityCoverageTest.class, "test-entry");
         AppLog.unregisterListener(good);
         AppLog.unregisterListener(bad);
         AppLog.unregisterListener(null);

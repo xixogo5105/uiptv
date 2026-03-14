@@ -119,7 +119,7 @@ public class InMemoryHlsService {
 
             if (oldestKey != null) {
                 removeNow(oldestKey);
-                com.uiptv.util.AppLog.addLog("InMemoryHlsService: Evicted old segment " + oldestKey + " to free memory.");
+                com.uiptv.util.AppLog.addWarningLog(InMemoryHlsService.class, "InMemoryHlsService: Evicted old segment " + oldestKey + " to free memory.");
                 tsCount--;
             } else {
                 break;

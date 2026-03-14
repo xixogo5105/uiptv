@@ -515,7 +515,7 @@ public class ReloadCachePopup extends VBox {
     private void finishReloadRun(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses,
                                  Map<String, SummaryStatus> summaryStatusByAccountId, int totalFetchedChannels) {
         Platform.runLater(() -> {
-            com.uiptv.util.AppLog.addLog("Reload run completed.");
+            com.uiptv.util.AppLog.addInfoLog(ReloadCachePopup.class, "Reload run completed.");
             reloadButton.setVisible(true);
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);

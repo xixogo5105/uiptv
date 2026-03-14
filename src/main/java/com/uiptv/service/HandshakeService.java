@@ -119,7 +119,7 @@ public class HandshakeService {
         account.setToken(null);
         AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(HandshakeService.class, MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
@@ -127,7 +127,7 @@ public class HandshakeService {
         AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_TOKEN + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(HandshakeService.class, MSG_UNABLE_TOKEN + finalJson));
             return;
         }
         json = fetch(getProfileParams(account), account);
@@ -148,14 +148,14 @@ public class HandshakeService {
         }
         account.setToken(null);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(HandshakeService.class, MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
             return null;
         }
         String json = fetch(getHandshakeParams(), account);
         account.setToken(parseJasonToken(json));
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_TOKEN + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(HandshakeService.class, MSG_UNABLE_TOKEN + finalJson));
             return null;
         }
         json = fetch(getProfileParams(account), account);
@@ -172,7 +172,7 @@ public class HandshakeService {
         account.setToken(null);
         AccountService.getInstance().syncSessionToken(account);
         if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(HandshakeService.class, MSG_UNABLE_RESOLVE_URL + account.getAccountName()));
             return;
         }
         String json = fetch(getHandshakeParams(), account);
@@ -180,7 +180,7 @@ public class HandshakeService {
         AccountService.getInstance().syncSessionToken(account);
         if (account.isNotConnected()) {
             String finalJson = json;
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog(MSG_UNABLE_TOKEN + finalJson));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addWarningLog(HandshakeService.class, MSG_UNABLE_TOKEN + finalJson));
         }
         json = fetch(getProfileParams(account), account);
         AccountInfo info = resolveAccountInfo(account);
@@ -197,7 +197,7 @@ public class HandshakeService {
     public String parseJasonToken(String json) {
         if (isBlank(json) || new JSONObject(json).getJSONObject("js") == null
                 || isBlank(new JSONObject(json).getJSONObject("js").getString(PARAM_TOKEN))) {
-            Platform.runLater(() -> com.uiptv.util.AppLog.addLog("Error while establishing connection to server"));
+            Platform.runLater(() -> com.uiptv.util.AppLog.addErrorLog(HandshakeService.class, "Error while establishing connection to server"));
             return StringUtils.EMPTY;
         }
         return new JSONObject(json).getJSONObject("js").getString(PARAM_TOKEN);

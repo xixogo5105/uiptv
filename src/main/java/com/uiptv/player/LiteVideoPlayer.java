@@ -416,13 +416,13 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private void handleMediaPlayerError(MediaException mediaException) {
         Platform.runLater(() -> {
             if (!attemptedCompatibilityFallback && canUseCompatibilityFallback(currentMediaUri)) {
-                com.uiptv.util.AppLog.addLog("LiteVideoPlayer: direct playback failed, retrying with FFmpeg compatibility path.");
+                com.uiptv.util.AppLog.addWarningLog(LiteVideoPlayer.class, "LiteVideoPlayer: direct playback failed, retrying with FFmpeg compatibility path.");
                 loadingSpinner.setVisible(true);
                 errorLabel.setVisible(false);
                 startPlayback(currentMediaUri, true, playbackStartOffsetMs);
                 return;
             }
-            com.uiptv.util.AppLog.addLog("MediaPlayer Error: " + mediaException.getMessage() + " (" + mediaException.getType() + ")");
+            com.uiptv.util.AppLog.addErrorLog(LiteVideoPlayer.class, "MediaPlayer Error: " + mediaException.getMessage() + " (" + mediaException.getType() + ")");
             errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
             errorLabel.setVisible(true);
             loadingSpinner.setVisible(false);
@@ -478,7 +478,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     protected void handlePlaybackError(String message, Exception e) {
         Platform.runLater(() -> {
-            com.uiptv.util.AppLog.addLog(message + ": " + e.getMessage());
+            com.uiptv.util.AppLog.addErrorLog(LiteVideoPlayer.class, message + ": " + e.getMessage());
             loadingSpinner.setVisible(false);
             errorLabel.setText(I18n.tr("autoCouldNotLoadVideoInvalidPathOrNetworkIssue"));
             errorLabel.setVisible(true);
@@ -542,7 +542,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             return;
         }
         if (!hasUsableVideoSignal()) {
-            com.uiptv.util.AppLog.addLog("LiteVideoPlayer: no usable video signal detected, retrying with FFmpeg compatibility path.");
+            com.uiptv.util.AppLog.addWarningLog(LiteVideoPlayer.class, "LiteVideoPlayer: no usable video signal detected, retrying with FFmpeg compatibility path.");
             loadingSpinner.setVisible(true);
             errorLabel.setVisible(false);
             startPlayback(currentMediaUri, true, playbackStartOffsetMs);

@@ -36,7 +36,7 @@ public class SQLiteTableSync {
             // Sync from second to first
             syncDirection(secondConn, firstConn, tableName);
 
-            com.uiptv.util.AppLog.addLog("Tables '" + tableName + "' in both databases synced successfully.");
+            com.uiptv.util.AppLog.addInfoLog(SQLiteTableSync.class, "Tables '" + tableName + "' in both databases synced successfully.");
 
         }
     }

@@ -104,7 +104,7 @@ public class LitePlayerFfmpegService extends AbstractFfmpegHlsService {
                 return new PreparedPlayback(sourceUrl, getLocalHlsPlaybackUrl(), strategy, estimateDurationMs(probe), normalizedOffset);
             }
         } catch (Exception e) {
-            com.uiptv.util.AppLog.addLog("LitePlayerFfmpegService: failed to prepare " + strategy + " playback: " + e.getMessage());
+            com.uiptv.util.AppLog.addErrorLog(LitePlayerFfmpegService.class, "LitePlayerFfmpegService: failed to prepare " + strategy + " playback: " + e.getMessage());
         }
         return new PreparedPlayback(sourceUrl, normalizeDirectPlaybackUrl(sourceUrl), PlaybackStrategy.DIRECT, estimateDurationMs(probe), 0L);
     }

@@ -5,6 +5,8 @@ import com.uiptv.service.*;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -13,10 +15,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CrudTest extends DbBackedTest {
+    private static final Logger log = LoggerFactory.getLogger(CrudTest.class);
 
     @Test
     void testAccountCrud() {
-        System.out.println("Testing Account CRUD...");
+        log.info("Testing Account CRUD...");
         AccountService accountService = AccountService.getInstance();
 
         // Create
@@ -49,7 +52,7 @@ class CrudTest extends DbBackedTest {
 
     @Test
     void testAccountDefaultValues() {
-        System.out.println("Testing Account Default Values...");
+        log.info("Testing Account Default Values...");
         AccountService accountService = AccountService.getInstance();
 
         // Create account without setting httpMethod and timezone
@@ -68,7 +71,7 @@ class CrudTest extends DbBackedTest {
 
     @Test
     void testCategoryCrud() {
-        System.out.println("Testing Category CRUD...");
+        log.info("Testing Category CRUD...");
         AccountService accountService = AccountService.getInstance();
         
         // Setup Account
@@ -100,7 +103,7 @@ class CrudTest extends DbBackedTest {
 
     @Test
     void testChannelCrudAndPlayerService() throws IOException {
-        System.out.println("Testing Channel CRUD and PlayerService...");
+        log.info("Testing Channel CRUD and PlayerService...");
         AccountService accountService = AccountService.getInstance();
         
         // 1. Setup Account
@@ -146,7 +149,7 @@ class CrudTest extends DbBackedTest {
 
     @Test
     void testGlobalCacheClear() {
-        System.out.println("Testing Global Cache Clear...");
+        log.info("Testing Global Cache Clear...");
         AccountService accountService = AccountService.getInstance();
         CacheServiceImpl cacheService = new CacheServiceImpl();
 
@@ -189,7 +192,7 @@ class CrudTest extends DbBackedTest {
 
     @Test
     void testBookmarkCrud() {
-        System.out.println("Testing Bookmark CRUD...");
+        log.info("Testing Bookmark CRUD...");
         BookmarkService bookmarkService = BookmarkService.getInstance();
         AccountService accountService = AccountService.getInstance();
 
@@ -246,7 +249,7 @@ class CrudTest extends DbBackedTest {
 
     @Test
     void testConfigurationCrud() {
-        System.out.println("Testing Configuration CRUD...");
+        log.info("Testing Configuration CRUD...");
         ConfigurationService configService = ConfigurationService.getInstance();
 
         // 1. Create/Update Configuration

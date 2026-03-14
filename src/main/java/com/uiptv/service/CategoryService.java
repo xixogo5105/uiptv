@@ -147,7 +147,7 @@ public class CategoryService {
                 if (s != null && !s.isEmpty()) categories.addAll(s);
             }
         } catch (Exception e) {
-            com.uiptv.util.AppLog.addLog("Network Error: " + e.getMessage());
+            com.uiptv.util.AppLog.addWarningLog(CategoryService.class, "Network Error: " + e.getMessage());
         }
         return categories;
     }
@@ -202,7 +202,7 @@ public class CategoryService {
                 if (s != null && !s.isEmpty()) categories.addAll(s);
             }
         } catch (Exception e) {
-            com.uiptv.util.AppLog.addLog("Network Error: " + e.getMessage());
+            com.uiptv.util.AppLog.addWarningLog(CategoryService.class, "Network Error: " + e.getMessage());
             log(logger, "Network error while loading categories: " + e.getMessage());
         }
         return categories;

@@ -11,13 +11,13 @@ public class PredefinedPlayerService implements AccountPlayerService {
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
-        com.uiptv.util.AppLog.addLog("Resolving playback URL for Predefined account: " + account.getAccountName());
+        com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Resolving playback URL for Predefined account: " + account.getAccountName());
         String rawUrl = PlayerUrlUtils.resolveBestChannelCmd(account, channel);
-        com.uiptv.util.AppLog.addLog("Using direct channel command for " + account.getType() + ".");
+        com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Using direct channel command for " + account.getType() + ".");
         
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
-        com.uiptv.util.AppLog.addLog("Final resolved URL: " + finalUrl);
-        com.uiptv.util.AppLog.addLog("Playback URL resolved.");
+        com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Final resolved URL: " + finalUrl);
+        com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
         response.setFromChannel(channel, account);

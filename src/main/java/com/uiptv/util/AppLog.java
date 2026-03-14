@@ -7,16 +7,41 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class AppLog {
-    private static final Logger log = LoggerFactory.getLogger(AppLog.class);
     private static final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
     private static final int MAX_LOG_LENGTH = 4000;
 
     private AppLog() {
     }
 
-    public static void addLog(String log) {
+    public static void addInfoLog(Class<?> logSource, String log) {
+        logWithLevel(logSource, log, LogLevel.INFO);
+    }
+
+    public static void addWarningLog(Class<?> logSource, String log) {
+        logWithLevel(logSource, log, LogLevel.WARNING);
+    }
+
+    public static void addErrorLog(Class<?> logSource, String log) {
+        logWithLevel(logSource, log, LogLevel.ERROR);
+    }
+
+    public static void addLog(Class<?> logSource, String log) {
+        addInfoLog(logSource, log);
+    }
+
+    private static void logWithLevel(Class<?> logSource, String log, LogLevel level) {
+        if (logSource == null) {
+            throw new IllegalArgumentException("logSource cannot be null");
+        }
         String safeLog = sanitizeLogMessage(log);
-        AppLog.log.info(safeLog);
+        Logger logger = LoggerFactory.getLogger(logSource);
+        if (level == LogLevel.ERROR) {
+            logger.error(safeLog);
+        } else if (level == LogLevel.WARNING) {
+            logger.warn(safeLog);
+        } else {
+            logger.info(safeLog);
+        }
         for (Consumer<String> listener : listeners) {
             try {
                 listener.accept(safeLog);
@@ -56,5 +81,11 @@ public final class AppLog {
         if (listener != null) {
             listeners.remove(listener);
         }
+    }
+
+    private enum LogLevel {
+        INFO,
+        WARNING,
+        ERROR
     }
 }

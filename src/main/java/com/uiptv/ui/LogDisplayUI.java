@@ -62,7 +62,7 @@ public class LogDisplayUI extends VBox {
     }
 
     public static void addLog(String log) {
-        com.uiptv.util.AppLog.addLog(log);
+        com.uiptv.util.AppLog.addInfoLog(LogDisplayUI.class, log);
     }
 
     private static void ensureLogAreaInitialized() {
