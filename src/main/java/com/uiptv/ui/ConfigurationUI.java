@@ -10,6 +10,7 @@ import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.VodWatchStateService;
 import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ThemeStylesheetResolver;
@@ -555,13 +556,18 @@ public class ConfigurationUI extends VBox {
         clearWatchingNowButton.setOnAction(event -> {
             if (UIptvAlert.showConfirmationAlert(I18n.tr("configWatchNowConfirm"))) {
                 try {
-                    SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
+                    clearWatchingNowStates();
                     showMessageAlert(I18n.tr("configWatchNowCleared"));
                 } catch (Exception _) {
                     showMessageAlert(I18n.tr("configWatchNowClearFailed"));
                 }
             }
         });
+    }
+
+    static void clearWatchingNowStates() {
+        SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
+        VodWatchStateService.getInstance().clearAll();
     }
 
 
