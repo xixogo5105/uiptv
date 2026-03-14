@@ -479,92 +479,102 @@ public class ChannelService {
         List<Channel> channelList = new ArrayList<>();
         ensureStalkerAccountSession(account, logger);
         RequestThrottle throttle = resolveStalkerThrottle(account);
-        int fetchedItems = 0;
-        int totalItems = 0;
-        int pageCount = 0;
-        PageFetchResult firstPage = null;
-        boolean fetchedFirst = false;
-        for (int attempt = 0; attempt <= STALKER_MAX_RETRIES_PER_PAGE && !fetchedFirst; attempt++) {
-            throttle.awaitPermit();
-            try {
-                firstPage = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
-                long nextDelay = throttle.onSuccess();
-                log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
-                fetchedFirst = true;
-            } catch (Exception e) {
-                long nextDelay = throttle.onFailure();
-                log(logger, "Failed to fetch page " + startPage + " (attempt " + (attempt + 1) + "). Backing off " + nextDelay + "ms. Error: " + e.getMessage());
-                if (attempt >= STALKER_MAX_RETRIES_PER_PAGE) {
-                    log(logger, "Giving up on page " + startPage + " after " + (attempt + 1) + " attempts.");
-                }
-            }
-        }
-        if (!fetchedFirst || firstPage == null) {
+        PageFetchResult firstPage = fetchInitialPage(category, account, movieId, seriesId, censor, startPage, isCancelled, logger, throttle);
+        if (firstPage == null) {
             return channelList;
         }
-        firstPage = retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, firstPage, throttle);
         if (isEmptyChannelPage(firstPage)) {
             log(logger, "Page " + startPage + " returned no channels.");
             return channelList;
         }
 
         appendFetchedPage(channelList, firstPage, startPage, callback, logger);
-        fetchedItems += firstPage.channels.size();
-        if (firstPage.pagination != null) {
-            totalItems = Math.max(totalItems, firstPage.pagination.getMaxPageItems());
-            pageCount = Math.max(pageCount, firstPage.pagination.getPageCount());
-        }
-        emitProgress(progressCallback, fetchedItems, totalItems, startPage + 1, pageCount);
+        PageAccumulator accumulator = new PageAccumulator();
+        accumulator.update(firstPage);
+        emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, startPage + 1, accumulator.pageCount);
 
-        int maxAdditionalPages = firstPage.pagination == null ? MAX_PAGES_WITHOUT_PAGINATION : Math.max(firstPage.pagination.getPageCount() + 1, 2);
-        boolean continuePaging = true;
-        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages && continuePaging; pageNumber++) {
-            if (isPageFetchCancelled(isCancelled)) {
-                log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
-                continuePaging = false;
-                continue;
+        int maxAdditionalPages = resolveMaxAdditionalPages(firstPage);
+        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
+            PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, pageNumber, isCancelled, logger, throttle);
+            if (attempt.cancelled()) {
+                break;
             }
-            PageFetchResult page = null;
-            boolean fetched = false;
-            for (int attempt = 0; attempt <= STALKER_MAX_RETRIES_PER_PAGE && !fetched; attempt++) {
-                if (isPageFetchCancelled(isCancelled)) {
-                    log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
-                    continuePaging = false;
-                    break;
-                }
-                throttle.awaitPermit();
-                try {
-                    page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
-                    long nextDelay = throttle.onSuccess();
-                    log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
-                    fetched = true;
-                } catch (Exception e) {
-                    long nextDelay = throttle.onFailure();
-                    log(logger, "Failed to fetch page " + pageNumber + " (attempt " + (attempt + 1) + "). Backing off " + nextDelay + "ms. Error: " + e.getMessage());
-                    if (attempt >= STALKER_MAX_RETRIES_PER_PAGE) {
-                        log(logger, "Giving up on page " + pageNumber + " after " + (attempt + 1) + " attempts.");
-                    }
-                }
-            }
-            if (!fetched || page == null) {
-                continuePaging = false;
-                continue;
+            PageFetchResult page = attempt.page();
+            if (page == null) {
+                break;
             }
             if (isEmptyChannelPage(page)) {
                 log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
-                continuePaging = false;
-            } else {
-                appendFetchedPage(channelList, page, pageNumber, callback, logger);
-                fetchedItems += page.channels.size();
-                if (page.pagination != null) {
-                    totalItems = Math.max(totalItems, page.pagination.getMaxPageItems());
-                    pageCount = Math.max(pageCount, page.pagination.getPageCount());
+                break;
+            }
+            appendFetchedPage(channelList, page, pageNumber, callback, logger);
+            accumulator.update(page);
+            emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, pageNumber + 1, accumulator.pageCount);
+        }
+        emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems > 0 ? accumulator.totalItems : accumulator.fetchedItems,
+                accumulator.pageCount > 0 ? accumulator.pageCount : Math.max(1, (startPage + 1)), accumulator.pageCount);
+        return dedupeChannels(channelList);
+    }
+
+    private PageFetchResult fetchInitialPage(String category, Account account, String movieId, String seriesId, boolean censor, int startPage,
+                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle) {
+        PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, startPage, isCancelled, logger, throttle, true);
+        if (attempt.page() == null) {
+            return null;
+        }
+        return retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, attempt.page(), throttle);
+    }
+
+    private PageAttempt fetchPageWithRetries(String category, Account account, String movieId, String seriesId, boolean censor, int pageNumber,
+                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle) {
+        return fetchPageWithRetries(category, account, movieId, seriesId, censor, pageNumber, isCancelled, logger, throttle, false);
+    }
+
+    private PageAttempt fetchPageWithRetries(String category, Account account, String movieId, String seriesId, boolean censor, int pageNumber,
+                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle, boolean ignoreCancellation) {
+        for (int attempt = 0; attempt <= STALKER_MAX_RETRIES_PER_PAGE; attempt++) {
+            if (!ignoreCancellation && isPageFetchCancelled(isCancelled)) {
+                logFetchCancelled(logger, pageNumber);
+                return PageAttempt.cancelledAttempt();
+            }
+            throttle.awaitPermit();
+            try {
+                PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
+                long nextDelay = throttle.onSuccess();
+                logNextPageDelay(logger, nextDelay);
+                return PageAttempt.success(page);
+            } catch (Exception e) {
+                long nextDelay = throttle.onFailure();
+                logFetchFailure(logger, pageNumber, attempt + 1, nextDelay, e);
+                if (attempt >= STALKER_MAX_RETRIES_PER_PAGE) {
+                    logGivingUp(logger, pageNumber, attempt + 1);
                 }
-                emitProgress(progressCallback, fetchedItems, totalItems, pageNumber + 1, pageCount);
             }
         }
-        emitProgress(progressCallback, fetchedItems, totalItems > 0 ? totalItems : fetchedItems, pageCount > 0 ? pageCount : Math.max(1, (startPage + 1)), pageCount);
-        return dedupeChannels(channelList);
+        return PageAttempt.failed();
+    }
+
+    private int resolveMaxAdditionalPages(PageFetchResult firstPage) {
+        if (firstPage.pagination == null) {
+            return MAX_PAGES_WITHOUT_PAGINATION;
+        }
+        return Math.max(firstPage.pagination.getPageCount() + 1, 2);
+    }
+
+    private void logNextPageDelay(LoggerCallback logger, long nextDelay) {
+        log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
+    }
+
+    private void logFetchFailure(LoggerCallback logger, int pageNumber, int attempt, long nextDelay, Exception e) {
+        log(logger, "Failed to fetch page " + pageNumber + " (attempt " + attempt + "). Backing off " + nextDelay + "ms. Error: " + e.getMessage());
+    }
+
+    private void logGivingUp(LoggerCallback logger, int pageNumber, int attempts) {
+        log(logger, "Giving up on page " + pageNumber + " after " + attempts + " attempts.");
+    }
+
+    private void logFetchCancelled(LoggerCallback logger, int pageNumber) {
+        log(logger, "Portal fetch cancelled at page " + pageNumber + ".");
     }
 
     private void appendFetchedPage(List<Channel> channelList, PageFetchResult page, int pageNumber, Consumer<List<Channel>> callback, LoggerCallback logger) {
@@ -596,7 +606,7 @@ public class ChannelService {
             PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
             if (throttle != null) {
                 long nextDelay = throttle.onSuccess();
-                log(logger, "Waiting " + nextDelay + "ms before next page fetch.");
+                logNextPageDelay(logger, nextDelay);
             }
             return page;
         } catch (Exception e) {
@@ -655,9 +665,12 @@ public class ChannelService {
             this.jitterMs = Math.max(0, jitterMs);
         }
 
-        synchronized void awaitPermit() {
-            long now = System.currentTimeMillis();
-            long delay = nextAllowedAtMs - now;
+        void awaitPermit() {
+            long delay;
+            synchronized (this) {
+                long now = System.currentTimeMillis();
+                delay = nextAllowedAtMs - now;
+            }
             if (delay <= 0) {
                 return;
             }
@@ -688,6 +701,37 @@ public class ChannelService {
     }
 
     private record PageFetchResult(List<Channel> channels, Pagination pagination) {
+    }
+
+    private record PageAttempt(PageFetchResult page, boolean cancelled) {
+        static PageAttempt success(PageFetchResult page) {
+            return new PageAttempt(page, false);
+        }
+
+        static PageAttempt failed() {
+            return new PageAttempt(null, false);
+        }
+
+        static PageAttempt cancelledAttempt() {
+            return new PageAttempt(null, true);
+        }
+    }
+
+    private static final class PageAccumulator {
+        private int fetchedItems;
+        private int totalItems;
+        private int pageCount;
+
+        private void update(PageFetchResult page) {
+            if (page == null) {
+                return;
+            }
+            fetchedItems += page.channels.size();
+            if (page.pagination != null) {
+                totalItems = Math.max(totalItems, page.pagination.getMaxPageItems());
+                pageCount = Math.max(pageCount, page.pagination.getPageCount());
+            }
+        }
     }
 
     public record PageProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {

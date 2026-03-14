@@ -185,7 +185,7 @@ public class ChannelListUI extends HBox {
             return;
         }
         runLater(() -> {
-            loadingProgress.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            loadingProgress.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
             showLoadingProgress();
         });
     }
@@ -203,7 +203,7 @@ public class ChannelListUI extends HBox {
                 double progress = Math.min(1.0, (double) pageNumber / (double) pageCount);
                 loadingProgress.setProgress(progress);
             } else {
-                loadingProgress.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+                loadingProgress.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
             }
         });
     }
