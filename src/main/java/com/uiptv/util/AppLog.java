@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 public final class AppLog {
     private static final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
     private static final int MAX_LOG_LENGTH = 4000;
+    private static final String SHOW_LOGS_PROPERTY = "uiptv.showLogs";
 
     private AppLog() {
     }
@@ -34,11 +35,13 @@ public final class AppLog {
             throw new IllegalArgumentException("logSource cannot be null");
         }
         String safeLog = sanitizeLogMessage(log);
-        Logger logger = LoggerFactory.getLogger(logSource);
-        switch (level) {
-            case ERROR -> logger.error(safeLog);
-            case WARNING -> logger.warn(safeLog);
-            case INFO -> logger.info(safeLog);
+        if (isTerminalLoggingEnabled()) {
+            Logger logger = LoggerFactory.getLogger(logSource);
+            switch (level) {
+                case ERROR -> logger.error(safeLog);
+                case WARNING -> logger.warn(safeLog);
+                case INFO -> logger.info(safeLog);
+            }
         }
         for (Consumer<String> listener : listeners) {
             try {
@@ -79,6 +82,10 @@ public final class AppLog {
         if (listener != null) {
             listeners.remove(listener);
         }
+    }
+
+    private static boolean isTerminalLoggingEnabled() {
+        return Boolean.parseBoolean(System.getProperty(SHOW_LOGS_PROPERTY, "false"));
     }
 
     private enum LogLevel {

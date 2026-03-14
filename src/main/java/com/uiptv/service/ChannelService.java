@@ -494,8 +494,8 @@ public class ChannelService {
         accumulator.update(firstPage);
         emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, startPage + 1, accumulator.pageCount);
 
-        paginateAdditionalPages(channelList, request, callback, isCancelled, startPage,
-                logger, progressCallback, throttle, accumulator, firstPage);
+        PaginationPlan plan = new PaginationPlan(startPage, callback, isCancelled, logger, progressCallback, throttle, accumulator);
+        paginateAdditionalPages(channelList, request, plan, firstPage);
         emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems > 0 ? accumulator.totalItems : accumulator.fetchedItems,
                 accumulator.pageCount > 0 ? accumulator.pageCount : Math.max(1, (startPage + 1)), accumulator.pageCount);
         return dedupeChannels(channelList);
@@ -510,14 +510,12 @@ public class ChannelService {
         return retryEmptyFirstPage(request, startPage, logger, attempt.page(), throttle);
     }
 
-    private void paginateAdditionalPages(List<Channel> channelList, StalkerPageRequest request, Consumer<List<Channel>> callback,
-                                         Supplier<Boolean> isCancelled, int startPage, LoggerCallback logger,
-                                         Consumer<PageProgress> progressCallback, RequestThrottle throttle, PageAccumulator accumulator,
+    private void paginateAdditionalPages(List<Channel> channelList, StalkerPageRequest request, PaginationPlan plan,
                                          PageFetchResult firstPage) {
         int maxAdditionalPages = resolveMaxAdditionalPages(firstPage);
         boolean stopPagination = false;
-        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages && !stopPagination; pageNumber++) {
-            PageAttempt attempt = fetchPageWithRetries(request, pageNumber, isCancelled, logger, throttle);
+        for (int pageNumber = plan.startPage() + 1; pageNumber <= plan.startPage() + maxAdditionalPages && !stopPagination; pageNumber++) {
+            PageAttempt attempt = fetchPageWithRetries(request, pageNumber, plan.isCancelled(), plan.logger(), plan.throttle());
             if (attempt.cancelled()) {
                 stopPagination = true;
             } else {
@@ -525,12 +523,13 @@ public class ChannelService {
                 if (page == null) {
                     stopPagination = true;
                 } else if (isEmptyChannelPage(page)) {
-                    log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
+                    log(plan.logger(), "Page " + pageNumber + " returned no channels. Stopping pagination.");
                     stopPagination = true;
                 } else {
-                    appendFetchedPage(channelList, page, pageNumber, callback, logger);
-                    accumulator.update(page);
-                    emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, pageNumber + 1, accumulator.pageCount);
+                    appendFetchedPage(channelList, page, pageNumber, plan.callback(), plan.logger());
+                    plan.accumulator().update(page);
+                    emitProgress(plan.progressCallback(), plan.accumulator().fetchedItems, plan.accumulator().totalItems,
+                            pageNumber + 1, plan.accumulator().pageCount);
                 }
             }
         }
@@ -631,6 +630,11 @@ public class ChannelService {
     }
 
     private record StalkerPageRequest(String category, Account account, String movieId, String seriesId, boolean censor) {
+    }
+
+    private record PaginationPlan(int startPage, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                  LoggerCallback logger, Consumer<PageProgress> progressCallback, RequestThrottle throttle,
+                                  PageAccumulator accumulator) {
     }
 
     private boolean isEmptyChannelPage(PageFetchResult page) {

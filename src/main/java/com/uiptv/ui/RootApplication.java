@@ -15,6 +15,8 @@ import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -31,11 +33,18 @@ public class RootApplication extends Application {
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
         ServerUrlUtil.installServerShutdownHook();
+        boolean showLogsEnabled = hasShowLogsArg(args);
+        String[] filteredArgs = removeShowLogsArg(args);
+        if (showLogsEnabled) {
+            System.setProperty("uiptv.showLogs", "true");
+        } else {
+            disableTerminalLogs();
+        }
 
-        if (args != null && args.length > 0 && "sync".equalsIgnoreCase(args[0])) {
-            handleSync(args);
+        if (filteredArgs != null && filteredArgs.length > 0 && "sync".equalsIgnoreCase(filteredArgs[0])) {
+            handleSync(filteredArgs);
             exit(0);
-        } else if (args != null && Arrays.stream(args).anyMatch(s -> s.toLowerCase().contains("headless"))) {
+        } else if (filteredArgs != null && Arrays.stream(filteredArgs).anyMatch(s -> s.toLowerCase().contains("headless"))) {
             ServerUrlUtil.startServer();
         } else {
             launch();
@@ -71,6 +80,40 @@ public class RootApplication extends Application {
             return value.substring(1, value.length() - 1);
         }
         return value;
+    }
+
+    private static boolean hasShowLogsArg(String[] args) {
+        if (args == null) {
+            return false;
+        }
+        for (String arg : args) {
+            if (isShowLogsArg(arg)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String[] removeShowLogsArg(String[] args) {
+        if (args == null || args.length == 0) {
+            return args;
+        }
+        return Arrays.stream(args)
+                .filter(arg -> !isShowLogsArg(arg))
+                .toArray(String[]::new);
+    }
+
+    private static boolean isShowLogsArg(String arg) {
+        if (arg == null) {
+            return false;
+        }
+        return "show-logs".equalsIgnoreCase(arg) || "--show-logs".equalsIgnoreCase(arg);
+    }
+
+    private static void disableTerminalLogs() {
+        PrintStream sink = new PrintStream(OutputStream.nullOutputStream(), true);
+        System.setOut(sink);
+        System.setErr(sink);
     }
 
     @Override
