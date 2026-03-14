@@ -479,7 +479,8 @@ public class ChannelService {
         List<Channel> channelList = new ArrayList<>();
         ensureStalkerAccountSession(account, logger);
         RequestThrottle throttle = resolveStalkerThrottle(account);
-        PageFetchResult firstPage = fetchInitialPage(category, account, movieId, seriesId, censor, startPage, isCancelled, logger, throttle);
+        StalkerPageRequest request = new StalkerPageRequest(category, account, movieId, seriesId, censor);
+        PageFetchResult firstPage = fetchInitialPage(request, startPage, isCancelled, logger, throttle);
         if (firstPage == null) {
             return channelList;
         }
@@ -493,54 +494,55 @@ public class ChannelService {
         accumulator.update(firstPage);
         emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, startPage + 1, accumulator.pageCount);
 
-        paginateAdditionalPages(channelList, category, account, movieId, seriesId, callback, isCancelled, censor, startPage,
+        paginateAdditionalPages(channelList, request, callback, isCancelled, startPage,
                 logger, progressCallback, throttle, accumulator, firstPage);
         emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems > 0 ? accumulator.totalItems : accumulator.fetchedItems,
                 accumulator.pageCount > 0 ? accumulator.pageCount : Math.max(1, (startPage + 1)), accumulator.pageCount);
         return dedupeChannels(channelList);
     }
 
-    private PageFetchResult fetchInitialPage(String category, Account account, String movieId, String seriesId, boolean censor, int startPage,
-                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle) {
-        PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, startPage, isCancelled, logger, throttle, true);
+    private PageFetchResult fetchInitialPage(StalkerPageRequest request, int startPage, Supplier<Boolean> isCancelled,
+                                             LoggerCallback logger, RequestThrottle throttle) {
+        PageAttempt attempt = fetchPageWithRetries(request, startPage, isCancelled, logger, throttle, true);
         if (attempt.page() == null) {
             return null;
         }
-        return retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, attempt.page(), throttle);
+        return retryEmptyFirstPage(request, startPage, logger, attempt.page(), throttle);
     }
 
-    @SuppressWarnings("java:S107")
-    private void paginateAdditionalPages(List<Channel> channelList, String category, Account account, String movieId, String seriesId,
-                                         Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage,
-                                         LoggerCallback logger, Consumer<PageProgress> progressCallback, RequestThrottle throttle,
-                                         PageAccumulator accumulator, PageFetchResult firstPage) {
+    private void paginateAdditionalPages(List<Channel> channelList, StalkerPageRequest request, Consumer<List<Channel>> callback,
+                                         Supplier<Boolean> isCancelled, int startPage, LoggerCallback logger,
+                                         Consumer<PageProgress> progressCallback, RequestThrottle throttle, PageAccumulator accumulator,
+                                         PageFetchResult firstPage) {
         int maxAdditionalPages = resolveMaxAdditionalPages(firstPage);
-        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
-            PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, pageNumber, isCancelled, logger, throttle);
+        boolean stopPagination = false;
+        for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages && !stopPagination; pageNumber++) {
+            PageAttempt attempt = fetchPageWithRetries(request, pageNumber, isCancelled, logger, throttle);
             if (attempt.cancelled()) {
-                break;
+                stopPagination = true;
+            } else {
+                PageFetchResult page = attempt.page();
+                if (page == null) {
+                    stopPagination = true;
+                } else if (isEmptyChannelPage(page)) {
+                    log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
+                    stopPagination = true;
+                } else {
+                    appendFetchedPage(channelList, page, pageNumber, callback, logger);
+                    accumulator.update(page);
+                    emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, pageNumber + 1, accumulator.pageCount);
+                }
             }
-            PageFetchResult page = attempt.page();
-            if (page == null) {
-                break;
-            }
-            if (isEmptyChannelPage(page)) {
-                log(logger, "Page " + pageNumber + " returned no channels. Stopping pagination.");
-                break;
-            }
-            appendFetchedPage(channelList, page, pageNumber, callback, logger);
-            accumulator.update(page);
-            emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, pageNumber + 1, accumulator.pageCount);
         }
     }
 
-    private PageAttempt fetchPageWithRetries(String category, Account account, String movieId, String seriesId, boolean censor, int pageNumber,
-                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle) {
-        return fetchPageWithRetries(category, account, movieId, seriesId, censor, pageNumber, isCancelled, logger, throttle, false);
+    private PageAttempt fetchPageWithRetries(StalkerPageRequest request, int pageNumber, Supplier<Boolean> isCancelled,
+                                             LoggerCallback logger, RequestThrottle throttle) {
+        return fetchPageWithRetries(request, pageNumber, isCancelled, logger, throttle, false);
     }
 
-    private PageAttempt fetchPageWithRetries(String category, Account account, String movieId, String seriesId, boolean censor, int pageNumber,
-                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle, boolean ignoreCancellation) {
+    private PageAttempt fetchPageWithRetries(StalkerPageRequest request, int pageNumber, Supplier<Boolean> isCancelled,
+                                             LoggerCallback logger, RequestThrottle throttle, boolean ignoreCancellation) {
         for (int attempt = 0; attempt <= STALKER_MAX_RETRIES_PER_PAGE; attempt++) {
             if (!ignoreCancellation && isPageFetchCancelled(isCancelled)) {
                 logFetchCancelled(logger, pageNumber);
@@ -548,7 +550,8 @@ public class ChannelService {
             }
             throttle.awaitPermit();
             try {
-                PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, pageNumber, logger);
+                PageFetchResult page = fetchStalkerPage(request.category(), request.account(), request.movieId(),
+                        request.seriesId(), request.censor(), pageNumber, logger);
                 long nextDelay = throttle.onSuccess();
                 logNextPageDelay(logger, nextDelay);
                 return PageAttempt.success(page);
@@ -600,19 +603,19 @@ public class ChannelService {
         }
     }
 
-    @SuppressWarnings("java:S107")
-    private PageFetchResult retryEmptyFirstPage(String category, Account account, String movieId, String seriesId, boolean censor,
-                                                int startPage, LoggerCallback logger, PageFetchResult firstPage, RequestThrottle throttle) {
-        if (!isEmptyChannelPage(firstPage) || account.getType() != STALKER_PORTAL) {
+    private PageFetchResult retryEmptyFirstPage(StalkerPageRequest request, int startPage, LoggerCallback logger,
+                                                PageFetchResult firstPage, RequestThrottle throttle) {
+        if (!isEmptyChannelPage(firstPage) || request.account().getType() != STALKER_PORTAL) {
             return firstPage;
         }
         log(logger, "No channels returned. Refreshing Stalker session and retrying page " + startPage + " once...");
-        HandshakeService.getInstance().hardTokenRefresh(account);
+        HandshakeService.getInstance().hardTokenRefresh(request.account());
         if (throttle != null) {
             throttle.awaitPermit();
         }
         try {
-            PageFetchResult page = fetchStalkerPage(category, account, movieId, seriesId, censor, startPage, logger);
+            PageFetchResult page = fetchStalkerPage(request.category(), request.account(), request.movieId(),
+                    request.seriesId(), request.censor(), startPage, logger);
             if (throttle != null) {
                 long nextDelay = throttle.onSuccess();
                 logNextPageDelay(logger, nextDelay);
@@ -625,6 +628,9 @@ public class ChannelService {
             }
             return firstPage;
         }
+    }
+
+    private record StalkerPageRequest(String category, Account account, String movieId, String seriesId, boolean censor) {
     }
 
     private boolean isEmptyChannelPage(PageFetchResult page) {
