@@ -216,12 +216,13 @@ public class SeriesWatchStateService {
         state.setEpisodeNum(normalizedEpisodeNum);
         state.setUpdatedAt(System.currentTimeMillis());
         state.setSource(source);
-        applySnapshots(state);
+        SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(accountId, state.getCategoryId(), state.getSeriesId());
+        applySnapshots(state, existing);
         SeriesWatchStateDb.get().upsert(state);
         notifyListeners(accountId, seriesId);
     }
 
-    private void applySnapshots(SeriesWatchState state) {
+    private void applySnapshots(SeriesWatchState state, SeriesWatchState existing) {
         if (state == null || isBlank(state.getAccountId()) || isBlank(state.getSeriesId())) {
             return;
         }
@@ -238,7 +239,10 @@ public class SeriesWatchStateService {
             categoryJson.put(FIELD_CATEGORY_ID, portalCategoryId);
             state.setSeriesCategorySnapshot(categoryJson.toString());
         } else {
-            state.setSeriesCategorySnapshot("");
+            state.setSeriesCategorySnapshot(resolveSnapshotFallback(
+                    "",
+                    existing == null ? "" : existing.getSeriesCategorySnapshot()
+            ));
         }
 
         Channel seriesChannel = findSeriesChannel(account, portalCategoryId, state.getSeriesId(), matchedCategory);
@@ -248,7 +252,10 @@ public class SeriesWatchStateService {
             seriesJson.put("channelId", safe(seriesChannel.getChannelId()));
             state.setSeriesChannelSnapshot(seriesJson.toString());
         } else {
-            state.setSeriesChannelSnapshot("");
+            state.setSeriesChannelSnapshot(resolveSnapshotFallback(
+                    "",
+                    existing == null ? "" : existing.getSeriesChannelSnapshot()
+            ));
         }
 
         Channel episodeChannel = findEpisode(account, portalCategoryId, state.getSeriesId(), state.getEpisodeId(), matchedCategory);
@@ -259,8 +266,21 @@ public class SeriesWatchStateService {
             episodeJson.put("channelId", safe(episodeChannel.getChannelId()));
             state.setSeriesEpisodeSnapshot(episodeJson.toString());
         } else {
-            state.setSeriesEpisodeSnapshot("");
+            String episodeFallback = "";
+            if (existing != null && safe(existing.getEpisodeId()).equals(safe(state.getEpisodeId()))) {
+                episodeFallback = existing.getSeriesEpisodeSnapshot();
+            }
+            state.setSeriesEpisodeSnapshot(resolveSnapshotFallback("", episodeFallback));
         }
+    }
+
+    private String resolveSnapshotFallback(String currentSnapshot, String fallbackSnapshot) {
+        String current = safe(currentSnapshot);
+        if (!isBlank(current)) {
+            return current;
+        }
+        String fallback = safe(fallbackSnapshot);
+        return isBlank(fallback) ? "" : fallback;
     }
 
     private String normalizeSeriesId(String seriesId) {

@@ -1,9 +1,11 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.util.AccountType;
+import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
 import static com.uiptv.model.Account.AccountAction.series;
@@ -12,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class SeriesWatchStateServiceTest extends DbBackedTest {
 
@@ -138,6 +141,47 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
         assertEquals("ep-s2e1", afterS2.getEpisodeId());
         assertEquals("2", afterS2.getSeason());
         assertEquals(1, afterS2.getEpisodeNum());
+    }
+
+    @Test
+    void manualUpdate_preservesExistingSnapshots_whenCacheLookupsFail() {
+        Account account = createSeriesAccount("watch-series-snapshot-preserve");
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        Channel snapshotChannel = new Channel();
+        snapshotChannel.setChannelId("12345");
+        snapshotChannel.setName("Law & Order");
+        snapshotChannel.setLogo("http://img/law.png");
+        String channelSnapshotJson = new JSONObject(snapshotChannel.toJson()).toString();
+
+        Category snapshotCategory = new Category("cat-1", "Drama", "drama", false, 0);
+        String categorySnapshotJson = new JSONObject(snapshotCategory.toJson()).toString();
+
+        SeriesWatchState existing = new SeriesWatchState();
+        existing.setAccountId(account.getDbId());
+        existing.setMode("series");
+        existing.setCategoryId("cat-1");
+        existing.setSeriesId("12345");
+        existing.setEpisodeId("ep-1");
+        existing.setEpisodeName("Episode 1");
+        existing.setSeason("1");
+        existing.setEpisodeNum(1);
+        existing.setUpdatedAt(100L);
+        existing.setSource("MANUAL");
+        existing.setSeriesCategorySnapshot(categorySnapshotJson);
+        existing.setSeriesChannelSnapshot(channelSnapshotJson);
+        existing.setSeriesEpisodeSnapshot("{\"id\":\"ep-1\"}");
+        com.uiptv.db.SeriesWatchStateDb.get().upsert(existing);
+
+        service.markSeriesEpisodeManualIfNewer(account, "cat-1", "12345", "ep-2", "Episode 2", "1", "2");
+
+        SeriesWatchState updated = service.getSeriesLastWatched(account.getDbId(), "cat-1", "12345");
+        assertNotNull(updated);
+        assertEquals("ep-2", updated.getEpisodeId());
+        assertEquals(channelSnapshotJson, updated.getSeriesChannelSnapshot());
+        assertEquals(categorySnapshotJson, updated.getSeriesCategorySnapshot());
+        assertNotEquals("", updated.getSeriesChannelSnapshot());
+        assertEquals("", updated.getSeriesEpisodeSnapshot());
     }
 
     private Account createSeriesAccount(String name) {
