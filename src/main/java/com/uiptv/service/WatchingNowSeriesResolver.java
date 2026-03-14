@@ -359,6 +359,9 @@ public class WatchingNowSeriesResolver {
                 }
             }
         }
+        if (!raw.contains(":") && raw.matches("^\\d+$")) {
+            candidates.add(raw + ":" + raw);
+        }
         candidates.add(raw);
         return new ArrayList<>(candidates);
     }

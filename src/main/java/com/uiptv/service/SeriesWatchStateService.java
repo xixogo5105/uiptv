@@ -49,15 +49,16 @@ public class SeriesWatchStateService {
         if (isBlank(accountId) || isBlank(seriesId)) {
             return null;
         }
+        String canonicalSeriesId = canonicalizeSeriesId(seriesId);
         String normalizedCategory = normalizeCategoryId(accountId, categoryId);
-        SeriesWatchState exact = SeriesWatchStateDb.get().getBySeries(accountId, normalizedCategory, seriesId);
+        SeriesWatchState exact = SeriesWatchStateDb.get().getBySeries(accountId, normalizedCategory, canonicalSeriesId);
         if (exact != null) {
             return exact;
         }
         // Fallback for clients that may resolve category differently (db id vs portal id).
         // Prefer the latest pointer for the same account+series when exact category is absent.
         SeriesWatchState latest = null;
-        for (SeriesWatchState candidate : SeriesWatchStateDb.get().getBySeries(accountId, seriesId)) {
+        for (SeriesWatchState candidate : SeriesWatchStateDb.get().getBySeries(accountId, canonicalSeriesId)) {
             if (candidate == null) {
                 continue;
             }
@@ -103,8 +104,9 @@ public class SeriesWatchStateService {
         if (isBlank(accountId) || isBlank(seriesId)) {
             return;
         }
-        SeriesWatchStateDb.get().clear(accountId, normalizeCategoryId(accountId, categoryId), seriesId);
-        notifyListeners(accountId, seriesId);
+        String canonicalSeriesId = canonicalizeSeriesId(seriesId);
+        SeriesWatchStateDb.get().clear(accountId, normalizeCategoryId(accountId, categoryId), canonicalSeriesId);
+        notifyListeners(accountId, canonicalSeriesId);
     }
 
     public void clearAllSeriesLastWatched() {
@@ -120,7 +122,7 @@ public class SeriesWatchStateService {
         if (account == null || isBlank(account.getDbId()) || isBlank(seriesId) || isBlank(episodeId)) {
             return;
         }
-        upsertState(account.getDbId(), normalizeCategoryId(account.getDbId(), categoryId), seriesId, episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), SOURCE_MANUAL);
+        upsertState(account.getDbId(), normalizeCategoryId(account.getDbId(), categoryId), canonicalizeSeriesId(seriesId), episodeId, episodeName, season, parseEpisodeNum(episodeNum, episodeName), SOURCE_MANUAL);
     }
 
     public void markSeriesEpisodeManualIfNewer(Account account, String categoryId, String seriesId, String episodeId, String episodeName, String season, String episodeNum) {
@@ -128,11 +130,12 @@ public class SeriesWatchStateService {
             return;
         }
         String normalizedCategory = normalizeCategoryId(account.getDbId(), categoryId);
+        String canonicalSeriesId = canonicalizeSeriesId(seriesId);
         int nextEpisodeNum = parseEpisodeNum(episodeNum, episodeName);
         int nextSeasonNum = parseSeasonNum(season, episodeName);
-        SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(account.getDbId(), normalizedCategory, seriesId);
+        SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(account.getDbId(), normalizedCategory, canonicalSeriesId);
         if (existing == null) {
-            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, SOURCE_MANUAL);
+            upsertState(account.getDbId(), normalizedCategory, canonicalSeriesId, episodeId, episodeName, season, nextEpisodeNum, SOURCE_MANUAL);
             return;
         }
         int currentSeasonNum = parseSeasonNum(existing.getSeason(), existing.getEpisodeName());
@@ -141,7 +144,7 @@ public class SeriesWatchStateService {
             return;
         }
         if (shouldAdvancePointer(currentSeasonNum, currentEpisodeNum, nextSeasonNum, nextEpisodeNum)) {
-            upsertState(account.getDbId(), normalizedCategory, seriesId, episodeId, episodeName, season, nextEpisodeNum, SOURCE_MANUAL);
+            upsertState(account.getDbId(), normalizedCategory, canonicalSeriesId, episodeId, episodeName, season, nextEpisodeNum, SOURCE_MANUAL);
         }
     }
 
@@ -156,7 +159,7 @@ public class SeriesWatchStateService {
             return;
         }
         String resolvedCategoryId = normalizeCategoryId(account.getDbId(), categoryId);
-        String seriesId = normalizeSeriesId(firstNonBlank(parentSeriesId));
+        String seriesId = canonicalizeSeriesId(firstNonBlank(parentSeriesId));
         if (isBlank(seriesId)) {
             return;
         }
@@ -203,13 +206,14 @@ public class SeriesWatchStateService {
 
     @SuppressWarnings("java:S107")
     private void upsertState(String accountId, String categoryId, String seriesId, String episodeId, String episodeName, String season, int episodeNum, String source) {
+        String canonicalSeriesId = canonicalizeSeriesId(seriesId);
         String normalizedSeason = normalizeSeason(season, episodeName);
         int normalizedEpisodeNum = episodeNum > 0 ? episodeNum : parseEpisodeNum("", episodeName);
         SeriesWatchState state = new SeriesWatchState();
         state.setAccountId(accountId);
         state.setMode("series");
         state.setCategoryId(normalizeCategoryId(accountId, categoryId));
-        state.setSeriesId(seriesId);
+        state.setSeriesId(canonicalSeriesId);
         state.setEpisodeId(episodeId);
         state.setEpisodeName(episodeName);
         state.setSeason(normalizedSeason);
@@ -219,7 +223,7 @@ public class SeriesWatchStateService {
         SeriesWatchState existing = SeriesWatchStateDb.get().getBySeries(accountId, state.getCategoryId(), state.getSeriesId());
         applySnapshots(state, existing);
         SeriesWatchStateDb.get().upsert(state);
-        notifyListeners(accountId, seriesId);
+        notifyListeners(accountId, canonicalSeriesId);
     }
 
     private void applySnapshots(SeriesWatchState state, SeriesWatchState existing) {
@@ -300,6 +304,10 @@ public class SeriesWatchStateService {
         return isBlank(last) ? raw : last;
     }
 
+    private String canonicalizeSeriesId(String seriesId) {
+        return normalizeSeriesId(seriesId);
+    }
+
     private Category findCategory(String accountId, String categoryId) {
         if (isBlank(accountId) || isBlank(categoryId)) {
             return null;
@@ -360,6 +368,9 @@ public class SeriesWatchStateService {
                 }
             }
             addNonBlankParts(candidates, parts);
+        }
+        if (!raw.contains(":") && raw.matches("^\\d+$")) {
+            candidates.add(raw + ":" + raw);
         }
         candidates.add(raw);
         return new java.util.ArrayList<>(candidates);

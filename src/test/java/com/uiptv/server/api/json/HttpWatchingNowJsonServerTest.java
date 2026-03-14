@@ -13,6 +13,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
+import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.AccountType;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -113,14 +114,15 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
                 channel("11706", "Tulsa King (UK)", "https://img/tulsa.png")
         ), drama.getDbId(), account);
 
-        SeriesWatchState snapshotState = state(account, drama.getCategoryId(), "11706:11706", "ep-1", "Episode 1", "1", 1, 200L);
-        Channel snapshotChannel = new Channel();
-        snapshotChannel.setChannelId("11706");
-        snapshotChannel.setCategoryId(drama.getCategoryId());
-        snapshotChannel.setName("Tulsa King (UK)");
-        snapshotChannel.setLogo("https://img/tulsa.png");
-        snapshotState.setSeriesChannelSnapshot(new JSONObject(snapshotChannel.toJson()).toString());
-        SeriesWatchStateDb.get().upsert(snapshotState);
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                account,
+                drama.getCategoryId(),
+                "11706:11706",
+                "ep-1",
+                "Episode 1",
+                "1",
+                "1"
+        );
 
         HttpWatchingNowJsonServer handler = new HttpWatchingNowJsonServer();
         StubHttpExchange exchange = new StubHttpExchange("/watching-now", "GET");
@@ -131,7 +133,7 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
         assertEquals(1, response.length());
 
         JSONObject row = response.getJSONObject(0);
-        assertEquals("11706:11706", row.getString("seriesId"));
+        assertEquals("11706", row.getString("seriesId"));
         assertEquals("Tulsa King (UK)", row.getString("seriesTitle"));
         assertEquals("https://img/tulsa.png", row.getString("seriesPoster"));
         assertEquals(drama.getDbId(), row.getString("categoryDbId"));

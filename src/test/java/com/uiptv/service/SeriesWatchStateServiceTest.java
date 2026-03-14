@@ -1,5 +1,8 @@
 package com.uiptv.service;
 
+import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -182,6 +185,50 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
         assertEquals(categorySnapshotJson, updated.getSeriesCategorySnapshot());
         assertNotEquals("", updated.getSeriesChannelSnapshot());
         assertEquals("", updated.getSeriesEpisodeSnapshot());
+    }
+
+    @Test
+    void manualUpdate_resolvesColonSeriesIdFromCache() {
+        Account account = createSeriesAccount("watch-series-colon-cache");
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        SeriesCategoryDb.get().saveAll(
+                java.util.List.of(new Category("1714", "Drama", "drama", false, 0)),
+                account
+        );
+        Category category = SeriesCategoryDb.get().getCategories(account).getFirst();
+
+        Channel seriesChannel = new Channel();
+        seriesChannel.setChannelId("37177:37177");
+        seriesChannel.setName("EN - Friends 4K (1994–2004)");
+        seriesChannel.setLogo("http://img/friends.png");
+        SeriesChannelDb.get().saveAll(java.util.List.of(seriesChannel), category.getDbId(), account);
+
+        Channel episode = new Channel();
+        episode.setChannelId("8");
+        episode.setName("Season 1 - Episode 8");
+        episode.setSeason("1");
+        episode.setEpisodeNum("8");
+        SeriesEpisodeDb.get().saveAll(account, category.getDbId(), "37177:37177", java.util.List.of(episode));
+
+        service.markSeriesEpisodeManual(account, "1714", "37177", "8", "Season 1 - Episode 8", "1", "8");
+
+        SeriesWatchState updated = service.getSeriesLastWatched(account.getDbId(), "1714", "37177");
+        assertNotNull(updated);
+        assertNotEquals("", updated.getSeriesChannelSnapshot());
+        assertNotEquals("", updated.getSeriesEpisodeSnapshot());
+    }
+
+    @Test
+    void manualUpdate_normalizesColonDelimitedSeriesIds() {
+        Account account = createSeriesAccount("watch-series-normalize");
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        service.markSeriesEpisodeManual(account, "cat-1", "37177:37177", "ep-8", "Episode 8", "1", "8");
+
+        SeriesWatchState updated = service.getSeriesLastWatched(account.getDbId(), "cat-1", "37177");
+        assertNotNull(updated);
+        assertEquals("37177", updated.getSeriesId());
     }
 
     private Account createSeriesAccount(String name) {

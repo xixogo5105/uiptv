@@ -48,6 +48,18 @@ class VodWatchStateServiceTest extends DbBackedTest {
         assertTrue(service.isSaved(account.getDbId(), "db-cat-77", "vod-2"));
     }
 
+    @Test
+    void save_normalizesColonDelimitedVodIds() {
+        Account account = createVodAccount("vod-watch-normalize");
+        VodWatchStateService service = VodWatchStateService.getInstance();
+
+        service.save(account, "movies", vod("123:123", "Movie Colon", "http://vod/123.mp4"));
+
+        VodWatchState stored = service.getVod(account.getDbId(), "movies", "123");
+        assertNotNull(stored);
+        assertEquals("123", stored.getVodId());
+    }
+
     private Account createVodAccount(String name) {
         Account account = new Account(
                 name,

@@ -30,12 +30,13 @@ public class VodWatchStateService {
         if (isBlank(accountId) || isBlank(vodId)) {
             return null;
         }
-        VodWatchState exact = VodWatchStateDb.get().getByVod(accountId, normalize(categoryId), vodId);
+        String canonicalVodId = canonicalizeVodId(vodId);
+        VodWatchState exact = VodWatchStateDb.get().getByVod(accountId, normalize(categoryId), canonicalVodId);
         if (exact != null) {
             return exact;
         }
         VodWatchState latest = null;
-        for (VodWatchState candidate : VodWatchStateDb.get().getByVod(accountId, vodId)) {
+        for (VodWatchState candidate : VodWatchStateDb.get().getByVod(accountId, canonicalVodId)) {
             if (candidate == null) {
                 continue;
             }
@@ -64,21 +65,22 @@ public class VodWatchStateService {
         VodWatchState state = new VodWatchState();
         state.setAccountId(account.getDbId());
         state.setCategoryId(normalize(categoryId));
-        state.setVodId(channel.getChannelId());
+        state.setVodId(canonicalizeVodId(channel.getChannelId()));
         state.setVodName(channel.getName());
         state.setVodCmd(channel.getCmd());
         state.setVodLogo(channel.getLogo());
         state.setUpdatedAt(System.currentTimeMillis());
         VodWatchStateDb.get().upsert(state);
-        notifyListeners(account.getDbId(), channel.getChannelId());
+        notifyListeners(account.getDbId(), state.getVodId());
     }
 
     public void remove(String accountId, String categoryId, String vodId) {
         if (isBlank(accountId) || isBlank(vodId)) {
             return;
         }
-        VodWatchStateDb.get().clear(accountId, normalize(categoryId), vodId);
-        notifyListeners(accountId, vodId);
+        String canonicalVodId = canonicalizeVodId(vodId);
+        VodWatchStateDb.get().clear(accountId, normalize(categoryId), canonicalVodId);
+        notifyListeners(accountId, canonicalVodId);
     }
 
     public void clearAll() {
@@ -106,5 +108,22 @@ public class VodWatchStateService {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String canonicalizeVodId(String vodId) {
+        String raw = vodId == null ? "" : vodId.trim();
+        if (isBlank(raw) || !raw.contains(":")) {
+            return raw;
+        }
+        String[] parts = raw.split(":");
+        String last = "";
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String p = normalize(parts[i]);
+            if (!isBlank(p)) {
+                last = p;
+                break;
+            }
+        }
+        return isBlank(last) ? raw : last;
     }
 }
