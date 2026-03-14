@@ -493,6 +493,27 @@ public class ChannelService {
         accumulator.update(firstPage);
         emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, startPage + 1, accumulator.pageCount);
 
+        paginateAdditionalPages(channelList, category, account, movieId, seriesId, callback, isCancelled, censor, startPage,
+                logger, progressCallback, throttle, accumulator, firstPage);
+        emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems > 0 ? accumulator.totalItems : accumulator.fetchedItems,
+                accumulator.pageCount > 0 ? accumulator.pageCount : Math.max(1, (startPage + 1)), accumulator.pageCount);
+        return dedupeChannels(channelList);
+    }
+
+    private PageFetchResult fetchInitialPage(String category, Account account, String movieId, String seriesId, boolean censor, int startPage,
+                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle) {
+        PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, startPage, isCancelled, logger, throttle, true);
+        if (attempt.page() == null) {
+            return null;
+        }
+        return retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, attempt.page(), throttle);
+    }
+
+    @SuppressWarnings("java:S107")
+    private void paginateAdditionalPages(List<Channel> channelList, String category, Account account, String movieId, String seriesId,
+                                         Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled, boolean censor, int startPage,
+                                         LoggerCallback logger, Consumer<PageProgress> progressCallback, RequestThrottle throttle,
+                                         PageAccumulator accumulator, PageFetchResult firstPage) {
         int maxAdditionalPages = resolveMaxAdditionalPages(firstPage);
         for (int pageNumber = startPage + 1; pageNumber <= startPage + maxAdditionalPages; pageNumber++) {
             PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, pageNumber, isCancelled, logger, throttle);
@@ -511,18 +532,6 @@ public class ChannelService {
             accumulator.update(page);
             emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems, pageNumber + 1, accumulator.pageCount);
         }
-        emitProgress(progressCallback, accumulator.fetchedItems, accumulator.totalItems > 0 ? accumulator.totalItems : accumulator.fetchedItems,
-                accumulator.pageCount > 0 ? accumulator.pageCount : Math.max(1, (startPage + 1)), accumulator.pageCount);
-        return dedupeChannels(channelList);
-    }
-
-    private PageFetchResult fetchInitialPage(String category, Account account, String movieId, String seriesId, boolean censor, int startPage,
-                                             Supplier<Boolean> isCancelled, LoggerCallback logger, RequestThrottle throttle) {
-        PageAttempt attempt = fetchPageWithRetries(category, account, movieId, seriesId, censor, startPage, isCancelled, logger, throttle, true);
-        if (attempt.page() == null) {
-            return null;
-        }
-        return retryEmptyFirstPage(category, account, movieId, seriesId, censor, startPage, logger, attempt.page(), throttle);
     }
 
     private PageAttempt fetchPageWithRetries(String category, Account account, String movieId, String seriesId, boolean censor, int pageNumber,

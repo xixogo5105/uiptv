@@ -35,12 +35,10 @@ public final class AppLog {
         }
         String safeLog = sanitizeLogMessage(log);
         Logger logger = LoggerFactory.getLogger(logSource);
-        if (level == LogLevel.ERROR) {
-            logger.error(safeLog);
-        } else if (level == LogLevel.WARNING) {
-            logger.warn(safeLog);
-        } else {
-            logger.info(safeLog);
+        switch (level) {
+            case ERROR -> logger.error(safeLog);
+            case WARNING -> logger.warn(safeLog);
+            case INFO -> logger.info(safeLog);
         }
         for (Consumer<String> listener : listeners) {
             try {
