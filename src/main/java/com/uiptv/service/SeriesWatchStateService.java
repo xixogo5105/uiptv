@@ -234,48 +234,69 @@ public class SeriesWatchStateService {
         account.setDbId(state.getAccountId());
 
         Category matchedCategory = findCategory(account.getDbId(), state.getCategoryId());
-        String portalCategoryId = matchedCategory != null && !isBlank(matchedCategory.getCategoryId())
-                ? matchedCategory.getCategoryId()
-                : normalizeCategoryId(state.getCategoryId());
+        String portalCategoryId = resolvePortalCategoryId(matchedCategory, state);
+        state.setSeriesCategorySnapshot(buildCategorySnapshot(matchedCategory, portalCategoryId, existing));
+        state.setSeriesChannelSnapshot(buildSeriesChannelSnapshot(account, portalCategoryId, state, matchedCategory, existing));
+        state.setSeriesEpisodeSnapshot(buildEpisodeSnapshot(account, portalCategoryId, state, matchedCategory, existing));
+    }
 
-        if (matchedCategory != null) {
-            JSONObject categoryJson = new JSONObject(matchedCategory.toJson());
-            categoryJson.put(FIELD_CATEGORY_ID, portalCategoryId);
-            state.setSeriesCategorySnapshot(categoryJson.toString());
-        } else {
-            state.setSeriesCategorySnapshot(resolveSnapshotFallback(
+    private String resolvePortalCategoryId(Category matchedCategory, SeriesWatchState state) {
+        String fallback = normalizeCategoryId(state == null ? "" : state.getCategoryId());
+        if (matchedCategory == null) {
+            return fallback;
+        }
+        String categoryId = safe(matchedCategory.getCategoryId());
+        return isBlank(categoryId) ? fallback : categoryId;
+    }
+
+    private String buildCategorySnapshot(Category matchedCategory, String portalCategoryId, SeriesWatchState existing) {
+        if (matchedCategory == null) {
+            return resolveSnapshotFallback(
                     "",
                     existing == null ? "" : existing.getSeriesCategorySnapshot()
-            ));
+            );
         }
+        JSONObject categoryJson = new JSONObject(matchedCategory.toJson());
+        categoryJson.put(FIELD_CATEGORY_ID, portalCategoryId);
+        return categoryJson.toString();
+    }
 
+    private String buildSeriesChannelSnapshot(Account account,
+                                              String portalCategoryId,
+                                              SeriesWatchState state,
+                                              Category matchedCategory,
+                                              SeriesWatchState existing) {
         Channel seriesChannel = findSeriesChannel(account, portalCategoryId, state.getSeriesId(), matchedCategory);
-        if (seriesChannel != null) {
-            JSONObject seriesJson = new JSONObject(seriesChannel.toJson());
-            seriesJson.put(FIELD_CATEGORY_ID, portalCategoryId);
-            seriesJson.put("channelId", safe(seriesChannel.getChannelId()));
-            state.setSeriesChannelSnapshot(seriesJson.toString());
-        } else {
-            state.setSeriesChannelSnapshot(resolveSnapshotFallback(
+        if (seriesChannel == null) {
+            return resolveSnapshotFallback(
                     "",
                     existing == null ? "" : existing.getSeriesChannelSnapshot()
-            ));
+            );
         }
+        JSONObject seriesJson = new JSONObject(seriesChannel.toJson());
+        seriesJson.put(FIELD_CATEGORY_ID, portalCategoryId);
+        seriesJson.put("channelId", safe(seriesChannel.getChannelId()));
+        return seriesJson.toString();
+    }
 
+    private String buildEpisodeSnapshot(Account account,
+                                        String portalCategoryId,
+                                        SeriesWatchState state,
+                                        Category matchedCategory,
+                                        SeriesWatchState existing) {
         Channel episodeChannel = findEpisode(account, portalCategoryId, state.getSeriesId(), state.getEpisodeId(), matchedCategory);
-        if (episodeChannel != null) {
-            JSONObject episodeJson = new JSONObject(episodeChannel.toJson());
-            episodeJson.put(FIELD_CATEGORY_ID, portalCategoryId);
-            episodeJson.put("seriesId", safe(state.getSeriesId()));
-            episodeJson.put("channelId", safe(episodeChannel.getChannelId()));
-            state.setSeriesEpisodeSnapshot(episodeJson.toString());
-        } else {
+        if (episodeChannel == null) {
             String episodeFallback = "";
             if (existing != null && safe(existing.getEpisodeId()).equals(safe(state.getEpisodeId()))) {
                 episodeFallback = existing.getSeriesEpisodeSnapshot();
             }
-            state.setSeriesEpisodeSnapshot(resolveSnapshotFallback("", episodeFallback));
+            return resolveSnapshotFallback("", episodeFallback);
         }
+        JSONObject episodeJson = new JSONObject(episodeChannel.toJson());
+        episodeJson.put(FIELD_CATEGORY_ID, portalCategoryId);
+        episodeJson.put("seriesId", safe(state.getSeriesId()));
+        episodeJson.put("channelId", safe(episodeChannel.getChannelId()));
+        return episodeJson.toString();
     }
 
     private String resolveSnapshotFallback(String currentSnapshot, String fallbackSnapshot) {

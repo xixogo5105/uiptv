@@ -14,10 +14,12 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class WatchingNowSeriesResolver {
+    private static final Pattern DIGITS_ONLY_PATTERN = Pattern.compile("^\\d+$");
 
     public List<SeriesRow> resolveAll() {
         List<SeriesRow> rows = new ArrayList<>();
@@ -66,7 +68,7 @@ public class WatchingNowSeriesResolver {
         } else if (!isBlank(scope.seriesPoster)) {
             cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, scope.seriesPoster, cacheInfo.resolvedFromCache);
         }
-        if (!cacheInfo.resolvedFromCache && scopedState.getSeriesId().matches("^\\d+$")) {
+        if (!cacheInfo.resolvedFromCache && isAllDigits(scopedState.getSeriesId())) {
             return null;
         }
         String categoryDbId = resolveSeriesCategoryDbId(account, scopedState.getCategoryId());
@@ -313,7 +315,7 @@ public class WatchingNowSeriesResolver {
         boolean allNumeric = true;
         for (String part : parts) {
             String p = safe(part);
-            if (!isBlank(p) && !p.matches("^\\d+$")) {
+            if (!isBlank(p) && !isAllDigits(p)) {
                 allNumeric = false;
             }
         }
@@ -359,7 +361,7 @@ public class WatchingNowSeriesResolver {
                 }
             }
         }
-        if (!raw.contains(":") && raw.matches("^\\d+$")) {
+        if (!raw.contains(":") && isAllDigits(raw)) {
             candidates.add(raw + ":" + raw);
         }
         candidates.add(raw);
@@ -375,6 +377,11 @@ public class WatchingNowSeriesResolver {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private boolean isAllDigits(String value) {
+        String normalized = safe(value);
+        return !isBlank(normalized) && DIGITS_ONLY_PATTERN.matcher(normalized).matches();
     }
 
     public static final class SeriesRow {
