@@ -4,12 +4,16 @@ import com.uiptv.db.*;
 import com.uiptv.model.Account;
 import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.ServerUtils;
+import com.uiptv.util.XtremeCredentialsJson;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
+import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
@@ -24,6 +28,7 @@ public class AccountService {
     }
 
     public void save(Account account) {
+        sanitizeAccountFields(account);
         if ((account.getType() == STALKER_PORTAL) && !account.getUrl().endsWith("/")) {
             account.setUrl(account.getUrl() + "/");
         }
@@ -137,6 +142,64 @@ public class AccountService {
             return account.getAccountName().trim().toLowerCase();
         }
         return "";
+    }
+
+    private void sanitizeAccountFields(Account account) {
+        if (account == null) {
+            return;
+        }
+        sanitizeStalkerMacAddresses(account);
+        sanitizeXtremeCredentials(account);
+    }
+
+    private void sanitizeStalkerMacAddresses(Account account) {
+        if (account.getType() != STALKER_PORTAL) {
+            return;
+        }
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        String primaryMac = account.getMacAddress();
+        if (isNotBlank(primaryMac)) {
+            ordered.add(primaryMac.replace(" ", ""));
+        }
+        String macList = account.getMacAddressList();
+        if (isNotBlank(macList)) {
+            for (String mac : macList.split(",")) {
+                String trimmed = mac.replace(" ", "");
+                if (isNotBlank(trimmed)) {
+                    ordered.add(trimmed);
+                }
+            }
+        }
+        if (ordered.isEmpty()) {
+            return;
+        }
+        String normalizedList = String.join(",", ordered);
+        account.setMacAddressList(normalizedList);
+        if (isBlank(primaryMac) || !ordered.contains(primaryMac.replace(" ", ""))) {
+            account.setMacAddress(ordered.iterator().next());
+        }
+    }
+
+    private void sanitizeXtremeCredentials(Account account) {
+        if (account.getType() != XTREME_API) {
+            return;
+        }
+        String username = account.getUsername();
+        String password = account.getPassword();
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(account.getXtremeCredentialsJson());
+        if (entries.isEmpty() && isNotBlank(username) && isNotBlank(password)) {
+            entries = List.of(new XtremeCredentialsJson.Entry(username, password, true));
+        }
+        if (entries.isEmpty()) {
+            return;
+        }
+        List<XtremeCredentialsJson.Entry> normalized = XtremeCredentialsJson.normalize(entries, username);
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(normalized);
+        if (defaultEntry != null) {
+            account.setUsername(defaultEntry.username());
+            account.setPassword(defaultEntry.password());
+        }
+        account.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(normalized));
     }
 
     private static class SingletonHelper {

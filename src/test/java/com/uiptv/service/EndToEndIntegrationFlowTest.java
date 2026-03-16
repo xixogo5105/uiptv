@@ -19,6 +19,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.util.LogUtil;
 import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.TextParserService;
+import com.uiptv.util.XtremeCredentialsJson;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
@@ -311,6 +312,31 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertTrue(updatedXtreme.getM3u8Path().startsWith(xtremeBaseUrl));
         assertNotNull(updatedM3u.getM3u8Path());
         assertTrue(updatedRss.getM3u8Path().contains("/rss/feed.xml"));
+        assertXtremeCredentialsPersistence(updatedXtreme);
+    }
+
+    private void assertXtremeCredentialsPersistence(Account updatedXtreme) {
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(updatedXtreme.getXtremeCredentialsJson());
+        assertFalse(entries.isEmpty());
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
+        assertNotNull(defaultEntry);
+        assertEquals(updatedXtreme.getUsername(), defaultEntry.username());
+        assertEquals(updatedXtreme.getPassword(), defaultEntry.password());
+
+        List<XtremeCredentialsJson.Entry> withAlt = new ArrayList<>(entries);
+        withAlt.add(new XtremeCredentialsJson.Entry("xt-alt-user", "xt-alt-pass", false));
+        List<XtremeCredentialsJson.Entry> normalized = XtremeCredentialsJson.normalize(withAlt, "xt-alt-user");
+        updatedXtreme.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(normalized));
+        updatedXtreme.setUsername("xt-alt-user");
+        updatedXtreme.setPassword("xt-alt-pass");
+        AccountService.getInstance().save(updatedXtreme);
+
+        Account reloaded = AccountService.getInstance().getById(updatedXtreme.getDbId());
+        List<XtremeCredentialsJson.Entry> reloadedEntries = XtremeCredentialsJson.parse(reloaded.getXtremeCredentialsJson());
+        XtremeCredentialsJson.Entry reloadedDefault = XtremeCredentialsJson.resolveDefault(reloadedEntries);
+        assertNotNull(reloadedDefault);
+        assertEquals("xt-alt-user", reloadedDefault.username());
+        assertEquals("xt-alt-pass", reloadedDefault.password());
     }
 
     private void cacheAllAccountTypes(CacheService cacheService) throws IOException {
@@ -1081,6 +1107,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 xtremeBaseUrl,
                 false
         );
+        account.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(List.of(
+                new XtremeCredentialsJson.Entry(username, password, true)
+        )));
         account.setAction(itv);
         AccountService.getInstance().save(account);
     }

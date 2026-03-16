@@ -314,22 +314,32 @@ public class ChannelService {
     }
 
     public Channel getChannelByChannelIdAndAccount(String channelId, String accountId) {
+        return getChannelByChannelIdAndAccount(channelId, accountId, true);
+    }
+
+    public Channel getChannelByChannelIdAndAccount(String channelId, String accountId, boolean resolveLogo) {
         if (StringUtils.isBlank(channelId) || StringUtils.isBlank(accountId)) {
             return null;
         }
         Channel channel = ChannelDb.get().getChannelByChannelIdAndAccount(channelId, accountId);
-        if (channel != null) {
+        if (channel != null && resolveLogo) {
             resolveLogoIfNeeded(channel);
         }
         return channel;
     }
 
     public List<Channel> getChannelsByChannelIdsAndAccount(Collection<String> channelIds, String accountId) {
+        return getChannelsByChannelIdsAndAccount(channelIds, accountId, true);
+    }
+
+    public List<Channel> getChannelsByChannelIdsAndAccount(Collection<String> channelIds, String accountId, boolean resolveLogo) {
         if (channelIds == null || channelIds.isEmpty() || StringUtils.isBlank(accountId)) {
             return List.of();
         }
         List<Channel> channels = ChannelDb.get().getChannelsByChannelIdsAndAccount(channelIds, accountId);
-        channels.forEach(this::resolveLogoIfNeeded);
+        if (resolveLogo) {
+            channels.forEach(this::resolveLogoIfNeeded);
+        }
         return channels;
     }
 

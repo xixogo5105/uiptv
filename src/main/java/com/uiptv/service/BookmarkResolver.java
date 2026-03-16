@@ -145,7 +145,7 @@ public class BookmarkResolver {
     private void loadFallbackChannelsIntoCache(Map<String, List<String>> requestedChannelIdsByAccountId,
                                                Map<String, Channel> channelByAccountAndChannel) {
         for (Map.Entry<String, List<String>> entry : requestedChannelIdsByAccountId.entrySet()) {
-            List<Channel> channels = ChannelService.getInstance().getChannelsByChannelIdsAndAccount(entry.getValue(), entry.getKey());
+            List<Channel> channels = ChannelService.getInstance().getChannelsByChannelIdsAndAccount(entry.getValue(), entry.getKey(), false);
             cacheChannelsByAccountAndId(entry.getKey(), channels, channelByAccountAndChannel);
         }
     }
@@ -169,7 +169,7 @@ public class BookmarkResolver {
         }
         Channel channel = null;
         try {
-            channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(channelId, account.getDbId());
+            channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(channelId, account.getDbId(), false);
         } catch (Exception _) {
             // Best-effort fallback only. Resolver should not fail on auxiliary channel lookup.
         }

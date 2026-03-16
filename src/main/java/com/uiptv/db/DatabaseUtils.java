@@ -113,6 +113,7 @@ public class DatabaseUtils {
                 new DataColumn("accountName", "TEXT NOT NULL UNIQUE"),
                 new DataColumn("username", "TEXT"),
                 new DataColumn("password", "TEXT"),
+                new DataColumn("xtremeCredentialsJson", "TEXT"),
                 new DataColumn("url", "TEXT"),
                 new DataColumn("macAddress", "TEXT"),
                 new DataColumn("macAddressList", "TEXT"),

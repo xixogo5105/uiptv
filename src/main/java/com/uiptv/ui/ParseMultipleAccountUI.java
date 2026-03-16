@@ -48,7 +48,9 @@ public class ParseMultipleAccountUI extends VBox {
             """;
     private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "parseMultipleAccountsInputHint", 5);
     private final ComboBox<String> parseModeComboBox = new ComboBox<>();
-    private final CheckBox groupAccountsCheckBox = new CheckBox(I18n.tr("autoGroupAccountsByMACAddress"));
+    private static final String GROUP_BY_MAC_LABEL = "autoGroupAccountsByMACAddress";
+    private static final String GROUP_BY_XTREME_LABEL = "autoGroupAccountsByUsernamePassword";
+    private final CheckBox groupAccountsCheckBox = new CheckBox(I18n.tr(GROUP_BY_MAC_LABEL));
     private final CheckBox convertM3uToXtremeCheckBox = new CheckBox(I18n.tr("autoWherePossibleConvertM3UToXtreme"));
     private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox(I18n.tr("autoStartVerificationAfterParsing"));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("parseAndSave"));
@@ -142,7 +144,13 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void updateCheckboxesVisibility(String mode) {
-        groupAccountsCheckBox.setVisible(TextParserService.MODE_STALKER.equals(mode));
+        boolean showGroup = TextParserService.MODE_STALKER.equals(mode) || TextParserService.MODE_XTREME.equals(mode);
+        groupAccountsCheckBox.setVisible(showGroup);
+        if (TextParserService.MODE_XTREME.equals(mode)) {
+            groupAccountsCheckBox.setText(I18n.tr(GROUP_BY_XTREME_LABEL));
+        } else {
+            groupAccountsCheckBox.setText(I18n.tr(GROUP_BY_MAC_LABEL));
+        }
         convertM3uToXtremeCheckBox.setVisible(TextParserService.MODE_M3U.equals(mode));
     }
 

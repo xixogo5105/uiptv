@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.util.UiptUtils.*;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 /**
  * Handles parsing of M3U playlist links.
@@ -34,6 +35,11 @@ public class M3uParser implements AccountParser {
                 String uniqueName = getUniqueNameFromUrl(m3uPlayLIstUrl);
                 Account account = new Account(uniqueName, username, password, m3uPlayLIstUrl, null, null, null, null, null, null,
                         accountType, null, m3uPlayLIstUrl, false);
+                if (accountType == AccountType.XTREME_API && isNotBlank(username) && isNotBlank(password)) {
+                    account.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(List.of(
+                            new XtremeCredentialsJson.Entry(username, password, true)
+                    )));
+                }
                 AccountService.getInstance().save(account);
                 createdAccounts.add(account);
             }

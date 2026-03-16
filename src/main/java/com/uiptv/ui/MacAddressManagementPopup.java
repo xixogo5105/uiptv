@@ -64,6 +64,7 @@ public class MacAddressManagementPopup extends VBox {
         configureListView();
         configureButtons();
         buildContent();
+        updateActionButtons();
         stage.setScene(createScene(owner));
     }
 
@@ -98,6 +99,7 @@ public class MacAddressManagementPopup extends VBox {
         macListView.setCellFactory(param -> new MacListCell());
         VBox.setVgrow(macListView, Priority.ALWAYS);
         addMacField.setPromptText(I18n.tr("autoAddMACAddressEsCommaSeparated"));
+        macItems.addListener((javafx.collections.ListChangeListener<MacItem>) change -> updateActionButtons());
     }
 
     private void configureButtons() {
@@ -142,6 +144,7 @@ public class MacAddressManagementPopup extends VBox {
             }
         }
         addMacField.clear();
+        updateActionButtons();
     }
 
     private void removeMacs() {
@@ -183,6 +186,7 @@ public class MacAddressManagementPopup extends VBox {
         selectAllCheckBox.setSelected(false);
 
         macListView.refresh();
+        updateActionButtons();
     }
 
     private void setDefaultMac() {
@@ -190,9 +194,17 @@ public class MacAddressManagementPopup extends VBox {
         if (selected != null) {
             defaultMac = selected.getMac();
             macListView.refresh();
+            updateActionButtons();
         } else {
             showAlert(I18n.tr("autoPleaseSelectMacAddressToSetDefault"));
         }
+    }
+
+    private void updateActionButtons() {
+        boolean singleOrLess = macItems.size() <= 1;
+        removeButton.setDisable(singleOrLess);
+        setDefaultButton.setDisable(singleOrLess);
+        selectAllCheckBox.setDisable(singleOrLess);
     }
 
     private void saveAndClose() {

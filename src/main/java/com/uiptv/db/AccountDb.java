@@ -38,6 +38,7 @@ public class AccountDb extends BaseDb {
         account.setServerPortalUrl(nullSafeString(resultSet, "serverPortalUrl"));
         account.setHttpMethod(isNotBlank(nullSafeString(resultSet, "httpMethod")) ? nullSafeString(resultSet, "httpMethod") : "GET");
         account.setTimezone(isNotBlank(nullSafeString(resultSet, "timezone")) ? nullSafeString(resultSet, "timezone") : "Europe/London");
+        account.setXtremeCredentialsJson(nullSafeString(resultSet, "xtremeCredentialsJson"));
         return account;
     }
 
@@ -62,23 +63,24 @@ public class AccountDb extends BaseDb {
             statement.setString(1, account.getAccountName());
             statement.setString(2, account.getUsername());
             statement.setString(3, account.getPassword());
-            statement.setString(4, account.getUrl());
-            statement.setString(5, account.getMacAddress());
-            statement.setString(6, account.getMacAddressList());
-            statement.setString(7, account.getSerialNumber());
-            statement.setString(8, account.getDeviceId1());
-            statement.setString(9, account.getDeviceId2());
-            statement.setString(10, account.getSignature());
-            statement.setString(11, account.getEpg());
-            statement.setString(12, account.getM3u8Path());
-            statement.setString(13, account.getType().name());
-            statement.setString(14, account.getServerPortalUrl());
-            statement.setString(15, account.isPinToTop() ? "1" : "0");
-            statement.setString(16, account.getHttpMethod());
-            statement.setString(17, account.getTimezone());
+            statement.setString(4, account.getXtremeCredentialsJson());
+            statement.setString(5, account.getUrl());
+            statement.setString(6, account.getMacAddress());
+            statement.setString(7, account.getMacAddressList());
+            statement.setString(8, account.getSerialNumber());
+            statement.setString(9, account.getDeviceId1());
+            statement.setString(10, account.getDeviceId2());
+            statement.setString(11, account.getSignature());
+            statement.setString(12, account.getEpg());
+            statement.setString(13, account.getM3u8Path());
+            statement.setString(14, account.getType().name());
+            statement.setString(15, account.getServerPortalUrl());
+            statement.setString(16, account.isPinToTop() ? "1" : "0");
+            statement.setString(17, account.getHttpMethod());
+            statement.setString(18, account.getTimezone());
 
             if (accountExist) {
-                statement.setInt(18, Integer.valueOf(dbAccount.getDbId()));
+                statement.setInt(19, Integer.valueOf(dbAccount.getDbId()));
             }
             statement.execute();
         } catch (SQLException e) {

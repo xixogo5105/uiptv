@@ -43,6 +43,7 @@ public class Account extends BaseJson {
     private String accountName;
     private String username;
     private String password;
+    private String xtremeCredentialsJson;
     private String url;
     private String macAddress;
     private String macAddressList;

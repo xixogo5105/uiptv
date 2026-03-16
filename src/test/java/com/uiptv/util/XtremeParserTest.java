@@ -8,7 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -281,5 +283,72 @@ class XtremeParserTest {
         }
 
         return null;
+    }
+
+    @Test
+    void testParseAndGroupAccountsByCredentials() {
+        String text = """
+                http://example.test:8080
+                User : userA
+                Pass : passA
+
+                http://example.test:8080
+                User : userB
+                Pass : passB
+                """;
+
+        Map<String, Account> store = new LinkedHashMap<>();
+        XtremeParser parser = new XtremeParser(store::get, account -> store.put(account.getAccountName(), account));
+        List<Account> created = parser.parseAndSave(text, true, false);
+
+        assertEquals(1, store.size());
+        assertEquals(1, created.size());
+        Account grouped = store.values().iterator().next();
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(grouped.getXtremeCredentialsJson());
+        assertEquals(2, entries.size());
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
+        assertNotNull(defaultEntry);
+        assertEquals(grouped.getUsername(), defaultEntry.username());
+        assertEquals(grouped.getPassword(), defaultEntry.password());
+    }
+
+    @Test
+    void testParseWithoutGroupingCreatesSeparateAccounts() {
+        String text = """
+                http://example.test:8080
+                User : userA
+                Pass : passA
+
+                http://example.test:8080
+                User : userB
+                Pass : passB
+                """;
+
+        Map<String, Account> store = new LinkedHashMap<>();
+        XtremeParser parser = new XtremeParser(store::get, account -> store.put(account.getAccountName(), account));
+        List<Account> created = parser.parseAndSave(text, false, false);
+
+        assertEquals(2, store.size());
+        assertEquals(2, created.size());
+    }
+
+    @Test
+    void testParseWithoutGroupingUsesBaseNameThenParenthesizedSuffixes() {
+        String text = """
+                http://example.test:8080
+                User : userA
+                Pass : passA
+
+                http://example.test:8080
+                User : userB
+                Pass : passB
+                """;
+
+        Map<String, Account> store = new LinkedHashMap<>();
+        XtremeParser parser = new XtremeParser(store::get, account -> store.put(account.getAccountName(), account));
+        parser.parseAndSave(text, false, false);
+
+        assertTrue(store.containsKey("example.test"));
+        assertTrue(store.containsKey("example.test (1)"));
     }
 }

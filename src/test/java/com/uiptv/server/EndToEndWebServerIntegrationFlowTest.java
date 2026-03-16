@@ -27,6 +27,7 @@ import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.LogUtil;
+import com.uiptv.util.XtremeCredentialsJson;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
@@ -222,6 +223,9 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 null, null, null, null, null, null,
                 AccountType.XTREME_API, null, xtremeBaseUrl, false
         );
+        xtreme.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(List.of(
+                new XtremeCredentialsJson.Entry("xtuser", "xtpass", true)
+        )));
         xtreme.setAction(itv);
         AccountService.getInstance().save(xtreme);
 
@@ -384,6 +388,13 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         }
         assertTrue(names.contains("web-stalker"));
         assertTrue(names.contains("web-xtreme"));
+
+        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(xtreme.getXtremeCredentialsJson());
+        assertFalse(entries.isEmpty());
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
+        assertNotNull(defaultEntry);
+        assertEquals(xtreme.getUsername(), defaultEntry.username());
     }
 
     private void assertCategoriesApi() throws Exception {

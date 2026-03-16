@@ -10,6 +10,7 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.XtremeCredentialsJson;
 import com.uiptv.widget.*;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -60,6 +61,9 @@ public class ManageAccountUI extends VBox {
     private final UIptvText name = new UIptvText("name", "manageAccountNameMustBeUniquePrompt", 5);
     private final UIptvText username = new UIptvText("username", "manageUserNamePrompt", 5);
     private final UIptvText password = new UIptvText("password", "managePasswordPrompt", 5);
+    private final UIptvCombo xtremeUsername = new UIptvCombo("xtremeUsername", "manageUserNamePrompt", 350);
+    private final Hyperlink manageXtremeCredentialsLink = new Hyperlink(I18n.tr("autoManage"));
+    private final HBox xtremeUsernameContainer = new HBox(5, xtremeUsername, manageXtremeCredentialsLink);
     private final UIptvText url = new UIptvText("url", "manageUrlPrompt", 5);
     private final UIptvText epg = new UIptvText("epg", "manageEpgPrompt", 5);
     private final UIptvCombo macAddress = new UIptvCombo("macAddress", PRIMARY_MAC_ADDRESS_HINT_KEY, 350);
@@ -111,6 +115,8 @@ public class ManageAccountUI extends VBox {
     private String accountId;
     private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;
+    private List<XtremeCredentialsJson.Entry> xtremeCredentials = new ArrayList<>();
+    private String xtremeDefaultUsername;
 
     public ManageAccountUI() {
         initWidgets();
@@ -165,6 +171,7 @@ public class ManageAccountUI extends VBox {
         macAddressList.setMaxWidth(Double.MAX_VALUE);
         httpMethodCombo.setMaxWidth(Double.MAX_VALUE);
         timezoneCombo.setMaxWidth(Double.MAX_VALUE);
+        xtremeUsername.setMaxWidth(Double.MAX_VALUE);
 
         macAddressList.textProperty().addListener((observable, oldVal, newVal) -> setupMacAddressByList(newVal));
 
@@ -173,6 +180,12 @@ public class ManageAccountUI extends VBox {
 
         manageMacsLink.setVisible(false);
         manageMacsLink.setOnAction(event -> openManageMacsPopup());
+
+        manageXtremeCredentialsLink.setVisible(false);
+        manageXtremeCredentialsLink.setManaged(false);
+        manageXtremeCredentialsLink.setOnAction(event -> openManageXtremeCredentialsPopup());
+        xtremeUsernameContainer.setAlignment(Pos.CENTER_LEFT);
+        xtremeUsername.valueProperty().addListener((obs, oldVal, newVal) -> handleXtremeUsernameSelection(newVal));
 
         pipeLabel.visibleProperty().bind(verifyMacsLink.visibleProperty());
         manageMacsLink.visibleProperty().bind(verifyMacsLink.visibleProperty());
@@ -233,15 +246,29 @@ public class ManageAccountUI extends VBox {
                 formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, username, password, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox);
                 break;
         }
 
+        configureXtremeControls(type);
         boolean cacheSupported = CACHE_SUPPORTED.contains(type);
         ensureAccountInfoSectionVisibility(type);
         refreshChannelsButton.setManaged(cacheSupported);
         refreshChannelsButton.setVisible(cacheSupported);
         formContainer.getChildren().add(actionSection);
+    }
+
+    private void configureXtremeControls(AccountType type) {
+        boolean isXtreme = type == AccountType.XTREME_API;
+        password.setEditable(!isXtreme);
+        xtremeUsernameContainer.setVisible(isXtreme);
+        xtremeUsernameContainer.setManaged(isXtreme);
+        manageXtremeCredentialsLink.setVisible(isXtreme);
+        manageXtremeCredentialsLink.setManaged(isXtreme);
+        if (isXtreme) {
+            seedXtremeCredentialsFromFieldsIfNeeded();
+            refreshXtremeUsernameItems();
+        }
     }
 
     private void ensureAccountInfoSectionVisibility(AccountType type) {
@@ -265,6 +292,83 @@ public class ManageAccountUI extends VBox {
                 formContainer.getChildren().add(actionIndex, accountInfoPane);
             }
         }
+    }
+
+    private void seedXtremeCredentialsFromFieldsIfNeeded() {
+        if (!xtremeCredentials.isEmpty()) {
+            return;
+        }
+        String currentUsername = isNotBlank(xtremeUsername.getValue()) ? xtremeUsername.getValue() : username.getText();
+        String currentPassword = password.getText();
+        if (isBlank(currentUsername) || isBlank(currentPassword)) {
+            return;
+        }
+        xtremeCredentials = new ArrayList<>();
+        xtremeCredentials.add(new XtremeCredentialsJson.Entry(currentUsername, currentPassword, true));
+        xtremeDefaultUsername = currentUsername;
+    }
+
+    private void refreshXtremeUsernameItems() {
+        if (xtremeCredentials.isEmpty()) {
+            xtremeUsername.getItems().clear();
+            xtremeUsername.setValue(null);
+            return;
+        }
+        List<XtremeCredentialsJson.Entry> normalized = XtremeCredentialsJson.normalize(xtremeCredentials, xtremeDefaultUsername);
+        xtremeCredentials = normalized;
+        xtremeUsername.getItems().setAll(normalized.stream().map(XtremeCredentialsJson.Entry::username).toList());
+
+        String selection = xtremeDefaultUsername;
+        if (isBlank(selection)) {
+            selection = xtremeUsername.getValue();
+        }
+        if (isBlank(selection) && !normalized.isEmpty()) {
+            selection = normalized.getFirst().username();
+        }
+        if (selection != null) {
+            xtremeUsername.setValue(selection);
+            handleXtremeUsernameSelection(selection);
+        }
+    }
+
+    private void handleXtremeUsernameSelection(String usernameValue) {
+        if (isBlank(usernameValue)) {
+            return;
+        }
+        XtremeCredentialsJson.Entry entry = resolveXtremeCredentialByUsername(usernameValue);
+        if (entry == null) {
+            return;
+        }
+        xtremeDefaultUsername = entry.username();
+        username.setText(entry.username());
+        password.setText(entry.password());
+    }
+
+    private XtremeCredentialsJson.Entry resolveXtremeCredentialByUsername(String usernameValue) {
+        if (isBlank(usernameValue)) {
+            return null;
+        }
+        for (XtremeCredentialsJson.Entry entry : xtremeCredentials) {
+            if (entry != null && usernameValue.equals(entry.username())) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    private void openManageXtremeCredentialsPopup() {
+        XtremeCredentialsManagementPopup popup = new XtremeCredentialsManagementPopup(
+                (Stage) getScene().getWindow(),
+                xtremeCredentials,
+                xtremeDefaultUsername,
+                (newEntries, newDefault) -> {
+                    xtremeCredentials = newEntries != null ? newEntries : new ArrayList<>();
+                    xtremeDefaultUsername = newDefault;
+                    refreshXtremeUsernameItems();
+                    saveAccount(false);
+                }
+        );
+        popup.show();
     }
 
     private void openManageMacsPopup() {
@@ -493,6 +597,10 @@ public class ManageAccountUI extends VBox {
 
     public void clearAll() {
         Arrays.stream(new UIptvText[]{name, username, password, url, serialNumber, deviceId1, deviceId2, signature, m3u8Path, epg}).forEach(TextInputControl::clear);
+        xtremeUsername.getItems().clear();
+        xtremeUsername.setValue(null);
+        xtremeCredentials = new ArrayList<>();
+        xtremeDefaultUsername = null;
         macAddressList.clear();
         macAddress.getItems().clear();
         macAddress.setValue(null);
@@ -849,10 +957,59 @@ public class ManageAccountUI extends VBox {
         AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, color, true);
     }
 
+    private void loadXtremeCredentialsFromAccount(Account account) {
+        if (account == null) {
+            return;
+        }
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(account.getXtremeCredentialsJson());
+        if (entries.isEmpty() && isNotBlank(account.getUsername()) && isNotBlank(account.getPassword())) {
+            entries = new ArrayList<>();
+            entries.add(new XtremeCredentialsJson.Entry(account.getUsername(), account.getPassword(), true));
+        } else {
+            entries = XtremeCredentialsJson.normalize(entries, account.getUsername());
+        }
+        xtremeCredentials = entries;
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
+        xtremeDefaultUsername = defaultEntry != null ? defaultEntry.username() : account.getUsername();
+        refreshXtremeUsernameItems();
+    }
+
+    private void applyXtremeCredentialsToAccount(Account account) {
+        if (account == null || account.getType() != AccountType.XTREME_API) {
+            return;
+        }
+        String selectedUsername = xtremeUsername.getValue();
+        String selectedPassword = password.getText();
+        List<XtremeCredentialsJson.Entry> entries = new ArrayList<>(xtremeCredentials);
+        if (entries.isEmpty() && isNotBlank(selectedUsername) && isNotBlank(selectedPassword)) {
+            entries.add(new XtremeCredentialsJson.Entry(selectedUsername, selectedPassword, true));
+        } else if (isNotBlank(selectedUsername) && isNotBlank(selectedPassword)) {
+            boolean exists = entries.stream().anyMatch(entry ->
+                    entry.username().equals(selectedUsername) && entry.password().equals(selectedPassword));
+            if (!exists) {
+                entries.add(new XtremeCredentialsJson.Entry(selectedUsername, selectedPassword, entries.isEmpty()));
+            }
+        }
+
+        List<XtremeCredentialsJson.Entry> normalized = XtremeCredentialsJson.normalize(entries, isNotBlank(selectedUsername) ? selectedUsername : xtremeDefaultUsername);
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(normalized);
+        if (defaultEntry != null) {
+            account.setUsername(defaultEntry.username());
+            account.setPassword(defaultEntry.password());
+            xtremeDefaultUsername = defaultEntry.username();
+        }
+        account.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(normalized));
+        xtremeCredentials = normalized;
+    }
+
     private Account getAccountFromForm() {
-        Account account = new Account(name.getText(), username.getText(), password.getText(), url.getText(),
+        AccountType resolvedType = getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue()) ? accountType.getValue() : AccountType.STALKER_PORTAL.getDisplay());
+        String resolvedUsername = resolvedType == AccountType.XTREME_API
+                ? (isNotBlank(xtremeUsername.getValue()) ? xtremeUsername.getValue() : username.getText())
+                : username.getText();
+        Account account = new Account(name.getText(), resolvedUsername, password.getText(), url.getText(),
                 macAddress.getValue() != null ? macAddress.getValue() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
-                getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue()) ? accountType.getValue() : AccountType.STALKER_PORTAL.getDisplay()), epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
+                resolvedType, epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
         if (accountId != null) {
             account.setDbId(accountId);
         }
@@ -875,6 +1032,7 @@ public class ManageAccountUI extends VBox {
             saveButton.setDisable(true);
 
             Account account = getAccountFromForm();
+            applyXtremeCredentialsToAccount(account);
             service.save(account);
 
             if (isFullSave) {
@@ -981,6 +1139,9 @@ public class ManageAccountUI extends VBox {
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         accountType.setValue(account.getType().getDisplay());
+        if (account.getType() == AccountType.XTREME_API) {
+            Platform.runLater(() -> loadXtremeCredentialsFromAccount(account));
+        }
         applyAccountInfo(accountInfoService.getByAccountId(accountId));
         ensureAccountInfoSectionVisibility(account.getType());
         updateButtonState();

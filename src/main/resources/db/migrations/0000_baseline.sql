@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS Account (
     accountName TEXT NOT NULL UNIQUE,
     username TEXT,
     password TEXT,
+    xtremeCredentialsJson TEXT,
     url TEXT,
     macAddress TEXT,
     macAddressList TEXT,
