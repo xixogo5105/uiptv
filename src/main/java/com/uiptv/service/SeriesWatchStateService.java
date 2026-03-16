@@ -268,10 +268,8 @@ public class SeriesWatchStateService {
                                               SeriesWatchState existing) {
         Channel seriesChannel = findSeriesChannel(account, portalCategoryId, state.getSeriesId(), matchedCategory);
         if (seriesChannel == null) {
-            return resolveSnapshotFallback(
-                    "",
-                    existing == null ? "" : existing.getSeriesChannelSnapshot()
-            );
+            // Preserve the last non-empty channel snapshot to avoid blanking the column on update.
+            return resolveSnapshotFallback("", existing == null ? "" : existing.getSeriesChannelSnapshot());
         }
         JSONObject seriesJson = new JSONObject(seriesChannel.toJson());
         seriesJson.put(FIELD_CATEGORY_ID, portalCategoryId);
