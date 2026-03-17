@@ -4,7 +4,9 @@ import com.uiptv.util.XtremeCredentialsJson;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
+import java.awt.GraphicsEnvironment;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +21,7 @@ class XtremeCredentialsManagementPopupTest {
 
     @BeforeAll
     static void initJavaFx() throws Exception {
+        Assumptions.assumeTrue(!isHeadlessEnvironment(), "Headless environment cannot initialize JavaFX");
         if (FX_STARTED.compareAndSet(false, true)) {
             CountDownLatch latch = new CountDownLatch(1);
             Platform.startup(latch::countDown);
@@ -26,6 +29,19 @@ class XtremeCredentialsManagementPopupTest {
                 throw new IllegalStateException("JavaFX platform failed to start");
             }
         }
+    }
+
+    private static boolean isHeadlessEnvironment() {
+        if (GraphicsEnvironment.isHeadless()) {
+            return true;
+        }
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        if (osName.contains("linux")) {
+            String display = System.getenv("DISPLAY");
+            String wayland = System.getenv("WAYLAND_DISPLAY");
+            return (display == null || display.isBlank()) && (wayland == null || wayland.isBlank());
+        }
+        return false;
     }
 
     @Test
