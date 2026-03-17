@@ -371,7 +371,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 resumeMedia();
             }
         });
-        btnStop.setOnAction(e -> stop());
+        btnStop.setOnAction(e -> {
+            exitFullscreen();
+            stop();
+        });
         btnRewind.setOnAction(e -> seekBySeconds(-15));
         btnFastForward.setOnAction(e -> seekBySeconds(15));
         btnRepeat.setOnAction(e -> {
@@ -384,7 +387,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             refreshAndPlay();
         });
         btnFullscreen.setOnAction(e -> toggleFullscreen());
-        btnPip.setOnAction(e -> togglePip());
+        btnPip.setOnAction(e -> {
+            exitFullscreen();
+            togglePip();
+        });
         btnAspectRatio.setOnAction(e -> toggleAspectRatio());
         btnHideBar.setOnAction(e -> hideControlBarByUser());
         btnMute.setOnAction(e -> {
@@ -1084,11 +1090,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             fullscreenStage.show();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
-            btnPip.setVisible(false);
-            btnPip.setManaged(false);
-            btnStop.setVisible(false);
-            btnStop.setManaged(false);
-
             isFullscreen = true;
             if (!isControlBarHiddenByUser) controlsContainer.setVisible(true);
             restoreVisibleCursor();
