@@ -363,7 +363,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse manifest = get("/manifest.json");
         assertEquals(200, manifest.statusCode());
         assertTrue(manifest.body().contains("\"name\": \"UIPTV Web\""));
-        assertTrue(manifest.body().contains("\"start_url\": \"/index.html\""));
+        assertTrue(manifest.body().contains("\"start_url\": \"index.html\""));
 
         HttpTextResponse serviceWorker = get("/sw.js");
         assertEquals(200, serviceWorker.statusCode());
