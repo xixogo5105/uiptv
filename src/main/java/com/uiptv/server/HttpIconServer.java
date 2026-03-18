@@ -4,36 +4,43 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.apache.commons.io.IOUtils;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class HttpIconServer implements HttpHandler {
-    // Assuming the icon is in the resources folder or web root. 
-    // Since getWebServerRootPath points to 'web', and the user said src/main/resources/icon.ico,
-    // I might need to adjust. But usually resources are copied or I need to find the path.
-    // For now, I'll assume it's copied to web root or I'll try to read from classpath if possible, 
-    // but this server seems to serve files from disk.
-    // Let's assume the user puts 'icon.png' in the 'web' folder for simplicity, 
-    // or I'll try to read the specific path provided if I can access it.
-    // The user provided: /Volumes/backup/code/uiptv/src/main/resources/icon.ico
-    
-    @SuppressWarnings("java:S1075")
-    private static final String ICON_PATH = "/Volumes/backup/code/uiptv/src/main/resources/icon.ico";
+    private static final String RESOURCE_ICON = "/icon.ico";
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        try (FileInputStream fis = new FileInputStream(ICON_PATH)) {
-            byte[] bytes = IOUtils.toByteArray(fis);
-            ex.getResponseHeaders().add("Content-Type", "image/x-icon");
-            ex.sendResponseHeaders(200, bytes.length);
-            try (OutputStream os = ex.getResponseBody()) {
-                os.write(bytes);
+        byte[] bytes = null;
+
+        try {
+            Path filePath = StaticWebFileResolver.resolve(ex);
+            bytes = Files.readAllBytes(filePath);
+        } catch (IOException ignored) {
+            // Fall through to classpath.
+        }
+
+        if (bytes == null) {
+            try (InputStream is = HttpIconServer.class.getResourceAsStream(RESOURCE_ICON)) {
+                if (is != null) {
+                    bytes = IOUtils.toByteArray(is);
+                }
             }
-        } catch (Exception _) {
-            // Fallback or 404
+        }
+
+        if (bytes == null) {
             ex.sendResponseHeaders(404, -1);
+            return;
+        }
+
+        ex.getResponseHeaders().add("Content-Type", "image/x-icon");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
         }
     }
 }
