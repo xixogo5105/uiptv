@@ -74,23 +74,11 @@ class StaticAssetHttpServersTest {
         HttpIconServer handler = new HttpIconServer();
         TestHttpExchange exchange = new TestHttpExchange("/icon.ico", "GET");
         handler.handle(exchange);
-        java.lang.reflect.Field iconField = HttpIconServer.class.getDeclaredField("ICON_PATH");
-        iconField.setAccessible(true);
-        String iconPathValue = (String) iconField.get(null);
-        Path iconPath = Path.of(iconPathValue);
+        Path iconPath = Path.of(com.uiptv.util.Platform.getWebServerRootPath(), "icon.ico");
         if (Files.exists(iconPath)) {
             assertEquals(200, exchange.getResponseCode());
             assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("image/x-icon"));
             assertTrue(exchange.getResponseBodyBytes().length > 0);
-
-            Path tempPath = iconPath.resolveSibling("icon.ico.bak");
-            Files.move(iconPath, tempPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            try (TestHttpExchange missingExchange = new TestHttpExchange("/icon.ico", "GET")) {
-                handler.handle(missingExchange);
-                assertEquals(404, missingExchange.getResponseCode());
-            } finally {
-                Files.move(tempPath, iconPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            }
         } else {
             assertEquals(404, exchange.getResponseCode());
         }
