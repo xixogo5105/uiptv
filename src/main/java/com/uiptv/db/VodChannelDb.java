@@ -49,6 +49,9 @@ public class VodChannelDb extends BaseDb {
     }
 
     public boolean isFresh(Account account, String categoryId, long maxAgeMs) {
+        if (maxAgeMs <= 0) {
+            return false;
+        }
         String sql = "SELECT MAX(cachedAt) FROM " + VOD_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());

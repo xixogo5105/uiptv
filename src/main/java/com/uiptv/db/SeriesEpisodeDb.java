@@ -41,6 +41,9 @@ public class SeriesEpisodeDb extends BaseDb {
     }
 
     public boolean isFresh(Account account, String categoryId, String seriesId, long maxAgeMs) {
+        if (maxAgeMs <= 0) {
+            return false;
+        }
         String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + WHERE_ACCOUNT_CATEGORY_SERIES;
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
@@ -59,6 +62,9 @@ public class SeriesEpisodeDb extends BaseDb {
     }
 
     public boolean isFreshInAnyCategory(Account account, String seriesId, long maxAgeMs) {
+        if (maxAgeMs <= 0) {
+            return false;
+        }
         String sql = "SELECT MAX(cachedAt) FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=? AND seriesId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
@@ -151,8 +157,9 @@ public class SeriesEpisodeDb extends BaseDb {
     }
 
     private String getFreshestCategoryId(Account account, String seriesId) {
-        String sql = "SELECT categoryId, MAX(cachedAt) AS latest FROM " + SERIES_EPISODE_TABLE.getTableName()
-                + " WHERE accountId=? AND seriesId=? GROUP BY categoryId ORDER BY latest DESC LIMIT 1";
+        String sql = "SELECT categoryId, MAX(cachedAt) AS latest, MAX(id) AS latestId FROM "
+                + SERIES_EPISODE_TABLE.getTableName()
+                + " WHERE accountId=? AND seriesId=? GROUP BY categoryId ORDER BY latest DESC, latestId DESC LIMIT 1";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
             statement.setString(2, seriesId);
