@@ -1003,7 +1003,9 @@ public class ManageAccountUI extends VBox {
     }
 
     private Account getAccountFromForm() {
-        AccountType resolvedType = getAccountTypeByDisplay(accountType.getValue() != null && isNotBlank(accountType.getValue()) ? accountType.getValue() : AccountType.STALKER_PORTAL.getDisplay());
+        String selectedAccountType = accountType.getValue();
+        String accountTypeDisplay = isNotBlank(selectedAccountType) ? selectedAccountType : AccountType.STALKER_PORTAL.getDisplay();
+        AccountType resolvedType = getAccountTypeByDisplay(accountTypeDisplay);
         String resolvedUsername = resolvedType == AccountType.XTREME_API
                 ? (isNotBlank(xtremeUsername.getValue()) ? xtremeUsername.getValue() : username.getText())
                 : username.getText();

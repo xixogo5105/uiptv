@@ -3,6 +3,7 @@ package com.uiptv.util;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -149,17 +150,17 @@ public class XtremeParser implements AccountParser {
             Account existing = groupedAccounts.get(name);
             if (existing != null) {
                 mergeCredentials(existing, parsed.credentials());
-                continue;
+            } else {
+                Account existingInDb = accountProvider.apply(name);
+                if (existingInDb != null) {
+                    mergeCredentials(existingInDb, parsed.credentials());
+                    groupedAccounts.put(name, existingInDb);
+                } else {
+                    Account account = buildAccount(name, parsed.url(), parsed.credentials());
+                    groupedAccounts.put(name, account);
+                    createdAccounts.add(account);
+                }
             }
-            Account existingInDb = accountProvider.apply(name);
-            if (existingInDb != null) {
-                mergeCredentials(existingInDb, parsed.credentials());
-                groupedAccounts.put(name, existingInDb);
-                continue;
-            }
-            Account account = buildAccount(name, parsed.url(), parsed.credentials());
-            groupedAccounts.put(name, account);
-            createdAccounts.add(account);
         }
         groupedAccounts.values().forEach(accountSaver);
         return createdAccounts;
@@ -210,7 +211,7 @@ public class XtremeParser implements AccountParser {
             return urlString;
         }
         try {
-            return new java.net.URL(urlString).getHost();
+            return URI.create(urlString).getHost();
         } catch (Exception _) {
             return urlString;
         }

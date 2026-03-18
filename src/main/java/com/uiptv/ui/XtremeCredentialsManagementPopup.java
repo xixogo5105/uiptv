@@ -33,7 +33,6 @@ import java.util.function.BiConsumer;
 
 import static com.uiptv.widget.UIptvAlert.okButtonType;
 import static com.uiptv.util.StringUtils.isBlank;
-import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class XtremeCredentialsManagementPopup extends VBox {
     private final Stage stage;

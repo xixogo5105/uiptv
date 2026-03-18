@@ -20,7 +20,7 @@ public class HttpIconServer implements HttpHandler {
         try {
             Path filePath = StaticWebFileResolver.resolve(ex);
             bytes = Files.readAllBytes(filePath);
-        } catch (IOException ignored) {
+        } catch (IOException _) {
             // Fall through to classpath.
         }
 

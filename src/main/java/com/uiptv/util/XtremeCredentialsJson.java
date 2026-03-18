@@ -31,16 +31,14 @@ public final class XtremeCredentialsJson {
             List<Entry> entries = new ArrayList<>();
             for (int i = 0; i < array.length(); i++) {
                 JSONObject obj = array.optJSONObject(i);
-                if (obj == null) {
-                    continue;
+                if (obj != null) {
+                    String username = obj.optString(KEY_USERNAME, "").trim();
+                    String password = obj.optString(KEY_PASSWORD, "");
+                    boolean isDefault = obj.optBoolean(KEY_DEFAULT, false);
+                    if (isNotBlank(username) && isNotBlank(password)) {
+                        entries.add(new Entry(username, password, isDefault));
+                    }
                 }
-                String username = obj.optString(KEY_USERNAME, "").trim();
-                String password = obj.optString(KEY_PASSWORD, "");
-                boolean isDefault = obj.optBoolean(KEY_DEFAULT, false);
-                if (isBlank(username) || isBlank(password)) {
-                    continue;
-                }
-                entries.add(new Entry(username, password, isDefault));
             }
             return normalize(entries, null);
         } catch (Exception _) {
@@ -52,50 +50,9 @@ public final class XtremeCredentialsJson {
         if (entries == null || entries.isEmpty()) {
             return new ArrayList<>();
         }
-        Map<String, Entry> unique = new LinkedHashMap<>();
-        for (Entry entry : entries) {
-            if (entry == null) {
-                continue;
-            }
-            String username = entry.username() != null ? entry.username().trim() : "";
-            String password = entry.password();
-            if (isBlank(username) || isBlank(password)) {
-                continue;
-            }
-            String key = username + "\u0000" + password;
-            if (!unique.containsKey(key)) {
-                unique.put(key, new Entry(username, password, entry.isDefault()));
-            }
-        }
-
-        List<Entry> normalized = new ArrayList<>(unique.values());
-        boolean defaultFound = false;
-        List<Entry> withDefault = new ArrayList<>(normalized.size());
-
-        if (isNotBlank(defaultUsername)) {
-            String normalizedDefault = defaultUsername.trim();
-            for (Entry entry : normalized) {
-                boolean isDefault = !defaultFound && entry.username().equals(normalizedDefault);
-                if (isDefault) {
-                    defaultFound = true;
-                }
-                withDefault.add(new Entry(entry.username(), entry.password(), isDefault));
-            }
-        } else {
-            for (Entry entry : normalized) {
-                boolean isDefault = entry.isDefault() && !defaultFound;
-                if (isDefault) {
-                    defaultFound = true;
-                }
-                withDefault.add(new Entry(entry.username(), entry.password(), isDefault));
-            }
-        }
-
-        if (!defaultFound && !withDefault.isEmpty()) {
-            Entry first = withDefault.get(0);
-            withDefault.set(0, new Entry(first.username(), first.password(), true));
-        }
-        return withDefault;
+        List<Entry> normalized = dedupe(entries);
+        List<Entry> withDefault = applyDefault(normalized, defaultUsername);
+        return ensureDefault(withDefault);
     }
 
     public static Entry resolveDefault(List<Entry> entries) {
@@ -126,5 +83,58 @@ public final class XtremeCredentialsJson {
             array.put(obj);
         }
         return array.toString();
+    }
+
+    private static List<Entry> dedupe(List<Entry> entries) {
+        Map<String, Entry> unique = new LinkedHashMap<>();
+        for (Entry entry : entries) {
+            if (entry != null) {
+                String username = entry.username() != null ? entry.username().trim() : "";
+                String password = entry.password();
+                if (isNotBlank(username) && isNotBlank(password)) {
+                    String key = username + "\u0000" + password;
+                    unique.computeIfAbsent(key, k -> new Entry(username, password, entry.isDefault()));
+                }
+            }
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private static List<Entry> applyDefault(List<Entry> entries, String defaultUsername) {
+        boolean defaultFound = false;
+        List<Entry> withDefault = new ArrayList<>(entries.size());
+        if (isNotBlank(defaultUsername)) {
+            String normalizedDefault = defaultUsername.trim();
+            for (Entry entry : entries) {
+                boolean isDefault = !defaultFound && entry.username().equals(normalizedDefault);
+                if (isDefault) {
+                    defaultFound = true;
+                }
+                withDefault.add(new Entry(entry.username(), entry.password(), isDefault));
+            }
+        } else {
+            for (Entry entry : entries) {
+                boolean isDefault = entry.isDefault() && !defaultFound;
+                if (isDefault) {
+                    defaultFound = true;
+                }
+                withDefault.add(new Entry(entry.username(), entry.password(), isDefault));
+            }
+        }
+        return withDefault;
+    }
+
+    private static List<Entry> ensureDefault(List<Entry> entries) {
+        if (entries.isEmpty()) {
+            return entries;
+        }
+        boolean hasDefault = entries.stream().anyMatch(entry -> entry != null && entry.isDefault());
+        if (hasDefault) {
+            return entries;
+        }
+        List<Entry> updated = new ArrayList<>(entries);
+        Entry first = updated.get(0);
+        updated.set(0, new Entry(first.username(), first.password(), true));
+        return updated;
     }
 }
