@@ -1006,9 +1006,13 @@ public class ManageAccountUI extends VBox {
         String selectedAccountType = accountType.getValue();
         String accountTypeDisplay = isNotBlank(selectedAccountType) ? selectedAccountType : AccountType.STALKER_PORTAL.getDisplay();
         AccountType resolvedType = getAccountTypeByDisplay(accountTypeDisplay);
-        String resolvedUsername = resolvedType == AccountType.XTREME_API
-                ? (isNotBlank(xtremeUsername.getValue()) ? xtremeUsername.getValue() : username.getText())
-                : username.getText();
+        String resolvedUsername = username.getText();
+        if (resolvedType == AccountType.XTREME_API) {
+            String xtremeSelectedUsername = xtremeUsername.getValue();
+            if (isNotBlank(xtremeSelectedUsername)) {
+                resolvedUsername = xtremeSelectedUsername;
+            }
+        }
         Account account = new Account(name.getText(), resolvedUsername, password.getText(), url.getText(),
                 macAddress.getValue() != null ? macAddress.getValue() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
                 resolvedType, epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
