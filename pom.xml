@@ -19,7 +19,6 @@
         <maven.compiler.release>25</maven.compiler.release>
         <vlcj.version>4.12.1</vlcj.version>
         <lombok.version>1.18.44</lombok.version>
-        <javafx.platform>linux</javafx.platform>
         <sonar.organization>xixogo5105</sonar.organization>
         <sonar.coverage.exclusions>
             src/main/java/com/uiptv/ui/**,
@@ -337,6 +336,12 @@
         <!-- Windows Profiles -->
         <profile>
             <id>windows-x86_64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
             <properties>
                 <javafx.platform>win</javafx.platform>
             </properties>
@@ -376,6 +381,12 @@
         </profile>
         <profile>
             <id>windows-aarch64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
             <properties>
                 <javafx.platform>win-aarch64</javafx.platform>
             </properties>
@@ -417,6 +428,12 @@
         <!-- macOS Profiles -->
         <profile>
             <id>mac-x86_64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
             <properties>
                 <javafx.platform>mac</javafx.platform>
             </properties>
@@ -515,6 +532,12 @@
         </profile>
         <profile>
             <id>mac-aarch64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
             <properties>
                 <javafx.platform>mac-aarch64</javafx.platform>
             </properties>
@@ -615,12 +638,26 @@
         <!-- Linux OS/Arch Profiles -->
         <profile>
             <id>linux-x86_64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>Linux</name>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
             <properties>
                 <javafx.platform>linux</javafx.platform>
             </properties>
         </profile>
         <profile>
             <id>linux-aarch64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
             <properties>
                 <javafx.platform>linux-aarch64</javafx.platform>
             </properties>

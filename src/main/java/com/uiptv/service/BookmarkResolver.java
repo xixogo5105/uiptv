@@ -17,8 +17,9 @@ public class BookmarkResolver {
 
     public ResolutionContext prepare(List<Bookmark> bookmarks) {
         Map<String, Account> accountByName = AccountService.getInstance().getAll();
-        Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName);
-        return new ResolutionContext(accountByName, channelByAccountAndChannel);
+        Map<String, BookmarkRenderData> renderDataByBookmarkId = preloadRenderData(bookmarks);
+        Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName, renderDataByBookmarkId);
+        return new ResolutionContext(accountByName, channelByAccountAndChannel, renderDataByBookmarkId);
     }
 
     public List<ResolvedBookmark> resolveBookmarks(List<Bookmark> bookmarks) {
@@ -35,7 +36,7 @@ public class BookmarkResolver {
 
     public ResolvedBookmark resolveBookmark(Bookmark bookmark, ResolutionContext context) {
         Account account = context.accountByName.get(bookmark.getAccountName());
-        BookmarkRenderData renderData = resolveBookmarkRenderData(bookmark);
+        BookmarkRenderData renderData = context.renderDataByBookmarkId.getOrDefault(bookmarkKey(bookmark), BookmarkRenderData.fromBookmark(bookmark));
         if (needsChannelFallback(renderData)) {
             mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), context.channelByAccountAndChannel));
         }
@@ -53,6 +54,20 @@ public class BookmarkResolver {
         BookmarkRenderData renderData = BookmarkRenderData.fromBookmark(bookmark);
         mergeRenderData(renderData, resolveBookmarkChannelSnapshot(bookmark));
         return renderData;
+    }
+
+    private Map<String, BookmarkRenderData> preloadRenderData(List<Bookmark> bookmarks) {
+        Map<String, BookmarkRenderData> renderDataByBookmarkId = new HashMap<>();
+        if (bookmarks == null || bookmarks.isEmpty()) {
+            return renderDataByBookmarkId;
+        }
+        for (Bookmark bookmark : bookmarks) {
+            if (bookmark == null) {
+                continue;
+            }
+            renderDataByBookmarkId.put(bookmarkKey(bookmark), resolveBookmarkRenderData(bookmark));
+        }
+        return renderDataByBookmarkId;
     }
 
     private Channel resolveBookmarkChannelSnapshot(Bookmark bookmark) {
@@ -104,22 +119,26 @@ public class BookmarkResolver {
         if (isBlank(target.manifestType)) target.manifestType = channel.getManifestType();
     }
 
-    private Map<String, Channel> preloadFallbackChannels(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
+    private Map<String, Channel> preloadFallbackChannels(List<Bookmark> bookmarks,
+                                                         Map<String, Account> accountByName,
+                                                         Map<String, BookmarkRenderData> renderDataByBookmarkId) {
         Map<String, Channel> channelByAccountAndChannel = new HashMap<>();
         if (bookmarks == null || bookmarks.isEmpty() || accountByName == null || accountByName.isEmpty()) {
             return channelByAccountAndChannel;
         }
 
-        Map<String, List<String>> requestedChannelIdsByAccountId = collectFallbackChannelIds(bookmarks, accountByName);
+        Map<String, List<String>> requestedChannelIdsByAccountId = collectFallbackChannelIds(bookmarks, accountByName, renderDataByBookmarkId);
         loadFallbackChannelsIntoCache(requestedChannelIdsByAccountId, channelByAccountAndChannel);
 
         return channelByAccountAndChannel;
     }
 
-    private Map<String, List<String>> collectFallbackChannelIds(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
+    private Map<String, List<String>> collectFallbackChannelIds(List<Bookmark> bookmarks,
+                                                                Map<String, Account> accountByName,
+                                                                Map<String, BookmarkRenderData> renderDataByBookmarkId) {
         Map<String, List<String>> requestedChannelIdsByAccountId = new HashMap<>();
         for (Bookmark bookmark : bookmarks) {
-            if (!requiresFallbackLookup(bookmark, accountByName)) {
+            if (!requiresFallbackLookup(bookmark, accountByName, renderDataByBookmarkId)) {
                 continue;
             }
             Account account = accountByName.get(bookmark.getAccountName());
@@ -130,11 +149,13 @@ public class BookmarkResolver {
         return requestedChannelIdsByAccountId;
     }
 
-    private boolean requiresFallbackLookup(Bookmark bookmark, Map<String, Account> accountByName) {
+    private boolean requiresFallbackLookup(Bookmark bookmark,
+                                           Map<String, Account> accountByName,
+                                           Map<String, BookmarkRenderData> renderDataByBookmarkId) {
         if (bookmark == null) {
             return false;
         }
-        BookmarkRenderData renderData = resolveBookmarkRenderData(bookmark);
+        BookmarkRenderData renderData = renderDataByBookmarkId.get(bookmarkKey(bookmark));
         if (!needsChannelFallback(renderData)) {
             return false;
         }
@@ -177,13 +198,29 @@ public class BookmarkResolver {
         return channel;
     }
 
+    private String bookmarkKey(Bookmark bookmark) {
+        if (bookmark == null) {
+            return "";
+        }
+        if (isNotBlank(bookmark.getDbId())) {
+            return bookmark.getDbId();
+        }
+        return (bookmark.getAccountName() == null ? "" : bookmark.getAccountName()) + "|"
+                + (bookmark.getChannelId() == null ? "" : bookmark.getChannelId()) + "|"
+                + (bookmark.getChannelName() == null ? "" : bookmark.getChannelName());
+    }
+
     public static final class ResolutionContext {
         private final Map<String, Account> accountByName;
         private final Map<String, Channel> channelByAccountAndChannel;
+        private final Map<String, BookmarkRenderData> renderDataByBookmarkId;
 
-        private ResolutionContext(Map<String, Account> accountByName, Map<String, Channel> channelByAccountAndChannel) {
+        private ResolutionContext(Map<String, Account> accountByName,
+                                  Map<String, Channel> channelByAccountAndChannel,
+                                  Map<String, BookmarkRenderData> renderDataByBookmarkId) {
             this.accountByName = accountByName == null ? Map.of() : accountByName;
             this.channelByAccountAndChannel = channelByAccountAndChannel == null ? Map.of() : channelByAccountAndChannel;
+            this.renderDataByBookmarkId = renderDataByBookmarkId == null ? Map.of() : renderDataByBookmarkId;
         }
     }
 

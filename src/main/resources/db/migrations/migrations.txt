@@ -63,3 +63,4 @@
 0183_add_account_info_preferred_stb_type.sql
 0184_add_account_info_profile_json.sql
 0185_add_account_xtreme_credentials_json.sql
+0186_add_bookmark_resolution_indexes.sql

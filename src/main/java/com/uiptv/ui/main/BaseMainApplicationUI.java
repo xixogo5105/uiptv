@@ -14,6 +14,7 @@ import com.uiptv.ui.ParseMultipleAccountUI;
 import com.uiptv.ui.UpdateChecker;
 import com.uiptv.ui.WatchingNowUI;
 import com.uiptv.util.SystemUtils;
+import javafx.animation.PauseTransition;
 import javafx.application.HostServices;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
@@ -30,8 +31,11 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public abstract class BaseMainApplicationUI {
 
@@ -41,6 +45,7 @@ public abstract class BaseMainApplicationUI {
     protected final Consumer<Scene> fontStyleConfigurer;
     protected final int guidedMaxWidthPixels;
     protected final int guidedMaxHeightPixels;
+    private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
 
     protected BaseMainApplicationUI(
             Stage primaryStage,
@@ -59,39 +64,36 @@ public abstract class BaseMainApplicationUI {
     }
 
     public Scene buildScene() {
-        ManageAccountUI manageAccountUI = new ManageAccountUI();
-        ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
-        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
-        WatchingNowUI watchingNowUI = new WatchingNowUI();
         AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow());
-        accountListUI.setManageAccountUI(manageAccountUI);
+        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
+        AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
+        setMinWidthForPane(bookmarkChannelListUI);
+        setMinWidthForPane(accountListUI);
 
-        configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI);
+        TabPane tabPane = new TabPane();
 
-        LogDisplayUI logDisplayUI = new LogDisplayUI();
-        ConfigurationUI configurationUI = new ConfigurationUI(param -> {
-            Scene currentScene = primaryStage.getScene();
-            if (currentScene != null) {
-                fontStyleConfigurer.accept(currentScene);
+        Tab manageAccountTab = new Tab(I18n.tr("autoAccount"),
+                useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : createDeferredPlaceholder());
+        Tab parseMultipleAccountTab = new Tab(I18n.tr("autoImportBulkAccounts"), createDeferredPlaceholder());
+        Tab bookmarkChannelListTab = new Tab(I18n.tr("autoFavorite"), bookmarkChannelListUI);
+        Tab watchingNowTab = new Tab(I18n.tr("autoWatchingNow"), createDeferredPlaceholder());
+        Tab logDisplayTab = new Tab(I18n.tr("autoLogs"), createDeferredPlaceholder());
+        Tab configurationTab = new Tab(I18n.tr("autoSettings"), createDeferredPlaceholder());
+
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
+            if (newTab == watchingNowTab) {
+                WatchingNowUI watchingNowUI = watchingNowRef.get();
+                if (watchingNowUI != null) {
+                    watchingNowUI.refreshIfNeeded();
+                }
             }
-            accountListUI.refresh();
-            bookmarkChannelListUI.forceReload();
-            watchingNowUI.forceReload();
         });
 
-        configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI, watchingNowUI);
-        configureParseMultipleAccountUI(parseMultipleAccountUI, accountListUI);
-        configureUIComponents(configurationUI, parseMultipleAccountUI, manageAccountUI, bookmarkChannelListUI, watchingNowUI, accountListUI);
-
-        TabPane tabPane = createTabPane(
-                manageAccountUI,
-                accountListUI,
-                parseMultipleAccountUI,
-                bookmarkChannelListUI,
-                watchingNowUI,
-                logDisplayUI,
-                configurationUI
-        );
+        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
+        tabPane.getSelectionModel().select(bookmarkChannelListTab);
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.setSide(Side.LEFT);
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
 
@@ -103,6 +105,18 @@ public abstract class BaseMainApplicationUI {
         Scene scene = new Scene(rootLayout, guidedMaxWidthPixels, guidedMaxHeightPixels);
         I18n.applySceneOrientation(scene);
         fontStyleConfigurer.accept(scene);
+        bookmarkChannelListUI.forceReload();
+
+        initializeDeferredTabs(
+                configurationTab,
+                manageAccountTab,
+                parseMultipleAccountTab,
+                logDisplayTab,
+                watchingNowTab,
+                accountListUI,
+                bookmarkChannelListUI,
+                watchingNowRef
+        );
         return scene;
     }
 
@@ -173,28 +187,87 @@ public abstract class BaseMainApplicationUI {
         return menuBar;
     }
 
-    private TabPane createTabPane(ManageAccountUI manageAccountUI, AccountListUI accountListUI, ParseMultipleAccountUI parseMultipleAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, LogDisplayUI logDisplayUI, ConfigurationUI configurationUI) {
-        TabPane tabPane = new TabPane();
+    private void initializeDeferredTabs(
+            Tab configurationTab,
+            Tab manageAccountTab,
+            Tab parseMultipleAccountTab,
+            Tab logDisplayTab,
+            Tab watchingNowTab,
+            AccountListUI accountListUI,
+            BookmarkChannelListUI bookmarkChannelListUI,
+            AtomicReference<WatchingNowUI> watchingNowRef
+    ) {
+        Supplier<WatchingNowUI> watchingNowSupplier = watchingNowRef::get;
+        Runnable loadWatchingNow = () -> {
+            WatchingNowUI watchingNowUI = new WatchingNowUI();
+            setMinWidthForPane(watchingNowUI);
+            watchingNowRef.set(watchingNowUI);
+            watchingNowTab.setContent(watchingNowUI);
+        };
 
-        Tab manageAccountTab = new Tab(I18n.tr("autoAccount"), useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : manageAccountUI);
-        Tab parseMultipleAccountTab = new Tab(I18n.tr("autoImportBulkAccounts"), parseMultipleAccountUI);
-        Tab bookmarkChannelListTab = new Tab(I18n.tr("autoFavorite"), bookmarkChannelListUI);
-        Tab watchingNowTab = new Tab(I18n.tr("autoWatchingNow"), watchingNowUI);
-        Tab logDisplayTab = new Tab(I18n.tr("autoLogs"), logDisplayUI);
-        Tab configurationTab = new Tab(I18n.tr("autoSettings"), configurationUI);
+        Runnable loadLogDisplay = () -> {
+            LogDisplayUI logDisplayUI = new LogDisplayUI();
+            setMinWidthForPane(logDisplayUI);
+            logDisplayTab.setContent(logDisplayUI);
+        };
 
-        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
-            if (newTab == watchingNowTab) {
-                watchingNowUI.refreshIfNeeded();
+        Runnable loadParseMultiple = () -> {
+            ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
+            setMinWidthForPane(parseMultipleAccountUI);
+            configureParseMultipleAccountUI(parseMultipleAccountUI, accountListUI);
+            parseMultipleAccountTab.setContent(parseMultipleAccountUI);
+        };
+
+        Runnable loadManageAccount = () -> {
+            ManageAccountUI manageAccountUI = new ManageAccountUI();
+            setMinWidthForPane(manageAccountUI);
+            accountListUI.setManageAccountUI(manageAccountUI);
+            configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowSupplier);
+            configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI, watchingNowSupplier);
+            if (!useEmbeddedAccountFlow()) {
+                manageAccountTab.setContent(manageAccountUI);
+            }
+        };
+
+        Runnable loadConfiguration = () -> {
+            ConfigurationUI configurationUI = new ConfigurationUI(param -> {
+                Scene currentScene = primaryStage.getScene();
+                if (currentScene != null) {
+                    fontStyleConfigurer.accept(currentScene);
+                }
+                accountListUI.refresh();
+                bookmarkChannelListUI.forceReload();
+                WatchingNowUI watchingNowUI = watchingNowRef.get();
+                if (watchingNowUI != null) {
+                    watchingNowUI.forceReload();
+                }
+            });
+            setMinWidthForPane(configurationUI);
+            configurationTab.setContent(configurationUI);
+        };
+
+        scheduleDeferredTabLoad(loadConfiguration,
+                () -> scheduleDeferredTabLoad(loadManageAccount,
+                        () -> scheduleDeferredTabLoad(loadParseMultiple,
+                                () -> scheduleDeferredTabLoad(loadLogDisplay,
+                                        () -> scheduleDeferredTabLoad(loadWatchingNow, null)))));
+    }
+
+    private void scheduleDeferredTabLoad(Runnable loader, Runnable nextStep) {
+        PauseTransition pause = new PauseTransition(DEFERRED_TAB_GAP);
+        pause.setOnFinished(event -> {
+            loader.run();
+            if (nextStep != null) {
+                nextStep.run();
             }
         });
+        pause.play();
+    }
 
-        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
-        tabPane.getSelectionModel().select(bookmarkChannelListTab);
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setSide(Side.LEFT);
-        return tabPane;
+    private VBox createDeferredPlaceholder() {
+        VBox placeholder = new VBox();
+        VBox.setVgrow(placeholder, Priority.ALWAYS);
+        return placeholder;
     }
 
     private VBox wrapToFill(javafx.scene.Node content) {
@@ -233,20 +306,26 @@ public abstract class BaseMainApplicationUI {
         return wrapper;
     }
 
-    private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI) {
+    private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, Supplier<WatchingNowUI> watchingNowSupplier) {
         accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
         accountListUI.addDeleteCallbackHandler(param -> {
             manageAccountUI.deleteAccount((Account) param);
             bookmarkChannelListUI.forceReload();
-            watchingNowUI.forceReload();
+            WatchingNowUI watchingNowUI = watchingNowSupplier.get();
+            if (watchingNowUI != null) {
+                watchingNowUI.forceReload();
+            }
         });
     }
 
-    private void configureManageAccountUI(ManageAccountUI manageAccountUI, AccountListUI accountListUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI) {
+    private void configureManageAccountUI(ManageAccountUI manageAccountUI, AccountListUI accountListUI, BookmarkChannelListUI bookmarkChannelListUI, Supplier<WatchingNowUI> watchingNowSupplier) {
         manageAccountUI.addCallbackHandler(param -> {
             accountListUI.refresh();
             bookmarkChannelListUI.forceReload();
-            watchingNowUI.forceReload();
+            WatchingNowUI watchingNowUI = watchingNowSupplier.get();
+            if (watchingNowUI != null) {
+                watchingNowUI.forceReload();
+            }
         });
     }
 
@@ -254,12 +333,7 @@ public abstract class BaseMainApplicationUI {
         parseMultipleAccountUI.addCallbackHandler(param -> accountListUI.refresh());
     }
 
-    private void configureUIComponents(ConfigurationUI configurationUI, ParseMultipleAccountUI parseMultipleAccountUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, WatchingNowUI watchingNowUI, AccountListUI accountListUI) {
-        configurationUI.setMinWidth((double) guidedMaxWidthPixels / 4);
-        parseMultipleAccountUI.setMinWidth((double) guidedMaxWidthPixels / 4);
-        manageAccountUI.setMinWidth((double) guidedMaxWidthPixels / 4);
-        bookmarkChannelListUI.setMinWidth((double) guidedMaxWidthPixels / 4);
-        watchingNowUI.setMinWidth((double) guidedMaxWidthPixels / 4);
-        accountListUI.setMinWidth((double) guidedMaxWidthPixels / 4);
+    private void setMinWidthForPane(Region pane) {
+        pane.setMinWidth((double) guidedMaxWidthPixels / 4);
     }
 }
