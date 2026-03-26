@@ -424,6 +424,18 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>windows-amd64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>win</javafx.platform>
+            </properties>
+        </profile>
 
         <!-- macOS Profiles -->
         <profile>
@@ -643,6 +655,19 @@
                     <family>unix</family>
                     <name>Linux</name>
                     <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>linux</javafx.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>linux-amd64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
                 </os>
             </activation>
             <properties>
