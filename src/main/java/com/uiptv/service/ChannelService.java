@@ -1,8 +1,8 @@
 package com.uiptv.service;
 
 import com.uiptv.api.LoggerCallback;
-import com.uiptv.db.ChannelDb;
 import com.uiptv.db.CategoryDb;
+import com.uiptv.db.ChannelDb;
 import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
@@ -21,17 +21,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.util.Collection;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static com.uiptv.model.Account.AccountAction.itv;
-import static com.uiptv.model.Account.AccountAction.series;
-import static com.uiptv.model.Account.AccountAction.vod;
+import static com.uiptv.model.Account.AccountAction.*;
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -82,10 +78,6 @@ public class ChannelService {
         params.put("max_count", "0");
         params.put("JsHttpRequest", new Date().getTime() + "-xml");
         return params;
-    }
-
-    private static class SingletonHelper {
-        private static final ChannelService INSTANCE = new ChannelService();
     }
 
     public static ChannelService getInstance() {
@@ -207,23 +199,37 @@ public class ChannelService {
             return;
         }
         Thread logoThread = new Thread(() -> {
-            boolean updated = false;
-            for (Channel channel : channels) {
-                if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.getAsBoolean())) {
-                    return;
-                }
-                String before = channel == null ? null : channel.getLogo();
-                resolveLogoIfNeeded(channel);
-                if (!Objects.equals(before, channel == null ? null : channel.getLogo())) {
-                    updated = true;
-                }
-            }
-            if (updated && callback != null && (isCancelled == null || !isCancelled.getAsBoolean())) {
+            if (resolveAnyLogos(channels, isCancelled) && shouldPublishResolvedLogos(callback, isCancelled)) {
                 callback.accept(channels);
             }
         }, "channel-logo-resolver");
         logoThread.setDaemon(true);
         logoThread.start();
+    }
+
+    private boolean resolveAnyLogos(List<Channel> channels, BooleanSupplier isCancelled) {
+        boolean updated = false;
+        for (Channel channel : channels) {
+            if (isLogoResolutionCancelled(isCancelled)) {
+                return false;
+            }
+            updated |= resolveLogoIfChanged(channel);
+        }
+        return updated;
+    }
+
+    private boolean isLogoResolutionCancelled(BooleanSupplier isCancelled) {
+        return Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.getAsBoolean());
+    }
+
+    private boolean resolveLogoIfChanged(Channel channel) {
+        String before = channel == null ? null : channel.getLogo();
+        resolveLogoIfNeeded(channel);
+        return !Objects.equals(before, channel == null ? null : channel.getLogo());
+    }
+
+    private boolean shouldPublishResolvedLogos(Consumer<List<Channel>> callback, BooleanSupplier isCancelled) {
+        return callback != null && (isCancelled == null || !isCancelled.getAsBoolean());
     }
 
     private List<Channel> resolveCachedLiveChannels(String categoryId, String dbCategoryId, Account account) {
@@ -678,14 +684,6 @@ public class ChannelService {
         }
     }
 
-    private record StalkerPageRequest(String category, Account account, String movieId, String seriesId, boolean censor) {
-    }
-
-    private record PaginationPlan(int startPage, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
-                                  LoggerCallback logger, Consumer<PageProgress> progressCallback, RequestThrottle throttle,
-                                  PageAccumulator accumulator) {
-    }
-
     private boolean isEmptyChannelPage(PageFetchResult page) {
         return page.channels == null || page.channels.isEmpty();
     }
@@ -718,91 +716,6 @@ public class ChannelService {
         }
         String key = (account == null ? "" : account.getDbId()) + "|" + portalHost + "|" + (account == null ? "" : account.getAction());
         return STALKER_THROTTLES.computeIfAbsent(key, _ -> new RequestThrottle(STALKER_BASE_DELAY_MS, STALKER_MAX_DELAY_MS, STALKER_JITTER_MS));
-    }
-
-    static final class RequestThrottle {
-        private final long baseDelayMs;
-        private final long maxDelayMs;
-        private final long jitterMs;
-        private long nextAllowedAtMs;
-        private int failures;
-
-        RequestThrottle(long baseDelayMs, long maxDelayMs, long jitterMs) {
-            this.baseDelayMs = Math.max(0, baseDelayMs);
-            this.maxDelayMs = Math.max(this.baseDelayMs, maxDelayMs);
-            this.jitterMs = Math.max(0, jitterMs);
-        }
-
-        void awaitPermit() {
-            long delay;
-            synchronized (this) {
-                long now = System.currentTimeMillis();
-                delay = nextAllowedAtMs - now;
-            }
-            if (delay <= 0) {
-                return;
-            }
-            try {
-                Thread.sleep(delay);
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        synchronized long onSuccess() {
-            failures = 0;
-            return scheduleNext(baseDelayMs);
-        }
-
-        synchronized long onFailure() {
-            failures = Math.min(failures + 1, 6);
-            long backoff = baseDelayMs * (1L << failures);
-            return scheduleNext(Math.min(backoff, maxDelayMs));
-        }
-
-        private long scheduleNext(long baseDelay) {
-            long jitter = jitterMs == 0 ? 0 : java.util.concurrent.ThreadLocalRandom.current().nextLong(-jitterMs, jitterMs + 1);
-            long delay = Math.max(0, baseDelay + jitter);
-            nextAllowedAtMs = System.currentTimeMillis() + delay;
-            return delay;
-        }
-    }
-
-    private record PageFetchResult(List<Channel> channels, Pagination pagination) {
-    }
-
-    private record PageAttempt(PageFetchResult page, boolean cancelled) {
-        static PageAttempt success(PageFetchResult page) {
-            return new PageAttempt(page, false);
-        }
-
-        static PageAttempt failed() {
-            return new PageAttempt(null, false);
-        }
-
-        static PageAttempt cancelledAttempt() {
-            return new PageAttempt(null, true);
-        }
-    }
-
-    private static final class PageAccumulator {
-        private int fetchedItems;
-        private int totalItems;
-        private int pageCount;
-
-        private void update(PageFetchResult page) {
-            if (page == null) {
-                return;
-            }
-            fetchedItems += page.channels.size();
-            if (page.pagination != null) {
-                totalItems = Math.max(totalItems, page.pagination.getMaxPageItems());
-                pageCount = Math.max(pageCount, page.pagination.getPageCount());
-            }
-        }
-    }
-
-    public record PageProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {
     }
 
     private void emitProgress(Consumer<PageProgress> progressCallback, int fetchedItems, int totalItems, int pageNumber, int pageCount) {
@@ -1007,12 +920,6 @@ public class ChannelService {
         return new PortalAddress(scheme, host, port);
     }
 
-    private record PortalAddress(String scheme, String host, int port) {
-        private String origin() {
-            return scheme + "://" + host + (port > 0 ? ":" + port : "");
-        }
-    }
-
     public List<Channel> censor(List<Channel> channelList) {
         return contentFilterService.filterChannels(channelList);
     }
@@ -1051,6 +958,111 @@ public class ChannelService {
         String resolved = logoResolverService.resolve(channel.getName(), currentLogo);
         if (isNotBlank(resolved)) {
             channel.setLogo(resolved);
+        }
+    }
+
+    private static class SingletonHelper {
+        private static final ChannelService INSTANCE = new ChannelService();
+    }
+
+    private record StalkerPageRequest(String category, Account account, String movieId, String seriesId,
+                                      boolean censor) {
+    }
+
+    private record PaginationPlan(int startPage, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                  LoggerCallback logger, Consumer<PageProgress> progressCallback,
+                                  RequestThrottle throttle,
+                                  PageAccumulator accumulator) {
+    }
+
+    static final class RequestThrottle {
+        private final long baseDelayMs;
+        private final long maxDelayMs;
+        private final long jitterMs;
+        private long nextAllowedAtMs;
+        private int failures;
+
+        RequestThrottle(long baseDelayMs, long maxDelayMs, long jitterMs) {
+            this.baseDelayMs = Math.max(0, baseDelayMs);
+            this.maxDelayMs = Math.max(this.baseDelayMs, maxDelayMs);
+            this.jitterMs = Math.max(0, jitterMs);
+        }
+
+        void awaitPermit() {
+            long delay;
+            synchronized (this) {
+                long now = System.currentTimeMillis();
+                delay = nextAllowedAtMs - now;
+            }
+            if (delay <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        synchronized long onSuccess() {
+            failures = 0;
+            return scheduleNext(baseDelayMs);
+        }
+
+        synchronized long onFailure() {
+            failures = Math.min(failures + 1, 6);
+            long backoff = baseDelayMs * (1L << failures);
+            return scheduleNext(Math.min(backoff, maxDelayMs));
+        }
+
+        private long scheduleNext(long baseDelay) {
+            long jitter = jitterMs == 0 ? 0 : java.util.concurrent.ThreadLocalRandom.current().nextLong(-jitterMs, jitterMs + 1);
+            long delay = Math.max(0, baseDelay + jitter);
+            nextAllowedAtMs = System.currentTimeMillis() + delay;
+            return delay;
+        }
+    }
+
+    private record PageFetchResult(List<Channel> channels, Pagination pagination) {
+    }
+
+    private record PageAttempt(PageFetchResult page, boolean cancelled) {
+        static PageAttempt success(PageFetchResult page) {
+            return new PageAttempt(page, false);
+        }
+
+        static PageAttempt failed() {
+            return new PageAttempt(null, false);
+        }
+
+        static PageAttempt cancelledAttempt() {
+            return new PageAttempt(null, true);
+        }
+    }
+
+    private static final class PageAccumulator {
+        private int fetchedItems;
+        private int totalItems;
+        private int pageCount;
+
+        private void update(PageFetchResult page) {
+            if (page == null) {
+                return;
+            }
+            fetchedItems += page.channels.size();
+            if (page.pagination != null) {
+                totalItems = Math.max(totalItems, page.pagination.getMaxPageItems());
+                pageCount = Math.max(pageCount, page.pagination.getPageCount());
+            }
+        }
+    }
+
+    public record PageProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {
+    }
+
+    private record PortalAddress(String scheme, String host, int port) {
+        private String origin() {
+            return scheme + "://" + host + (port > 0 ? ":" + port : "");
         }
     }
 
