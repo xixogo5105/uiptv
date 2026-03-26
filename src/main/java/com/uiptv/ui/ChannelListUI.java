@@ -136,37 +136,7 @@ public class ChannelListUI extends HBox {
             Set<String> savedVodKeys = loadVodWatchStateKeys();
             List<ChannelItem> newItems = new ArrayList<>();
             List<LogoUpdate> logoUpdates = new ArrayList<>();
-            newChannels.forEach(i -> {
-                if (i == null) {
-                    return;
-                }
-                String key = buildChannelKey(i);
-                ChannelItem existingItem = channelItemByKey.get(key);
-                String normalizedLogo = normalizeImageUrl(i.getLogo());
-                if (existingItem != null) {
-                    if (!isBlank(normalizedLogo) && !Objects.equals(existingItem.getLogo(), normalizedLogo)) {
-                        logoUpdates.add(new LogoUpdate(existingItem, normalizedLogo, i));
-                    }
-                    return;
-                }
-                if (!seenChannelKeys.add(key)) {
-                    return;
-                }
-                channelList.add(i);
-                BookmarkContext ctx = resolveBookmarkContext(i);
-                boolean isBookmarked = account.getAction() == vod
-                        ? isVodSaved(i, ctx, savedVodKeys)
-                        : isChannelBookmarked(i, ctx, accountBookmarks);
-                if (account.getAction() == series) {
-                    String seriesCategoryId = resolveSeriesCategoryId(i, ctx);
-                    boolean inProgress = SeriesWatchStateService.getInstance()
-                            .getSeriesLastWatched(account.getDbId(), seriesCategoryId, i.getChannelId()) != null;
-                    i.setWatched(inProgress);
-                }
-                ChannelItem channelItem = new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(normalizedLogo), i);
-                channelItemByKey.put(key, channelItem);
-                newItems.add(channelItem);
-            });
+            newChannels.forEach(channel -> processIncomingChannel(channel, accountBookmarks, savedVodKeys, newItems, logoUpdates));
 
             runLater(() -> {
                 if (!newItems.isEmpty()) {
@@ -182,6 +152,69 @@ public class ChannelListUI extends HBox {
                 }
             });
         }
+    }
+
+    private void processIncomingChannel(Channel channel,
+                                        List<Bookmark> accountBookmarks,
+                                        Set<String> savedVodKeys,
+                                        List<ChannelItem> newItems,
+                                        List<LogoUpdate> logoUpdates) {
+        if (channel == null) {
+            return;
+        }
+        String key = buildChannelKey(channel);
+        String normalizedLogo = normalizeImageUrl(channel.getLogo());
+        if (queueLogoUpdateIfPresent(channel, key, normalizedLogo, logoUpdates)) {
+            return;
+        }
+        if (!seenChannelKeys.add(key)) {
+            return;
+        }
+        BookmarkContext context = resolveBookmarkContext(channel);
+        updateSeriesProgressIfNeeded(channel, context);
+        ChannelItem channelItem = buildChannelItem(channel, normalizedLogo, context, accountBookmarks, savedVodKeys);
+        channelList.add(channel);
+        channelItemByKey.put(key, channelItem);
+        newItems.add(channelItem);
+    }
+
+    private boolean queueLogoUpdateIfPresent(Channel channel, String key, String normalizedLogo, List<LogoUpdate> logoUpdates) {
+        ChannelItem existingItem = channelItemByKey.get(key);
+        if (existingItem == null) {
+            return false;
+        }
+        if (!isBlank(normalizedLogo) && !Objects.equals(existingItem.getLogo(), normalizedLogo)) {
+            logoUpdates.add(new LogoUpdate(existingItem, normalizedLogo, channel));
+        }
+        return true;
+    }
+
+    private void updateSeriesProgressIfNeeded(Channel channel, BookmarkContext context) {
+        if (account.getAction() != series) {
+            return;
+        }
+        String seriesCategoryId = resolveSeriesCategoryId(channel, context);
+        boolean inProgress = SeriesWatchStateService.getInstance()
+                .getSeriesLastWatched(account.getDbId(), seriesCategoryId, channel.getChannelId()) != null;
+        channel.setWatched(inProgress);
+    }
+
+    private ChannelItem buildChannelItem(Channel channel,
+                                         String normalizedLogo,
+                                         BookmarkContext context,
+                                         List<Bookmark> accountBookmarks,
+                                         Set<String> savedVodKeys) {
+        boolean isBookmarked = account.getAction() == vod
+                ? isVodSaved(channel, context, savedVodKeys)
+                : isChannelBookmarked(channel, context, accountBookmarks);
+        return new ChannelItem(
+                new SimpleStringProperty(channel.getName()),
+                new SimpleStringProperty(channel.getChannelId()),
+                new SimpleStringProperty(channel.getCmd()),
+                isBookmarked,
+                new SimpleStringProperty(normalizedLogo),
+                channel
+        );
     }
 
     private String buildChannelKey(Channel channel) {

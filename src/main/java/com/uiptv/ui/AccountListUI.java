@@ -30,14 +30,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
-import static com.uiptv.model.Account.*;
+import static com.uiptv.model.Account.CACHE_SUPPORTED;
+import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
-    private final CacheService cacheService = new CacheServiceImpl();
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
     private final VBox listView = new VBox(5);

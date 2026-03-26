@@ -25,6 +25,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.util.Collection;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -115,19 +116,11 @@ public class ChannelService {
         if (account.getType() == AccountType.RSS_FEED) {
             return publishChannels(maybeFilterChannels(rssChannels(categoryId, account), true), callback);
         }
-        List<Channel> channels = resolveCachedLiveChannels(categoryId, dbId, account);
-        int channelCount = channels.size();
-        if (channels.isEmpty()) {
-            channelCount = cacheService.getChannelCountForAccount(account.getDbId());
-            if (channelCount == 0) {
-                cacheService.reloadCache(account, logger != null ? logger : log::info);
-                channels = resolveCachedLiveChannels(categoryId, dbId, account);
-            }
-        }
+        List<Channel> channels = loadCachedLiveChannels(categoryId, dbId, account, logger);
         if (account.getAction() == itv && !channels.isEmpty()) {
             List<Channel> visibleChannels = maybeFilterChannels(dedupeChannels(channels), true);
             publishChannels(visibleChannels, callback);
-            resolveChannelLogosAsync(visibleChannels, callback, isCancelled);
+            resolveChannelLogosAsync(visibleChannels, callback, () -> isCancelled != null && isCancelled.get());
             return visibleChannels;
         }
         channels.forEach(this::resolveLogoIfNeeded);
@@ -136,6 +129,18 @@ public class ChannelService {
         }
         List<Channel> result = maybeFilterChannels(dedupeChannels(channels), true);
         return publishChannels(result, callback);
+    }
+
+    private List<Channel> loadCachedLiveChannels(String categoryId, String dbId, Account account, LoggerCallback logger) throws IOException {
+        List<Channel> channels = resolveCachedLiveChannels(categoryId, dbId, account);
+        if (!channels.isEmpty()) {
+            return channels;
+        }
+        if (cacheService.getChannelCountForAccount(account.getDbId()) != 0) {
+            return channels;
+        }
+        cacheService.reloadCache(account, logger != null ? logger : log::info);
+        return resolveCachedLiveChannels(categoryId, dbId, account);
     }
 
     private List<Channel> getNonLiveChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
@@ -197,14 +202,14 @@ public class ChannelService {
         return channels;
     }
 
-    private void resolveChannelLogosAsync(List<Channel> channels, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+    private void resolveChannelLogosAsync(List<Channel> channels, Consumer<List<Channel>> callback, BooleanSupplier isCancelled) {
         if (channels == null || channels.isEmpty()) {
             return;
         }
         Thread logoThread = new Thread(() -> {
             boolean updated = false;
             for (Channel channel : channels) {
-                if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
+                if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.getAsBoolean())) {
                     return;
                 }
                 String before = channel == null ? null : channel.getLogo();
@@ -213,7 +218,7 @@ public class ChannelService {
                     updated = true;
                 }
             }
-            if (updated && callback != null && (isCancelled == null || !isCancelled.get())) {
+            if (updated && callback != null && (isCancelled == null || !isCancelled.getAsBoolean())) {
                 callback.accept(channels);
             }
         }, "channel-logo-resolver");
