@@ -115,17 +115,27 @@ public class ChannelService {
         if (account.getType() == AccountType.RSS_FEED) {
             return publishChannels(maybeFilterChannels(rssChannels(categoryId, account), true), callback);
         }
-        int channelCount = cacheService.getChannelCountForAccount(account.getDbId());
-        if (channelCount == 0) {
-            cacheService.reloadCache(account, logger != null ? logger : log::info);
-        }
-
         List<Channel> channels = resolveCachedLiveChannels(categoryId, dbId, account);
+        int channelCount = channels.size();
+        if (channels.isEmpty()) {
+            channelCount = cacheService.getChannelCountForAccount(account.getDbId());
+            if (channelCount == 0) {
+                cacheService.reloadCache(account, logger != null ? logger : log::info);
+                channels = resolveCachedLiveChannels(categoryId, dbId, account);
+            }
+        }
+        if (account.getAction() == itv && !channels.isEmpty()) {
+            List<Channel> visibleChannels = maybeFilterChannels(dedupeChannels(channels), true);
+            publishChannels(visibleChannels, callback);
+            resolveChannelLogosAsync(visibleChannels, callback, isCancelled);
+            return visibleChannels;
+        }
         channels.forEach(this::resolveLogoIfNeeded);
         if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
             fetchAndCacheMissingLiveChannels(categoryId, account, dbId, callback, isCancelled, logger, channels);
         }
-        return publishChannels(maybeFilterChannels(dedupeChannels(channels), true), callback);
+        List<Channel> result = maybeFilterChannels(dedupeChannels(channels), true);
+        return publishChannels(result, callback);
     }
 
     private List<Channel> getNonLiveChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
@@ -185,6 +195,30 @@ public class ChannelService {
             callback.accept(channels);
         }
         return channels;
+    }
+
+    private void resolveChannelLogosAsync(List<Channel> channels, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+        if (channels == null || channels.isEmpty()) {
+            return;
+        }
+        Thread logoThread = new Thread(() -> {
+            boolean updated = false;
+            for (Channel channel : channels) {
+                if (Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get())) {
+                    return;
+                }
+                String before = channel == null ? null : channel.getLogo();
+                resolveLogoIfNeeded(channel);
+                if (!Objects.equals(before, channel == null ? null : channel.getLogo())) {
+                    updated = true;
+                }
+            }
+            if (updated && callback != null && (isCancelled == null || !isCancelled.get())) {
+                callback.accept(channels);
+            }
+        }, "channel-logo-resolver");
+        logoThread.setDaemon(true);
+        logoThread.start();
     }
 
     private List<Channel> resolveCachedLiveChannels(String categoryId, String dbCategoryId, Account account) {

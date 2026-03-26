@@ -64,3 +64,4 @@
 0184_add_account_info_profile_json.sql
 0185_add_account_xtreme_credentials_json.sql
 0186_add_bookmark_resolution_indexes.sql
+0187_add_channel_category_id_index.sql

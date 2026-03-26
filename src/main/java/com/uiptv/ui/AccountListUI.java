@@ -514,13 +514,6 @@ public class AccountListUI extends HBox {
             showDetailViewNonEmbedded(categoryListUI);
         }
 
-        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(account.getAction()) || account.getType() == AccountType.RSS_FEED;
-        boolean channelsAlreadyLoaded = noCachingNeeded || cacheService.getChannelCountForAccount(account.getDbId()) > 0;
-
-        if (!channelsAlreadyLoaded) {
-            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::refresh);
-        }
-
         RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
 
         new Thread(() -> {

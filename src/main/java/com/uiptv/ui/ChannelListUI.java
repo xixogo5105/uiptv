@@ -61,6 +61,7 @@ public class ChannelListUI extends HBox {
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
     private final Set<String> seenChannelKeys = new HashSet<>();
+    private final Map<String, ChannelItem> channelItemByKey = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicReference<Map<String, String>> categoryTitleByCategoryId = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
@@ -134,11 +135,20 @@ public class ChannelListUI extends HBox {
             List<Bookmark> accountBookmarks = loadBookmarksForAccount();
             Set<String> savedVodKeys = loadVodWatchStateKeys();
             List<ChannelItem> newItems = new ArrayList<>();
+            List<LogoUpdate> logoUpdates = new ArrayList<>();
             newChannels.forEach(i -> {
                 if (i == null) {
                     return;
                 }
                 String key = buildChannelKey(i);
+                ChannelItem existingItem = channelItemByKey.get(key);
+                String normalizedLogo = normalizeImageUrl(i.getLogo());
+                if (existingItem != null) {
+                    if (!isBlank(normalizedLogo) && !Objects.equals(existingItem.getLogo(), normalizedLogo)) {
+                        logoUpdates.add(new LogoUpdate(existingItem, normalizedLogo, i));
+                    }
+                    return;
+                }
                 if (!seenChannelKeys.add(key)) {
                     return;
                 }
@@ -153,13 +163,23 @@ public class ChannelListUI extends HBox {
                             .getSeriesLastWatched(account.getDbId(), seriesCategoryId, i.getChannelId()) != null;
                     i.setWatched(inProgress);
                 }
-                String normalizedLogo = normalizeImageUrl(i.getLogo());
-                newItems.add(new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(normalizedLogo), i));
+                ChannelItem channelItem = new ChannelItem(new SimpleStringProperty(i.getName()), new SimpleStringProperty(i.getChannelId()), new SimpleStringProperty(i.getCmd()), isBookmarked, new SimpleStringProperty(normalizedLogo), i);
+                channelItemByKey.put(key, channelItem);
+                newItems.add(channelItem);
             });
 
             runLater(() -> {
-                channelItems.addAll(newItems);
-                table.setPlaceholder(null);
+                if (!newItems.isEmpty()) {
+                    channelItems.addAll(newItems);
+                    table.setPlaceholder(null);
+                }
+                if (!logoUpdates.isEmpty()) {
+                    for (LogoUpdate update : logoUpdates) {
+                        update.item().setLogo(update.normalizedLogo());
+                        update.item().getChannel().setLogo(update.sourceChannel().getLogo());
+                    }
+                    table.refresh();
+                }
             });
         }
     }
@@ -547,6 +567,7 @@ public class ChannelListUI extends HBox {
             channelItems.clear();
         }
         seenChannelKeys.clear();
+        channelItemByKey.clear();
         categoryTitleByCategoryId.set(Map.of());
         categoryTitleByNormalizedTitle.set(Map.of());
         m3uAllSourceContextByChannelKey.set(Map.of());
@@ -1386,6 +1407,9 @@ public class ChannelListUI extends HBox {
     }
 
     private record BaseUriParts(String scheme, String host, int port) {
+    }
+
+    private record LogoUpdate(ChannelItem item, String normalizedLogo, Channel sourceChannel) {
     }
 
     public static class ChannelItem {

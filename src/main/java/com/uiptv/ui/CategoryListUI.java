@@ -453,7 +453,8 @@ public class CategoryListUI extends HBox {
 
     private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
                                          ChannelListUI channelListUI, List<CategoryItem> allItems) throws IOException {
-        if (ChannelService.getInstance().getChannelCountForAccount(account.getDbId()) == 0) {
+        int existingChannelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
+        if (existingChannelCount == 0) {
             return;
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {

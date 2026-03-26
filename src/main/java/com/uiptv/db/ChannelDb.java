@@ -75,8 +75,8 @@ public class ChannelDb extends BaseDb {
 
     public int getChannelCountForAccount(String accountId) {
         String sql = "SELECT COUNT(*) FROM " + validatedTableName(CHANNEL_TABLE) +
-                " c JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id " +
-                "WHERE cat.accountId = ?";
+                " WHERE categoryId IN (" +
+                "SELECT id FROM " + validatedTableName(CATEGORY_TABLE) + " WHERE accountId = ?)";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
             try (ResultSet rs = statement.executeQuery()) {
