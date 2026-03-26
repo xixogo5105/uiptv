@@ -39,6 +39,18 @@ import java.util.function.Supplier;
 
 public abstract class BaseMainApplicationUI {
 
+    private record DeferredTabsContext(
+            Tab configurationTab,
+            Tab manageAccountTab,
+            Tab parseMultipleAccountTab,
+            Tab logDisplayTab,
+            Tab watchingNowTab,
+            AccountListUI accountListUI,
+            BookmarkChannelListUI bookmarkChannelListUI,
+            AtomicReference<WatchingNowUI> watchingNowRef
+    ) {
+    }
+
     protected final Stage primaryStage;
     protected final HostServices hostServices;
     protected final ConfigurationService configurationService;
@@ -107,7 +119,7 @@ public abstract class BaseMainApplicationUI {
         fontStyleConfigurer.accept(scene);
         bookmarkChannelListUI.forceReload();
 
-        initializeDeferredTabs(
+        initializeDeferredTabs(new DeferredTabsContext(
                 configurationTab,
                 manageAccountTab,
                 parseMultipleAccountTab,
@@ -116,7 +128,7 @@ public abstract class BaseMainApplicationUI {
                 accountListUI,
                 bookmarkChannelListUI,
                 watchingNowRef
-        );
+        ));
         return scene;
     }
 
@@ -187,45 +199,36 @@ public abstract class BaseMainApplicationUI {
         return menuBar;
     }
 
-    private void initializeDeferredTabs(
-            Tab configurationTab,
-            Tab manageAccountTab,
-            Tab parseMultipleAccountTab,
-            Tab logDisplayTab,
-            Tab watchingNowTab,
-            AccountListUI accountListUI,
-            BookmarkChannelListUI bookmarkChannelListUI,
-            AtomicReference<WatchingNowUI> watchingNowRef
-    ) {
-        Supplier<WatchingNowUI> watchingNowSupplier = watchingNowRef::get;
+    private void initializeDeferredTabs(DeferredTabsContext context) {
+        Supplier<WatchingNowUI> watchingNowSupplier = context.watchingNowRef()::get;
         Runnable loadWatchingNow = () -> {
             WatchingNowUI watchingNowUI = new WatchingNowUI();
             setMinWidthForPane(watchingNowUI);
-            watchingNowRef.set(watchingNowUI);
-            watchingNowTab.setContent(watchingNowUI);
+            context.watchingNowRef().set(watchingNowUI);
+            context.watchingNowTab().setContent(watchingNowUI);
         };
 
         Runnable loadLogDisplay = () -> {
             LogDisplayUI logDisplayUI = new LogDisplayUI();
             setMinWidthForPane(logDisplayUI);
-            logDisplayTab.setContent(logDisplayUI);
+            context.logDisplayTab().setContent(logDisplayUI);
         };
 
         Runnable loadParseMultiple = () -> {
             ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
             setMinWidthForPane(parseMultipleAccountUI);
-            configureParseMultipleAccountUI(parseMultipleAccountUI, accountListUI);
-            parseMultipleAccountTab.setContent(parseMultipleAccountUI);
+            configureParseMultipleAccountUI(parseMultipleAccountUI, context.accountListUI());
+            context.parseMultipleAccountTab().setContent(parseMultipleAccountUI);
         };
 
         Runnable loadManageAccount = () -> {
             ManageAccountUI manageAccountUI = new ManageAccountUI();
             setMinWidthForPane(manageAccountUI);
-            accountListUI.setManageAccountUI(manageAccountUI);
-            configureAccountListUI(accountListUI, manageAccountUI, bookmarkChannelListUI, watchingNowSupplier);
-            configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI, watchingNowSupplier);
+            context.accountListUI().setManageAccountUI(manageAccountUI);
+            configureAccountListUI(context.accountListUI(), manageAccountUI, context.bookmarkChannelListUI(), watchingNowSupplier);
+            configureManageAccountUI(manageAccountUI, context.accountListUI(), context.bookmarkChannelListUI(), watchingNowSupplier);
             if (!useEmbeddedAccountFlow()) {
-                manageAccountTab.setContent(manageAccountUI);
+                context.manageAccountTab().setContent(manageAccountUI);
             }
         };
 
@@ -235,15 +238,15 @@ public abstract class BaseMainApplicationUI {
                 if (currentScene != null) {
                     fontStyleConfigurer.accept(currentScene);
                 }
-                accountListUI.refresh();
-                bookmarkChannelListUI.forceReload();
-                WatchingNowUI watchingNowUI = watchingNowRef.get();
+                context.accountListUI().refresh();
+                context.bookmarkChannelListUI().forceReload();
+                WatchingNowUI watchingNowUI = context.watchingNowRef().get();
                 if (watchingNowUI != null) {
                     watchingNowUI.forceReload();
                 }
             });
             setMinWidthForPane(configurationUI);
-            configurationTab.setContent(configurationUI);
+            context.configurationTab().setContent(configurationUI);
         };
 
         scheduleDeferredTabLoad(loadConfiguration,
