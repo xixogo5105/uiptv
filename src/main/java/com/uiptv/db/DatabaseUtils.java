@@ -3,6 +3,22 @@ package com.uiptv.db;
 import java.util.*;
 
 public class DatabaseUtils {
+    public static final Set<DbTable> Cacheable = Collections.unmodifiableSet(EnumSet.of(
+            DbTable.CATEGORY_TABLE,
+            DbTable.CHANNEL_TABLE,
+            DbTable.VOD_CATEGORY_TABLE,
+            DbTable.VOD_CHANNEL_TABLE,
+            DbTable.SERIES_CATEGORY_TABLE,
+            DbTable.SERIES_CHANNEL_TABLE,
+            DbTable.SERIES_EPISODE_TABLE
+    ));
+    public static final Set<DbTable> Syncable = Collections.unmodifiableSet(EnumSet.of(
+            DbTable.ACCOUNT_TABLE,
+            DbTable.ACCOUNT_INFO_TABLE,
+            DbTable.BOOKMARK_TABLE,
+            DbTable.BOOKMARK_CATEGORY_TABLE,
+            DbTable.BOOKMARK_ORDER_TABLE
+    ));
     private static final String INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY";
     private static final String INTEGER_TYPE = "INTEGER";
     private static final String TEXT_NOT_NULL = "TEXT NOT NULL";
@@ -28,55 +44,8 @@ public class DatabaseUtils {
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
     private static final String COLUMN_UPDATED_AT = "updatedAt";
-    private static Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();
     private static final Set<String> KNOWN_TABLE_NAMES = new HashSet<>();
-
-    public enum DbTable {
-        CONFIGURATION_TABLE("Configuration"),
-        THEME_CSS_OVERRIDE_TABLE("ThemeCssOverride"),
-        ACCOUNT_TABLE("Account"),
-        ACCOUNT_INFO_TABLE("AccountInfo"),
-        BOOKMARK_TABLE("Bookmark"),
-        CATEGORY_TABLE("Category"),
-        CHANNEL_TABLE("Channel"),
-        VOD_CATEGORY_TABLE("VodCategory"),
-        VOD_CHANNEL_TABLE("VodChannel"),
-        VOD_WATCH_STATE_TABLE("VodWatchState"),
-        SERIES_CATEGORY_TABLE("SeriesCategory"),
-        SERIES_CHANNEL_TABLE("SeriesChannel"),
-        SERIES_EPISODE_TABLE("SeriesEpisode"),
-        SERIES_WATCH_STATE_TABLE("SeriesWatchState"),
-        BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
-        BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
-
-        private final String tableName;
-
-        DbTable(String tableName) {
-            this.tableName = tableName;
-        }
-
-        public String getTableName() {
-            return tableName;
-        }
-
-    }
-
-    public static final Set<DbTable> Cacheable = Collections.unmodifiableSet(EnumSet.of(
-            DbTable.CATEGORY_TABLE,
-            DbTable.CHANNEL_TABLE,
-            DbTable.VOD_CATEGORY_TABLE,
-            DbTable.VOD_CHANNEL_TABLE,
-            DbTable.SERIES_CATEGORY_TABLE,
-            DbTable.SERIES_CHANNEL_TABLE,
-            DbTable.SERIES_EPISODE_TABLE
-    ));
-    public static final Set<DbTable> Syncable = Collections.unmodifiableSet(EnumSet.of(
-            DbTable.ACCOUNT_TABLE,
-            DbTable.ACCOUNT_INFO_TABLE,
-            DbTable.BOOKMARK_TABLE,
-            DbTable.BOOKMARK_CATEGORY_TABLE,
-            DbTable.BOOKMARK_ORDER_TABLE
-    ));
+    private static final Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();
 
     static {
         dbStructure.put(DbTable.CONFIGURATION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
@@ -315,6 +284,10 @@ public class DatabaseUtils {
                 new DataColumn("seriesChannelSnapshot", "TEXT"),
                 new DataColumn("seriesEpisodeSnapshot", "TEXT")
         )));
+        dbStructure.put(DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT NOT NULL UNIQUE")
+        )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn("name", TEXT_NOT_NULL)
@@ -327,7 +300,6 @@ public class DatabaseUtils {
         )));
         KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
-
 
     public static String dropTableSql(DbTable table) {
         return "DROP TABLE " + validatedTableName(table);
@@ -396,5 +368,36 @@ public class DatabaseUtils {
 
     private static String removeLastChar(StringBuilder sql) {
         return sql.substring(0, sql.length() - 1);
+    }
+
+    public enum DbTable {
+        CONFIGURATION_TABLE("Configuration"),
+        THEME_CSS_OVERRIDE_TABLE("ThemeCssOverride"),
+        ACCOUNT_TABLE("Account"),
+        ACCOUNT_INFO_TABLE("AccountInfo"),
+        BOOKMARK_TABLE("Bookmark"),
+        CATEGORY_TABLE("Category"),
+        CHANNEL_TABLE("Channel"),
+        VOD_CATEGORY_TABLE("VodCategory"),
+        VOD_CHANNEL_TABLE("VodChannel"),
+        VOD_WATCH_STATE_TABLE("VodWatchState"),
+        SERIES_CATEGORY_TABLE("SeriesCategory"),
+        SERIES_CHANNEL_TABLE("SeriesChannel"),
+        SERIES_EPISODE_TABLE("SeriesEpisode"),
+        SERIES_WATCH_STATE_TABLE("SeriesWatchState"),
+        PUBLISHED_M3U_SELECTION_TABLE("PublishedM3uSelection"),
+        BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
+        BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
+
+        private final String tableName;
+
+        DbTable(String tableName) {
+            this.tableName = tableName;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
     }
 }

@@ -65,3 +65,4 @@
 0185_add_account_xtreme_credentials_json.sql
 0186_add_bookmark_resolution_indexes.sql
 0187_add_channel_category_id_index.sql
+0188_create_published_m3u_selection_table.sql

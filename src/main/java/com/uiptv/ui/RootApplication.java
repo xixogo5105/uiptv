@@ -11,7 +11,9 @@ import com.uiptv.util.*;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
 import javafx.scene.image.Image;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -25,10 +27,10 @@ import static java.lang.System.exit;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
+    private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
     private static Stage primaryStage;
     private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
@@ -116,6 +118,36 @@ public class RootApplication extends Application {
         System.setErr(sink);
     }
 
+    public static Stage getPrimaryStage() {
+        return primaryStage;
+    }
+
+    public static void setPrimaryStage(Stage stage) {
+        primaryStage = stage;
+    }
+
+    public static String getCurrentTheme() {
+        return currentTheme;
+    }
+
+    public static void applyTheme(Scene scene, Class<?> themeResourceClass, boolean darkTheme, int zoomPercent) {
+        if (scene == null || scene.getRoot() == null) {
+            return;
+        }
+
+        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
+                themeResourceClass,
+                darkTheme,
+                zoomPercent
+        );
+        scene.getStylesheets().clear();
+        scene.getStylesheets().add(currentTheme);
+        scene.getRoot().styleProperty().unbind();
+        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(zoomPercent));
+        I18n.applySceneOrientation(scene);
+        StyleClassDecorator.decorate(scene.getRoot());
+    }
+
     @Override
     public final void start(Stage primaryStage) throws IOException {
         setPrimaryStage(primaryStage);
@@ -126,19 +158,23 @@ public class RootApplication extends Application {
         boolean embeddedEnabled = bootConfiguration != null && bootConfiguration.isEmbeddedPlayer();
         boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
 
-        BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
-        Scene scene = mainUiRoute.buildScene();
-        I18n.applySceneOrientation(scene);
-
         primaryStage.setOnCloseRequest(event -> {
             Platform.exit();
             System.exit(0);
         });
         primaryStage.setTitle(I18n.tr("appTitle"));
         primaryStage.setMaximized(true);
-        primaryStage.setScene(scene);
         primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
+        Scene loadingScene = createLoadingScene();
+        primaryStage.setScene(loadingScene);
         primaryStage.show();
+
+        Platform.runLater(() -> {
+            BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
+            Scene scene = mainUiRoute.buildScene();
+            I18n.applySceneOrientation(scene);
+            primaryStage.setScene(scene);
+        });
     }
 
     private BaseMainApplicationUI selectMainUiRoute(boolean embeddedEnabled, boolean embeddedWideViewEnabled) {
@@ -189,33 +225,12 @@ public class RootApplication extends Application {
         );
     }
 
-    public static void setPrimaryStage(Stage stage) {
-        primaryStage = stage;
-    }
-
-    public static Stage getPrimaryStage() {
-        return primaryStage;
-    }
-
-    public static String getCurrentTheme() {
-        return currentTheme;
-    }
-
-    public static void applyTheme(Scene scene, Class<?> themeResourceClass, boolean darkTheme, int zoomPercent) {
-        if (scene == null || scene.getRoot() == null) {
-            return;
-        }
-
-        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
-                themeResourceClass,
-                darkTheme,
-                zoomPercent
-        );
-        scene.getStylesheets().clear();
-        scene.getStylesheets().add(currentTheme);
-        scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(zoomPercent));
-        I18n.applySceneOrientation(scene);
-        StyleClassDecorator.decorate(scene.getRoot());
+    private Scene createLoadingScene() {
+        Label loadingLabel = new Label(I18n.tr("appTitle"));
+        StackPane loadingRoot = new StackPane(loadingLabel);
+        Scene loadingScene = new Scene(loadingRoot, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
+        I18n.applySceneOrientation(loadingScene);
+        configureFontStyles(loadingScene);
+        return loadingScene;
     }
 }

@@ -1,35 +1,18 @@
 package com.uiptv.ui.main;
 
-import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
-import com.uiptv.ui.AboutUI;
-import com.uiptv.ui.AccountListUI;
-import com.uiptv.ui.BookmarkChannelListUI;
-import com.uiptv.ui.ConfigurationUI;
-import com.uiptv.ui.LogDisplayUI;
-import com.uiptv.ui.ManageAccountUI;
-import com.uiptv.ui.ParseMultipleAccountUI;
-import com.uiptv.ui.UpdateChecker;
-import com.uiptv.ui.WatchingNowUI;
+import com.uiptv.ui.*;
+import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.HostServices;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.control.Menu;
-import javafx.scene.control.MenuBar;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -39,26 +22,13 @@ import java.util.function.Supplier;
 
 public abstract class BaseMainApplicationUI {
 
-    private record DeferredTabsContext(
-            Tab configurationTab,
-            Tab manageAccountTab,
-            Tab parseMultipleAccountTab,
-            Tab logDisplayTab,
-            Tab watchingNowTab,
-            AccountListUI accountListUI,
-            BookmarkChannelListUI bookmarkChannelListUI,
-            AtomicReference<WatchingNowUI> watchingNowRef
-    ) {
-    }
-
+    private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
     protected final Stage primaryStage;
     protected final HostServices hostServices;
     protected final ConfigurationService configurationService;
     protected final Consumer<Scene> fontStyleConfigurer;
     protected final int guidedMaxWidthPixels;
     protected final int guidedMaxHeightPixels;
-    private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
-
     protected BaseMainApplicationUI(
             Stage primaryStage,
             HostServices hostServices,
@@ -280,7 +250,7 @@ public abstract class BaseMainApplicationUI {
         return wrapper;
     }
 
-    private StackPane createEmbeddedPlayerShell(javafx.scene.Node playerNode) {
+    protected StackPane createEmbeddedPlayerShell(javafx.scene.Node playerNode) {
         StackPane shell = new StackPane();
         shell.getStyleClass().add("embedded-player-shell");
         shell.setMinSize(0, 0);
@@ -338,5 +308,17 @@ public abstract class BaseMainApplicationUI {
 
     private void setMinWidthForPane(Region pane) {
         pane.setMinWidth((double) guidedMaxWidthPixels / 4);
+    }
+
+    private record DeferredTabsContext(
+            Tab configurationTab,
+            Tab manageAccountTab,
+            Tab parseMultipleAccountTab,
+            Tab logDisplayTab,
+            Tab watchingNowTab,
+            AccountListUI accountListUI,
+            BookmarkChannelListUI bookmarkChannelListUI,
+            AtomicReference<WatchingNowUI> watchingNowRef
+    ) {
     }
 }

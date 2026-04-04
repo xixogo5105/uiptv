@@ -1,11 +1,10 @@
 package com.uiptv.ui;
 
-import com.uiptv.util.I18n;
-
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -15,7 +14,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -45,7 +44,7 @@ public class M3U8PublicationPopup extends VBox {
 
         Button okButton = new Button(I18n.tr("autoOk"));
         okButton.setOnAction(e -> {
-            Set<String> selectedIds = new HashSet<>();
+            Set<String> selectedIds = new LinkedHashSet<>();
             for (CheckBox checkBox : listView.getItems()) {
                 if (checkBox.isSelected()) {
                     selectedIds.add((String) checkBox.getUserData());

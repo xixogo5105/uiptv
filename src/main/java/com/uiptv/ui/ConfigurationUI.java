@@ -6,15 +6,10 @@ import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
-import com.uiptv.service.CacheService;
-import com.uiptv.service.CacheServiceImpl;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.SeriesWatchStateService;
-import com.uiptv.service.VodWatchStateService;
-import com.uiptv.service.ThemeCssOverrideService;
+import com.uiptv.service.*;
 import com.uiptv.util.I18n;
-import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -24,16 +19,10 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -56,20 +45,17 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
-    private String dbId;
-    private final VBox contentContainer = new VBox();
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
     final Button browserButtonPlayerPath3 = new Button("...");
     final FileChooser fileChooser = new FileChooser();
+    private final VBox contentContainer = new VBox();
     private final RadioButton defaultPlayer1 = new RadioButton("");
     private final RadioButton defaultPlayer2 = new RadioButton("");
     private final RadioButton defaultPlayer3 = new RadioButton("");
     private final RadioButton defaultEmbedPlayer = new RadioButton();
     private final RadioButton defaultWebBrowserPlayer = new RadioButton(I18n.tr("configDefaultWebBrowserPlayer"));
-    private boolean ignorePlayerSelectionPrompt = false;
-
     private final UIptvText playerPath1 = new UIptvText("playerPath1", "configPlayerPath1Prompt", 5);
     private final UIptvText playerPath2 = new UIptvText("playerPath2", "configPlayerPath2Prompt", 5);
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "configPlayerPath3Prompt", 5);
@@ -91,13 +77,11 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink downloadDarkThemeCssLink = new Hyperlink(I18n.tr("configDarkCss"));
     private final Button resetThemeOverridesButton = new Button(I18n.tr("configResetThemeOverrides"));
     private final FileChooser cssFileChooser = new FileChooser();
-    private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
     private final UIptvText serverPort = new UIptvText("serverPort", "configServerPortPrompt", 3);
     private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "configCacheExpiryPrompt", 5);
     private final PasswordField tmdbReadAccessToken = new PasswordField();
     private final Hyperlink tmdbApiGuideLink = new Hyperlink(I18n.tr("configTmdbApiGuideLink"));
     private final Hyperlink tmdbApiKeyPageLink = new Hyperlink(I18n.tr("configTmdbApiKeyPageLink"));
-
     private final Button startServerButton = new Button(I18n.tr("configStartServer"));
     private final Hyperlink openServerLink = new Hyperlink(I18n.tr("configOpenWebApp"));
     private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
@@ -109,6 +93,9 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
+    private String dbId;
+    private boolean ignorePlayerSelectionPrompt = false;
+    private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
     @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
     @SuppressWarnings("java:S1450")
@@ -117,6 +104,11 @@ public class ConfigurationUI extends VBox {
     public ConfigurationUI(Callback<Object> onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
         initWidgets();
+    }
+
+    static void clearWatchingNowStates() {
+        SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
+        VodWatchStateService.getInstance().clearAll();
     }
 
     private void initWidgets() {
@@ -316,6 +308,7 @@ public class ConfigurationUI extends VBox {
         pane.getStyleClass().add("uiptv-card");
         return pane;
     }
+
     private VBox buildThemeOverrideGroup() {
         languageComboBox.getStyleClass().add("uiptv-combo-box");
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
@@ -564,12 +557,6 @@ public class ConfigurationUI extends VBox {
             }
         });
     }
-
-    static void clearWatchingNowStates() {
-        SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
-        VodWatchStateService.getInstance().clearAll();
-    }
-
 
     private void addStartServerButtonClickHandler() {
         startServerButton.setOnAction(event -> {
@@ -832,11 +819,7 @@ public class ConfigurationUI extends VBox {
     private void restorePreviousPlayerSelection(Toggle oldToggle) {
         ignorePlayerSelectionPrompt = true;
         try {
-            if (oldToggle != null) {
-                group.selectToggle(oldToggle);
-            } else {
-                group.selectToggle(null);
-            }
+            group.selectToggle(oldToggle);
         } finally {
             ignorePlayerSelectionPrompt = false;
         }

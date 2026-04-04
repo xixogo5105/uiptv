@@ -42,6 +42,7 @@ public class AccountService {
             BookmarkDb.get().deleteByAccountName(account.getAccountName());
             sessionTokenByAccountKey.remove(getSessionAccountKey(account));
             AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
+            PublishedM3uSelectionDb.get().deleteByAccountId(account.getDbId());
         }
         SeriesWatchStateDb.get().deleteByAccount(accountId);
         VodWatchStateDb.get().deleteByAccount(accountId);
@@ -54,6 +55,7 @@ public class AccountService {
         sessionTokenByAccountKey.clear();
         AccountDb.get().getAccounts().forEach(account -> {
             AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
+            PublishedM3uSelectionDb.get().deleteByAccountId(account.getDbId());
             AccountDb.get().delete(account.getDbId());
         });
     }

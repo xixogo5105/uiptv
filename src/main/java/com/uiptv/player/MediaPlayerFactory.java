@@ -4,14 +4,21 @@ import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.DummyVideoPlayer;
 import javafx.scene.Node;
-import javafx.scene.layout.StackPane;
+import javafx.scene.Parent;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
     private static VideoPlayerInterface instance;
     private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();
     private static boolean hostConfigured = false;
+
+    static {
+        playerHostContainer.visibleProperty().addListener((_, _, _) -> requestLayoutHierarchy());
+        playerHostContainer.managedProperty().addListener((_, _, _) -> requestLayoutHierarchy());
+        playerHostContainer.parentProperty().addListener((_, _, _) -> requestLayoutHierarchy());
+    }
 
     private MediaPlayerFactory() {
     }
@@ -45,7 +52,9 @@ public class MediaPlayerFactory {
                 defineDummyRegion(playerContainer);
             }
         }
+        syncHostToPlayerNode(instance.getPlayerContainer());
         playerHostContainer.getChildren().setAll(instance.getPlayerContainer());
+        requestLayoutHierarchy();
         hostConfigured = true;
     }
 
@@ -53,6 +62,10 @@ public class MediaPlayerFactory {
         if (playerType == null) {
             getPlayer(); // Ensure player is initialized
         }
+        return playerType;
+    }
+
+    public static synchronized VideoPlayerInterface.PlayerType getInitializedPlayerType() {
         return playerType;
     }
 
@@ -78,9 +91,39 @@ public class MediaPlayerFactory {
             } else {
                 defineDummyRegion(playerHostContainer);
             }
+            playerHostContainer.setVisible(false);
+            playerHostContainer.setManaged(false);
+            requestLayoutHierarchy();
             hostConfigured = true;
         }
         return playerHostContainer;
+    }
+
+    private static void syncHostToPlayerNode(Node playerNode) {
+        if (playerNode == null) {
+            playerHostContainer.visibleProperty().unbind();
+            playerHostContainer.managedProperty().unbind();
+            playerHostContainer.setVisible(false);
+            playerHostContainer.setManaged(false);
+            return;
+        }
+        playerHostContainer.visibleProperty().unbind();
+        playerHostContainer.managedProperty().unbind();
+        playerHostContainer.visibleProperty().bind(playerNode.visibleProperty());
+        playerHostContainer.managedProperty().bind(playerNode.managedProperty());
+        requestLayoutHierarchy();
+    }
+
+    private static void requestLayoutHierarchy() {
+        playerHostContainer.requestLayout();
+        Parent parent = playerHostContainer.getParent();
+        while (parent != null) {
+            parent.requestLayout();
+            parent = parent.getParent();
+        }
+        if (playerHostContainer.getScene() != null && playerHostContainer.getScene().getRoot() != null) {
+            playerHostContainer.getScene().getRoot().requestLayout();
+        }
     }
 
     /**
@@ -116,6 +159,7 @@ public class MediaPlayerFactory {
 
             instance = null;
         }
+        syncHostToPlayerNode(null);
         playerType = null;
         hostConfigured = false;
     }

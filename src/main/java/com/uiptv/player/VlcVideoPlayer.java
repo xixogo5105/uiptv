@@ -1,6 +1,7 @@
 package com.uiptv.player;
 
 import com.uiptv.util.I18n;
+import com.uiptv.util.ResolutionDisplayUtil;
 
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -498,6 +499,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     protected void updateStreamInfo(int width, int height) {
+        ResolutionDisplayUtil.ResolutionDisplay resolution = ResolutionDisplayUtil.normalize(width, height);
         String codec = "";
         EmbeddedMediaPlayer player;
         synchronized (playerLock) {
@@ -516,11 +518,15 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 codec = bestTrack.codecName();
             }
         }
-        String newLabel = String.format("%n%dx%d %s (vlc)", width, height, codec);
+        String newLabel = String.format("%n%s%s (vlc)", resolution.shortText(), formatCodecSuffix(codec));
         if (!newLabel.equals(lastStreamInfoLabel)) {
             lastStreamInfoLabel = newLabel;
             streamInfoText.setText(newLabel);
         }
+    }
+
+    private String formatCodecSuffix(String codec) {
+        return codec == null || codec.isBlank() ? "" : " " + codec;
     }
 
     private boolean refreshRenderedImageStreamInfo() {

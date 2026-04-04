@@ -1,13 +1,12 @@
 package com.uiptv.ui;
 
-import com.uiptv.util.I18n;
-
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -27,10 +26,10 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
 public final class PlaybackUIService {
-    private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
-    private static final String DEFAULT_MODE = "series";
     static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
+    private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
+    private static final String DEFAULT_MODE = "series";
 
     private PlaybackUIService() {
     }
@@ -195,8 +194,9 @@ public final class PlaybackUIService {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
             return;
         }
-        getPlayer().stopForReload();
-        getPlayer().play(response);
+        var player = getPlayer();
+        player.stopForReload();
+        player.play(response);
     }
 
     static boolean isEmbeddedPlayerPath(String playerPath) {

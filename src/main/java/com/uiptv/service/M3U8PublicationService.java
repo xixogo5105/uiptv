@@ -1,6 +1,8 @@
 package com.uiptv.service;
 
+import com.uiptv.db.PublishedM3uSelectionDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.PublishedM3uSelection;
 import com.uiptv.util.AccountType;
 
 import java.io.BufferedReader;
@@ -9,45 +11,50 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class M3U8PublicationService {
-    private final Set<String> selectedAccountIds = new HashSet<>();
-
     private M3U8PublicationService() {
-    }
-
-    private static class SingletonHelper {
-        private static final M3U8PublicationService INSTANCE = new M3U8PublicationService();
     }
 
     public static M3U8PublicationService getInstance() {
         return SingletonHelper.INSTANCE;
     }
 
-    public void setSelectedAccountIds(Set<String> accountIds) {
-        this.selectedAccountIds.clear();
-        this.selectedAccountIds.addAll(accountIds);
+    public Set<String> getSelectedAccountIds() {
+        return PublishedM3uSelectionDb.get().getAllSelections().stream()
+                .map(PublishedM3uSelection::getAccountId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    public Set<String> getSelectedAccountIds() {
-        return new HashSet<>(selectedAccountIds);
+    public void setSelectedAccountIds(Set<String> accountIds) {
+        PublishedM3uSelectionDb.get().replaceSelections(accountIds);
     }
 
     public String getPublishedM3u8() {
-        if (selectedAccountIds.isEmpty()) {
+        List<Account> accounts = getSelectedAccounts();
+        if (accounts.isEmpty()) {
             return "";
         }
         StringBuilder result = new StringBuilder();
         result.append("#EXTM3U").append("\n");
-        for (String accountId : selectedAccountIds) {
-            appendAccountPlaylist(result, AccountService.getInstance().getById(accountId));
+        for (Account account : accounts) {
+            appendAccountPlaylist(result, account);
         }
         return result.toString();
+    }
+
+    private List<Account> getSelectedAccounts() {
+        return getSelectedAccountIds().stream()
+                .map(AccountService.getInstance()::getById)
+                .filter(account -> account != null
+                        && (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL))
+                .toList();
     }
 
     private void appendAccountPlaylist(StringBuilder result, Account account) {
@@ -91,5 +98,9 @@ public class M3U8PublicationService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream(), StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
         }
+    }
+
+    private static class SingletonHelper {
+        private static final M3U8PublicationService INSTANCE = new M3U8PublicationService();
     }
 }
