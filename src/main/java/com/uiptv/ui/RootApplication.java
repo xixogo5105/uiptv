@@ -14,6 +14,8 @@ import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
+import javafx.geometry.Rectangle2D;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -163,18 +165,32 @@ public class RootApplication extends Application {
             System.exit(0);
         });
         primaryStage.setTitle(I18n.tr("appTitle"));
-        primaryStage.setMaximized(true);
+        applyMaximizedBounds(primaryStage);
         primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
         Scene loadingScene = createLoadingScene();
         primaryStage.setScene(loadingScene);
         primaryStage.show();
+        Platform.runLater(() -> applyMaximizedBounds(primaryStage));
 
         Platform.runLater(() -> {
             BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
             Scene scene = mainUiRoute.buildScene();
             I18n.applySceneOrientation(scene);
             primaryStage.setScene(scene);
+            applyMaximizedBounds(primaryStage);
         });
+    }
+
+    private void applyMaximizedBounds(Stage stage) {
+        if (stage == null) {
+            return;
+        }
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+        stage.setMaximized(true);
     }
 
     private BaseMainApplicationUI selectMainUiRoute(boolean embeddedEnabled, boolean embeddedWideViewEnabled) {

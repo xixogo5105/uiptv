@@ -484,7 +484,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(row.getLogo(), 96, 136, EPISODE_CACHE);
+        ImageView poster = createEpisodePoster(row);
         StackPane posterWrap = new StackPane(poster);
         posterWrap.setAlignment(Pos.CENTER);
         posterWrap.setMinWidth(110);
@@ -565,6 +565,73 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             }
         });
         return root;
+    }
+
+    private ImageView createEpisodePoster(EpisodeItem row) {
+        ImageView poster = new ImageView();
+        poster.setFitWidth(96);
+        poster.setFitHeight(136);
+        poster.setPreserveRatio(true);
+        poster.setSmooth(true);
+        refreshEpisodePoster(poster, row);
+        row.logoProperty().addListener((obs, oldValue, newValue) -> refreshEpisodePoster(poster, row));
+        return poster;
+    }
+
+    private void refreshEpisodePoster(ImageView poster, EpisodeItem row) {
+        if (poster == null) {
+            return;
+        }
+        String posterUrl = resolveEpisodePosterUrl(row, "");
+        if (isBlank(posterUrl)) {
+            poster.setImage(null);
+            return;
+        }
+        loadEpisodePoster(poster, row, posterUrl);
+    }
+
+    private void loadEpisodePoster(ImageView poster, EpisodeItem row, String posterUrl) {
+        ImageCacheManager.loadImageAsync(posterUrl, EPISODE_CACHE).thenAccept(image -> {
+            Platform.runLater(() -> {
+                String currentPrimaryUrl = resolveEpisodePosterUrl(row, "");
+                if (!posterUrl.equals(currentPrimaryUrl) && !posterUrl.equals(resolveEpisodePosterUrl(row, currentPrimaryUrl))) {
+                    return;
+                }
+                if (image != null) {
+                    poster.setImage(image);
+                    poster.setViewport(null);
+                    poster.setPreserveRatio(true);
+                    poster.setFitWidth(96);
+                    poster.setFitHeight(136);
+                    return;
+                }
+
+                String fallbackUrl = resolveEpisodePosterUrl(row, posterUrl);
+                if (!isBlank(fallbackUrl) && !fallbackUrl.equals(posterUrl)) {
+                    loadEpisodePoster(poster, row, fallbackUrl);
+                    return;
+                }
+                poster.setImage(null);
+            });
+        });
+    }
+
+    private String resolveEpisodePosterUrl(EpisodeItem row, String excludedUrl) {
+        String excluded = sanitizePosterUrl(excludedUrl);
+        String primary = row == null ? "" : sanitizePosterUrl(row.getLogo());
+        if (!isBlank(primary) && !primary.equals(excluded)) {
+            return primary;
+        }
+        String cover = sanitizePosterUrl(normalizeImageUrl(seasonInfo.optString(KEY_COVER, "")));
+        if (!isBlank(cover) && !cover.equals(excluded)) {
+            return cover;
+        }
+        return allEpisodeItems.stream()
+                .map(EpisodeItem::getLogo)
+                .map(this::sanitizePosterUrl)
+                .filter(url -> !isBlank(url) && !url.equals(excluded))
+                .findFirst()
+                .orElse("");
     }
 
     private void setSelectedEpisodeCard(VBox current) {
@@ -779,19 +846,28 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private JSONObject findEpisodeMeta(EpisodeMetaIndex index, EpisodeItem episode) {
+        String sourceTitle = episodeMetadataTitle(episode);
         String normalizedSeason = normalizeNumber(episode.getSeason());
-        String normalizedEpisode = normalizeNumber(firstNonBlank(episode.getEpisodeNumber(), inferEpisodeNumberFromTitle(episode.getEpisodeName())));
+        String normalizedEpisode = normalizeNumber(firstNonBlank(episode.getEpisodeNumber(), inferEpisodeNumberFromTitle(sourceTitle)));
         JSONObject meta = index.bySeasonEpisode().get(normalizedSeason + ":" + normalizedEpisode);
         if (meta == null) {
-            meta = index.byTitle().get(normalizeTitle(cleanEpisodeTitle(episode.getEpisodeName())));
+            meta = index.byTitle().get(normalizeTitle(cleanEpisodeTitle(sourceTitle)));
         }
         if (meta == null) {
-            meta = index.byLooseTitle().get(normalizeTitle(extractLooseEpisodeTitle(episode.getEpisodeName())));
+            meta = index.byLooseTitle().get(normalizeTitle(extractLooseEpisodeTitle(sourceTitle)));
         }
         if (meta == null && !isBlank(normalizedEpisode)) {
             meta = index.byEpisodeOnly().get(normalizedEpisode);
         }
         return meta;
+    }
+
+    private String episodeMetadataTitle(EpisodeItem episode) {
+        if (episode == null) {
+            return "";
+        }
+        String rawTitle = episode.getEpisode() != null ? safe(episode.getEpisode().getTitle()) : "";
+        return firstNonBlank(rawTitle, episode.getEpisodeName());
     }
 
     private void applyEpisodeMeta(EpisodeItem episode, JSONObject meta) {

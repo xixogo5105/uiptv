@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("java:S1874")
 public class ImageCacheManager {
@@ -268,9 +267,10 @@ public class ImageCacheManager {
         }
         String host = hostOf(url);
         Semaphore semaphore = hostSemaphore(host);
-        if (!semaphore.tryAcquire(3, TimeUnit.SECONDS)) {
-            return null;
-        }
+        // Queue image fetches instead of dropping tail requests when many posters from the
+        // same host are requested at once. The previous 3s timeout caused intermittent blank
+        // thumbnails for later episode cards under load.
+        semaphore.acquire();
         HttpGet request = new HttpGet(url);
         request.setConfig(RequestConfig.custom()
                 .setConnectionRequestTimeout(Timeout.of(Duration.ofSeconds(15)))
