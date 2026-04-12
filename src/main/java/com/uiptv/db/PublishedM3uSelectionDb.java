@@ -14,6 +14,7 @@ import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.SQLConnection.connect;
 import static com.uiptv.util.StringUtils.isBlank;
 
+@SuppressWarnings("java:S6548")
 public class PublishedM3uSelectionDb extends BaseDb {
     private static PublishedM3uSelectionDb instance;
 
