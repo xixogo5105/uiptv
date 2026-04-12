@@ -14,6 +14,7 @@ import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -22,6 +23,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
@@ -39,6 +41,9 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
+    private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
+            Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(AccountItem::getAccountName);
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
@@ -59,6 +64,8 @@ public class AccountListUI extends HBox {
     private Callback<Object> onEditCallback;
     private Callback<Object> onDeleteCallback;
     private boolean isPromptShowing = false;
+    private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
+    private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
 
     public AccountListUI() { // Removed MediaPlayer argument
         this(ConfigurationService.getInstance().read().isEmbeddedPlayer());
@@ -92,16 +99,18 @@ public class AccountListUI extends HBox {
         List<AccountItem> catList = new ArrayList<>();
 
         List<AccountResolver.AccountRow> resolved = accountResolver.resolveAccounts();
-        for (AccountResolver.AccountRow account : resolved) {
+        for (int index = 0; index < resolved.size(); index++) {
+            AccountResolver.AccountRow account = resolved.get(index);
             catList.add(new AccountItem(
                     new SimpleStringProperty(account.getAccountName()),
                     new SimpleStringProperty(account.getDbId()),
                     new SimpleStringProperty(account.getType()),
-                    account.isPinToTop()
+                    account.isPinToTop(),
+                    index
             ));
         }
-        table.setItems(FXCollections.observableArrayList(catList));
-        table.filterByAccountType();
+        masterAccountItems.setAll(catList);
+        applyAccountOrdering();
     }
 
     private void initWidgets() {
@@ -112,9 +121,10 @@ public class AccountListUI extends HBox {
         table.getColumns().add(accountName);
         accountName.setVisible(true);
         accountName.setSortType(TableColumn.SortType.ASCENDING);
-        accountName.setSortable(true);
+        accountName.setSortable(false);
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
         accountName.setCellFactory(_ -> createAccountNameCell());
+        installAccountHeaderSortHandler();
         HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
         sceneBox.setMaxHeight(25);
         newAccountButton.setManaged(embeddedMode);
@@ -329,8 +339,61 @@ public class AccountListUI extends HBox {
                 // Clear all children to allow garbage collection of CategoryListUI
                 getChildren().clear();
                 table.getItems().clear();
+                masterAccountItems.clear();
             }
         });
+    }
+
+    private void applyAccountOrdering() {
+        List<AccountItem> orderedItems = new ArrayList<>(masterAccountItems);
+        if (accountSortMode == AccountSortMode.DEFAULT) {
+            orderedItems.sort(Comparator.comparing(AccountItem::isPinToTop).reversed()
+                    .thenComparingInt(AccountItem::getOriginalOrder));
+        } else if (accountSortMode == AccountSortMode.DESCENDING) {
+            orderedItems.sort(ACCOUNT_NAME_COMPARATOR.reversed());
+        } else {
+            orderedItems.sort(ACCOUNT_NAME_COMPARATOR);
+        }
+        table.setItems(FXCollections.observableArrayList(orderedItems));
+        table.filterByAccountType();
+    }
+
+    private void installAccountHeaderSortHandler() {
+        table.skinProperty().addListener((_, _, newSkin) -> {
+            if (newSkin != null) {
+                Platform.runLater(this::bindAccountHeaderClickHandler);
+            }
+        });
+        Platform.runLater(this::bindAccountHeaderClickHandler);
+    }
+
+    private void bindAccountHeaderClickHandler() {
+        for (Node header : table.lookupAll(".column-header")) {
+            if (Boolean.TRUE.equals(header.getProperties().get("account-sort-bound"))) {
+                continue;
+            }
+            Node labelNode = header.lookup(".label");
+            if (labelNode instanceof Labeled labeled && Objects.equals(labeled.getText(), accountName.getText())) {
+                header.addEventFilter(MouseEvent.MOUSE_CLICKED, this::handleAccountHeaderClick);
+                header.getProperties().put("account-sort-bound", true);
+            }
+        }
+    }
+
+    private void handleAccountHeaderClick(MouseEvent event) {
+        if (event.getButton() != MouseButton.PRIMARY || event.getClickCount() != 1) {
+            return;
+        }
+        accountSortMode = switch (accountSortMode) {
+            case DEFAULT -> AccountSortMode.ASCENDING;
+            case ASCENDING -> AccountSortMode.DESCENDING;
+            case DESCENDING -> AccountSortMode.DEFAULT;
+        };
+        accountName.setSortType(accountSortMode == AccountSortMode.DESCENDING
+                ? TableColumn.SortType.DESCENDING
+                : TableColumn.SortType.ASCENDING);
+        applyAccountOrdering();
+        event.consume();
     }
 
     private void addAccountClickHandler() {
@@ -570,12 +633,14 @@ public class AccountListUI extends HBox {
         private final SimpleStringProperty accountId;
         private final SimpleStringProperty accountType;
         private final boolean pinToTop;
+        private final int originalOrder;
 
-        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType, boolean pinToTop) {
+        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType, boolean pinToTop, int originalOrder) {
             this.accountName = accountName;
             this.accountId = accountId;
             this.accountType = accountType;
             this.pinToTop = pinToTop;
+            this.originalOrder = originalOrder;
         }
 
         public String getAccountId() {
@@ -602,6 +667,10 @@ public class AccountListUI extends HBox {
             return pinToTop;
         }
 
+        public int getOriginalOrder() {
+            return originalOrder;
+        }
+
         public String getAccountType() {
             return accountType.get();
         }
@@ -610,5 +679,11 @@ public class AccountListUI extends HBox {
             this.accountType.set(accountType);
         }
 
+    }
+
+    private enum AccountSortMode {
+        DEFAULT,
+        ASCENDING,
+        DESCENDING
     }
 }
