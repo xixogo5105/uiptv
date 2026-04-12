@@ -56,6 +56,7 @@ public class ReloadCachePopup extends VBox {
     private static final String STYLE_YELLOW_LABEL = "-fx-font-weight: bold; -fx-text-fill: #d97706;";
     private static final String TR_CATEGORY_TAB_SERIES = "categoryTabTvSeries";
     private static final String TR_CATEGORY_TAB_VOD = "categoryTabVideoOnDemand";
+    private static final String TR_CATEGORY_TAB_LIVE_TV = "categoryTabLiveTv";
     private static final String TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED = "reloadModeCategoryListCallFailed";
     private static final String TR_RELOAD_MODE_CATEGORY_LIST_FAILED = "reloadModeCategoryListFailed";
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
@@ -1204,7 +1205,7 @@ public class ReloadCachePopup extends VBox {
             if (MODE_SERIES.equals(modeCode)) {
                 return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
             }
-            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr("categoryTabLiveTv"));
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_LIVE_TV));
         }
         return null;
     }
@@ -1462,7 +1463,7 @@ public class ReloadCachePopup extends VBox {
         }
         if (LOG_NO_CHANNELS_FOUND.equals(trimmed)) {
             return mode == null
-                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr("categoryTabLiveTv"))
+                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr(TR_CATEGORY_TAB_LIVE_TV))
                     : I18n.tr("reloadModeChannelsNoneFound", mode);
         }
         if (isLastResortFetchSucceededLog(trimmed)) {
@@ -1509,7 +1510,7 @@ public class ReloadCachePopup extends VBox {
             return null;
         }
         return switch (code) {
-            case "ITV" -> I18n.tr("categoryTabLiveTv");
+            case "ITV" -> I18n.tr(TR_CATEGORY_TAB_LIVE_TV);
             case MODE_VOD -> I18n.tr(TR_CATEGORY_TAB_VOD);
             case MODE_SERIES -> I18n.tr(TR_CATEGORY_TAB_SERIES);
             default -> null;

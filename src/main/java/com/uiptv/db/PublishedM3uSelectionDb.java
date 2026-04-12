@@ -42,34 +42,38 @@ public class PublishedM3uSelectionDb extends BaseDb {
 
     public void replaceSelections(Set<String> accountIds) {
         try (Connection conn = connect()) {
-            boolean originalAutoCommit = conn.getAutoCommit();
-            try {
-                conn.setAutoCommit(false);
-                try (PreparedStatement delete = conn.prepareStatement("DELETE FROM " + PUBLISHED_M3U_SELECTION_TABLE.getTableName())) {
-                    delete.executeUpdate();
-                }
-
-                if (accountIds != null && !accountIds.isEmpty()) {
-                    try (PreparedStatement insert = conn.prepareStatement(insertTableSql(PUBLISHED_M3U_SELECTION_TABLE))) {
-                        for (String accountId : accountIds) {
-                            if (isBlank(accountId)) {
-                                continue;
-                            }
-                            insert.setString(1, accountId);
-                            insert.addBatch();
-                        }
-                        insert.executeBatch();
-                    }
-                }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(originalAutoCommit);
-            }
+            replaceSelectionsInTransaction(conn, accountIds);
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to replace published M3U selections", e);
+        }
+    }
+
+    private void replaceSelectionsInTransaction(Connection conn, Set<String> accountIds) throws SQLException {
+        boolean originalAutoCommit = conn.getAutoCommit();
+        try {
+            conn.setAutoCommit(false);
+            try (PreparedStatement delete = conn.prepareStatement("DELETE FROM " + PUBLISHED_M3U_SELECTION_TABLE.getTableName())) {
+                delete.executeUpdate();
+            }
+
+            if (accountIds != null && !accountIds.isEmpty()) {
+                try (PreparedStatement insert = conn.prepareStatement(insertTableSql(PUBLISHED_M3U_SELECTION_TABLE))) {
+                    for (String accountId : accountIds) {
+                        if (isBlank(accountId)) {
+                            continue;
+                        }
+                        insert.setString(1, accountId);
+                        insert.addBatch();
+                    }
+                    insert.executeBatch();
+                }
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(originalAutoCommit);
         }
     }
 

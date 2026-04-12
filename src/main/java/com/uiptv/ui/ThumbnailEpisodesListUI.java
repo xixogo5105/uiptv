@@ -591,8 +591,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void loadEpisodePoster(ImageView poster, EpisodeItem row, String posterUrl) {
-        ImageCacheManager.loadImageAsync(posterUrl, EPISODE_CACHE).thenAccept(image -> {
-            Platform.runLater(() -> {
+        ImageCacheManager.loadImageAsync(posterUrl, EPISODE_CACHE).thenAccept(image -> Platform.runLater(() -> {
                 String currentPrimaryUrl = resolveEpisodePosterUrl(row, "");
                 if (!posterUrl.equals(currentPrimaryUrl) && !posterUrl.equals(resolveEpisodePosterUrl(row, currentPrimaryUrl))) {
                     return;
@@ -612,8 +611,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                     return;
                 }
                 poster.setImage(null);
-            });
-        });
+            }));
     }
 
     private String resolveEpisodePosterUrl(EpisodeItem row, String excludedUrl) {

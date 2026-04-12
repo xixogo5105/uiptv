@@ -346,13 +346,11 @@ public class AccountListUI extends HBox {
 
     private void applyAccountOrdering() {
         List<AccountItem> orderedItems = new ArrayList<>(masterAccountItems);
-        if (accountSortMode == AccountSortMode.DEFAULT) {
-            orderedItems.sort(Comparator.comparing(AccountItem::isPinToTop).reversed()
+        switch (accountSortMode) {
+            case DEFAULT -> orderedItems.sort(Comparator.comparing(AccountItem::isPinToTop).reversed()
                     .thenComparingInt(AccountItem::getOriginalOrder));
-        } else if (accountSortMode == AccountSortMode.DESCENDING) {
-            orderedItems.sort(ACCOUNT_NAME_COMPARATOR.reversed());
-        } else {
-            orderedItems.sort(ACCOUNT_NAME_COMPARATOR);
+            case DESCENDING -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR.reversed());
+            default -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR);
         }
         table.setItems(FXCollections.observableArrayList(orderedItems));
         table.filterByAccountType();

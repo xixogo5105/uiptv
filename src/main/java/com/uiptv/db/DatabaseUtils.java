@@ -22,6 +22,7 @@ public class DatabaseUtils {
     private static final String INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY";
     private static final String INTEGER_TYPE = "INTEGER";
     private static final String TEXT_NOT_NULL = "TEXT NOT NULL";
+    private static final String TEXT_NOT_NULL_UNIQUE = "TEXT NOT NULL UNIQUE";
     private static final String WHERE_ID_EQUALS = " where id=?";
     private static final String COLUMN_ACCOUNT_ID = "accountId";
     private static final String COLUMN_ACCOUNT_TYPE = "accountType";
@@ -79,7 +80,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("accountName", "TEXT NOT NULL UNIQUE"),
+                new DataColumn("accountName", TEXT_NOT_NULL_UNIQUE),
                 new DataColumn("username", "TEXT"),
                 new DataColumn("password", "TEXT"),
                 new DataColumn("xtremeCredentialsJson", "TEXT"),
@@ -100,7 +101,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.ACCOUNT_INFO_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT NOT NULL UNIQUE"),
+                new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL_UNIQUE),
                 new DataColumn("expireDate", "TEXT"),
                 new DataColumn("accountStatus", "TEXT"),
                 new DataColumn("accountBalance", "TEXT"),
@@ -286,7 +287,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT NOT NULL UNIQUE")
+                new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL_UNIQUE)
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
