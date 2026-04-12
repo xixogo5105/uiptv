@@ -25,6 +25,7 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -49,6 +50,7 @@ public class ReloadCachePopup extends VBox {
     private static final String LOG_NETWORK_ERROR_LOADING_CATEGORIES = "Network error while loading categories";
     private static final String LOG_NO_CHANNELS_FOUND = "No channels found.";
     private static final String LOG_RELOAD_FAILED_PREFIX = "Reload failed:";
+    private static final String LOG_SKIPPED_IGNORED_DOMAIN = "Skipped after previous failure for the same domain in this run.";
     private static final String MODE_SERIES = "SERIES";
     private static final String MODE_VOD = "VOD";
     private static final String STYLE_YELLOW_LABEL = "-fx-font-weight: bold; -fx-text-fill: #d97706;";
@@ -64,6 +66,10 @@ public class ReloadCachePopup extends VBox {
 
     private enum SummaryLevel {
         GOOD, YELLOW, BAD
+    }
+
+    private enum GlobalFailureDecision {
+        CARRY_ON, MARK_BAD, MARK_BAD_AND_IGNORE_DOMAIN, STOP_ALL
     }
 
     private static final class SummaryStatus {
@@ -85,6 +91,7 @@ public class ReloadCachePopup extends VBox {
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
+    private final Button stopButton = new Button(I18n.tr("autoStop"));
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountService accountService = AccountService.getInstance();
     private final AccountInfoService accountInfoService = AccountInfoService.getInstance();
@@ -94,6 +101,8 @@ public class ReloadCachePopup extends VBox {
     private final List<String> latestSummaryLines = new ArrayList<>();
     private final Map<String, SummaryStatus> latestAccountSummaries = new LinkedHashMap<>();
     private final ReloadRunOutcomeTracker runOutcomeTracker = new ReloadRunOutcomeTracker();
+    private final Set<String> ignoredFailureDomains = new HashSet<>();
+    private volatile boolean stopRequested = false;
     private final Runnable onAccountsDeleted;
     private VBox accountColumn;
     private ColumnConstraints accountsColumn;
@@ -271,13 +280,16 @@ public class ReloadCachePopup extends VBox {
     private HBox buildButtonBox() {
         reloadButton.setOnAction(event -> startReloadInBackground());
         reloadButton.managedProperty().bind(reloadButton.visibleProperty());
+        stopButton.setVisible(false);
+        stopButton.managedProperty().bind(stopButton.visibleProperty());
+        stopButton.setOnAction(event -> stopRequested = true);
         Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
         copyLogButton.setOnAction(event -> copyLogsToClipboard());
         Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.setOnAction(event -> stage.close());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox buttonBox = new HBox(10, reloadButton, spacer, copyLogButton, closeButton);
+        HBox buttonBox = new HBox(10, reloadButton, stopButton, spacer, copyLogButton, closeButton);
         buttonBox.setAlignment(Pos.CENTER_LEFT);
         buttonBox.setPadding(new Insets(10, 0, 0, 0));
         return buttonBox;
@@ -338,6 +350,7 @@ public class ReloadCachePopup extends VBox {
         runAccountOrder.clear();
         latestSummaryLines.clear();
         latestAccountSummaries.clear();
+        ignoredFailureDomains.clear();
 
         // Clear all log panel UI nodes
         logVBox.getChildren().clear();
@@ -414,6 +427,9 @@ public class ReloadCachePopup extends VBox {
         Map<String, SummaryStatus> summaryStatusByAccountId = new LinkedHashMap<>();
         int totalFetchedChannels = 0;
         for (int i = 0; i < selectedAccounts.size(); i++) {
+            if (stopRequested) {
+                break;
+            }
             Account account = selectedAccounts.get(i);
             processedAccounts.add(account);
             setRunningAccount(account, i + 1, selectedAccounts.size());
@@ -430,16 +446,31 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void prepareReloadRun(List<Account> selectedAccounts) {
-        Platform.runLater(() -> reloadButton.setVisible(false));
+        stopRequested = false;
+        Platform.runLater(() -> {
+            reloadButton.setVisible(false);
+            stopButton.setVisible(true);
+        });
         progressBar.setTotal(selectedAccounts.size());
         prepareAccountLogPanels(selectedAccounts);
     }
 
     private void showReloadButton() {
-        Platform.runLater(() -> reloadButton.setVisible(true));
+        Platform.runLater(() -> {
+            reloadButton.setVisible(true);
+            stopButton.setVisible(false);
+        });
     }
 
     private AccountReloadResult reloadSingleAccount(Account account) {
+        String domainKey = resolveRepeatFailureDomain(account);
+        if (domainKey != null && ignoredFailureDomains.contains(domainKey)) {
+            logMessage(account, LOG_SKIPPED_IGNORED_DOMAIN);
+            List<String> accountIssues = new ArrayList<>();
+            addIssue(accountIssues, I18n.tr("reloadSkippedIgnoredDomain", domainKey));
+            return new AccountReloadResult(true, 0, 0, accountIssues);
+        }
+
         boolean failed = false;
         int fetchedChannelCount = 0;
         List<String> accountIssues = new ArrayList<>();
@@ -483,7 +514,16 @@ public class ReloadCachePopup extends VBox {
             return;
         }
         globalFailurePrompted[0] = true;
-        if (!promptCarryOnAfterGlobalFailure(account, failureReason)) {
+        String domainKey = resolveRepeatFailureDomain(account);
+        GlobalFailureDecision decision = promptCarryOnAfterGlobalFailure(account, failureReason, domainKey != null);
+        if (decision == GlobalFailureDecision.STOP_ALL) {
+            stopRequested = true;
+            throw new SkipAccountReloadException();
+        }
+        if (decision == GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN && domainKey != null) {
+            ignoredFailureDomains.add(domainKey);
+        }
+        if (decision != GlobalFailureDecision.CARRY_ON) {
             throw new SkipAccountReloadException();
         }
     }
@@ -517,6 +557,7 @@ public class ReloadCachePopup extends VBox {
         Platform.runLater(() -> {
             com.uiptv.util.AppLog.addInfoLog(ReloadCachePopup.class, "Reload run completed.");
             reloadButton.setVisible(true);
+            stopButton.setVisible(false);
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
@@ -721,6 +762,7 @@ public class ReloadCachePopup extends VBox {
             latestSummaryLines.clear();
             latestAccountSummaries.clear();
             runOutcomeTracker.clear();
+            ignoredFailureDomains.clear();
             logVBox.getChildren().clear();
 
             for (Account account : selectedAccounts) {
@@ -1141,9 +1183,6 @@ public class ReloadCachePopup extends VBox {
         if (account == null || message == null) {
             return null;
         }
-        if (account.getType() != AccountType.XTREME_API && account.getType() != AccountType.STALKER_PORTAL) {
-            return null;
-        }
         String trimmed = message.trim();
         if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
             return I18n.tr("reloadLiveTvGlobalCallFailedForXtreme");
@@ -1165,6 +1204,7 @@ public class ReloadCachePopup extends VBox {
             if (MODE_SERIES.equals(modeCode)) {
                 return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr(TR_CATEGORY_TAB_SERIES));
             }
+            return I18n.tr(TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED, I18n.tr("categoryTabLiveTv"));
         }
         return null;
     }
@@ -1259,16 +1299,28 @@ public class ReloadCachePopup extends VBox {
         return null;
     }
 
-    private boolean promptCarryOnAfterGlobalFailure(Account account, String reason) {
-        final boolean[] carryOn = {true};
+    private GlobalFailureDecision promptCarryOnAfterGlobalFailure(Account account, String reason, boolean canIgnoreDomain) {
+        final GlobalFailureDecision[] decision = {GlobalFailureDecision.CARRY_ON};
         runOnFxThreadAndWait(() -> {
             ButtonType carryOnButton = new ButtonType(I18n.tr("reloadCarryOn"), ButtonBar.ButtonData.YES);
+            ButtonType stopAllButton = new ButtonType(I18n.tr("reloadStopAll"), ButtonBar.ButtonData.OTHER);
             ButtonType markBadButton = new ButtonType(I18n.tr("reloadMarkBadAndNext"), ButtonBar.ButtonData.CANCEL_CLOSE);
+            ButtonType ignoreDomainButton = new ButtonType(I18n.tr("reloadMarkBadIgnoreDomain"), ButtonBar.ButtonData.NO);
+            String promptMessage = canIgnoreDomain
+                    ? I18n.tr("reloadGlobalFailurePromptWithIgnoreDomain", account.getAccountName(), reason)
+                    : I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason);
+            List<ButtonType> buttons = new ArrayList<>();
+            buttons.add(carryOnButton);
+            if (canIgnoreDomain) {
+                buttons.add(ignoreDomainButton);
+            }
+            buttons.add(markBadButton);
+            buttons.add(stopAllButton);
+
             Alert alert = new Alert(
                     Alert.AlertType.CONFIRMATION,
-                    I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason),
-                    carryOnButton,
-                    markBadButton
+                    promptMessage,
+                    buttons.toArray(new ButtonType[0])
             );
             alert.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
             if (RootApplication.getCurrentTheme() != null) {
@@ -1277,9 +1329,97 @@ public class ReloadCachePopup extends VBox {
             alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
                     ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
                     : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
-            carryOn[0] = alert.showAndWait().orElse(markBadButton) == carryOnButton;
+            ButtonType selected = alert.showAndWait().orElse(markBadButton);
+            if (selected == carryOnButton) {
+                decision[0] = GlobalFailureDecision.CARRY_ON;
+            } else if (selected == ignoreDomainButton) {
+                decision[0] = GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN;
+            } else if (selected == stopAllButton) {
+                decision[0] = GlobalFailureDecision.STOP_ALL;
+            } else {
+                decision[0] = GlobalFailureDecision.MARK_BAD;
+            }
         });
-        return carryOn[0];
+        return decision[0];
+    }
+
+    private String resolveRepeatFailureDomain(Account account) {
+        if (!canIgnoreDomainFailures(account)) {
+            return null;
+        }
+        String raw = switch (account.getType()) {
+            case STALKER_PORTAL, XTREME_API -> account.getUrl();
+            case M3U8_URL -> account.getM3u8Path();
+            default -> null;
+        };
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        String host = null;
+        try {
+            host = URI.create(trimmed).getHost();
+        } catch (Exception _) {
+            // URI is strict about underscores and other characters
+        }
+
+        if (host == null || host.isBlank()) {
+            host = extractHostManually(trimmed);
+        }
+
+        return host != null && !host.isBlank()
+                ? host.toLowerCase(java.util.Locale.ROOT)
+                : trimmed.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private String extractHostManually(String url) {
+        int protoEnd = url.indexOf("://");
+        if (protoEnd == -1) {
+            return null;
+        }
+        String afterProto = url.substring(protoEnd + 3);
+        int slashIndex = afterProto.indexOf('/');
+        int colonIndex = afterProto.indexOf(':');
+        int end;
+        if (slashIndex != -1 && colonIndex != -1) {
+            end = Math.min(slashIndex, colonIndex);
+        } else if (slashIndex != -1) {
+            end = slashIndex;
+        } else {
+            end = colonIndex;
+        }
+        return end == -1 ? afterProto : afterProto.substring(0, end);
+    }
+
+    private boolean canIgnoreDomainFailures(Account account) {
+        if (account == null || account.getType() == null) {
+            return false;
+        }
+        return switch (account.getType()) {
+            case XTREME_API -> !isGroupedXtremeAccount(account);
+            case STALKER_PORTAL -> !isGroupedStalkerAccount(account);
+            case M3U8_URL -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isGroupedXtremeAccount(Account account) {
+        return com.uiptv.util.XtremeCredentialsJson.parse(account.getXtremeCredentialsJson()).size() > 1;
+    }
+
+    private boolean isGroupedStalkerAccount(Account account) {
+        String macs = account.getMacAddressList();
+        if (macs == null || macs.isBlank()) {
+            macs = account.getMacAddress();
+        }
+        if (macs == null || macs.isBlank()) {
+            return false;
+        }
+        return java.util.Arrays.stream(macs.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .limit(2)
+                .count() > 1;
     }
 
     private Integer extractFirstNumber(String input) {
