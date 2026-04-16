@@ -181,12 +181,6 @@ public class StalkerPortalParser implements AccountParser {
         }
     }
 
-    private boolean hasExtraParams(Account account) {
-        return isNotBlank(account.getSerialNumber())
-                || isNotBlank(account.getDeviceId1())
-                || isNotBlank(account.getDeviceId2())
-                || isNotBlank(account.getSignature());
-    }
 
     private void saveGroupedAccount(Account currentAccount, Map<String, Account> groupedAccounts,
                                     List<Account> createdAccounts, Set<String> processedNames) {
