@@ -72,6 +72,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
         mediaPlayer.controls().setRepeat(false);
         mediaPlayer.audio().setMute(isMuted);
+        // Ensure initial volume reflects the UI slider (0-100) -> VLC expects 0-200
+        // Call through setVolume so subclasses' mapping is applied consistently.
+        try {
+            setVolume(volumeSlider != null ? volumeSlider.getValue() : 50);
+        } catch (Exception _e) {
+            // Best-effort: ignore if player not yet ready or UI not constructed.
+        }
     }
 
     private MediaPlayerEventAdapter createMediaPlayerEvents() {
@@ -336,7 +343,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             player = mediaPlayer;
         }
         if (player != null) {
-            player.audio().setVolume((int) volume);
+            // VLC audio volume range is typically 0-200 while the UI slider is 0-100.
+            // Map slider (0-100) -> vlc (0-200) and clamp.
+            int vlcVolume = (int) Math.round(volume * 2.0);
+            if (vlcVolume < 0) vlcVolume = 0;
+            if (vlcVolume > 200) vlcVolume = 200;
+            player.audio().setVolume(vlcVolume);
         }
     }
 
