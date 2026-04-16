@@ -113,8 +113,6 @@ class StalkerPortalParserTest {
                 account -> {}
         );
 
-        Method hasExtraParams = StalkerPortalParser.class.getDeclaredMethod("hasExtraParams", Account.class);
-        hasExtraParams.setAccessible(true);
         Method appendMacAddress = StalkerPortalParser.class.getDeclaredMethod("appendMacAddress", Account.class, String.class);
         appendMacAddress.setAccessible(true);
         Method saveGroupedAccount = StalkerPortalParser.class.getDeclaredMethod(
@@ -128,13 +126,11 @@ class StalkerPortalParserTest {
         Account simple = new Account();
         simple.setUrl("http://portal.example/c");
         simple.setMacAddress("00:11:22:33:44:66");
-        assertFalse((Boolean) hasExtraParams.invoke(parser, simple));
 
         Account extra = new Account();
         extra.setUrl("http://portal.example/c");
         extra.setMacAddress("00:11:22:33:44:77");
         extra.setSerialNumber("SERIAL77");
-        assertTrue((Boolean) hasExtraParams.invoke(parser, extra));
 
         appendMacAddress.invoke(parser, existing, "00:11:22:33:44:66");
         assertTrue(existing.getMacAddressList().contains("00:11:22:33:44:55"));

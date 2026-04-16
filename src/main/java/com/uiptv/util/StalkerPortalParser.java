@@ -259,15 +259,6 @@ public class StalkerPortalParser implements AccountParser {
         }
     }
 
-    // Package-private because tests access this method via reflection. Keep non-private so Sonar's
-    // "unused private method" rule does not raise S1144.
-    boolean hasExtraParams(Account account) {
-        return isNotBlank(account.getSerialNumber())
-                || isNotBlank(account.getDeviceId1())
-                || isNotBlank(account.getDeviceId2())
-                || isNotBlank(account.getSignature());
-    }
-
     private record ParsedLine(String trimmedLine, String url, String mac) {
     }
 
