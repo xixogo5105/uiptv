@@ -76,7 +76,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         // Call through setVolume so subclasses' mapping is applied consistently.
         try {
             setVolume(volumeSlider != null ? volumeSlider.getValue() : 50);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // Best-effort: ignore if player not yet ready or UI not constructed.
         }
     }
