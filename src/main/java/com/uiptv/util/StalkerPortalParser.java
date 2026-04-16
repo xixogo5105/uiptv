@@ -109,7 +109,7 @@ public class StalkerPortalParser implements AccountParser {
                 .toList();
 
         for (Account currentAccount : validAccounts) {
-            if (groupAccountsByMac && !hasExtraParams(currentAccount)) {
+            if (groupAccountsByMac) {
                 saveGroupedAccount(currentAccount, groupedAccounts, createdAccounts, processedNames);
             } else {
                 saveIndividualAccount(currentAccount, individualAccounts, createdAccounts, processedNames);
@@ -167,7 +167,15 @@ public class StalkerPortalParser implements AccountParser {
         for (StalkerAttributeParser parser : attributeParsers) {
             String value = parser.parse(line);
             if (value != null) {
-                applyValueToAccount(account, value, parser.getAttributeType());
+                StalkerAttributeType type = parser.getAttributeType();
+                applyValueToAccount(account, value, type);
+                // If a combined device id (e.g., "1/2") is provided, apply the same value to device id 2 as well
+                if (type == StalkerAttributeType.DEVICE_ID_1) {
+                    String lower = line.toLowerCase();
+                    if (lower.matches(".*1\\s*/\\s*2.*")) {
+                        applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_2);
+                    }
+                }
                 return;
             }
         }
@@ -187,11 +195,13 @@ public class StalkerPortalParser implements AccountParser {
         Account existing = groupedAccounts.get(name);
         if (existing != null) {
             appendMacAddress(existing, currentAccount.getMacAddress());
+            mergeExtraParams(existing, currentAccount);
             return;
         }
         Account existingInDb = accountProvider.apply(name);
         if (existingInDb != null) {
             appendMacAddress(existingInDb, currentAccount.getMacAddress());
+            mergeExtraParams(existingInDb, currentAccount);
             groupedAccounts.put(name, existingInDb);
             processedNames.add(existingInDb.getAccountName());
             return;
@@ -225,8 +235,33 @@ public class StalkerPortalParser implements AccountParser {
 
     private void appendMacAddress(Account account, String macAddress) {
         String macList = account.getMacAddressList() != null ? account.getMacAddressList() : account.getMacAddress();
+        if (macList == null || macList.isBlank()) {
+            account.setMacAddressList(macAddress);
+            return;
+        }
         if (!macList.contains(macAddress)) {
             account.setMacAddressList(macList + "," + macAddress);
+        }
+    }
+
+    private void mergeExtraParams(Account target, Account source) {
+        if (!isNotBlank(target.getSerialNumber()) && isNotBlank(source.getSerialNumber())) {
+            target.setSerialNumber(source.getSerialNumber());
+        }
+        if (!isNotBlank(target.getDeviceId1()) && isNotBlank(source.getDeviceId1())) {
+            target.setDeviceId1(source.getDeviceId1());
+        }
+        if (!isNotBlank(target.getDeviceId2()) && isNotBlank(source.getDeviceId2())) {
+            target.setDeviceId2(source.getDeviceId2());
+        }
+        if (!isNotBlank(target.getSignature()) && isNotBlank(source.getSignature())) {
+            target.setSignature(source.getSignature());
+        }
+        if (!isNotBlank(target.getTimezone()) && isNotBlank(source.getTimezone())) {
+            target.setTimezone(source.getTimezone());
+        }
+        if (!isNotBlank(target.getHttpMethod()) && isNotBlank(source.getHttpMethod())) {
+            target.setHttpMethod(source.getHttpMethod());
         }
     }
 
