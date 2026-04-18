@@ -64,7 +64,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             hwDecode = defaultHw;
         }
         vlcArgs.add("--avcodec-hw=" + hwDecode);
-        vlcArgs.add("--network-caching=1000");
+        // Increase network caching for HLS/M3U8 playlists (default 1000ms is too short for adaptive streaming)
+        vlcArgs.add("--network-caching=5000");
+        // Add live caching for better HLS stream handling
+        vlcArgs.add("--live-caching=5000");
+        // Add User-Agent to comply with CDN requirements (some streams like Cloudfront require it)
+        vlcArgs.add("--http-user-agent=VLC/3.0.0 (UIPTV/1.0)");
         return vlcArgs;
     }
 
@@ -206,7 +211,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void handleError() {
         Platform.runLater(() -> {
             loadingSpinner.setVisible(false);
-            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VlcVideoPlayer: An error occurred in the media player.");
+            
+            // Provide better error context in logs
+            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, 
+                "VlcVideoPlayer: Playback error occurred. Check network connectivity and stream URL.");
             errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
             errorLabel.setVisible(true);
             if (isRepeating && isRetrying.get()) {
