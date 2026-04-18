@@ -64,14 +64,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             hwDecode = defaultHw;
         }
         vlcArgs.add("--avcodec-hw=" + hwDecode);
-        // Increase network caching for HLS/M3U8 playlists (default 1000ms is too short for adaptive streaming)
-        vlcArgs.add("--network-caching=5000");
-        // Add live caching for better HLS stream handling
-        vlcArgs.add("--live-caching=5000");
-        // Add User-Agent to comply with CDN requirements (use browser UA to satisfy some CDN rules)
-        vlcArgs.add("--http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-        // Enable HTTP redirection following (important for CDN like Cloudfront)
-        vlcArgs.add("--http-forward-cookies");
+        vlcArgs.add("--network-caching=1000");
         return vlcArgs;
     }
 
@@ -213,10 +206,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void handleError() {
         Platform.runLater(() -> {
             loadingSpinner.setVisible(false);
-            
-            // Provide better error context in logs
-            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, 
-                "VlcVideoPlayer: Playback error occurred. Check network connectivity and stream URL.");
+            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VlcVideoPlayer: An error occurred in the media player.");
             errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
             errorLabel.setVisible(true);
             if (isRepeating && isRetrying.get()) {
@@ -277,15 +267,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoSourceWidth = 0;
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
-
-            String playUri = resolveHlsPlaylistChain(uri);
-
             EmbeddedMediaPlayer player;
             synchronized (playerLock) {
                 player = mediaPlayer;
             }
             if (player != null) {
-                player.media().play(playUri);
+                player.media().play(uri);
             }
         }).start();
     }
