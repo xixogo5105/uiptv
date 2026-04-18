@@ -7,6 +7,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
@@ -706,9 +707,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         List<Category> categories = CategoryDb.get().getCategories(uncategorizedOnlyM3u);
         assertEquals(1, categories.size(), "Uncategorized-only M3U should expose only All category");
         Category allCategory = categories.get(0);
-        assertEquals("All", allCategory.getTitle());
+        assertEquals(CategoryType.ALL.displayName(), allCategory.getTitle());
 
-        List<Channel> channels = ChannelService.getInstance().get("All", uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
+        List<Channel> channels = ChannelService.getInstance().get(CategoryType.ALL.displayName(), uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
         assertEquals(3, channels.size(), "All category should preserve all channels from uncategorized-only playlist");
         assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
                 channels.stream().map(Channel::getName).collect(Collectors.toSet()));

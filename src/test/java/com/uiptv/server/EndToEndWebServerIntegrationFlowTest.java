@@ -9,6 +9,7 @@ import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
@@ -325,7 +326,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         Account stalkerItv = accountService.getByName("web-stalker");
         stalkerItv.setAction(itv);
         List<Category> liveCats = CategoryDb.get().getCategories(stalkerItv);
-        Category liveCategory = liveCats.stream().filter(c -> !"All".equalsIgnoreCase(c.getTitle())).findFirst().orElse(liveCats.get(0));
+        Category liveCategory = liveCats.stream().filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())).findFirst().orElse(liveCats.get(0));
         Channel liveChannel = ChannelDb.get().getChannels(liveCategory.getDbId()).get(0);
 
         Bookmark b = new Bookmark(
@@ -423,7 +424,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(xtremeSeriesCats.length() >= 2);
         assertTrue(m3uCats.length() >= 1);
         assertEquals(1, uncategorizedOnlyM3uCats.length());
-        assertEquals("All", uncategorizedOnlyM3uCats.getJSONObject(0).optString("title"));
+        assertEquals(CategoryType.ALL.displayName(), uncategorizedOnlyM3uCats.getJSONObject(0).optString("title"));
         assertTrue(rssCats.length() >= 1);
     }
 
@@ -434,7 +435,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
 
         Category stalkerLiveCategory = CategoryDb.get().getCategories(stalker).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
                 .orElseThrow();
         JSONArray stalkerChannels = jsonArrayBody(get("/channels?accountId=" + stalker.getDbId() + "&categoryId=" + stalkerLiveCategory.getDbId() + "&mode=itv"));
@@ -451,7 +452,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(stalkerSeriesChildren.length() >= 1);
 
         Category xtremeLiveCategory = CategoryDb.get().getCategories(xtreme).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
                 .orElseThrow();
         JSONArray xtremeChannels = jsonArrayBody(get("/channels?accountId=" + xtreme.getDbId() + "&categoryId=" + xtremeLiveCategory.getDbId() + "&mode=itv"));
@@ -727,7 +728,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         Account stalker = AccountService.getInstance().getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
                 .orElseThrow();
 
@@ -775,7 +776,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private void assertPlayerApis() throws Exception {
         Account stalker = AccountService.getInstance().getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
                 .orElseThrow();
         Channel liveChannel = ChannelDb.get().getChannels(liveCategory.getDbId()).get(0);
@@ -828,7 +829,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private void assertPlaylistApis() throws Exception {
         Account stalker = AccountService.getInstance().getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
                 .orElseThrow();
         Channel liveChannel = ChannelDb.get().getChannels(liveCategory.getDbId()).get(0);
@@ -911,7 +912,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
             Account stalker = AccountService.getInstance().getByName("web-stalker");
             Category stalkerCategory = CategoryDb.get().getCategories(stalker).stream()
-                    .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                    .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                     .findFirst()
                     .orElseThrow();
             String stalkerUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + stalker.getDbId()
@@ -924,7 +925,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
             Account xtreme = AccountService.getInstance().getByName("web-xtreme");
             Category xtremeCategory = CategoryDb.get().getCategories(xtreme).stream()
-                    .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                    .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                     .findFirst()
                     .orElseThrow();
             String xtremeUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()

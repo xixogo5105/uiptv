@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
@@ -489,7 +490,7 @@ public class CategoryListUI extends HBox {
         return (id != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(id.trim()))
                 || (candidateCategoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(candidateCategoryId.trim()))
                 || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
-                || (title != null && title.equalsIgnoreCase("All"));
+                || (title != null && title.equalsIgnoreCase(CategoryType.ALL.displayName()));
     }
 
     private boolean sameCategorySelection(CategoryItem left, CategoryItem right) {

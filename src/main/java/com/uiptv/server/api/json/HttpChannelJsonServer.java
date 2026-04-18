@@ -8,6 +8,7 @@ import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
@@ -28,7 +29,7 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class HttpChannelJsonServer implements HttpHandler {
-    private static final String ALL_CATEGORY = "All";
+    private static final String ALL_CATEGORY = CategoryType.ALL.displayName();
     private static final String PARAM_CHANNEL_ID = "channelId";
 
     @Override

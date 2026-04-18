@@ -6,6 +6,7 @@ import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.ui.RssParser;
 import com.uiptv.ui.XtremeParser;
@@ -274,13 +275,13 @@ public class CategoryService {
         if (categories == null || categories.isEmpty() || categories.size() != 2) {
             return categories;
         }
-        boolean hasAll = categories.stream().anyMatch(c -> titleEquals(c, "All"));
-        boolean hasUncategorized = categories.stream().anyMatch(c -> titleEquals(c, "Uncategorized"));
+        boolean hasAll = categories.stream().anyMatch(c -> titleEquals(c, CategoryType.ALL.displayName()));
+        boolean hasUncategorized = categories.stream().anyMatch(c -> titleEquals(c, CategoryType.UNCATEGORIZED.displayName()));
         if (!hasAll || !hasUncategorized) {
             return categories;
         }
         return categories.stream()
-                .filter(c -> !titleEquals(c, "Uncategorized"))
+                .filter(c -> !titleEquals(c, CategoryType.UNCATEGORIZED.displayName()))
                 .toList();
     }
 

@@ -11,6 +11,7 @@ import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.SeriesWatchStateService;
@@ -52,7 +53,7 @@ class HttpJsonServerTest extends DbBackedTest {
         assertEquals(200, exchange.getResponseCode());
         JSONArray response = new JSONArray(exchange.getResponseBodyText());
         assertEquals(3, response.length());
-        assertEquals("All", response.getJSONObject(0).getString("title"));
+        assertEquals(CategoryType.ALL.displayName(), response.getJSONObject(0).getString("title"));
         assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("application/json"));
     }
 
@@ -61,7 +62,7 @@ class HttpJsonServerTest extends DbBackedTest {
         Account account = createAccount("channel-all-api");
         CategoryDb categoryDb = CategoryDb.get();
         List<Category> categories = new ArrayList<>();
-        categories.add(new Category("all", "All", "all", false, 0));
+        categories.add(new Category("all", CategoryType.ALL.displayName(), "all", false, 0));
         categories.add(new Category("10", "Sports", "sports", false, 0));
         categories.add(new Category("11", "Movies", "movies", false, 0));
         categoryDb.saveAll(categories, account);
@@ -94,7 +95,7 @@ class HttpJsonServerTest extends DbBackedTest {
     void channelServer_allCategory_withOnlyAllCategory_returnsAllCategoryChannels() throws Exception {
         Account account = createAccount("channel-all-only-api");
         CategoryDb categoryDb = CategoryDb.get();
-        categoryDb.saveAll(List.of(new Category("all", "All", "all", false, 0)), account);
+        categoryDb.saveAll(List.of(new Category("all", CategoryType.ALL.displayName(), "all", false, 0)), account);
         Category allCategory = categoryDb.getCategories(account).get(0);
 
         ChannelDb.get().saveAll(
@@ -117,7 +118,7 @@ class HttpJsonServerTest extends DbBackedTest {
     void webChannelServer_allCategory_withOnlyAllCategory_returnsAllCategoryChannels() throws Exception {
         Account account = createAccount("web-channel-all-only-api");
         CategoryDb categoryDb = CategoryDb.get();
-        categoryDb.saveAll(List.of(new Category("all", "All", "all", false, 0)), account);
+        categoryDb.saveAll(List.of(new Category("all", CategoryType.ALL.displayName(), "all", false, 0)), account);
         Category allCategory = categoryDb.getCategories(account).get(0);
 
         ChannelDb.get().saveAll(

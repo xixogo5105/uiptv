@@ -1,5 +1,6 @@
 package com.uiptv.util;
 
+import com.uiptv.model.CategoryType;
 import com.uiptv.shared.PlaylistEntry;
 import org.json.JSONObject;
 import com.uiptv.widget.UIptvAlert;
@@ -27,7 +28,7 @@ public class M3U8Parser {
     private static final String KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type=";
     private static final String KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key=";
     private static final String COMMENT_PREFIX = "#";
-    private static final String UNCATEGORIZED = "Uncategorized";
+    private static final String UNCATEGORIZED = CategoryType.UNCATEGORIZED.displayName();
     private static final String DRM_TYPE_WIDEVINE = "com.widevine.alpha";
     private static final String DRM_TYPE_CLEARKEY = "org.w3.clearkey";
 
@@ -78,7 +79,7 @@ public class M3U8Parser {
 
     private static Set<PlaylistEntry> parseCategory(BufferedReader reader) {
         Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
-        playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));
+        playlistEntries.add(new PlaylistEntry(CategoryType.ALL.displayName(), CategoryType.ALL.displayName(), null, null, null));
         boolean hasUncategorizedEntries = false;
         try {
             String line;
@@ -186,7 +187,7 @@ public class M3U8Parser {
     }
 
     private static PlaylistEntry buildCategoryEntry(String line, String groupTitle) {
-        if (!isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase("All")) {
+        if (!isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase(CategoryType.ALL.displayName())) {
             return null;
         }
         return new PlaylistEntry(parseItem(line, "tvg-id=\""), groupTitle, null, null, null);

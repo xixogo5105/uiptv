@@ -5,6 +5,7 @@ import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.util.AccountType;
@@ -41,7 +42,8 @@ class CacheServiceImplTest extends DbBackedTest {
 
         assertTrue(cachedChannels.stream().anyMatch(c -> "Premium Plus".equals(c.getName())));
         assertTrue(cachedChannels.stream().anyMatch(c -> "Sports Live".equals(c.getName())));
-        assertTrue(cachedCategories.stream().anyMatch(c -> "Live".equalsIgnoreCase(c.getTitle())));
+        // Since there's only one real category, it should be treated as All
+        assertTrue(cachedCategories.stream().anyMatch(c -> CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())));
     }
 
     @Test
@@ -58,7 +60,8 @@ class CacheServiceImplTest extends DbBackedTest {
 
         assertTrue(cachedChannels.stream().anyMatch(c -> "Premium Plus".equals(c.getName())));
         assertTrue(cachedChannels.stream().anyMatch(c -> "Sports Live".equals(c.getName())));
-        assertTrue(cachedCategories.stream().anyMatch(c -> "Live".equalsIgnoreCase(c.getTitle())));
+        // Since there's only one real category, it should be treated as All
+        assertTrue(cachedCategories.stream().anyMatch(c -> CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())));
     }
 
     @Test
@@ -93,7 +96,7 @@ class CacheServiceImplTest extends DbBackedTest {
 
         List<Category> categories = CategoryDb.get().getCategories(account);
         assertEquals(1, categories.size());
-        assertEquals("All", categories.get(0).getTitle());
+        assertEquals(CategoryType.ALL.displayName(), categories.get(0).getTitle());
 
         int channelCount = ChannelDb.get().getChannelCountForAccount(account.getDbId());
         assertEquals(3, channelCount);
@@ -108,15 +111,15 @@ class CacheServiceImplTest extends DbBackedTest {
 
         CategoryDb.get().saveAll(
                 List.of(
-                        new Category("all", "All", "all", false, 0),
-                        new Category("uncategorized", "Uncategorized", "Uncategorized", false, 0)
+                        new Category("all", CategoryType.ALL.displayName(), "all", false, 0),
+                        new Category("uncategorized", CategoryType.UNCATEGORIZED.displayName(), CategoryType.UNCATEGORIZED.identifier(), false, 0)
                 ),
                 account
         );
 
         List<Category> categories = CategoryDb.get().getCategories(account);
-        Category allCategory = categories.stream().filter(c -> "All".equalsIgnoreCase(c.getTitle())).findFirst().orElseThrow();
-        Category uncategorizedCategory = categories.stream().filter(c -> "Uncategorized".equalsIgnoreCase(c.getTitle())).findFirst().orElseThrow();
+        Category allCategory = categories.stream().filter(c -> CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())).findFirst().orElseThrow();
+        Category uncategorizedCategory = categories.stream().filter(c -> CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(c.getTitle())).findFirst().orElseThrow();
 
         ChannelDb.get().saveAll(
                 List.of(new Channel("legacy-1", "Legacy Channel", "1", "cmd://legacy", null, null, null, "logo", 0, 1, 1, null, null, null, null, null)),
@@ -124,7 +127,7 @@ class CacheServiceImplTest extends DbBackedTest {
                 account
         );
 
-        List<Channel> channels = ChannelService.getInstance().get("All", account, allCategory.getDbId());
+        List<Channel> channels = ChannelService.getInstance().get(CategoryType.ALL.displayName(), account, allCategory.getDbId());
         assertEquals(1, channels.size(), "All category should include channels stored under legacy Uncategorized rows");
         assertEquals("Legacy Channel", channels.get(0).getName());
     }
@@ -299,7 +302,7 @@ class CacheServiceImplTest extends DbBackedTest {
     private List<Channel> getAllCachedChannels(Account account) {
         assertTrue(ChannelDb.get().getChannelCountForAccount(account.getDbId()) > 0);
         List<Category> categories = CategoryDb.get().getCategories(account);
-        assertTrue(categories.size() >= 2);
+        assertTrue(categories.size() >= 1);
 
         List<Channel> all = new ArrayList<>();
         for (Category category : categories) {

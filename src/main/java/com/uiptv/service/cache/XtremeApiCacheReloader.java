@@ -5,6 +5,7 @@ import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.ui.XtremeParser;
@@ -118,7 +119,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
     private List<Category> loadLiveCategories(Account account, LoggerCallback logger) {
         return CategoryService.getInstance().get(account, false, logger).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .toList();
     }
 

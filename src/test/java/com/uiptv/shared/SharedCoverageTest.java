@@ -2,6 +2,7 @@ package com.uiptv.shared;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
@@ -86,7 +87,7 @@ class SharedCoverageTest {
     @Test
     void playlistEntryAndBookmark_coverAccessors_andDefaultGroupTitle() {
         PlaylistEntry entry = new PlaylistEntry("1", " ", "News", "http://stream", "logo");
-        assertEquals("All", entry.getGroupTitle());
+        assertEquals(CategoryType.ALL.displayName(), entry.getGroupTitle());
         assertEquals("http://stream", entry.getPlaylistEntry());
 
         entry.setPlaylistEntry("http://updated");

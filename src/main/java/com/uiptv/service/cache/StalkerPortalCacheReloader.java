@@ -5,6 +5,7 @@ import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
@@ -183,7 +184,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     private List<Category> loadOfficialLiveCategories(Account account) {
         String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
         return CategoryService.getInstance().parseCategories(jsonCategories, false).stream()
-                .filter(c -> !"All".equalsIgnoreCase(c.getTitle()))
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .toList();
     }
 

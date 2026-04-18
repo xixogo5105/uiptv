@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.model.CategoryType;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.RssFeedReader;
 import com.uiptv.util.StringUtils;
@@ -15,7 +16,7 @@ public class RssParser {
 
     public static Set<PlaylistEntry> getCategories() {
         Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
-        playlistEntries.add(new PlaylistEntry("All", "All", null, null, null));
+        playlistEntries.add(new PlaylistEntry(CategoryType.ALL.displayName(), CategoryType.ALL.displayName(), null, null, null));
         return playlistEntries;
     }
 

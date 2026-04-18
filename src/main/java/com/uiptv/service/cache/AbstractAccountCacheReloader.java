@@ -6,6 +6,7 @@ import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
@@ -33,9 +34,9 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
-    private static final String ALL_CATEGORY = "All";
-    protected static final String UNCATEGORIZED_ID = "uncategorized";
-    protected static final String UNCATEGORIZED_NAME = "Uncategorized";
+    private static final String ALL_CATEGORY = CategoryType.ALL.displayName();
+    protected static final String UNCATEGORIZED_ID = CategoryType.UNCATEGORIZED.identifier();
+    protected static final String UNCATEGORIZED_NAME = CategoryType.UNCATEGORIZED.displayName();
 
     protected void clearCache(Account account) {
         String existingPortalUrl = account != null ? account.getServerPortalUrl() : "";
@@ -136,7 +137,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     protected List<Channel> rssChannels(String category, Account account) {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
-        rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
+        rssEntries.stream().filter(e -> CategoryType.ALL.displayName().equalsIgnoreCase(category) || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
             Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
             channels.add(c);
         });

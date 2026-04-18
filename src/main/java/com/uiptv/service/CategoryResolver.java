@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.util.I18n;
 
 import java.util.ArrayList;
@@ -10,7 +11,7 @@ import java.util.List;
 import static com.uiptv.util.AccountType.*;
 
 public class CategoryResolver {
-    public static final String ALL_CATEGORY_ID = "all";
+    public static final String ALL_CATEGORY_ID = CategoryType.ALL.identifier();
 
     public List<Category> resolveCategories(Account account, List<Category> categories) {
         List<Category> processed = new ArrayList<>(categories == null ? List.of() : categories);
@@ -48,7 +49,7 @@ public class CategoryResolver {
         if (category == null || category.getTitle() == null) {
             return false;
         }
-        return "uncategorized".equalsIgnoreCase(category.getTitle().trim());
+        return CategoryType.isUncategorized(category.getTitle());
     }
 
     private boolean isAllCategory(Category category) {
@@ -72,7 +73,7 @@ public class CategoryResolver {
         if (ALL_CATEGORY_ID.equalsIgnoreCase(normalized)) {
             return true;
         }
-        if ("All".equalsIgnoreCase(normalized)) {
+        if (CategoryType.isAll(normalized)) {
             return true;
         }
         return I18n.tr("commonAll").equalsIgnoreCase(normalized);
@@ -82,8 +83,8 @@ public class CategoryResolver {
         Category category = new Category();
         category.setDbId(ALL_CATEGORY_ID);
         category.setCategoryId(ALL_CATEGORY_ID);
-        category.setTitle("All");
-        category.setAlias("All");
+        category.setTitle(CategoryType.ALL.displayName());
+        category.setAlias(CategoryType.ALL.displayName());
         return category;
     }
 }

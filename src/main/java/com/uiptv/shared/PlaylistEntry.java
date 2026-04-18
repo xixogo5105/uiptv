@@ -1,5 +1,6 @@
 package com.uiptv.shared;
 
+import com.uiptv.model.CategoryType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -46,7 +47,7 @@ public class PlaylistEntry extends BaseJson {
     }
 
     public String getGroupTitle() {
-        return isBlank(groupTitle) ? "All" : groupTitle;
+        return isBlank(groupTitle) ? CategoryType.ALL.displayName() : groupTitle;
     }
 
     public String getPlaylistEntry() {

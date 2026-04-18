@@ -7,6 +7,7 @@ import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
@@ -237,7 +238,7 @@ public class ChannelService {
             return dedupeChannels(ChannelDb.get().getChannels(dbCategoryId));
         }
 
-        // Primary path: if "All" itself is cached, use it directly.
+        // Primary path: if All itself is cached, use it directly.
         List<Channel> directAll = dedupeChannels(ChannelDb.get().getChannels(dbCategoryId));
         if (!directAll.isEmpty()) {
             return directAll;
@@ -255,7 +256,7 @@ public class ChannelService {
     }
 
     private boolean isAllCategoryForLocalCachedProvider(String categoryId, Account account) {
-        return "All".equalsIgnoreCase(categoryId)
+        return CategoryType.ALL.displayName().equalsIgnoreCase(categoryId)
                 && account != null
                 && account.getType() != STALKER_PORTAL
                 && account.getType() != XTREME_API;
@@ -334,7 +335,7 @@ public class ChannelService {
     private List<Channel> rssChannels(String category, Account account) {
         Set<Channel> channels = new LinkedHashSet<>();
         List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
-        rssEntries.stream().filter(e -> category.equalsIgnoreCase("All") || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
+        rssEntries.stream().filter(e -> CategoryType.ALL.displayName().equalsIgnoreCase(category) || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
             Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
             resolveLogoIfNeeded(c);
             channels.add(c);

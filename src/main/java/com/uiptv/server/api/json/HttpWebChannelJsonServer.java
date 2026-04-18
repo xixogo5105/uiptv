@@ -7,6 +7,7 @@ import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
@@ -57,7 +58,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         int prefetchPages = parseInt(getParam(ex, "prefetchPages"), DEFAULT_PREFETCH, 1, MAX_PREFETCH);
         int apiOffset = parseInt(getParam(ex, PARAM_API_OFFSET), 0, 0, 1);
 
-        if (account.getType() == AccountType.STALKER_PORTAL && !"All".equalsIgnoreCase(categoryId)) {
+        if (account.getType() == AccountType.STALKER_PORTAL && !CategoryType.ALL.displayName().equalsIgnoreCase(categoryId)) {
             generateJsonResponse(ex, buildStalkerPagedResponse(account, categoryId, movieId, page, pageSize, prefetchPages, apiOffset));
             return;
         }
@@ -138,7 +139,7 @@ public class HttpWebChannelJsonServer implements HttpHandler {
     }
 
     private boolean isAllCategoryRequest(String categoryId) {
-        return "All".equalsIgnoreCase(categoryId);
+        return CategoryType.ALL.displayName().equalsIgnoreCase(categoryId);
     }
 
     private String resolveSeriesEpisodesJson(Account account, String categoryId, String movieId) {
@@ -163,13 +164,13 @@ public class HttpWebChannelJsonServer implements HttpHandler {
 
     private List<Category> resolveCategoriesToRead(List<Category> categories) {
         List<Category> nonAllCategories = categories.stream()
-                .filter(cat -> !"All".equalsIgnoreCase(cat.getTitle()))
+                .filter(cat -> !CategoryType.ALL.displayName().equalsIgnoreCase(cat.getTitle()))
                 .toList();
         if (!nonAllCategories.isEmpty()) {
             return nonAllCategories;
         }
         Category allCategory = categories.stream()
-                .filter(cat -> "All".equalsIgnoreCase(cat.getTitle()))
+                .filter(cat -> CategoryType.ALL.displayName().equalsIgnoreCase(cat.getTitle()))
                 .findFirst()
                 .orElse(null);
         return allCategory == null ? List.of() : List.of(allCategory);
