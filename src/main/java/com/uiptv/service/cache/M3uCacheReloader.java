@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.uiptv.model.CategoryType.ALL;
-import static com.uiptv.model.CategoryType.UNCATEGORIZED;
 
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
     @Override

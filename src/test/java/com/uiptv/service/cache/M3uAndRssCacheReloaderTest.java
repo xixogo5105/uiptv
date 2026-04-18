@@ -335,9 +335,7 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
         CategoryService categoryService = Mockito.mock(CategoryService.class);
         Category emptyNews = new Category("1", "News", "news", false, 0);
         Category emptySports = new Category("2", "Sports", "sports", false, 0);
-        List<String> logs = new ArrayList<>();
 
-        StubM3uCacheReloader reloader = new StubM3uCacheReloader();
         // No categories have channels in this mock
         // (This simulates a parsing scenario where channels exist but no categories match)
 

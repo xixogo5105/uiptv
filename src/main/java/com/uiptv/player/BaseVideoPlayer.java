@@ -210,46 +210,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
         
         try {
-            java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-            headers.put("Accept", "application/vnd.apple.mpegurl, */*");
-            headers.put("Accept-Language", "en-US,en;q=0.9");
-            
-            // Fetch master playlist
-            com.uiptv.util.HttpUtil.HttpResult masterRes = com.uiptv.util.HttpUtil.sendRequest(uri, headers, "GET");
-            if (masterRes != null && masterRes.statusCode() == 200 && masterRes.body() != null && !masterRes.body().isBlank()) {
-                String variantUrl = null;
-                for (String line : masterRes.body().split("\\r?\\n")) {
-                    line = line.trim();
-                    if (line.isEmpty() || line.startsWith("#")) continue;
-                    try {
-                        java.net.URI base = java.net.URI.create(uri);
-                        java.net.URI resolved = base.resolve(line);
-                        variantUrl = resolved.toString();
-                        break;
-                    } catch (Exception _) {
-                        // ignore invalid lines
-                    }
-                }
-                
-                // Fetch variant playlist if found
-                if (variantUrl != null) {
-                    com.uiptv.util.HttpUtil.HttpResult variantRes = com.uiptv.util.HttpUtil.sendRequest(variantUrl, headers, "GET");
-                    if (variantRes != null && variantRes.statusCode() == 200 && variantRes.body() != null && !variantRes.body().isBlank()) {
-                        for (String line : variantRes.body().split("\\r?\\n")) {
-                            line = line.trim();
-                            if (line.isEmpty() || line.startsWith("#")) continue;
-                            try {
-                                java.net.URI base = java.net.URI.create(variantUrl);
-                                java.net.URI resolved = base.resolve(line);
-                                String segmentUrl = resolved.toString();
-                                com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class, "Resolved segment URL for playback: " + segmentUrl);
-                                return segmentUrl;
-                            } catch (Exception _) {
-                                // ignore invalid lines
-                            }
-                        }
-                    }
+            String variantUrl = resolveVariantPlaylistUrl(uri);
+            if (variantUrl != null) {
+                String segmentUrl = resolveSegmentUrl(variantUrl);
+                if (segmentUrl != null) {
+                    return segmentUrl;
                 }
             }
         } catch (Exception _) {
@@ -257,6 +222,61 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
         
         return uri;
+    }
+
+    private String resolveVariantPlaylistUrl(String masterUrl) {
+        java.util.Map<String, String> headers = createBrowserHeaders();
+        try {
+            com.uiptv.util.HttpUtil.HttpResult masterRes = com.uiptv.util.HttpUtil.sendRequest(masterUrl, headers, "GET");
+            if (masterRes != null && masterRes.statusCode() == 200 && masterRes.body() != null && !masterRes.body().isBlank()) {
+                return extractFirstPlaylistUrl(masterUrl, masterRes.body());
+            }
+        } catch (Exception _) {
+            // ignore
+        }
+        return null;
+    }
+
+    private String resolveSegmentUrl(String variantUrl) {
+        java.util.Map<String, String> headers = createBrowserHeaders();
+        try {
+            com.uiptv.util.HttpUtil.HttpResult variantRes = com.uiptv.util.HttpUtil.sendRequest(variantUrl, headers, "GET");
+            if (variantRes != null && variantRes.statusCode() == 200 && variantRes.body() != null && !variantRes.body().isBlank()) {
+                String segmentUrl = extractFirstPlaylistUrl(variantUrl, variantRes.body());
+                if (segmentUrl != null) {
+                    com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class, "Resolved segment URL for playback: " + segmentUrl);
+                }
+                return segmentUrl;
+            }
+        } catch (Exception _) {
+            // ignore
+        }
+        return null;
+    }
+
+    private String extractFirstPlaylistUrl(String baseUrl, String playlistContent) {
+        for (String line : playlistContent.split("\\r?\\n")) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            try {
+                java.net.URI base = java.net.URI.create(baseUrl);
+                java.net.URI resolved = base.resolve(line);
+                return resolved.toString();
+            } catch (Exception _) {
+                // ignore invalid lines
+            }
+        }
+        return null;
+    }
+
+    private java.util.Map<String, String> createBrowserHeaders() {
+        java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
+        headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
+        headers.put("Accept", "application/vnd.apple.mpegurl, */*");
+        headers.put("Accept-Language", "en-US,en;q=0.9");
+        return headers;
     }
 
     // --- UI Construction ---
