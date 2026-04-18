@@ -72,8 +72,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         vlcArgs.add("--http-user-agent=VLC/3.0.0 (UIPTV/1.0)");
         // Enable HTTP redirection following (important for CDN like Cloudfront)
         vlcArgs.add("--http-forward-cookies");
-        // Disable SSL certificate verification for compatibility (can be made configurable if needed)
-        vlcArgs.add("--http-ssl-verify=none");
         return vlcArgs;
     }
 
