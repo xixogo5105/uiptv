@@ -70,103 +70,126 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
      * 5. Always keep "All"
      */
     private List<Category> filterCategoriesForM3u(List<Category> categories, Map<String, List<Channel>> channelsMap, LoggerCallback logger) {
-        List<Category> filtered = new ArrayList<>();
-        Category allCategory = null;
-        List<Category> originalNonAllCategories = new ArrayList<>();
+        Category allCategory = extractAllCategory(categories);
+        List<Category> nonAllCategories = extractNonAllCategories(categories);
+        
+        // Handle single non-All category (treat as All)
+        if (nonAllCategories.size() == 1) {
+            return handleSingleNonAllCategory(nonAllCategories.get(0), allCategory, channelsMap, logger);
+        }
+        
+        // Filter empty non-All categories
+        List<Category> nonAllWithChannels = filterEmptyCategoriesForM3u(nonAllCategories, channelsMap, logger);
+        
+        // If all filtered out and no All, create one with accumulated channels
+        if (nonAllWithChannels.isEmpty() && allCategory == null && !channelsMap.isEmpty()) {
+            return createAllCategoryWithAccumulatedChannels(channelsMap, logger);
+        }
+        
+        // Standard processing: return All + non-empty non-All categories
+        return buildFinalCategoryList(allCategory, nonAllWithChannels, channelsMap);
+    }
 
-        // First pass: separate All from other categories and count original non-All categories
+    private Category extractAllCategory(List<Category> categories) {
         for (Category cat : categories) {
             if (isAllCategory(cat)) {
-                allCategory = cat;
-            } else {
-                originalNonAllCategories.add(cat);
+                return cat;
             }
         }
+        return null;
+    }
 
-        // Check if we originally had exactly one non-All category
-        boolean hasSingleNonAllOriginal = originalNonAllCategories.size() == 1;
-        
-        // Second pass: filter empty non-All categories
-        List<Category> nonAllWithChannels = new ArrayList<>();
-        for (Category cat : originalNonAllCategories) {
+    private List<Category> extractNonAllCategories(List<Category> categories) {
+        List<Category> result = new ArrayList<>();
+        for (Category cat : categories) {
+            if (!isAllCategory(cat)) {
+                result.add(cat);
+            }
+        }
+        return result;
+    }
+
+    private List<Category> filterEmptyCategoriesForM3u(List<Category> categories, Map<String, List<Channel>> channelsMap, LoggerCallback logger) {
+        List<Category> result = new ArrayList<>();
+        for (Category cat : categories) {
             String catTitle = cat.getTitle();
             if (channelsMap.containsKey(catTitle) && !channelsMap.get(catTitle).isEmpty()) {
-                nonAllWithChannels.add(cat);
+                result.add(cat);
             } else {
                 log(logger, "Filtering out empty category: " + catTitle);
             }
         }
+        return result;
+    }
 
-        // Rule 1: If originally had exactly one non-All category, treat it as All (even if now filtered to empty)
-        if (hasSingleNonAllOriginal && !originalNonAllCategories.isEmpty()) {
-            String removedCategoryName = originalNonAllCategories.get(0).getTitle();
-            log(logger, "Single non-All category detected. Treating as '" + ALL.displayName() + "' - ignoring category name '" + removedCategoryName + "'");
-            
-            // Merge channels from the removed category into the All category
-            List<Channel> removedCategoryChannels = channelsMap.remove(removedCategoryName);
-            if (removedCategoryChannels != null && !removedCategoryChannels.isEmpty()) {
-                String allCategoryKey = ALL.displayName();
-                List<Channel> allCategoryChannels = channelsMap.get(allCategoryKey);
-                if (allCategoryChannels == null) {
-                    // No existing channels for All, create new list
-                    channelsMap.put(allCategoryKey, new ArrayList<>(removedCategoryChannels));
-                } else {
-                    // Convert to mutable if needed and add removed channels
-                    if (!(allCategoryChannels instanceof ArrayList)) {
-                        allCategoryChannels = new ArrayList<>(allCategoryChannels);
-                        channelsMap.put(allCategoryKey, allCategoryChannels);
-                    }
-                    allCategoryChannels.addAll(removedCategoryChannels);
-                }
-            }
-            
-            // Add the All category (create if not found in input)
-            if (allCategory != null) {
-                filtered.add(allCategory);
-            } else {
-                // Create All category if it didn't exist in input
-                allCategory = new Category(ALL.identifier(), ALL.displayName(), ALL.displayName(), false, 0);
-                filtered.add(allCategory);
-            }
-            return filtered;
+    private List<Category> handleSingleNonAllCategory(Category singleCategory, Category allCategory, Map<String, List<Channel>> channelsMap, LoggerCallback logger) {
+        log(logger, "Single non-All category detected. Treating as '" + ALL.displayName() + "' - ignoring category name '" + singleCategory.getTitle() + "'");
+        
+        // Merge channels from single category into All
+        List<Channel> removedCategoryChannels = channelsMap.remove(singleCategory.getTitle());
+        if (removedCategoryChannels != null && !removedCategoryChannels.isEmpty()) {
+            mergeChannelsIntoAll(channelsMap, removedCategoryChannels);
         }
-
-        // If all non-All categories were filtered out and no All category exists,
-        // create All with accumulated channels
-        if (nonAllWithChannels.isEmpty() && allCategory == null && !channelsMap.isEmpty()) {
-            log(logger, "All categories filtered out. Creating All category with accumulated channels.");
-            // Accumulate all channels into the All category
-            List<Channel> allChannels = new ArrayList<>();
-            for (List<Channel> channelList : channelsMap.values()) {
-                if (channelList != null && !channelList.isEmpty()) {
-                    allChannels.addAll(channelList);
-                }
-            }
-            channelsMap.clear();
-            channelsMap.put(ALL.displayName(), allChannels);
-            
-            Category allCat = new Category(ALL.identifier(), ALL.displayName(), ALL.displayName(), false, 0);
-            filtered.add(allCat);
-            return filtered;
-        }
-
-        // Multiple or no non-All categories: standard processing
+        
+        // Return All category (create if needed)
+        List<Category> result = new ArrayList<>();
         if (allCategory != null) {
-            filtered.add(allCategory);
+            result.add(allCategory);
+        } else {
+            result.add(new Category(ALL.identifier(), ALL.displayName(), ALL.displayName(), false, 0));
         }
+        return result;
+    }
 
+    private void mergeChannelsIntoAll(Map<String, List<Channel>> channelsMap, List<Channel> channelsToAdd) {
+        String allCategoryKey = ALL.displayName();
+        List<Channel> allCategoryChannels = channelsMap.get(allCategoryKey);
+        if (allCategoryChannels == null) {
+            channelsMap.put(allCategoryKey, new ArrayList<>(channelsToAdd));
+        } else {
+            if (!(allCategoryChannels instanceof ArrayList)) {
+                allCategoryChannels = new ArrayList<>(allCategoryChannels);
+                channelsMap.put(allCategoryKey, allCategoryChannels);
+            }
+            allCategoryChannels.addAll(channelsToAdd);
+        }
+    }
+
+    private List<Category> createAllCategoryWithAccumulatedChannels(Map<String, List<Channel>> channelsMap, LoggerCallback logger) {
+        log(logger, "All categories filtered out. Creating All category with accumulated channels.");
+        List<Channel> allChannels = new ArrayList<>();
+        for (List<Channel> channelList : channelsMap.values()) {
+            if (channelList != null && !channelList.isEmpty()) {
+                allChannels.addAll(channelList);
+            }
+        }
+        channelsMap.clear();
+        channelsMap.put(ALL.displayName(), allChannels);
+        
+        List<Category> result = new ArrayList<>();
+        result.add(new Category(ALL.identifier(), ALL.displayName(), ALL.displayName(), false, 0));
+        return result;
+    }
+
+    private List<Category> buildFinalCategoryList(Category allCategory, List<Category> nonAllWithChannels, Map<String, List<Channel>> channelsMap) {
+        List<Category> result = new ArrayList<>();
+        
+        if (allCategory != null) {
+            result.add(allCategory);
+        }
+        
         for (Category cat : nonAllWithChannels) {
-            // Rule 2: Only keep Uncategorized if it has channels
+            // Only keep Uncategorized if it has channels
             if (isUncategorizedCategory(cat)) {
                 if (channelsMap.containsKey(cat.getTitle()) && !channelsMap.get(cat.getTitle()).isEmpty()) {
-                    filtered.add(cat);
+                    result.add(cat);
                 }
             } else {
-                filtered.add(cat);
+                result.add(cat);
             }
         }
-
-        return filtered;
+        
+        return result;
     }
 
     private boolean isAllCategory(Category category) {
