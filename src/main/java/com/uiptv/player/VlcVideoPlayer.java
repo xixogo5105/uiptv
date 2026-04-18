@@ -278,61 +278,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
 
-            String playUri = uri;
-            try {
-                // Workaround: CloudFront Lambda functions return 404 unless requests have browser-like headers.
-                // Prefetch the full playlist chain (master → variant → segments) using HttpUtil (which
-                // supports browser headers), then pass a direct segment URL to libVLC to bypass the header check.
-                if (uri != null && uri.toLowerCase().contains(".m3u8")) {
-                    java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
-                    headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-                    headers.put("Accept", "application/vnd.apple.mpegurl, */*");
-                    headers.put("Accept-Language", "en-US,en;q=0.9");
-                    try {
-                        // Fetch master playlist
-                        com.uiptv.util.HttpUtil.HttpResult masterRes = com.uiptv.util.HttpUtil.sendRequest(uri, headers, "GET");
-                        if (masterRes != null && masterRes.statusCode() == 200 && masterRes.body() != null && !masterRes.body().isBlank()) {
-                            String variantUrl = null;
-                            for (String line : masterRes.body().split("\\r?\\n")) {
-                                line = line.trim();
-                                if (line.isEmpty() || line.startsWith("#")) continue;
-                                try {
-                                    java.net.URI base = java.net.URI.create(uri);
-                                    java.net.URI resolved = base.resolve(line);
-                                    variantUrl = resolved.toString();
-                                    break;
-                                } catch (Exception _) {
-                                    // ignore
-                                }
-                            }
-
-                            // Fetch variant playlist if found
-                            if (variantUrl != null) {
-                                com.uiptv.util.HttpUtil.HttpResult variantRes = com.uiptv.util.HttpUtil.sendRequest(variantUrl, headers, "GET");
-                                if (variantRes != null && variantRes.statusCode() == 200 && variantRes.body() != null && !variantRes.body().isBlank()) {
-                                    for (String line : variantRes.body().split("\\r?\\n")) {
-                                        line = line.trim();
-                                        if (line.isEmpty() || line.startsWith("#")) continue;
-                                        try {
-                                            java.net.URI base = java.net.URI.create(variantUrl);
-                                            java.net.URI resolved = base.resolve(line);
-                                            playUri = resolved.toString();
-                                            com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class, "Resolved segment playlist for VLC: " + playUri);
-                                            break;
-                                        } catch (Exception _) {
-                                            // ignore
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Exception _) {
-                        // best-effort prefetch; fall back to original URI
-                    }
-                }
-            } catch (Exception _) {
-                // ignore and proceed with original uri
-            }
+            String playUri = resolveHlsPlaylistChain(uri);
 
             EmbeddedMediaPlayer player;
             synchronized (playerLock) {

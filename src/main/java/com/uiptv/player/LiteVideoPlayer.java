@@ -73,7 +73,8 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
         new Thread(() -> {
             try {
-                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback, startOffsetMs);
+                String resolvedUri = resolveHlsPlaylistChain(currentMediaUri);
+                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(resolvedUri, forceCompatibilityFallback, startOffsetMs);
                 applyPreparedPlayback(preparedPlayback, forceCompatibilityFallback);
                 Platform.runLater(() -> createAndPlayMediaPlayer(preparedPlayback.playbackUrl()));
             } catch (Exception e) {
@@ -99,7 +100,8 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                 }
                 activeBingeWatchEpisodeId = episodeId;
                 this.currentMediaUri = resolvedEpisode.url();
-                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(currentMediaUri, forceCompatibilityFallback, startOffsetMs);
+                String resolvedUri = resolveHlsPlaylistChain(currentMediaUri);
+                LitePlayerFfmpegService.PreparedPlayback preparedPlayback = resolvePlayback(resolvedUri, forceCompatibilityFallback, startOffsetMs);
                 applyPreparedPlayback(preparedPlayback, forceCompatibilityFallback);
                 Platform.runLater(() -> createAndPlayMediaPlayer(preparedPlayback.playbackUrl()));
             } catch (Exception e) {
