@@ -207,8 +207,15 @@ public class ConfigurationUI extends VBox {
         HBox box1 = new HBox(6, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
         HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
-        HBox box4 = new HBox(6, defaultEmbedPlayer, vlcOptionsLink);
+        Region box4Spacer = new Region();
+        HBox.setHgrow(box4Spacer, Priority.ALWAYS);
+        HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
+        box1.setAlignment(Pos.CENTER_LEFT);
+        box2.setAlignment(Pos.CENTER_LEFT);
+        box3.setAlignment(Pos.CENTER_LEFT);
+        box4.setAlignment(Pos.CENTER_LEFT);
+        box5.setAlignment(Pos.CENTER_LEFT);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
         tmdbHelpLabel.setWrapText(true);
