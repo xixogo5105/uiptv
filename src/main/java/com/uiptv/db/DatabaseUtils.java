@@ -68,7 +68,11 @@ public class DatabaseUtils {
                 new DataColumn("languageLocale", "TEXT"),
                 new DataColumn("tmdbReadAccessToken", "TEXT"),
                 new DataColumn("uiZoomPercent", "TEXT"),
-                new DataColumn("enableLitePlayerFfmpeg", "TEXT")
+                new DataColumn("enableLitePlayerFfmpeg", "TEXT"),
+                new DataColumn("vlcNetworkCachingMs", "TEXT"),
+                new DataColumn("vlcLiveCachingMs", "TEXT"),
+                new DataColumn("enableVlcHttpUserAgent", "TEXT"),
+                new DataColumn("enableVlcHttpForwardCookies", "TEXT")
         )));
         dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

@@ -9,8 +9,11 @@ import java.util.List;
 public class ConfigurationService {
     public static final int DEFAULT_CACHE_EXPIRY_DAYS = 30;
     public static final int DEFAULT_UI_ZOOM_PERCENT = 100;
+    public static final String DEFAULT_VLC_CACHING_MS = "1000";
     public static final List<Integer> FIREFOX_ZOOM_PERCENT_OPTIONS =
             List.of(50, 75, 80, 90, 95, 100, 105, 110, 115, 120, 125, 133, 140, 150, 170, 200, 250, 300);
+    public static final List<String> VLC_CACHING_OPTIONS_MS =
+            List.of("", "1000", "2000", "3000", "4000", "5000", "10000", "15000", "20000", "25000", "30000", "60000");
     private static final long MILLIS_PER_DAY = 24L * 60L * 60L * 1000L;
 
     private ConfigurationService() {
@@ -74,5 +77,26 @@ public class ConfigurationService {
         } catch (Exception _) {
             return DEFAULT_CACHE_EXPIRY_DAYS;
         }
+    }
+
+    public String normalizeVlcCachingMs(String rawCachingMs) {
+        if (rawCachingMs == null) {
+            return DEFAULT_VLC_CACHING_MS;
+        }
+        String normalized = rawCachingMs.trim();
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        return VLC_CACHING_OPTIONS_MS.contains(normalized) ? normalized : DEFAULT_VLC_CACHING_MS;
+    }
+
+    public boolean isVlcHttpUserAgentEnabled() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isEnableVlcHttpUserAgent();
+    }
+
+    public boolean isVlcHttpForwardCookiesEnabled() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isEnableVlcHttpForwardCookies();
     }
 }

@@ -2,6 +2,8 @@ package com.uiptv.player;
 
 import com.uiptv.util.I18n;
 import com.uiptv.util.ResolutionDisplayUtil;
+import com.uiptv.model.Configuration;
+import com.uiptv.service.ConfigurationService;
 
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
+    static final String VLC_HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";
 
     private final Object playerLock = new Object();
     private MediaPlayerFactory mediaPlayerFactory;
@@ -56,15 +59,29 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private List<String> createVlcArgs() {
+        return buildVlcArgs(ConfigurationService.getInstance().read());
+    }
+
+    static List<String> buildVlcArgs(Configuration configuration) {
         List<String> vlcArgs = new ArrayList<>();
-        String osName = System.getProperty("os.name").toLowerCase();
-        String defaultHw = osName.contains("mac") ? "none" : "auto";
-        String hwDecode = System.getProperty("uiptv.vlc.hwdec", defaultHw).trim().toLowerCase();
-        if (hwDecode.isBlank()) {
-            hwDecode = defaultHw;
+        ConfigurationService configurationService = ConfigurationService.getInstance();
+        String networkCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcNetworkCachingMs());
+        String liveCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcLiveCachingMs());
+        boolean enableUserAgent = configuration == null || configuration.isEnableVlcHttpUserAgent();
+        boolean enableForwardCookies = configuration == null || configuration.isEnableVlcHttpForwardCookies();
+
+        if (!networkCachingMs.isBlank()) {
+            vlcArgs.add("--network-caching=" + networkCachingMs);
         }
-        vlcArgs.add("--avcodec-hw=" + hwDecode);
-        vlcArgs.add("--network-caching=1000");
+        if (!liveCachingMs.isBlank()) {
+            vlcArgs.add("--live-caching=" + liveCachingMs);
+        }
+        if (enableUserAgent) {
+            vlcArgs.add("--http-user-agent=" + VLC_HTTP_USER_AGENT);
+        }
+        if (enableForwardCookies) {
+            vlcArgs.add("--http-forward-cookies");
+        }
         return vlcArgs;
     }
 

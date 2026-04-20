@@ -115,6 +115,10 @@ public class ConfigurationDb extends BaseDb {
         c.setTmdbReadAccessToken(nullSafeString(resultSet, "tmdbReadAccessToken"));
         c.setUiZoomPercent(nullSafeString(resultSet, "uiZoomPercent"));
         c.setEnableLitePlayerFfmpeg(safeBoolean(resultSet, "enableLitePlayerFfmpeg"));
+        c.setVlcNetworkCachingMs(nullSafeString(resultSet, "vlcNetworkCachingMs"));
+        c.setVlcLiveCachingMs(nullSafeString(resultSet, "vlcLiveCachingMs"));
+        c.setEnableVlcHttpUserAgent(missingOrTrue(resultSet, "enableVlcHttpUserAgent"));
+        c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -133,7 +137,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(19, current.getDbId());
+                statement.setString(23, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -169,5 +173,18 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(16, configuration.getTmdbReadAccessToken());
         statement.setString(17, configuration.getUiZoomPercent());
         statement.setString(18, configuration.isEnableLitePlayerFfmpeg() ? "1" : "0");
+        statement.setString(19, configuration.getVlcNetworkCachingMs());
+        statement.setString(20, configuration.getVlcLiveCachingMs());
+        statement.setString(21, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
+        statement.setString(22, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+    }
+
+    private boolean missingOrTrue(ResultSet resultSet, String columnName) {
+        try {
+            String raw = resultSet.getString(columnName);
+            return raw == null || raw.isBlank() || !"0".equals(raw.trim());
+        } catch (SQLException _) {
+            return true;
+        }
     }
 }

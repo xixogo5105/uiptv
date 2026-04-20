@@ -52,4 +52,33 @@ class ConfigurationServiceTest extends DbBackedTest {
 
         assertTrue(service.read().isEnableLitePlayerFfmpeg());
     }
+
+    @Test
+    void vlcSettings_defaultToOneSecondCaching_andEnabledFlags() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+
+        assertEquals(ConfigurationService.DEFAULT_VLC_CACHING_MS,
+                ConfigurationService.getInstance().normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs()));
+        assertEquals(ConfigurationService.DEFAULT_VLC_CACHING_MS,
+                ConfigurationService.getInstance().normalizeVlcCachingMs(configuration.getVlcLiveCachingMs()));
+        assertTrue(configuration.isEnableVlcHttpUserAgent());
+        assertTrue(configuration.isEnableVlcHttpForwardCookies());
+    }
+
+    @Test
+    void vlcSettings_persistCustomValues() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        Configuration configuration = service.read();
+        configuration.setVlcNetworkCachingMs("30000");
+        configuration.setVlcLiveCachingMs("");
+        configuration.setEnableVlcHttpUserAgent(false);
+        configuration.setEnableVlcHttpForwardCookies(false);
+        service.save(configuration);
+
+        Configuration saved = service.read();
+        assertEquals("30000", saved.getVlcNetworkCachingMs());
+        assertEquals("", saved.getVlcLiveCachingMs());
+        assertFalse(saved.isEnableVlcHttpUserAgent());
+        assertFalse(saved.isEnableVlcHttpForwardCookies());
+    }
 }

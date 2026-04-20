@@ -21,6 +21,8 @@ public class Configuration extends BaseJson {
     private String languageLocale;
     private String tmdbReadAccessToken;
     private String uiZoomPercent;
+    private String vlcNetworkCachingMs;
+    private String vlcLiveCachingMs;
     private boolean darkTheme;
     private boolean pauseFiltering;
     private boolean pauseCaching;
@@ -29,6 +31,8 @@ public class Configuration extends BaseJson {
     private boolean enableFfmpegTranscoding;
     private boolean enableLitePlayerFfmpeg;
     private boolean enableThumbnails = true;
+    private boolean enableVlcHttpUserAgent = true;
+    private boolean enableVlcHttpForwardCookies = true;
 
 
     @SuppressWarnings("java:S107")

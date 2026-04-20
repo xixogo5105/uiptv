@@ -67,6 +67,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(I18n.tr("configEnableLitePlayerFfmpeg"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
+    private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
     private final TextField lightThemeCssStatus = new TextField(I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE));
@@ -96,6 +97,10 @@ public class ConfigurationUI extends VBox {
     private String dbId;
     private boolean ignorePlayerSelectionPrompt = false;
     private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
+    private String vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+    private String vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+    private boolean vlcHttpUserAgentEnabled = true;
+    private boolean vlcHttpForwardCookiesEnabled = true;
     @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
     @SuppressWarnings("java:S1450")
@@ -156,8 +161,14 @@ public class ConfigurationUI extends VBox {
             enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
+            vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
+            vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
+            vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
+            vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
         }
         selectDefaultPlayer(configuration);
+        updateVlcOptionsLinkVisibility();
+        updateWideViewVisibility();
         if (cacheExpiryDays.getText() == null || cacheExpiryDays.getText().isBlank()) {
             cacheExpiryDays.setText(String.valueOf(ConfigurationService.DEFAULT_CACHE_EXPIRY_DAYS));
         }
@@ -196,7 +207,7 @@ public class ConfigurationUI extends VBox {
         HBox box1 = new HBox(6, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
         HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
         HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
-        HBox box4 = new HBox(6, defaultEmbedPlayer, wideViewCheckBox);
+        HBox box4 = new HBox(6, defaultEmbedPlayer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
@@ -205,7 +216,7 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewCheckBox);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
@@ -246,6 +257,7 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
+        addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
@@ -625,6 +637,10 @@ public class ConfigurationUI extends VBox {
         defaultPlayer3.setToggleGroup(group);
         defaultEmbedPlayer.setToggleGroup(group);
         defaultWebBrowserPlayer.setToggleGroup(group);
+        group.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            updateVlcOptionsLinkVisibility();
+            updateWideViewVisibility();
+        });
     }
 
     private void configurePlayerUserData() {
@@ -659,6 +675,10 @@ public class ConfigurationUI extends VBox {
     private void addTmdbGuideLinkClickHandler() {
         tmdbApiGuideLink.setOnAction(event -> ServerUrlUtil.openInBrowser(TMDB_API_GUIDE_URL));
         tmdbApiKeyPageLink.setOnAction(event -> ServerUrlUtil.openInBrowser(TMDB_API_KEY_URL));
+    }
+
+    private void addVlcOptionsLinkClickHandler() {
+        vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
 
     private void addSaveButtonClickHandler() {
@@ -701,6 +721,10 @@ public class ConfigurationUI extends VBox {
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
+        configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
+        configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
+        configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
+        configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
         return configuration;
     }
 
@@ -726,6 +750,9 @@ public class ConfigurationUI extends VBox {
         if (thumbnailModeChanged(previous, newConfiguration)) {
             ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
         }
+        if (vlcSettingsChanged(previous, newConfiguration)) {
+            MediaPlayerFactory.release();
+        }
     }
 
     private boolean thumbnailModeChanged(Configuration previous, Configuration current) {
@@ -739,6 +766,173 @@ public class ConfigurationUI extends VBox {
         return previousEmbeddedPlayer != current.isEmbeddedPlayer()
                 || previousWideView != current.isWideView()
                 || !Objects.equals(previous == null ? null : previous.getLanguageLocale(), current.getLanguageLocale());
+    }
+
+    private boolean vlcSettingsChanged(Configuration previous, Configuration current) {
+        if (previous == null) {
+            return current != null;
+        }
+        return !Objects.equals(service.normalizeVlcCachingMs(previous.getVlcNetworkCachingMs()), service.normalizeVlcCachingMs(current.getVlcNetworkCachingMs()))
+                || !Objects.equals(service.normalizeVlcCachingMs(previous.getVlcLiveCachingMs()), service.normalizeVlcCachingMs(current.getVlcLiveCachingMs()))
+                || previous.isEnableVlcHttpUserAgent() != current.isEnableVlcHttpUserAgent()
+                || previous.isEnableVlcHttpForwardCookies() != current.isEnableVlcHttpForwardCookies();
+    }
+
+    private void updateVlcOptionsLinkVisibility() {
+        boolean visible = defaultEmbedPlayer.isSelected()
+                && MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.VLC;
+        vlcOptionsLink.setVisible(visible);
+        vlcOptionsLink.setManaged(visible);
+    }
+
+    private void updateWideViewVisibility() {
+        boolean isEmbedded = defaultEmbedPlayer.isSelected();
+        wideViewCheckBox.setVisible(isEmbedded);
+        wideViewCheckBox.setManaged(isEmbedded);
+        if (!isEmbedded) {
+            wideViewCheckBox.setSelected(false);
+        }
+    }
+
+    private void openVlcOptionsPopup() {
+        Stage popupStage = new Stage();
+        popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
+        popupStage.setTitle(I18n.tr("configVlcPopupTitle"));
+
+        ComboBox<VlcCachingOption> networkCachingComboBox = createVlcCachingComboBox();
+        ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
+        CheckBox userAgentCheckBox = new CheckBox(I18n.tr("configVlcEnableUserAgent"));
+        CheckBox forwardCookiesCheckBox = new CheckBox(I18n.tr("configVlcForwardCookies"));
+
+        Runnable loadCurrentValues = () -> {
+            networkCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcNetworkCachingMs));
+            liveCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcLiveCachingMs));
+            userAgentCheckBox.setSelected(vlcHttpUserAgentEnabled);
+            forwardCookiesCheckBox.setSelected(vlcHttpForwardCookiesEnabled);
+        };
+        loadCurrentValues.run();
+
+        Button saveVlcOptionsButton = new Button(I18n.tr("commonSave"));
+        Button resetVlcOptionsButton = new Button(I18n.tr("configVlcResetDefaults"));
+        Button closeButton = new Button(I18n.tr("commonClose"));
+
+        saveVlcOptionsButton.setOnAction(event -> {
+            vlcNetworkCachingMs = selectedCachingValue(networkCachingComboBox);
+            vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
+            vlcHttpUserAgentEnabled = userAgentCheckBox.isSelected();
+            vlcHttpForwardCookiesEnabled = forwardCookiesCheckBox.isSelected();
+            saveVlcOptionsConfiguration(true);
+            popupStage.close();
+        });
+        resetVlcOptionsButton.setOnAction(event -> {
+            vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+            vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+            vlcHttpUserAgentEnabled = true;
+            vlcHttpForwardCookiesEnabled = true;
+            saveVlcOptionsConfiguration(true);
+            popupStage.close();
+        });
+        closeButton.setOnAction(event -> popupStage.close());
+
+        GridPane gridPane = new GridPane();
+        gridPane.setHgap(10);
+        gridPane.setVgap(10);
+        gridPane.add(new Label(I18n.tr("configVlcNetworkCaching")), 0, 0);
+        gridPane.add(networkCachingComboBox, 1, 0);
+        gridPane.add(new Label(I18n.tr("configVlcLiveCaching")), 0, 1);
+        gridPane.add(liveCachingComboBox, 1, 1);
+        gridPane.add(userAgentCheckBox, 1, 2);
+        gridPane.add(forwardCookiesCheckBox, 1, 3);
+        GridPane.setHgrow(networkCachingComboBox, Priority.ALWAYS);
+        GridPane.setHgrow(liveCachingComboBox, Priority.ALWAYS);
+
+        HBox buttons = new HBox(10, saveVlcOptionsButton, resetVlcOptionsButton, closeButton);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox root = new VBox(12,
+                new Label(I18n.tr("configVlcPopupDescription")),
+                gridPane,
+                buttons
+        );
+        root.setPadding(new Insets(14));
+
+        Scene scene = new Scene(root, 520, Region.USE_COMPUTED_SIZE);
+        I18n.applySceneOrientation(scene);
+        scene.getStylesheets().add(RootApplication.getCurrentTheme());
+        popupStage.setScene(scene);
+        popupStage.showAndWait();
+    }
+
+    private ComboBox<VlcCachingOption> createVlcCachingComboBox() {
+        ComboBox<VlcCachingOption> comboBox = new ComboBox<>();
+        comboBox.getItems().setAll(VlcCachingOption.all());
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+        comboBox.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(VlcCachingOption item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.label());
+            }
+        });
+        comboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(VlcCachingOption item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.label());
+            }
+        });
+        return comboBox;
+    }
+
+    private String selectedCachingValue(ComboBox<VlcCachingOption> comboBox) {
+        VlcCachingOption option = comboBox.getSelectionModel().getSelectedItem();
+        return option == null ? ConfigurationService.DEFAULT_VLC_CACHING_MS : option.value();
+    }
+
+    private void saveVlcOptionsConfiguration(boolean showReloadMessage) {
+        Configuration previous = service.read();
+        Configuration configuration = service.read();
+        configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
+        configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
+        configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
+        configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
+        service.save(configuration);
+        applyPostSaveEffects(previous, configuration);
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
+        if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
+            showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
+        }
+    }
+
+    private record VlcCachingOption(String value, String label) {
+        private static java.util.List<VlcCachingOption> all() {
+            return java.util.List.of(
+                    new VlcCachingOption("", I18n.tr("configVlcCachingDisabled")),
+                    new VlcCachingOption("1000", I18n.tr("configVlcCaching1s")),
+                    new VlcCachingOption("2000", I18n.tr("configVlcCaching2s")),
+                    new VlcCachingOption("3000", I18n.tr("configVlcCaching3s")),
+                    new VlcCachingOption("4000", I18n.tr("configVlcCaching4s")),
+                    new VlcCachingOption("5000", I18n.tr("configVlcCaching5s")),
+                    new VlcCachingOption("10000", I18n.tr("configVlcCaching10s")),
+                    new VlcCachingOption("15000", I18n.tr("configVlcCaching15s")),
+                    new VlcCachingOption("20000", I18n.tr("configVlcCaching20s")),
+                    new VlcCachingOption("25000", I18n.tr("configVlcCaching25s")),
+                    new VlcCachingOption("30000", I18n.tr("configVlcCaching30s")),
+                    new VlcCachingOption("60000", I18n.tr("configVlcCaching60s"))
+            );
+        }
+
+        private static VlcCachingOption fromValue(String value) {
+            String normalized = ConfigurationService.getInstance().normalizeVlcCachingMs(value);
+            for (VlcCachingOption option : all()) {
+                if (Objects.equals(option.value(), normalized)) {
+                    return option;
+                }
+            }
+            return all().get(1);
+        }
     }
 
     private void showSaveSuccessAnimation() {

@@ -41,7 +41,19 @@ CREATE TABLE IF NOT EXISTS Configuration
     enableLitePlayerFfmpeg
     TEXT
     default
-    '0'
+    '0',
+    vlcNetworkCachingMs
+    TEXT,
+    vlcLiveCachingMs
+    TEXT,
+    enableVlcHttpUserAgent
+    TEXT
+    default
+    '1',
+    enableVlcHttpForwardCookies
+    TEXT
+    default
+    '1'
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride
