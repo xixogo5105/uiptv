@@ -1907,32 +1907,31 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 long bandwidth = parseBandwidth(line);
                 if (i + 1 < lines.length) {
                     String urlLine = lines[i + 1].trim();
-                    if (!urlLine.isEmpty() && !urlLine.startsWith("#")) {
-                        if (bandwidth > maxBandwidth) {
-                            maxBandwidth = bandwidth;
-                            bestUrl = urlLine;
-                        }
+                    if (!urlLine.isEmpty() && !urlLine.startsWith("#") && bandwidth > maxBandwidth) {
+                        maxBandwidth = bandwidth;
+                        bestUrl = urlLine;
                     }
                 }
             }
         }
 
-        if (bestUrl != null) {
-            try {
-                java.net.URI base = java.net.URI.create(baseUrl);
-                java.net.URI resolved = base.resolve(bestUrl);
+        return bestUrl != null ? resolveVariantUrl(baseUrl, bestUrl) : null;
+    }
 
-                // Propagate query parameters from base URL if variant doesn't have its own
-                if (baseUrl.contains("?") && !bestUrl.contains("?")) {
-                    String query = baseUrl.substring(baseUrl.indexOf('?'));
-                    return resolved.toString() + query;
-                }
-                return resolved.toString();
-            } catch (Exception _) {
-                // ignore resolution errors
+    private String resolveVariantUrl(String baseUrl, String variantUrl) {
+        try {
+            java.net.URI base = java.net.URI.create(baseUrl);
+            java.net.URI resolved = base.resolve(variantUrl);
+
+            // Propagate query parameters from base URL if variant doesn't have its own
+            if (baseUrl.contains("?") && !variantUrl.contains("?")) {
+                String query = baseUrl.substring(baseUrl.indexOf('?'));
+                return resolved.toString() + query;
             }
+            return resolved.toString();
+        } catch (Exception _) {
+            return null;
         }
-        return null;
     }
 
     private long parseBandwidth(String line) {
