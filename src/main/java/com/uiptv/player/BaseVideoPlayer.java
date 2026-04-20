@@ -170,6 +170,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
     }
 
+    public static final String CHROME_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";
+
     protected BaseVideoPlayer() {
         loadIcons();
         buildUI();
@@ -1861,6 +1863,103 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         }
         return "";
+    }
+
+    // --- Protected Utility Methods ---
+    /**
+     * Resolve HLS playlist chain (Master -> Variant) to an absolute URL that embedded players can handle.
+     * Workaround for CDNs with relative paths or strict header requirements on manifest files.
+     * Returns a playable .m3u8 URL (Media Playlist).
+     */
+    protected String resolveHlsPlaylistChain(String uri) {
+        if (uri == null || !uri.toLowerCase().contains(".m3u8")) {
+            return uri;
+        }
+
+        try {
+            java.util.Map<String, String> headers = createBrowserHeaders();
+            com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(uri, headers, "GET");
+            if (result != null && result.statusCode() == 200 && result.body() != null) {
+                String body = result.body();
+                if (body.contains("#EXT-X-STREAM-INF")) {
+                    String variantUrl = extractBestVariantUrl(uri, body);
+                    if (variantUrl != null) {
+                        com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class, "Resolved HLS master manifest to variant: " + variantUrl);
+                        // Recursively resolve in case of multiple master levels, but stop at Media Playlist
+                        return resolveHlsPlaylistChain(variantUrl);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class, "Optional HLS resolution failed for: " + uri + " (" + e.getMessage() + ")");
+        }
+        return uri;
+    }
+
+    private String extractBestVariantUrl(String baseUrl, String playlistContent) {
+        String bestUrl = null;
+        long maxBandwidth = -1;
+
+        String[] lines = playlistContent.split("\\r?\\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.startsWith("#EXT-X-STREAM-INF:")) {
+                long bandwidth = parseBandwidth(line);
+                if (i + 1 < lines.length) {
+                    String urlLine = lines[i + 1].trim();
+                    if (!urlLine.isEmpty() && !urlLine.startsWith("#")) {
+                        if (bandwidth > maxBandwidth) {
+                            maxBandwidth = bandwidth;
+                            bestUrl = urlLine;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (bestUrl != null) {
+            try {
+                java.net.URI base = java.net.URI.create(baseUrl);
+                java.net.URI resolved = base.resolve(bestUrl);
+
+                // Propagate query parameters from base URL if variant doesn't have its own
+                if (baseUrl.contains("?") && !bestUrl.contains("?")) {
+                    String query = baseUrl.substring(baseUrl.indexOf('?'));
+                    return resolved.toString() + query;
+                }
+                return resolved.toString();
+            } catch (Exception _) {
+                // ignore resolution errors
+            }
+        }
+        return null;
+    }
+
+    private long parseBandwidth(String line) {
+        try {
+            int index = line.toUpperCase().indexOf("BANDWIDTH=");
+            if (index != -1) {
+                String sub = line.substring(index + 10);
+                int commaIndex = sub.indexOf(',');
+                if (commaIndex != -1) {
+                    sub = sub.substring(0, commaIndex);
+                }
+                return Long.parseLong(sub.trim());
+            }
+        } catch (Exception _) {
+            // ignore
+        }
+        return 0;
+    }
+
+    private java.util.Map<String, String> createBrowserHeaders() {
+        java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
+        if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+            headers.put("User-Agent", CHROME_USER_AGENT);
+        }
+        headers.put("Accept", "application/vnd.apple.mpegurl, */*");
+        headers.put("Accept-Language", "en-US,en;q=0.9");
+        return headers;
     }
 
     private static void markHiddenBarMessageShown() {

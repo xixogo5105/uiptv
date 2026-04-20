@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
-    static final String VLC_HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";
+    static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
 
     private final Object playerLock = new Object();
     private MediaPlayerFactory mediaPlayerFactory;
@@ -289,7 +289,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 player = mediaPlayer;
             }
             if (player != null) {
-                player.media().play(uri);
+                // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
+                // Some CDNs ignore the global --http-user-agent for HLS modules.
+                String playUri = resolveHlsPlaylistChain(uri);
+                if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+                    player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+                } else {
+                    player.media().play(playUri);
+                }
             }
         }).start();
     }
