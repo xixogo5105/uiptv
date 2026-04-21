@@ -257,9 +257,7 @@ public class ChannelService {
 
     private boolean isAllCategoryForLocalCachedProvider(String categoryId, Account account) {
         return CategoryType.ALL.displayName().equalsIgnoreCase(categoryId)
-                && account != null
-                && account.getType() != STALKER_PORTAL
-                && account.getType() != XTREME_API;
+                && account != null;
     }
 
     @SuppressWarnings("java:S4276")

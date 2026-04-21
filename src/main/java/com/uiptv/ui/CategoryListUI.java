@@ -410,14 +410,19 @@ public class CategoryListUI extends HBox {
     }
 
     private String selectedCategoryKey(CategoryItem item) {
-        return account.getType() == STALKER_PORTAL || account.getType() == XTREME_API
+        if (item == null) {
+            return "";
+        }
+        String key = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API
                 ? item.getCategoryId()
                 : item.getCategoryTitle();
+        return key != null ? key : "";
     }
 
     private void initializeChannelListView(CategoryItem item, String selectedCategoryKey, ModeState state,
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems, CountDownLatch latch) {
-        ChannelListUI ui = new ChannelListUI(account, item.getCategoryTitle(), selectedCategoryKey);
+        String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
+        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey);
         if (embeddedMode) {
             ui.setEmbeddedMode(true);
         } else {
@@ -427,7 +432,7 @@ public class CategoryListUI extends HBox {
         state.channelListUI = ui;
         state.selectedCategory = item;
         if (embeddedMode) {
-            showDetailView(ui, item.getCategoryTitle());
+            showDetailView(ui, title);
         } else {
             removeChannelPane();
             getChildren().add(ui);
@@ -468,7 +473,7 @@ public class CategoryListUI extends HBox {
             if (isLoadingCancelled(isCancelled)) {
                 return;
             }
-            if (!isAllCategory(categoryItem)) {
+            if (categoryItem != null && !isAllCategory(categoryItem)) {
                 ChannelService.getInstance().get(selectedCategoryKey(categoryItem), account, categoryItem.getId(), null,
                         channelListUI::addItems, isCancelled::getAsBoolean,
                         progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
@@ -487,9 +492,10 @@ public class CategoryListUI extends HBox {
         String id = item.getId();
         String candidateCategoryId = item.getCategoryId();
         String title = item.getCategoryTitle();
+        String commonAll = I18n.tr("commonAll");
         return (id != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(id.trim()))
                 || (candidateCategoryId != null && ALL_CATEGORY_SENTINEL.equalsIgnoreCase(candidateCategoryId.trim()))
-                || (title != null && title.equalsIgnoreCase(I18n.tr("commonAll")))
+                || (title != null && commonAll != null && title.equalsIgnoreCase(commonAll))
                 || (title != null && title.equalsIgnoreCase(CategoryType.ALL.displayName()));
     }
 

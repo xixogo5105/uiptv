@@ -780,9 +780,9 @@ public class ChannelListUI extends HBox {
                 List<Category> categories = CategoryService.getInstance().getCached(account);
 
                 categoryTitleByCategoryId.set(categories.stream()
-                        .filter(c -> c != null && c.getCategoryId() != null)
+                        .filter(c -> c != null && c.getCategoryId() != null && c.getTitle() != null)
                         .collect(Collectors.toMap(
-                                c -> c.getCategoryId(),
+                                Category::getCategoryId,
                                 Category::getTitle,
                                 (left, right) -> left)));
 
