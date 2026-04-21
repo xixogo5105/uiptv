@@ -54,6 +54,9 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
+        if (isDisposed.get()) {
+            return;
+        }
         attemptedCompatibilityFallback = false;
         if (isBingeWatchPlayback()) {
             startBingeWatchPlayback(false, 0L);

@@ -14,6 +14,7 @@ public interface VideoPlayerInterface {
     void play(PlayerResponse response);
     void stop();
     void stopForReload();
+    void disposePlayer();
     void toggleFullscreen();
     Node getPlayerContainer();
     PlayerType getType();

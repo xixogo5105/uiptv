@@ -22,6 +22,11 @@ public class DummyVideoPlayer implements VideoPlayerInterface {
     }
 
     @Override
+    public void disposePlayer() {
+        // Intentionally empty: dummy player has no resources to dispose.
+    }
+
+    @Override
     public void toggleFullscreen() {
         // Do nothing
     }

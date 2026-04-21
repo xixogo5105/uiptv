@@ -135,17 +135,7 @@ public class MediaPlayerFactory {
         if (instance != null) {
             try {
                 // Call player-specific disposal (especially important for VLC)
-                switch (instance) {
-                    case com.uiptv.player.VlcVideoPlayer vlcPlayer -> {
-                        vlcPlayer.disposePlayer();
-                        vlcPlayer.stopForReload();
-                    }
-                    case com.uiptv.player.LiteVideoPlayer litePlayer -> {
-                        litePlayer.disposePlayer();
-                        litePlayer.stopForReload();
-                    }
-                    default -> instance.stop();
-                }
+                instance.disposePlayer();
             } catch (Exception _) {
                 // Best-effort shutdown: continue releasing shared state even if player teardown fails.
             }

@@ -46,6 +46,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void ensurePlayerInitialized() {
+        if (isDisposed.get()) {
+            return;
+        }
         synchronized (playerLock) {
             if (mediaPlayer != null) {
                 return;
@@ -280,6 +283,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void playMedia(String uri) {
         new Thread(() -> {
+            if (isDisposed.get()) {
+                return;
+            }
             ensurePlayerInitialized();
             videoSourceWidth = 0;
             videoSourceHeight = 0;
@@ -326,18 +332,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     // Best-effort shutdown: player may already be stopped or detached.
                 }
                 try {
-                    if (mediaPlayerEvents != null) {
-                        mediaPlayer.events().removeMediaPlayerEventListener(mediaPlayerEvents);
-                    }
-                } catch (Exception _) {
-                    // Best-effort shutdown: listener removal should not block disposal.
-                }
-                try {
                     mediaPlayer.videoSurface().set(null);
                 } catch (Exception _) {
                     // Best-effort shutdown: surface can already be released during teardown.
                 }
                 try {
+                    // Releasing the media player will also remove all listeners internally.
+                    // Explicit removal can sometimes cause crashes during native teardown on some platforms.
                     mediaPlayer.release();
                 } catch (Exception _) {
                     // Best-effort shutdown: native VLC release can fail after partial teardown.

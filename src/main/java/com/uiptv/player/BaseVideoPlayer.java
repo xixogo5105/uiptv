@@ -74,6 +74,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isRepeating = false;
     protected int retryCount = 0;
     protected final AtomicBoolean isRetrying = new AtomicBoolean(false);
+    protected final AtomicBoolean isDisposed = new AtomicBoolean(false);
     protected String currentMediaUri;
     protected static final int ASPECT_RATIO_FIT = 0;
     protected static final int ASPECT_RATIO_FILL = 1;
@@ -747,6 +748,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected void play(PlayerResponse response, boolean isInternalRetry) {
+        if (isDisposed.get()) {
+            return;
+        }
         if (!isInternalRetry) {
             retryCount = 0;
             isRetrying.set(true);
@@ -859,6 +863,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
      */
     @SuppressWarnings("java:S1141")
     public void disposePlayer() {
+        if (isDisposed.getAndSet(true)) {
+            return;
+        }
         try {
             // First stop any current playback and dispose current media
             stopForReload();
