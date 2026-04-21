@@ -6,6 +6,7 @@ import org.apache.hc.client5.http.impl.LaxRedirectStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -64,8 +65,9 @@ public class HttpUtil {
 
     public static HttpResult sendRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
+        HttpClientContext context = HttpClientContext.create();
 
-        return HTTP_CLIENT.execute(request, response -> {
+        return HTTP_CLIENT.execute(request, context, response -> {
             HttpEntity entity = response.getEntity();
             String responseBody = "";
             if (options.readBody()) {
@@ -75,7 +77,7 @@ public class HttpUtil {
             }
             return new HttpResult(
                     request.getMethod(),
-                    requestUriForLog(request),
+                    getFinalUri(request, context),
                     response.getCode(),
                     responseBody,
                     headersToMap(request.getHeaders()),
@@ -86,12 +88,13 @@ public class HttpUtil {
 
     public static StreamResult openStream(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
-        CloseableHttpResponse response = HTTP_CLIENT.execute(request);
+        HttpClientContext context = HttpClientContext.create();
+        CloseableHttpResponse response = HTTP_CLIENT.execute(request, context);
         HttpEntity entity = response.getEntity();
         InputStream bodyStream = entity == null ? InputStream.nullInputStream() : entity.getContent();
         return new StreamResult(
                 request.getMethod(),
-                requestUriForLog(request),
+                getFinalUri(request, context),
                 response.getCode(),
                 headersToMap(request.getHeaders()),
                 headersToMap(response.getHeaders()),
@@ -260,12 +263,17 @@ public class HttpUtil {
         return method.trim().toUpperCase();
     }
 
-    private static String requestUriForLog(HttpUriRequestBase request) {
+    private static String getFinalUri(HttpUriRequestBase request, HttpClientContext context) {
         try {
+            org.apache.hc.client5.http.protocol.RedirectLocations redirects = context.getRedirectLocations();
+            if (redirects != null && !redirects.getAll().isEmpty()) {
+                List<URI> redirectList = redirects.getAll();
+                return redirectList.get(redirectList.size() - 1).toString();
+            }
             URI uri = request.getUri();
             return uri == null ? "" : uri.toString();
         } catch (Exception _) {
-            return "";
+            return request.getRequestUri();
         }
     }
 

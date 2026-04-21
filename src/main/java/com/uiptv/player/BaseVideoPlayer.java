@@ -1879,7 +1879,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
      * Returns a playable .m3u8 URL (Media Playlist).
      */
     protected String resolveHlsPlaylistChain(String uri) {
-        if (uri == null || !uri.toLowerCase().contains(".m3u8")) {
+        if (uri == null) {
+            return uri;
+        }
+
+        if (!isLikelyManifest(uri)) {
             return uri;
         }
 
@@ -1887,12 +1891,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             java.util.Map<String, String> headers = createBrowserHeaders();
             com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(uri, headers, "GET");
             if (result != null && result.statusCode() == 200 && result.body() != null) {
+                // Ensure the content looks like an M3U manifest regardless of the URL extension
                 String body = result.body();
-                if (body.contains("#EXT-X-STREAM-INF")) {
-                    String variantUrl = extractBestVariantUrl(uri, body);
+                if (body.startsWith("#EXTM3U") && body.contains("#EXT-X-STREAM-INF")) {
+                    String effectiveBaseUri = result.requestUri();
+                    String variantUrl = extractBestVariantUrl(effectiveBaseUri, body);
                     if (variantUrl != null) {
                         com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class, "Resolved HLS master manifest to variant: " + variantUrl);
-                        // Recursively resolve in case of multiple master levels, but stop at Media Playlist
                         return resolveHlsPlaylistChain(variantUrl);
                     }
                 }
@@ -1901,6 +1906,18 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class, "Optional HLS resolution failed for: " + uri + " (" + e.getMessage() + ")");
         }
         return uri;
+    }
+
+    private boolean isLikelyManifest(String uri) {
+        String path = uri.split("\\?")[0].toLowerCase();
+        if (path.endsWith(".m3u8") || path.endsWith(".m3u")) {
+            return true;
+        }
+        // If the URL has no extension in its last segment, it's likely a redirector or dynamic endpoint
+        // that we should probe to see if it returns a manifest.
+        int lastSlash = path.lastIndexOf('/');
+        String lastSegment = lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
+        return !lastSegment.contains(".");
     }
 
     private String extractBestVariantUrl(String baseUrl, String playlistContent) {
@@ -1928,12 +1945,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private String resolveVariantUrl(String baseUrl, String variantUrl) {
         try {
             java.net.URI base = java.net.URI.create(baseUrl);
-            java.net.URI resolved = base.resolve(variantUrl);
+            // resolve() followed by normalize() ensures that any relative path segments (../) 
+            // are properly collapsed against the base path.
+            java.net.URI resolved = base.resolve(variantUrl).normalize();
 
             // Propagate query parameters from base URL if variant doesn't have its own
             if (baseUrl.contains("?") && !variantUrl.contains("?")) {
                 String query = baseUrl.substring(baseUrl.indexOf('?'));
-                return resolved.toString() + query;
+                String resolvedStr = resolved.toString();
+                // Ensure we don't accidentally double-append if the resolution already included a query
+                return resolvedStr.contains("?") ? resolvedStr : resolvedStr + query;
             }
             return resolved.toString();
         } catch (Exception _) {
