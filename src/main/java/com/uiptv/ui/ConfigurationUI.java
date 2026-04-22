@@ -64,12 +64,15 @@ public class ConfigurationUI extends VBox {
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "configFilterChannelsPrompt", 5);
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
-    private final CheckBox enableFfmpegCheckBox = new CheckBox(I18n.tr("configEnableFfmpeg"));
-    private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(I18n.tr("configEnableLitePlayerFfmpeg"));
+    private final CheckBox enableFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableFfmpeg")));
+    private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableLitePlayerFfmpeg")));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
-    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox("Resolve redirect chains");
+    private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
+    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("configResolveChainAndDeepRedirects"));
     private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
+    private final Hyperlink ffmpegTranscodingHelpLink = new Hyperlink("(?)");
+    private final Hyperlink litePlayerFfmpegHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
@@ -147,6 +150,8 @@ public class ConfigurationUI extends VBox {
         configurePlayerToggleGroup();
         updateEmbeddedPlayerTitle();
         configurePlayerUserData();
+        addWideViewHelpClickHandler();
+        addFfmpegHelpClickHandlers();
         defaultEmbedPlayer.setSelected(true);
         if (configuration != null) {
             this.dbId = configuration.getDbId();
@@ -218,13 +223,17 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(box4Spacer, Priority.ALWAYS);
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
+        HBox wideViewRow = new HBox(6, wideViewCheckBox, wideViewHelpLink);
         HBox resolveChainRow = new HBox(6, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
         box4.setAlignment(Pos.CENTER_LEFT);
         box5.setAlignment(Pos.CENTER_LEFT);
+        wideViewRow.setAlignment(Pos.CENTER_LEFT);
         resolveChainRow.setAlignment(Pos.CENTER_LEFT);
+        wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
         tmdbHelpLabel.setWrapText(true);
@@ -232,9 +241,9 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewCheckBox, resolveChainRow);
-        configureWrappingCheckBox(resolveChainAndDeepRedirectsCheckBox, playersGroup);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
         resolveChainAndDeepRedirectsHelpLink.getStyleClass().add("no-dim-disabled");
+        wideViewHelpLink.getStyleClass().add("no-dim-disabled");
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
@@ -250,10 +259,16 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
-        VBox serverGroup = new VBox(10, enableFfmpegCheckBox, enableLitePlayerFfmpegCheckBox, serverButtonWrapper, publishM3u8Button);
+        HBox ffmpegTranscodingRow = new HBox(6, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
+        HBox litePlayerFfmpegRow = new HBox(6, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
+        ffmpegTranscodingRow.setAlignment(Pos.CENTER_LEFT);
+        litePlayerFfmpegRow.setAlignment(Pos.CENTER_LEFT);
+        enableFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        enableLitePlayerFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button);
         serverGroup.setFillWidth(true);
-        configureWrappingCheckBox(enableFfmpegCheckBox, serverGroup);
-        configureWrappingCheckBox(enableLitePlayerFfmpegCheckBox, serverGroup);
+        ffmpegTranscodingHelpLink.getStyleClass().add("no-dim-disabled");
+        litePlayerFfmpegHelpLink.getStyleClass().add("no-dim-disabled");
 
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
@@ -704,6 +719,15 @@ public class ConfigurationUI extends VBox {
         resolveChainAndDeepRedirectsHelpLink.setOnAction(event -> showResolveChainHelp());
     }
 
+    private void addWideViewHelpClickHandler() {
+        wideViewHelpLink.setOnAction(event -> showWideViewHelp());
+    }
+
+    private void addFfmpegHelpClickHandlers() {
+        ffmpegTranscodingHelpLink.setOnAction(event -> showFfmpegTranscodingHelp());
+        litePlayerFfmpegHelpLink.setOnAction(event -> showLitePlayerFfmpegHelp());
+    }
+
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(_ -> {
             try {
@@ -931,24 +955,91 @@ public class ConfigurationUI extends VBox {
     }
 
     static String resolveChainHelpText() {
-        return """
-                This option makes the app resolve HLS playlist chains and follow deeper redirect chains before playback.
+        return I18n.tr("configResolveChainAndDeepRedirectsHelp");
+    }
 
-                Use it when a stream lands on a master playlist, relative HLS variants, or a redirecting gateway that the player does not handle well on its own.
+    static String resolveChainHelpTitle() {
+        return I18n.tr("configResolveChainAndDeepRedirectsHelpTitle");
+    }
 
-                Leave it off if your streams already play correctly without extra probing, or if you want the lowest startup latency. Enabling it can add a small delay before playback starts.
-                """;
+    static String wideViewHelpText() {
+        return I18n.tr("configWideViewHelp");
+    }
+
+    static String wideViewHelpTitle() {
+        return I18n.tr("configWideViewHelpTitle");
+    }
+
+    static String ffmpegTranscodingHelpText() {
+        return I18n.tr("configEnableFfmpegHelp");
+    }
+
+    static String ffmpegTranscodingHelpTitle() {
+        return I18n.tr("configEnableFfmpegHelpTitle");
+    }
+
+    static String litePlayerFfmpegHelpText() {
+        return I18n.tr("configEnableLitePlayerFfmpegHelp");
+    }
+
+    static String litePlayerFfmpegHelpTitle() {
+        return I18n.tr("configEnableLitePlayerFfmpegHelpTitle");
     }
 
     private void showResolveChainHelp() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(I18n.tr("commonInfo"));
-        alert.setHeaderText("Resolve redirect chains");
+        alert.setHeaderText(resolveChainHelpTitle());
         alert.setContentText(resolveChainHelpText());
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
         alert.initModality(javafx.stage.Modality.NONE);
         alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         alert.showAndWait();
+    }
+
+    private void showWideViewHelp() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setHeaderText(wideViewHelpTitle());
+        alert.setContentText(wideViewHelpText());
+        alert.initOwner(getScene() == null ? null : getScene().getWindow());
+        alert.initModality(javafx.stage.Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+        alert.showAndWait();
+    }
+
+    private void showFfmpegTranscodingHelp() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setHeaderText(ffmpegTranscodingHelpTitle());
+        alert.setContentText(ffmpegTranscodingHelpText());
+        alert.initOwner(getScene() == null ? null : getScene().getWindow());
+        alert.initModality(javafx.stage.Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+        alert.showAndWait();
+    }
+
+    private void showLitePlayerFfmpegHelp() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setHeaderText(litePlayerFfmpegHelpTitle());
+        alert.setContentText(litePlayerFfmpegHelpText());
+        alert.initOwner(getScene() == null ? null : getScene().getWindow());
+        alert.initModality(javafx.stage.Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+        alert.showAndWait();
+    }
+
+    static String stripTrailingHelp(String label) {
+        if (label == null) {
+            return "";
+        }
+        String trimmed = label.trim();
+        int idx = trimmed.lastIndexOf(" (");
+        if (idx > 0 && trimmed.endsWith(")")) {
+            return trimmed.substring(0, idx).trim();
+        }
+        return trimmed;
     }
 
     private record VlcCachingOption(String value, String label) {
