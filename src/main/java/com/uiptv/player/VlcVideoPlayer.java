@@ -282,39 +282,42 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
-        new Thread(() -> {
+        Thread playThread = new Thread(() -> {
             if (isDisposed.get()) {
                 return;
             }
             ensurePlayerInitialized();
+            if (isDisposed.get()) {
+                return;
+            }
             videoSourceWidth = 0;
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
-            EmbeddedMediaPlayer player;
             synchronized (playerLock) {
-                player = mediaPlayer;
-            }
-            if (player != null) {
-                // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
-                // Some CDNs ignore the global --http-user-agent for HLS modules.
-                String playUri = resolveHlsPlaylistChain(uri);
-                if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-                    player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
-                } else {
-                    player.media().play(playUri);
+                EmbeddedMediaPlayer player = mediaPlayer;
+                if (player != null && !isDisposed.get()) {
+                    // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
+                    // Some CDNs ignore the global --http-user-agent for HLS modules.
+                    String playUri = resolveHlsPlaylistChain(uri);
+                    if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+                        player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+                    } else {
+                        player.media().play(playUri);
+                    }
                 }
             }
-        }).start();
+        }, "vlc-play-media");
+        playThread.setDaemon(true);
+        playThread.start();
     }
 
     @Override
     protected void stopMedia() {
-        EmbeddedMediaPlayer player;
         synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
-            player.controls().stop();
+            EmbeddedMediaPlayer player = mediaPlayer;
+            if (player != null) {
+                player.controls().stop();
+            }
         }
         videoImageView.setImage(null);
         videoSourceWidth = 0;
@@ -337,6 +340,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     // Best-effort shutdown: surface can already be released during teardown.
                 }
                 try {
+                    // Keep all VLC teardown serialized with any in-flight play request.
+                    // That avoids racing native listener detachment against a concurrent start.
                     // Releasing the media player will also remove all listeners internally.
                     // Explicit removal can sometimes cause crashes during native teardown on some platforms.
                     mediaPlayer.release();
