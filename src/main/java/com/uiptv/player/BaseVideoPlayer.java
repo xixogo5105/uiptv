@@ -1912,26 +1912,38 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
 
         try {
-            java.util.Map<String, String> headers = createBrowserHeaders();
-            com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(normalizedUri, headers, "GET");
-            if (result != null && result.statusCode() == 200 && result.body() != null) {
-                // Ensure the content looks like an M3U manifest regardless of the URL extension
-                String body = result.body();
-                if (body.startsWith("#EXTM3U") && body.contains("#EXT-X-STREAM-INF")) {
-                    String effectiveBaseUri = isNotBlank(result.requestUri()) ? result.requestUri() : normalizedUri;
-                    String variantUrl = extractBestVariantUrl(effectiveBaseUri, body);
-                    if (variantUrl != null && !variantUrl.equals(normalizedUri)) {
-                        com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class,
-                                "Resolved HLS master manifest to variant: " + variantUrl);
-                        return resolveHlsPlaylistChain(variantUrl, visited, depth + 1);
-                    }
-                }
+            String variantUrl = resolveHlsVariantUrl(normalizedUri);
+            if (variantUrl == null || variantUrl.equals(normalizedUri)) {
+                return normalizedUri;
             }
+            com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class,
+                    "Resolved HLS master manifest to variant: " + variantUrl);
+            return resolveHlsPlaylistChain(variantUrl, visited, depth + 1);
         } catch (Exception e) {
             com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
                     "Optional HLS resolution failed for: " + normalizedUri + " (" + e.getMessage() + ")");
         }
         return normalizedUri;
+    }
+
+    private String resolveHlsVariantUrl(String normalizedUri) throws IOException {
+        java.util.Map<String, String> headers = createBrowserHeaders();
+        com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(normalizedUri, headers, "GET");
+        if (result == null || result.statusCode() != 200 || result.body() == null) {
+            return null;
+        }
+
+        String body = result.body();
+        if (!isMasterManifest(body)) {
+            return null;
+        }
+
+        String effectiveBaseUri = isNotBlank(result.requestUri()) ? result.requestUri() : normalizedUri;
+        return extractBestVariantUrl(effectiveBaseUri, body);
+    }
+
+    private boolean isMasterManifest(String body) {
+        return body.startsWith("#EXTM3U") && body.contains("#EXT-X-STREAM-INF");
     }
 
     private boolean isLikelyManifest(String uri) {

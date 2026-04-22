@@ -25,7 +25,6 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -43,8 +42,10 @@ public class ConfigurationUI extends VBox {
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
+    private static final String DIALOG_TITLE_COMMON_INFO = "commonInfo";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
+    private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
@@ -125,7 +126,7 @@ public class ConfigurationUI extends VBox {
     private void initWidgets() {
         setPadding(Insets.EMPTY);
         setSpacing(0);
-        startServerButton.getStyleClass().add("no-dim-disabled");
+        startServerButton.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         contentContainer.setPadding(new Insets(5));
         contentContainer.setSpacing(10);
         cssFileChooser.setTitle(I18n.tr("configCssSelectFile"));
@@ -242,8 +243,8 @@ public class ConfigurationUI extends VBox {
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
-        resolveChainAndDeepRedirectsHelpLink.getStyleClass().add("no-dim-disabled");
-        wideViewHelpLink.getStyleClass().add("no-dim-disabled");
+        resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
+        wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
@@ -267,8 +268,8 @@ public class ConfigurationUI extends VBox {
         enableLitePlayerFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button);
         serverGroup.setFillWidth(true);
-        ffmpegTranscodingHelpLink.getStyleClass().add("no-dim-disabled");
-        litePlayerFfmpegHelpLink.getStyleClass().add("no-dim-disabled");
+        ffmpegTranscodingHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
+        litePlayerFfmpegHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
@@ -295,15 +296,6 @@ public class ConfigurationUI extends VBox {
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
-    }
-
-    private void configureWrappingCheckBox(CheckBox checkBox, VBox container) {
-        checkBox.setWrapText(true);
-        checkBox.setAlignment(Pos.TOP_LEFT);
-        checkBox.setMaxWidth(Double.MAX_VALUE);
-        checkBox.setMinHeight(Region.USE_PREF_SIZE);
-        checkBox.setPrefHeight(Region.USE_COMPUTED_SIZE);
-        checkBox.prefWidthProperty().bind(container.widthProperty().subtract(4));
     }
 
     private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
@@ -988,7 +980,7 @@ public class ConfigurationUI extends VBox {
 
     private void showResolveChainHelp() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
         alert.setHeaderText(resolveChainHelpTitle());
         alert.setContentText(resolveChainHelpText());
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
@@ -999,7 +991,7 @@ public class ConfigurationUI extends VBox {
 
     private void showWideViewHelp() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
         alert.setHeaderText(wideViewHelpTitle());
         alert.setContentText(wideViewHelpText());
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
@@ -1010,7 +1002,7 @@ public class ConfigurationUI extends VBox {
 
     private void showFfmpegTranscodingHelp() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
         alert.setHeaderText(ffmpegTranscodingHelpTitle());
         alert.setContentText(ffmpegTranscodingHelpText());
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
@@ -1021,7 +1013,7 @@ public class ConfigurationUI extends VBox {
 
     private void showLitePlayerFfmpegHelp() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
         alert.setHeaderText(litePlayerFfmpegHelpTitle());
         alert.setContentText(litePlayerFfmpegHelpText());
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
