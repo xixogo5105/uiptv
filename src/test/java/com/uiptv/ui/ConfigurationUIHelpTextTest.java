@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigurationUIHelpTextTest {
@@ -37,7 +38,8 @@ class ConfigurationUIHelpTextTest {
 
     @Test
     void stripTrailingHelp_removesParentheticalSuffixOnly() {
-        assertTrue(ConfigurationUI.stripTrailingHelp("Enable FFmpeg Transcoding (High CPU Usage)").equals("Enable FFmpeg Transcoding"));
-        assertTrue(ConfigurationUI.stripTrailingHelp("Wide View").equals("Wide View"));
+        assertEquals("Enable FFmpeg Transcoding",
+                ConfigurationUI.stripTrailingHelp("Enable FFmpeg Transcoding (High CPU Usage)"));
+        assertEquals("Wide View", ConfigurationUI.stripTrailingHelp("Wide View"));
     }
 }
