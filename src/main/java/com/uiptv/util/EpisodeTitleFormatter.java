@@ -3,6 +3,7 @@ package com.uiptv.util;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -38,7 +39,8 @@ public final class EpisodeTitleFormatter {
         String normalized = normalizeAsciiWords(value);
         return matchesSimpleEpisodeNumber(normalized)
                 || matchesOrdinalSeasonEpisode(normalized)
-                || matchesSeasonEpisode(normalized);
+                || matchesSeasonEpisode(normalized)
+                || matchesLocalizedEpisodeWordTitle(normalized);
     }
 
     static String stripGenericEpisodeTitle(String season, String episodeNumber, String title) {
@@ -102,6 +104,13 @@ public final class EpisodeTitleFormatter {
                 numericEpisodeLabel
         )) {
             if (normalizeForComparison(candidate).equals(normalizedTitle)) {
+                return true;
+            }
+        }
+        String localizedEpisodeWord = localizedEpisodeWord(episodeLabel);
+        if (!isBlank(localizedEpisodeWord)) {
+            String genericLocalizedEpisode = localizedEpisodeWord + " " + I18n.formatNumber(episodeNumber);
+            if (normalizeForComparison(genericLocalizedEpisode).equals(normalizedTitle)) {
                 return true;
             }
         }
@@ -178,5 +187,26 @@ public final class EpisodeTitleFormatter {
 
     private static boolean isDigits(String value) {
         return !isBlank(value) && value.chars().allMatch(Character::isDigit);
+    }
+
+    private static boolean matchesLocalizedEpisodeWordTitle(String normalizedTitle) {
+        String localizedEpisodeWord = localizedEpisodeWord(I18n.formatEpisodeLabel("11"));
+        if (isBlank(localizedEpisodeWord)) {
+            return false;
+        }
+        return normalizedTitle.matches("^" + Pattern.quote(localizedEpisodeWord) + "\\s+\\d+$");
+    }
+
+    private static String localizedEpisodeWord(String episodeLabel) {
+        String normalizedLabel = normalizeForComparison(episodeLabel);
+        if (isBlank(normalizedLabel)) {
+            return "";
+        }
+        String[] parts = normalizedLabel.split(" ");
+        if (parts.length < 2) {
+            return "";
+        }
+        String lastWord = parts[parts.length - 1];
+        return lastWord.chars().anyMatch(Character::isLetter) ? lastWord : "";
     }
 }

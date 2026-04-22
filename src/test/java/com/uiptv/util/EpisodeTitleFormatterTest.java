@@ -57,8 +57,11 @@ class EpisodeTitleFormatterTest {
         assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("e9"));
         assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("Season 2 Episode 9"));
         assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("Doosra season qist 9"));
+        I18n.setLocale("ur-PK");
+        assertTrue(EpisodeTitleFormatter.isGenericEpisodeTitle("قسط 11"));
         assertFalse(EpisodeTitleFormatter.isGenericEpisodeTitle("The Finale"));
 
+        I18n.setLocale("en-US");
         assertEquals("Season 2 - Episode 11", EpisodeTitleFormatter.buildEpisodeDisplayTitle("2", "11", "Season 2 - Episode 11"));
         assertEquals("Season 1 - Episode 5", EpisodeTitleFormatter.buildEpisodeDisplayTitle("", "5", ""));
     }
