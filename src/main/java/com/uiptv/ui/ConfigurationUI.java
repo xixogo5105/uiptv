@@ -25,6 +25,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -68,6 +69,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox("Resolve redirect chains");
+    private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
@@ -216,11 +218,13 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(box4Spacer, Priority.ALWAYS);
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
+        HBox resolveChainRow = new HBox(6, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
         box4.setAlignment(Pos.CENTER_LEFT);
         box5.setAlignment(Pos.CENTER_LEFT);
+        resolveChainRow.setAlignment(Pos.CENTER_LEFT);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
         tmdbHelpLabel.setWrapText(true);
@@ -228,8 +232,9 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewCheckBox, resolveChainAndDeepRedirectsCheckBox);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewCheckBox, resolveChainRow);
         configureWrappingCheckBox(resolveChainAndDeepRedirectsCheckBox, playersGroup);
+        resolveChainAndDeepRedirectsHelpLink.getStyleClass().add("no-dim-disabled");
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
@@ -270,6 +275,7 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
+        addResolveChainHelpClickHandler();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
@@ -694,6 +700,10 @@ public class ConfigurationUI extends VBox {
         vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
 
+    private void addResolveChainHelpClickHandler() {
+        resolveChainAndDeepRedirectsHelpLink.setOnAction(event -> showResolveChainHelp());
+    }
+
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(_ -> {
             try {
@@ -918,6 +928,27 @@ public class ConfigurationUI extends VBox {
         if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
             showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
         }
+    }
+
+    static String resolveChainHelpText() {
+        return """
+                This option makes the app resolve HLS playlist chains and follow deeper redirect chains before playback.
+
+                Use it when a stream lands on a master playlist, relative HLS variants, or a redirecting gateway that the player does not handle well on its own.
+
+                Leave it off if your streams already play correctly without extra probing, or if you want the lowest startup latency. Enabling it can add a small delay before playback starts.
+                """;
+    }
+
+    private void showResolveChainHelp() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(I18n.tr("commonInfo"));
+        alert.setHeaderText("Resolve redirect chains");
+        alert.setContentText(resolveChainHelpText());
+        alert.initOwner(getScene() == null ? null : getScene().getWindow());
+        alert.initModality(javafx.stage.Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+        alert.showAndWait();
     }
 
     private record VlcCachingOption(String value, String label) {
