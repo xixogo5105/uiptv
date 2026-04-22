@@ -101,7 +101,12 @@ public class ConfigurationService {
     }
 
     public boolean isResolveChainAndDeepRedirectsEnabled() {
-        Configuration configuration = read();
-        return configuration == null || configuration.isResolveChainAndDeepRedirects();
+        try {
+            Configuration configuration = read();
+            return configuration == null || configuration.isResolveChainAndDeepRedirects();
+        } catch (RuntimeException _) {
+            // Fail open so transient DB issues do not break HTTP/proxy playback paths.
+            return true;
+        }
     }
 }

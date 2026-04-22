@@ -26,7 +26,14 @@ class BaseVideoPlayerHlsResolutionTest {
         Assumptions.assumeTrue(!isHeadlessEnvironment(), "Headless environment cannot initialize JavaFX");
         if (FX_STARTED.compareAndSet(false, true)) {
             CountDownLatch latch = new CountDownLatch(1);
-            Platform.startup(latch::countDown);
+            try {
+                Platform.startup(latch::countDown);
+            } catch (IllegalStateException e) {
+                if (!String.valueOf(e.getMessage()).contains("Toolkit already initialized")) {
+                    throw e;
+                }
+                latch.countDown();
+            }
             if (!latch.await(5, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("JavaFX platform failed to start");
             }
