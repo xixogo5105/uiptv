@@ -99,4 +99,9 @@ public class ConfigurationService {
         Configuration configuration = read();
         return configuration == null || configuration.isEnableVlcHttpForwardCookies();
     }
+
+    public boolean isResolveChainAndDeepRedirectsEnabled() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isResolveChainAndDeepRedirects();
+    }
 }

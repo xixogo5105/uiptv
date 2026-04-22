@@ -1,0 +1,153 @@
+package com.uiptv.player;
+
+import com.uiptv.util.HttpUtil;
+import com.uiptv.service.ConfigurationService;
+import javafx.application.Platform;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+
+import java.awt.GraphicsEnvironment;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class BaseVideoPlayerHlsResolutionTest {
+    private static final AtomicBoolean FX_STARTED = new AtomicBoolean(false);
+
+    @BeforeAll
+    static void initJavaFx() throws Exception {
+        Assumptions.assumeTrue(!isHeadlessEnvironment(), "Headless environment cannot initialize JavaFX");
+        if (FX_STARTED.compareAndSet(false, true)) {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.startup(latch::countDown);
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("JavaFX platform failed to start");
+            }
+        }
+    }
+
+    @Test
+    void resolveHlsPlaylistChainStopsWhenPlaylistCycleIsDetected() throws Exception {
+        TestPlayer player = runOnFxThread(TestPlayer::new);
+        String masterUrl = "http://example.com/master.m3u8";
+        String variantUrl = "http://example.com/variant.m3u8";
+
+        HttpUtil.HttpResult master = new HttpUtil.HttpResult(200,
+                "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nvariant.m3u8\n",
+                Map.of(),
+                Map.of());
+        HttpUtil.HttpResult variant = new HttpUtil.HttpResult(200,
+                "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nmaster.m3u8\n",
+                Map.of(),
+                Map.of());
+
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(master);
+            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(variantUrl), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(variant);
+
+            String resolved = player.resolve(masterUrl);
+
+            assertEquals(masterUrl, resolved);
+            httpUtil.verify(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")));
+            httpUtil.verify(() -> HttpUtil.sendRequest(Mockito.eq(variantUrl), Mockito.anyMap(), Mockito.eq("GET")));
+        }
+    }
+
+    @Test
+    void resolveHlsPlaylistChainSkipsResolutionWhenFeatureIsDisabled() throws Exception {
+        TestPlayer player = runOnFxThread(TestPlayer::new);
+        String uri = "http://example.com/master.m3u8";
+
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(false);
+
+            String resolved = player.resolve(uri);
+
+            assertEquals(uri, resolved);
+            httpUtil.verifyNoInteractions();
+        }
+    }
+
+    private static boolean isHeadlessEnvironment() {
+        if (GraphicsEnvironment.isHeadless()) {
+            return true;
+        }
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        if (osName.contains("linux")) {
+            String display = System.getenv("DISPLAY");
+            String wayland = System.getenv("WAYLAND_DISPLAY");
+            return (display == null || display.isBlank()) && (wayland == null || wayland.isBlank());
+        }
+        return false;
+    }
+
+    private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {
+        if (Platform.isFxApplicationThread()) {
+            return task.call();
+        }
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<T> result = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Platform.runLater(() -> {
+            try {
+                result.set(task.call());
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                latch.countDown();
+            }
+        });
+        if (!latch.await(5, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for JavaFX task");
+        }
+        if (failure.get() != null) {
+            Throwable t = failure.get();
+            if (t instanceof Exception e) {
+                throw e;
+            }
+            throw new RuntimeException(t);
+        }
+        return result.get();
+    }
+
+    @FunctionalInterface
+    private interface FxCallable<T> {
+        T call() throws Exception;
+    }
+
+    private static final class TestPlayer extends BaseVideoPlayer {
+        @Override protected javafx.scene.Node getVideoView() { return null; }
+        @Override protected void playMedia(String uri) { }
+        @Override protected void stopMedia() { }
+        @Override protected void disposeMedia() { }
+        @Override protected void setVolume(double volume) { }
+        @Override protected void setMute(boolean mute) { }
+        @Override protected void seek(float position) { }
+        @Override protected void seekBySeconds(int deltaSeconds) { }
+        @Override protected void updateVideoSize() { }
+        @Override protected void pauseMedia() { }
+        @Override protected void resumeMedia() { }
+        @Override protected boolean isPlaying() { return false; }
+        @Override public com.uiptv.api.VideoPlayerInterface.PlayerType getType() { return com.uiptv.api.VideoPlayerInterface.PlayerType.DUMMY; }
+
+        String resolve(String uri) {
+            return resolveHlsPlaylistChain(uri);
+        }
+    }
+}

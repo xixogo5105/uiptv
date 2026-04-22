@@ -293,12 +293,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoSourceWidth = 0;
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
+            // Resolve manifests outside the VLC lock so a slow request cannot block stop/dispose.
+            String playUri = resolveHlsPlaylistChain(uri);
+            if (isDisposed.get()) {
+                return;
+            }
             synchronized (playerLock) {
                 EmbeddedMediaPlayer player = mediaPlayer;
                 if (player != null && !isDisposed.get()) {
                     // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
                     // Some CDNs ignore the global --http-user-agent for HLS modules.
-                    String playUri = resolveHlsPlaylistChain(uri);
                     if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
                         player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
                     } else {

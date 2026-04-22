@@ -67,6 +67,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(I18n.tr("configEnableLitePlayerFfmpeg"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
+    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox("Resolve redirect chains");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
@@ -159,12 +160,16 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
+            resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
             vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
             vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
             vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
             vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
+        }
+        if (configuration == null) {
+            resolveChainAndDeepRedirectsCheckBox.setSelected(true);
         }
         selectDefaultPlayer(configuration);
         updateVlcOptionsLinkVisibility();
@@ -223,7 +228,8 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewCheckBox);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewCheckBox, resolveChainAndDeepRedirectsCheckBox);
+        configureWrappingCheckBox(resolveChainAndDeepRedirectsCheckBox, playersGroup);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
 
@@ -728,6 +734,7 @@ public class ConfigurationUI extends VBox {
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
+        configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);

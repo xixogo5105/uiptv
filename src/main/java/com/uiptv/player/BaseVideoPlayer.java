@@ -8,6 +8,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
@@ -62,6 +63,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
+    private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
@@ -1879,33 +1881,57 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
      * Returns a playable .m3u8 URL (Media Playlist).
      */
     protected String resolveHlsPlaylistChain(String uri) {
-        if (uri == null) {
+        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
             return uri;
         }
+        return resolveHlsPlaylistChain(uri, new java.util.LinkedHashSet<>(), 0);
+    }
 
-        if (!isLikelyManifest(uri)) {
+    private String resolveHlsPlaylistChain(String uri, java.util.Set<String> visited, int depth) {
+        if (uri == null) {
+            return null;
+        }
+
+        String normalizedUri = uri.trim();
+        if (normalizedUri.isEmpty()) {
             return uri;
+        }
+        if (!visited.add(normalizedUri)) {
+            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
+                    "Stopping HLS resolution because a cycle was detected at: " + normalizedUri);
+            return normalizedUri;
+        }
+        if (depth >= MAX_HLS_RESOLUTION_DEPTH) {
+            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
+                    "Stopping HLS resolution because the maximum depth was reached for: " + normalizedUri);
+            return normalizedUri;
+        }
+
+        if (!isLikelyManifest(normalizedUri)) {
+            return normalizedUri;
         }
 
         try {
             java.util.Map<String, String> headers = createBrowserHeaders();
-            com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(uri, headers, "GET");
+            com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(normalizedUri, headers, "GET");
             if (result != null && result.statusCode() == 200 && result.body() != null) {
                 // Ensure the content looks like an M3U manifest regardless of the URL extension
                 String body = result.body();
                 if (body.startsWith("#EXTM3U") && body.contains("#EXT-X-STREAM-INF")) {
-                    String effectiveBaseUri = result.requestUri();
+                    String effectiveBaseUri = isNotBlank(result.requestUri()) ? result.requestUri() : normalizedUri;
                     String variantUrl = extractBestVariantUrl(effectiveBaseUri, body);
-                    if (variantUrl != null) {
-                        com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class, "Resolved HLS master manifest to variant: " + variantUrl);
-                        return resolveHlsPlaylistChain(variantUrl);
+                    if (variantUrl != null && !variantUrl.equals(normalizedUri)) {
+                        com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class,
+                                "Resolved HLS master manifest to variant: " + variantUrl);
+                        return resolveHlsPlaylistChain(variantUrl, visited, depth + 1);
                     }
                 }
             }
         } catch (Exception e) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class, "Optional HLS resolution failed for: " + uri + " (" + e.getMessage() + ")");
+            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
+                    "Optional HLS resolution failed for: " + normalizedUri + " (" + e.getMessage() + ")");
         }
-        return uri;
+        return normalizedUri;
     }
 
     private boolean isLikelyManifest(String uri) {

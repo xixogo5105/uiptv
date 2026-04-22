@@ -1,7 +1,11 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
+import com.uiptv.service.ConfigurationService;
 import org.json.JSONObject;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.client5.http.protocol.RedirectLocations;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -151,5 +155,30 @@ class UtilityEdgeCaseTest {
         assertEquals(2, options.connectionRequestTimeoutSeconds());
         assertEquals(3, options.responseTimeoutSeconds());
         assertDoesNotThrow(HttpUtil.RequestOptions::defaults);
+    }
+
+    @Test
+    void httpUtil_getFinalUri_keepsOriginalUri_whenDeepResolutionIsDisabled() throws Exception {
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        HttpUriRequestBase request = new HttpUriRequestBase("GET", URI.create("http://example.com/master.m3u8"));
+        HttpClientContext context = HttpClientContext.create();
+        RedirectLocations redirectLocations = new RedirectLocations();
+        redirectLocations.add(URI.create("http://redirect.example/final.m3u8"));
+        context.setRedirectLocations(redirectLocations);
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(false);
+
+            java.lang.reflect.Method getFinalUri = HttpUtil.class.getDeclaredMethod(
+                    "getFinalUri",
+                    HttpUriRequestBase.class,
+                    HttpClientContext.class
+            );
+            getFinalUri.setAccessible(true);
+
+            String resolved = (String) getFinalUri.invoke(null, request, context);
+            assertEquals(request.getRequestUri(), resolved);
+        }
     }
 }

@@ -33,6 +33,7 @@ public class Configuration extends BaseJson {
     private boolean enableThumbnails = true;
     private boolean enableVlcHttpUserAgent = true;
     private boolean enableVlcHttpForwardCookies = true;
+    private boolean resolveChainAndDeepRedirects = true;
 
 
     @SuppressWarnings("java:S107")

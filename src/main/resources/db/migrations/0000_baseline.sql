@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS Configuration
     enableVlcHttpForwardCookies
     TEXT
     default
+    '1',
+    resolveChainAndDeepRedirects
+    TEXT
+    default
     '1'
 );
 
