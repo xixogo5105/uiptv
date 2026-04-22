@@ -270,9 +270,15 @@ public class HttpUtil {
         }
         try {
             org.apache.hc.client5.http.protocol.RedirectLocations redirects = context.getRedirectLocations();
-            if (redirects != null && !redirects.getAll().isEmpty()) {
-                List<URI> redirectList = redirects.getAll();
-                return redirectList.get(redirectList.size() - 1).toString();
+            if (redirects != null) {
+                int redirectCount = redirects.size();
+                if (redirectCount > 0 && redirectCount <= MAX_REDIRECTS + 1) {
+                    URI finalRedirect = redirects.get(redirectCount - 1);
+                    return finalRedirect == null ? request.getRequestUri() : finalRedirect.toString();
+                }
+                if (redirectCount > MAX_REDIRECTS + 1) {
+                    return request.getRequestUri();
+                }
             }
             URI uri = request.getUri();
             return uri == null ? "" : uri.toString();

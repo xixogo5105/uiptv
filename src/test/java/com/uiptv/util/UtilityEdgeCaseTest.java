@@ -181,4 +181,57 @@ class UtilityEdgeCaseTest {
             assertEquals(request.getRequestUri(), resolved);
         }
     }
+
+    @Test
+    void httpUtil_getFinalUri_returnsLastRedirect_whenDeepResolutionIsEnabled() throws Exception {
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        HttpUriRequestBase request = new HttpUriRequestBase("GET", URI.create("http://example.com/master.m3u8"));
+        HttpClientContext context = HttpClientContext.create();
+        RedirectLocations redirectLocations = new RedirectLocations();
+        redirectLocations.add(URI.create("http://redirect.example/intermediate.m3u8"));
+        redirectLocations.add(URI.create("http://redirect.example/final.m3u8"));
+        context.setRedirectLocations(redirectLocations);
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+
+            Method getFinalUri = HttpUtil.class.getDeclaredMethod(
+                    "getFinalUri",
+                    HttpUriRequestBase.class,
+                    HttpClientContext.class
+            );
+            getFinalUri.setAccessible(true);
+
+            String resolved = (String) getFinalUri.invoke(null, request, context);
+            assertEquals("http://redirect.example/final.m3u8", resolved);
+        }
+    }
+
+    @Test
+    void httpUtil_getFinalUri_fallsBackWhenRedirectChainLooksPathological() throws Exception {
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        HttpUriRequestBase request = new HttpUriRequestBase("GET", URI.create("http://example.com/master.m3u8"));
+        HttpClientContext context = HttpClientContext.create();
+        RedirectLocations redirectLocations = new RedirectLocations();
+        for (int i = 0; i < 8; i++) {
+            redirectLocations.add(URI.create("http://redirect.example/step" + i + ".m3u8"));
+        }
+        context.setRedirectLocations(redirectLocations);
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+
+            Method getFinalUri = HttpUtil.class.getDeclaredMethod(
+                    "getFinalUri",
+                    HttpUriRequestBase.class,
+                    HttpClientContext.class
+            );
+            getFinalUri.setAccessible(true);
+
+            String resolved = (String) getFinalUri.invoke(null, request, context);
+            assertEquals(request.getRequestUri(), resolved);
+        }
+    }
 }
