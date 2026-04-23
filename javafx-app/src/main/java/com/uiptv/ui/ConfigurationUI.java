@@ -11,7 +11,7 @@ import com.uiptv.server.UIptvServer;
 import com.uiptv.service.*;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
-import com.uiptv.util.ThemeStylesheetResolver;
+import com.uiptv.ui.util.ThemeStylesheetResolver;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;

@@ -17,7 +17,6 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.util.LogUtil;
-import com.uiptv.util.ThemeStylesheetResolver;
 import com.uiptv.util.TextParserService;
 import com.uiptv.util.XtremeApiParser;
 import com.uiptv.util.XtremeCredentialsJson;
@@ -253,19 +252,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         ThemeCssOverride savedOverride = ThemeCssOverrideService.getInstance().read();
         assertEquals("light-e2e.css", savedOverride.getLightThemeCssName());
         assertEquals("dark-e2e.css", savedOverride.getDarkThemeCssName());
-
-        String resolvedStylesheet = ThemeStylesheetResolver.resolveStylesheetUrl(
-                getClass(),
-                persisted.isDarkTheme(),
-                configurationService.getUiZoomPercent()
-        );
-        assertTrue(resolvedStylesheet.startsWith("data:text/css;base64,"));
-        String decodedCss = new String(
-                Base64.getDecoder().decode(resolvedStylesheet.substring("data:text/css;base64,".length())),
-                StandardCharsets.UTF_8
-        );
-        assertTrue(decodedCss.contains(".root { -fx-base: #111111; }"));
-        assertTrue(decodedCss.contains("-fx-font-size: 17.290;"));
     }
 
     private void seedAndImportAccounts() throws Exception {

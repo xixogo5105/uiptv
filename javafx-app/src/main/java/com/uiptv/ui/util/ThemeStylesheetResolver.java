@@ -1,4 +1,4 @@
-package com.uiptv.util;
+package com.uiptv.ui.util;
 
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.service.ThemeCssOverrideService;
@@ -59,7 +59,7 @@ public final class ThemeStylesheetResolver {
         }
     }
 
-    private static String buildZoomOverrideCss(int zoomPercent) {
+    public static String buildZoomOverrideCss(int zoomPercent) {
         String fontSize = formatPx(DEFAULT_FONT_SIZE_PX * zoomPercent / 100.0);
         return ".root {\n"
                 + "    -uiptv-base-font-size: " + fontSize + ";\n"
