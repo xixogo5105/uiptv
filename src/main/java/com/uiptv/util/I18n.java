@@ -142,7 +142,7 @@ public final class I18n {
         }
         try {
             return normalizeResolvedText(MessageFormat.format(pattern, args));
-        } catch (Exception e) {
+        } catch (Exception _) {
             return normalizeResolvedText(pattern);
         }
     }
@@ -233,7 +233,9 @@ public final class I18n {
                 if (fallbackBundle != null && fallbackBundle.containsKey(key)) {
                     return fallbackBundle.getString(key);
                 }
-            } catch (Exception _) {}
+            } catch (Exception _) {
+                // Ignore fallback failures
+            }
         }
         return key;
     }
@@ -243,7 +245,7 @@ public final class I18n {
         if (args == null || args.length == 0) return normalizeResolvedText(pattern);
         try {
             return normalizeResolvedText(MessageFormat.format(pattern, args));
-        } catch (Exception e) {
+        } catch (Exception _) {
             return normalizeResolvedText(pattern);
         }
     }
@@ -254,7 +256,9 @@ public final class I18n {
             if (lBundle != null && lBundle.containsKey(key)) {
                 return lBundle.getString(key);
             }
-        } catch (Exception _) {}
+        } catch (Exception _) {
+            // Ignore bundle loading errors
+        }
         return lookupOrFallback(key);
     }
 
@@ -392,13 +396,13 @@ public final class I18n {
     private static ResourceBundle loadBundle(Locale locale) {
         try {
             return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getClassLoader());
-        } catch (MissingResourceException e) {
+        } catch (MissingResourceException _) {
             try {
                 return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale);
-            } catch (MissingResourceException e2) {
+            } catch (MissingResourceException _) {
                 try {
                     return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG));
-                } catch (MissingResourceException e3) {
+                } catch (MissingResourceException _) {
                     return null;
                 }
             }
