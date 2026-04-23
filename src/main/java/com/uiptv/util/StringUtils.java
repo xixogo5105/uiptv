@@ -183,6 +183,9 @@ public class StringUtils {
     }
 
     public static String safeGetString(JSONObject jsonCategory, String key) {
+        if (jsonCategory == null || key == null) {
+            return null;
+        }
         try {
             return String.valueOf(jsonCategory.get(key));
         } catch (Exception _) {
@@ -192,6 +195,9 @@ public class StringUtils {
     }
 
     public static String safeGetString(Map<?, ?> map, String key) {
+        if (map == null || key == null) {
+            return null;
+        }
         try {
             return String.valueOf(map.get(key));
         } catch (Exception _) {
@@ -212,6 +218,9 @@ public class StringUtils {
     }
 
     public static String getXtremeStreamUrl(Account account, String streamId, String extension) {
+        if (account == null || account.getAction() == null) {
+            return "";
+        }
         switch (account.getAction()) {
             case vod:
                 return account.getM3u8Path() + "movie/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + extension;
@@ -224,6 +233,9 @@ public class StringUtils {
     }
 
     public static <T extends JsonCompliant> String toJson(T t) {
+        if (t == null) {
+            return "{}";
+        }
         return t.toJson();
     }
 

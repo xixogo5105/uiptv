@@ -1202,6 +1202,9 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         EpisodeMetaIndex metaIndex = buildEpisodeMetaIndex(metaRows);
         for (WatchingEpisode episode : episodes) {
+            if (episode == null) {
+                continue;
+            }
             JSONObject meta = findEpisodeMeta(metaIndex, episode);
             if (meta == null) {
                 continue;
@@ -1255,6 +1258,9 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private JSONObject findEpisodeMeta(EpisodeMetaIndex metaIndex, WatchingEpisode episode) {
+        if (metaIndex == null || episode == null) {
+            return null;
+        }
         String normalizedSeason = normalizeNumber(episode.season);
         String normalizedEpisode = normalizeNumber(firstNonBlank(episode.episodeNum, inferEpisodeNumberFromTitle(episode.title)));
         JSONObject meta = metaIndex.bySeasonEpisode.get(normalizedSeason + ":" + normalizedEpisode);

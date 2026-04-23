@@ -26,7 +26,7 @@ public class DatabasePatchesUtils {
 
     public static void applyPatches(Connection conn) throws SQLException {
         createSchemaMigrationsTable(conn);
-        List<String> migrationNames = readMigrationNames();
+        List<String> migrationNames = readMigrationNames(MIGRATIONS_LIST_RESOURCE);
         for (String migrationName : migrationNames) {
             applyMigration(conn, migrationName);
         }
@@ -159,8 +159,8 @@ public class DatabasePatchesUtils {
         return null;
     }
 
-    private static List<String> readMigrationNames() {
-        String content = readResource(MIGRATIONS_LIST_RESOURCE);
+    private static List<String> readMigrationNames(String resourcePath) {
+        String content = readResource(resourcePath);
         List<String> names = new ArrayList<>();
         String[] lines = content.split("\\R");
         for (String line : lines) {

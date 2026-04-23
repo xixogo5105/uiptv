@@ -103,7 +103,7 @@ class DatabasePatchesUtilsEdgeCaseTest extends DbBackedTest {
         checksum.setAccessible(true);
         Method safeError = DatabasePatchesUtils.class.getDeclaredMethod("safeError", Exception.class);
         safeError.setAccessible(true);
-        Method readMigrationNames = DatabasePatchesUtils.class.getDeclaredMethod("readMigrationNames");
+        Method readMigrationNames = DatabasePatchesUtils.class.getDeclaredMethod("readMigrationNames", String.class);
         readMigrationNames.setAccessible(true);
 
         try (InputStream in = (InputStream) openResource.invoke(null, "/db/migrations/migrations.txt")) {
@@ -183,16 +183,22 @@ class DatabasePatchesUtilsEdgeCaseTest extends DbBackedTest {
         assertEquals(1000, truncated.length());
         assertEquals("ok", safeError.invoke(null, new RuntimeException("ok")));
 
-        Path migrations = Path.of(DatabasePatchesUtils.class.getClassLoader()
-                .getResource("db/migrations/migrations.txt").toURI());
-        String originalContent = Files.readString(migrations);
+        ClassLoader contextLoaderWithMockMigrations = new ClassLoader(original) {
+            @Override
+            public InputStream getResourceAsStream(String name) {
+                if ("mock-migrations.txt".equals(name)) {
+                    return new ByteArrayInputStream("0000_baseline.sql\n#comment\n\n".getBytes(StandardCharsets.UTF_8));
+                }
+                return super.getResourceAsStream(name);
+            }
+        };
+        Thread.currentThread().setContextClassLoader(contextLoaderWithMockMigrations);
         try {
-            Files.writeString(migrations, originalContent + "\n#comment\n\n");
-            List<String> names = (List<String>) readMigrationNames.invoke(null);
+            List<String> names = (List<String>) readMigrationNames.invoke(null, "mock-migrations.txt");
             assertTrue(names.contains("0000_baseline.sql"));
-            assertEquals(originalContent.lines().filter(l -> !l.isBlank()).count(), names.size());
+            assertEquals(1, names.size());
         } finally {
-            Files.writeString(migrations, originalContent);
+            Thread.currentThread().setContextClassLoader(original);
         }
     }
 }

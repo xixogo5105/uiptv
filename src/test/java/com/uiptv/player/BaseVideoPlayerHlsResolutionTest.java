@@ -3,13 +3,11 @@ package com.uiptv.player;
 import com.uiptv.util.HttpUtil;
 import com.uiptv.service.ConfigurationService;
 import javafx.application.Platform;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
-import java.awt.GraphicsEnvironment;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +21,6 @@ class BaseVideoPlayerHlsResolutionTest {
 
     @BeforeAll
     static void initJavaFx() throws Exception {
-        Assumptions.assumeTrue(!isHeadlessEnvironment(), "Headless environment cannot initialize JavaFX");
         if (FX_STARTED.compareAndSet(false, true)) {
             CountDownLatch latch = new CountDownLatch(1);
             try {
@@ -89,19 +86,6 @@ class BaseVideoPlayerHlsResolutionTest {
             assertEquals(uri, resolved);
             httpUtil.verifyNoInteractions();
         }
-    }
-
-    private static boolean isHeadlessEnvironment() {
-        if (GraphicsEnvironment.isHeadless()) {
-            return true;
-        }
-        String osName = System.getProperty("os.name", "").toLowerCase();
-        if (osName.contains("linux")) {
-            String display = System.getenv("DISPLAY");
-            String wayland = System.getenv("WAYLAND_DISPLAY");
-            return (display == null || display.isBlank()) && (wayland == null || wayland.isBlank());
-        }
-        return false;
     }
 
     private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {

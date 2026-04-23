@@ -301,20 +301,27 @@ public final class PlaybackUIService {
 
     private static final class HttpUtilLike {
         private static String getQueryParam(String url, String key) {
-            URI uri = URI.create(url);
-            String query = uri.getRawQuery();
-            if (query == null || query.isBlank()) {
+            if (isBlank(url) || isBlank(key)) {
                 return "";
             }
-            for (String part : query.split("&")) {
-                int idx = part.indexOf('=');
-                if (idx <= 0) {
-                    continue;
+            try {
+                URI uri = URI.create(url.trim());
+                String query = uri.getRawQuery();
+                if (query == null || query.isBlank()) {
+                    return "";
                 }
-                String name = java.net.URLDecoder.decode(part.substring(0, idx), StandardCharsets.UTF_8);
-                if (key.equals(name)) {
-                    return java.net.URLDecoder.decode(part.substring(idx + 1), StandardCharsets.UTF_8);
+                for (String part : query.split("&")) {
+                    int idx = part.indexOf('=');
+                    if (idx <= 0) {
+                        continue;
+                    }
+                    String name = java.net.URLDecoder.decode(part.substring(0, idx), StandardCharsets.UTF_8);
+                    if (key.equals(name)) {
+                        return java.net.URLDecoder.decode(part.substring(idx + 1), StandardCharsets.UTF_8);
+                    }
                 }
+            } catch (Exception _) {
+                // Return empty if URL is malformed or decoding fails.
             }
             return "";
         }

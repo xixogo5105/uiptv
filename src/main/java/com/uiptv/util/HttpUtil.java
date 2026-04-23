@@ -236,6 +236,9 @@ public class HttpUtil {
 
     private static URI toSafeUri(String url) {
         String normalized = url == null ? "" : url.trim();
+        if (normalized.isEmpty()) {
+            return URI.create("http://localhost/empty-url-fallback");
+        }
         try {
             return URI.create(normalized);
         } catch (IllegalArgumentException original) {

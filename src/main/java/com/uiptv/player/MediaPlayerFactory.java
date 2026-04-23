@@ -1,6 +1,7 @@
 package com.uiptv.player;
 
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.DummyVideoPlayer;
 import javafx.scene.Node;
@@ -32,7 +33,8 @@ public class MediaPlayerFactory {
     }
 
     private static void initializePlayer() {
-        if (ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
+        Configuration config = ConfigurationService.getInstance().read();
+        if (config != null && config.isEmbeddedPlayer()) {
             try {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
@@ -86,7 +88,8 @@ public class MediaPlayerFactory {
 
     public static synchronized Node getPlayerContainer() {
         if (!hostConfigured) {
-            if (ConfigurationService.getInstance().read().isEmbeddedPlayer()) {
+            Configuration config = ConfigurationService.getInstance().read();
+            if (config != null && config.isEmbeddedPlayer()) {
                 definePlayerRegion(playerHostContainer);
             } else {
                 defineDummyRegion(playerHostContainer);

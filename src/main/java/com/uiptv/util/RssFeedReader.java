@@ -61,6 +61,9 @@ public class RssFeedReader {
     }
 
     public static List<RssItem> getItems(String url) throws IOException, FeedException {
+        if (isBlank(url)) {
+            return new ArrayList<>();
+        }
         List<RssItem> items = new ArrayList<>();
 
         SyndFeedInput input = new SyndFeedInput();

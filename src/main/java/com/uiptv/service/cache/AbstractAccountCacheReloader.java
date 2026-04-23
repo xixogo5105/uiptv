@@ -136,7 +136,11 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
 
     protected List<Channel> rssChannels(String category, Account account) {
         Set<Channel> channels = new LinkedHashSet<>();
-        List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
+        String rssUrl = account.getM3u8Path();
+        if (isBlank(rssUrl)) {
+            return List.of();
+        }
+        List<PlaylistEntry> rssEntries = RssParser.parse(rssUrl);
         rssEntries.stream().filter(e -> CategoryType.ALL.displayName().equalsIgnoreCase(category) || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
             Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
             channels.add(c);
@@ -146,16 +150,24 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
 
     @SuppressWarnings("java:S1874")
     private Set<PlaylistEntry> loadM3uCategories(Account account) throws MalformedURLException {
+        String path = account.getM3u8Path();
+        if (isBlank(path)) {
+            return new LinkedHashSet<>();
+        }
         return account.getType() == AccountType.M3U8_URL
-                ? M3U8Parser.parseUrlCategory(new URL(account.getM3u8Path()))
-                : M3U8Parser.parsePathCategory(account.getM3u8Path());
+                ? M3U8Parser.parseUrlCategory(new URL(path))
+                : M3U8Parser.parsePathCategory(path);
     }
 
     @SuppressWarnings("java:S1874")
     private List<PlaylistEntry> loadM3uEntries(Account account) throws MalformedURLException {
+        String path = account.getM3u8Path();
+        if (isBlank(path)) {
+            return List.of();
+        }
         return account.getType() == AccountType.M3U8_URL
-                ? parseChannelUrlM3U8(new URL(account.getM3u8Path()))
-                : parseChannelPathM3U8(account.getM3u8Path());
+                ? parseChannelUrlM3U8(new URL(path))
+                : parseChannelPathM3U8(path);
     }
 
     private boolean matchesM3uCategory(PlaylistEntry entry, String category, boolean hasOtherCategories) {
