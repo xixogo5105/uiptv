@@ -1,0 +1,9 @@
+.root {
+    -uiptv-base-font-size: 13;
+    -fx-font-size: 13;
+    -fx-focus-color: -fx-accent;
+    -fx-control-inner-background: derive(-fx-base, 35%);
+    -fx-control-inner-background-alt: -fx-control-inner-background;
+    -uiptv-card-bg: #efefef;
+    -uiptv-card-border: #d6d6d6;
+}

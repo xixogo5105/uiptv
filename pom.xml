@@ -7,7 +7,13 @@
     <groupId>com.spc</groupId>
     <artifactId>uiptv</artifactId>
     <version>0.1.10</version>
+    <packaging>pom</packaging>
     <name>UIPTV</name>
+
+    <modules>
+        <module>server</module>
+        <module>javafx-app</module>
+    </modules>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -20,790 +26,350 @@
         <vlcj.version>4.12.1</vlcj.version>
         <lombok.version>1.18.46</lombok.version>
         <sonar.organization>xixogo5105</sonar.organization>
-        <sonar.coverage.exclusions>
-            src/main/java/com/uiptv/ui/**,
-            src/main/java/com/uiptv/player/**,
-            src/main/java/com/uiptv/widget/**,
-            src/main/java/com/uiptv/api/VideoPlayerInterface.java,
-            src/main/java/com/uiptv/server/HttpCssServer.java,
-            src/main/java/com/uiptv/server/HttpHlsFileServer.java,
-            src/main/java/com/uiptv/server/HttpHlsUploadServer.java,
-            src/main/java/com/uiptv/server/HttpIconServer.java,
-            src/main/java/com/uiptv/server/HttpJavascriptServer.java,
-            src/main/java/com/uiptv/server/HttpManifestServer.java,
-            src/main/java/com/uiptv/server/HttpProxyStreamServer.java,
-            src/main/java/com/uiptv/server/StaticWebFileResolver.java,
-            src/main/java/com/uiptv/server/UIptvServer.java,
-            src/main/java/com/uiptv/server/html/HttpSpaHtmlServer.java,
-            src/main/java/com/uiptv/util/ColoredStatusTableCell.java,
-            src/main/java/com/uiptv/util/I18n.java,
-            src/main/java/com/uiptv/util/ImageCacheManager.java,
-            src/main/java/com/uiptv/util/ServerUrlUtil.java,
-            src/main/java/com/uiptv/util/StyleClassDecorator.java,
-            src/main/java/com/uiptv/service/AbstractFfmpegHlsService.java,
-            src/main/java/com/uiptv/service/ChannelService.java,
-            src/main/java/com/uiptv/service/FfmpegService.java,
-            src/main/java/com/uiptv/service/LitePlayerFfmpegService.java,
-            website/**
-        </sonar.coverage.exclusions>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.46</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>2.0.17</version>
-        </dependency>
-        <!-- SLF4J Simple binding for logging output -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>2.0.17</version> <!-- Use a recent version compatible with your SLF4J API -->
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20251224</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.22.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
-            <classifier>${javafx.platform}</classifier>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-graphics</artifactId>
-            <version>${javafx.version}</version>
-            <classifier>${javafx.platform}</classifier>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-fxml</artifactId>
-            <version>${javafx.version}</version>
-            <classifier>${javafx.platform}</classifier>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-media</artifactId>
-            <version>${javafx.version}</version>
-            <classifier>${javafx.platform}</classifier>
-        </dependency>
-        <dependency>
-            <groupId>org.controlsfx</groupId>
-            <artifactId>controlsfx</artifactId>
-            <version>11.2.3</version>
-        </dependency>
-        <dependency>
-            <groupId>org.kordamp.bootstrapfx</groupId>
-            <artifactId>bootstrapfx-core</artifactId>
-            <version>0.4.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.bjoernpetersen</groupId>
-            <artifactId>m3u-parser</artifactId>
-            <version>1.4.0</version>
-        </dependency>
-        <dependency>
-            <groupId>io.github.willena</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.51.2.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.rometools</groupId>
-            <artifactId>rome</artifactId>
-            <version>2.1.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-            <version>5.6.1</version>
-        </dependency>
-        <dependency>
-            <groupId>uk.co.caprica</groupId>
-            <artifactId>vlcj</artifactId>
-            <version>${vlcj.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>uk.co.caprica</groupId>
-            <artifactId>vlcj-javafx</artifactId>
-            <version>1.2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>6.0.3</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>6.0.3</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>5.23.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-inline</artifactId>
-            <version>5.2.0</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>2.0.17</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-simple</artifactId>
+                <version>2.0.17</version>
+            </dependency>
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>20251224</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.22.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux-aarch64</classifier>
+            </dependency>
+
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-graphics</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux-aarch64</classifier>
+            </dependency>
+
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-fxml</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux-aarch64</classifier>
+            </dependency>
+
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>win-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>mac-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-media</artifactId>
+                <version>${javafx.version}</version>
+                <classifier>linux-aarch64</classifier>
+            </dependency>
+            <dependency>
+                <groupId>org.controlsfx</groupId>
+                <artifactId>controlsfx</artifactId>
+                <version>11.2.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.kordamp.bootstrapfx</groupId>
+                <artifactId>bootstrapfx-core</artifactId>
+                <version>0.4.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.bjoernpetersen</groupId>
+                <artifactId>m3u-parser</artifactId>
+                <version>1.4.0</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.willena</groupId>
+                <artifactId>sqlite-jdbc</artifactId>
+                <version>3.51.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.rometools</groupId>
+                <artifactId>rome</artifactId>
+                <version>2.1.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.client5</groupId>
+                <artifactId>httpclient5</artifactId>
+                <version>5.6.1</version>
+            </dependency>
+            <dependency>
+                <groupId>uk.co.caprica</groupId>
+                <artifactId>vlcj</artifactId>
+                <version>${vlcj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>uk.co.caprica</groupId>
+                <artifactId>vlcj-javafx</artifactId>
+                <version>1.2.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>6.0.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>6.0.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>5.23.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-inline</artifactId>
+                <version>5.2.0</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <build>
-        <finalName>UIPTV</finalName>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.15.0</version>
+                    <configuration>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                        <release>${maven.compiler.release}</release>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>3.6.2</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-maven-plugin</artifactId>
+                    <version>0.0.8</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.10.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.14</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.5</version>
+                    <configuration>
+                        <useModulePath>false</useModulePath>
+                        <systemPropertyVariables>
+                            <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.5.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.panteleyev</groupId>
+                    <artifactId>jpackage-maven-plugin</artifactId>
+                    <version>1.7.4</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-antrun-plugin</artifactId>
+                    <version>3.2.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.15.0</version>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
-                    <release>${maven.compiler.release}</release>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.6.2</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <outputFile>${project.build.directory}/jpackage-app/${project.build.finalName}.jar
-                            </outputFile>
-                            <transformers>
-                                <transformer
-                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.uiptv.Main</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
-                <executions>
-                    <execution>
-                        <id>default-cli</id>
-                        <configuration>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <launcher>app</launcher>
-                            <jlinkZipName>app</jlinkZipName>
-                            <jlinkImageName>app</jlinkImageName>
-                            <noManPages>true</noManPages>
-                            <stripDebug>true</stripDebug>
-                            <noHeaderFiles>true</noHeaderFiles>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <options>
-                                <option>
-                                    --enable-native-access=javafx.graphics,io.github.willena.sqlitejdbc,com.sun.jna
-                                </option>
-                            </options>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.10.0</version>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <overWriteReleases>false</overWriteReleases>
-                            <overWriteSnapshots>false</overWriteSnapshots>
-                            <overWriteIfNewer>true</overWriteIfNewer>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.14</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
+                        <goals><goal>prepare-agent</goal></goals>
                     </execution>
                     <execution>
                         <id>report</id>
                         <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- Use a modern Surefire to run JUnit Jupiter tests correctly -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.5</version>
-                <configuration>
-                    <!-- Allow discovery of Jupiter tests and improved logging -->
-                    <useModulePath>false</useModulePath>
-                    <systemPropertyVariables>
-                        <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
-                    </systemPropertyVariables>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.5.0</version>
-                <executions>
-                    <execution>
-                        <id>custom-resources</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <targetPath>${basedir}/target/web</targetPath>
-                                    <directory>${basedir}/web</directory>
-                                    <filtering>false</filtering>
-                                </resource>
-                            </resources>
-                            <encoding>UTF-8</encoding>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>copy-web-for-jpackage</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/jpackage-app/web</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${basedir}/web</directory>
-                                </resource>
-                            </resources>
-                        </configuration>
+                        <goals><goal>report</goal></goals>
                     </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
-    <profiles>
-        <!-- Windows Profiles -->
-        <profile>
-            <id>windows-x86_64</id>
-            <activation>
-                <os>
-                    <family>Windows</family>
-                    <arch>x86_64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>win</javafx.platform>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <vendor>SPC</vendor>
-                            <copyright>Copyright © 2024 SPC</copyright>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.ico</icon>
-                            <appVersion>${version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                            <winMenu>true</winMenu>
-                            <winShortcut>true</winShortcut>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>windows-aarch64</id>
-            <activation>
-                <os>
-                    <family>Windows</family>
-                    <arch>aarch64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>win-aarch64</javafx.platform>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <vendor>SPC</vendor>
-                            <copyright>Copyright © 2024 SPC</copyright>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.ico</icon>
-                            <appVersion>${version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                            <winMenu>true</winMenu>
-                            <winShortcut>true</winShortcut>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>windows-amd64</id>
-            <activation>
-                <os>
-                    <family>Windows</family>
-                    <arch>amd64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>win</javafx.platform>
-            </properties>
-        </profile>
-
-        <!-- macOS Profiles -->
-        <profile>
-            <id>mac-x86_64</id>
-            <activation>
-                <os>
-                    <family>mac</family>
-                    <arch>x86_64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>mac</javafx.platform>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <type>APP_IMAGE</type>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>1.0.0</appVersion> <!-- macOS requires version starting with non-zero -->
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                                <option>-Xdock:name=UIPTV</option>
-                            </javaOptions>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>3.2.0</version>
-                        <executions>
-                            <execution>
-                                <id>swap-launcher-script</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <property name="app.path" value="${project.build.directory}/dist/UIPTV.app"/>
-                                        <property name="macos.dir" value="${app.path}/Contents/MacOS"/>
-                                        <property name="config.dir" value="${app.path}/Contents/app"/>
-                                        <property name="dmg.name" value="UIPTV-${project.version}.dmg"/>
-                                        <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
-
-                                        <echo message="1. Swapping JPackage binary and config..."/>
-
-                                        <move file="${macos.dir}/UIPTV" tofile="${macos.dir}/UIPTV_binary"/>
-
-                                        <move file="${config.dir}/UIPTV.cfg" tofile="${config.dir}/UIPTV_binary.cfg"/>
-
-                                        <copy file="${project.basedir}/src/main/resources/mac/binary/UIPTV"
-                                              tofile="${macos.dir}/UIPTV"/>
-
-                                        <chmod file="${macos.dir}/UIPTV" perm="755"/>
-
-                                        <echo message="5. Re-signing the Application..."/>
-                                        <exec executable="codesign" dir="${project.build.directory}">
-                                            <arg value="--force"/>
-                                            <arg value="--deep"/>
-                                            <arg value="--sign"/>
-                                            <arg value="-"/>
-                                            <arg value="${app.path}"/>
-                                        </exec>
-
-                                        <echo message="6. Creating DMG package..."/>
-                                        <exec executable="hdiutil" dir="${project.build.directory}">
-                                            <arg value="create"/>
-                                            <arg value="-volname"/>
-                                            <arg value="UIPTV"/>
-                                            <arg value="-srcfolder"/>
-                                            <arg value="${app.path}"/>
-                                            <arg value="-ov"/>
-                                            <arg value="-format"/>
-                                            <arg value="UDZO"/>
-                                            <arg value="${dmg.path}"/>
-                                        </exec>
-
-                                        <echo message="7. Cleaning up ${app.path}..."/>
-                                        <exec executable="rm">
-                                            <arg value="-rf"/>
-                                            <arg value="${app.path}"/>
-                                        </exec>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>mac-aarch64</id>
-            <activation>
-                <os>
-                    <family>mac</family>
-                    <arch>aarch64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>mac-aarch64</javafx.platform>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <type>APP_IMAGE</type>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>1.0.0</appVersion> <!-- macOS requires version starting with non-zero -->
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                                <option>-Xdock:name=UIPTV</option>
-                            </javaOptions>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>3.2.0</version>
-                        <executions>
-                            <execution>
-                                <id>swap-launcher-script</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <property name="app.path" value="${project.build.directory}/dist/UIPTV.app"/>
-                                        <property name="macos.dir" value="${app.path}/Contents/MacOS"/>
-                                        <property name="config.dir" value="${app.path}/Contents/app"/>
-                                        <property name="dmg.name" value="UIPTV-${project.version}.dmg"/>
-                                        <property name="dmg.path" value="${project.build.directory}/dist/${dmg.name}"/>
-
-                                        <echo message="1. Swapping JPackage binary and config..."/>
-
-                                        <move file="${macos.dir}/UIPTV" tofile="${macos.dir}/UIPTV_binary"/>
-
-                                        <move file="${config.dir}/UIPTV.cfg" tofile="${config.dir}/UIPTV_binary.cfg"/>
-
-                                        <copy file="${project.basedir}/src/main/resources/mac/binary/UIPTV"
-                                              tofile="${macos.dir}/UIPTV"/>
-
-                                        <chmod file="${macos.dir}/UIPTV" perm="755"/>
-
-                                        <echo message="5. Re-signing the Application..."/>
-                                        <exec executable="codesign" dir="${project.build.directory}">
-                                            <arg value="--force"/>
-                                            <arg value="--deep"/>
-                                            <arg value="--sign"/>
-                                            <arg value="-"/>
-                                            <arg value="${app.path}"/>
-                                        </exec>
-
-                                        <echo message="6. Creating DMG package..."/>
-                                        <exec executable="hdiutil" dir="${project.build.directory}">
-                                            <arg value="create"/>
-                                            <arg value="-volname"/>
-                                            <arg value="UIPTV"/>
-                                            <arg value="-srcfolder"/>
-                                            <arg value="${app.path}"/>
-                                            <arg value="-ov"/>
-                                            <arg value="-format"/>
-                                            <arg value="UDZO"/>
-                                            <arg value="${dmg.path}"/>
-                                        </exec>
-
-                                        <echo message="7. Cleaning up ${app.path}..."/>
-                                        <exec executable="rm">
-                                            <arg value="-rf"/>
-                                            <arg value="${app.path}"/>
-                                        </exec>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!-- Linux OS/Arch Profiles -->
-        <profile>
-            <id>linux-x86_64</id>
-            <activation>
-                <os>
-                    <family>unix</family>
-                    <name>Linux</name>
-                    <arch>x86_64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>linux</javafx.platform>
-            </properties>
-        </profile>
-        <profile>
-            <id>linux-amd64</id>
-            <activation>
-                <os>
-                    <family>unix</family>
-                    <name>Linux</name>
-                    <arch>amd64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>linux</javafx.platform>
-            </properties>
-        </profile>
-        <profile>
-            <id>linux-aarch64</id>
-            <activation>
-                <os>
-                    <family>unix</family>
-                    <name>Linux</name>
-                    <arch>aarch64</arch>
-                </os>
-            </activation>
-            <properties>
-                <javafx.platform>linux-aarch64</javafx.platform>
-            </properties>
-        </profile>
-
-        <!-- Linux Packaging Profiles -->
-        <profile>
-            <id>pkg-deb</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <type>DEB</type>
-                            <vendor>SPC</vendor>
-                            <copyright>Copyright © 2024 SPC</copyright>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.png</icon>
-                            <linuxShortcut>true</linuxShortcut>
-                            <linuxPackageName>uiptv</linuxPackageName>
-                            <linuxMenuGroup>Video</linuxMenuGroup>
-                            <appVersion>${version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                            <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
-                            <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>pkg-rpm</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <type>RPM</type>
-                            <vendor>SPC</vendor>
-                            <copyright>Copyright © 2024 SPC</copyright>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.png</icon>
-                            <linuxShortcut>true</linuxShortcut>
-                            <linuxPackageName>uiptv</linuxPackageName>
-                            <linuxMenuGroup>Video</linuxMenuGroup>
-                            <appVersion>${version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                            <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
-                            <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>pkg-app-image</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.panteleyev</groupId>
-                        <artifactId>jpackage-maven-plugin</artifactId>
-                        <version>1.7.4</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>jpackage</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <name>UIPTV</name>
-                            <type>APP_IMAGE</type>
-                            <vendor>SPC</vendor>
-                            <copyright>Copyright © 2024 SPC</copyright>
-                            <input>${project.build.directory}/jpackage-app</input>
-                            <mainClass>com.uiptv.Main</mainClass>
-                            <mainJar>UIPTV.jar</mainJar>
-                            <destination>target/dist</destination>
-                            <icon>src/main/resources/icon.png</icon>
-                            <appVersion>${version}</appVersion>
-                            <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
-                            </javaOptions>
-                            <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>
