@@ -541,10 +541,10 @@ public final class I18n {
 
     private static ResourceBundle loadBundle(Locale locale) {
         try {
-            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getModule());
+            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getClassLoader());
         } catch (MissingResourceException _) {
             // Missing localized bundles should fall back to the default language bundle.
-            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), I18n.class.getModule());
+            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), I18n.class.getClassLoader());
         }
     }
 

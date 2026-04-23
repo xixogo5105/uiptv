@@ -24,9 +24,19 @@ class XtremeCredentialsManagementPopupTest {
         Assumptions.assumeTrue(!isHeadlessEnvironment(), "Headless environment cannot initialize JavaFX");
         if (FX_STARTED.compareAndSet(false, true)) {
             CountDownLatch latch = new CountDownLatch(1);
-            Platform.startup(latch::countDown);
-            if (!latch.await(5, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("JavaFX platform failed to start");
+            try {
+                Platform.startup(latch::countDown);
+                if (!latch.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("JavaFX platform failed to start");
+                }
+            } catch (IllegalStateException e) {
+                if (e.getMessage().contains("Toolkit already initialized")) {
+                    // Ignore if already initialized, likely by another test or setup.
+                    // No need to wait on the latch as this startup call didn't initiate it.
+                    System.err.println("JavaFX Toolkit already initialized, proceeding with tests.");
+                } else {
+                    throw e; // Re-throw other IllegalStateExceptions
+                }
             }
         }
     }
