@@ -94,7 +94,7 @@ public class ServerUtils {
         }
     }
 
-    private static void generateResponse(HttpExchange httpExchange, String response, String contentType, String fileName) throws IOException {
+    public static void generateResponse(HttpExchange httpExchange, String response, String contentType, String fileName) throws IOException {
         if (!"GET".equals(httpExchange.getRequestMethod())) {
             httpExchange.getResponseHeaders().set("Allow", "GET");
             httpExchange.sendResponseHeaders(405, -1);
