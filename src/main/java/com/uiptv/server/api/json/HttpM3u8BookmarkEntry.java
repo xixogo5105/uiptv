@@ -5,33 +5,54 @@ import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
-import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.shared.Episode;
-import com.uiptv.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URLDecoder;
 
-import static com.uiptv.util.ServerUtils.generateTs8Response;
+import static com.uiptv.util.ServerUtils.generateResponseText;
 import static com.uiptv.util.ServerUtils.getParam;
+import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class HttpM3u8BookmarkEntry implements HttpHandler {
+    private static final String GET = "GET";
+    private static final String HEAD = "HEAD";
+    private static final String ALLOW = "Allow";
+    private static final String LOCATION = "Location";
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        String bookmarkId = getParam(ex, "bookmarkId");
-        if (isNotBlank(bookmarkId)) {
-            Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
-            if (bookmark != null) {
-                String response = "#EXTM3U\n" +
-                        "#EXTINF:-1 tvg-id=\"" + bookmark.getDbId() + "\" tvg-name=\"" + bookmark.getChannelName() + "\" group-title=\"" + bookmark.getAccountName() + "\"," + bookmark.getChannelName() + "\n" + StringUtils.EMPTY + bookmarkPlayerResponse(bookmark) + "\n";
-                generateTs8Response(ex, response, bookmark.getDbId() + "-" + bookmark.getAccountName() + " - " + bookmark.getChannelName() + ".ts");
-            }
+        String method = ex.getRequestMethod();
+        if (!GET.equalsIgnoreCase(method) && !HEAD.equalsIgnoreCase(method)) {
+            ex.getResponseHeaders().set(ALLOW, GET + ", " + HEAD);
+            ex.sendResponseHeaders(405, -1);
+            return;
         }
+
+        String bookmarkId = getParam(ex, "bookmarkId");
+        if (isBlank(bookmarkId)) {
+            ex.sendResponseHeaders(404, -1);
+            return;
+        }
+
+        Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
+        if (bookmark == null) {
+            ex.sendResponseHeaders(404, -1);
+            return;
+        }
+
+        String url = bookmarkPlayerResponse(bookmark);
+        if (isBlank(url)) {
+            generateResponseText(ex, 502, "Unable to resolve bookmark playback.");
+            return;
+        }
+        ex.getResponseHeaders().add(LOCATION, url);
+        ex.sendResponseHeaders(307, -1);
     }
 
     private static String bookmarkPlayerResponse(Bookmark bookmark) throws IOException {
@@ -70,10 +91,10 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
             channel.setManifestType(bookmark.getManifestType());
         }
 
-        PlayerResponse playerResponse = PlayerService.getInstance().get(account, channel, bookmark.getChannelId());
+        String url = PlayerService.getInstance().get(account, channel, bookmark.getChannelId()).getUrl();
 
         bookmark.setCmd(originalCmd);
-        return playerResponse.getUrl();
+        return url;
     }
 
 }

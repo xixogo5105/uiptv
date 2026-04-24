@@ -83,7 +83,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
         HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
         StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?x=1", "GET");
         handler.handle(exchange);
-        assertEquals(-1, exchange.getResponseCode());
+        assertEquals(404, exchange.getResponseCode());
         assertTrue(exchange.getResponseBodyText().isEmpty());
     }
 
@@ -92,7 +92,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
         HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
         StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?bookmarkId=404", "GET");
         handler.handle(exchange);
-        assertEquals(-1, exchange.getResponseCode());
+        assertEquals(404, exchange.getResponseCode());
         assertTrue(exchange.getResponseBodyText().isEmpty());
     }
 
@@ -155,7 +155,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
 
         Bookmark legacyAfterHandle = bookmarkService.getBookmark(savedLegacy.getDbId());
         assertEquals("ffmpeg%20http%3A%2F%2Flegacy%2F4.ts", legacyAfterHandle.getCmd());
-        assertFalse(legacyExchange.getResponseBodyText().isEmpty());
+        assertTrue(legacyExchange.getResponseBodyText().isEmpty());
     }
 
     @Test
@@ -209,11 +209,9 @@ class HttpM3u8ServersTest extends DbBackedTest {
     }
 
     private void assertValidTsResponse(StubHttpExchange exchange, String expectedUrl) {
-        assertEquals(200, exchange.getResponseCode());
-        assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("video/mp2t"));
-        assertTrue(exchange.getResponseHeaders().getFirst("Content-Disposition").contains(".ts"));
-        assertTrue(exchange.getResponseBodyText().contains("#EXTM3U"));
-        assertTrue(exchange.getResponseBodyText().contains(expectedUrl));
+        assertEquals(307, exchange.getResponseCode());
+        assertEquals(expectedUrl, exchange.getResponseHeaders().getFirst("Location"));
+        assertTrue(exchange.getResponseBodyText().isEmpty());
     }
 
     private Bookmark baseBookmark() {
