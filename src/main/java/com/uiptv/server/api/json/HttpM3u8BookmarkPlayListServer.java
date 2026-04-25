@@ -51,14 +51,12 @@ public class HttpM3u8BookmarkPlayListServer implements HttpHandler {
                                           String allTabName) {
         for (Bookmark bookmark : bookmarks) {
             String categoryId = bookmark.getCategoryId();
-            if (!isNotBlank(categoryId)) {
-                continue;
+            if (isNotBlank(categoryId)) {
+                String categoryName = categoryNameById.get(categoryId);
+                if (isNotBlank(categoryName) && !categoryName.equalsIgnoreCase(allTabName)) {
+                    appendPlaylistEntry(response, bookmark, host, categoryName);
+                }
             }
-            String categoryName = categoryNameById.get(categoryId);
-            if (!isNotBlank(categoryName) || categoryName.equalsIgnoreCase(allTabName)) {
-                continue;
-            }
-            appendPlaylistEntry(response, bookmark, host, categoryName);
         }
     }
 

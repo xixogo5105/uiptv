@@ -1,7 +1,6 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
-import com.uiptv.service.ConfigurationService;
 import org.json.JSONObject;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.protocol.HttpClientContext;

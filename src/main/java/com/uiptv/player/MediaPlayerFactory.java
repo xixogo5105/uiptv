@@ -68,10 +68,6 @@ public class MediaPlayerFactory {
         return playerType;
     }
 
-    public static synchronized VideoPlayerInterface.PlayerType getInitializedPlayerType() {
-        return playerType;
-    }
-
     private static void definePlayerRegion(Region playerContainer) {
         playerContainer.setMinSize(0, 0);
         playerContainer.setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);

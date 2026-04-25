@@ -317,12 +317,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    private void refreshTrackMenusIfAudio(TrackType type) {
-        if (type == TrackType.AUDIO) {
-            Platform.runLater(this::refreshTrackMenus);
-        }
-    }
-
     @Override
     protected Node getVideoView() {
         if (videoImageView == null) {

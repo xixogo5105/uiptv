@@ -1202,24 +1202,22 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         EpisodeMetaIndex metaIndex = buildEpisodeMetaIndex(metaRows);
         for (WatchingEpisode episode : episodes) {
-            if (episode == null) {
-                continue;
-            }
-            JSONObject meta = findEpisodeMeta(metaIndex, episode);
-            if (meta == null) {
-                continue;
-            }
-            String metaLogo = normalizeImageUrl(meta.optString("logo", ""), episode.account);
-            episode.imageUrl = firstNonBlank(metaLogo, episode.imageUrl);
-            episode.plot = firstNonBlank(
-                    meta.optString("plot", ""),
-                    meta.optString("description", ""),
-                    meta.optString("overview", ""),
-                    episode.plot
-            );
-            episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
-            if (!isBlank(episode.imageUrl)) {
-                episode.channel.setLogo(episode.imageUrl);
+            if (episode != null) {
+                JSONObject meta = findEpisodeMeta(metaIndex, episode);
+                if (meta != null) {
+                    String metaLogo = normalizeImageUrl(meta.optString("logo", ""), episode.account);
+                    episode.imageUrl = firstNonBlank(metaLogo, episode.imageUrl);
+                    episode.plot = firstNonBlank(
+                            meta.optString("plot", ""),
+                            meta.optString("description", ""),
+                            meta.optString("overview", ""),
+                            episode.plot
+                    );
+                    episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
+                    if (!isBlank(episode.imageUrl)) {
+                        episode.channel.setLogo(episode.imageUrl);
+                    }
+                }
             }
         }
     }
