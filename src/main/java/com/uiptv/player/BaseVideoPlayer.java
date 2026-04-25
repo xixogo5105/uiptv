@@ -12,6 +12,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.util.HlsPlaylistResolver;
 import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
@@ -1884,137 +1885,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
             return uri;
         }
-        return resolveHlsPlaylistChain(uri, new java.util.LinkedHashSet<>(), 0);
-    }
-
-    private String resolveHlsPlaylistChain(String uri, java.util.Set<String> visited, int depth) {
-        if (uri == null) {
-            return null;
-        }
-
-        String normalizedUri = uri.trim();
-        if (normalizedUri.isEmpty()) {
-            return uri;
-        }
-        if (!visited.add(normalizedUri)) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
-                    "Stopping HLS resolution because a cycle was detected at: " + normalizedUri);
-            return normalizedUri;
-        }
-        if (depth >= MAX_HLS_RESOLUTION_DEPTH) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
-                    "Stopping HLS resolution because the maximum depth was reached for: " + normalizedUri);
-            return normalizedUri;
-        }
-
-        if (!isLikelyManifest(normalizedUri)) {
-            return normalizedUri;
-        }
-
-        try {
-            String variantUrl = resolveHlsVariantUrl(normalizedUri);
-            if (variantUrl == null || variantUrl.equals(normalizedUri)) {
-                return normalizedUri;
-            }
-            com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class,
-                    "Resolved HLS master manifest to variant: " + variantUrl);
-            return resolveHlsPlaylistChain(variantUrl, visited, depth + 1);
-        } catch (Exception e) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
-                    "Optional HLS resolution failed for: " + normalizedUri + " (" + e.getMessage() + ")");
-        }
-        return normalizedUri;
-    }
-
-    private String resolveHlsVariantUrl(String normalizedUri) throws IOException {
-        java.util.Map<String, String> headers = createBrowserHeaders();
-        com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(normalizedUri, headers, "GET");
-        if (result == null || result.statusCode() != 200 || result.body() == null) {
-            return null;
-        }
-
-        String body = result.body();
-        if (!isMasterManifest(body)) {
-            return null;
-        }
-
-        String effectiveBaseUri = isNotBlank(result.requestUri()) ? result.requestUri() : normalizedUri;
-        return extractBestVariantUrl(effectiveBaseUri, body);
-    }
-
-    private boolean isMasterManifest(String body) {
-        return body.startsWith("#EXTM3U") && body.contains("#EXT-X-STREAM-INF");
-    }
-
-    private boolean isLikelyManifest(String uri) {
-        String path = uri.split("\\?")[0].toLowerCase();
-        if (path.endsWith(".m3u8") || path.endsWith(".m3u")) {
-            return true;
-        }
-        // If the URL has no extension in its last segment, it's likely a redirector or dynamic endpoint
-        // that we should probe to see if it returns a manifest.
-        int lastSlash = path.lastIndexOf('/');
-        String lastSegment = lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
-        return !lastSegment.contains(".");
-    }
-
-    private String extractBestVariantUrl(String baseUrl, String playlistContent) {
-        String bestUrl = null;
-        long maxBandwidth = -1;
-
-        String[] lines = playlistContent.split("\\r?\\n");
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.startsWith("#EXT-X-STREAM-INF:")) {
-                long bandwidth = parseBandwidth(line);
-                if (i + 1 < lines.length) {
-                    String urlLine = lines[i + 1].trim();
-                    if (!urlLine.isEmpty() && !urlLine.startsWith("#") && bandwidth > maxBandwidth) {
-                        maxBandwidth = bandwidth;
-                        bestUrl = urlLine;
-                    }
-                }
-            }
-        }
-
-        return bestUrl != null ? resolveVariantUrl(baseUrl, bestUrl) : null;
-    }
-
-    private String resolveVariantUrl(String baseUrl, String variantUrl) {
-        try {
-            java.net.URI base = java.net.URI.create(baseUrl);
-            // resolve() followed by normalize() ensures that any relative path segments (../) 
-            // are properly collapsed against the base path.
-            java.net.URI resolved = base.resolve(variantUrl).normalize();
-
-            // Propagate query parameters from base URL if variant doesn't have its own
-            if (baseUrl.contains("?") && !variantUrl.contains("?")) {
-                String query = baseUrl.substring(baseUrl.indexOf('?'));
-                String resolvedStr = resolved.toString();
-                // Ensure we don't accidentally double-append if the resolution already included a query
-                return resolvedStr.contains("?") ? resolvedStr : resolvedStr + query;
-            }
-            return resolved.toString();
-        } catch (Exception _) {
-            return null;
-        }
-    }
-
-    private long parseBandwidth(String line) {
-        try {
-            int index = line.toUpperCase().indexOf("BANDWIDTH=");
-            if (index != -1) {
-                String sub = line.substring(index + 10);
-                int commaIndex = sub.indexOf(',');
-                if (commaIndex != -1) {
-                    sub = sub.substring(0, commaIndex);
-                }
-                return Long.parseLong(sub.trim());
-            }
-        } catch (Exception _) {
-            // ignore
-        }
-        return 0;
+        return HlsPlaylistResolver.resolveHlsPlaylistChain(uri, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);
     }
 
     private java.util.Map<String, String> createBrowserHeaders() {
