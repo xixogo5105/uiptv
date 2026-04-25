@@ -91,13 +91,29 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void configureEmbeddedPlayer() {
         mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
         mediaPlayer.controls().setRepeat(false);
-        mediaPlayer.audio().setMute(isMuted);
-        // Ensure initial volume reflects the UI slider (0-100) -> VLC expects 0-200
-        // Call through setVolume so subclasses' mapping is applied consistently.
+        applyDesiredAudioState(mediaPlayer);
+    }
+
+    private void applyDesiredAudioState() {
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
+        }
+        applyDesiredAudioState(player);
+    }
+
+    private void applyDesiredAudioState(EmbeddedMediaPlayer player) {
+        if (player == null) {
+            return;
+        }
         try {
-            setVolume(volumeSlider != null ? volumeSlider.getValue() : 50);
+            player.audio().setMute(isMuted);
+            int vlcVolume = (int) Math.round((volumeSlider != null ? volumeSlider.getValue() : 50) * 2.0);
+            if (vlcVolume < 0) vlcVolume = 0;
+            if (vlcVolume > 200) vlcVolume = 200;
+            player.audio().setVolume(vlcVolume);
         } catch (Exception _) {
-            // Best-effort: ignore if player not yet ready or UI not constructed.
+            // Best-effort: audio state can fail transiently while VLC is still starting.
         }
     }
 
@@ -170,6 +186,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void handlePlaying() {
         Platform.runLater(() -> {
             retryCount = 0;
+            applyDesiredAudioState();
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
             updateVideoSize();
