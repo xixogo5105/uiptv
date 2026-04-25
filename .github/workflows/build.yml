@@ -29,7 +29,7 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: mvn -B test
+        run: xvfb-run -a mvn -B test
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -79,7 +79,7 @@ jobs:
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=xixogo5105_uiptv
+        run: xvfb-run -a mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=xixogo5105_uiptv
 
   build_windows:
     if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
@@ -179,7 +179,7 @@ jobs:
           fi
 
       - name: Build DEB package
-        run: mvn -B clean package -P linux-x86_64,pkg-deb
+        run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v7
@@ -193,7 +193,7 @@ jobs:
 
       - name: Build RPM package
         if: steps.rpm_support.outputs.supported == 'true'
-        run: mvn -B clean package -P linux-x86_64,pkg-rpm
+        run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-rpm
 
       - name: Upload RPM artifact
         if: steps.rpm_support.outputs.supported == 'true'
@@ -207,7 +207,7 @@ jobs:
         run: rm -rf target/dist/*
 
       - name: Build AppImage package
-        run: mvn -B clean package -P linux-x86_64,pkg-app-image
+        run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-app-image
 
       - name: Archive app-image artifact (x86_64)
         shell: bash
