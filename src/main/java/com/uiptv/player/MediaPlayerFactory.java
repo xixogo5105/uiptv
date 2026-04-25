@@ -4,6 +4,7 @@ import com.uiptv.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.DummyVideoPlayer;
+import com.uiptv.util.AppLog;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.layout.Region;
@@ -38,9 +39,9 @@ public class MediaPlayerFactory {
             try {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
-                com.uiptv.util.AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
-            } catch (Exception _) {
-                com.uiptv.util.AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos");
+                AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
+            } catch (Exception e) {
+                AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos. Error: " + e.getMessage());
                 instance = new LiteVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.LITE;
             }
@@ -139,15 +140,17 @@ public class MediaPlayerFactory {
             try {
                 // Call player-specific disposal (especially important for VLC)
                 instance.disposePlayer();
-            } catch (Exception _) {
+            } catch (Exception e) {
                 // Best-effort shutdown: continue releasing shared state even if player teardown fails.
+                AppLog.addErrorLog(MediaPlayerFactory.class, "Failed to dispose player: " + e.getMessage());
             }
 
             try {
                 // Clear player container
                 playerHostContainer.getChildren().clear();
-            } catch (Exception _) {
+            } catch (Exception e) {
                 // Best-effort shutdown: stale JavaFX nodes should not block process exit.
+                AppLog.addErrorLog(MediaPlayerFactory.class, "Failed to clear player container: " + e.getMessage());
             }
 
             instance = null;

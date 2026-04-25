@@ -252,7 +252,8 @@ public class HttpUtil {
                         parsed.getQuery(),
                         parsed.getRef()
                 );
-            } catch (Exception _) {
+            } catch (Exception e) {
+                AppLog.addErrorLog(HttpUtil.class, "Failed to create URI from URL: " + normalized + ". Error: " + e.getMessage());
                 throw original;
             }
         }
@@ -280,7 +281,8 @@ public class HttpUtil {
             }
             URI uri = request.getUri();
             return uri == null ? "" : uri.toString();
-        } catch (Exception _) {
+        } catch (Exception e) {
+            AppLog.addWarningLog(HttpUtil.class, "Failed to get final URI: " + e.getMessage());
             return request.getRequestUri();
         }
     }
