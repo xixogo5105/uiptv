@@ -70,8 +70,6 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
-    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("configResolveChainAndDeepRedirects"));
-    private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
     private final Hyperlink ffmpegTranscodingHelpLink = new Hyperlink("(?)");
     private final Hyperlink litePlayerFfmpegHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
@@ -168,16 +166,12 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
-            resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
             vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
             vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
             vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
             vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
-        }
-        if (configuration == null) {
-            resolveChainAndDeepRedirectsCheckBox.setSelected(true);
         }
         selectDefaultPlayer(configuration);
         updateVlcOptionsLinkVisibility();
@@ -225,16 +219,13 @@ public class ConfigurationUI extends VBox {
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
         HBox wideViewRow = new HBox(6, wideViewCheckBox, wideViewHelpLink);
-        HBox resolveChainRow = new HBox(6, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
         box4.setAlignment(Pos.CENTER_LEFT);
         box5.setAlignment(Pos.CENTER_LEFT);
         wideViewRow.setAlignment(Pos.CENTER_LEFT);
-        resolveChainRow.setAlignment(Pos.CENTER_LEFT);
         wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
         tmdbHelpLabel.setWrapText(true);
@@ -242,8 +233,7 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
-        resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow);
         wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
@@ -291,7 +281,6 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
-        addResolveChainHelpClickHandler();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
@@ -707,10 +696,6 @@ public class ConfigurationUI extends VBox {
         vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
 
-    private void addResolveChainHelpClickHandler() {
-        resolveChainAndDeepRedirectsHelpLink.setOnAction(event -> showResolveChainHelp());
-    }
-
     private void addWideViewHelpClickHandler() {
         wideViewHelpLink.setOnAction(event -> showWideViewHelp());
     }
@@ -760,7 +745,6 @@ public class ConfigurationUI extends VBox {
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
-        configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
@@ -946,14 +930,6 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    static String resolveChainHelpText() {
-        return I18n.tr("configResolveChainAndDeepRedirectsHelp");
-    }
-
-    static String resolveChainHelpTitle() {
-        return I18n.tr("configResolveChainAndDeepRedirectsHelpTitle");
-    }
-
     static String wideViewHelpText() {
         return I18n.tr("configWideViewHelp");
     }
@@ -976,17 +952,6 @@ public class ConfigurationUI extends VBox {
 
     static String litePlayerFfmpegHelpTitle() {
         return I18n.tr("configEnableLitePlayerFfmpegHelpTitle");
-    }
-
-    private void showResolveChainHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(resolveChainHelpTitle());
-        alert.setContentText(resolveChainHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
     }
 
     private void showWideViewHelp() {

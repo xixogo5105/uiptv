@@ -82,16 +82,4 @@ class ConfigurationServiceTest extends DbBackedTest {
         assertFalse(saved.isEnableVlcHttpForwardCookies());
     }
 
-    @Test
-    void resolveChainAndDeepRedirects_defaultsToEnabled_andPersistsWhenDisabled() {
-        ConfigurationService service = ConfigurationService.getInstance();
-        assertTrue(service.isResolveChainAndDeepRedirectsEnabled());
-
-        Configuration configuration = service.read();
-        configuration.setResolveChainAndDeepRedirects(false);
-        service.save(configuration);
-
-        assertFalse(service.isResolveChainAndDeepRedirectsEnabled());
-        assertFalse(service.read().isResolveChainAndDeepRedirects());
-    }
 }

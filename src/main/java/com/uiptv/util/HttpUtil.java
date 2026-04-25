@@ -12,8 +12,6 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.util.Timeout;
-import com.uiptv.service.ConfigurationService;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -268,9 +266,6 @@ public class HttpUtil {
     }
 
     private static String getFinalUri(HttpUriRequestBase request, HttpClientContext context) {
-        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
-            return request.getRequestUri();
-        }
         try {
             org.apache.hc.client5.http.protocol.RedirectLocations redirects = context.getRedirectLocations();
             if (redirects != null) {

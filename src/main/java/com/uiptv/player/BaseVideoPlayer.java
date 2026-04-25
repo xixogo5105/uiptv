@@ -8,11 +8,9 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
-import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
-import com.uiptv.util.HlsPlaylistResolver;
 import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
@@ -64,7 +62,6 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
-    private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
@@ -150,6 +147,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected String activeBingeWatchEpisodeId = "";
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
+    private double lastMouseEventScreenX = Double.NaN;
+    private double lastMouseEventScreenY = Double.NaN;
 
     // Resizing Logic
     protected boolean isResizing = false;
@@ -441,6 +440,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void handlePlayerMouseClick(MouseEvent event) {
+        rememberMouseEventPosition(event);
         onPlayerInteraction();
         if (event.getButton() == MouseButton.PRIMARY) {
             handlePrimaryPlayerClick(event);
@@ -473,10 +473,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     private void handlePlayerMouseDragged() {
         isPointerInsidePlayer = true;
+        lastMouseEventScreenX = Double.NaN;
+        lastMouseEventScreenY = Double.NaN;
         onPlayerInteraction();
     }
 
     private void handlePlayerScroll(ScrollEvent event) {
+        if (Math.abs(event.getDeltaY()) < 0.01) {
+            return;
+        }
         restoreVisibleCursor();
         double delta = event.getDeltaY();
         if (delta == 0) return;
@@ -522,10 +527,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         idleTimer.setOnFinished(e -> handleIdleTimeout());
 
         playerContainer.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
+            if (isRepeatedMousePosition(e)) {
+                return;
+            }
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
         playerContainer.addEventFilter(MouseEvent.MOUSE_ENTERED, e -> {
+            rememberMouseEventPosition(e);
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
@@ -540,6 +549,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         });
 
         controlsContainer.setOnMouseEntered(e -> {
+            rememberMouseEventPosition(e);
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
@@ -549,6 +559,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         });
         controlsContainer.setOnMouseMoved(e -> {
+            if (isRepeatedMousePosition(e)) {
+                e.consume();
+                return;
+            }
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
             e.consume();
@@ -608,6 +622,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void handleSceneInputRecovery(InputEvent event) {
+        if (event instanceof MouseEvent mouseEvent) {
+            javafx.event.EventType<? extends MouseEvent> eventType = mouseEvent.getEventType();
+            if (eventType == MouseEvent.MOUSE_MOVED
+                    || eventType == MouseEvent.MOUSE_ENTERED
+                    || eventType == MouseEvent.MOUSE_ENTERED_TARGET
+                    || eventType == MouseEvent.MOUSE_EXITED
+                    || eventType == MouseEvent.MOUSE_EXITED_TARGET) {
+                return;
+            }
+        }
+        if (event instanceof ScrollEvent scrollEvent && Math.abs(scrollEvent.getDeltaY()) < 0.01) {
+            return;
+        }
         restoreVisibleCursor();
         Scene eventScene = event == null || !(event.getSource() instanceof Scene) ? null : (Scene) event.getSource();
         if (eventScene == null || eventScene != playerContainer.getScene() || !playerContainer.isVisible() || !playerContainer.isManaged()) {
@@ -654,6 +681,26 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         uninstallSceneInputRecovery(scene);
         scene.addEventFilter(InputEvent.ANY, sceneInputRecoveryHandler);
         pipInputRecoveryScene = scene;
+    }
+
+    private boolean isRepeatedMousePosition(MouseEvent event) {
+        if (event == null) {
+            return false;
+        }
+        double screenX = event.getScreenX();
+        double screenY = event.getScreenY();
+        boolean repeated = Math.abs(screenX - lastMouseEventScreenX) < 0.01
+                && Math.abs(screenY - lastMouseEventScreenY) < 0.01;
+        rememberMouseEventPosition(event);
+        return repeated;
+    }
+
+    private void rememberMouseEventPosition(MouseEvent event) {
+        if (event == null) {
+            return;
+        }
+        lastMouseEventScreenX = event.getScreenX();
+        lastMouseEventScreenY = event.getScreenY();
     }
 
     protected boolean supportsTrackSelection() {
@@ -1873,29 +1920,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         }
         return "";
-    }
-
-    // --- Protected Utility Methods ---
-    /**
-     * Resolve HLS playlist chain (Master -> Variant) to an absolute URL that embedded players can handle.
-     * Workaround for CDNs with relative paths or strict header requirements on manifest files.
-     * Returns a playable .m3u8 URL (Media Playlist).
-     */
-    protected String resolveHlsPlaylistChain(String uri) {
-        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
-            return uri;
-        }
-        return HlsPlaylistResolver.resolveHlsPlaylistChain(uri, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);
-    }
-
-    private java.util.Map<String, String> createBrowserHeaders() {
-        java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
-        if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-            headers.put("User-Agent", CHROME_USER_AGENT);
-        }
-        headers.put("Accept", "application/vnd.apple.mpegurl, */*");
-        headers.put("Accept-Language", "en-US,en;q=0.9");
-        return headers;
     }
 
     private static void markHiddenBarMessageShown() {
