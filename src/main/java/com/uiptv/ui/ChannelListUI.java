@@ -25,6 +25,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
@@ -310,6 +311,7 @@ public class ChannelListUI extends HBox {
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
         table.setEditable(true);
+        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         table.getColumns().add(channelName);
         channelName.setText(categoryTitle);
         channelName.setVisible(true);
@@ -908,6 +910,11 @@ public class ChannelListUI extends HBox {
 
     private void addChannelClickHandler() {
         table.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.A && event.isShortcutDown()) {
+                table.getSelectionModel().selectAll();
+                event.consume();
+                return;
+            }
             if (event.getCode() == KeyCode.ENTER) {
                 ChannelItem selected = resolveEnterTargetItem();
                 if (selected != null) {
@@ -1159,58 +1166,95 @@ public class ChannelListUI extends HBox {
     }
 
     private void configureBookmarkMenu(TableRow<ChannelItem> row, ContextMenu rowMenu, Menu bookmarkMenu) {
+        row.addEventHandler(ContextMenuEvent.CONTEXT_MENU_REQUESTED, event -> normalizeContextMenuSelection(row));
         rowMenu.setOnShowing(event -> {
             bookmarkMenu.getItems().clear();
-            ChannelItem item = row.getItem();
-            if (item == null) {
+            List<ChannelItem> selectedItems = resolveBookmarkSelection(row);
+            if (selectedItems.isEmpty()) {
                 return;
             }
-            loadBookmarkMenuItemsAsync(item, bookmarkMenu);
+            loadBookmarkMenuItemsAsync(selectedItems, bookmarkMenu);
         });
     }
 
-    private void loadBookmarkMenuItemsAsync(ChannelItem item, Menu bookmarkMenu) {
+    private void normalizeContextMenuSelection(TableRow<ChannelItem> row) {
+        if (row == null || row.isEmpty()) {
+            return;
+        }
+        TableView.TableViewSelectionModel<ChannelItem> selectionModel = table.getSelectionModel();
+        if (selectionModel.isSelected(row.getIndex())) {
+            return;
+        }
+        selectionModel.clearAndSelect(row.getIndex());
+    }
+
+    private List<ChannelItem> resolveBookmarkSelection(TableRow<ChannelItem> row) {
+        if (row == null || row.isEmpty() || row.getItem() == null) {
+            return List.of();
+        }
+        List<ChannelItem> selectedItems = new ArrayList<>(table.getSelectionModel().getSelectedItems());
+        if (!selectedItems.contains(row.getItem())) {
+            return List.of(row.getItem());
+        }
+        return selectedItems.isEmpty() ? List.of(row.getItem()) : selectedItems;
+    }
+
+    private void loadBookmarkMenuItemsAsync(List<ChannelItem> items, Menu bookmarkMenu) {
         new Thread(() -> {
-            BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
-            Bookmark existingBookmark = findMatchingBookmark(item.getChannel(), ctx, loadBookmarksForAccount());
+            List<Bookmark> accountBookmarks = loadBookmarksForAccount();
             List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
-            Platform.runLater(() -> populateBookmarkMenuItems(item, bookmarkMenu, categories, existingBookmark));
+            Map<ChannelItem, Bookmark> existingBookmarks = new LinkedHashMap<>();
+            for (ChannelItem item : items) {
+                BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+                Bookmark existingBookmark = findMatchingBookmark(item.getChannel(), ctx, accountBookmarks);
+                if (existingBookmark != null) {
+                    existingBookmarks.put(item, existingBookmark);
+                }
+            }
+            Platform.runLater(() -> populateBookmarkMenuItems(items, bookmarkMenu, categories, existingBookmarks));
         }).start();
     }
 
-    private void populateBookmarkMenuItems(ChannelItem item,
+    private void populateBookmarkMenuItems(List<ChannelItem> items,
                                            Menu bookmarkMenu,
                                            List<BookmarkCategory> categories,
-                                           Bookmark existingBookmark) {
+                                           Map<ChannelItem, Bookmark> existingBookmarks) {
         MenuItem allItem = new MenuItem(I18n.tr("autoAll"));
-        allItem.setOnAction(e -> saveBookmark(item, null));
+        allItem.setOnAction(e -> saveBookmarks(items, null));
         bookmarkMenu.getItems().add(allItem);
         bookmarkMenu.getItems().add(new SeparatorMenuItem());
 
         for (BookmarkCategory category : categories) {
             MenuItem categoryItem = new MenuItem(category.getName());
-            categoryItem.setOnAction(e -> saveBookmark(item, category.getId()));
+            categoryItem.setOnAction(e -> saveBookmarks(items, category.getId()));
             bookmarkMenu.getItems().add(categoryItem);
         }
 
-        if (existingBookmark != null) {
+        if (!existingBookmarks.isEmpty()) {
             bookmarkMenu.getItems().add(new SeparatorMenuItem());
-            bookmarkMenu.getItems().add(buildRemoveBookmarkItem(item, existingBookmark));
+            bookmarkMenu.getItems().add(buildRemoveBookmarkItem(existingBookmarks));
         }
     }
 
-    private MenuItem buildRemoveBookmarkItem(ChannelItem item, Bookmark existingBookmark) {
+    private MenuItem buildRemoveBookmarkItem(Map<ChannelItem, Bookmark> existingBookmarks) {
         MenuItem unbookmarkItem = new MenuItem(I18n.tr("autoRemoveBookmark"));
         unbookmarkItem.getStyleClass().add("danger-menu-item");
-        unbookmarkItem.setOnAction(e -> removeBookmarkAsync(item, existingBookmark));
+        unbookmarkItem.setOnAction(e -> removeBookmarksAsync(existingBookmarks));
         return unbookmarkItem;
     }
 
-    private void removeBookmarkAsync(ChannelItem item, Bookmark existingBookmark) {
+    private void removeBookmarksAsync(Map<ChannelItem, Bookmark> existingBookmarks) {
         new Thread(() -> {
-            BookmarkService.getInstance().remove(existingBookmark.getDbId());
+            for (Map.Entry<ChannelItem, Bookmark> entry : existingBookmarks.entrySet()) {
+                Bookmark bookmark = entry.getValue();
+                if (bookmark != null && !isBlank(bookmark.getDbId())) {
+                    BookmarkService.getInstance().remove(bookmark.getDbId());
+                }
+            }
             Platform.runLater(() -> {
-                item.setBookmarked(false);
+                for (ChannelItem item : existingBookmarks.keySet()) {
+                    item.setBookmarked(false);
+                }
                 table.refresh();
                 refreshBookmarkStatesAsync();
             });
@@ -1251,28 +1295,32 @@ public class ChannelListUI extends HBox {
         }
     }
 
-    private void saveBookmark(ChannelItem item, String bookmarkCategoryId) {
+    private void saveBookmarks(List<ChannelItem> items, String bookmarkCategoryId) {
         new Thread(() -> {
-            BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
-            Bookmark bookmark = new Bookmark(account.getAccountName(), ctx.categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), ctx.categoryId);
-            bookmark.setAccountAction(account.getAction());
-            bookmark.setCategoryId(bookmarkCategoryId);
+            for (ChannelItem item : items) {
+                BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+                Bookmark bookmark = new Bookmark(account.getAccountName(), ctx.categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), ctx.categoryId);
+                bookmark.setAccountAction(account.getAction());
+                bookmark.setCategoryId(bookmarkCategoryId);
 
-            Category cat = new Category();
-            cat.setCategoryId(ctx.categoryId);
-            cat.setTitle(ctx.categoryTitle);
-            bookmark.setCategoryJson(cat.toJson());
+                Category cat = new Category();
+                cat.setCategoryId(ctx.categoryId);
+                cat.setTitle(ctx.categoryTitle);
+                bookmark.setCategoryJson(cat.toJson());
 
-            if (item.getChannel() != null) {
-                if (account.getAction() == vod) {
-                    bookmark.setVodJson(item.getChannel().toJson());
-                } else {
-                    bookmark.setChannelJson(item.getChannel().toJson());
+                if (item.getChannel() != null) {
+                    if (account.getAction() == vod) {
+                        bookmark.setVodJson(item.getChannel().toJson());
+                    } else {
+                        bookmark.setChannelJson(item.getChannel().toJson());
+                    }
                 }
+                BookmarkService.getInstance().save(bookmark);
             }
-            BookmarkService.getInstance().save(bookmark);
             Platform.runLater(() -> {
-                item.setBookmarked(true);
+                for (ChannelItem item : items) {
+                    item.setBookmarked(true);
+                }
                 table.refresh();
                 refreshBookmarkStatesAsync();
             });

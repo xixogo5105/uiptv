@@ -375,6 +375,157 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         assertNotNull(bookmarkService.getBookmark(allCategoryViewBookmark));
     }
 
+    @Test
+    void testBatchSaveForSelectedChannelsAddsNewBookmarksAndUpdatesExistingCategoryInPlace() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        Channel firstChannel = channel("ch-1", "News One", "cmd://news-1");
+        Channel secondChannel = channel("ch-2", "News Two", "cmd://news-2");
+        String sourceCategoryTitle = "News";
+        String sourceCategoryId = "src-news";
+
+        Bookmark existing = selectionBookmark("acc-batch-save", sourceCategoryTitle, sourceCategoryId, firstChannel, "fav-a");
+        bookmarkService.save(existing);
+
+        Bookmark savedExistingBeforeUpdate = bookmarkService.getBookmark(existing);
+        assertNotNull(savedExistingBeforeUpdate);
+        String existingDbId = savedExistingBeforeUpdate.getDbId();
+
+        batchSaveSelection(
+                bookmarkService,
+                "acc-batch-save",
+                "http://portal",
+                sourceCategoryTitle,
+                sourceCategoryId,
+                "fav-b",
+                List.of(firstChannel, secondChannel)
+        );
+
+        List<Bookmark> allBookmarks = bookmarkService.read();
+        assertEquals(2, allBookmarks.size());
+
+        Bookmark updatedExisting = bookmarkService.getBookmark(
+                selectionBookmark("acc-batch-save", sourceCategoryTitle, sourceCategoryId, firstChannel, "fav-b")
+        );
+        assertNotNull(updatedExisting);
+        assertEquals(existingDbId, updatedExisting.getDbId());
+        assertEquals("fav-b", updatedExisting.getCategoryId());
+
+        Bookmark addedNew = bookmarkService.getBookmark(
+                selectionBookmark("acc-batch-save", sourceCategoryTitle, sourceCategoryId, secondChannel, "fav-b")
+        );
+        assertNotNull(addedNew);
+        assertEquals("fav-b", addedNew.getCategoryId());
+
+        assertTrue(bookmarkService.getBookmarksByCategory("fav-a").isEmpty());
+        assertEquals(
+                List.of("News One", "News Two"),
+                bookmarkService.getBookmarksByCategory("fav-b").stream().map(Bookmark::getChannelName).toList()
+        );
+    }
+
+    @Test
+    void testBatchRemoveForSelectedChannelsDeletesOnlyExistingBookmarksFromSelection() {
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+
+        String accountName = "acc-batch-remove";
+        String sourceCategoryTitle = "Sports";
+        String sourceCategoryId = "src-sports";
+        String bookmarkCategoryId = "fav-sports";
+
+        Channel selectedExistingOne = channel("ch-11", "Sports One", "cmd://sports-1");
+        Channel selectedExistingTwo = channel("ch-12", "Sports Two", "cmd://sports-2");
+        Channel selectedMissing = channel("ch-13", "Sports Three", "cmd://sports-3");
+        Channel outsideSelection = channel("ch-99", "Sports Other", "cmd://sports-99");
+
+        Bookmark firstExisting = selectionBookmark(accountName, sourceCategoryTitle, sourceCategoryId, selectedExistingOne, bookmarkCategoryId);
+        Bookmark secondExisting = selectionBookmark(accountName, sourceCategoryTitle, sourceCategoryId, selectedExistingTwo, bookmarkCategoryId);
+        Bookmark untouched = selectionBookmark(accountName, sourceCategoryTitle, sourceCategoryId, outsideSelection, bookmarkCategoryId);
+        bookmarkService.save(firstExisting);
+        bookmarkService.save(secondExisting);
+        bookmarkService.save(untouched);
+
+        List<Bookmark> existingBookmarksFromSelection = List.of(
+                bookmarkService.getBookmark(firstExisting),
+                bookmarkService.getBookmark(secondExisting)
+        );
+
+        batchRemoveSelection(bookmarkService, existingBookmarksFromSelection);
+
+        assertNull(bookmarkService.getBookmark(firstExisting));
+        assertNull(bookmarkService.getBookmark(secondExisting));
+        assertNull(bookmarkService.getBookmark(selectionBookmark(accountName, sourceCategoryTitle, sourceCategoryId, selectedMissing, bookmarkCategoryId)));
+
+        Bookmark untouchedAfterRemove = bookmarkService.getBookmark(untouched);
+        assertNotNull(untouchedAfterRemove);
+        assertEquals(
+                List.of("Sports Other"),
+                bookmarkService.read().stream().map(Bookmark::getChannelName).toList()
+        );
+    }
+
+    private void batchSaveSelection(BookmarkService bookmarkService,
+                                    String accountName,
+                                    String serverPortalUrl,
+                                    String sourceCategoryTitle,
+                                    String sourceCategoryId,
+                                    String bookmarkCategoryId,
+                                    List<Channel> selectedChannels) {
+        for (Channel channel : selectedChannels) {
+            bookmarkService.save(selectionBookmark(
+                    accountName,
+                    sourceCategoryTitle,
+                    sourceCategoryId,
+                    channel,
+                    bookmarkCategoryId,
+                    serverPortalUrl
+            ));
+        }
+    }
+
+    private void batchRemoveSelection(BookmarkService bookmarkService, List<Bookmark> existingBookmarksFromSelection) {
+        for (Bookmark bookmark : existingBookmarksFromSelection) {
+            assertNotNull(bookmark);
+            bookmarkService.remove(bookmark.getDbId());
+        }
+    }
+
+    private Channel channel(String channelId, String channelName, String cmd) {
+        Channel channel = new Channel(channelId, channelName, "1", cmd, null, null, null, "logo", 0, 1, 1, null, null, null, null, null);
+        channel.setCategoryId("unused-ui-source");
+        return channel;
+    }
+
+    private Bookmark selectionBookmark(String accountName,
+                                       String sourceCategoryTitle,
+                                       String sourceCategoryId,
+                                       Channel channel,
+                                       String bookmarkCategoryId) {
+        return selectionBookmark(accountName, sourceCategoryTitle, sourceCategoryId, channel, bookmarkCategoryId, "http://portal");
+    }
+
+    private Bookmark selectionBookmark(String accountName,
+                                       String sourceCategoryTitle,
+                                       String sourceCategoryId,
+                                       Channel channel,
+                                       String bookmarkCategoryId,
+                                       String serverPortalUrl) {
+        Bookmark bookmark = new Bookmark(
+                accountName,
+                sourceCategoryTitle,
+                channel.getChannelId(),
+                channel.getName(),
+                channel.getCmd(),
+                serverPortalUrl,
+                sourceCategoryId
+        );
+        bookmark.setAccountAction(Account.AccountAction.itv);
+        bookmark.setCategoryId(bookmarkCategoryId);
+        bookmark.setChannelJson(channel.toJson());
+        bookmark.setCategoryJson("{\"categoryId\":\"" + sourceCategoryId + "\",\"title\":\"" + sourceCategoryTitle + "\"}");
+        return bookmark;
+    }
+
     private List<Integer> readDisplayOrders(List<String> bookmarkIds) {
         String placeholders = bookmarkIds.stream().map(id -> "?").collect(Collectors.joining(", "));
         String sql = "SELECT display_order FROM BookmarkOrder WHERE bookmark_db_id IN (" + placeholders + ") ORDER BY display_order ASC";
