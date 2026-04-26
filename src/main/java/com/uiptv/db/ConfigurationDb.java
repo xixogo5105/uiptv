@@ -4,9 +4,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 
 import java.sql.*;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.CONFIGURATION_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
@@ -48,15 +46,13 @@ public class ConfigurationDb extends BaseDb {
         }
 
         try (Connection conn = connect()) {
-            Set<String> clearedTables = new HashSet<>();
+            // Live channels reference live category row ids, so they must be deleted
+            // before the live categories themselves are removed.
+            deleteAccountLiveChannels(conn, account.getDbId());
             for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                deleteAccountCacheForTable(conn, table, account.getDbId());
-                clearedTables.add(table.getTableName());
-            }
-
-            // Live channels are tied to live categories, so clear them once via explicit join if not already covered.
-            if (!clearedTables.contains(DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName())) {
-                deleteAccountLiveChannels(conn, account.getDbId());
+                if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) {
+                    deleteAccountCacheForTable(conn, table, account.getDbId());
+                }
             }
 
             String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
@@ -71,11 +67,6 @@ public class ConfigurationDb extends BaseDb {
     }
 
     private void deleteAccountCacheForTable(Connection conn, DatabaseUtils.DbTable table, String accountId) throws SQLException {
-        if (table == DatabaseUtils.DbTable.CHANNEL_TABLE) {
-            deleteAccountLiveChannels(conn, accountId);
-            return;
-        }
-
         String sql = DELETE_FROM + validatedTableName(table) + " WHERE accountId=?";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, accountId);

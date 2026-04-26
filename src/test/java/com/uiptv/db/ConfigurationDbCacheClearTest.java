@@ -78,6 +78,39 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertTrue(secondAfterClear.getServerPortalUrl() == null || secondAfterClear.getServerPortalUrl().isEmpty());
     }
 
+    @Test
+    void clearCache_removesOldLiveChannelsBeforeReloadSavesNewOnes() throws Exception {
+        Account account = createAccount("reload-live-cleanup");
+        account.setAction(itv);
+
+        CategoryDb.get().saveAll(List.of(new Category("live-old", "Live Old", "Live Old", false, 0)), account);
+        ChannelDb.get().saveAll(
+                List.of(new Channel("live-old-ch", "Live Old Channel", "1", "ffmpeg http://live/old", null, null, null, "old.png", 0, 1, 1, null, null, null, null, null)),
+                CategoryDb.get().getCategories(account).getFirst().getDbId(),
+                account
+        );
+
+        CacheService cacheService = new CacheServiceImpl();
+        cacheService.clearCache(account);
+
+        assertEquals(0, countTableRows(DatabaseUtils.DbTable.CATEGORY_TABLE));
+        assertEquals(0, countTableRows(DatabaseUtils.DbTable.CHANNEL_TABLE), "Live channel rows must be removed before categories are recreated");
+        assertEquals(0, countOrphanedLiveChannels(), "No orphaned live channels should remain after the clear step");
+
+        CategoryDb.get().saveAll(List.of(new Category("live-new", "Live New", "Live New", false, 0)), account);
+        Category newCategory = CategoryDb.get().getCategories(account).getFirst();
+        ChannelDb.get().saveAll(
+                List.of(new Channel("live-new-ch", "Live New Channel", "2", "ffmpeg http://live/new", null, null, null, "new.png", 0, 1, 1, null, null, null, null, null)),
+                newCategory.getDbId(),
+                account
+        );
+
+        assertEquals(1, countTableRows(DatabaseUtils.DbTable.CATEGORY_TABLE));
+        assertEquals(1, countTableRows(DatabaseUtils.DbTable.CHANNEL_TABLE), "Reload should leave only the newly saved live channel row");
+        assertEquals(0, countOrphanedLiveChannels(), "Reload should not leave detached live-channel rows behind");
+        assertEquals(1, countChannelsForCategory(newCategory.getDbId()));
+    }
+
     private Account createAccount(String name) {
         Account account = new Account(
                 name,
@@ -160,6 +193,28 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
             try (ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
             }
+        }
+    }
+
+    private int countChannelsForCategory(String categoryDbId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName() + " WHERE categoryId = ?";
+        try (Connection conn = SQLConnection.connect();
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, categoryDbId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    private int countOrphanedLiveChannels() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
+                + " c LEFT JOIN " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName()
+                + " cat ON c.categoryId = cat.id WHERE cat.id IS NULL";
+        try (Connection conn = SQLConnection.connect();
+             PreparedStatement statement = conn.prepareStatement(sql);
+             ResultSet rs = statement.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
     }
 }
