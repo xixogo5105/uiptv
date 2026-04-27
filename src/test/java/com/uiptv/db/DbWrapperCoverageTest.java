@@ -25,6 +25,7 @@ import static com.uiptv.model.Account.AccountAction.vod;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -195,6 +196,39 @@ class DbWrapperCoverageTest extends DbBackedTest {
     }
 
     @Test
+    void sqlConnection_appliesExpectedPragmas_forShortLivedDesktopWorkload() throws Exception {
+        try (Connection conn = SQLConnection.connect(); Statement statement = conn.createStatement()) {
+            assertEquals("wal", pragmaText(statement, "journal_mode"));
+            assertEquals(1_000L, pragmaLong(statement, "wal_autocheckpoint"));
+            assertEquals(32_000L, -pragmaLong(statement, "cache_size"));
+            assertEquals(16L * 1024L * 1024L, pragmaLong(statement, "journal_size_limit"));
+            assertNotEquals(0L, pragmaLong(statement, "busy_timeout"));
+        }
+    }
+
+    @Test
+    void sqlConnection_shouldVacuumMatchesFreePageThreshold() throws Exception {
+        Method shouldVacuum = SQLConnection.class.getDeclaredMethod("shouldVacuum", Statement.class);
+        shouldVacuum.setAccessible(true);
+
+        Statement statement = Mockito.mock(Statement.class);
+        ResultSet freePages = singleLongResultSet(800L);
+        ResultSet totalPages = singleLongResultSet(4_000L);
+        Mockito.when(statement.executeQuery("PRAGMA freelist_count")).thenReturn(freePages);
+        Mockito.when(statement.executeQuery("PRAGMA page_count")).thenReturn(totalPages);
+
+        assertTrue((Boolean) shouldVacuum.invoke(null, statement));
+
+        Statement smallFreeList = Mockito.mock(Statement.class);
+        ResultSet smallFreePages = singleLongResultSet(100L);
+        ResultSet smallTotalPages = singleLongResultSet(4_000L);
+        Mockito.when(smallFreeList.executeQuery("PRAGMA freelist_count")).thenReturn(smallFreePages);
+        Mockito.when(smallFreeList.executeQuery("PRAGMA page_count")).thenReturn(smallTotalPages);
+
+        assertFalse((Boolean) shouldVacuum.invoke(null, smallFreeList));
+    }
+
+    @Test
     void databasePatchesUtils_privateHelpers_coverDirectiveParsingAndFallbacks() throws Exception {
         Method findDirectiveLine = DatabasePatchesUtils.class.getDeclaredMethod("findDirectiveLine", String.class);
         findDirectiveLine.setAccessible(true);
@@ -220,6 +254,25 @@ class DbWrapperCoverageTest extends DbBackedTest {
                     () -> executeDirective.invoke(null, conn, "--@bogus temp_patch_table patchCol"));
             assertTrue(invalid.getCause() instanceof SQLException);
         }
+    }
+
+    private static long pragmaLong(Statement statement, String pragma) throws SQLException {
+        try (ResultSet rs = statement.executeQuery("PRAGMA " + pragma)) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        }
+    }
+
+    private static String pragmaText(Statement statement, String pragma) throws SQLException {
+        try (ResultSet rs = statement.executeQuery("PRAGMA " + pragma)) {
+            return rs.next() ? rs.getString(1) : null;
+        }
+    }
+
+    private static ResultSet singleLongResultSet(long value) throws SQLException {
+        ResultSet resultSet = Mockito.mock(ResultSet.class);
+        Mockito.when(resultSet.next()).thenReturn(true, false);
+        Mockito.when(resultSet.getLong(1)).thenReturn(value);
+        return resultSet;
     }
 
     @Test
