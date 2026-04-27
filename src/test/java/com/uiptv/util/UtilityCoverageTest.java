@@ -2,7 +2,10 @@ package com.uiptv.util;
 
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.service.ThemeCssOverrideService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -14,21 +17,31 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UtilityCoverageTest {
+    @AfterEach
+    void resetLogListeners() {
+        System.clearProperty("uiptv.showLogs");
+    }
 
     @Test
     void appLog_notifiesHealthyListenersAndIgnoresFailingOnes() {
         AtomicInteger calls = new AtomicInteger();
         Consumer<String> good = msg -> calls.incrementAndGet();
         Consumer<String> bad = msg -> { throw new IllegalStateException("boom"); };
+        Logger appLogLogger = Mockito.mock(Logger.class);
 
-        AppLog.registerListener(good);
-        AppLog.registerListener(bad);
-        AppLog.addInfoLog(UtilityCoverageTest.class, "test-entry");
-        AppLog.unregisterListener(good);
-        AppLog.unregisterListener(bad);
-        AppLog.unregisterListener(null);
+        try (MockedStatic<LoggerFactory> loggerFactory = Mockito.mockStatic(LoggerFactory.class, Mockito.CALLS_REAL_METHODS)) {
+            loggerFactory.when(() -> LoggerFactory.getLogger(AppLog.class)).thenReturn(appLogLogger);
 
-        assertEquals(1, calls.get());
+            AppLog.registerListener(good);
+            AppLog.registerListener(bad);
+            AppLog.addInfoLog(UtilityCoverageTest.class, "test-entry");
+            AppLog.unregisterListener(good);
+            AppLog.unregisterListener(bad);
+            AppLog.unregisterListener(null);
+
+            assertEquals(1, calls.get());
+            Mockito.verify(appLogLogger).error(Mockito.eq("Log listener failed"), Mockito.any(IllegalStateException.class));
+        }
     }
 
     @Test
