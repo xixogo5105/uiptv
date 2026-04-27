@@ -15,11 +15,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class SQLConnection {
     private static final int BUSY_TIMEOUT_MS = 10_000;
-    private static final int CACHE_SIZE_KIB = 32_000;
     private static final int INIT_RETRY_ATTEMPTS = 6;
-    private static final long JOURNAL_SIZE_LIMIT_BYTES = 16L * 1024L * 1024L;
-    private static final double VACUUM_FREE_PAGE_THRESHOLD = 0.15d;
-    private static final int WAL_AUTOCHECKPOINT_PAGES = 1_000;
     private static final long INIT_RETRY_DELAY_MS = 250L;
 
     private static String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
@@ -38,9 +34,7 @@ public class SQLConnection {
             FileUtils.touch(new File(dbPath));
             for (int attempt = 1; attempt <= INIT_RETRY_ATTEMPTS; attempt++) {
                 try (Connection conn = openConnection()) {
-                    applyPersistentPragmas(conn);
                     applySchema(conn);
-                    runStartupMaintenance(conn);
                     return;
                 } catch (SQLException ex) {
                     if (isBusy(ex) && attempt < INIT_RETRY_ATTEMPTS) {
@@ -86,44 +80,8 @@ public class SQLConnection {
             statement.execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
             statement.execute("PRAGMA journal_mode = WAL");
             statement.execute("PRAGMA synchronous = NORMAL");
-            statement.execute("PRAGMA temp_store = MEMORY");
-            statement.execute("PRAGMA cache_size = -" + CACHE_SIZE_KIB);
-            statement.execute("PRAGMA journal_size_limit = " + JOURNAL_SIZE_LIMIT_BYTES);
-            statement.execute("PRAGMA wal_autocheckpoint = " + WAL_AUTOCHECKPOINT_PAGES);
         }
         return conn;
-    }
-
-    private static void applyPersistentPragmas(Connection conn) throws SQLException {
-        try (Statement statement = conn.createStatement()) {
-            statement.execute("PRAGMA auto_vacuum = INCREMENTAL");
-        }
-    }
-
-    private static void runStartupMaintenance(Connection conn) throws SQLException {
-        try (Statement statement = conn.createStatement()) {
-            statement.execute("PRAGMA optimize");
-            statement.execute("PRAGMA wal_checkpoint(PASSIVE)");
-            if (shouldVacuum(statement)) {
-                statement.execute("VACUUM");
-                statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-            }
-        }
-    }
-
-    private static boolean shouldVacuum(Statement statement) throws SQLException {
-        long freePages = queryLongPragma(statement, "freelist_count");
-        long totalPages = queryLongPragma(statement, "page_count");
-        if (totalPages <= 0) {
-            return false;
-        }
-        return ((double) freePages / totalPages) > VACUUM_FREE_PAGE_THRESHOLD;
-    }
-
-    private static long queryLongPragma(Statement statement, String pragmaName) throws SQLException {
-        try (var resultSet = statement.executeQuery("PRAGMA " + pragmaName)) {
-            return resultSet.next() ? resultSet.getLong(1) : 0L;
-        }
     }
 
     private static boolean isBusy(SQLException exception) {
