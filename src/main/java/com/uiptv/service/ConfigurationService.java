@@ -95,9 +95,13 @@ public class ConfigurationService {
         return configuration == null || configuration.isEnableVlcHttpUserAgent();
     }
 
-    public boolean isVlcHttpForwardCookiesEnabled() {
-        Configuration configuration = read();
-        return configuration == null || configuration.isEnableVlcHttpForwardCookies();
+    public boolean isResolveChainAndDeepRedirectsEnabled() {
+        try {
+            Configuration configuration = read();
+            return configuration != null && configuration.isResolveChainAndDeepRedirects();
+        } catch (RuntimeException _) {
+            return false;
+        }
     }
 
 }

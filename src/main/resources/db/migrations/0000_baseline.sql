@@ -53,7 +53,11 @@ CREATE TABLE IF NOT EXISTS Configuration
     enableVlcHttpForwardCookies
     TEXT
     default
-    '1'
+    '1',
+    resolveChainAndDeepRedirects
+    TEXT
+    default
+    '0'
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride

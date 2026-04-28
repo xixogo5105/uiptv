@@ -147,9 +147,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *
      * 6.2) DB synchronize flow
      *    - Create two isolated sqlite databases.
-     *    - Seed syncable tables with different rows in each database.
-     *    - Execute RootApplication.syncDatabases (same logic as CLI sync mode).
-     *    - Assert both databases converge for all syncable tables.
+     *    - Seed source and target databases with different rows.
+     *    - Execute RootApplication.syncDatabases in one-way source -> target mode.
+     *    - Assert target gains source rows, keeps its existing rows, and optionally merges configuration.
      *
      * 7) Account-level cache clear and partial deletion
      *    - Select one account from each type bucket.
@@ -846,25 +846,31 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     }
 
     private void runDbSyncFlow() throws Exception {
-        Path firstPath = tempDir.resolve("sync-first.db");
-        Path secondPath = tempDir.resolve("sync-second.db");
-        createSyncSchema(firstPath.toString());
-        createSyncSchema(secondPath.toString());
+        Path sourcePath = tempDir.resolve("sync-source.db");
+        Path targetPath = tempDir.resolve("sync-target.db");
+        createSyncSchema(sourcePath.toString());
+        createSyncSchema(targetPath.toString());
 
-        seedSyncDb(firstPath.toString(), "100", "sync-a", "101", "Sync One");
-        seedSyncDb(secondPath.toString(), "200", "sync-b", "202", "Sync Two");
+        seedSyncDb(sourcePath.toString(), "100", "sync-a", "101", "Sync One");
+        seedSyncDb(targetPath.toString(), "200", "sync-b", "202", "Sync Two");
+        seedConfigurationRow(sourcePath.toString(), "/source/player-1", "/source/player-2", "1");
+        seedConfigurationRow(targetPath.toString(), "/target/player-1", "/target/player-2", "0");
 
-        com.uiptv.ui.RootApplication.syncDatabases(firstPath.toString(), secondPath.toString());
+        com.uiptv.ui.RootApplication.syncDatabases(sourcePath.toString(), targetPath.toString(), true, false);
 
         for (DatabaseUtils.DbTable table : DatabaseUtils.Syncable) {
-            int c1 = countRowsInDatabase(firstPath.toString(), table.getTableName());
-            int c2 = countRowsInDatabase(secondPath.toString(), table.getTableName());
-            assertEquals(c1, c2, "Synced table row count mismatch for " + table.getTableName());
-            assertTrue(c1 >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
+            int sourceCount = countRowsInDatabase(sourcePath.toString(), table.getTableName());
+            int targetCount = countRowsInDatabase(targetPath.toString(), table.getTableName());
+            assertTrue(targetCount >= sourceCount, "Expected target row count to include source rows for " + table.getTableName());
+            assertTrue(targetCount >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
                     "Expected merged rows in " + table.getTableName());
         }
 
-        assertAccountInfoSynced(firstPath.toString());
+        assertAccountInfoSynced(targetPath.toString());
+        assertConfigurationSynced(targetPath.toString(), false);
+
+        com.uiptv.ui.RootApplication.syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
+        assertConfigurationSynced(targetPath.toString(), true);
     }
 
     private void createSyncSchema(String dbPath) throws SQLException {
@@ -963,6 +969,39 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
     }
 
+    private void seedConfigurationRow(String dbPath, String playerPath1, String playerPath2, String resolveChainEnabled) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, enableLitePlayerFfmpeg, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
+                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setInt(1, 1);
+            ps.setString(2, playerPath1);
+            ps.setString(3, playerPath2);
+            ps.setString(4, "");
+            ps.setString(5, playerPath1);
+            ps.setString(6, "sports");
+            ps.setString(7, "news");
+            ps.setString(8, "0");
+            ps.setString(9, "1");
+            ps.setString(10, "8080");
+            ps.setString(11, "1");
+            ps.setString(12, "0");
+            ps.setString(13, "9");
+            ps.setString(14, "1");
+            ps.setString(15, "1");
+            ps.setString(16, "en-GB");
+            ps.setString(17, "tmdb-sync");
+            ps.setString(18, "133");
+            ps.setString(19, "1");
+            ps.setString(20, "3000");
+            ps.setString(21, "5000");
+            ps.setString(22, "1");
+            ps.setString(23, "0");
+            ps.setString(24, resolveChainEnabled);
+            ps.executeUpdate();
+        }
+    }
+
     private int countRowsInDatabase(String dbPath, String tableName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName);
@@ -991,6 +1030,21 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals("[\"mag250\",\"mag270\"]", accountInfo200.get("allowedStbTypesJson"));
         assertEquals("mag270", accountInfo100.get("preferredStbType"));
         assertEquals("mag270", accountInfo200.get("preferredStbType"));
+    }
+
+    private void assertConfigurationSynced(String dbPath, boolean externalPathsExpected) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT playerPath1, playerPath2, filterCategoriesList, filterChannelsList, languageLocale, resolveChainAndDeepRedirects FROM Configuration LIMIT 1");
+             ResultSet rs = statement.executeQuery()) {
+            assertTrue(rs.next(), "Expected configuration row in target sync database");
+            assertEquals(externalPathsExpected ? "/source/player-1" : "/target/player-1", rs.getString("playerPath1"));
+            assertEquals(externalPathsExpected ? "/source/player-2" : "/target/player-2", rs.getString("playerPath2"));
+            assertEquals("sports", rs.getString("filterCategoriesList"));
+            assertEquals("news", rs.getString("filterChannelsList"));
+            assertEquals("en-GB", rs.getString("languageLocale"));
+            assertEquals("1", rs.getString("resolveChainAndDeepRedirects"));
+        }
     }
 
     private Map<String, String> getAccountInfoRow(String dbPath, String accountId) throws SQLException {

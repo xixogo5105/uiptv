@@ -340,6 +340,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoSourceWidth = 0;
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
+            String playUri = resolveHlsPlaylistChain(uri);
             if (isDisposed.get()) {
                 return;
             }
@@ -350,9 +351,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
                     // Some CDNs ignore the global --http-user-agent for HLS modules.
                     if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-                        player.media().play(uri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+                        player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
                     } else {
-                        player.media().play(uri);
+                        player.media().play(playUri);
                     }
                     scheduleAudioStateStartupSync(requestVersion);
                 }

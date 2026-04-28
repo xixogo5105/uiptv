@@ -1,0 +1,1 @@
+--@add_column Configuration resolveChainAndDeepRedirects TEXT default '0'

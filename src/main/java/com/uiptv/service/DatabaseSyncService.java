@@ -4,6 +4,7 @@ import com.uiptv.db.DatabaseUtils;
 
 import java.sql.SQLException;
 
+import static com.uiptv.util.SQLiteTableSync.ensureDatabaseReady;
 import static com.uiptv.util.SQLiteTableSync.syncTables;
 
 public class DatabaseSyncService {
@@ -18,11 +19,17 @@ public class DatabaseSyncService {
         return SingletonHelper.INSTANCE;
     }
 
-    public void syncDatabases(String firstDB, String secondDB) throws SQLException {
-        for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
-            if (DatabaseUtils.Syncable.contains(tableName)) {
-                syncTables(firstDB, secondDB, tableName);
-            }
+    public void syncDatabases(String sourceDB, String targetDB) throws SQLException {
+        syncDatabases(sourceDB, targetDB, false, false);
+    }
+
+    public void syncDatabases(String sourceDB, String targetDB, boolean syncConfiguration, boolean syncExternalPlayerPaths) throws SQLException {
+        ensureDatabaseReady(targetDB);
+        for (DatabaseUtils.DbTable tableName : DatabaseUtils.Syncable) {
+            syncTables(sourceDB, targetDB, tableName);
+        }
+        if (syncConfiguration) {
+            com.uiptv.util.SQLiteTableSync.syncConfiguration(sourceDB, targetDB, syncExternalPlayerPaths);
         }
     }
 }

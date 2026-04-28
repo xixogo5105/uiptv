@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
 import com.uiptv.api.VideoPlayerInterface;
+import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
@@ -70,6 +71,8 @@ public class ConfigurationUI extends VBox {
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
+    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("configResolveChainAndDeepRedirects"));
+    private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
     private final Hyperlink ffmpegTranscodingHelpLink = new Hyperlink("(?)");
     private final Hyperlink litePlayerFfmpegHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
@@ -94,7 +97,10 @@ public class ConfigurationUI extends VBox {
     private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
+    private final Button importDatabaseButton = new Button(I18n.tr("configImportDatabase"));
+    private final Button exportDatabaseButton = new Button(I18n.tr("configExportDatabase"));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
+    private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
@@ -132,6 +138,11 @@ public class ConfigurationUI extends VBox {
                 new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"),
                 new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
         );
+        databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
+        databaseFileChooser.getExtensionFilters().setAll(
+                new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.db"),
+                new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
+        );
 
         ScrollPane scrollPane = new ScrollPane(contentContainer);
         scrollPane.setFitToWidth(true);
@@ -166,6 +177,7 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
+            resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
             vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
@@ -219,13 +231,16 @@ public class ConfigurationUI extends VBox {
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
         HBox wideViewRow = new HBox(6, wideViewCheckBox, wideViewHelpLink);
+        HBox resolveChainRow = new HBox(6, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
         box4.setAlignment(Pos.CENTER_LEFT);
         box5.setAlignment(Pos.CENTER_LEFT);
         wideViewRow.setAlignment(Pos.CENTER_LEFT);
+        resolveChainRow.setAlignment(Pos.CENTER_LEFT);
         wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
         tmdbHelpLabel.setWrapText(true);
@@ -233,7 +248,8 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow);
+        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
+        resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
         VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
@@ -260,12 +276,14 @@ public class ConfigurationUI extends VBox {
         serverGroup.setFillWidth(true);
         ffmpegTranscodingHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         litePlayerFfmpegHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
+        VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
                 createCollapsibleGroupPane(I18n.tr("configFilters"), null, filtersGroup, true),
                 createCollapsibleGroupPane(I18n.tr("configDarkTheme"), I18n.tr("configThemeDescription"), themeOverridesGroup, true),
                 createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), null, cacheGroup, true),
+                createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), I18n.tr("configDatabaseSyncDescription"), databaseSyncGroup, true),
                 createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), null, serverGroup, true),
                 createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, true),
                 saveButton
@@ -281,6 +299,8 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
+        addResolveChainHelpClickHandler();
+        addDatabaseSyncButtonHandlers();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
@@ -696,6 +716,10 @@ public class ConfigurationUI extends VBox {
         vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
 
+    private void addResolveChainHelpClickHandler() {
+        resolveChainAndDeepRedirectsHelpLink.setOnAction(event -> showResolveChainHelp());
+    }
+
     private void addWideViewHelpClickHandler() {
         wideViewHelpLink.setOnAction(event -> showWideViewHelp());
     }
@@ -703,6 +727,11 @@ public class ConfigurationUI extends VBox {
     private void addFfmpegHelpClickHandlers() {
         ffmpegTranscodingHelpLink.setOnAction(event -> showFfmpegTranscodingHelp());
         litePlayerFfmpegHelpLink.setOnAction(event -> showLitePlayerFfmpegHelp());
+    }
+
+    private void addDatabaseSyncButtonHandlers() {
+        importDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(true));
+        exportDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(false));
     }
 
     private void addSaveButtonClickHandler() {
@@ -745,6 +774,7 @@ public class ConfigurationUI extends VBox {
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
+        configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
@@ -913,6 +943,15 @@ public class ConfigurationUI extends VBox {
         return option == null ? ConfigurationService.DEFAULT_VLC_CACHING_MS : option.value();
     }
 
+    private VBox buildDatabaseSyncGroup() {
+        importDatabaseButton.setMaxWidth(Double.MAX_VALUE);
+        exportDatabaseButton.setMaxWidth(Double.MAX_VALUE);
+        Label helpLabel = new Label(I18n.tr("configDatabaseSyncHelp"));
+        helpLabel.setWrapText(true);
+        helpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
+        return new VBox(10, helpLabel, importDatabaseButton, exportDatabaseButton);
+    }
+
     private void saveVlcOptionsConfiguration(boolean showReloadMessage) {
         Configuration previous = service.read();
         Configuration configuration = service.read();
@@ -928,6 +967,110 @@ public class ConfigurationUI extends VBox {
         if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
             showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
         }
+    }
+
+    private void openDatabaseSyncPopup(boolean importMode) {
+        Stage popupStage = new Stage();
+        popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
+        popupStage.setTitle(I18n.tr(importMode ? "configImportDatabase" : "configExportDatabase"));
+
+        TextField databasePathField = new TextField();
+        databasePathField.setPromptText("uiptv.db");
+        databasePathField.setPrefWidth(380);
+        Button browseButton = new Button("...");
+        CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
+        CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
+        syncExternalPlayerPathsCheckBox.disableProperty().bind(syncConfigurationCheckBox.selectedProperty().not());
+        Button runButton = new Button(I18n.tr(importMode ? "configImportDatabase" : "configExportDatabase"));
+        Button cancelButton = new Button(I18n.tr("commonClose"));
+
+        browseButton.setOnAction(event -> {
+            File selected = importMode
+                    ? databaseFileChooser.showOpenDialog(popupStage)
+                    : databaseFileChooser.showSaveDialog(popupStage);
+            if (selected != null) {
+                databasePathField.setText(selected.getAbsolutePath());
+            }
+        });
+
+        runButton.setOnAction(event -> runDatabaseSyncAction(
+                popupStage,
+                importMode,
+                databasePathField.getText(),
+                syncConfigurationCheckBox.isSelected(),
+                syncExternalPlayerPathsCheckBox.isSelected()
+        ));
+        cancelButton.setOnAction(event -> popupStage.close());
+
+        HBox pathRow = new HBox(8, databasePathField, browseButton);
+        HBox.setHgrow(databasePathField, Priority.ALWAYS);
+        HBox buttons = new HBox(10, runButton, cancelButton);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox root = new VBox(
+                12,
+                new Label(I18n.tr(importMode ? "configImportDatabasePopupDescription" : "configExportDatabasePopupDescription")),
+                pathRow,
+                syncConfigurationCheckBox,
+                syncExternalPlayerPathsCheckBox,
+                buttons
+        );
+        root.setPadding(new Insets(14));
+
+        Scene scene = new Scene(root, 560, Region.USE_COMPUTED_SIZE);
+        I18n.applySceneOrientation(scene);
+        scene.getStylesheets().add(RootApplication.getCurrentTheme());
+        popupStage.setScene(scene);
+        popupStage.showAndWait();
+    }
+
+    private void runDatabaseSyncAction(Stage popupStage,
+                                       boolean importMode,
+                                       String selectedPath,
+                                       boolean syncConfiguration,
+                                       boolean syncExternalPlayerPaths) {
+        String normalizedPath = selectedPath == null ? "" : selectedPath.trim();
+        if (normalizedPath.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
+            return;
+        }
+        if (importMode && !new File(normalizedPath).exists()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncPathMissing"));
+            return;
+        }
+
+        try {
+            Configuration previousConfiguration = importMode ? service.read() : null;
+            String localDbPath = SQLConnection.getDatabasePath();
+            String sourcePath = importMode ? normalizedPath : localDbPath;
+            String targetPath = importMode ? localDbPath : normalizedPath;
+            RootApplication.syncDatabases(sourcePath, targetPath, syncConfiguration, syncExternalPlayerPaths);
+
+            if (importMode) {
+                Configuration currentConfiguration = service.read();
+                I18n.setLocale(currentConfiguration.getLanguageLocale());
+                applyPostSaveEffects(previousConfiguration, currentConfiguration);
+                if (onSaveCallback != null) {
+                    onSaveCallback.call(null);
+                }
+                if (syncConfiguration && restartRequired(previousConfiguration, currentConfiguration)) {
+                    showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
+                }
+            }
+
+            popupStage.close();
+            showMessageAlert(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+        } catch (Exception _) {
+            showErrorAlert(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+        }
+    }
+
+    static String resolveChainHelpText() {
+        return I18n.tr("configResolveChainAndDeepRedirectsHelp");
+    }
+
+    static String resolveChainHelpTitle() {
+        return I18n.tr("configResolveChainAndDeepRedirectsHelpTitle");
     }
 
     static String wideViewHelpText() {
@@ -952,6 +1095,17 @@ public class ConfigurationUI extends VBox {
 
     static String litePlayerFfmpegHelpTitle() {
         return I18n.tr("configEnableLitePlayerFfmpegHelpTitle");
+    }
+
+    private void showResolveChainHelp() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
+        alert.setHeaderText(resolveChainHelpTitle());
+        alert.setContentText(resolveChainHelpText());
+        alert.initOwner(getScene() == null ? null : getScene().getWindow());
+        alert.initModality(javafx.stage.Modality.NONE);
+        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+        alert.showAndWait();
     }
 
     private void showWideViewHelp() {

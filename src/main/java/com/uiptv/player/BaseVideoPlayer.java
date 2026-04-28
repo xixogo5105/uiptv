@@ -8,9 +8,11 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.util.HlsPlaylistResolver;
 import com.uiptv.util.StyleClassDecorator;
 import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
@@ -62,6 +64,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
+    private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
@@ -1920,6 +1923,23 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         }
         return "";
+    }
+
+    protected String resolveHlsPlaylistChain(String uri) {
+        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
+            return uri;
+        }
+        return HlsPlaylistResolver.resolveHlsPlaylistChain(uri, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);
+    }
+
+    protected java.util.Map<String, String> createBrowserHeaders() {
+        java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
+        if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+            headers.put("User-Agent", CHROME_USER_AGENT);
+        }
+        headers.put("Accept", "application/vnd.apple.mpegurl, */*");
+        headers.put("Accept-Language", "en-US,en;q=0.9");
+        return headers;
     }
 
     private static void markHiddenBarMessageShown() {

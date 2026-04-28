@@ -67,3 +67,4 @@
 0187_add_channel_category_id_index.sql
 0188_create_published_m3u_selection_table.sql
 0189_add_configuration_vlc_args.sql
+0190_add_configuration_resolve_chain_and_deep_redirects.sql

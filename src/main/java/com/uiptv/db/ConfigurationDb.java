@@ -110,6 +110,7 @@ public class ConfigurationDb extends BaseDb {
         c.setVlcLiveCachingMs(nullSafeString(resultSet, "vlcLiveCachingMs"));
         c.setEnableVlcHttpUserAgent(missingOrTrue(resultSet, "enableVlcHttpUserAgent"));
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
+        c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -128,7 +129,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(23, current.getDbId());
+                statement.setString(24, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -168,6 +169,7 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(20, configuration.getVlcLiveCachingMs());
         statement.setString(21, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
         statement.setString(22, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+        statement.setString(23, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
     }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

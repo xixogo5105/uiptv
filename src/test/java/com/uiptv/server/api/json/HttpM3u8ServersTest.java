@@ -14,10 +14,12 @@ import com.uiptv.server.HttpBingeWatchPlaylistServer;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.HttpUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -155,6 +158,71 @@ class HttpM3u8ServersTest extends DbBackedTest {
         Bookmark legacyAfterHandle = bookmarkService.getBookmark(savedLegacy.getDbId());
         assertEquals("ffmpeg%20http%3A%2F%2Flegacy%2F4.ts", legacyAfterHandle.getCmd());
         assertTrue(legacyExchange.getResponseBodyText().isEmpty());
+    }
+
+    @Test
+    void m3u8BookmarkEntry_resolvesMasterPlaylistWhenFeatureEnabled() throws Exception {
+        Account account = new Account("bookmark-account-resolve", "user", "pass", "http://unused", "00:11:22:33:44:56", null, null, null, null, null, AccountType.M3U8_URL, null, "http://unused/list.m3u8", false);
+        AccountService.getInstance().save(account);
+
+        Bookmark bookmark = new Bookmark("bookmark-account-resolve", "Sports", "ch-1", "Channel One", "ffmpeg%20http%3A%2F%2Forigin%2Fmaster.m3u8", "http://portal", "cat-1");
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        HttpUtil.HttpResult masterPlaylist = new HttpUtil.HttpResult(
+                200,
+                "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nvariant.m3u8\n",
+                Map.of(),
+                Map.of()
+        );
+        HttpUtil.HttpResult variantPlaylist = new HttpUtil.HttpResult(
+                200,
+                "#EXTM3U\n#EXTINF:10,\nsegment.ts\n",
+                Map.of(),
+                Map.of()
+        );
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+            Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
+            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/master.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(masterPlaylist);
+            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/variant.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(variantPlaylist);
+
+            HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
+            StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?bookmarkId=" + savedBookmark.getDbId(), "GET");
+            handler.handle(exchange);
+
+            assertValidTsResponse(exchange, "http://origin/variant.m3u8");
+        }
+    }
+
+    @Test
+    void m3u8BookmarkEntry_keepsOriginalUrlWhenFeatureDisabled() throws Exception {
+        Account account = new Account("bookmark-account-no-resolve", "user", "pass", "http://unused", "00:11:22:33:44:57", null, null, null, null, null, AccountType.M3U8_URL, null, "http://unused/list.m3u8", false);
+        AccountService.getInstance().save(account);
+
+        Bookmark bookmark = new Bookmark("bookmark-account-no-resolve", "Sports", "ch-1", "Channel One", "ffmpeg%20http%3A%2F%2Forigin%2Fmaster.m3u8", "http://portal", "cat-1");
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(false);
+
+            HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
+            StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?bookmarkId=" + savedBookmark.getDbId(), "GET");
+            handler.handle(exchange);
+
+            assertValidTsResponse(exchange, "http://origin/master.m3u8");
+            httpUtil.verifyNoInteractions();
+        }
     }
 
     @Test

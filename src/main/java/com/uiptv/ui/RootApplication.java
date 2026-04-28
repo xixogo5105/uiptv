@@ -57,21 +57,25 @@ public class RootApplication extends Application {
 
     private static void handleSync(String[] args) {
         if (args.length != 3) {
-            com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Usage: sync <first_db_path> <second_db_path>");
+            com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Usage: sync <source_db_path> <target_db_path>");
             exit(1);
         }
-        String firstDB = stripWrappingQuotes(args[1]);
-        String secondDB = stripWrappingQuotes(args[2]);
+        String sourceDB = stripWrappingQuotes(args[1]);
+        String targetDB = stripWrappingQuotes(args[2]);
         try {
-            syncDatabases(firstDB, secondDB);
+            syncDatabases(sourceDB, targetDB);
             com.uiptv.util.AppLog.addInfoLog(RootApplication.class, "Sync complete!");
         } catch (SQLException e) {
             com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Error syncing tables: " + e.getMessage());
         }
     }
 
-    public static void syncDatabases(String firstDB, String secondDB) throws SQLException {
-        databaseSyncService.syncDatabases(firstDB, secondDB);
+    public static void syncDatabases(String sourceDB, String targetDB) throws SQLException {
+        databaseSyncService.syncDatabases(sourceDB, targetDB);
+    }
+
+    public static void syncDatabases(String sourceDB, String targetDB, boolean syncConfiguration, boolean syncExternalPlayerPaths) throws SQLException {
+        databaseSyncService.syncDatabases(sourceDB, targetDB, syncConfiguration, syncExternalPlayerPaths);
     }
 
     private static String stripWrappingQuotes(String value) {

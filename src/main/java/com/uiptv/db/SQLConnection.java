@@ -66,6 +66,10 @@ public class SQLConnection {
         init();
     }
 
+    public static synchronized String getDatabasePath() {
+        return dbPath;
+    }
+
     public static Connection connect() {
         try {
             return openConnection();
