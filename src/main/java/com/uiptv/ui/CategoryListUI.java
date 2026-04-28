@@ -274,7 +274,9 @@ public class CategoryListUI extends HBox {
     }
 
     private void refreshCategoryColumnTitle() {
-        categoryTitle.setText(I18n.tr("autoCategories"));
+        String accountName = account != null && account.getAccountName() != null ? account.getAccountName().trim() : "";
+        String baseTitle = I18n.tr("autoCategories");
+        categoryTitle.setText(accountName.isEmpty() ? baseTitle : baseTitle + " - " + accountName);
     }
 
     private void maybeShowCachedChannelPane(ModeState state) {
