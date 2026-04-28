@@ -56,11 +56,18 @@ public class BookmarkChannelListUI extends HBox {
     private volatile long lastKnownBookmarkRevision = 0;
     private volatile boolean reloadInProgress = false;
     private volatile boolean loadedOnce = false;
+    private volatile boolean reloadRequestedWhileReloading = false;
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
-        if (!changeListenerRegistered || reloadInProgress || suppressAutoReloadOnBookmarkChange) {
+        if (!changeListenerRegistered || suppressAutoReloadOnBookmarkChange) {
+            return;
+        }
+        if (reloadInProgress) {
+            if (revision != lastKnownBookmarkRevision) {
+                reloadRequestedWhileReloading = true;
+            }
             return;
         }
         if (revision != lastKnownBookmarkRevision) {
@@ -97,6 +104,7 @@ public class BookmarkChannelListUI extends HBox {
 
     public void forceReload() {
         loadedOnce = true;
+        reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
         showLoadingPlaceholderIfEmpty(generation);
@@ -120,6 +128,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void reloadBookmarks(long generation) {
         try {
+            long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
             List<Bookmark> bookmarks = BookmarkService.getInstance().read();
             BookmarkResolver.ResolutionContext context = bookmarkResolver.prepare(bookmarks);
             List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
@@ -130,9 +139,12 @@ public class BookmarkChannelListUI extends HBox {
             List<BookmarkCategory> categories = new ArrayList<>();
             categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
             categories.addAll(BookmarkService.getInstance().getAllCategories());
-            long revision = BookmarkService.getInstance().getChangeRevision();
+            long revisionAfterRead = BookmarkService.getInstance().getChangeRevision();
+            if (revisionAfterRead != revisionBeforeRead) {
+                reloadRequestedWhileReloading = true;
+            }
 
-            runLater(() -> applyReloadResult(generation, loadedItems, categories, revision));
+            runLater(() -> applyReloadResult(generation, loadedItems, categories, revisionAfterRead));
         } catch (Exception _) {
             // Keep the bookmark pane usable and show the existing placeholder on reload failure.
             runLater(() -> handleReloadFailure(generation));
@@ -167,6 +179,7 @@ public class BookmarkChannelListUI extends HBox {
         }
         reloadInProgress = false;
         bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoUnableToLoadBookmarks")));
+        triggerDeferredReloadIfNeeded();
     }
 
     private void applyReloadResult(long generation, List<BookmarkItem> loadedItems, List<BookmarkCategory> categories, long revision) {
@@ -195,6 +208,7 @@ public class BookmarkChannelListUI extends HBox {
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
+        triggerDeferredReloadIfNeeded();
     }
 
     private void applyPartialReload(long generation, List<BookmarkItem> partialItems) {
@@ -242,8 +256,17 @@ public class BookmarkChannelListUI extends HBox {
     private void releaseTransientState() {
         reloadGeneration.incrementAndGet();
         reloadInProgress = false;
+        reloadRequestedWhileReloading = false;
         allBookmarkItems.clear();
         filteredItems.clear();
+    }
+
+    private void triggerDeferredReloadIfNeeded() {
+        if (!reloadRequestedWhileReloading || suppressAutoReloadOnBookmarkChange) {
+            return;
+        }
+        reloadRequestedWhileReloading = false;
+        forceReload();
     }
 
     private void initWidgets() {
