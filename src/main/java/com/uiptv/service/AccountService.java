@@ -38,26 +38,12 @@ public class AccountService {
 
     public void delete(final String accountId) {
         Account account = AccountDb.get().getAccountById(accountId);
-        if (account != null) {
-            BookmarkDb.get().deleteByAccountName(account.getAccountName());
-            sessionTokenByAccountKey.remove(getSessionAccountKey(account));
-            AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
-            PublishedM3uSelectionDb.get().deleteByAccountId(account.getDbId());
-        }
-        SeriesWatchStateDb.get().deleteByAccount(accountId);
-        VodWatchStateDb.get().deleteByAccount(accountId);
-        ChannelDb.get().deleteByAccount(accountId);
-        CategoryDb.get().deleteByAccount(AccountDb.get().getAccountById(accountId));
-        AccountDb.get().delete(accountId);
+        deleteAccountData(accountId, account);
     }
 
     public void deleteAll() {
         sessionTokenByAccountKey.clear();
-        AccountDb.get().getAccounts().forEach(account -> {
-            AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
-            PublishedM3uSelectionDb.get().deleteByAccountId(account.getDbId());
-            AccountDb.get().delete(account.getDbId());
-        });
+        AccountDb.get().getAccounts().forEach(account -> deleteAccountData(account.getDbId(), account));
     }
 
     public Map<String, Account> getAll() {
@@ -144,6 +130,20 @@ public class AccountService {
             return account.getAccountName().trim().toLowerCase();
         }
         return "";
+    }
+
+    private void deleteAccountData(String accountId, Account account) {
+        if (account != null) {
+            BookmarkService.getInstance().removeByAccountName(account.getAccountName());
+            sessionTokenByAccountKey.remove(getSessionAccountKey(account));
+            AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
+            PublishedM3uSelectionDb.get().deleteByAccountId(account.getDbId());
+        }
+        SeriesWatchStateDb.get().deleteByAccount(accountId);
+        VodWatchStateDb.get().deleteByAccount(accountId);
+        ChannelDb.get().deleteByAccount(accountId);
+        CategoryDb.get().deleteByAccount(account);
+        AccountDb.get().delete(accountId);
     }
 
     private void sanitizeAccountFields(Account account) {
