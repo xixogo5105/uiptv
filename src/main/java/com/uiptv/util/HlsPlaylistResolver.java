@@ -66,19 +66,14 @@ public final class HlsPlaylistResolver {
         long maxBandwidth = -1;
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
-            if (!line.startsWith("#EXT-X-STREAM-INF:")) {
-                continue;
+            if (line.startsWith("#EXT-X-STREAM-INF:") && i + 1 < lines.length) {
+                long bandwidth = parseBandwidth(line);
+                String candidate = lines[i + 1].trim();
+                if (!candidate.isEmpty() && !candidate.startsWith("#") && bandwidth > maxBandwidth) {
+                    maxBandwidth = bandwidth;
+                    bestVariant = candidate;
+                }
             }
-            long bandwidth = parseBandwidth(line);
-            if (i + 1 >= lines.length) {
-                continue;
-            }
-            String candidate = lines[i + 1].trim();
-            if (candidate.isEmpty() || candidate.startsWith("#") || bandwidth <= maxBandwidth) {
-                continue;
-            }
-            maxBandwidth = bandwidth;
-            bestVariant = candidate;
         }
         return isBlank(bestVariant) ? null : resolveVariantUrl(baseUrl, bestVariant);
     }

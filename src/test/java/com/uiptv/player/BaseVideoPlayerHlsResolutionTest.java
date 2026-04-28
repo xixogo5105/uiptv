@@ -125,16 +125,16 @@ class BaseVideoPlayerHlsResolutionTest {
 
     private static final class TestPlayer extends BaseVideoPlayer {
         @Override protected javafx.scene.Node getVideoView() { return null; }
-        @Override protected void playMedia(String uri) { }
-        @Override protected void stopMedia() { }
-        @Override protected void disposeMedia() { }
-        @Override protected void setVolume(double volume) { }
-        @Override protected void setMute(boolean mute) { }
-        @Override protected void seek(float position) { }
-        @Override protected void seekBySeconds(int deltaSeconds) { }
-        @Override protected void updateVideoSize() { }
-        @Override protected void pauseMedia() { }
-        @Override protected void resumeMedia() { }
+        @Override protected void playMedia(String uri) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void stopMedia() { /* Test stub: playback is not exercised here. */ }
+        @Override protected void disposeMedia() { /* Test stub: playback is not exercised here. */ }
+        @Override protected void setVolume(double volume) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void setMute(boolean mute) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void seek(float position) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void seekBySeconds(int deltaSeconds) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void updateVideoSize() { /* Test stub: layout is not exercised here. */ }
+        @Override protected void pauseMedia() { /* Test stub: playback is not exercised here. */ }
+        @Override protected void resumeMedia() { /* Test stub: playback is not exercised here. */ }
         @Override protected boolean isPlaying() { return false; }
         @Override public com.uiptv.api.VideoPlayerInterface.PlayerType getType() { return com.uiptv.api.VideoPlayerInterface.PlayerType.DUMMY; }
 

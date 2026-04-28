@@ -43,6 +43,9 @@ public class ConfigurationUI extends VBox {
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
+    private static final String CONFIG_EMBED_PLAYER_RESTART_NEEDED = "configEmbedPlayerRestartNeeded";
+    private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
+    private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
     private static final String DIALOG_TITLE_COMMON_INFO = "commonInfo";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
@@ -97,8 +100,8 @@ public class ConfigurationUI extends VBox {
     private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
-    private final Button importDatabaseButton = new Button(I18n.tr("configImportDatabase"));
-    private final Button exportDatabaseButton = new Button(I18n.tr("configExportDatabase"));
+    private final Button importDatabaseButton = new Button(I18n.tr(CONFIG_IMPORT_DATABASE));
+    private final Button exportDatabaseButton = new Button(I18n.tr(CONFIG_EXPORT_DATABASE));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
@@ -748,7 +751,7 @@ public class ConfigurationUI extends VBox {
                 applyPostSaveEffects(previous, newConfiguration);
                 showSaveSuccessAnimation();
                 if (restartRequired(previous, newConfiguration)) {
-                    showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
+                    showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
                 }
             } catch (Exception _) {
                 showErrorAlert(I18n.tr("configFailedToSave"));
@@ -965,14 +968,14 @@ public class ConfigurationUI extends VBox {
             onSaveCallback.call(null);
         }
         if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
-            showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
+            showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
         }
     }
 
     private void openDatabaseSyncPopup(boolean importMode) {
         Stage popupStage = new Stage();
         popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
-        popupStage.setTitle(I18n.tr(importMode ? "configImportDatabase" : "configExportDatabase"));
+        popupStage.setTitle(I18n.tr(databaseSyncActionKey(importMode)));
 
         TextField databasePathField = new TextField();
         databasePathField.setPromptText("uiptv.db");
@@ -981,7 +984,7 @@ public class ConfigurationUI extends VBox {
         CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
         CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
         syncExternalPlayerPathsCheckBox.disableProperty().bind(syncConfigurationCheckBox.selectedProperty().not());
-        Button runButton = new Button(I18n.tr(importMode ? "configImportDatabase" : "configExportDatabase"));
+        Button runButton = new Button(I18n.tr(databaseSyncActionKey(importMode)));
         Button cancelButton = new Button(I18n.tr("commonClose"));
 
         browseButton.setOnAction(event -> {
@@ -1029,40 +1032,72 @@ public class ConfigurationUI extends VBox {
                                        String selectedPath,
                                        boolean syncConfiguration,
                                        boolean syncExternalPlayerPaths) {
-        String normalizedPath = selectedPath == null ? "" : selectedPath.trim();
-        if (normalizedPath.isBlank()) {
+        String normalizedPath = normalizeSelectedPath(selectedPath);
+        if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
             return;
         }
-        if (importMode && !new File(normalizedPath).exists()) {
+        if (isMissingImportSource(importMode, normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathMissing"));
             return;
         }
 
         try {
             Configuration previousConfiguration = importMode ? service.read() : null;
-            String localDbPath = SQLConnection.getDatabasePath();
-            String sourcePath = importMode ? normalizedPath : localDbPath;
-            String targetPath = importMode ? localDbPath : normalizedPath;
+            String sourcePath = resolveDatabaseSyncSourcePath(importMode, normalizedPath);
+            String targetPath = resolveDatabaseSyncTargetPath(importMode, normalizedPath);
             RootApplication.syncDatabases(sourcePath, targetPath, syncConfiguration, syncExternalPlayerPaths);
-
-            if (importMode) {
-                Configuration currentConfiguration = service.read();
-                I18n.setLocale(currentConfiguration.getLanguageLocale());
-                applyPostSaveEffects(previousConfiguration, currentConfiguration);
-                if (onSaveCallback != null) {
-                    onSaveCallback.call(null);
-                }
-                if (syncConfiguration && restartRequired(previousConfiguration, currentConfiguration)) {
-                    showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
-                }
-            }
-
+            applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
             popupStage.close();
-            showMessageAlert(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            showMessageAlert(I18n.tr(databaseSyncResultKey(importMode, "Success")));
         } catch (Exception _) {
-            showErrorAlert(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            showErrorAlert(I18n.tr(databaseSyncResultKey(importMode, "Failed")));
         }
+    }
+
+    private String normalizeSelectedPath(String selectedPath) {
+        return selectedPath == null ? "" : selectedPath.trim();
+    }
+
+    private boolean isMissingDatabasePath(String normalizedPath) {
+        return normalizedPath.isBlank();
+    }
+
+    private boolean isMissingImportSource(boolean importMode, String normalizedPath) {
+        return importMode && !new File(normalizedPath).exists();
+    }
+
+    private String resolveDatabaseSyncSourcePath(boolean importMode, String normalizedPath) {
+        return importMode ? normalizedPath : SQLConnection.getDatabasePath();
+    }
+
+    private String resolveDatabaseSyncTargetPath(boolean importMode, String normalizedPath) {
+        return importMode ? SQLConnection.getDatabasePath() : normalizedPath;
+    }
+
+    private void applyPostDatabaseImport(boolean importMode,
+                                         Configuration previousConfiguration,
+                                         boolean syncConfiguration) {
+        if (!importMode) {
+            return;
+        }
+        Configuration currentConfiguration = service.read();
+        I18n.setLocale(currentConfiguration.getLanguageLocale());
+        applyPostSaveEffects(previousConfiguration, currentConfiguration);
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
+        if (syncConfiguration && restartRequired(previousConfiguration, currentConfiguration)) {
+            showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
+        }
+    }
+
+    private String databaseSyncActionKey(boolean importMode) {
+        return importMode ? CONFIG_IMPORT_DATABASE : CONFIG_EXPORT_DATABASE;
+    }
+
+    private String databaseSyncResultKey(boolean importMode, String suffix) {
+        return databaseSyncActionKey(importMode) + suffix;
     }
 
     static String resolveChainHelpText() {
