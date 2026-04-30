@@ -1026,12 +1026,7 @@ public class ConfigurationUI extends VBox {
             }
         });
 
-        runButton.setOnAction(event -> runDatabaseSyncAction(
-                popupStage,
-                importMode,
-                databasePathField.getText(),
-                syncConfigurationCheckBox.isSelected(),
-                syncExternalPlayerPathsCheckBox.isSelected(),
+        DatabaseSyncDialogControls controls = new DatabaseSyncDialogControls(
                 databasePathField,
                 browseButton,
                 syncConfigurationCheckBox,
@@ -1042,6 +1037,15 @@ public class ConfigurationUI extends VBox {
                 progressLabel,
                 resultTextArea,
                 syncRunning
+        );
+
+        runButton.setOnAction(event -> runDatabaseSyncAction(
+                popupStage,
+                importMode,
+                databasePathField.getText(),
+                syncConfigurationCheckBox.isSelected(),
+                syncExternalPlayerPathsCheckBox.isSelected(),
+                controls
         ));
         cancelButton.setOnAction(event -> popupStage.close());
         popupStage.setOnCloseRequest(event -> {
@@ -1080,16 +1084,7 @@ public class ConfigurationUI extends VBox {
                                        String selectedPath,
                                        boolean syncConfiguration,
                                        boolean syncExternalPlayerPaths,
-                                       TextField databasePathField,
-                                       Button browseButton,
-                                       CheckBox syncConfigurationCheckBox,
-                                       CheckBox syncExternalPlayerPathsCheckBox,
-                                       Button runButton,
-                                       Button cancelButton,
-                                       ProgressBar progressBar,
-                                       Label progressLabel,
-                                       TextArea resultTextArea,
-                                       AtomicBoolean syncRunning) {
+                                       DatabaseSyncDialogControls controls) {
         String normalizedPath = normalizeSelectedPath(selectedPath);
         if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
@@ -1105,24 +1100,23 @@ public class ConfigurationUI extends VBox {
         String targetPath = resolveDatabaseSyncTargetPath(importMode, normalizedPath);
 
         setDatabaseSyncControlsDisabled(true,
-                databasePathField,
-                browseButton,
-                syncConfigurationCheckBox,
-                syncExternalPlayerPathsCheckBox,
-                runButton);
-        syncRunning.set(true);
-        cancelButton.setDisable(true);
-        runButton.setVisible(false);
-        runButton.setManaged(false);
-        progressBar.setVisible(true);
-        progressBar.setManaged(true);
-        progressLabel.setVisible(true);
-        progressLabel.setManaged(true);
-        resultTextArea.clear();
-        resultTextArea.setVisible(false);
-        resultTextArea.setManaged(false);
-        progressBar.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-        progressLabel.setText(I18n.tr("configDatabaseSyncInProgress"));
+                controls.databasePathField(),
+                controls.browseButton(),
+                controls.syncConfigurationCheckBox(),
+                controls.runButton());
+        controls.syncRunning().set(true);
+        controls.cancelButton().setDisable(true);
+        controls.runButton().setVisible(false);
+        controls.runButton().setManaged(false);
+        controls.progressBar().setVisible(true);
+        controls.progressBar().setManaged(true);
+        controls.progressLabel().setVisible(true);
+        controls.progressLabel().setManaged(true);
+        controls.resultTextArea().clear();
+        controls.resultTextArea().setVisible(false);
+        controls.resultTextArea().setManaged(false);
+        controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+        controls.progressLabel().setText(I18n.tr("configDatabaseSyncInProgress"));
         popupStage.sizeToScene();
 
         Task<DatabaseSyncService.DatabaseSyncReport> task = new Task<>() {
@@ -1141,35 +1135,35 @@ public class ConfigurationUI extends VBox {
             }
         };
 
-        progressBar.progressProperty().bind(task.progressProperty());
-        progressLabel.textProperty().bind(task.messageProperty());
+        controls.progressBar().progressProperty().bind(task.progressProperty());
+        controls.progressLabel().textProperty().bind(task.messageProperty());
 
         task.setOnSucceeded(event -> {
-            progressBar.progressProperty().unbind();
-            progressLabel.textProperty().unbind();
-            syncRunning.set(false);
+            controls.progressBar().progressProperty().unbind();
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
             applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
-            progressBar.setProgress(1);
-            progressLabel.setText(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
-            resultTextArea.setText(buildDatabaseSyncSummary(importMode, task.getValue()));
-            resultTextArea.setVisible(true);
-            resultTextArea.setManaged(true);
-            cancelButton.setDisable(false);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            controls.resultTextArea().setText(buildDatabaseSyncSummary(importMode, task.getValue()));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
             popupStage.sizeToScene();
         });
 
         task.setOnFailed(event -> {
-            progressBar.progressProperty().unbind();
-            progressLabel.textProperty().unbind();
-            syncRunning.set(false);
-            progressBar.setProgress(1);
-            progressLabel.setText(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
-            resultTextArea.setText(I18n.tr("configDatabaseSyncFailedWithReason",
+            controls.progressBar().progressProperty().unbind();
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            controls.resultTextArea().setText(I18n.tr("configDatabaseSyncFailedWithReason",
                     I18n.tr(databaseSyncActionKey(importMode)),
                     summarizeExceptionMessage(task.getException())));
-            resultTextArea.setVisible(true);
-            resultTextArea.setManaged(true);
-            cancelButton.setDisable(false);
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
             popupStage.sizeToScene();
         });
 
@@ -1182,7 +1176,6 @@ public class ConfigurationUI extends VBox {
                                                  TextField databasePathField,
                                                  Button browseButton,
                                                  CheckBox syncConfigurationCheckBox,
-                                                 CheckBox syncExternalPlayerPathsCheckBox,
                                                  Button runButton) {
         databasePathField.setDisable(disabled);
         browseButton.setDisable(disabled);
@@ -1232,6 +1225,18 @@ public class ConfigurationUI extends VBox {
             return I18n.tr("configDatabaseSyncFinalizing");
         }
         return I18n.tr(importMode ? "configDatabaseImportingStep" : "configDatabaseExportingStep", currentStep);
+    }
+
+    private record DatabaseSyncDialogControls(TextField databasePathField,
+                                              Button browseButton,
+                                              CheckBox syncConfigurationCheckBox,
+                                              CheckBox syncExternalPlayerPathsCheckBox,
+                                              Button runButton,
+                                              Button cancelButton,
+                                              ProgressBar progressBar,
+                                              Label progressLabel,
+                                              TextArea resultTextArea,
+                                              AtomicBoolean syncRunning) {
     }
 
     private String buildDatabaseSyncSummary(boolean importMode, DatabaseSyncService.DatabaseSyncReport report) {

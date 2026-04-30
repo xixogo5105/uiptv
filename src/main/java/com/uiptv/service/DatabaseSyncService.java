@@ -87,20 +87,12 @@ public class DatabaseSyncService {
         void onProgress(int completedSteps, int totalSteps, String currentStep);
     }
 
-    public static final class DatabaseSyncReport {
-        private final List<TableSyncResult> tableResults;
-        private final boolean configurationRequested;
-        private final boolean configurationCopied;
-        private final boolean externalPlayerPathsIncluded;
-
-        public DatabaseSyncReport(List<TableSyncResult> tableResults,
-                                  boolean configurationRequested,
-                                  boolean configurationCopied,
-                                  boolean externalPlayerPathsIncluded) {
-            this.tableResults = Collections.unmodifiableList(new ArrayList<>(tableResults));
-            this.configurationRequested = configurationRequested;
-            this.configurationCopied = configurationCopied;
-            this.externalPlayerPathsIncluded = externalPlayerPathsIncluded;
+    public record DatabaseSyncReport(List<TableSyncResult> tableResults,
+                                     boolean configurationRequested,
+                                     boolean configurationCopied,
+                                     boolean externalPlayerPathsIncluded) {
+        public DatabaseSyncReport {
+            tableResults = Collections.unmodifiableList(new ArrayList<>(tableResults));
         }
 
         public List<TableSyncResult> getTableResults() {
@@ -124,15 +116,7 @@ public class DatabaseSyncService {
         }
     }
 
-    public static final class TableSyncResult {
-        private final String tableName;
-        private final int rowCount;
-
-        public TableSyncResult(String tableName, int rowCount) {
-            this.tableName = tableName;
-            this.rowCount = rowCount;
-        }
-
+    public record TableSyncResult(String tableName, int rowCount) {
         public String getTableName() {
             return tableName;
         }

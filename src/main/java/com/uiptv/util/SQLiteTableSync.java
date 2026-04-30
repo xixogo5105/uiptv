@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 
 public final class SQLiteTableSync {
     private static final String SQLITE_PREFIX = "jdbc:sqlite:";
+    private static final String SQL_FROM = " FROM ";
+    private static final String SQL_INSERT_INTO = "INSERT INTO ";
+    private static final String SQL_VALUES = ") VALUES (";
 
     private SQLiteTableSync() {
     }
@@ -102,8 +105,8 @@ public final class SQLiteTableSync {
 
         String columnList = String.join(", ", commonColumns);
         String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
-        String selectSql = "SELECT " + columnList + " FROM " + tableName;
-        String insertSql = "INSERT OR REPLACE INTO " + tableName + " (" + columnList + ") VALUES (" + placeholders + ")";
+        String selectSql = "SELECT " + columnList + SQL_FROM + tableName;
+        String insertSql = "INSERT OR REPLACE INTO " + tableName + " (" + columnList + SQL_VALUES + placeholders + ")";
 
         try (
                 Statement sourceStmt = sourceConn.createStatement();
@@ -138,9 +141,9 @@ public final class SQLiteTableSync {
 
         String columnList = String.join(", ", commonColumns);
         String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
-        String selectSql = "SELECT " + columnList + " FROM " + tableName;
+        String selectSql = "SELECT " + columnList + SQL_FROM + tableName;
         String deleteSql = "DELETE FROM " + tableName;
-        String insertSql = "INSERT INTO " + tableName + " (" + columnList + ") VALUES (" + placeholders + ")";
+        String insertSql = SQL_INSERT_INTO + tableName + " (" + columnList + SQL_VALUES + placeholders + ")";
 
         boolean originalAutoCommit = targetConn.getAutoCommit();
         try (
@@ -221,31 +224,11 @@ public final class SQLiteTableSync {
             deleteTargetSelections.executeUpdate("DELETE FROM " + selectionTable);
 
             while (sourceRows.next()) {
-                String sourceAccountId = sourceRows.getString("accountId");
-                if (sourceAccountId == null || sourceAccountId.isBlank()) {
-                    continue;
-                }
-
-                sourceAccountName.setString(1, sourceAccountId);
-                try (ResultSet sourceAccount = sourceAccountName.executeQuery()) {
-                    if (!sourceAccount.next()) {
-                        continue;
-                    }
-
-                    String accountName = sourceAccount.getString("accountName");
-                    if (accountName == null || accountName.isBlank()) {
-                        continue;
-                    }
-
-                    targetAccountId.setString(1, accountName);
-                    try (ResultSet targetAccount = targetAccountId.executeQuery()) {
-                        if (!targetAccount.next()) {
-                            continue;
-                        }
-                        insertTargetSelection.setString(1, targetAccount.getString("id"));
-                        insertTargetSelection.addBatch();
-                        syncedRows++;
-                    }
+                String targetSelectionAccountId = resolveTargetAccountId(sourceRows, sourceAccountName, targetAccountId);
+                if (targetSelectionAccountId != null) {
+                    insertTargetSelection.setString(1, targetSelectionAccountId);
+                    insertTargetSelection.addBatch();
+                    syncedRows++;
                 }
             }
 
@@ -270,7 +253,7 @@ public final class SQLiteTableSync {
             return null;
         }
 
-        String sql = "SELECT id, " + columnList + " FROM " + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName() + " ORDER BY id LIMIT 1";
+        String sql = "SELECT id, " + columnList + SQL_FROM + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName() + " ORDER BY id LIMIT 1";
         try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             if (!rs.next()) {
                 return null;
@@ -295,8 +278,8 @@ public final class SQLiteTableSync {
         if (targetId == null) {
             String columnList = String.join(", ", columns);
             String placeholders = columns.stream().map(column -> "?").collect(Collectors.joining(", "));
-            String sql = "INSERT INTO " + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName()
-                    + " (" + columnList + ") VALUES (" + placeholders + ")";
+            String sql = SQL_INSERT_INTO + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName()
+                    + " (" + columnList + SQL_VALUES + placeholders + ")";
             try (PreparedStatement statement = conn.prepareStatement(sql)) {
                 bindColumns(statement, columns, row);
                 statement.executeUpdate();
@@ -317,6 +300,32 @@ public final class SQLiteTableSync {
     private static void bindColumns(PreparedStatement statement, List<String> columns, ConfigurationRow row) throws SQLException {
         for (int i = 0; i < columns.size(); i++) {
             statement.setObject(i + 1, row.get(columns.get(i)));
+        }
+    }
+
+    private static String resolveTargetAccountId(ResultSet sourceRows,
+                                                 PreparedStatement sourceAccountName,
+                                                 PreparedStatement targetAccountId) throws SQLException {
+        String sourceAccountId = sourceRows.getString("accountId");
+        if (sourceAccountId == null || sourceAccountId.isBlank()) {
+            return null;
+        }
+
+        sourceAccountName.setString(1, sourceAccountId);
+        try (ResultSet sourceAccount = sourceAccountName.executeQuery()) {
+            if (!sourceAccount.next()) {
+                return null;
+            }
+
+            String accountName = sourceAccount.getString("accountName");
+            if (accountName == null || accountName.isBlank()) {
+                return null;
+            }
+
+            targetAccountId.setString(1, accountName);
+            try (ResultSet targetAccount = targetAccountId.executeQuery()) {
+                return targetAccount.next() ? targetAccount.getString("id") : null;
+            }
         }
     }
 
