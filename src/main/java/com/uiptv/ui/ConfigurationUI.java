@@ -7,6 +7,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
+import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.*;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
@@ -18,6 +19,7 @@ import com.uiptv.widget.UIptvTextArea;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Objects;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -71,6 +74,7 @@ public class ConfigurationUI extends VBox {
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final CheckBox enableFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableFfmpeg")));
     private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableLitePlayerFfmpeg")));
+    private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
@@ -180,6 +184,7 @@ public class ConfigurationUI extends VBox {
             serverPort.setText(configuration.getServerPort());
             enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
             enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
+            autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
             resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
@@ -271,11 +276,14 @@ public class ConfigurationUI extends VBox {
         publishM3u8Button.setPrefWidth(440);
         HBox ffmpegTranscodingRow = new HBox(6, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
         HBox litePlayerFfmpegRow = new HBox(6, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
+        HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
         ffmpegTranscodingRow.setAlignment(Pos.CENTER_LEFT);
         litePlayerFfmpegRow.setAlignment(Pos.CENTER_LEFT);
+        autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
         enableFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         enableLitePlayerFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button);
+        autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button, autoRunServerOnStartupRow);
         serverGroup.setFillWidth(true);
         ffmpegTranscodingHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         litePlayerFfmpegHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
@@ -777,6 +785,7 @@ public class ConfigurationUI extends VBox {
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
+        configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
         configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
@@ -983,9 +992,18 @@ public class ConfigurationUI extends VBox {
         Button browseButton = new Button("...");
         CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
         CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
+        ProgressBar progressBar = new ProgressBar(0);
+        Label progressLabel = new Label();
         syncExternalPlayerPathsCheckBox.disableProperty().bind(syncConfigurationCheckBox.selectedProperty().not());
         Button runButton = new Button(I18n.tr(databaseSyncActionKey(importMode)));
         Button cancelButton = new Button(I18n.tr("commonClose"));
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+        progressLabel.setWrapText(true);
+        progressLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
+        progressLabel.setVisible(false);
+        progressLabel.setManaged(false);
 
         browseButton.setOnAction(event -> {
             File selected = importMode
@@ -1001,9 +1019,22 @@ public class ConfigurationUI extends VBox {
                 importMode,
                 databasePathField.getText(),
                 syncConfigurationCheckBox.isSelected(),
-                syncExternalPlayerPathsCheckBox.isSelected()
+                syncExternalPlayerPathsCheckBox.isSelected(),
+                databasePathField,
+                browseButton,
+                syncConfigurationCheckBox,
+                syncExternalPlayerPathsCheckBox,
+                runButton,
+                cancelButton,
+                progressBar,
+                progressLabel
         ));
         cancelButton.setOnAction(event -> popupStage.close());
+        popupStage.setOnCloseRequest(event -> {
+            if (cancelButton.isDisable()) {
+                event.consume();
+            }
+        });
 
         HBox pathRow = new HBox(8, databasePathField, browseButton);
         HBox.setHgrow(databasePathField, Priority.ALWAYS);
@@ -1016,6 +1047,8 @@ public class ConfigurationUI extends VBox {
                 pathRow,
                 syncConfigurationCheckBox,
                 syncExternalPlayerPathsCheckBox,
+                progressBar,
+                progressLabel,
                 buttons
         );
         root.setPadding(new Insets(14));
@@ -1031,7 +1064,15 @@ public class ConfigurationUI extends VBox {
                                        boolean importMode,
                                        String selectedPath,
                                        boolean syncConfiguration,
-                                       boolean syncExternalPlayerPaths) {
+                                       boolean syncExternalPlayerPaths,
+                                       TextField databasePathField,
+                                       Button browseButton,
+                                       CheckBox syncConfigurationCheckBox,
+                                       CheckBox syncExternalPlayerPathsCheckBox,
+                                       Button runButton,
+                                       Button cancelButton,
+                                       ProgressBar progressBar,
+                                       Label progressLabel) {
         String normalizedPath = normalizeSelectedPath(selectedPath);
         if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
@@ -1042,17 +1083,82 @@ public class ConfigurationUI extends VBox {
             return;
         }
 
-        try {
-            Configuration previousConfiguration = importMode ? service.read() : null;
-            String sourcePath = resolveDatabaseSyncSourcePath(importMode, normalizedPath);
-            String targetPath = resolveDatabaseSyncTargetPath(importMode, normalizedPath);
-            RootApplication.syncDatabases(sourcePath, targetPath, syncConfiguration, syncExternalPlayerPaths);
+        Configuration previousConfiguration = importMode ? service.read() : null;
+        String sourcePath = resolveDatabaseSyncSourcePath(importMode, normalizedPath);
+        String targetPath = resolveDatabaseSyncTargetPath(importMode, normalizedPath);
+
+        setDatabaseSyncControlsDisabled(true,
+                databasePathField,
+                browseButton,
+                syncConfigurationCheckBox,
+                syncExternalPlayerPathsCheckBox,
+                runButton);
+        cancelButton.setDisable(true);
+        progressBar.setVisible(true);
+        progressBar.setManaged(true);
+        progressLabel.setVisible(true);
+        progressLabel.setManaged(true);
+        progressBar.setProgress(0);
+        progressLabel.setText(I18n.tr("configDatabaseSyncInProgress"));
+
+        Task<DatabaseSyncService.DatabaseSyncReport> task = new Task<>() {
+            @Override
+            protected DatabaseSyncService.DatabaseSyncReport call() throws Exception {
+                return RootApplication.syncDatabasesWithReport(
+                        sourcePath,
+                        targetPath,
+                        syncConfiguration,
+                        syncExternalPlayerPaths,
+                        (completedSteps, totalSteps, currentStep) -> {
+                            updateProgress(totalSteps == 0 ? 1 : completedSteps, totalSteps == 0 ? 1 : totalSteps);
+                            updateMessage(formatDatabaseSyncProgressMessage(importMode, currentStep));
+                        }
+                );
+            }
+        };
+
+        progressBar.progressProperty().bind(task.progressProperty());
+        progressLabel.textProperty().bind(task.messageProperty());
+
+        task.setOnSucceeded(event -> {
+            progressBar.progressProperty().unbind();
+            progressLabel.textProperty().unbind();
             applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
             popupStage.close();
-            showMessageAlert(I18n.tr(databaseSyncResultKey(importMode, "Success")));
-        } catch (Exception _) {
-            showErrorAlert(I18n.tr(databaseSyncResultKey(importMode, "Failed")));
-        }
+            showMessageAlert(buildDatabaseSyncSummary(importMode, task.getValue()));
+        });
+
+        task.setOnFailed(event -> {
+            progressBar.progressProperty().unbind();
+            progressLabel.textProperty().unbind();
+            progressBar.setProgress(0);
+            progressLabel.setText(I18n.tr("configDatabaseSyncFailedWithReason", I18n.tr(databaseSyncActionKey(importMode)), summarizeExceptionMessage(task.getException())));
+            cancelButton.setDisable(false);
+            setDatabaseSyncControlsDisabled(false,
+                    databasePathField,
+                    browseButton,
+                    syncConfigurationCheckBox,
+                    syncExternalPlayerPathsCheckBox,
+                    runButton);
+            showErrorAlert(I18n.tr("configDatabaseSyncFailedWithReason", I18n.tr(databaseSyncActionKey(importMode)), summarizeExceptionMessage(task.getException())));
+        });
+
+        Thread worker = new Thread(task, importMode ? "database-import-task" : "database-export-task");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void setDatabaseSyncControlsDisabled(boolean disabled,
+                                                 TextField databasePathField,
+                                                 Button browseButton,
+                                                 CheckBox syncConfigurationCheckBox,
+                                                 CheckBox syncExternalPlayerPathsCheckBox,
+                                                 Button runButton) {
+        databasePathField.setDisable(disabled);
+        browseButton.setDisable(disabled);
+        syncConfigurationCheckBox.setDisable(disabled);
+        syncExternalPlayerPathsCheckBox.setDisable(disabled);
+        runButton.setDisable(disabled);
     }
 
     private String normalizeSelectedPath(String selectedPath) {
@@ -1090,6 +1196,41 @@ public class ConfigurationUI extends VBox {
         if (syncConfiguration && restartRequired(previousConfiguration, currentConfiguration)) {
             showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
         }
+    }
+
+    private String formatDatabaseSyncProgressMessage(boolean importMode, String currentStep) {
+        if (currentStep == null || currentStep.isBlank()) {
+            return I18n.tr("configDatabaseSyncFinalizing");
+        }
+        return I18n.tr(importMode ? "configDatabaseImportingStep" : "configDatabaseExportingStep", currentStep);
+    }
+
+    private String buildDatabaseSyncSummary(boolean importMode, DatabaseSyncService.DatabaseSyncReport report) {
+        StringBuilder summary = new StringBuilder(I18n.tr(databaseSyncResultKey(importMode, "Success")));
+        summary.append("\n\n").append(I18n.tr("configDatabaseSyncSummaryRows", report.getTotalRowsSynced()));
+        List<DatabaseSyncService.TableSyncResult> tableResults = report.getTableResults();
+        for (DatabaseSyncService.TableSyncResult tableResult : tableResults) {
+            summary.append("\n")
+                    .append(I18n.tr("configDatabaseSyncSummaryTable", tableResult.getTableName(), tableResult.getRowCount()));
+        }
+        if (report.isConfigurationRequested()) {
+            String configurationLineKey = report.isConfigurationCopied()
+                    ? "configDatabaseSyncSummaryConfiguration"
+                    : "configDatabaseSyncSummaryConfigurationMissing";
+            String playerPathPolicyKey = report.isExternalPlayerPathsIncluded()
+                    ? "configDatabaseSyncSummaryExternalPlayerPathsIncluded"
+                    : "configDatabaseSyncSummaryExternalPlayerPathsKept";
+            summary.append("\n")
+                    .append(I18n.tr(configurationLineKey, I18n.tr(playerPathPolicyKey)));
+        }
+        return summary.toString();
+    }
+
+    private String summarizeExceptionMessage(Throwable throwable) {
+        if (throwable == null || throwable.getMessage() == null || throwable.getMessage().isBlank()) {
+            return I18n.tr("commonError");
+        }
+        return throwable.getMessage();
     }
 
     private String databaseSyncActionKey(boolean importMode) {

@@ -42,28 +42,30 @@ public final class SQLiteTableSync {
         }
     }
 
-    public static void syncTables(String sourceDBPath, String targetDBPath, DatabaseUtils.DbTable table) throws SQLException {
+    public static int syncTables(String sourceDBPath, String targetDBPath, DatabaseUtils.DbTable table) throws SQLException {
         String tableName = DatabaseUtils.validatedTableName(table);
         try (
                 Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
                 Connection targetConn = DriverManager.getConnection(SQLITE_PREFIX + targetDBPath)
         ) {
-            syncTable(sourceConn, targetConn, tableName);
+            int syncedRows = syncTable(sourceConn, targetConn, tableName);
             AppLog.addInfoLog(SQLiteTableSync.class, "Table '" + tableName + "' synced from source to target.");
+            return syncedRows;
         }
     }
 
-    public static void syncConfiguration(String sourceDBPath, String targetDBPath, boolean includeExternalPlayerPaths) throws SQLException {
+    public static boolean syncConfiguration(String sourceDBPath, String targetDBPath, boolean includeExternalPlayerPaths) throws SQLException {
         try (
                 Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
                 Connection targetConn = DriverManager.getConnection(SQLITE_PREFIX + targetDBPath)
         ) {
-            syncConfiguration(sourceConn, targetConn, includeExternalPlayerPaths);
+            boolean synced = syncConfiguration(sourceConn, targetConn, includeExternalPlayerPaths);
             AppLog.addInfoLog(SQLiteTableSync.class, "Configuration synced from source to target.");
+            return synced;
         }
     }
 
-    private static void syncTable(Connection sourceConn, Connection targetConn, String tableName) throws SQLException {
+    private static int syncTable(Connection sourceConn, Connection targetConn, String tableName) throws SQLException {
         List<String> targetColumns = getTableColumns(targetConn, tableName);
         Set<String> targetColumnSet = new LinkedHashSet<>(targetColumns);
         List<String> sourceColumns = getTableColumns(sourceConn, tableName);
@@ -86,17 +88,20 @@ public final class SQLiteTableSync {
                 PreparedStatement targetStatement = targetConn.prepareStatement(insertSql)
         ) {
             int columnCount = commonColumns.size();
+            int syncedRows = 0;
             while (sourceResult.next()) {
                 for (int i = 1; i <= columnCount; i++) {
                     targetStatement.setObject(i, sourceResult.getObject(i));
                 }
                 targetStatement.addBatch();
+                syncedRows++;
             }
             targetStatement.executeBatch();
+            return syncedRows;
         }
     }
 
-    private static void syncConfiguration(Connection sourceConn, Connection targetConn, boolean includeExternalPlayerPaths) throws SQLException {
+    private static boolean syncConfiguration(Connection sourceConn, Connection targetConn, boolean includeExternalPlayerPaths) throws SQLException {
         List<String> sourceColumns = getTableColumns(sourceConn, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
         List<String> targetColumns = getTableColumns(targetConn, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
         List<String> commonColumns = sourceColumns.stream()
@@ -104,12 +109,12 @@ public final class SQLiteTableSync {
                 .toList();
 
         if (commonColumns.isEmpty()) {
-            return;
+            return false;
         }
 
         ConfigurationRow sourceRow = readFirstConfigurationRow(sourceConn, commonColumns);
         if (sourceRow == null) {
-            return;
+            return false;
         }
         ConfigurationRow targetRow = readFirstConfigurationRow(targetConn, commonColumns);
         if (!includeExternalPlayerPaths && targetRow != null) {
@@ -120,6 +125,7 @@ public final class SQLiteTableSync {
         }
 
         upsertFirstConfigurationRow(targetConn, sourceRow, targetRow != null ? targetRow.id : null);
+        return true;
     }
 
     private static ConfigurationRow readFirstConfigurationRow(Connection conn, List<String> columns) throws SQLException {

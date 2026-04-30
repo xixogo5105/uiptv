@@ -103,6 +103,7 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         configuration.setLanguageLocale("en-US");
         configuration.setTmdbReadAccessToken("tmdb-token");
         configuration.setUiZoomPercent("125");
+        configuration.setAutoRunServerOnStartup(true);
         configurationService.save(configuration);
         return configurationService.read();
     }
@@ -112,6 +113,7 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         assertEquals("8899", savedConfiguration.getServerPort());
         assertEquals("125", savedConfiguration.getUiZoomPercent());
         assertTrue(savedConfiguration.isWideView());
+        assertTrue(savedConfiguration.isAutoRunServerOnStartup());
     }
 
     private ThemeCssOverride saveAndReadThemeOverride(ThemeCssOverrideService themeCssOverrideService) {

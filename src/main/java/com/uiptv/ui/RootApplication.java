@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
+import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
@@ -25,6 +26,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 
 import static java.lang.System.exit;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
@@ -76,6 +78,14 @@ public class RootApplication extends Application {
 
     public static void syncDatabases(String sourceDB, String targetDB, boolean syncConfiguration, boolean syncExternalPlayerPaths) throws SQLException {
         databaseSyncService.syncDatabases(sourceDB, targetDB, syncConfiguration, syncExternalPlayerPaths);
+    }
+
+    public static DatabaseSyncService.DatabaseSyncReport syncDatabasesWithReport(String sourceDB,
+                                                                                 String targetDB,
+                                                                                 boolean syncConfiguration,
+                                                                                 boolean syncExternalPlayerPaths,
+                                                                                 DatabaseSyncService.SyncProgressListener progressListener) throws SQLException {
+        return databaseSyncService.syncDatabasesWithReport(sourceDB, targetDB, syncConfiguration, syncExternalPlayerPaths, progressListener);
     }
 
     private static String stripWrappingQuotes(String value) {
@@ -175,6 +185,7 @@ public class RootApplication extends Application {
         primaryStage.setScene(loadingScene);
         primaryStage.show();
         Platform.runLater(() -> applyMaximizedBounds(primaryStage));
+        autoStartInternalServer(bootConfiguration);
 
         Platform.runLater(() -> {
             BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
@@ -218,6 +229,19 @@ public class RootApplication extends Application {
                 GUIDED_MAX_HEIGHT_PIXELS,
                 embeddedEnabled
         );
+    }
+
+    private void autoStartInternalServer(Configuration configuration) {
+        if (configuration == null || !configuration.isAutoRunServerOnStartup()) {
+            return;
+        }
+        Platform.runLater(() -> {
+            try {
+                UIptvServer.ensureStarted();
+            } catch (IOException e) {
+                showErrorAlert(I18n.tr("configAutoRunServerStartupFailed", e.getMessage()));
+            }
+        });
     }
 
     @Override

@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT
     default
     '0',
+    autoRunServerOnStartup
+    TEXT
+    default
+    '0',
     vlcNetworkCachingMs
     TEXT,
     vlcLiveCachingMs

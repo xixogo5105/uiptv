@@ -54,6 +54,18 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void autoRunServerOnStartup_defaultsToFalse_andPersistsWhenEnabled() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertFalse(service.read().isAutoRunServerOnStartup());
+
+        Configuration configuration = service.read();
+        configuration.setAutoRunServerOnStartup(true);
+        service.save(configuration);
+
+        assertTrue(service.read().isAutoRunServerOnStartup());
+    }
+
+    @Test
     void vlcSettings_defaultToOneSecondCaching_andEnabledFlags() {
         Configuration configuration = ConfigurationService.getInstance().read();
 

@@ -218,6 +218,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         updated.setTmdbReadAccessToken("tmdb-token-e2e");
         updated.setUiZoomPercent("133");
         updated.setEnableLitePlayerFfmpeg(true);
+        updated.setAutoRunServerOnStartup(true);
         configurationService.save(updated);
 
         ThemeCssOverride themeOverride = new ThemeCssOverride();
@@ -239,6 +240,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals("tmdb-token-e2e", persisted.getTmdbReadAccessToken());
         assertEquals("133", persisted.getUiZoomPercent());
         assertTrue(persisted.isEnableLitePlayerFfmpeg());
+        assertTrue(persisted.isAutoRunServerOnStartup());
 
         assertEquals(14, configurationService.getCacheExpiryDays());
         assertEquals(14L * 24L * 60L * 60L * 1000L, configurationService.getCacheExpiryMs());
@@ -972,8 +974,8 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void seedConfigurationRow(String dbPath, String playerPath1, String playerPath2, String resolveChainEnabled) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, enableLitePlayerFfmpeg, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
-                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, enableLitePlayerFfmpeg, autoRunServerOnStartup, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
+                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setInt(1, 1);
             ps.setString(2, playerPath1);
             ps.setString(3, playerPath2);
@@ -993,11 +995,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             ps.setString(17, "tmdb-sync");
             ps.setString(18, "133");
             ps.setString(19, "1");
-            ps.setString(20, "3000");
-            ps.setString(21, "5000");
-            ps.setString(22, "1");
-            ps.setString(23, "0");
-            ps.setString(24, resolveChainEnabled);
+            ps.setString(20, "1");
+            ps.setString(21, "3000");
+            ps.setString(22, "5000");
+            ps.setString(23, "1");
+            ps.setString(24, "0");
+            ps.setString(25, resolveChainEnabled);
             ps.executeUpdate();
         }
     }
@@ -1035,7 +1038,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void assertConfigurationSynced(String dbPath, boolean externalPathsExpected) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement statement = conn.prepareStatement(
-                     "SELECT playerPath1, playerPath2, filterCategoriesList, filterChannelsList, languageLocale, resolveChainAndDeepRedirects FROM Configuration LIMIT 1");
+                     "SELECT playerPath1, playerPath2, filterCategoriesList, filterChannelsList, languageLocale, autoRunServerOnStartup, resolveChainAndDeepRedirects FROM Configuration LIMIT 1");
              ResultSet rs = statement.executeQuery()) {
             assertTrue(rs.next(), "Expected configuration row in target sync database");
             assertEquals(externalPathsExpected ? "/source/player-1" : "/target/player-1", rs.getString("playerPath1"));
@@ -1043,6 +1046,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertEquals("sports", rs.getString("filterCategoriesList"));
             assertEquals("news", rs.getString("filterChannelsList"));
             assertEquals("en-GB", rs.getString("languageLocale"));
+            assertEquals("1", rs.getString("autoRunServerOnStartup"));
             assertEquals("1", rs.getString("resolveChainAndDeepRedirects"));
         }
     }

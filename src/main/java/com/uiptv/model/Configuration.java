@@ -30,6 +30,7 @@ public class Configuration extends BaseJson {
     private boolean wideView;
     private boolean enableFfmpegTranscoding;
     private boolean enableLitePlayerFfmpeg;
+    private boolean autoRunServerOnStartup;
     private boolean enableThumbnails = true;
     private boolean enableVlcHttpUserAgent = true;
     private boolean enableVlcHttpForwardCookies = true;
