@@ -8,9 +8,15 @@ import java.util.List;
 import java.sql.SQLException;
 
 import static com.uiptv.util.SQLiteTableSync.ensureDatabaseReady;
+import static com.uiptv.util.SQLiteTableSync.replaceTable;
 import static com.uiptv.util.SQLiteTableSync.syncTables;
 
 public class DatabaseSyncService {
+    private static final List<DatabaseUtils.DbTable> CONFIGURATION_SYNCABLE = List.of(
+            DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE,
+            DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE
+    );
+
     private DatabaseSyncService() {
     }
 
@@ -37,7 +43,7 @@ public class DatabaseSyncService {
                                                       SyncProgressListener progressListener) throws SQLException {
         ensureDatabaseReady(targetDB);
         List<TableSyncResult> tableResults = new ArrayList<>();
-        int totalSteps = DatabaseUtils.Syncable.size() + (syncConfiguration ? 1 : 0);
+        int totalSteps = DatabaseUtils.Syncable.size() + (syncConfiguration ? 1 + CONFIGURATION_SYNCABLE.size() : 0);
         int completedSteps = 0;
         for (DatabaseUtils.DbTable tableName : DatabaseUtils.Syncable) {
             notifyProgress(progressListener, completedSteps, totalSteps, tableName.getTableName());
@@ -50,6 +56,12 @@ public class DatabaseSyncService {
             notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
             configurationCopied = com.uiptv.util.SQLiteTableSync.syncConfiguration(sourceDB, targetDB, syncExternalPlayerPaths);
             completedSteps++;
+            for (DatabaseUtils.DbTable tableName : CONFIGURATION_SYNCABLE) {
+                notifyProgress(progressListener, completedSteps, totalSteps, tableName.getTableName());
+                int syncedRows = replaceTable(sourceDB, targetDB, tableName);
+                tableResults.add(new TableSyncResult(tableName.getTableName(), syncedRows));
+                completedSteps++;
+            }
         }
         notifyProgress(progressListener, completedSteps, totalSteps, null);
         return new DatabaseSyncReport(tableResults, syncConfiguration, configurationCopied, syncExternalPlayerPaths);

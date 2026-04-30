@@ -857,6 +857,10 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         seedSyncDb(targetPath.toString(), "200", "sync-b", "202", "Sync Two");
         seedConfigurationRow(sourcePath.toString(), "/source/player-1", "/source/player-2", "1");
         seedConfigurationRow(targetPath.toString(), "/target/player-1", "/target/player-2", "0");
+        seedThemeCssOverrideRow(sourcePath.toString(), "source-light.css", "source-dark.css");
+        seedThemeCssOverrideRow(targetPath.toString(), "target-light.css", "target-dark.css");
+        seedPublishedM3uSelectionRow(sourcePath.toString(), "100");
+        seedPublishedM3uSelectionRow(targetPath.toString(), "200");
 
         com.uiptv.ui.RootApplication.syncDatabases(sourcePath.toString(), targetPath.toString(), true, false);
 
@@ -870,9 +874,13 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         assertAccountInfoSynced(targetPath.toString());
         assertConfigurationSynced(targetPath.toString(), false);
+        assertThemeCssOverrideSynced(targetPath.toString());
+        assertPublishedM3uSelectionSynced(targetPath.toString());
 
         com.uiptv.ui.RootApplication.syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
         assertConfigurationSynced(targetPath.toString(), true);
+        assertThemeCssOverrideSynced(targetPath.toString());
+        assertPublishedM3uSelectionSynced(targetPath.toString());
     }
 
     private void createSyncSchema(String dbPath) throws SQLException {
@@ -1005,6 +1013,29 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
     }
 
+    private void seedThemeCssOverrideRow(String dbPath, String lightThemeCssName, String darkThemeCssName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO ThemeCssOverride (id, lightThemeCssName, lightThemeCssContent, darkThemeCssName, darkThemeCssContent, updatedAt) VALUES (?,?,?,?,?,?)")) {
+            ps.setInt(1, 1);
+            ps.setString(2, lightThemeCssName);
+            ps.setString(3, ".root { -fx-base: #eeeeee; }");
+            ps.setString(4, darkThemeCssName);
+            ps.setString(5, ".root { -fx-base: #111111; }");
+            ps.setString(6, "1700000000000");
+            ps.executeUpdate();
+        }
+    }
+
+    private void seedPublishedM3uSelectionRow(String dbPath, String accountId) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO PublishedM3uSelection (accountId) VALUES (?)")) {
+            ps.setString(1, accountId);
+            ps.executeUpdate();
+        }
+    }
+
     private int countRowsInDatabase(String dbPath, String tableName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName);
@@ -1048,6 +1079,31 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertEquals("en-GB", rs.getString("languageLocale"));
             assertEquals("1", rs.getString("autoRunServerOnStartup"));
             assertEquals("1", rs.getString("resolveChainAndDeepRedirects"));
+        }
+    }
+
+    private void assertThemeCssOverrideSynced(String dbPath) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT lightThemeCssName, darkThemeCssName FROM ThemeCssOverride LIMIT 1");
+             ResultSet rs = statement.executeQuery()) {
+            assertTrue(rs.next(), "Expected theme css override row in target sync database");
+            assertEquals("source-light.css", rs.getString("lightThemeCssName"));
+            assertEquals("source-dark.css", rs.getString("darkThemeCssName"));
+        }
+    }
+
+    private void assertPublishedM3uSelectionSynced(String dbPath) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT accountId FROM PublishedM3uSelection ORDER BY accountId");
+             ResultSet rs = statement.executeQuery()) {
+            List<String> accountIds = new ArrayList<>();
+            while (rs.next()) {
+                accountIds.add(rs.getString("accountId"));
+            }
+            assertTrue(accountIds.contains("100"));
+            assertFalse(accountIds.contains("200"));
         }
     }
 

@@ -54,6 +54,18 @@ public final class SQLiteTableSync {
         }
     }
 
+    public static int replaceTable(String sourceDBPath, String targetDBPath, DatabaseUtils.DbTable table) throws SQLException {
+        String tableName = DatabaseUtils.validatedTableName(table);
+        try (
+                Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
+                Connection targetConn = DriverManager.getConnection(SQLITE_PREFIX + targetDBPath)
+        ) {
+            int syncedRows = replaceTable(sourceConn, targetConn, tableName);
+            AppLog.addInfoLog(SQLiteTableSync.class, "Table '" + tableName + "' replaced from source to target.");
+            return syncedRows;
+        }
+    }
+
     public static boolean syncConfiguration(String sourceDBPath, String targetDBPath, boolean includeExternalPlayerPaths) throws SQLException {
         try (
                 Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
@@ -98,6 +110,54 @@ public final class SQLiteTableSync {
             }
             targetStatement.executeBatch();
             return syncedRows;
+        }
+    }
+
+    private static int replaceTable(Connection sourceConn, Connection targetConn, String tableName) throws SQLException {
+        List<String> targetColumns = getTableColumns(targetConn, tableName);
+        Set<String> targetColumnSet = new LinkedHashSet<>(targetColumns);
+        List<String> sourceColumns = getTableColumns(sourceConn, tableName);
+        List<String> commonColumns = sourceColumns.stream()
+                .filter(targetColumnSet::contains)
+                .toList();
+
+        if (commonColumns.isEmpty()) {
+            throw new SQLException("No common columns found for table " + tableName);
+        }
+
+        String columnList = String.join(", ", commonColumns);
+        String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
+        String selectSql = "SELECT " + columnList + " FROM " + tableName;
+        String deleteSql = "DELETE FROM " + tableName;
+        String insertSql = "INSERT INTO " + tableName + " (" + columnList + ") VALUES (" + placeholders + ")";
+
+        boolean originalAutoCommit = targetConn.getAutoCommit();
+        try (
+                Statement sourceStmt = sourceConn.createStatement();
+                ResultSet sourceResult = sourceStmt.executeQuery(selectSql);
+                Statement deleteStatement = targetConn.createStatement();
+                PreparedStatement targetStatement = targetConn.prepareStatement(insertSql)
+        ) {
+            targetConn.setAutoCommit(false);
+            deleteStatement.executeUpdate(deleteSql);
+
+            int columnCount = commonColumns.size();
+            int syncedRows = 0;
+            while (sourceResult.next()) {
+                for (int i = 1; i <= columnCount; i++) {
+                    targetStatement.setObject(i, sourceResult.getObject(i));
+                }
+                targetStatement.addBatch();
+                syncedRows++;
+            }
+            targetStatement.executeBatch();
+            targetConn.commit();
+            return syncedRows;
+        } catch (SQLException e) {
+            targetConn.rollback();
+            throw e;
+        } finally {
+            targetConn.setAutoCommit(originalAutoCommit);
         }
     }
 
