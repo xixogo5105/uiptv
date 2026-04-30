@@ -9,6 +9,7 @@ import java.sql.SQLException;
 
 import static com.uiptv.util.SQLiteTableSync.ensureDatabaseReady;
 import static com.uiptv.util.SQLiteTableSync.replaceTable;
+import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uSelections;
 import static com.uiptv.util.SQLiteTableSync.syncTables;
 
 public class DatabaseSyncService {
@@ -56,12 +57,19 @@ public class DatabaseSyncService {
             notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
             configurationCopied = com.uiptv.util.SQLiteTableSync.syncConfiguration(sourceDB, targetDB, syncExternalPlayerPaths);
             completedSteps++;
-            for (DatabaseUtils.DbTable tableName : CONFIGURATION_SYNCABLE) {
-                notifyProgress(progressListener, completedSteps, totalSteps, tableName.getTableName());
-                int syncedRows = replaceTable(sourceDB, targetDB, tableName);
-                tableResults.add(new TableSyncResult(tableName.getTableName(), syncedRows));
-                completedSteps++;
-            }
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName());
+            tableResults.add(new TableSyncResult(
+                    DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(),
+                    replaceTable(sourceDB, targetDB, DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE)
+            ));
+            completedSteps++;
+
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName());
+            tableResults.add(new TableSyncResult(
+                    DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(),
+                    syncPublishedM3uSelections(sourceDB, targetDB)
+            ));
+            completedSteps++;
         }
         notifyProgress(progressListener, completedSteps, totalSteps, null);
         return new DatabaseSyncReport(tableResults, syncConfiguration, configurationCopied, syncExternalPlayerPaths);

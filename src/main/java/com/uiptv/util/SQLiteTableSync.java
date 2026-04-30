@@ -77,6 +77,17 @@ public final class SQLiteTableSync {
         }
     }
 
+    public static int syncPublishedM3uSelections(String sourceDBPath, String targetDBPath) throws SQLException {
+        try (
+                Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
+                Connection targetConn = DriverManager.getConnection(SQLITE_PREFIX + targetDBPath)
+        ) {
+            int synced = syncPublishedM3uSelections(sourceConn, targetConn);
+            AppLog.addInfoLog(SQLiteTableSync.class, "PublishedM3uSelection synced from source to target with account remapping.");
+            return synced;
+        }
+    }
+
     private static int syncTable(Connection sourceConn, Connection targetConn, String tableName) throws SQLException {
         List<String> targetColumns = getTableColumns(targetConn, tableName);
         Set<String> targetColumnSet = new LinkedHashSet<>(targetColumns);
@@ -186,6 +197,69 @@ public final class SQLiteTableSync {
 
         upsertFirstConfigurationRow(targetConn, sourceRow, targetRow != null ? targetRow.id : null);
         return true;
+    }
+
+    private static int syncPublishedM3uSelections(Connection sourceConn, Connection targetConn) throws SQLException {
+        String selectionTable = DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName();
+        String accountTable = DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName();
+        boolean originalAutoCommit = targetConn.getAutoCommit();
+        int syncedRows = 0;
+
+        try (
+                PreparedStatement sourceSelections = sourceConn.prepareStatement(
+                        "SELECT accountId FROM " + selectionTable + " ORDER BY id");
+                ResultSet sourceRows = sourceSelections.executeQuery();
+                PreparedStatement sourceAccountName = sourceConn.prepareStatement(
+                        "SELECT accountName FROM " + accountTable + " WHERE id = ?");
+                PreparedStatement targetAccountId = targetConn.prepareStatement(
+                        "SELECT id FROM " + accountTable + " WHERE accountName = ?");
+                Statement deleteTargetSelections = targetConn.createStatement();
+                PreparedStatement insertTargetSelection = targetConn.prepareStatement(
+                        "INSERT INTO " + selectionTable + " (accountId) VALUES (?)")
+        ) {
+            targetConn.setAutoCommit(false);
+            deleteTargetSelections.executeUpdate("DELETE FROM " + selectionTable);
+
+            while (sourceRows.next()) {
+                String sourceAccountId = sourceRows.getString("accountId");
+                if (sourceAccountId == null || sourceAccountId.isBlank()) {
+                    continue;
+                }
+
+                sourceAccountName.setString(1, sourceAccountId);
+                try (ResultSet sourceAccount = sourceAccountName.executeQuery()) {
+                    if (!sourceAccount.next()) {
+                        continue;
+                    }
+
+                    String accountName = sourceAccount.getString("accountName");
+                    if (accountName == null || accountName.isBlank()) {
+                        continue;
+                    }
+
+                    targetAccountId.setString(1, accountName);
+                    try (ResultSet targetAccount = targetAccountId.executeQuery()) {
+                        if (!targetAccount.next()) {
+                            continue;
+                        }
+                        insertTargetSelection.setString(1, targetAccount.getString("id"));
+                        insertTargetSelection.addBatch();
+                        syncedRows++;
+                    }
+                }
+            }
+
+            if (syncedRows > 0) {
+                insertTargetSelection.executeBatch();
+            }
+            targetConn.commit();
+            return syncedRows;
+        } catch (SQLException e) {
+            targetConn.rollback();
+            throw e;
+        } finally {
+            targetConn.setAutoCommit(originalAutoCommit);
+        }
     }
 
     private static ConfigurationRow readFirstConfigurationRow(Connection conn, List<String> columns) throws SQLException {

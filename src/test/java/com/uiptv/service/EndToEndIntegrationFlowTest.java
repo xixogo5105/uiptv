@@ -855,6 +855,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         seedSyncDb(sourcePath.toString(), "100", "sync-a", "101", "Sync One");
         seedSyncDb(targetPath.toString(), "200", "sync-b", "202", "Sync Two");
+        seedAccountOnly(targetPath.toString(), "999", "sync-a");
         seedConfigurationRow(sourcePath.toString(), "/source/player-1", "/source/player-2", "1");
         seedConfigurationRow(targetPath.toString(), "/target/player-1", "/target/player-2", "0");
         seedThemeCssOverrideRow(sourcePath.toString(), "source-light.css", "source-dark.css");
@@ -894,28 +895,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
     private void seedSyncDb(String dbPath, String accountId, String accountName, String bookmarkId, String bookmarkName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
-                ps.setString(1, accountId);
-                ps.setString(2, accountName);
-                ps.setString(3, "u");
-                ps.setString(4, "p");
-                ps.setString(5, "http://sync.example");
-                ps.setString(6, null);
-                ps.setString(7, null);
-                ps.setString(8, null);
-                ps.setString(9, null);
-                ps.setString(10, null);
-                ps.setString(11, null);
-                ps.setString(12, null);
-                ps.setString(13, null);
-                ps.setString(14, AccountType.M3U8_URL.name());
-                ps.setString(15, "");
-                ps.setString(16, "0");
-                ps.setString(17, "GET");
-                ps.setString(18, "UTC");
-                ps.executeUpdate();
-            }
+            seedAccountRow(conn, accountId, accountName);
 
             try (PreparedStatement ps = conn.prepareStatement(
                     "INSERT OR REPLACE INTO AccountInfo (id, accountId, expireDate, accountStatus, accountBalance, tariffName, tariffPlan, defaultTimezone, profileJson, passHash, parentPasswordHash, passwordHash, settingsPasswordHash, accountPagePasswordHash, allowedStbTypesJson, allowedStbTypesForLocalRecordingJson, preferredStbType) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
@@ -976,6 +956,37 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 ps.setInt(4, 0);
                 ps.executeUpdate();
             }
+        }
+    }
+
+    private void seedAccountOnly(String dbPath, String accountId, String accountName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
+            seedAccountRow(conn, accountId, accountName);
+        }
+    }
+
+    private void seedAccountRow(Connection conn, String accountId, String accountName) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, accountId);
+            ps.setString(2, accountName);
+            ps.setString(3, "u");
+            ps.setString(4, "p");
+            ps.setString(5, "http://sync.example");
+            ps.setString(6, null);
+            ps.setString(7, null);
+            ps.setString(8, null);
+            ps.setString(9, null);
+            ps.setString(10, null);
+            ps.setString(11, null);
+            ps.setString(12, null);
+            ps.setString(13, null);
+            ps.setString(14, AccountType.M3U8_URL.name());
+            ps.setString(15, "");
+            ps.setString(16, "0");
+            ps.setString(17, "GET");
+            ps.setString(18, "UTC");
+            ps.executeUpdate();
         }
     }
 
@@ -1104,6 +1115,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             }
             assertTrue(accountIds.contains("100"));
             assertFalse(accountIds.contains("200"));
+            assertFalse(accountIds.contains("999"));
         }
     }
 
