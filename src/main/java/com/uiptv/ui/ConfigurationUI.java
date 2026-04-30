@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
@@ -992,11 +993,17 @@ public class ConfigurationUI extends VBox {
         Button browseButton = new Button("...");
         CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
         CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
-        ProgressBar progressBar = new ProgressBar(0);
-        Label progressLabel = new Label();
-        syncExternalPlayerPathsCheckBox.disableProperty().bind(syncConfigurationCheckBox.selectedProperty().not());
+        syncExternalPlayerPathsCheckBox.disableProperty().bind(
+                syncConfigurationCheckBox.selectedProperty().not()
+                        .or(syncConfigurationCheckBox.disabledProperty())
+        );
         Button runButton = new Button(I18n.tr(databaseSyncActionKey(importMode)));
         Button cancelButton = new Button(I18n.tr("commonClose"));
+        ProgressBar progressBar = new ProgressBar(0);
+        Label progressLabel = new Label();
+        TextArea resultTextArea = new TextArea();
+        AtomicBoolean syncRunning = new AtomicBoolean(false);
+
         progressBar.setMaxWidth(Double.MAX_VALUE);
         progressBar.setVisible(false);
         progressBar.setManaged(false);
@@ -1004,6 +1011,11 @@ public class ConfigurationUI extends VBox {
         progressLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         progressLabel.setVisible(false);
         progressLabel.setManaged(false);
+        resultTextArea.setEditable(false);
+        resultTextArea.setWrapText(true);
+        resultTextArea.setPrefRowCount(12);
+        resultTextArea.setVisible(false);
+        resultTextArea.setManaged(false);
 
         browseButton.setOnAction(event -> {
             File selected = importMode
@@ -1027,11 +1039,13 @@ public class ConfigurationUI extends VBox {
                 runButton,
                 cancelButton,
                 progressBar,
-                progressLabel
+                progressLabel,
+                resultTextArea,
+                syncRunning
         ));
         cancelButton.setOnAction(event -> popupStage.close());
         popupStage.setOnCloseRequest(event -> {
-            if (cancelButton.isDisable()) {
+            if (syncRunning.get()) {
                 event.consume();
             }
         });
@@ -1049,6 +1063,7 @@ public class ConfigurationUI extends VBox {
                 syncExternalPlayerPathsCheckBox,
                 progressBar,
                 progressLabel,
+                resultTextArea,
                 buttons
         );
         root.setPadding(new Insets(14));
@@ -1072,7 +1087,9 @@ public class ConfigurationUI extends VBox {
                                        Button runButton,
                                        Button cancelButton,
                                        ProgressBar progressBar,
-                                       Label progressLabel) {
+                                       Label progressLabel,
+                                       TextArea resultTextArea,
+                                       AtomicBoolean syncRunning) {
         String normalizedPath = normalizeSelectedPath(selectedPath);
         if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
@@ -1093,13 +1110,20 @@ public class ConfigurationUI extends VBox {
                 syncConfigurationCheckBox,
                 syncExternalPlayerPathsCheckBox,
                 runButton);
+        syncRunning.set(true);
         cancelButton.setDisable(true);
+        runButton.setVisible(false);
+        runButton.setManaged(false);
         progressBar.setVisible(true);
         progressBar.setManaged(true);
         progressLabel.setVisible(true);
         progressLabel.setManaged(true);
-        progressBar.setProgress(0);
+        resultTextArea.clear();
+        resultTextArea.setVisible(false);
+        resultTextArea.setManaged(false);
+        progressBar.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
         progressLabel.setText(I18n.tr("configDatabaseSyncInProgress"));
+        popupStage.sizeToScene();
 
         Task<DatabaseSyncService.DatabaseSyncReport> task = new Task<>() {
             @Override
@@ -1123,24 +1147,30 @@ public class ConfigurationUI extends VBox {
         task.setOnSucceeded(event -> {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
+            syncRunning.set(false);
             applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
-            popupStage.close();
-            showMessageAlert(buildDatabaseSyncSummary(importMode, task.getValue()));
+            progressBar.setProgress(1);
+            progressLabel.setText(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            resultTextArea.setText(buildDatabaseSyncSummary(importMode, task.getValue()));
+            resultTextArea.setVisible(true);
+            resultTextArea.setManaged(true);
+            cancelButton.setDisable(false);
+            popupStage.sizeToScene();
         });
 
         task.setOnFailed(event -> {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
-            progressBar.setProgress(0);
-            progressLabel.setText(I18n.tr("configDatabaseSyncFailedWithReason", I18n.tr(databaseSyncActionKey(importMode)), summarizeExceptionMessage(task.getException())));
+            syncRunning.set(false);
+            progressBar.setProgress(1);
+            progressLabel.setText(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            resultTextArea.setText(I18n.tr("configDatabaseSyncFailedWithReason",
+                    I18n.tr(databaseSyncActionKey(importMode)),
+                    summarizeExceptionMessage(task.getException())));
+            resultTextArea.setVisible(true);
+            resultTextArea.setManaged(true);
             cancelButton.setDisable(false);
-            setDatabaseSyncControlsDisabled(false,
-                    databasePathField,
-                    browseButton,
-                    syncConfigurationCheckBox,
-                    syncExternalPlayerPathsCheckBox,
-                    runButton);
-            showErrorAlert(I18n.tr("configDatabaseSyncFailedWithReason", I18n.tr(databaseSyncActionKey(importMode)), summarizeExceptionMessage(task.getException())));
+            popupStage.sizeToScene();
         });
 
         Thread worker = new Thread(task, importMode ? "database-import-task" : "database-export-task");
@@ -1157,7 +1187,6 @@ public class ConfigurationUI extends VBox {
         databasePathField.setDisable(disabled);
         browseButton.setDisable(disabled);
         syncConfigurationCheckBox.setDisable(disabled);
-        syncExternalPlayerPathsCheckBox.setDisable(disabled);
         runButton.setDisable(disabled);
     }
 
