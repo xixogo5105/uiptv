@@ -29,20 +29,22 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             return;
         }
 
-        List<Category> categories = loadLiveCategories(account, logger);
+        List<Category> rawCategories = loadLiveCategories(account, logger);
+        CategoryNormalization categoryNormalization = normalizeCategoriesByTitle(rawCategories);
+        List<Category> categories = categoryNormalization.categories();
         if (categories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
             return;
         }
         log(logger, "Found Categories " + categories.size());
 
-        if (account.getAction() == itv && reloadLiveWithGlobalLookup(account, categories, logger)) {
+        if (account.getAction() == itv && reloadLiveWithGlobalLookup(account, categories, categoryNormalization.canonicalCategoryIdByOriginalId(), logger)) {
             cacheVodAndSeriesCategoriesOnly(account, logger);
             return;
         }
 
-        CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categories, logger);
-        if (fetchResult.failedCategories == categories.size()) {
+        CategoryFetchResult fetchResult = fetchChannelsByCategory(account, rawCategories, categoryNormalization, logger);
+        if (fetchResult.failedCategories >= rawCategories.size()) {
             throw new IllegalStateException("All category channel requests failed.");
         }
         if (fetchResult.totalChannels == 0) {
@@ -67,7 +69,9 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         cacheVodAndSeriesCategoriesOnly(account, logger);
     }
 
-    private boolean reloadLiveWithGlobalLookup(Account account, List<Category> categories, LoggerCallback logger) {
+    private boolean reloadLiveWithGlobalLookup(Account account, List<Category> categories,
+                                               Map<String, String> canonicalCategoryIdByOriginalId,
+                                               LoggerCallback logger) {
         List<Channel> allChannels = fetchAllChannelsOrLog(account, logger);
         if (allChannels == null || allChannels.isEmpty()) {
             return false;
@@ -78,7 +82,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             return false;
         }
 
-        ChannelGrouping grouping = groupChannelsByKnownCategory(allChannels, categories);
+        ChannelGrouping grouping = groupChannelsByKnownCategory(allChannels, categories, canonicalCategoryIdByOriginalId);
 
         log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphaned.size() + " Orphaned channels.");
         clearCache(account);
@@ -123,16 +127,20 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 .toList();
     }
 
-    private CategoryFetchResult fetchChannelsByCategory(Account account, List<Category> categories, LoggerCallback logger) {
+    private CategoryFetchResult fetchChannelsByCategory(Account account, List<Category> rawCategories,
+                                                        CategoryNormalization categoryNormalization,
+                                                        LoggerCallback logger) {
         Map<String, List<Channel>> channelsMap = new HashMap<>();
         int totalChannels = 0;
         int failedCategories = 0;
-        for (Category category : categories) {
+        for (Category category : rawCategories) {
             try {
                 List<Channel> channels = XtremeParser.parseChannels(category.getCategoryId(), account);
                 if (!channels.isEmpty()) {
-                    channelsMap.put(category.getCategoryId(), channels);
-                    totalChannels += channels.size();
+                    String canonicalCategoryId = canonicalCategoryId(category.getCategoryId(), categoryNormalization.canonicalCategoryIdByOriginalId());
+                    List<Channel> mergedChannels = mergeChannelsCaseInsensitive(channelsMap.get(canonicalCategoryId), channels);
+                    totalChannels += mergedChannels.size() - (channelsMap.containsKey(canonicalCategoryId) ? channelsMap.get(canonicalCategoryId).size() : 0);
+                    channelsMap.put(canonicalCategoryId, mergedChannels);
                 }
             } catch (Exception e) {
                 failedCategories++;
@@ -159,13 +167,14 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         return allChannels.stream().anyMatch(c -> isNotBlank(c.getCategoryId()));
     }
 
-    private ChannelGrouping groupChannelsByKnownCategory(List<Channel> allChannels, List<Category> categories) {
+    private ChannelGrouping groupChannelsByKnownCategory(List<Channel> allChannels, List<Category> categories,
+                                                         Map<String, String> canonicalCategoryIdByOriginalId) {
         Map<String, Category> categoryByApiId = categories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (a, b) -> a));
         Map<String, List<Channel>> matchedByCategory = new HashMap<>();
         List<Channel> orphaned = new ArrayList<>();
         for (Channel channel : allChannels) {
-            String categoryId = channel.getCategoryId();
+            String categoryId = canonicalCategoryId(channel.getCategoryId(), canonicalCategoryIdByOriginalId);
             if (isNotBlank(categoryId) && categoryByApiId.containsKey(categoryId)) {
                 matchedByCategory.computeIfAbsent(categoryId, k -> new ArrayList<>()).add(channel);
             } else {

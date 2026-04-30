@@ -51,7 +51,9 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private void reloadLive(Account account, LoggerCallback logger) {
-        List<Category> officialCategories = loadOfficialLiveCategories(account);
+        List<Category> rawCategories = loadOfficialLiveCategories(account);
+        CategoryNormalization categoryNormalization = normalizeCategoriesByTitle(rawCategories);
+        List<Category> officialCategories = categoryNormalization.categories();
 
         if (officialCategories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
@@ -63,7 +65,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
 
         if (allChannels.isEmpty()) {
             log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
-            allChannels = fetchAllChannelsByCategoryLastResort(account, officialCategories, logger);
+            allChannels = fetchAllChannelsByCategoryLastResort(account, rawCategories, categoryNormalization, logger);
             if (allChannels.isEmpty()) {
                 log(logger, "No channels found. Keeping existing cache.");
                 return;
@@ -71,7 +73,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             log(logger, "Last-resort fetch succeeded. Collected " + allChannels.size() + " channels.");
         }
 
-        ChannelGrouping grouping = groupChannelsByCategory(allChannels, officialCategories);
+        ChannelGrouping grouping = groupChannelsByCategory(allChannels, officialCategories, categoryNormalization.canonicalCategoryIdByOriginalId());
         log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphanedChannels.size() + " Orphaned channels.");
 
         clearCache(account);
@@ -122,7 +124,9 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         return "";
     }
 
-    private List<Channel> fetchAllChannelsByCategoryLastResort(Account account, List<Category> categories, LoggerCallback logger) {
+    private List<Channel> fetchAllChannelsByCategoryLastResort(Account account, List<Category> categories,
+                                                               CategoryNormalization categoryNormalization,
+                                                               LoggerCallback logger) {
         Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
         for (Category category : categories) {
             if (category == null || isBlank(category.getCategoryId())) {
@@ -134,10 +138,13 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 if (channel == null || isBlank(channel.getChannelId())) {
                     continue;
                 }
+                String canonicalCategoryId = canonicalCategoryId(category.getCategoryId(), categoryNormalization.canonicalCategoryIdByOriginalId());
                 if (isBlank(channel.getCategoryId())) {
-                    channel.setCategoryId(category.getCategoryId());
+                    channel.setCategoryId(canonicalCategoryId);
+                } else {
+                    channel.setCategoryId(canonicalCategoryId(channel.getCategoryId(), categoryNormalization.canonicalCategoryIdByOriginalId()));
                 }
-                uniqueChannels.putIfAbsent(channel.getChannelId(), channel);
+                uniqueChannels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
             }
         }
         return new ArrayList<>(uniqueChannels.values());
@@ -201,14 +208,16 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
     }
 
-    private ChannelGrouping groupChannelsByCategory(List<Channel> allChannels, List<Category> officialCategories) {
+    private ChannelGrouping groupChannelsByCategory(List<Channel> allChannels, List<Category> officialCategories,
+                                                    Map<String, String> canonicalCategoryIdByOriginalId) {
         Map<String, Category> officialCategoryMap = officialCategories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (c1, c2) -> c1));
         Map<String, List<Channel>> matchedChannelsByCatId = new HashMap<>();
         List<Channel> orphanedChannels = new ArrayList<>();
         for (Channel channel : allChannels) {
-            if (isNotBlank(channel.getCategoryId()) && officialCategoryMap.containsKey(channel.getCategoryId())) {
-                matchedChannelsByCatId.computeIfAbsent(channel.getCategoryId(), k -> new ArrayList<>()).add(channel);
+            String categoryId = canonicalCategoryId(channel.getCategoryId(), canonicalCategoryIdByOriginalId);
+            if (isNotBlank(categoryId) && officialCategoryMap.containsKey(categoryId)) {
+                matchedChannelsByCatId.computeIfAbsent(categoryId, k -> new ArrayList<>()).add(channel);
             } else {
                 orphanedChannels.add(channel);
             }
@@ -249,7 +258,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             if (channel == null || isBlank(channel.getChannelId())) {
                 continue;
             }
-            uniqueChannels.putIfAbsent(channel.getChannelId(), channel);
+            uniqueChannels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
         }
         return new ArrayList<>(uniqueChannels.values());
     }

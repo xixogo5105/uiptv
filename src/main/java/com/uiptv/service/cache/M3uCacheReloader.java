@@ -19,7 +19,7 @@ import static com.uiptv.model.CategoryType.ALL;
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        List<Category> categories = CategoryService.getInstance().get(account, false, logger);
+        List<Category> categories = normalizeCategoriesByTitle(CategoryService.getInstance().get(account, false, logger)).categories();
         if (categories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
             return;
@@ -147,11 +147,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         if (allCategoryChannels == null) {
             channelsMap.put(allCategoryKey, new ArrayList<>(channelsToAdd));
         } else {
-            if (!(allCategoryChannels instanceof ArrayList)) {
-                allCategoryChannels = new ArrayList<>(allCategoryChannels);
-                channelsMap.put(allCategoryKey, allCategoryChannels);
-            }
-            allCategoryChannels.addAll(channelsToAdd);
+            channelsMap.put(allCategoryKey, mergeChannelsCaseInsensitive(allCategoryChannels, channelsToAdd));
         }
     }
 
@@ -160,7 +156,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         List<Channel> allChannels = new ArrayList<>();
         for (List<Channel> channelList : channelsMap.values()) {
             if (channelList != null && !channelList.isEmpty()) {
-                allChannels.addAll(channelList);
+                allChannels = mergeChannelsCaseInsensitive(allChannels, channelList);
             }
         }
         channelsMap.clear();

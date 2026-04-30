@@ -17,10 +17,13 @@ import com.uiptv.util.M3U8Parser;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -114,11 +117,101 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     }
 
     protected void saveVodOrSeriesCategories(Account account, List<Category> categories) {
+        List<Category> normalizedCategories = normalizeCategoriesByTitle(categories).categories();
         if (account.getAction() == vod) {
-            VodCategoryDb.get().saveAll(categories, account);
+            VodCategoryDb.get().saveAll(normalizedCategories, account);
         } else if (account.getAction() == series) {
-            SeriesCategoryDb.get().saveAll(categories, account);
+            SeriesCategoryDb.get().saveAll(normalizedCategories, account);
         }
+    }
+
+    protected CategoryNormalization normalizeCategoriesByTitle(List<Category> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return new CategoryNormalization(List.of(), Map.of());
+        }
+
+        Map<String, Category> canonicalByKey = new LinkedHashMap<>();
+        Map<String, String> canonicalCategoryIdByOriginalId = new HashMap<>();
+        for (Category category : categories) {
+            if (category == null) {
+                continue;
+            }
+            String categoryKey = categoryComparisonKey(category);
+            Category canonical = canonicalByKey.computeIfAbsent(categoryKey, ignored -> category);
+            if (isNotBlank(category.getCategoryId()) && isNotBlank(canonical.getCategoryId())) {
+                canonicalCategoryIdByOriginalId.put(category.getCategoryId(), canonical.getCategoryId());
+            }
+        }
+        return new CategoryNormalization(new ArrayList<>(canonicalByKey.values()), canonicalCategoryIdByOriginalId);
+    }
+
+    protected String canonicalCategoryId(String categoryId, Map<String, String> canonicalCategoryIdByOriginalId) {
+        if (isBlank(categoryId)) {
+            return categoryId;
+        }
+        return canonicalCategoryIdByOriginalId.getOrDefault(categoryId, categoryId);
+    }
+
+    protected List<Channel> mergeChannelsCaseInsensitive(List<Channel> existingChannels, List<Channel> channelsToAdd) {
+        if ((existingChannels == null || existingChannels.isEmpty()) && (channelsToAdd == null || channelsToAdd.isEmpty())) {
+            return List.of();
+        }
+
+        Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
+        addChannelsCaseInsensitive(uniqueChannels, existingChannels);
+        addChannelsCaseInsensitive(uniqueChannels, channelsToAdd);
+        return new ArrayList<>(uniqueChannels.values());
+    }
+
+    protected String categoryLookupKey(String categoryTitle) {
+        return normalizeCaseInsensitiveKey(categoryTitle);
+    }
+
+    protected String normalizeCaseInsensitiveKey(String value) {
+        return isBlank(value) ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void addChannelsCaseInsensitive(Map<String, Channel> uniqueChannels, List<Channel> channels) {
+        if (channels == null) {
+            return;
+        }
+        for (Channel channel : channels) {
+            if (channel == null) {
+                continue;
+            }
+            uniqueChannels.putIfAbsent(channelComparisonKey(channel), channel);
+        }
+    }
+
+    private String categoryComparisonKey(Category category) {
+        if (category == null) {
+            return "";
+        }
+        String titleKey = normalizeCaseInsensitiveKey(category.getTitle());
+        if (isNotBlank(titleKey)) {
+            return titleKey;
+        }
+        String categoryIdKey = normalizeCaseInsensitiveKey(category.getCategoryId());
+        if (isNotBlank(categoryIdKey)) {
+            return categoryIdKey;
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    private String channelComparisonKey(Channel channel) {
+        String channelIdKey = normalizeCaseInsensitiveKey(channel.getChannelId());
+        if (isNotBlank(channelIdKey)) {
+            return "id:" + channelIdKey;
+        }
+        String nameKey = normalizeCaseInsensitiveKey(channel.getName());
+        if (isNotBlank(nameKey)) {
+            return "name:" + nameKey;
+        }
+        String cmdKey = normalizeCaseInsensitiveKey(channel.getCmd());
+        if (isNotBlank(cmdKey)) {
+            return "cmd:" + cmdKey;
+        }
+        return "fallback:" + UUID.randomUUID();
     }
 
     protected List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
@@ -191,5 +284,8 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return new Channel(channelId, entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null,
                 entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(),
                 entry.getInputstreamaddon(), entry.getManifestType());
+    }
+
+    protected record CategoryNormalization(List<Category> categories, Map<String, String> canonicalCategoryIdByOriginalId) {
     }
 }
