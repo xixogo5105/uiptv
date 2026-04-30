@@ -218,7 +218,7 @@ public final class SQLiteTableSync {
                         "SELECT id FROM " + accountTable + " WHERE accountName = ?");
                 Statement deleteTargetSelections = targetConn.createStatement();
                 PreparedStatement insertTargetSelection = targetConn.prepareStatement(
-                        "INSERT INTO " + selectionTable + " (accountId) VALUES (?)")
+                        SQL_INSERT_INTO + selectionTable + " (accountId" + SQL_VALUES + "?)")
         ) {
             targetConn.setAutoCommit(false);
             deleteTargetSelections.executeUpdate("DELETE FROM " + selectionTable);
