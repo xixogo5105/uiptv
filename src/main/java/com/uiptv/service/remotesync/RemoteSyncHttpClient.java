@@ -3,9 +3,11 @@ package com.uiptv.service.remotesync;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -44,16 +46,17 @@ public class RemoteSyncHttpClient {
 
     public Path downloadSnapshot(String baseUrl, String sessionId) throws IOException {
         HttpGet get = new HttpGet(baseUrl + "/remote-sync/download?sessionId=" + sessionId);
-        try (CloseableHttpClient client = HttpClients.createDefault();
-             var response = client.execute(get)) {
-            if (response.getCode() >= 300) {
-                throw new IOException(readEntityText(response));
-            }
-            Path snapshotPath = Files.createTempFile("uiptv-remote-download-", ".db");
-            try (InputStream body = response.getEntity().getContent()) {
-                Files.copy(body, snapshotPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            }
-            return snapshotPath;
+        try (CloseableHttpClient client = HttpClients.createDefault()) {
+            return client.execute(get, response -> {
+                if (response.getCode() >= 300) {
+                    throw new IOException(readEntityText(response));
+                }
+                Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-download-", ".db");
+                try (InputStream body = response.getEntity().getContent()) {
+                    Files.copy(body, snapshotPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                return snapshotPath;
+            });
         }
     }
 
@@ -68,18 +71,19 @@ public class RemoteSyncHttpClient {
         executeJson(post);
     }
 
-    private JSONObject executeJson(org.apache.hc.client5.http.classic.methods.HttpUriRequestBase request) throws IOException {
-        try (CloseableHttpClient client = HttpClients.createDefault();
-             var response = client.execute(request)) {
-            String body = readEntityText(response);
-            if (response.getCode() >= 300) {
-                throw new IOException(body.isBlank() ? "Remote sync request failed with status " + response.getCode() : body);
-            }
-            return body.isBlank() ? new JSONObject() : new JSONObject(body);
+    private JSONObject executeJson(HttpUriRequestBase request) throws IOException {
+        try (CloseableHttpClient client = HttpClients.createDefault()) {
+            return client.execute(request, response -> {
+                String body = readEntityText(response);
+                if (response.getCode() >= 300) {
+                    throw new IOException(body.isBlank() ? "Remote sync request failed with status " + response.getCode() : body);
+                }
+                return body.isBlank() ? new JSONObject() : new JSONObject(body);
+            });
         }
     }
 
-    private String readEntityText(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse response) throws IOException {
+    private String readEntityText(ClassicHttpResponse response) throws IOException {
         if (response.getEntity() == null) {
             return "";
         }

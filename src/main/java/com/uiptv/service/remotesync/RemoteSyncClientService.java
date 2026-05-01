@@ -142,7 +142,7 @@ public class RemoteSyncClientService {
     private String resolveRequesterName() {
         try {
             return InetAddress.getLocalHost().getHostName();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return "UIPTV";
         }
     }

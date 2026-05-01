@@ -164,15 +164,16 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
                 new RecordingNotifier()
         );
 
-        IllegalArgumentException invalidCode = assertThrows(IllegalArgumentException.class, () -> service.createSession(
-                new RemoteSyncRequest(
-                        RemoteSyncDirection.EXPORT_TO_REMOTE,
-                        "12",
-                        "machine-a",
-                        new RemoteSyncOptions(false, false)
-                ),
-                "10.0.0.8"
-        ));
+        RemoteSyncRequest invalidRequest = new RemoteSyncRequest(
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                "12",
+                "machine-a",
+                new RemoteSyncOptions(false, false)
+        );
+        IllegalArgumentException invalidCode = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createSession(invalidRequest, "10.0.0.8")
+        );
         assertTrue(invalidCode.getMessage().contains("four digit"));
 
         String sessionId = service.createSession(

@@ -1,5 +1,6 @@
 package com.uiptv.service;
 
+@SuppressWarnings("java:S6548")
 public class AppDataRefreshService {
     private AppDataRefreshService() {
     }

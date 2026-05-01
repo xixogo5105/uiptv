@@ -17,6 +17,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -80,21 +81,9 @@ public class M3U8PublicationService {
                 ? new PublicationSelections(Set.of(), Map.of(), Map.of())
                 : selections.normalized();
         try (Connection conn = connect()) {
-            boolean originalAutoCommit = conn.getAutoCommit();
-            try {
-                conn.setAutoCommit(false);
-                PublishedM3uSelectionDb.get().replaceSelections(conn, normalized.accountIds());
-                PublishedM3uCategorySelectionDb.get().replaceSelections(conn, toCategorySelections(normalized.categorySelections()));
-                PublishedM3uChannelSelectionDb.get().replaceSelections(conn, toChannelSelections(normalized.channelSelections()));
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(originalAutoCommit);
-            }
+            saveSelectionsInTransaction(conn, normalized);
         } catch (SQLException e) {
-            throw new RuntimeException("Unable to save published M3U selections", e);
+            throw new PublicationPersistenceException("Unable to save published M3U selections", e);
         }
     }
 
@@ -114,7 +103,7 @@ public class M3U8PublicationService {
         }
         try {
             return toPlaylistAccount(account, parsePlaylistEntries(account));
-        } catch (Exception e) {
+        } catch (IOException e) {
             showError("Failed to load playlist for account '" + account.getAccountName() + "'", e);
             return null;
         }
@@ -158,7 +147,7 @@ public class M3U8PublicationService {
                     appendPlaylistBlock(result, entry.lines());
                 }
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             showError("Failed to append playlist for account '" + account.getAccountName() + "'", e);
         }
     }
@@ -243,6 +232,22 @@ public class M3U8PublicationService {
         return parsePlaylistEntries(readPlaylistContent(account));
     }
 
+    private void saveSelectionsInTransaction(Connection conn, PublicationSelections selections) throws SQLException {
+        boolean originalAutoCommit = conn.getAutoCommit();
+        try {
+            conn.setAutoCommit(false);
+            PublishedM3uSelectionDb.get().replaceSelections(conn, selections.accountIds());
+            PublishedM3uCategorySelectionDb.get().replaceSelections(conn, toCategorySelections(selections.categorySelections()));
+            PublishedM3uChannelSelectionDb.get().replaceSelections(conn, toChannelSelections(selections.channelSelections()));
+            conn.commit();
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(originalAutoCommit);
+        }
+    }
+
     List<PlaylistChannelEntry> parsePlaylistEntries(String content) {
         List<String> lines = Arrays.asList(content.split("\\r?\\n"));
         List<PlaylistChannelEntry> entries = new ArrayList<>();
@@ -272,11 +277,8 @@ public class M3U8PublicationService {
         String title = parseEntryTitle(extinfLine);
         String sourceUrl = "";
         int index = startIndex + 1;
-        while (index < lines.size()) {
+        while (index < lines.size() && !lines.get(index).startsWith(EXTINF)) {
             String nextLine = lines.get(index);
-            if (nextLine.startsWith(EXTINF)) {
-                break;
-            }
             entryLines.add(nextLine);
             if (isPlaylistMediaLine(nextLine)) {
                 sourceUrl = nextLine.trim();
@@ -346,7 +348,7 @@ public class M3U8PublicationService {
             digest.update((byte) '\n');
             digest.update((isBlank(sourceUrl) ? "" : sourceUrl).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest.digest());
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException _) {
             return (isBlank(tvgId) ? "" : tvgId) + "|" + title + "|" + sourceUrl;
         }
     }
@@ -423,5 +425,11 @@ public class M3U8PublicationService {
 
     private static class SingletonHelper {
         private static final M3U8PublicationService INSTANCE = new M3U8PublicationService();
+    }
+
+    private static final class PublicationPersistenceException extends RuntimeException {
+        private PublicationPersistenceException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

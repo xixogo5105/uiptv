@@ -8,26 +8,33 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class RemoteSyncJson {
+    private static final String DIRECTION = "direction";
+    private static final String VERIFICATION_CODE = "verificationCode";
+    private static final String REQUESTER_NAME = "requesterName";
+    private static final String SYNC_CONFIGURATION = "syncConfiguration";
+    private static final String SYNC_EXTERNAL_PLAYER_PATHS = "syncExternalPlayerPaths";
+    private static final String MESSAGE = "message";
+
     private RemoteSyncJson() {
     }
 
     public static JSONObject toJson(RemoteSyncRequest request) {
         return new JSONObject()
-                .put("direction", request.direction().name())
-                .put("verificationCode", request.verificationCode())
-                .put("requesterName", request.requesterName())
-                .put("syncConfiguration", request.options().syncConfiguration())
-                .put("syncExternalPlayerPaths", request.options().syncExternalPlayerPaths());
+                .put(DIRECTION, request.direction().name())
+                .put(VERIFICATION_CODE, request.verificationCode())
+                .put(REQUESTER_NAME, request.requesterName())
+                .put(SYNC_CONFIGURATION, request.options().syncConfiguration())
+                .put(SYNC_EXTERNAL_PLAYER_PATHS, request.options().syncExternalPlayerPaths());
     }
 
     public static RemoteSyncRequest toRequest(JSONObject json) {
         return new RemoteSyncRequest(
-                RemoteSyncDirection.valueOf(json.optString("direction", RemoteSyncDirection.EXPORT_TO_REMOTE.name())),
-                json.optString("verificationCode", ""),
-                json.optString("requesterName", ""),
+                RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name())),
+                json.optString(VERIFICATION_CODE, ""),
+                json.optString(REQUESTER_NAME, ""),
                 new RemoteSyncOptions(
-                        json.optBoolean("syncConfiguration", false),
-                        json.optBoolean("syncExternalPlayerPaths", false)
+                        json.optBoolean(SYNC_CONFIGURATION, false),
+                        json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false)
                 )
         );
     }
@@ -35,34 +42,34 @@ public final class RemoteSyncJson {
     public static JSONObject toJson(RemoteSyncSessionState state) {
         return new JSONObject()
                 .put("sessionId", state.sessionId())
-                .put("direction", state.direction().name())
+                .put(DIRECTION, state.direction().name())
                 .put("status", state.status().name())
-                .put("verificationCode", state.verificationCode())
-                .put("requesterName", state.requesterName())
+                .put(VERIFICATION_CODE, state.verificationCode())
+                .put(REQUESTER_NAME, state.requesterName())
                 .put("requesterAddress", state.requesterAddress())
-                .put("syncConfiguration", state.options().syncConfiguration())
-                .put("syncExternalPlayerPaths", state.options().syncExternalPlayerPaths())
-                .put("message", state.message());
+                .put(SYNC_CONFIGURATION, state.options().syncConfiguration())
+                .put(SYNC_EXTERNAL_PLAYER_PATHS, state.options().syncExternalPlayerPaths())
+                .put(MESSAGE, state.message());
     }
 
     public static RemoteSyncSessionState toSessionState(JSONObject json) {
         return new RemoteSyncSessionState(
                 json.optString("sessionId", ""),
-                RemoteSyncDirection.valueOf(json.optString("direction", RemoteSyncDirection.EXPORT_TO_REMOTE.name())),
+                RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name())),
                 RemoteSyncStatus.valueOf(json.optString("status", RemoteSyncStatus.FAILED.name())),
-                json.optString("verificationCode", ""),
-                json.optString("requesterName", ""),
+                json.optString(VERIFICATION_CODE, ""),
+                json.optString(REQUESTER_NAME, ""),
                 json.optString("requesterAddress", ""),
                 new RemoteSyncOptions(
-                        json.optBoolean("syncConfiguration", false),
-                        json.optBoolean("syncExternalPlayerPaths", false)
+                        json.optBoolean(SYNC_CONFIGURATION, false),
+                        json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false)
                 ),
-                json.optString("message", "")
+                json.optString(MESSAGE, "")
         );
     }
 
     public static JSONObject toJson(RemoteSyncExecutionResult result) {
-        JSONObject json = new JSONObject().put("message", result.message());
+        JSONObject json = new JSONObject().put(MESSAGE, result.message());
         DatabaseSyncService.DatabaseSyncReport report = result.report();
         if (report == null) {
             return json;
@@ -84,7 +91,7 @@ public final class RemoteSyncJson {
     public static RemoteSyncExecutionResult toExecutionResult(JSONObject json) {
         JSONObject reportJson = json.optJSONObject("report");
         if (reportJson == null) {
-            return new RemoteSyncExecutionResult(null, json.optString("message", ""));
+            return new RemoteSyncExecutionResult(null, json.optString(MESSAGE, ""));
         }
         List<DatabaseSyncService.TableSyncResult> tableResults = new ArrayList<>();
         JSONArray tables = reportJson.optJSONArray("tableResults");
@@ -106,6 +113,6 @@ public final class RemoteSyncJson {
                 reportJson.optBoolean("configurationCopied", false),
                 reportJson.optBoolean("externalPlayerPathsIncluded", false)
         );
-        return new RemoteSyncExecutionResult(report, json.optString("message", ""));
+        return new RemoteSyncExecutionResult(report, json.optString(MESSAGE, ""));
     }
 }

@@ -19,9 +19,11 @@ import java.util.stream.Collectors;
 
 public final class SQLiteTableSync {
     private static final String SQLITE_PREFIX = "jdbc:sqlite:";
+    private static final String SQL_SELECT = "SELECT ";
     private static final String SQL_FROM = " FROM ";
     private static final String SQL_INSERT_INTO = "INSERT INTO ";
     private static final String SQL_VALUES = ") VALUES (";
+    private static final String ACCOUNT_ID = "accountId";
 
     private SQLiteTableSync() {
     }
@@ -137,7 +139,7 @@ public final class SQLiteTableSync {
 
         String columnList = String.join(", ", commonColumns);
         String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
-        String selectSql = "SELECT " + columnList + SQL_FROM + tableName;
+        String selectSql = SQL_SELECT + columnList + SQL_FROM + tableName;
         String insertSql = "INSERT OR REPLACE INTO " + tableName + " (" + columnList + SQL_VALUES + placeholders + ")";
 
         try (
@@ -173,7 +175,7 @@ public final class SQLiteTableSync {
 
         String columnList = String.join(", ", commonColumns);
         String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
-        String selectSql = "SELECT " + columnList + SQL_FROM + tableName;
+        String selectSql = SQL_SELECT + columnList + SQL_FROM + tableName;
         String deleteSql = "DELETE FROM " + tableName;
         String insertSql = SQL_INSERT_INTO + tableName + " (" + columnList + SQL_VALUES + placeholders + ")";
 
@@ -250,21 +252,20 @@ public final class SQLiteTableSync {
         String accountTable = DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName();
         boolean originalAutoCommit = targetConn.getAutoCommit();
         int syncedRows = 0;
-        String selectColumns = buildSelectionSourceColumnList(extraColumns);
-        String insertColumns = buildSelectionInsertColumnList(extraColumns);
+        String selectionColumns = buildSelectionColumnList(extraColumns);
         String placeholders = buildSelectionPlaceholders(extraColumns.size() + 1);
 
         try (
-                PreparedStatement sourceSelections = sourceConn.prepareStatement(
-                        "SELECT " + selectColumns + " FROM " + selectionTable + " ORDER BY id");
-                ResultSet sourceRows = sourceSelections.executeQuery();
+                Statement sourceSelections = sourceConn.createStatement();
+                ResultSet sourceRows = sourceSelections.executeQuery(
+                        SQL_SELECT + selectionColumns + SQL_FROM + selectionTable + " ORDER BY id");
                 PreparedStatement sourceAccountName = sourceConn.prepareStatement(
                         "SELECT accountName FROM " + accountTable + " WHERE id = ?");
                 PreparedStatement targetAccountId = targetConn.prepareStatement(
                         "SELECT id FROM " + accountTable + " WHERE accountName = ?");
                 Statement deleteTargetSelections = targetConn.createStatement();
                 PreparedStatement insertTargetSelection = targetConn.prepareStatement(
-                        SQL_INSERT_INTO + selectionTable + " (" + insertColumns + SQL_VALUES + placeholders + ")")
+                        SQL_INSERT_INTO + selectionTable + " (" + selectionColumns + SQL_VALUES + placeholders + ")")
         ) {
             targetConn.setAutoCommit(false);
             deleteTargetSelections.executeUpdate("DELETE FROM " + selectionTable);
@@ -294,16 +295,9 @@ public final class SQLiteTableSync {
         }
     }
 
-    private static String buildSelectionSourceColumnList(List<String> extraColumns) {
+    private static String buildSelectionColumnList(List<String> extraColumns) {
         List<String> columns = new ArrayList<>();
-        columns.add("accountId");
-        columns.addAll(extraColumns);
-        return String.join(", ", columns);
-    }
-
-    private static String buildSelectionInsertColumnList(List<String> extraColumns) {
-        List<String> columns = new ArrayList<>();
-        columns.add("accountId");
+        columns.add(ACCOUNT_ID);
         columns.addAll(extraColumns);
         return String.join(", ", columns);
     }
@@ -322,7 +316,7 @@ public final class SQLiteTableSync {
             return null;
         }
 
-        String sql = "SELECT id, " + columnList + SQL_FROM + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName() + " ORDER BY id LIMIT 1";
+        String sql = SQL_SELECT + "id, " + columnList + SQL_FROM + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName() + " ORDER BY id LIMIT 1";
         try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             if (!rs.next()) {
                 return null;
@@ -375,7 +369,7 @@ public final class SQLiteTableSync {
     private static String resolveTargetAccountId(ResultSet sourceRows,
                                                  PreparedStatement sourceAccountName,
                                                  PreparedStatement targetAccountId) throws SQLException {
-        String sourceAccountId = sourceRows.getString("accountId");
+        String sourceAccountId = sourceRows.getString(ACCOUNT_ID);
         if (sourceAccountId == null || sourceAccountId.isBlank()) {
             return null;
         }

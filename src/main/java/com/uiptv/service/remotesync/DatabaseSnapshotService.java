@@ -12,7 +12,7 @@ import java.util.Objects;
 public class DatabaseSnapshotService {
     public Path createSnapshot(String databasePath) throws IOException, SQLException {
         Objects.requireNonNull(databasePath, "databasePath");
-        Path snapshotPath = Files.createTempFile("uiptv-remote-sync-", ".db");
+        Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".db");
         try {
             runVacuumInto(databasePath, snapshotPath);
             return snapshotPath;

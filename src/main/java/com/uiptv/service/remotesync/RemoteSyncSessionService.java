@@ -17,17 +17,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RemoteSyncSessionService {
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(2);
     private static final Duration TRANSFER_TTL = Duration.ofMinutes(10);
+    private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
 
     private final Map<String, SessionState> sessions = new ConcurrentHashMap<>();
     private final DatabaseSnapshotService snapshotService;
     private final DatabaseSyncService databaseSyncService;
     private final Clock clock;
-    private volatile RemoteSyncApprovalPrompt approvalPrompt;
-    private volatile RemoteSyncNotifier notifier;
+    private final AtomicReference<RemoteSyncApprovalPrompt> approvalPrompt;
+    private final AtomicReference<RemoteSyncNotifier> notifier;
 
     private RemoteSyncSessionService() {
         this(new DatabaseSnapshotService(), DatabaseSyncService.getInstance(), Clock.systemDefaultZone(),
@@ -42,8 +44,8 @@ public class RemoteSyncSessionService {
         this.snapshotService = Objects.requireNonNull(snapshotService, "snapshotService");
         this.databaseSyncService = Objects.requireNonNull(databaseSyncService, "databaseSyncService");
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.approvalPrompt = Objects.requireNonNull(approvalPrompt, "approvalPrompt");
-        this.notifier = Objects.requireNonNull(notifier, "notifier");
+        this.approvalPrompt = new AtomicReference<>(Objects.requireNonNull(approvalPrompt, "approvalPrompt"));
+        this.notifier = new AtomicReference<>(Objects.requireNonNull(notifier, "notifier"));
     }
 
     private static class SingletonHelper {
@@ -66,7 +68,7 @@ public class RemoteSyncSessionService {
                 clock.instant().plus(APPROVAL_TTL)
         );
         sessions.put(session.sessionId, session);
-        approvalPrompt.requestApproval(session.toApprovalRequest(), approved -> applyDecision(session.sessionId, approved));
+        approvalPrompt.get().requestApproval(session.toApprovalRequest(), approved -> applyDecision(session.sessionId, approved));
         return session.toPublicState();
     }
 
@@ -84,7 +86,7 @@ public class RemoteSyncSessionService {
         synchronized (session) {
             expireIfNeeded(session);
             session.ensureStatus(RemoteSyncDirection.EXPORT_TO_REMOTE, RemoteSyncStatus.APPROVED);
-            uploadedSnapshot = Files.createTempFile("uiptv-remote-upload-", ".db");
+            uploadedSnapshot = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".db");
             try (InputStream inputStream = requestBody) {
                 Files.copy(inputStream, uploadedSnapshot, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -100,15 +102,15 @@ public class RemoteSyncSessionService {
             );
             AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
             synchronized (session) {
-                session.complete("Remote database sync completed.");
+                session.complete(REMOTE_SYNC_COMPLETED_MESSAGE);
             }
-            notifier.showInfo("remoteSyncRemoteCompletedMessage");
-            return new RemoteSyncExecutionResult(report, "Remote database sync completed.");
+            notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
+            return new RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE);
         } catch (SQLException ex) {
             synchronized (session) {
                 session.fail(ex.getMessage());
             }
-            notifier.showError("remoteSyncRemoteFailedMessage");
+            notifier.get().showError("remoteSyncRemoteFailedMessage");
             throw ex;
         } finally {
             deleteIfExists(uploadedSnapshot);
@@ -130,22 +132,22 @@ public class RemoteSyncSessionService {
             expireIfNeeded(session);
             if (success) {
                 AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
-                session.complete(blankToFallback(message, "Remote database sync completed."));
-                notifier.showInfo("remoteSyncRemoteCompletedMessage");
+                session.complete(blankToFallback(message, REMOTE_SYNC_COMPLETED_MESSAGE));
+                notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
             } else {
                 session.fail(blankToFallback(message, "Remote database sync failed."));
-                notifier.showError("remoteSyncRemoteFailedMessage");
+                notifier.get().showError("remoteSyncRemoteFailedMessage");
             }
             cleanupSnapshot(session);
         }
     }
 
     void setApprovalPrompt(RemoteSyncApprovalPrompt approvalPrompt) {
-        this.approvalPrompt = approvalPrompt;
+        this.approvalPrompt.set(Objects.requireNonNull(approvalPrompt, "approvalPrompt"));
     }
 
     void setNotifier(RemoteSyncNotifier notifier) {
-        this.notifier = notifier;
+        this.notifier.set(Objects.requireNonNull(notifier, "notifier"));
     }
 
     void clearSessions() {
@@ -226,7 +228,7 @@ public class RemoteSyncSessionService {
         }
         try {
             Files.deleteIfExists(path);
-        } catch (IOException ignored) {
+        } catch (IOException _) {
             // Best effort cleanup.
         }
     }

@@ -2,7 +2,6 @@ package com.uiptv.ui;
 
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.util.I18n;
-import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -26,6 +25,7 @@ import java.util.Set;
 
 public class M3U8PublicationPopup extends VBox {
     private static final String CUSTOMIZED_CHECKBOX_STYLE_CLASS = "published-m3u-customized-checkbox";
+    private static final String SHOW_TRANSLATION_KEY = "commonShow";
     private final List<AccountNode> accountNodes = new ArrayList<>();
     private final M3U8PublicationService service = M3U8PublicationService.getInstance();
     private final M3U8PublicationService.PublicationSelections savedSelections;
@@ -100,7 +100,7 @@ public class M3U8PublicationPopup extends VBox {
             this.checkBox = new CheckBox(account.accountName());
             this.childrenBox = new VBox(6);
             this.container = new VBox(6);
-            this.toggleLink = new Hyperlink(I18n.tr("commonShow"));
+            this.toggleLink = new Hyperlink(I18n.tr(SHOW_TRANSLATION_KEY));
 
             checkBox.setSelected(baseSelection);
             checkBox.setOnAction(event -> {
@@ -116,7 +116,7 @@ public class M3U8PublicationPopup extends VBox {
             childrenBox.setPadding(new Insets(0, 0, 0, 20));
             childrenBox.setVisible(false);
             childrenBox.setManaged(false);
-            container.getChildren().addAll(createRow(checkBox, childrenBox, toggleLink, this::toggleExpanded), childrenBox);
+            container.getChildren().addAll(createRow(checkBox, toggleLink, this::toggleExpanded), childrenBox);
             refreshSummaryState();
         }
 
@@ -127,7 +127,7 @@ public class M3U8PublicationPopup extends VBox {
             boolean show = !childrenBox.isVisible();
             childrenBox.setVisible(show);
             childrenBox.setManaged(show);
-            toggleLink.setText(I18n.tr(show ? "commonHide" : "commonShow"));
+            toggleLink.setText(I18n.tr(show ? "commonHide" : SHOW_TRANSLATION_KEY));
         }
 
         private void loadPlaylistAsync() {
@@ -231,7 +231,7 @@ public class M3U8PublicationPopup extends VBox {
             this.checkBox = new CheckBox(category.categoryName());
             this.childrenBox = new VBox(4);
             this.container = new VBox(4);
-            this.toggleLink = new Hyperlink(I18n.tr("commonShow"));
+            this.toggleLink = new Hyperlink(I18n.tr(SHOW_TRANSLATION_KEY));
 
             for (M3U8PublicationService.PlaylistChannel channel : category.channels()) {
                 ChannelNode channelNode = new ChannelNode(this, channel);
@@ -255,7 +255,7 @@ public class M3U8PublicationPopup extends VBox {
             childrenBox.setPadding(new Insets(0, 0, 0, 20));
             childrenBox.setVisible(false);
             childrenBox.setManaged(false);
-            container.getChildren().addAll(createRow(checkBox, childrenBox, toggleLink, this::toggleExpanded), childrenBox);
+            container.getChildren().addAll(createRow(checkBox, toggleLink, this::toggleExpanded), childrenBox);
             refreshState();
         }
 
@@ -263,7 +263,7 @@ public class M3U8PublicationPopup extends VBox {
             boolean show = !childrenBox.isVisible();
             childrenBox.setVisible(show);
             childrenBox.setManaged(show);
-            toggleLink.setText(I18n.tr(show ? "commonHide" : "commonShow"));
+            toggleLink.setText(I18n.tr(show ? "commonHide" : SHOW_TRANSLATION_KEY));
         }
 
         private void refreshState() {
@@ -406,7 +406,7 @@ public class M3U8PublicationPopup extends VBox {
         }
     }
 
-    private HBox createRow(CheckBox checkBox, VBox childrenBox, Hyperlink toggleLink, Runnable onToggle) {
+    private HBox createRow(CheckBox checkBox, Hyperlink toggleLink, Runnable onToggle) {
         checkBox.setMaxWidth(Double.MAX_VALUE);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);

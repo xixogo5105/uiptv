@@ -15,7 +15,7 @@ public class DefaultRemoteSyncUiBridge implements RemoteSyncApprovalPrompt, Remo
     public void requestApproval(RemoteSyncApprovalRequest request, Consumer<Boolean> decisionConsumer) {
         try {
             Platform.runLater(() -> decisionConsumer.accept(showApprovalDialog(request)));
-        } catch (IllegalStateException ex) {
+        } catch (IllegalStateException _) {
             decisionConsumer.accept(false);
         }
     }
@@ -64,7 +64,7 @@ public class DefaultRemoteSyncUiBridge implements RemoteSyncApprovalPrompt, Remo
     private void runAlert(Runnable runnable) {
         try {
             Platform.runLater(runnable);
-        } catch (IllegalStateException ignored) {
+        } catch (IllegalStateException _) {
             // No JavaFX runtime; logging-only environments can ignore UI popups.
         }
     }

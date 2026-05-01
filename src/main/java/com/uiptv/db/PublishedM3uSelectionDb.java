@@ -43,17 +43,7 @@ public class PublishedM3uSelectionDb extends BaseDb {
 
     public void replaceSelections(Set<String> accountIds) {
         try (Connection conn = connect()) {
-            boolean originalAutoCommit = conn.getAutoCommit();
-            try {
-                conn.setAutoCommit(false);
-                replaceSelectionsOnConnection(conn, accountIds);
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(originalAutoCommit);
-            }
+            replaceSelectionsInTransaction(conn, accountIds);
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to replace published M3U selections", e);
         }
@@ -79,6 +69,20 @@ public class PublishedM3uSelectionDb extends BaseDb {
                 }
                 insert.executeBatch();
             }
+        }
+    }
+
+    private void replaceSelectionsInTransaction(Connection conn, Set<String> accountIds) throws SQLException {
+        boolean originalAutoCommit = conn.getAutoCommit();
+        try {
+            conn.setAutoCommit(false);
+            replaceSelectionsOnConnection(conn, accountIds);
+            conn.commit();
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(originalAutoCommit);
         }
     }
 

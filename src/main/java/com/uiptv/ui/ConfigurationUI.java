@@ -43,6 +43,7 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
@@ -53,6 +54,7 @@ public class ConfigurationUI extends VBox {
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
     private static final String CONFIG_EMBED_PLAYER_RESTART_NEEDED = "configEmbedPlayerRestartNeeded";
+    private static final String CONFIG_DATABASE_SYNC_IN_PROGRESS = "configDatabaseSyncInProgress";
     private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
     private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
     private static final String DIALOG_TITLE_COMMON_INFO = "commonInfo";
@@ -61,8 +63,8 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
-    private static Stage activePublishM3u8PopupStage;
-    private static Stage activeDatabaseSyncPopupStage;
+    private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
+    private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
@@ -624,9 +626,10 @@ public class ConfigurationUI extends VBox {
 
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
-            if (activePublishM3u8PopupStage != null && activePublishM3u8PopupStage.isShowing()) {
-                activePublishM3u8PopupStage.toFront();
-                activePublishM3u8PopupStage.requestFocus();
+            Stage activePopupStage = activePublishM3u8PopupStage.get();
+            if (activePopupStage != null && activePopupStage.isShowing()) {
+                activePopupStage.toFront();
+                activePopupStage.requestFocus();
                 return;
             }
             Stage popupStage = new Stage();
@@ -636,12 +639,8 @@ public class ConfigurationUI extends VBox {
             scene.getStylesheets().add(RootApplication.getCurrentTheme());
             popupStage.setTitle(I18n.tr("configPublishM3u8"));
             popupStage.setScene(scene);
-            popupStage.setOnHidden(hiddenEvent -> {
-                if (activePublishM3u8PopupStage == popupStage) {
-                    activePublishM3u8PopupStage = null;
-                }
-            });
-            activePublishM3u8PopupStage = popupStage;
+            popupStage.setOnHidden(hiddenEvent -> activePublishM3u8PopupStage.compareAndSet(popupStage, null));
+            activePublishM3u8PopupStage.set(popupStage);
             popupStage.show();
             popupStage.toFront();
         });
@@ -1035,8 +1034,9 @@ public class ConfigurationUI extends VBox {
     }
 
     private void openDatabaseSyncPopup(boolean importMode) {
-        if (activeDatabaseSyncPopupStage != null && activeDatabaseSyncPopupStage.isShowing()) {
-            activeDatabaseSyncPopupStage.close();
+        Stage activePopupStage = activeDatabaseSyncPopupStage.get();
+        if (activePopupStage != null && activePopupStage.isShowing()) {
+            activePopupStage.close();
         }
         Stage popupStage = new Stage();
         popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
@@ -1116,7 +1116,7 @@ public class ConfigurationUI extends VBox {
                 syncRunning
         );
 
-        runButton.setOnAction(event -> runDatabaseSyncAction(
+        runButton.setOnAction(event -> runDatabaseSyncAction(new DatabaseSyncRunRequest(
                 popupStage,
                 importMode,
                 fileModeButton.isSelected(),
@@ -1126,7 +1126,7 @@ public class ConfigurationUI extends VBox {
                 syncConfigurationCheckBox.isSelected(),
                 syncExternalPlayerPathsCheckBox.isSelected(),
                 controls
-        ));
+        )));
         cancelButton.setOnAction(event -> popupStage.close());
         popupStage.setOnCloseRequest(event -> {
             if (syncRunning.get()) {
@@ -1183,12 +1183,8 @@ public class ConfigurationUI extends VBox {
         I18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());
         popupStage.setScene(scene);
-        popupStage.setOnHidden(hiddenEvent -> {
-            if (activeDatabaseSyncPopupStage == popupStage) {
-                activeDatabaseSyncPopupStage = null;
-            }
-        });
-        activeDatabaseSyncPopupStage = popupStage;
+        popupStage.setOnHidden(hiddenEvent -> activeDatabaseSyncPopupStage.compareAndSet(popupStage, null));
+        activeDatabaseSyncPopupStage.set(popupStage);
         popupStage.showAndWait();
     }
 
@@ -1218,41 +1214,34 @@ public class ConfigurationUI extends VBox {
         return I18n.tr(fileMode ? "configDatabaseSyncSelectedFile" : "configDatabaseSyncRemoteMachine");
     }
 
-    private void runDatabaseSyncAction(Stage popupStage,
-                                       boolean importMode,
-                                       boolean fileMode,
-                                       String selectedPath,
-                                       String remoteHost,
-                                       String remotePort,
-                                       boolean syncConfiguration,
-                                       boolean syncExternalPlayerPaths,
-                                       DatabaseSyncDialogControls controls) {
-        if (!fileMode) {
+    private void runDatabaseSyncAction(DatabaseSyncRunRequest request) {
+        if (!request.fileMode()) {
             runRemoteDatabaseSyncAction(
-                    popupStage,
-                    importMode,
-                    remoteHost,
-                    remotePort,
-                    syncConfiguration,
-                    syncExternalPlayerPaths,
-                    controls
+                    request.popupStage(),
+                    request.importMode(),
+                    request.remoteHost(),
+                    request.remotePort(),
+                    request.syncConfiguration(),
+                    request.syncExternalPlayerPaths(),
+                    request.controls()
             );
             return;
         }
-        String normalizedPath = normalizeSelectedPath(selectedPath);
+        String normalizedPath = normalizeSelectedPath(request.selectedPath());
         if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
             return;
         }
-        if (isMissingImportSource(importMode, normalizedPath)) {
+        if (isMissingImportSource(request.importMode(), normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathMissing"));
             return;
         }
 
-        Configuration previousConfiguration = importMode ? service.read() : null;
-        String sourcePath = resolveDatabaseSyncSourcePath(importMode, normalizedPath);
-        String targetPath = resolveDatabaseSyncTargetPath(importMode, normalizedPath);
+        Configuration previousConfiguration = request.importMode() ? service.read() : null;
+        String sourcePath = resolveDatabaseSyncSourcePath(request.importMode(), normalizedPath);
+        String targetPath = resolveDatabaseSyncTargetPath(request.importMode(), normalizedPath);
 
+        DatabaseSyncDialogControls controls = request.controls();
         setDatabaseSyncControlsDisabled(true, controls);
         controls.syncRunning().set(true);
         controls.cancelButton().setDisable(true);
@@ -1266,8 +1255,8 @@ public class ConfigurationUI extends VBox {
         controls.resultTextArea().setVisible(false);
         controls.resultTextArea().setManaged(false);
         controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-        controls.progressLabel().setText(I18n.tr("configDatabaseSyncInProgress"));
-        popupStage.sizeToScene();
+        controls.progressLabel().setText(I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS));
+        request.popupStage().sizeToScene();
 
         Task<DatabaseSyncService.DatabaseSyncReport> task = new Task<>() {
             @Override
@@ -1275,11 +1264,11 @@ public class ConfigurationUI extends VBox {
                 return RootApplication.syncDatabasesWithReport(
                         sourcePath,
                         targetPath,
-                        syncConfiguration,
-                        syncExternalPlayerPaths,
+                        request.syncConfiguration(),
+                        request.syncExternalPlayerPaths(),
                         (completedSteps, totalSteps, currentStep) -> {
                             updateProgress(totalSteps == 0 ? 1 : completedSteps, totalSteps == 0 ? 1 : totalSteps);
-                            updateMessage(formatDatabaseSyncProgressMessage(importMode, currentStep));
+                            updateMessage(formatDatabaseSyncProgressMessage(request.importMode(), currentStep));
                         }
                 );
             }
@@ -1292,15 +1281,15 @@ public class ConfigurationUI extends VBox {
             controls.progressBar().progressProperty().unbind();
             controls.progressLabel().textProperty().unbind();
             controls.syncRunning().set(false);
-            applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
-            refreshAppDataAfterDatabaseChange(importMode);
+            applyPostDatabaseImport(request.importMode(), previousConfiguration, request.syncConfiguration());
+            refreshAppDataAfterDatabaseChange(request.importMode());
             controls.progressBar().setProgress(1);
-            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
-            controls.resultTextArea().setText(buildDatabaseSyncSummary(importMode, task.getValue()));
+            controls.progressLabel().setText(I18n.tr(request.importMode() ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            controls.resultTextArea().setText(buildDatabaseSyncSummary(request.importMode(), task.getValue()));
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
-            popupStage.sizeToScene();
+            request.popupStage().sizeToScene();
         });
 
         task.setOnFailed(event -> {
@@ -1308,17 +1297,17 @@ public class ConfigurationUI extends VBox {
             controls.progressLabel().textProperty().unbind();
             controls.syncRunning().set(false);
             controls.progressBar().setProgress(1);
-            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            controls.progressLabel().setText(I18n.tr(request.importMode() ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
             controls.resultTextArea().setText(I18n.tr("configDatabaseSyncFailedWithReason",
-                    I18n.tr(databaseSyncActionKey(importMode)),
+                    I18n.tr(databaseSyncActionKey(request.importMode())),
                     summarizeExceptionMessage(task.getException())));
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
-            popupStage.sizeToScene();
+            request.popupStage().sizeToScene();
         });
 
-        Thread worker = new Thread(task, importMode ? "database-import-task" : "database-export-task");
+        Thread worker = new Thread(task, request.importMode() ? "database-import-task" : "database-export-task");
         worker.setDaemon(true);
         worker.start();
     }
@@ -1357,7 +1346,7 @@ public class ConfigurationUI extends VBox {
         controls.progressLabel().setVisible(true);
         controls.progressLabel().setManaged(true);
         controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-        controls.progressLabel().setText(I18n.tr("configDatabaseSyncInProgress"));
+        controls.progressLabel().setText(I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS));
         controls.resultTextArea().clear();
         controls.resultTextArea().setVisible(false);
         controls.resultTextArea().setManaged(false);
@@ -1488,6 +1477,17 @@ public class ConfigurationUI extends VBox {
                                               AtomicBoolean syncRunning) {
     }
 
+    private record DatabaseSyncRunRequest(Stage popupStage,
+                                          boolean importMode,
+                                          boolean fileMode,
+                                          String selectedPath,
+                                          String remoteHost,
+                                          String remotePort,
+                                          boolean syncConfiguration,
+                                          boolean syncExternalPlayerPaths,
+                                          DatabaseSyncDialogControls controls) {
+    }
+
     private String buildDatabaseSyncSummary(boolean importMode, DatabaseSyncService.DatabaseSyncReport report) {
         StringBuilder summary = new StringBuilder(I18n.tr(databaseSyncResultKey(importMode, "Success")));
         summary.append("\n\n").append(I18n.tr("configDatabaseSyncSummaryRows", report.getTotalRowsSynced()));
@@ -1564,14 +1564,14 @@ public class ConfigurationUI extends VBox {
         try {
             int port = Integer.parseInt(value);
             return port > 0 && port <= 65_535 ? port : -1;
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException _) {
             return -1;
         }
     }
 
     private String formatRemoteSyncProgressMessage(RemoteSyncProgressStep step, String detail) {
         if (step == null) {
-            return I18n.tr("configDatabaseSyncInProgress");
+            return I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS);
         }
         return switch (step) {
             case CONNECTING -> I18n.tr("remoteSyncConnecting");
