@@ -245,6 +245,7 @@ public final class SQLiteTableSync {
         );
     }
 
+    @SuppressWarnings("java:S2695")
     private static int syncSelectionTableWithAccountRemap(Connection sourceConn,
                                                           Connection targetConn,
                                                           String selectionTable,
