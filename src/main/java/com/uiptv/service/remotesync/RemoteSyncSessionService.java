@@ -1,6 +1,7 @@
 package com.uiptv.service.remotesync;
 
 import com.uiptv.db.SQLConnection;
+import com.uiptv.service.AppDataRefreshService;
 import com.uiptv.service.DatabaseSyncService;
 
 import java.io.IOException;
@@ -97,6 +98,7 @@ public class RemoteSyncSessionService {
                     session.options.syncExternalPlayerPaths(),
                     null
             );
+            AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
             synchronized (session) {
                 session.complete("Remote database sync completed.");
             }
@@ -127,6 +129,7 @@ public class RemoteSyncSessionService {
         synchronized (session) {
             expireIfNeeded(session);
             if (success) {
+                AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
                 session.complete(blankToFallback(message, "Remote database sync completed."));
                 notifier.showInfo("remoteSyncRemoteCompletedMessage");
             } else {

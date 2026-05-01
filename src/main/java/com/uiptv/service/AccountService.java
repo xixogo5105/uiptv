@@ -10,7 +10,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -18,6 +21,8 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class AccountService {
+    private final AtomicLong changeRevision = new AtomicLong(1);
+    private final Set<AccountChangeListener> changeListeners = new CopyOnWriteArraySet<>();
     private final Map<String, String> sessionTokenByAccountKey = new ConcurrentHashMap<>();
 
     private AccountService() {
@@ -34,6 +39,7 @@ public class AccountService {
         }
         sessionTokenByAccountKey.remove(getSessionAccountKey(account));
         AccountDb.get().save(account);
+        touchChange();
     }
 
     public void delete(final String accountId) {
@@ -44,6 +50,24 @@ public class AccountService {
     public void deleteAll() {
         sessionTokenByAccountKey.clear();
         AccountDb.get().getAccounts().forEach(account -> deleteAccountData(account.getDbId(), account));
+        touchChange();
+    }
+
+    public void refreshFromDatabase() {
+        sessionTokenByAccountKey.clear();
+        touchChange();
+    }
+
+    public void addChangeListener(AccountChangeListener listener) {
+        if (listener != null) {
+            changeListeners.add(listener);
+        }
+    }
+
+    public void removeChangeListener(AccountChangeListener listener) {
+        if (listener != null) {
+            changeListeners.remove(listener);
+        }
     }
 
     public Map<String, Account> getAll() {
@@ -146,6 +170,18 @@ public class AccountService {
         ChannelDb.get().deleteByAccount(accountId);
         CategoryDb.get().deleteByAccount(account);
         AccountDb.get().delete(accountId);
+        touchChange();
+    }
+
+    private void touchChange() {
+        long revision = changeRevision.incrementAndGet();
+        for (AccountChangeListener listener : changeListeners) {
+            try {
+                listener.onAccountsChanged(revision);
+            } catch (Exception _) {
+                // Listener failures must never break account updates.
+            }
+        }
     }
 
     private void sanitizeAccountFields(Account account) {

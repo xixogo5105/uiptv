@@ -111,6 +111,10 @@ public class BookmarkService {
         touchChange();
     }
 
+    public void notifyBookmarksChanged() {
+        touchChange();
+    }
+
     // Order operations
     public void saveBookmarkOrder(List<String> orderedBookmarkDbIds) {
         Map<String, Integer> bookmarkOrders = new LinkedHashMap<>();

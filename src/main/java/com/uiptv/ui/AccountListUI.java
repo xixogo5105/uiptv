@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
@@ -66,6 +67,7 @@ public class AccountListUI extends HBox {
     private boolean isPromptShowing = false;
     private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
+    private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
 
     public AccountListUI() { // Removed MediaPlayer argument
         this(ConfigurationService.getInstance().read().isEmbeddedPlayer());
@@ -82,9 +84,18 @@ public class AccountListUI extends HBox {
         // Load data only when tab becomes visible
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
+                accountService.addChangeListener(accountChangeListener);
                 refresh();
+            } else {
+                accountService.removeChangeListener(accountChangeListener);
             }
         });
+    }
+
+    private void refreshIfAttached() {
+        if (getScene() != null) {
+            refresh();
+        }
     }
 
     public void addUpdateCallbackHandler(Callback<Object> onEditCallback) {
