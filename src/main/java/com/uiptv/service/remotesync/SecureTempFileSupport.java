@@ -11,6 +11,9 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
 final class SecureTempFileSupport {
+    private static final String READ_PERMISSION = "read";
+    private static final String WRITE_PERMISSION = "write";
+    private static final String EXECUTE_PERMISSION = "execute";
     private static final Set<PosixFilePermission> OWNER_ONLY_DIRECTORY_PERMISSIONS = Set.of(
             PosixFilePermission.OWNER_READ,
             PosixFilePermission.OWNER_WRITE,
@@ -62,12 +65,12 @@ final class SecureTempFileSupport {
             Files.setPosixFilePermissions(path, OWNER_ONLY_DIRECTORY_PERMISSIONS);
         } catch (UnsupportedOperationException _) {
             File file = path.toFile();
-            requirePermissionChange(file.setReadable(false, false), "read", path);
-            requirePermissionChange(file.setWritable(false, false), "write", path);
-            requirePermissionChange(file.setExecutable(false, false), "execute", path);
-            requirePermissionChange(file.setReadable(true, true), "read", path);
-            requirePermissionChange(file.setWritable(true, true), "write", path);
-            requirePermissionChange(file.setExecutable(true, true), "execute", path);
+            requirePermissionChange(file.setReadable(false, false), READ_PERMISSION, path);
+            requirePermissionChange(file.setWritable(false, false), WRITE_PERMISSION, path);
+            requirePermissionChange(file.setExecutable(false, false), EXECUTE_PERMISSION, path);
+            requirePermissionChange(file.setReadable(true, true), READ_PERMISSION, path);
+            requirePermissionChange(file.setWritable(true, true), WRITE_PERMISSION, path);
+            requirePermissionChange(file.setExecutable(true, true), EXECUTE_PERMISSION, path);
         }
     }
 
@@ -76,11 +79,11 @@ final class SecureTempFileSupport {
             Files.setPosixFilePermissions(path, OWNER_ONLY_FILE_PERMISSIONS);
         } catch (UnsupportedOperationException _) {
             File file = path.toFile();
-            requirePermissionChange(file.setReadable(false, false), "read", path);
-            requirePermissionChange(file.setWritable(false, false), "write", path);
-            requirePermissionChange(file.setExecutable(false, false), "execute", path);
-            requirePermissionChange(file.setReadable(true, true), "read", path);
-            requirePermissionChange(file.setWritable(true, true), "write", path);
+            requirePermissionChange(file.setReadable(false, false), READ_PERMISSION, path);
+            requirePermissionChange(file.setWritable(false, false), WRITE_PERMISSION, path);
+            requirePermissionChange(file.setExecutable(false, false), EXECUTE_PERMISSION, path);
+            requirePermissionChange(file.setReadable(true, true), READ_PERMISSION, path);
+            requirePermissionChange(file.setWritable(true, true), WRITE_PERMISSION, path);
         }
     }
 
