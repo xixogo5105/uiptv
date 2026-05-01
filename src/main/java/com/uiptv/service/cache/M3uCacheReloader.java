@@ -55,52 +55,81 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
     protected Map<String, List<Channel>> loadM3uChannelsByCategory(List<Category> categories, Account account, LoggerCallback logger) {
         Map<String, List<Channel>> channelsByCategory = new LinkedHashMap<>();
         try {
-            List<PlaylistEntry> entries = loadM3uEntries(account);
-            boolean hasOtherCategories = loadM3uCategories(account).size() >= 2;
-            List<Channel> allChannels = new ArrayList<>();
-            List<Channel> uncategorizedChannels = new ArrayList<>();
-            Map<String, List<Channel>> groupedChannels = new HashMap<>();
-
-            for (PlaylistEntry entry : entries) {
-                Channel channel = toChannel(entry);
-                allChannels.add(channel);
-
-                String groupTitle = entry.getGroupTitle() == null ? "" : entry.getGroupTitle().trim();
-                if (groupTitle.isEmpty() || CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(groupTitle)) {
-                    if (hasOtherCategories) {
-                        uncategorizedChannels.add(channel);
-                    }
-                    continue;
-                }
-                groupedChannels.computeIfAbsent(groupTitle, ignored -> new ArrayList<>()).add(channel);
-            }
-
-            for (Category category : categories) {
-                if (category == null || category.getTitle() == null) {
-                    continue;
-                }
-                String categoryTitle = category.getTitle();
-                if (CategoryType.ALL.displayName().equalsIgnoreCase(categoryTitle)) {
-                    if (!allChannels.isEmpty()) {
-                        channelsByCategory.put(categoryTitle, allChannels);
-                    }
-                    continue;
-                }
-                if (CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(categoryTitle)) {
-                    if (!uncategorizedChannels.isEmpty()) {
-                        channelsByCategory.put(categoryTitle, uncategorizedChannels);
-                    }
-                    continue;
-                }
-                List<Channel> matched = groupedChannels.get(categoryTitle);
-                if (matched != null && !matched.isEmpty()) {
-                    channelsByCategory.put(categoryTitle, matched);
-                }
-            }
+            M3uChannelBuckets buckets = buildM3uChannelBuckets(account);
+            populateChannelsByCategory(categories, channelsByCategory, buckets);
         } catch (Exception e) {
             log(logger, "Failed to load M3U channels: " + e.getMessage());
         }
         return channelsByCategory;
+    }
+
+    private M3uChannelBuckets buildM3uChannelBuckets(Account account) throws Exception {
+        List<PlaylistEntry> entries = loadM3uEntries(account);
+        boolean hasOtherCategories = loadM3uCategories(account).size() >= 2;
+        List<Channel> allChannels = new ArrayList<>();
+        List<Channel> uncategorizedChannels = new ArrayList<>();
+        Map<String, List<Channel>> groupedChannels = new HashMap<>();
+
+        for (PlaylistEntry entry : entries) {
+            Channel channel = toChannel(entry);
+            allChannels.add(channel);
+            addChannelToBucket(entry, channel, groupedChannels, uncategorizedChannels, hasOtherCategories);
+        }
+        return new M3uChannelBuckets(allChannels, uncategorizedChannels, groupedChannels);
+    }
+
+    private void addChannelToBucket(PlaylistEntry entry,
+                                    Channel channel,
+                                    Map<String, List<Channel>> groupedChannels,
+                                    List<Channel> uncategorizedChannels,
+                                    boolean hasOtherCategories) {
+        String groupTitle = normalizedGroupTitle(entry);
+        if (isUncategorizedGroup(groupTitle)) {
+            if (hasOtherCategories) {
+                uncategorizedChannels.add(channel);
+            }
+            return;
+        }
+        groupedChannels.computeIfAbsent(groupTitle, ignored -> new ArrayList<>()).add(channel);
+    }
+
+    private void populateChannelsByCategory(List<Category> categories,
+                                            Map<String, List<Channel>> channelsByCategory,
+                                            M3uChannelBuckets buckets) {
+        for (Category category : categories) {
+            addCategoryChannels(category, channelsByCategory, buckets);
+        }
+    }
+
+    private void addCategoryChannels(Category category,
+                                     Map<String, List<Channel>> channelsByCategory,
+                                     M3uChannelBuckets buckets) {
+        if (category == null || category.getTitle() == null) {
+            return;
+        }
+        String categoryTitle = category.getTitle();
+        List<Channel> matchedChannels = resolveChannelsForCategory(categoryTitle, buckets);
+        if (matchedChannels != null && !matchedChannels.isEmpty()) {
+            channelsByCategory.put(categoryTitle, matchedChannels);
+        }
+    }
+
+    private List<Channel> resolveChannelsForCategory(String categoryTitle, M3uChannelBuckets buckets) {
+        if (CategoryType.ALL.displayName().equalsIgnoreCase(categoryTitle)) {
+            return buckets.allChannels();
+        }
+        if (CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(categoryTitle)) {
+            return buckets.uncategorizedChannels();
+        }
+        return buckets.groupedChannels().get(categoryTitle);
+    }
+
+    private String normalizedGroupTitle(PlaylistEntry entry) {
+        return entry.getGroupTitle() == null ? "" : entry.getGroupTitle().trim();
+    }
+
+    private boolean isUncategorizedGroup(String groupTitle) {
+        return groupTitle.isEmpty() || CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(groupTitle);
     }
 
     /**
@@ -242,5 +271,10 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             return false;
         }
         return CategoryType.isUncategorized(category.getTitle());
+    }
+
+    private record M3uChannelBuckets(List<Channel> allChannels,
+                                     List<Channel> uncategorizedChannels,
+                                     Map<String, List<Channel>> groupedChannels) {
     }
 }

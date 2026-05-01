@@ -398,7 +398,7 @@ public class M3U8PublicationService {
         List<String> entryLines = new ArrayList<>();
         entryLines.add(extinfLine);
 
-        String categoryName = normalizeCategoryName(parseQuotedAttribute(extinfLine, "group-title"));
+        String categoryName = normalizeCategoryName(parseQuotedAttribute(extinfLine, GROUP_TITLE_ATTR));
         String title = parseEntryTitle(extinfLine);
         String sourceUrl = "";
         int index = startIndex + 1;
