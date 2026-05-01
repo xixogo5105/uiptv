@@ -81,6 +81,24 @@ class HttpM3u8ServersTest extends DbBackedTest {
     }
 
     @Test
+    void iptvM3u8Server_usesRequestHostForEmbeddedBookmarkEntries() throws Exception {
+        Bookmark bookmark = new Bookmark("acc", "", "ch-1", "Bookmark One", "cmd1", "http://portal", null);
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID));
+
+        HttpIptvM3u8Server handler = new HttpIptvM3u8Server();
+        StubHttpExchange exchange = new StubHttpExchange("/iptv.m3u8", "GET");
+        exchange.getRequestHeaders().add("Host", "192.168.0.210:8080");
+
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        assertTrue(exchange.getResponseBodyText().contains("http://192.168.0.210:8080/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
+        assertTrue(!exchange.getResponseBodyText().contains("http://127.0.0.1:8080/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
+    }
+
+    @Test
     void m3u8BookmarkEntry_whenBookmarkIdMissing_doesNothing() throws Exception {
         HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
         StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?x=1", "GET");

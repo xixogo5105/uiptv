@@ -211,4 +211,19 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertTrue(result.contains("Favorite One"));
         assertTrue(result.contains("/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
     }
+
+    @Test
+    void getPublishedM3u8_usesRequestHostForBookmarksPlaylistWhenProvided() {
+        Bookmark bookmark = new Bookmark("acc", "", "ch-1", "Favorite One", "cmd1", "http://portal", null);
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+
+        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        publicationService.setSelectedAccountIds(Set.of(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID));
+
+        String result = publicationService.getPublishedM3u8("192.168.0.210:8080");
+
+        assertTrue(result.contains("http://192.168.0.210:8080/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
+        assertFalse(result.contains("http://127.0.0.1:8080/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
+    }
 }

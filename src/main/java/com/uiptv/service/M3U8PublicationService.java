@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 
 import static com.uiptv.db.SQLConnection.connect;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public class M3U8PublicationService {
@@ -120,6 +121,10 @@ public class M3U8PublicationService {
     }
 
     public String getPublishedM3u8() {
+        return getPublishedM3u8("");
+    }
+
+    public String getPublishedM3u8(String requestHost) {
         PublicationSelections selections = getSelections();
         if (selections.accountIds().isEmpty()) {
             return "";
@@ -127,7 +132,7 @@ public class M3U8PublicationService {
 
         StringBuilder result = new StringBuilder();
         result.append(EXTM3U).append("\n");
-        appendSelectedBookmarkPlaylist(result, selections.accountIds());
+        appendSelectedBookmarkPlaylist(result, selections.accountIds(), requestHost);
         for (Account account : getSelectedAccounts(selections.accountIds())) {
             appendSelectedAccountPlaylist(result, account, selections);
         }
@@ -168,13 +173,20 @@ public class M3U8PublicationService {
         }
     }
 
-    private void appendSelectedBookmarkPlaylist(StringBuilder result, Set<String> accountIds) {
+    private void appendSelectedBookmarkPlaylist(StringBuilder result, Set<String> accountIds, String requestHost) {
         if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
-        String host = ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://", "");
+        String host = resolveBookmarkPlaylistHost(requestHost);
         String bookmarkPlaylist = HttpM3u8BookmarkPlayListServer.buildPlaylist(host);
         appendPlaylistBlock(result, List.of(bookmarkPlaylist.split("\\r?\\n")));
+    }
+
+    private String resolveBookmarkPlaylistHost(String requestHost) {
+        if (isNotBlank(requestHost)) {
+            return requestHost.trim();
+        }
+        return ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://", "");
     }
 
     private void appendPlaylistBlock(StringBuilder result, List<String> lines) {
