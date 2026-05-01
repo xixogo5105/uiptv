@@ -1397,6 +1397,7 @@ public class ConfigurationUI extends VBox {
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
             popupStage.sizeToScene();
+            showMessageAlert(I18n.tr("remoteSyncRemoteCompletedMessage"));
         });
         task.setOnFailed(event -> {
             controls.progressLabel().textProperty().unbind();
@@ -1410,6 +1411,7 @@ public class ConfigurationUI extends VBox {
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
             popupStage.sizeToScene();
+            showErrorAlert(I18n.tr("remoteSyncRemoteFailedMessage"));
         });
 
         Thread worker = new Thread(task, importMode ? "remote-database-import-task" : "remote-database-export-task");
