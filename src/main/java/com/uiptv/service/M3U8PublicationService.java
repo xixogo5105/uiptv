@@ -8,7 +8,9 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.PublishedM3uCategorySelection;
 import com.uiptv.model.PublishedM3uChannelSelection;
 import com.uiptv.model.PublishedM3uSelection;
+import com.uiptv.server.api.json.HttpM3u8BookmarkPlayListServer;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.ServerUrlUtil;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -39,6 +41,8 @@ public class M3U8PublicationService {
     private static final String COMMENT_PREFIX = "#";
     private static final String EXTM3U = "#EXTM3U";
     private static final String EXTINF = "#EXTINF";
+    public static final String BOOKMARKS_PLAYLIST_ACCOUNT_ID = "__bookmarks__";
+    public static final String BOOKMARKS_PLAYLIST_NAME = "Bookmarks";
 
     private M3U8PublicationService() {
     }
@@ -88,14 +92,20 @@ public class M3U8PublicationService {
     }
 
     public List<PlaylistAccountSummary> getAvailableAccounts() {
-        return getPublishableAccounts().stream()
+        List<PlaylistAccountSummary> availableAccounts = new ArrayList<>();
+        availableAccounts.add(new PlaylistAccountSummary(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME));
+        availableAccounts.addAll(getPublishableAccounts().stream()
                 .map(account -> new PlaylistAccountSummary(account.getDbId(), account.getAccountName()))
-                .toList();
+                .toList());
+        return availableAccounts;
     }
 
     public PlaylistAccount getPlaylist(String accountId) {
         if (isBlank(accountId)) {
             return null;
+        }
+        if (isBookmarksPlaylistAccountId(accountId)) {
+            return new PlaylistAccount(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME, List.of());
         }
         Account account = AccountService.getInstance().getById(accountId);
         if (!isPublishableAccount(account)) {
@@ -117,10 +127,15 @@ public class M3U8PublicationService {
 
         StringBuilder result = new StringBuilder();
         result.append(EXTM3U).append("\n");
+        appendSelectedBookmarkPlaylist(result, selections.accountIds());
         for (Account account : getSelectedAccounts(selections.accountIds())) {
             appendSelectedAccountPlaylist(result, account, selections);
         }
         return result.toString();
+    }
+
+    public boolean isBookmarksPlaylistAccountId(String accountId) {
+        return BOOKMARKS_PLAYLIST_ACCOUNT_ID.equals(accountId);
     }
 
     private List<Account> getPublishableAccounts() {
@@ -131,6 +146,7 @@ public class M3U8PublicationService {
 
     private List<Account> getSelectedAccounts(Set<String> accountIds) {
         return accountIds.stream()
+                .filter(accountId -> !isBookmarksPlaylistAccountId(accountId))
                 .map(AccountService.getInstance()::getById)
                 .filter(this::isPublishableAccount)
                 .toList();
@@ -150,6 +166,15 @@ public class M3U8PublicationService {
         } catch (IOException e) {
             showError("Failed to append playlist for account '" + account.getAccountName() + "'", e);
         }
+    }
+
+    private void appendSelectedBookmarkPlaylist(StringBuilder result, Set<String> accountIds) {
+        if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) {
+            return;
+        }
+        String host = ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://", "");
+        String bookmarkPlaylist = HttpM3u8BookmarkPlayListServer.buildPlaylist(host);
+        appendPlaylistBlock(result, List.of(bookmarkPlaylist.split("\\r?\\n")));
     }
 
     private void appendPlaylistBlock(StringBuilder result, List<String> lines) {

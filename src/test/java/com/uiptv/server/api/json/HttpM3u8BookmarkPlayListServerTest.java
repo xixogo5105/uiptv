@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HttpM3u8BookmarkPlayListServerTest extends DbBackedTest {
 
     @Test
-    void handle_buildsPlaylistUsingAllAndCategoryTabsInBookmarkOrder() throws Exception {
+    void handle_buildsPlaylistUsingMiscForUncategorizedBookmarksAndCategoryTabsInBookmarkOrder() throws Exception {
         BookmarkService.getInstance().addCategory(new BookmarkCategory(null, "Movies"));
         BookmarkService.getInstance().addCategory(new BookmarkCategory(null, "Kids"));
         List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
@@ -54,21 +54,18 @@ class HttpM3u8BookmarkPlayListServerTest extends DbBackedTest {
         assertTrue(body.contains("http://localhost:9000/bookmarkEntry.ts?bookmarkId=" + saved3.getDbId()));
         assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("vnd.apple.mpegurl"));
 
-        String allTab = I18n.tr("commonAll");
-        String allEntry1 = extInfLine(saved1, allTab);
-        String allEntry2 = extInfLine(saved2, allTab);
-        String allEntry3 = extInfLine(saved3, allTab);
+        String miscEntry = extInfLine(saved3, HttpM3u8BookmarkPlayListServer.MISC_GROUP_TITLE);
         String moviesEntry = extInfLine(saved1, "Movies");
         String kidsEntry = extInfLine(saved2, "Kids");
-        assertTrue(body.contains(allEntry1));
-        assertTrue(body.contains(allEntry2));
-        assertTrue(body.contains(allEntry3));
+        assertTrue(body.contains(miscEntry));
         assertTrue(body.contains(moviesEntry));
         assertTrue(body.contains(kidsEntry));
 
-        assertTrue(body.indexOf(allEntry1) < body.indexOf(allEntry2));
-        assertTrue(body.indexOf(allEntry2) < body.indexOf(allEntry3));
-        assertTrue(body.indexOf(moviesEntry) > body.indexOf(allEntry3));
+        String allTab = I18n.tr("commonAll");
+        assertTrue(!body.contains("group-title=\"" + allTab + "\""));
+        assertTrue(!body.contains(extInfLine(saved1, HttpM3u8BookmarkPlayListServer.MISC_GROUP_TITLE)));
+        assertTrue(!body.contains(extInfLine(saved2, HttpM3u8BookmarkPlayListServer.MISC_GROUP_TITLE)));
+        assertTrue(body.indexOf(miscEntry) < body.indexOf(moviesEntry));
         assertTrue(body.indexOf(kidsEntry) > body.indexOf(moviesEntry));
     }
 

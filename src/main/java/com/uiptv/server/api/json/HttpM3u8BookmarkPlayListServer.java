@@ -16,16 +16,26 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.util.ServerUtils.generateM3u8Response;
 
 public class HttpM3u8BookmarkPlayListServer implements HttpHandler {
+    static final String MISC_GROUP_TITLE = "Misc";
+
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String host = ex.getRequestHeaders().getFirst("Host");
+        generateM3u8Response(ex, buildPlaylist(host), host + "-bookmarks.m3u8");
+    }
+
+    public static String buildPlaylist(String host) {
+        return new HttpM3u8BookmarkPlayListServer().buildPlaylistContent(host);
+    }
+
+    private String buildPlaylistContent(String host) {
         String allTabName = I18n.tr("commonAll");
         List<Bookmark> bookmarks = BookmarkService.getInstance().read();
         Map<String, String> categoryNameById = loadCategoryNamesById();
         StringBuilder response = new StringBuilder("#EXTM3U\n");
-        appendGroupedEntries(response, bookmarks, host, allTabName);
+        appendUncategorizedEntries(response, bookmarks, host, categoryNameById, allTabName);
         appendCategorizedEntries(response, bookmarks, host, categoryNameById, allTabName);
-        generateM3u8Response(ex, response.toString(), host + "-bookmarks.m3u8");
+        return response.toString();
     }
 
     private Map<String, String> loadCategoryNamesById() {
@@ -38,9 +48,15 @@ public class HttpM3u8BookmarkPlayListServer implements HttpHandler {
         return names;
     }
 
-    private void appendGroupedEntries(StringBuilder response, List<Bookmark> bookmarks, String host, String groupTitle) {
+    private void appendUncategorizedEntries(StringBuilder response,
+                                            List<Bookmark> bookmarks,
+                                            String host,
+                                            Map<String, String> categoryNameById,
+                                            String allTabName) {
         for (Bookmark bookmark : bookmarks) {
-            appendPlaylistEntry(response, bookmark, host, groupTitle);
+            if (isUncategorized(bookmark, categoryNameById, allTabName)) {
+                appendPlaylistEntry(response, bookmark, host, MISC_GROUP_TITLE);
+            }
         }
     }
 
@@ -50,14 +66,25 @@ public class HttpM3u8BookmarkPlayListServer implements HttpHandler {
                                           Map<String, String> categoryNameById,
                                           String allTabName) {
         for (Bookmark bookmark : bookmarks) {
-            String categoryId = bookmark.getCategoryId();
-            if (isNotBlank(categoryId)) {
-                String categoryName = categoryNameById.get(categoryId);
-                if (isNotBlank(categoryName) && !categoryName.equalsIgnoreCase(allTabName)) {
+            if (!isUncategorized(bookmark, categoryNameById, allTabName)) {
+                String categoryName = categoryNameById.get(bookmark.getCategoryId());
+                if (isNotBlank(categoryName)) {
                     appendPlaylistEntry(response, bookmark, host, categoryName);
                 }
             }
         }
+    }
+
+    private boolean isUncategorized(Bookmark bookmark, Map<String, String> categoryNameById, String allTabName) {
+        if (bookmark == null) {
+            return true;
+        }
+        String categoryId = bookmark.getCategoryId();
+        if (!isNotBlank(categoryId)) {
+            return true;
+        }
+        String categoryName = categoryNameById.get(categoryId);
+        return !isNotBlank(categoryName) || categoryName.equalsIgnoreCase(allTabName);
     }
 
     private void appendPlaylistEntry(StringBuilder response, Bookmark bookmark, String host, String groupTitle) {

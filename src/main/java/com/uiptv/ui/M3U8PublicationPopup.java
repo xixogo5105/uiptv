@@ -90,17 +90,19 @@ public class M3U8PublicationPopup extends VBox {
         private final VBox container;
         private final List<CategoryNode> categories = new ArrayList<>();
         private final Hyperlink toggleLink;
+        private final boolean detailsSupported;
         private boolean baseSelection;
         private boolean loaded;
         private boolean loading;
 
         private AccountNode(M3U8PublicationService.PlaylistAccountSummary account) {
             this.account = account;
+            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId());
             this.baseSelection = savedSelections.accountIds().contains(account.accountId());
             this.checkBox = new CheckBox(account.accountName());
             this.childrenBox = new VBox(6);
             this.container = new VBox(6);
-            this.toggleLink = new Hyperlink(I18n.tr(SHOW_TRANSLATION_KEY));
+            this.toggleLink = detailsSupported ? new Hyperlink(I18n.tr(SHOW_TRANSLATION_KEY)) : null;
 
             checkBox.setSelected(baseSelection);
             checkBox.setOnAction(event -> {
@@ -121,6 +123,9 @@ public class M3U8PublicationPopup extends VBox {
         }
 
         private void toggleExpanded() {
+            if (!detailsSupported) {
+                return;
+            }
             if (!loaded && !loading) {
                 loadPlaylistAsync();
             }
@@ -410,10 +415,43 @@ public class M3U8PublicationPopup extends VBox {
         checkBox.setMaxWidth(Double.MAX_VALUE);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        toggleLink.setOnAction(event -> onToggle.run());
-        HBox row = new HBox(8, checkBox, spacer, toggleLink);
+        HBox row = toggleLink == null ? new HBox(8, checkBox, spacer) : new HBox(8, checkBox, spacer, toggleLink);
+        if (toggleLink != null) {
+            toggleLink.setOnAction(event -> onToggle.run());
+        }
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
+    }
+
+    List<String> accountNamesForTest() {
+        return accountNodes.stream().map(node -> node.account.accountName()).toList();
+    }
+
+    boolean hasDetailsToggleForTest(String accountId) {
+        return accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .map(node -> node.toggleLink != null)
+                .orElse(false);
+    }
+
+    boolean isAccountSelectedForTest(String accountId) {
+        return accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .map(node -> node.checkBox.isSelected())
+                .orElse(false);
+    }
+
+    void setAccountSelectedForTest(String accountId, boolean selected) {
+        accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .ifPresent(node -> {
+                    if (node.checkBox.isSelected() != selected) {
+                        node.checkBox.fire();
+                    }
+                });
     }
 
     private void applyCheckboxState(CheckBox checkBox, boolean anySelected, boolean allSelected, boolean customized) {

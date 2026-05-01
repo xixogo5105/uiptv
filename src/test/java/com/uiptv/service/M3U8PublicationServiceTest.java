@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -180,5 +181,34 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertEquals(1, playlist.categories().size());
         assertEquals("Movies", playlist.categories().getFirst().categoryName());
         assertEquals(2, playlist.categories().getFirst().channels().size());
+    }
+
+    @Test
+    void getAvailableAccounts_listsBookmarksPlaylistFirst() {
+        Account account = new Account("LaterAccount", "user", "pass", "http://test.com", "00:11:22:33:44:61", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+
+        var accounts = M3U8PublicationService.getInstance().getAvailableAccounts();
+
+        assertFalse(accounts.isEmpty());
+        assertEquals(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID, accounts.getFirst().accountId());
+        assertEquals(M3U8PublicationService.BOOKMARKS_PLAYLIST_NAME, accounts.getFirst().accountName());
+    }
+
+    @Test
+    void getPublishedM3u8_includesBookmarksPlaylistWhenSelected() {
+        Bookmark bookmark = new Bookmark("acc", "", "ch-1", "Favorite One", "cmd1", "http://portal", null);
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+
+        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        publicationService.setSelectedAccountIds(Set.of(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID));
+
+        String result = publicationService.getPublishedM3u8();
+
+        assertTrue(result.contains("#EXTM3U"));
+        assertTrue(result.contains("group-title=\"Misc\""));
+        assertTrue(result.contains("Favorite One"));
+        assertTrue(result.contains("/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
     }
 }
