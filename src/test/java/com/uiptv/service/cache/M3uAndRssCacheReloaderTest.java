@@ -67,6 +67,34 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
     }
 
     @Test
+    void m3uReloader_buildsChannelMapOncePerReload() {
+        Account account = persistAccount("m3u-single-pass", AccountType.M3U8_LOCAL);
+        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
+        Category news = new Category("1", "News", "news", false, 0);
+        Category sports = new Category("2", "Sports", "sports", false, 0);
+
+        StubM3uCacheReloader reloader = new StubM3uCacheReloader();
+        reloader.channelsByCategory.put(CategoryType.ALL.displayName(), List.of(
+                channel("all-1", "All One"),
+                channel("all-2", "All Two")
+        ));
+        reloader.channelsByCategory.put("News", List.of(channel("news-1", "News One")));
+        reloader.channelsByCategory.put("Sports", List.of(channel("sports-1", "Sports One")));
+
+        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+            categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
+            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+                    .thenReturn(List.of(allCategory, news, sports));
+
+            reloader.reloadCache(account, null);
+        }
+
+        assertEquals(1, reloader.loadMapInvocationCount, "Should build the M3U channel map once per reload");
+        assertEquals(3, CategoryDb.get().getCategories(account).size());
+    }
+
+    @Test
     void rssReloader_keepsExistingCacheWhenEveryCategoryHasNoChannels() {
         Account account = persistAccount("rss-empty", AccountType.RSS_FEED);
         CategoryService categoryService = Mockito.mock(CategoryService.class);
@@ -371,13 +399,25 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
     private static final class StubM3uCacheReloader extends M3uCacheReloader {
         private final java.util.Map<String, List<Channel>> channelsByCategory = new java.util.HashMap<>();
         private String failOn;
+        private int loadMapInvocationCount;
 
         @Override
-        protected List<Channel> m3u8Channels(String category, Account account) {
-            if (category.equals(failOn)) {
-                throw new IllegalStateException("boom");
+        protected java.util.Map<String, List<Channel>> loadM3uChannelsByCategory(List<Category> categories, Account account, com.uiptv.api.LoggerCallback logger) {
+            loadMapInvocationCount++;
+            java.util.Map<String, List<Channel>> result = new java.util.HashMap<>();
+            for (Category category : categories) {
+                if (category == null || category.getTitle() == null) {
+                    continue;
+                }
+                if (category.getTitle().equals(failOn)) {
+                    continue;
+                }
+                List<Channel> channels = channelsByCategory.get(category.getTitle());
+                if (channels != null && !channels.isEmpty()) {
+                    result.put(category.getTitle(), channels);
+                }
             }
-            return channelsByCategory.getOrDefault(category, List.of());
+            return result;
         }
     }
 

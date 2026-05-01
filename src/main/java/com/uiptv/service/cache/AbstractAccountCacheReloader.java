@@ -242,7 +242,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     }
 
     @SuppressWarnings("java:S1874")
-    private Set<PlaylistEntry> loadM3uCategories(Account account) throws MalformedURLException {
+    protected Set<PlaylistEntry> loadM3uCategories(Account account) throws MalformedURLException {
         String path = account.getM3u8Path();
         if (isBlank(path)) {
             return new LinkedHashSet<>();
@@ -253,7 +253,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     }
 
     @SuppressWarnings("java:S1874")
-    private List<PlaylistEntry> loadM3uEntries(Account account) throws MalformedURLException {
+    protected List<PlaylistEntry> loadM3uEntries(Account account) throws MalformedURLException {
         String path = account.getM3u8Path();
         if (isBlank(path)) {
             return List.of();
@@ -276,7 +276,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
                 || (entry.getId() != null && entry.getId().equalsIgnoreCase(category));
     }
 
-    private Channel toChannel(PlaylistEntry entry) {
+    protected Channel toChannel(PlaylistEntry entry) {
         String channelId = entry.getId();
         if (isBlank(channelId)) {
             channelId = UUID.nameUUIDFromBytes((entry.getTitle() + entry.getPlaylistEntry()).getBytes()).toString();

@@ -7,9 +7,11 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
+import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.service.CategoryService;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,19 +28,8 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         }
         log(logger, "Found Categories " + categories.size());
 
-        Map<String, List<Channel>> channelsMap = new HashMap<>();
-        int totalChannels = 0;
-        for (Category category : categories) {
-            try {
-                List<Channel> channels = m3u8Channels(category.getTitle(), account);
-                if (!channels.isEmpty()) {
-                    channelsMap.put(category.getTitle(), channels);
-                    totalChannels += channels.size();
-                }
-            } catch (Exception _) {
-                // Best-effort category fetch: keep loading the remaining categories.
-            }
-        }
+        Map<String, List<Channel>> channelsMap = loadM3uChannelsByCategory(categories, account, logger);
+        int totalChannels = channelsMap.values().stream().mapToInt(List::size).sum();
 
         if (totalChannels == 0) {
             log(logger, "No channels found in any category. Keeping existing cache.");
@@ -59,6 +50,57 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             }
         }
         log(logger, savedCategories.size() + " Categories & " + totalChannels + " Channels saved Successfully \u2713");
+    }
+
+    protected Map<String, List<Channel>> loadM3uChannelsByCategory(List<Category> categories, Account account, LoggerCallback logger) {
+        Map<String, List<Channel>> channelsByCategory = new LinkedHashMap<>();
+        try {
+            List<PlaylistEntry> entries = loadM3uEntries(account);
+            boolean hasOtherCategories = loadM3uCategories(account).size() >= 2;
+            List<Channel> allChannels = new ArrayList<>();
+            List<Channel> uncategorizedChannels = new ArrayList<>();
+            Map<String, List<Channel>> groupedChannels = new HashMap<>();
+
+            for (PlaylistEntry entry : entries) {
+                Channel channel = toChannel(entry);
+                allChannels.add(channel);
+
+                String groupTitle = entry.getGroupTitle() == null ? "" : entry.getGroupTitle().trim();
+                if (groupTitle.isEmpty() || CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(groupTitle)) {
+                    if (hasOtherCategories) {
+                        uncategorizedChannels.add(channel);
+                    }
+                    continue;
+                }
+                groupedChannels.computeIfAbsent(groupTitle, ignored -> new ArrayList<>()).add(channel);
+            }
+
+            for (Category category : categories) {
+                if (category == null || category.getTitle() == null) {
+                    continue;
+                }
+                String categoryTitle = category.getTitle();
+                if (CategoryType.ALL.displayName().equalsIgnoreCase(categoryTitle)) {
+                    if (!allChannels.isEmpty()) {
+                        channelsByCategory.put(categoryTitle, allChannels);
+                    }
+                    continue;
+                }
+                if (CategoryType.UNCATEGORIZED.displayName().equalsIgnoreCase(categoryTitle)) {
+                    if (!uncategorizedChannels.isEmpty()) {
+                        channelsByCategory.put(categoryTitle, uncategorizedChannels);
+                    }
+                    continue;
+                }
+                List<Channel> matched = groupedChannels.get(categoryTitle);
+                if (matched != null && !matched.isEmpty()) {
+                    channelsByCategory.put(categoryTitle, matched);
+                }
+            }
+        } catch (Exception e) {
+            log(logger, "Failed to load M3U channels: " + e.getMessage());
+        }
+        return channelsByCategory;
     }
 
     /**
