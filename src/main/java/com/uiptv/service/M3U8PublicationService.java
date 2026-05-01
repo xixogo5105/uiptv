@@ -380,7 +380,7 @@ public class M3U8PublicationService {
     }
 
     List<PlaylistChannelEntry> parsePlaylistEntries(String content) {
-        List<String> lines = Arrays.asList(content.split("\\r?\\n"));
+        List<String> lines = Arrays.asList(content.split(PLAYLIST_LINE_SPLIT_REGEX));
         List<PlaylistChannelEntry> entries = new ArrayList<>();
         int index = 0;
         while (index < lines.size()) {
