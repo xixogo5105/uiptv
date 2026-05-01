@@ -5,6 +5,7 @@ import com.uiptv.db.PublishedM3uChannelSelectionDb;
 import com.uiptv.db.PublishedM3uSelectionDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.CategoryType;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.PublishedM3uCategorySelection;
 import com.uiptv.model.PublishedM3uChannelSelection;
 import com.uiptv.model.PublishedM3uSelection;
@@ -44,6 +45,7 @@ public class M3U8PublicationService {
     private static final String EXTINF = "#EXTINF";
     public static final String BOOKMARKS_PLAYLIST_ACCOUNT_ID = "__bookmarks__";
     public static final String BOOKMARKS_PLAYLIST_NAME = "Bookmarks";
+    private static final String GROUP_TITLE_ATTR = "group-title";
 
     private M3U8PublicationService() {
     }
@@ -129,12 +131,13 @@ public class M3U8PublicationService {
         if (selections.accountIds().isEmpty()) {
             return "";
         }
+        PublishedCategoryMode categoryMode = ConfigurationService.getInstance().getPublishedM3uCategoryMode();
 
         StringBuilder result = new StringBuilder();
         result.append(EXTM3U).append("\n");
-        appendSelectedBookmarkPlaylist(result, selections.accountIds(), requestHost);
+        appendSelectedBookmarkPlaylist(result, selections.accountIds(), requestHost, categoryMode);
         for (Account account : getSelectedAccounts(selections.accountIds())) {
-            appendSelectedAccountPlaylist(result, account, selections);
+            appendSelectedAccountPlaylist(result, account, selections, categoryMode);
         }
         return result.toString();
     }
@@ -161,11 +164,14 @@ public class M3U8PublicationService {
         return account != null && (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL);
     }
 
-    private void appendSelectedAccountPlaylist(StringBuilder result, Account account, PublicationSelections selections) {
+    private void appendSelectedAccountPlaylist(StringBuilder result,
+                                              Account account,
+                                              PublicationSelections selections,
+                                              PublishedCategoryMode categoryMode) {
         try {
             for (PlaylistChannelEntry entry : parsePlaylistEntries(account)) {
                 if (isChannelSelected(account.getDbId(), entry.categoryName(), entry.channelId(), selections)) {
-                    appendPlaylistBlock(result, entry.lines());
+                    appendPlaylistBlock(result, entry.lines(), account.getAccountName(), entry.categoryName(), categoryMode);
                 }
             }
         } catch (IOException e) {
@@ -173,13 +179,20 @@ public class M3U8PublicationService {
         }
     }
 
-    private void appendSelectedBookmarkPlaylist(StringBuilder result, Set<String> accountIds, String requestHost) {
+    private void appendSelectedBookmarkPlaylist(StringBuilder result,
+                                                Set<String> accountIds,
+                                                String requestHost,
+                                                PublishedCategoryMode categoryMode) {
         if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
         String host = resolveBookmarkPlaylistHost(requestHost);
         String bookmarkPlaylist = HttpM3u8BookmarkPlayListServer.buildPlaylist(host);
-        appendPlaylistBlock(result, List.of(bookmarkPlaylist.split("\\r?\\n")));
+        appendPlaylistBlock(result,
+                List.of(bookmarkPlaylist.split("\\r?\\n")),
+                BOOKMARKS_PLAYLIST_NAME,
+                null,
+                categoryMode);
     }
 
     private String resolveBookmarkPlaylistHost(String requestHost) {
@@ -189,12 +202,58 @@ public class M3U8PublicationService {
         return ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://", "");
     }
 
-    private void appendPlaylistBlock(StringBuilder result, List<String> lines) {
+    private void appendPlaylistBlock(StringBuilder result,
+                                     List<String> lines,
+                                     String sourceName,
+                                     String fallbackCategoryName,
+                                     PublishedCategoryMode categoryMode) {
         for (String line : lines) {
             if (!line.trim().startsWith(EXTM3U)) {
-                result.append(line).append("\n");
+                result.append(rewritePublishedLine(line, sourceName, fallbackCategoryName, categoryMode)).append("\n");
             }
         }
+    }
+
+    private String rewritePublishedLine(String line,
+                                        String sourceName,
+                                        String fallbackCategoryName,
+                                        PublishedCategoryMode categoryMode) {
+        if (line == null || !line.startsWith(EXTINF)) {
+            return line;
+        }
+        if (categoryMode == PublishedCategoryMode.ORIGINAL_CATEGORY) {
+            return line;
+        }
+        String originalCategory = normalizePublishedCategory(parseQuotedAttribute(line, GROUP_TITLE_ATTR), fallbackCategoryName);
+        String rewrittenCategory = categoryMode.format(sourceName, originalCategory);
+        return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, rewrittenCategory);
+    }
+
+    private String normalizePublishedCategory(String categoryName, String fallbackCategoryName) {
+        if (!isBlank(categoryName)) {
+            return categoryName.trim();
+        }
+        if (!isBlank(fallbackCategoryName)) {
+            return fallbackCategoryName.trim();
+        }
+        return CategoryType.UNCATEGORIZED.displayName();
+    }
+
+    private String replaceOrAppendQuotedAttribute(String line, String key, String value) {
+        String marker = key + "=\"";
+        int markerIndex = line.indexOf(marker);
+        if (markerIndex >= 0) {
+            int valueStart = markerIndex + marker.length();
+            int valueEnd = line.indexOf('"', valueStart);
+            if (valueEnd >= 0) {
+                return line.substring(0, valueStart) + value + line.substring(valueEnd);
+            }
+        }
+        int commaIndex = line.lastIndexOf(',');
+        if (commaIndex < 0) {
+            return line + " " + key + "=\"" + value + "\"";
+        }
+        return line.substring(0, commaIndex) + " " + key + "=\"" + value + "\"" + line.substring(commaIndex);
     }
 
     private boolean isChannelSelected(String accountId,
@@ -467,6 +526,63 @@ public class M3U8PublicationService {
     private static final class PublicationPersistenceException extends RuntimeException {
         private PublicationPersistenceException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    public enum PublishedCategoryMode {
+        ORIGINAL_CATEGORY("original", "publishM3uCategoryModeOriginal") {
+            @Override
+            String format(String sourceName, String categoryName) {
+                return categoryName;
+            }
+        },
+        SOURCE_DASH_CATEGORY("source-dash-category", "publishM3uCategoryModeSourceDashCategory") {
+            @Override
+            String format(String sourceName, String categoryName) {
+                return sourceName + " - " + categoryName;
+            }
+        },
+        CATEGORY_WITH_SOURCE("category-with-source", "publishM3uCategoryModeCategoryWithSource") {
+            @Override
+            String format(String sourceName, String categoryName) {
+                return categoryName + " [" + sourceName + "]";
+            }
+        },
+        MULTI_GROUP("multi-group", "publishM3uCategoryModeMultiGroup") {
+            @Override
+            String format(String sourceName, String categoryName) {
+                return sourceName + ";" + categoryName;
+            }
+        };
+
+        private final String persistedValue;
+        private final String labelKey;
+
+        PublishedCategoryMode(String persistedValue, String labelKey) {
+            this.persistedValue = persistedValue;
+            this.labelKey = labelKey;
+        }
+
+        public String persistedValue() {
+            return persistedValue;
+        }
+
+        public String labelKey() {
+            return labelKey;
+        }
+
+        abstract String format(String sourceName, String categoryName);
+
+        public static PublishedCategoryMode fromPersistedValue(String raw) {
+            if (isBlank(raw)) {
+                return SOURCE_DASH_CATEGORY;
+            }
+            for (PublishedCategoryMode mode : values()) {
+                if (mode.persistedValue.equalsIgnoreCase(raw.trim())) {
+                    return mode;
+                }
+            }
+            return SOURCE_DASH_CATEGORY;
         }
     }
 }

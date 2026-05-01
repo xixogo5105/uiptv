@@ -1,0 +1,1 @@
+--@add_column Configuration publishedM3uCategoryMode TEXT

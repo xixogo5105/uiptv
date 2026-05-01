@@ -72,6 +72,7 @@ public class DatabaseUtils {
                 new DataColumn("autoRunServerOnStartup", "TEXT"),
                 new DataColumn("vlcNetworkCachingMs", "TEXT"),
                 new DataColumn("vlcLiveCachingMs", "TEXT"),
+                new DataColumn("publishedM3uCategoryMode", "TEXT"),
                 new DataColumn("enableVlcHttpUserAgent", "TEXT"),
                 new DataColumn("enableVlcHttpForwardCookies", "TEXT"),
                 new DataColumn("resolveChainAndDeepRedirects", "TEXT")

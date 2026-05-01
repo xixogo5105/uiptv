@@ -117,4 +117,18 @@ class ConfigurationServiceTest extends DbBackedTest {
         assertTrue(service.isResolveChainAndDeepRedirectsEnabled(account));
     }
 
+    @Test
+    void publishedM3uCategoryMode_defaultsToSourceDashCategory_andPersistsCustomValue() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY, service.getPublishedM3uCategoryMode());
+
+        Configuration configuration = service.read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
+        service.save(configuration);
+
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP, service.getPublishedM3uCategoryMode());
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue(),
+                service.read().getPublishedM3uCategoryMode());
+    }
+
 }

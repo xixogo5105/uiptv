@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT,
     vlcLiveCachingMs
     TEXT,
+    publishedM3uCategoryMode
+    TEXT,
     enableVlcHttpUserAgent
     TEXT
     default

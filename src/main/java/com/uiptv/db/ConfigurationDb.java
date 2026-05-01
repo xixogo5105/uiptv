@@ -109,6 +109,7 @@ public class ConfigurationDb extends BaseDb {
         c.setAutoRunServerOnStartup(safeBoolean(resultSet, "autoRunServerOnStartup"));
         c.setVlcNetworkCachingMs(nullSafeString(resultSet, "vlcNetworkCachingMs"));
         c.setVlcLiveCachingMs(nullSafeString(resultSet, "vlcLiveCachingMs"));
+        c.setPublishedM3uCategoryMode(nullSafeString(resultSet, "publishedM3uCategoryMode"));
         c.setEnableVlcHttpUserAgent(missingOrTrue(resultSet, "enableVlcHttpUserAgent"));
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
         c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
@@ -130,7 +131,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(25, current.getDbId());
+                statement.setString(26, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -169,9 +170,10 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(19, configuration.isAutoRunServerOnStartup() ? "1" : "0");
         statement.setString(20, configuration.getVlcNetworkCachingMs());
         statement.setString(21, configuration.getVlcLiveCachingMs());
-        statement.setString(22, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
-        statement.setString(23, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
-        statement.setString(24, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
+        statement.setString(22, configuration.getPublishedM3uCategoryMode());
+        statement.setString(23, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
+        statement.setString(24, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+        statement.setString(25, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
     }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

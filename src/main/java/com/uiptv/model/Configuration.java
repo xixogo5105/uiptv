@@ -23,6 +23,7 @@ public class Configuration extends BaseJson {
     private String uiZoomPercent;
     private String vlcNetworkCachingMs;
     private String vlcLiveCachingMs;
+    private String publishedM3uCategoryMode;
     private boolean darkTheme;
     private boolean pauseFiltering;
     private boolean pauseCaching;

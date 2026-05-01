@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.Configuration;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
         // Verify content
         assertTrue(result.contains("#EXTM3U"));
-        assertTrue(result.contains("#EXTINF:-1,Test Channel"));
+        assertTrue(result.contains("#EXTINF:-1 group-title=\"M3U8Account - Uncategorized\",Test Channel"));
         assertTrue(result.contains("http://test.com/stream.ts"));
     }
 
@@ -207,7 +208,7 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         String result = publicationService.getPublishedM3u8();
 
         assertTrue(result.contains("#EXTM3U"));
-        assertTrue(result.contains("group-title=\"Misc\""));
+        assertTrue(result.contains("group-title=\"Bookmarks - Misc\""));
         assertTrue(result.contains("Favorite One"));
         assertTrue(result.contains("/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
     }
@@ -225,5 +226,65 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
         assertTrue(result.contains("http://192.168.0.210:8080/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
         assertFalse(result.contains("http://127.0.0.1:8080/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId()));
+    }
+
+    @Test
+    void getPublishedM3u8_defaultsToSourceDashCategoryMode() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("group-format-default.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 group-title="News",News One
+                http://example.com/news-1.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("Provider One", "user", "pass", "http://unused", "00:11:22:33:44:63", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("Provider One");
+        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
+
+        String result = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+
+        assertTrue(result.contains("group-title=\"Provider One - News\""));
+    }
+
+    @Test
+    void getPublishedM3u8_appliesConfiguredCategoryModeFormats() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("group-format-configured.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 group-title="Sports",Sports One
+                http://example.com/sports-1.ts
+                #EXTINF:-1,Untagged One
+                http://example.com/untagged-1.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("Provider Two", "user", "pass", "http://unused", "00:11:22:33:44:64", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("Provider Two");
+        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
+
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.CATEGORY_WITH_SOURCE.persistedValue());
+        ConfigurationService.getInstance().save(configuration);
+
+        String categoryWithSource = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        assertTrue(categoryWithSource.contains("group-title=\"Sports [Provider Two]\""));
+        assertTrue(categoryWithSource.contains("group-title=\"Uncategorized [Provider Two]\""));
+
+        configuration = ConfigurationService.getInstance().read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
+        ConfigurationService.getInstance().save(configuration);
+
+        String multiGroup = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        assertTrue(multiGroup.contains("group-title=\"Provider Two;Sports\""));
+        assertTrue(multiGroup.contains("group-title=\"Provider Two;Uncategorized\""));
+
+        configuration = ConfigurationService.getInstance().read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.ORIGINAL_CATEGORY.persistedValue());
+        ConfigurationService.getInstance().save(configuration);
+
+        String original = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        assertTrue(original.contains("group-title=\"Sports\""));
+        assertFalse(original.contains("group-title=\"Uncategorized\""));
     }
 }

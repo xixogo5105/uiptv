@@ -2,8 +2,11 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.Configuration;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DbBackedTest;
+import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.util.AccountType;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
@@ -60,6 +63,8 @@ class M3U8PublicationPopupTest extends DbBackedTest {
         assertEquals(BOOKMARKS_PLAYLIST_NAME, names.getFirst());
         assertFalse(runOnFxThread(() -> popup.hasDetailsToggleForTest(BOOKMARKS_PLAYLIST_ACCOUNT_ID)));
         assertFalse(runOnFxThread(() -> popup.isAccountSelectedForTest(BOOKMARKS_PLAYLIST_ACCOUNT_ID)));
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY,
+                runOnFxThread(popup::selectedCategoryModeForTest));
 
         runOnFxThread(() -> {
             popup.setAccountSelectedForTest(BOOKMARKS_PLAYLIST_ACCOUNT_ID, true);
@@ -67,6 +72,18 @@ class M3U8PublicationPopupTest extends DbBackedTest {
         });
 
         assertTrue(runOnFxThread(() -> popup.isAccountSelectedForTest(BOOKMARKS_PLAYLIST_ACCOUNT_ID)));
+    }
+
+    @Test
+    void popup_readsPersistedPublishedCategoryMode() throws Exception {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
+        ConfigurationService.getInstance().save(configuration);
+
+        M3U8PublicationPopup popup = runOnFxThread(() -> new M3U8PublicationPopup(null));
+
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP,
+                runOnFxThread(popup::selectedCategoryModeForTest));
     }
 
     private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {

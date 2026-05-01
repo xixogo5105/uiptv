@@ -140,4 +140,11 @@ public class ConfigurationService {
         return account != null && account.isResolveChainAndDeepRedirects();
     }
 
+    public M3U8PublicationService.PublishedCategoryMode getPublishedM3uCategoryMode() {
+        Configuration configuration = read();
+        return M3U8PublicationService.PublishedCategoryMode.fromPersistedValue(
+                configuration != null ? configuration.getPublishedM3uCategoryMode() : null
+        );
+    }
+
 }

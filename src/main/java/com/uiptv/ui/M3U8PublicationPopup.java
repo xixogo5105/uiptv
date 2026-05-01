@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.model.Configuration;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.util.I18n;
 import javafx.concurrent.Task;
@@ -7,6 +9,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -31,6 +34,7 @@ public class M3U8PublicationPopup extends VBox {
     private final M3U8PublicationService.PublicationSelections savedSelections;
     private final Map<M3U8PublicationService.CategorySelectionKey, Boolean> currentCategorySelections;
     private final Map<M3U8PublicationService.ChannelSelectionKey, Boolean> currentChannelSelections;
+    private final ComboBox<M3U8PublicationService.PublishedCategoryMode> categoryModeComboBox = new ComboBox<>();
 
     public M3U8PublicationPopup(Stage stage) {
         this.savedSelections = service.getSelections();
@@ -40,6 +44,10 @@ public class M3U8PublicationPopup extends VBox {
         setSpacing(10);
 
         Label label = new Label(I18n.tr("autoSelectM3U8AccountsToPublish"));
+        configureCategoryModeComboBox();
+        VBox categoryModeSection = new VBox(6,
+                new Label(I18n.tr("publishM3uCategoryModeLabel")),
+                categoryModeComboBox);
         VBox content = new VBox(8);
         content.setFillWidth(true);
 
@@ -55,6 +63,7 @@ public class M3U8PublicationPopup extends VBox {
 
         Button okButton = new Button(I18n.tr("autoOk"));
         okButton.setOnAction(e -> {
+            saveCategoryModeSelection();
             service.saveSelections(buildSelectionsToSave());
             stage.close();
         });
@@ -65,7 +74,39 @@ public class M3U8PublicationPopup extends VBox {
         HBox buttons = new HBox(10, okButton, cancelButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
-        getChildren().addAll(label, scrollPane, buttons);
+        getChildren().addAll(label, categoryModeSection, scrollPane, buttons);
+    }
+
+    private void configureCategoryModeComboBox() {
+        categoryModeComboBox.getItems().setAll(M3U8PublicationService.PublishedCategoryMode.values());
+        categoryModeComboBox.setMaxWidth(Double.MAX_VALUE);
+        categoryModeComboBox.setValue(ConfigurationService.getInstance().getPublishedM3uCategoryMode());
+        categoryModeComboBox.setCellFactory(_ -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(M3U8PublicationService.PublishedCategoryMode item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : I18n.tr(item.labelKey()));
+            }
+        });
+        categoryModeComboBox.setButtonCell(new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(M3U8PublicationService.PublishedCategoryMode item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : I18n.tr(item.labelKey()));
+            }
+        });
+    }
+
+    private void saveCategoryModeSelection() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        if (configuration == null) {
+            configuration = new Configuration();
+        }
+        M3U8PublicationService.PublishedCategoryMode selectedMode = categoryModeComboBox.getValue();
+        configuration.setPublishedM3uCategoryMode(selectedMode == null
+                ? M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY.persistedValue()
+                : selectedMode.persistedValue());
+        ConfigurationService.getInstance().save(configuration);
     }
 
     private M3U8PublicationService.PublicationSelections buildSelectionsToSave() {
@@ -452,6 +493,10 @@ public class M3U8PublicationPopup extends VBox {
                         node.checkBox.fire();
                     }
                 });
+    }
+
+    M3U8PublicationService.PublishedCategoryMode selectedCategoryModeForTest() {
+        return categoryModeComboBox.getValue();
     }
 
     private void applyCheckboxState(CheckBox checkBox, boolean anySelected, boolean allSelected, boolean customized) {
