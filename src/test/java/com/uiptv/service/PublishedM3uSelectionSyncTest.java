@@ -25,6 +25,8 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
 
         seedAccount(sourcePath, "100", "Sky UK");
         seedPublishedSelection(sourcePath, "100");
+        seedPublishedCategorySelection(sourcePath, "100", "Sports", false);
+        seedPublishedChannelSelection(sourcePath, "100", "Sports", "channel-1", true);
 
         seedAccount(targetPath, "9001", "Sky UK");
 
@@ -37,6 +39,8 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
 
         String targetSkyUkId = findAccountIdByName(targetPath, "Sky UK");
         assertTrue(hasPublishedSelection(targetPath, targetSkyUkId));
+        assertTrue(hasPublishedCategorySelection(targetPath, targetSkyUkId, "Sports", false));
+        assertTrue(hasPublishedChannelSelection(targetPath, targetSkyUkId, "Sports", "channel-1", true));
         assertEquals(1, countPublishedSelections(targetPath));
     }
 
@@ -52,8 +56,8 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
     private void seedAccount(Path dbPath, String accountId, String accountName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) " +
-                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                     "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, resolveChainAndDeepRedirects, httpMethod, timezone) " +
+                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setString(1, accountId);
             ps.setString(2, accountName);
             ps.setString(3, "u");
@@ -70,8 +74,9 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
             ps.setString(14, "M3U8_URL");
             ps.setString(15, "");
             ps.setString(16, "0");
-            ps.setString(17, "GET");
-            ps.setString(18, "UTC");
+            ps.setString(17, "0");
+            ps.setString(18, "GET");
+            ps.setString(19, "UTC");
             ps.executeUpdate();
         }
     }
@@ -85,11 +90,61 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
         }
     }
 
+    private void seedPublishedCategorySelection(Path dbPath, String accountId, String categoryName, boolean selected) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO PublishedM3uCategorySelection (accountId, categoryName, selected) VALUES (?,?,?)")) {
+            ps.setString(1, accountId);
+            ps.setString(2, categoryName);
+            ps.setString(3, selected ? "1" : "0");
+            ps.executeUpdate();
+        }
+    }
+
+    private void seedPublishedChannelSelection(Path dbPath, String accountId, String categoryName, String channelId, boolean selected) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO PublishedM3uChannelSelection (accountId, categoryName, channelId, selected) VALUES (?,?,?,?)")) {
+            ps.setString(1, accountId);
+            ps.setString(2, categoryName);
+            ps.setString(3, channelId);
+            ps.setString(4, selected ? "1" : "0");
+            ps.executeUpdate();
+        }
+    }
+
     private boolean hasPublishedSelection(Path dbPath, String accountId) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement ps = conn.prepareStatement(
                      "SELECT 1 FROM PublishedM3uSelection WHERE accountId = ?")) {
             ps.setString(1, accountId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private boolean hasPublishedCategorySelection(Path dbPath, String accountId, String categoryName, boolean selected) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT 1 FROM PublishedM3uCategorySelection WHERE accountId = ? AND categoryName = ? AND selected = ?")) {
+            ps.setString(1, accountId);
+            ps.setString(2, categoryName);
+            ps.setString(3, selected ? "1" : "0");
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private boolean hasPublishedChannelSelection(Path dbPath, String accountId, String categoryName, String channelId, boolean selected) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT 1 FROM PublishedM3uChannelSelection WHERE accountId = ? AND categoryName = ? AND channelId = ? AND selected = ?")) {
+            ps.setString(1, accountId);
+            ps.setString(2, categoryName);
+            ps.setString(3, channelId);
+            ps.setString(4, selected ? "1" : "0");
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

@@ -91,6 +91,38 @@ public final class SQLiteTableSync {
         }
     }
 
+    public static int syncPublishedM3uCategorySelections(String sourceDBPath, String targetDBPath) throws SQLException {
+        try (
+                Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
+                Connection targetConn = DriverManager.getConnection(SQLITE_PREFIX + targetDBPath)
+        ) {
+            int synced = syncSelectionTableWithAccountRemap(
+                    sourceConn,
+                    targetConn,
+                    DatabaseUtils.DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE.getTableName(),
+                    List.of("categoryName", "selected")
+            );
+            AppLog.addInfoLog(SQLiteTableSync.class, "PublishedM3uCategorySelection synced from source to target with account remapping.");
+            return synced;
+        }
+    }
+
+    public static int syncPublishedM3uChannelSelections(String sourceDBPath, String targetDBPath) throws SQLException {
+        try (
+                Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDBPath);
+                Connection targetConn = DriverManager.getConnection(SQLITE_PREFIX + targetDBPath)
+        ) {
+            int synced = syncSelectionTableWithAccountRemap(
+                    sourceConn,
+                    targetConn,
+                    DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.getTableName(),
+                    List.of("categoryName", "channelId", "selected")
+            );
+            AppLog.addInfoLog(SQLiteTableSync.class, "PublishedM3uChannelSelection synced from source to target with account remapping.");
+            return synced;
+        }
+    }
+
     private static int syncTable(Connection sourceConn, Connection targetConn, String tableName) throws SQLException {
         List<String> targetColumns = getTableColumns(targetConn, tableName);
         Set<String> targetColumnSet = new LinkedHashSet<>(targetColumns);
@@ -203,14 +235,28 @@ public final class SQLiteTableSync {
     }
 
     private static int syncPublishedM3uSelections(Connection sourceConn, Connection targetConn) throws SQLException {
-        String selectionTable = DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName();
+        return syncSelectionTableWithAccountRemap(
+                sourceConn,
+                targetConn,
+                DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(),
+                List.of()
+        );
+    }
+
+    private static int syncSelectionTableWithAccountRemap(Connection sourceConn,
+                                                          Connection targetConn,
+                                                          String selectionTable,
+                                                          List<String> extraColumns) throws SQLException {
         String accountTable = DatabaseUtils.DbTable.ACCOUNT_TABLE.getTableName();
         boolean originalAutoCommit = targetConn.getAutoCommit();
         int syncedRows = 0;
+        String selectColumns = buildSelectionSourceColumnList(extraColumns);
+        String insertColumns = buildSelectionInsertColumnList(extraColumns);
+        String placeholders = buildSelectionPlaceholders(extraColumns.size() + 1);
 
         try (
                 PreparedStatement sourceSelections = sourceConn.prepareStatement(
-                        "SELECT accountId FROM " + selectionTable + " ORDER BY id");
+                        "SELECT " + selectColumns + " FROM " + selectionTable + " ORDER BY id");
                 ResultSet sourceRows = sourceSelections.executeQuery();
                 PreparedStatement sourceAccountName = sourceConn.prepareStatement(
                         "SELECT accountName FROM " + accountTable + " WHERE id = ?");
@@ -218,7 +264,7 @@ public final class SQLiteTableSync {
                         "SELECT id FROM " + accountTable + " WHERE accountName = ?");
                 Statement deleteTargetSelections = targetConn.createStatement();
                 PreparedStatement insertTargetSelection = targetConn.prepareStatement(
-                        SQL_INSERT_INTO + selectionTable + " (accountId" + SQL_VALUES + "?)")
+                        SQL_INSERT_INTO + selectionTable + " (" + insertColumns + SQL_VALUES + placeholders + ")")
         ) {
             targetConn.setAutoCommit(false);
             deleteTargetSelections.executeUpdate("DELETE FROM " + selectionTable);
@@ -227,6 +273,9 @@ public final class SQLiteTableSync {
                 String targetSelectionAccountId = resolveTargetAccountId(sourceRows, sourceAccountName, targetAccountId);
                 if (targetSelectionAccountId != null) {
                     insertTargetSelection.setString(1, targetSelectionAccountId);
+                    for (int i = 0; i < extraColumns.size(); i++) {
+                        insertTargetSelection.setObject(i + 2, sourceRows.getObject(extraColumns.get(i)));
+                    }
                     insertTargetSelection.addBatch();
                     syncedRows++;
                 }
@@ -243,6 +292,26 @@ public final class SQLiteTableSync {
         } finally {
             targetConn.setAutoCommit(originalAutoCommit);
         }
+    }
+
+    private static String buildSelectionSourceColumnList(List<String> extraColumns) {
+        List<String> columns = new ArrayList<>();
+        columns.add("accountId");
+        columns.addAll(extraColumns);
+        return String.join(", ", columns);
+    }
+
+    private static String buildSelectionInsertColumnList(List<String> extraColumns) {
+        List<String> columns = new ArrayList<>();
+        columns.add("accountId");
+        columns.addAll(extraColumns);
+        return String.join(", ", columns);
+    }
+
+    private static String buildSelectionPlaceholders(int count) {
+        return java.util.stream.IntStream.range(0, count)
+                .mapToObj(ignored -> "?")
+                .collect(Collectors.joining(", "));
     }
 
     private static ConfigurationRow readFirstConfigurationRow(Connection conn, List<String> columns) throws SQLException {

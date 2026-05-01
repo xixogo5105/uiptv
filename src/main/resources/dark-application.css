@@ -705,6 +705,9 @@
 .uiptv-text-area {}
 .uiptv-password-field {}
 .uiptv-check-box {}
+.published-m3u-customized-checkbox {
+    -fx-opacity: 0.72;
+}
 .uiptv-radio-button {}
 .uiptv-combo-box {}
 .uiptv-list-view {}

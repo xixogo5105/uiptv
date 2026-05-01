@@ -56,6 +56,7 @@ public class Account extends BaseJson {
     private String dbId;
     private String token;
     private boolean pinToTop;
+    private boolean resolveChainAndDeepRedirects;
     private AccountType type = STALKER_PORTAL;
     private String httpMethod = "GET";
     private String timezone = "Europe/London";

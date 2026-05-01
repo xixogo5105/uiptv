@@ -55,6 +55,7 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
+    private static Stage activePublishM3u8PopupStage;
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
@@ -635,14 +636,26 @@ public class ConfigurationUI extends VBox {
 
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
+            if (activePublishM3u8PopupStage != null && activePublishM3u8PopupStage.isShowing()) {
+                activePublishM3u8PopupStage.toFront();
+                activePublishM3u8PopupStage.requestFocus();
+                return;
+            }
             Stage popupStage = new Stage();
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
-            Scene scene = new Scene(popup, 400, 300);
+            Scene scene = new Scene(popup, 680, 560);
             I18n.applySceneOrientation(scene);
             scene.getStylesheets().add(RootApplication.getCurrentTheme());
             popupStage.setTitle(I18n.tr("configPublishM3u8"));
             popupStage.setScene(scene);
-            popupStage.showAndWait();
+            popupStage.setOnHidden(hiddenEvent -> {
+                if (activePublishM3u8PopupStage == popupStage) {
+                    activePublishM3u8PopupStage = null;
+                }
+            });
+            activePublishM3u8PopupStage = popupStage;
+            popupStage.show();
+            popupStage.toFront();
         });
     }
 

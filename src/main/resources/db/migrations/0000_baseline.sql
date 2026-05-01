@@ -123,6 +123,10 @@ CREATE TABLE IF NOT EXISTS Account
     TEXT,
     pinToTop
     TEXT,
+    resolveChainAndDeepRedirects
+    TEXT
+    default
+    '0',
     httpMethod
     TEXT,
     timezone
@@ -579,6 +583,50 @@ CREATE TABLE IF NOT EXISTS PublishedM3uSelection
     NOT
     NULL
     UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS PublishedM3uCategorySelection
+(
+    id
+    INTEGER
+    PRIMARY
+    KEY,
+    accountId
+    TEXT
+    NOT
+    NULL,
+    categoryName
+    TEXT
+    NOT
+    NULL,
+    selected
+    TEXT
+    NOT
+    NULL
+);
+
+CREATE TABLE IF NOT EXISTS PublishedM3uChannelSelection
+(
+    id
+    INTEGER
+    PRIMARY
+    KEY,
+    accountId
+    TEXT
+    NOT
+    NULL,
+    categoryName
+    TEXT
+    NOT
+    NULL,
+    channelId
+    TEXT
+    NOT
+    NULL,
+    selected
+    TEXT
+    NOT
+    NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique

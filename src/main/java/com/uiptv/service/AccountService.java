@@ -138,6 +138,8 @@ public class AccountService {
             sessionTokenByAccountKey.remove(getSessionAccountKey(account));
             AccountInfoService.getInstance().deleteByAccountId(account.getDbId());
             PublishedM3uSelectionDb.get().deleteByAccountId(account.getDbId());
+            PublishedM3uCategorySelectionDb.get().deleteByAccountId(account.getDbId());
+            PublishedM3uChannelSelectionDb.get().deleteByAccountId(account.getDbId());
         }
         SeriesWatchStateDb.get().deleteByAccount(accountId);
         VodWatchStateDb.get().deleteByAccount(accountId);

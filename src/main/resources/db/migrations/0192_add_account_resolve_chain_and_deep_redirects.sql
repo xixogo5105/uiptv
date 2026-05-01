@@ -1,0 +1,1 @@
+--@add_column Account resolveChainAndDeepRedirects TEXT DEFAULT '0'

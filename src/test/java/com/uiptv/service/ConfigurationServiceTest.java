@@ -1,5 +1,6 @@
 package com.uiptv.service;
 
+import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import org.junit.jupiter.api.Test;
 
@@ -105,6 +106,15 @@ class ConfigurationServiceTest extends DbBackedTest {
 
         assertTrue(service.isResolveChainAndDeepRedirectsEnabled());
         assertTrue(service.read().isResolveChainAndDeepRedirects());
+    }
+
+    @Test
+    void resolveChainAndDeepRedirects_accountOverrideEnablesFeatureWhenGlobalIsDisabled() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        Account account = new Account();
+        account.setResolveChainAndDeepRedirects(true);
+
+        assertTrue(service.isResolveChainAndDeepRedirectsEnabled(account));
     }
 
 }

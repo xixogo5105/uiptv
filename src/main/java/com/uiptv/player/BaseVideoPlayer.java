@@ -1926,7 +1926,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected String resolveHlsPlaylistChain(String uri) {
-        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
+        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled(currentAccount)) {
             return uri;
         }
         return HlsPlaylistResolver.resolveHlsPlaylistChain(uri, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);

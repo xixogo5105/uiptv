@@ -2,6 +2,7 @@ package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
@@ -58,18 +59,19 @@ public class HttpM3u8BookmarkEntry implements HttpHandler {
     }
 
     private String bookmarkPlayerResponse(Bookmark bookmark) throws IOException {
-        if (AccountService.getInstance().getAll().get(bookmark.getAccountName()) == null) {
+        Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
+        if (account == null) {
             return "";
         }
         PlayerResponse response = playerRequestResolver.resolveBookmarkPlayback(bookmark.getDbId(), "", "");
         if (response == null || isBlank(response.getUrl())) {
             return "";
         }
-        return resolveBookmarkRedirectChain(response.getUrl());
+        return resolveBookmarkRedirectChain(response.getUrl(), account);
     }
 
-    private String resolveBookmarkRedirectChain(String url) {
-        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
+    private String resolveBookmarkRedirectChain(String url, com.uiptv.model.Account account) {
+        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled(account)) {
             return url;
         }
         return HlsPlaylistResolver.resolveHlsPlaylistChain(url, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);

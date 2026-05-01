@@ -102,6 +102,7 @@ public class DatabaseUtils {
                 new DataColumn("type", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
                 new DataColumn("pinToTop", "TEXT"),
+                new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
                 new DataColumn("httpMethod", "TEXT"),
                 new DataColumn("timezone", "TEXT")
         )));
@@ -295,6 +296,19 @@ public class DatabaseUtils {
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL_UNIQUE)
         )));
+        dbStructure.put(DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL),
+                new DataColumn("categoryName", TEXT_NOT_NULL),
+                new DataColumn("selected", TEXT_NOT_NULL)
+        )));
+        dbStructure.put(DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL),
+                new DataColumn("categoryName", TEXT_NOT_NULL),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
+                new DataColumn("selected", TEXT_NOT_NULL)
+        )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn("name", TEXT_NOT_NULL)
@@ -393,6 +407,8 @@ public class DatabaseUtils {
         SERIES_EPISODE_TABLE("SeriesEpisode"),
         SERIES_WATCH_STATE_TABLE("SeriesWatchState"),
         PUBLISHED_M3U_SELECTION_TABLE("PublishedM3uSelection"),
+        PUBLISHED_M3U_CATEGORY_SELECTION_TABLE("PublishedM3uCategorySelection"),
+        PUBLISHED_M3U_CHANNEL_SELECTION_TABLE("PublishedM3uChannelSelection"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
         BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
 

@@ -36,6 +36,7 @@ public class AccountDb extends BaseDb {
         Account account = new Account(nullSafeString(resultSet, "accountName"), nullSafeString(resultSet, "username"), nullSafeString(resultSet, "password"), nullSafeString(resultSet, "url"), nullSafeString(resultSet, "macAddress"),nullSafeString(resultSet, "macAddressList"), nullSafeString(resultSet, "serialNumber"), nullSafeString(resultSet, "deviceId1"), nullSafeString(resultSet, "deviceId2"), nullSafeString(resultSet, "signature"), isNotBlank(nullSafeString(resultSet, "type")) ? AccountType.valueOf(nullSafeString(resultSet, "type")) : AccountType.STALKER_PORTAL, nullSafeString(resultSet, "epg"), nullSafeString(resultSet, "m3u8Path"), safeBoolean(resultSet, "pinToTop"));
         account.setDbId(nullSafeString(resultSet, "id"));
         account.setServerPortalUrl(nullSafeString(resultSet, "serverPortalUrl"));
+        account.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
         account.setHttpMethod(isNotBlank(nullSafeString(resultSet, "httpMethod")) ? nullSafeString(resultSet, "httpMethod") : "GET");
         account.setTimezone(isNotBlank(nullSafeString(resultSet, "timezone")) ? nullSafeString(resultSet, "timezone") : "Europe/London");
         account.setXtremeCredentialsJson(nullSafeString(resultSet, "xtremeCredentialsJson"));
@@ -76,11 +77,12 @@ public class AccountDb extends BaseDb {
             statement.setString(14, account.getType().name());
             statement.setString(15, account.getServerPortalUrl());
             statement.setString(16, account.isPinToTop() ? "1" : "0");
-            statement.setString(17, account.getHttpMethod());
-            statement.setString(18, account.getTimezone());
+            statement.setString(17, account.isResolveChainAndDeepRedirects() ? "1" : "0");
+            statement.setString(18, account.getHttpMethod());
+            statement.setString(19, account.getTimezone());
 
             if (accountExist) {
-                statement.setInt(19, Integer.valueOf(dbAccount.getDbId()));
+                statement.setInt(20, Integer.valueOf(dbAccount.getDbId()));
             }
             statement.execute();
         } catch (SQLException e) {

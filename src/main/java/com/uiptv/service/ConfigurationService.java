@@ -104,4 +104,11 @@ public class ConfigurationService {
         }
     }
 
+    public boolean isResolveChainAndDeepRedirectsEnabled(Account account) {
+        if (isResolveChainAndDeepRedirectsEnabled()) {
+            return true;
+        }
+        return account != null && account.isResolveChainAndDeepRedirects();
+    }
+
 }

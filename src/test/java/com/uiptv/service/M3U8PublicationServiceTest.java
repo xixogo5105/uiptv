@@ -6,10 +6,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.FileWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class M3U8PublicationServiceTest extends DbBackedTest {
@@ -114,5 +118,67 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertTrue(result.contains("#EXTM3U"));
         assertTrue(result.contains("Test Channel"));
         assertTrue(result.contains("http://test.com/stream.ts"));
+    }
+
+    @Test
+    void getPublishedM3u8_filtersCategoriesAndChannelsUsingSavedOverrides() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("filtered.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 group-title="News",News One
+                http://example.com/news-1.ts
+                #EXTINF:-1 group-title="News",News Two
+                http://example.com/news-2.ts
+                #EXTINF:-1 group-title="Sports",Sports One
+                http://example.com/sports-1.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("FilterMe", "user", "pass", "http://unused", "00:11:22:33:44:59", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("FilterMe");
+
+        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService.PlaylistAccount playlist = publicationService.getPlaylist(savedAccount.getDbId());
+        String newsTwoId = playlist.categories().stream()
+                .filter(category -> "News".equals(category.categoryName()))
+                .flatMap(category -> category.channels().stream())
+                .filter(channel -> "News Two".equals(channel.title()))
+                .findFirst()
+                .orElseThrow()
+                .channelId();
+
+        publicationService.saveSelections(new M3U8PublicationService.PublicationSelections(
+                Set.of(savedAccount.getDbId()),
+                Map.of(new M3U8PublicationService.CategorySelectionKey(savedAccount.getDbId(), "Sports"), false),
+                Map.of(new M3U8PublicationService.ChannelSelectionKey(savedAccount.getDbId(), "News", newsTwoId), false)
+        ));
+
+        String result = publicationService.getPublishedM3u8();
+
+        assertTrue(result.contains("News One"));
+        assertFalse(result.contains("News Two"));
+        assertFalse(result.contains("Sports One"));
+    }
+
+    @Test
+    void getPlaylist_mergesCategoryNamesCaseInsensitively() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("case-categories.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 group-title="Movies",Movie One
+                http://example.com/movie-1.ts
+                #EXTINF:-1 group-title="movies",Movie Two
+                http://example.com/movie-2.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("CaseMerge", "user", "pass", "http://unused", "00:11:22:33:44:60", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("CaseMerge");
+
+        M3U8PublicationService.PlaylistAccount playlist = M3U8PublicationService.getInstance().getPlaylist(savedAccount.getDbId());
+
+        assertEquals(1, playlist.categories().size());
+        assertEquals("Movies", playlist.categories().getFirst().categoryName());
+        assertEquals(2, playlist.categories().getFirst().channels().size());
     }
 }

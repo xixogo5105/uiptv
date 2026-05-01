@@ -967,7 +967,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
     private void seedAccountRow(Connection conn, String accountId, String accountName) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, resolveChainAndDeepRedirects, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setString(1, accountId);
             ps.setString(2, accountName);
             ps.setString(3, "u");
@@ -984,8 +984,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             ps.setString(14, AccountType.M3U8_URL.name());
             ps.setString(15, "");
             ps.setString(16, "0");
-            ps.setString(17, "GET");
-            ps.setString(18, "UTC");
+            ps.setString(17, "0");
+            ps.setString(18, "GET");
+            ps.setString(19, "UTC");
             ps.executeUpdate();
         }
     }

@@ -76,6 +76,7 @@ public class ManageAccountUI extends VBox {
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "manageDeviceId2Prompt", 5);
     private final UIptvText signature = new UIptvText("signature", "manageSignaturePrompt", 5);
     private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
+    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
@@ -236,17 +237,17 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case M3U8_URL:
             case RSS_FEED:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
         }
 
@@ -607,6 +608,7 @@ public class ManageAccountUI extends VBox {
         macAddress.setPromptText(I18n.tr(PRIMARY_MAC_ADDRESS_HINT_KEY));
         accountType.setValue(STALKER_PORTAL.getDisplay());
         pinToTopCheckBox.setSelected(false);
+        resolveChainAndDeepRedirectsCheckBox.setSelected(false);
         httpMethodCombo.setValue("GET");
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
@@ -1019,6 +1021,7 @@ public class ManageAccountUI extends VBox {
         if (accountId != null) {
             account.setDbId(accountId);
         }
+        account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
         account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
         return account;
@@ -1142,6 +1145,7 @@ public class ManageAccountUI extends VBox {
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
+        resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         accountType.setValue(account.getType().getDisplay());

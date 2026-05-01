@@ -186,7 +186,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
         try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
              MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(true);
             Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
             httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/master.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
                     .thenReturn(masterPlaylist);
@@ -214,7 +214,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
         try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
              MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(false);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(false);
 
             HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
             StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?bookmarkId=" + savedBookmark.getDbId(), "GET");
@@ -222,6 +222,51 @@ class HttpM3u8ServersTest extends DbBackedTest {
 
             assertValidTsResponse(exchange, "http://origin/master.m3u8");
             httpUtil.verifyNoInteractions();
+        }
+    }
+
+    @Test
+    void m3u8BookmarkEntry_resolvesMasterPlaylistWhenAccountOverrideEnabled() throws Exception {
+        Account account = new Account("bookmark-account-account-flag", "user", "pass", "http://unused", "00:11:22:33:44:58", null, null, null, null, null, AccountType.M3U8_URL, null, "http://origin/list.m3u8", false);
+        account.setResolveChainAndDeepRedirects(true);
+        AccountService.getInstance().save(account);
+
+        Bookmark bookmark = new Bookmark("bookmark-account-account-flag", "Sports", "ch-1", "Channel One", "ffmpeg%20http%3A%2F%2Forigin%2Fmaster.m3u8", "http://portal", "cat-1");
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        HttpUtil.HttpResult masterPlaylist = new HttpUtil.HttpResult(
+                200,
+                "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nvariant.m3u8\n",
+                Map.of(),
+                Map.of()
+        );
+        HttpUtil.HttpResult variantPlaylist = new HttpUtil.HttpResult(
+                200,
+                "#EXTM3U\n#EXTINF:10,\nsegment.ts\n",
+                Map.of(),
+                Map.of()
+        );
+
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenAnswer(invocation -> {
+                Account resolvedAccount = invocation.getArgument(0);
+                return resolvedAccount != null && resolvedAccount.isResolveChainAndDeepRedirects();
+            });
+            Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
+            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/master.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(masterPlaylist);
+            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/variant.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(variantPlaylist);
+
+            HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
+            StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?bookmarkId=" + savedBookmark.getDbId(), "GET");
+            handler.handle(exchange);
+
+            assertValidTsResponse(exchange, "http://origin/variant.m3u8");
         }
     }
 

@@ -56,7 +56,7 @@ class BaseVideoPlayerHlsResolutionTest {
         try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
              MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(true);
             Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
             httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")))
                     .thenReturn(master);
@@ -80,7 +80,7 @@ class BaseVideoPlayerHlsResolutionTest {
         try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
              MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(false);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(false);
 
             String resolved = player.resolve(uri);
 

@@ -61,8 +61,8 @@ class AccountCategoryDbCoverageTest extends DbBackedTest {
         try (Connection conn = SQLConnection.connect();
              PreparedStatement ps = conn.prepareStatement(
                      "INSERT INTO Account (accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, "
-                             + "deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) "
-                             + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                             + "deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, resolveChainAndDeepRedirects, httpMethod, timezone) "
+                             + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setString(1, "acc-defaults");
             ps.setString(2, "user");
             ps.setString(3, "pass");
@@ -78,8 +78,9 @@ class AccountCategoryDbCoverageTest extends DbBackedTest {
             ps.setString(13, "");
             ps.setString(14, null);
             ps.setString(15, "0");
-            ps.setString(16, "");
+            ps.setString(16, "0");
             ps.setString(17, "");
+            ps.setString(18, "");
             ps.executeUpdate();
         }
 
