@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.uiptv.api.JsonCompliant;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -69,6 +70,11 @@ public class ServerUtils {
         generateResponse(httpExchange, response, CONTENT_TYPE_JSON, null);
     }
 
+    public static void writeJsonResponse(HttpExchange httpExchange, int statusCode, String response) throws IOException {
+        writeResponse(httpExchange, statusCode, response == null ? new byte[0] : response.getBytes(StandardCharsets.UTF_8),
+                CONTENT_TYPE_JSON + "; charset=UTF-8");
+    }
+
     public static void generateJavascriptResponse(HttpExchange httpExchange, String response, String fileName) throws IOException {
         generateResponse(httpExchange, response, CONTENT_TYPE_JAVASCRIPT, fileName);
     }
@@ -85,12 +91,21 @@ public class ServerUtils {
     }
 
     public static void generateResponseText(HttpExchange httpExchange, int statusCode, String response) throws IOException {
-        byte[] responseBytes = response == null ? new byte[0] : response.getBytes(StandardCharsets.UTF_8);
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-        httpExchange.getResponseHeaders().add("Content-Type", CONTENT_TYPE_TEXT + "; charset=UTF-8");
-        httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
-        try (OutputStream os = httpExchange.getResponseBody()) {
-            os.write(responseBytes);
+        writeResponse(httpExchange, statusCode, response == null ? new byte[0] : response.getBytes(StandardCharsets.UTF_8),
+                CONTENT_TYPE_TEXT + "; charset=UTF-8");
+    }
+
+    public static void writeBinaryResponse(HttpExchange httpExchange, int statusCode, byte[] responseBytes, String contentType) throws IOException {
+        writeResponse(httpExchange, statusCode, responseBytes == null ? new byte[0] : responseBytes, contentType);
+    }
+
+    public static String readRequestBodyText(HttpExchange httpExchange) throws IOException {
+        return new String(readRequestBodyBytes(httpExchange), StandardCharsets.UTF_8);
+    }
+
+    public static byte[] readRequestBodyBytes(HttpExchange httpExchange) throws IOException {
+        try (InputStream inputStream = httpExchange.getRequestBody()) {
+            return inputStream.readAllBytes();
         }
     }
 
@@ -120,5 +135,14 @@ public class ServerUtils {
         OutputStream os = httpExchange.getResponseBody();
         os.write(responseBytes);
         os.close();
+    }
+
+    private static void writeResponse(HttpExchange httpExchange, int statusCode, byte[] responseBytes, String contentType) throws IOException {
+        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+        httpExchange.getResponseHeaders().add("Content-Type", contentType);
+        httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
+        try (OutputStream os = httpExchange.getResponseBody()) {
+            os.write(responseBytes);
+        }
     }
 }

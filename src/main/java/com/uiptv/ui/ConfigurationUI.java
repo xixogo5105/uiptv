@@ -8,6 +8,10 @@ import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
 import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.service.remotesync.RemoteSyncClientService;
+import com.uiptv.service.remotesync.RemoteSyncExecutionResult;
+import com.uiptv.service.remotesync.RemoteSyncOptions;
+import com.uiptv.service.remotesync.RemoteSyncProgressStep;
 import com.uiptv.service.*;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
@@ -55,7 +59,9 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
+    private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
     private static Stage activePublishM3u8PopupStage;
+    private static Stage activeDatabaseSyncPopupStage;
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
@@ -114,6 +120,7 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
+    private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private String dbId;
     private boolean ignorePlayerSelectionPrompt = false;
     private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
@@ -996,13 +1003,29 @@ public class ConfigurationUI extends VBox {
     }
 
     private void openDatabaseSyncPopup(boolean importMode) {
+        if (activeDatabaseSyncPopupStage != null && activeDatabaseSyncPopupStage.isShowing()) {
+            activeDatabaseSyncPopupStage.close();
+        }
         Stage popupStage = new Stage();
         popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
         popupStage.setTitle(I18n.tr(databaseSyncActionKey(importMode)));
 
+        ToggleGroup locationModeGroup = new ToggleGroup();
+        RadioButton fileModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeFile"));
+        RadioButton remoteModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeRemote"));
+        fileModeButton.setToggleGroup(locationModeGroup);
+        remoteModeButton.setToggleGroup(locationModeGroup);
+        fileModeButton.setSelected(true);
         TextField databasePathField = new TextField();
         databasePathField.setPromptText("uiptv.db");
         databasePathField.setPrefWidth(380);
+        TextField remoteHostField = new TextField();
+        remoteHostField.setPromptText(I18n.tr("configDatabaseSyncRemoteHostPrompt"));
+        remoteHostField.setPrefWidth(220);
+        TextField remotePortField = new TextField();
+        remotePortField.setPromptText(I18n.tr("configDatabaseSyncRemotePortPrompt"));
+        remotePortField.setPrefWidth(90);
+        Button testConnectionButton = new Button(I18n.tr("configDatabaseSyncTestConnection"));
         Button browseButton = new Button("...");
         CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
         CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
@@ -1030,6 +1053,12 @@ public class ConfigurationUI extends VBox {
         resultTextArea.setVisible(false);
         resultTextArea.setManaged(false);
 
+        bindManagedVisibility(databasePathField, fileModeButton.selectedProperty());
+        bindManagedVisibility(browseButton, fileModeButton.selectedProperty());
+        bindManagedVisibility(remoteHostField, remoteModeButton.selectedProperty());
+        bindManagedVisibility(remotePortField, remoteModeButton.selectedProperty());
+        bindManagedVisibility(testConnectionButton, remoteModeButton.selectedProperty());
+
         browseButton.setOnAction(event -> {
             File selected = importMode
                     ? databaseFileChooser.showOpenDialog(popupStage)
@@ -1038,10 +1067,14 @@ public class ConfigurationUI extends VBox {
                 databasePathField.setText(selected.getAbsolutePath());
             }
         });
+        testConnectionButton.setOnAction(event -> testRemoteDatabaseConnection(remoteHostField.getText(), remotePortField.getText(), testConnectionButton));
 
         DatabaseSyncDialogControls controls = new DatabaseSyncDialogControls(
                 databasePathField,
+                remoteHostField,
+                remotePortField,
                 browseButton,
+                testConnectionButton,
                 syncConfigurationCheckBox,
                 syncExternalPlayerPathsCheckBox,
                 runButton,
@@ -1055,7 +1088,10 @@ public class ConfigurationUI extends VBox {
         runButton.setOnAction(event -> runDatabaseSyncAction(
                 popupStage,
                 importMode,
+                fileModeButton.isSelected(),
                 databasePathField.getText(),
+                remoteHostField.getText(),
+                remotePortField.getText(),
                 syncConfigurationCheckBox.isSelected(),
                 syncExternalPlayerPathsCheckBox.isSelected(),
                 controls
@@ -1067,15 +1103,29 @@ public class ConfigurationUI extends VBox {
             }
         });
 
+        HBox modeRow = new HBox(12, fileModeButton, remoteModeButton);
         HBox pathRow = new HBox(8, databasePathField, browseButton);
         HBox.setHgrow(databasePathField, Priority.ALWAYS);
+        HBox remoteRow = new HBox(
+                8,
+                new Label(I18n.tr("configDatabaseSyncRemoteHost")),
+                remoteHostField,
+                new Label(I18n.tr("configDatabaseSyncRemotePort")),
+                remotePortField,
+                testConnectionButton
+        );
+        HBox.setHgrow(remoteHostField, Priority.ALWAYS);
+        bindManagedVisibility(pathRow, fileModeButton.selectedProperty());
+        bindManagedVisibility(remoteRow, remoteModeButton.selectedProperty());
         HBox buttons = new HBox(10, runButton, cancelButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
         VBox root = new VBox(
                 12,
                 new Label(I18n.tr(importMode ? "configImportDatabasePopupDescription" : "configExportDatabasePopupDescription")),
+                modeRow,
                 pathRow,
+                remoteRow,
                 syncConfigurationCheckBox,
                 syncExternalPlayerPathsCheckBox,
                 progressBar,
@@ -1085,19 +1135,40 @@ public class ConfigurationUI extends VBox {
         );
         root.setPadding(new Insets(14));
 
-        Scene scene = new Scene(root, 560, Region.USE_COMPUTED_SIZE);
+        Scene scene = new Scene(root, DATABASE_SYNC_POPUP_WIDTH, Region.USE_COMPUTED_SIZE);
         I18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());
         popupStage.setScene(scene);
+        popupStage.setOnHidden(hiddenEvent -> {
+            if (activeDatabaseSyncPopupStage == popupStage) {
+                activeDatabaseSyncPopupStage = null;
+            }
+        });
+        activeDatabaseSyncPopupStage = popupStage;
         popupStage.showAndWait();
     }
 
     private void runDatabaseSyncAction(Stage popupStage,
                                        boolean importMode,
+                                       boolean fileMode,
                                        String selectedPath,
+                                       String remoteHost,
+                                       String remotePort,
                                        boolean syncConfiguration,
                                        boolean syncExternalPlayerPaths,
                                        DatabaseSyncDialogControls controls) {
+        if (!fileMode) {
+            runRemoteDatabaseSyncAction(
+                    popupStage,
+                    importMode,
+                    remoteHost,
+                    remotePort,
+                    syncConfiguration,
+                    syncExternalPlayerPaths,
+                    controls
+            );
+            return;
+        }
         String normalizedPath = normalizeSelectedPath(selectedPath);
         if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
@@ -1112,11 +1183,7 @@ public class ConfigurationUI extends VBox {
         String sourcePath = resolveDatabaseSyncSourcePath(importMode, normalizedPath);
         String targetPath = resolveDatabaseSyncTargetPath(importMode, normalizedPath);
 
-        setDatabaseSyncControlsDisabled(true,
-                controls.databasePathField(),
-                controls.browseButton(),
-                controls.syncConfigurationCheckBox(),
-                controls.runButton());
+        setDatabaseSyncControlsDisabled(true, controls);
         controls.syncRunning().set(true);
         controls.cancelButton().setDisable(true);
         controls.runButton().setVisible(false);
@@ -1185,15 +1252,107 @@ public class ConfigurationUI extends VBox {
         worker.start();
     }
 
-    private void setDatabaseSyncControlsDisabled(boolean disabled,
-                                                 TextField databasePathField,
-                                                 Button browseButton,
-                                                 CheckBox syncConfigurationCheckBox,
-                                                 Button runButton) {
-        databasePathField.setDisable(disabled);
-        browseButton.setDisable(disabled);
-        syncConfigurationCheckBox.setDisable(disabled);
-        runButton.setDisable(disabled);
+    private void runRemoteDatabaseSyncAction(Stage popupStage,
+                                             boolean importMode,
+                                             String remoteHost,
+                                             String remotePort,
+                                             boolean syncConfiguration,
+                                             boolean syncExternalPlayerPaths,
+                                             DatabaseSyncDialogControls controls) {
+        String normalizedHost = normalizeSelectedPath(remoteHost);
+        String normalizedPort = normalizeSelectedPath(remotePort);
+        if (normalizedHost.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemoteHostRequired"));
+            return;
+        }
+        if (normalizedPort.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortRequired"));
+            return;
+        }
+        int port = parseRemotePort(normalizedPort);
+        if (port <= 0) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortInvalid"));
+            return;
+        }
+
+        Configuration previousConfiguration = importMode ? service.read() : null;
+        setDatabaseSyncControlsDisabled(true, controls);
+        controls.syncRunning().set(true);
+        controls.cancelButton().setDisable(true);
+        controls.runButton().setVisible(false);
+        controls.runButton().setManaged(false);
+        controls.progressBar().setVisible(true);
+        controls.progressBar().setManaged(true);
+        controls.progressLabel().setVisible(true);
+        controls.progressLabel().setManaged(true);
+        controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+        controls.progressLabel().setText(I18n.tr("configDatabaseSyncInProgress"));
+        controls.resultTextArea().clear();
+        controls.resultTextArea().setVisible(false);
+        controls.resultTextArea().setManaged(false);
+        popupStage.sizeToScene();
+
+        Task<RemoteSyncExecutionResult> task = new Task<>() {
+            @Override
+            protected RemoteSyncExecutionResult call() throws Exception {
+                RemoteSyncOptions options = new RemoteSyncOptions(syncConfiguration, syncExternalPlayerPaths);
+                if (importMode) {
+                    return remoteSyncClientService.importFromRemote(
+                            normalizedHost,
+                            port,
+                            options,
+                            (step, detail) -> updateMessage(formatRemoteSyncProgressMessage(step, detail))
+                    );
+                }
+                return remoteSyncClientService.exportToRemote(
+                        normalizedHost,
+                        port,
+                        options,
+                        (step, detail) -> updateMessage(formatRemoteSyncProgressMessage(step, detail))
+                );
+            }
+        };
+
+        controls.progressLabel().textProperty().bind(task.messageProperty());
+        task.setOnSucceeded(event -> {
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            controls.resultTextArea().setText(buildRemoteDatabaseSyncSummary(importMode, task.getValue()));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
+            popupStage.sizeToScene();
+        });
+        task.setOnFailed(event -> {
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            controls.resultTextArea().setText(I18n.tr("configDatabaseSyncFailedWithReason",
+                    I18n.tr(databaseSyncActionKey(importMode)),
+                    summarizeExceptionMessage(task.getException())));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
+            popupStage.sizeToScene();
+        });
+
+        Thread worker = new Thread(task, importMode ? "remote-database-import-task" : "remote-database-export-task");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void setDatabaseSyncControlsDisabled(boolean disabled, DatabaseSyncDialogControls controls) {
+        controls.databasePathField().setDisable(disabled);
+        controls.remoteHostField().setDisable(disabled);
+        controls.remotePortField().setDisable(disabled);
+        controls.browseButton().setDisable(disabled);
+        controls.testConnectionButton().setDisable(disabled);
+        controls.syncConfigurationCheckBox().setDisable(disabled);
+        controls.runButton().setDisable(disabled);
     }
 
     private String normalizeSelectedPath(String selectedPath) {
@@ -1241,7 +1400,10 @@ public class ConfigurationUI extends VBox {
     }
 
     private record DatabaseSyncDialogControls(TextField databasePathField,
+                                              TextField remoteHostField,
+                                              TextField remotePortField,
                                               Button browseButton,
+                                              Button testConnectionButton,
                                               CheckBox syncConfigurationCheckBox,
                                               CheckBox syncExternalPlayerPathsCheckBox,
                                               Button runButton,
@@ -1271,6 +1433,88 @@ public class ConfigurationUI extends VBox {
                     .append(I18n.tr(configurationLineKey, I18n.tr(playerPathPolicyKey)));
         }
         return summary.toString();
+    }
+
+    private String buildRemoteDatabaseSyncSummary(boolean importMode, RemoteSyncExecutionResult result) {
+        if (result == null) {
+            return I18n.tr(databaseSyncResultKey(importMode, "Success"));
+        }
+        if (result.report() == null) {
+            return result.message();
+        }
+        String summary = buildDatabaseSyncSummary(importMode, result.report());
+        if (result.message() == null || result.message().isBlank()) {
+            return summary;
+        }
+        return summary + "\n\n" + result.message();
+    }
+
+    private void testRemoteDatabaseConnection(String host, String portText, Button testConnectionButton) {
+        String normalizedHost = normalizeSelectedPath(host);
+        String normalizedPort = normalizeSelectedPath(portText);
+        if (normalizedHost.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemoteHostRequired"));
+            return;
+        }
+        if (normalizedPort.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortRequired"));
+            return;
+        }
+        int port = parseRemotePort(normalizedPort);
+        if (port <= 0) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortInvalid"));
+            return;
+        }
+        testConnectionButton.setDisable(true);
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                remoteSyncClientService.checkConnection(normalizedHost, port);
+                return null;
+            }
+        };
+        task.setOnSucceeded(event -> {
+            testConnectionButton.setDisable(false);
+            showMessageAlert(I18n.tr("configDatabaseSyncConnectionSuccess"));
+        });
+        task.setOnFailed(event -> {
+            testConnectionButton.setDisable(false);
+            showErrorAlert(I18n.tr("configDatabaseSyncConnectionFailed") + "\n" + summarizeExceptionMessage(task.getException()));
+        });
+        Thread worker = new Thread(task, "remote-database-connection-test");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private int parseRemotePort(String value) {
+        try {
+            int port = Integer.parseInt(value);
+            return port > 0 && port <= 65_535 ? port : -1;
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
+    private String formatRemoteSyncProgressMessage(RemoteSyncProgressStep step, String detail) {
+        if (step == null) {
+            return I18n.tr("configDatabaseSyncInProgress");
+        }
+        return switch (step) {
+            case CONNECTING -> I18n.tr("remoteSyncConnecting");
+            case WAITING_FOR_APPROVAL -> I18n.tr("remoteSyncWaitingForApproval", detail == null ? "" : detail);
+            case CREATING_SNAPSHOT -> I18n.tr("remoteSyncCreatingSnapshot");
+            case UPLOADING -> I18n.tr("remoteSyncUploading");
+            case PREPARING_DOWNLOAD -> I18n.tr("remoteSyncPreparingDownload");
+            case DOWNLOADING -> I18n.tr("remoteSyncDownloading");
+            case APPLYING_SYNC -> I18n.tr("remoteSyncApplyingSync");
+            case COMPLETING_REMOTE -> I18n.tr("remoteSyncCompletingRemote");
+            case FINISHED -> I18n.tr("remoteSyncFinished");
+        };
+    }
+
+    private void bindManagedVisibility(Node node, javafx.beans.value.ObservableValue<Boolean> visibleProperty) {
+        node.visibleProperty().bind(visibleProperty);
+        node.managedProperty().bind(visibleProperty);
     }
 
     private String summarizeExceptionMessage(Throwable throwable) {
