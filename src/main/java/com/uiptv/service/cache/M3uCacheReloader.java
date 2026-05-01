@@ -10,6 +10,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.service.CategoryService;
 
+import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.HashMap;
@@ -57,13 +58,13 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         try {
             M3uChannelBuckets buckets = buildM3uChannelBuckets(account);
             populateChannelsByCategory(categories, channelsByCategory, buckets);
-        } catch (Exception e) {
+        } catch (MalformedURLException e) {
             log(logger, "Failed to load M3U channels: " + e.getMessage());
         }
         return channelsByCategory;
     }
 
-    private M3uChannelBuckets buildM3uChannelBuckets(Account account) throws Exception {
+    private M3uChannelBuckets buildM3uChannelBuckets(Account account) throws MalformedURLException {
         List<PlaylistEntry> entries = loadM3uEntries(account);
         boolean hasOtherCategories = loadM3uCategories(account).size() >= 2;
         List<Channel> allChannels = new ArrayList<>();

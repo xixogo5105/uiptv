@@ -46,6 +46,7 @@ public class M3U8PublicationService {
     public static final String BOOKMARKS_PLAYLIST_ACCOUNT_ID = "__bookmarks__";
     public static final String BOOKMARKS_PLAYLIST_NAME = "Bookmarks";
     private static final String GROUP_TITLE_ATTR = "group-title";
+    private static final String PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n";
 
     private M3U8PublicationService() {
     }
@@ -196,9 +197,10 @@ public class M3U8PublicationService {
         }
         String host = resolveBookmarkPlaylistHost(requestHost);
         String bookmarkPlaylist = HttpM3u8BookmarkPlayListServer.buildPlaylist(host);
-        boolean singleCategorySource = hasSingleEffectiveCategory(List.of(bookmarkPlaylist.split("\\r?\\n")), null);
+        List<String> bookmarkPlaylistLines = splitPlaylistLines(bookmarkPlaylist);
+        boolean singleCategorySource = hasSingleEffectiveCategory(bookmarkPlaylistLines, null);
         appendPlaylistBlock(result,
-                List.of(bookmarkPlaylist.split("\\r?\\n")),
+                bookmarkPlaylistLines,
                 BOOKMARKS_PLAYLIST_NAME,
                 null,
                 categoryMode,
@@ -210,6 +212,10 @@ public class M3U8PublicationService {
             return requestHost.trim();
         }
         return ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://", "");
+    }
+
+    private List<String> splitPlaylistLines(String playlist) {
+        return List.of(playlist.split(PLAYLIST_LINE_SPLIT_REGEX));
     }
 
     private void appendPlaylistBlock(StringBuilder result,
