@@ -169,10 +169,18 @@ public class M3U8PublicationService {
                                               PublicationSelections selections,
                                               PublishedCategoryMode categoryMode) {
         try {
+            List<PlaylistChannelEntry> selectedEntries = new ArrayList<>();
             for (PlaylistChannelEntry entry : parsePlaylistEntries(account)) {
                 if (isChannelSelected(account.getDbId(), entry.categoryName(), entry.channelId(), selections)) {
-                    appendPlaylistBlock(result, entry.lines(), account.getAccountName(), entry.categoryName(), categoryMode);
+                    selectedEntries.add(entry);
                 }
+            }
+            boolean singleCategorySource = hasSingleEffectiveCategory(
+                    selectedEntries.stream().flatMap(entry -> entry.lines().stream()).toList(),
+                    null
+            );
+            for (PlaylistChannelEntry entry : selectedEntries) {
+                appendPlaylistBlock(result, entry.lines(), account.getAccountName(), entry.categoryName(), categoryMode, singleCategorySource);
             }
         } catch (IOException e) {
             showError("Failed to append playlist for account '" + account.getAccountName() + "'", e);
@@ -188,11 +196,13 @@ public class M3U8PublicationService {
         }
         String host = resolveBookmarkPlaylistHost(requestHost);
         String bookmarkPlaylist = HttpM3u8BookmarkPlayListServer.buildPlaylist(host);
+        boolean singleCategorySource = hasSingleEffectiveCategory(List.of(bookmarkPlaylist.split("\\r?\\n")), null);
         appendPlaylistBlock(result,
                 List.of(bookmarkPlaylist.split("\\r?\\n")),
                 BOOKMARKS_PLAYLIST_NAME,
                 null,
-                categoryMode);
+                categoryMode,
+                singleCategorySource);
     }
 
     private String resolveBookmarkPlaylistHost(String requestHost) {
@@ -206,10 +216,11 @@ public class M3U8PublicationService {
                                      List<String> lines,
                                      String sourceName,
                                      String fallbackCategoryName,
-                                     PublishedCategoryMode categoryMode) {
+                                     PublishedCategoryMode categoryMode,
+                                     boolean singleCategorySource) {
         for (String line : lines) {
             if (!line.trim().startsWith(EXTM3U)) {
-                result.append(rewritePublishedLine(line, sourceName, fallbackCategoryName, categoryMode)).append("\n");
+                result.append(rewritePublishedLine(line, sourceName, fallbackCategoryName, categoryMode, singleCategorySource)).append("\n");
             }
         }
     }
@@ -217,16 +228,34 @@ public class M3U8PublicationService {
     private String rewritePublishedLine(String line,
                                         String sourceName,
                                         String fallbackCategoryName,
-                                        PublishedCategoryMode categoryMode) {
+                                        PublishedCategoryMode categoryMode,
+                                        boolean singleCategorySource) {
         if (line == null || !line.startsWith(EXTINF)) {
             return line;
         }
         if (categoryMode == PublishedCategoryMode.ORIGINAL_CATEGORY) {
             return line;
         }
+        if (singleCategorySource) {
+            return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, sourceName);
+        }
         String originalCategory = normalizePublishedCategory(parseQuotedAttribute(line, GROUP_TITLE_ATTR), fallbackCategoryName);
         String rewrittenCategory = categoryMode.format(sourceName, originalCategory);
         return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, rewrittenCategory);
+    }
+
+    private boolean hasSingleEffectiveCategory(List<String> lines, String fallbackCategoryName) {
+        Set<String> categories = new LinkedHashSet<>();
+        for (String line : lines) {
+            if (line == null || !line.startsWith(EXTINF)) {
+                continue;
+            }
+            categories.add(normalizePublishedCategory(parseQuotedAttribute(line, GROUP_TITLE_ATTR), fallbackCategoryName));
+            if (categories.size() > 1) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String normalizePublishedCategory(String categoryName, String fallbackCategoryName) {
