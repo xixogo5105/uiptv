@@ -12,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.uiptv.util.M3uPlaylistUtils.escapeAttributeValue;
+import static com.uiptv.util.M3uPlaylistUtils.sanitizeTitle;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.util.ServerUtils.generateM3u8Response;
 
@@ -89,14 +91,15 @@ public class HttpM3u8BookmarkPlayListServer implements HttpHandler {
 
     private void appendPlaylistEntry(StringBuilder response, Bookmark bookmark, String host, String groupTitle) {
         String requestedURL = "http://" + host + "/bookmarkEntry.ts?bookmarkId=" + bookmark.getDbId();
+        String channelName = sanitizeTitle(bookmark.getChannelName());
         response.append("#EXTINF:-1 tvg-id=\"")
-                .append(bookmark.getDbId())
+                .append(escapeAttributeValue(bookmark.getDbId()))
                 .append("\" tvg-name=\"")
-                .append(bookmark.getChannelName())
+                .append(escapeAttributeValue(channelName))
                 .append("\" group-title=\"")
-                .append(groupTitle)
+                .append(escapeAttributeValue(groupTitle))
                 .append("\",")
-                .append(bookmark.getChannelName())
+                .append(channelName)
                 .append("\n")
                 .append(requestedURL)
                 .append("\n");

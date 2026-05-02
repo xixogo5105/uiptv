@@ -9,20 +9,26 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.service.CategoryService;
+import com.uiptv.util.AccountType;
+import com.uiptv.util.StringUtils;
 
 import java.net.MalformedURLException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static com.uiptv.model.CategoryType.ALL;
 
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        List<Category> categories = normalizeCategoriesByTitle(CategoryService.getInstance().get(account, false, logger)).categories();
+        List<Category> categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories();
         if (categories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
             return;
@@ -51,6 +57,41 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             }
         }
         log(logger, savedCategories.size() + " Categories & " + totalChannels + " Channels saved Successfully \u2713");
+    }
+
+    private List<Category> loadFreshCategories(Account account, LoggerCallback logger) {
+        if (!canReadFreshCategoriesFromSource(account)) {
+            return CategoryService.getInstance().get(account, false, logger);
+        }
+        try {
+            Set<Category> categories = new LinkedHashSet<>();
+            for (PlaylistEntry entry : loadM3uCategories(account)) {
+                categories.add(new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0));
+            }
+            return new ArrayList<>(categories);
+        } catch (MalformedURLException e) {
+            log(logger, "Failed to load fresh M3U categories: " + e.getMessage());
+            return CategoryService.getInstance().get(account, false, logger);
+        }
+    }
+
+    private boolean canReadFreshCategoriesFromSource(Account account) {
+        if (account == null) {
+            return false;
+        }
+        String source = account.getM3u8Path();
+        if (StringUtils.isBlank(source)) {
+            return false;
+        }
+        if (account.getType() == AccountType.M3U8_LOCAL) {
+            try {
+                Path path = Path.of(source);
+                return Files.isRegularFile(path) && Files.isReadable(path);
+            } catch (Exception _) {
+                return false;
+            }
+        }
+        return true;
     }
 
     protected Map<String, List<Channel>> loadM3uChannelsByCategory(List<Category> categories, Account account, LoggerCallback logger) {

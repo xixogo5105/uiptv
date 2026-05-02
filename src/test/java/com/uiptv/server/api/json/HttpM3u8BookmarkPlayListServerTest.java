@@ -69,6 +69,26 @@ class HttpM3u8BookmarkPlayListServerTest extends DbBackedTest {
         assertTrue(body.indexOf(kidsEntry) > body.indexOf(moviesEntry));
     }
 
+    @Test
+    void handle_escapesQuotedAttributeValues() throws Exception {
+        BookmarkService.getInstance().addCategory(new BookmarkCategory(null, "Kids \"HD\""));
+        String kidsId = BookmarkService.getInstance().getAllCategories().getFirst().getId();
+
+        Bookmark bookmark = new Bookmark("acc", "Kids \"HD\"", "ch-1", "Channel \"One\"", "cmd1", "http://portal", kidsId);
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark saved = BookmarkService.getInstance().getBookmark(bookmark);
+
+        HttpM3u8BookmarkPlayListServer handler = new HttpM3u8BookmarkPlayListServer();
+        TestHttpExchange exchange = new TestHttpExchange("/bookmarks.m3u8", "GET");
+        exchange.getRequestHeaders().add("Host", "localhost:9000");
+        handler.handle(exchange);
+
+        String body = exchange.getResponseBodyText();
+        assertTrue(body.contains("tvg-name=\"Channel 'One'\""));
+        assertTrue(body.contains("group-title=\"Kids 'HD'\""));
+        assertTrue(body.contains("," + saved.getChannelName()));
+    }
+
     private String extInfLine(Bookmark bookmark, String groupTitle) {
         return "#EXTINF:-1 tvg-id=\"" + bookmark.getDbId()
                 + "\" tvg-name=\"" + bookmark.getChannelName()

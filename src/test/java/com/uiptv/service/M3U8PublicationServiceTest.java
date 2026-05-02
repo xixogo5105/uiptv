@@ -185,6 +185,25 @@ class M3U8PublicationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void getPlaylist_splitsSemicolonSeparatedCategories() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("multi-group-categories.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="shared" group-title="News;Sports",Shared Channel
+                http://example.com/shared.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("SplitCats", "user", "pass", "http://unused", "00:11:22:33:44:62", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("SplitCats");
+
+        M3U8PublicationService.PlaylistAccount playlist = M3U8PublicationService.getInstance().getPlaylist(savedAccount.getDbId());
+
+        assertEquals(Set.of("News", "Sports"),
+                playlist.categories().stream().map(M3U8PublicationService.PlaylistCategory::categoryName).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
     void getAvailableAccounts_listsBookmarksPlaylistFirst() {
         Account account = new Account("LaterAccount", "user", "pass", "http://test.com", "00:11:22:33:44:61", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
         AccountService.getInstance().save(account);
@@ -286,6 +305,44 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         String original = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
         assertTrue(original.contains("group-title=\"Sports\""));
         assertFalse(original.contains("group-title=\"Uncategorized\""));
+    }
+
+    @Test
+    void getPublishedM3u8_originalCategoryModeRewritesSelectedSemicolonCategory() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("group-format-semicolon-original.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="shared" group-title="News;Sports",Shared Channel
+                http://example.com/shared.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("Provider Split", "user", "pass", "http://unused", "00:11:22:33:44:66", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("Provider Split");
+
+        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService.PlaylistAccount playlist = publicationService.getPlaylist(savedAccount.getDbId());
+        String newsChannelId = playlist.categories().stream()
+                .filter(category -> "News".equals(category.categoryName()))
+                .flatMap(category -> category.channels().stream())
+                .findFirst()
+                .orElseThrow()
+                .channelId();
+
+        publicationService.saveSelections(new M3U8PublicationService.PublicationSelections(
+                Set.of(savedAccount.getDbId()),
+                Map.of(new M3U8PublicationService.CategorySelectionKey(savedAccount.getDbId(), "Sports"), false),
+                Map.of(new M3U8PublicationService.ChannelSelectionKey(savedAccount.getDbId(), "News", newsChannelId), true)
+        ));
+
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.ORIGINAL_CATEGORY.persistedValue());
+        ConfigurationService.getInstance().save(configuration);
+
+        String result = publicationService.getPublishedM3u8("192.168.0.210:8080");
+
+        assertTrue(result.contains("group-title=\"News\""));
+        assertFalse(result.contains("group-title=\"News;Sports\""));
     }
 
     @Test

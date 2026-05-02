@@ -35,6 +35,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.uiptv.db.SQLConnection.connect;
+import static com.uiptv.util.M3uPlaylistUtils.escapeAttributeValue;
+import static com.uiptv.util.M3uPlaylistUtils.parseAttribute;
+import static com.uiptv.util.M3uPlaylistUtils.splitGroupTitles;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showError;
@@ -181,7 +184,7 @@ public class M3U8PublicationService {
                     null
             );
             for (PlaylistChannelEntry entry : selectedEntries) {
-                appendPlaylistBlock(result, entry.lines(), account.getAccountName(), entry.categoryName(), categoryMode, singleCategorySource);
+                appendPlaylistBlock(result, entry.lines(), account.getAccountName(), entry.categoryName(), categoryMode, singleCategorySource, entry.splitFromMultiCategory());
             }
         } catch (IOException e) {
             showError("Failed to append playlist for account '" + account.getAccountName() + "'", e);
@@ -204,7 +207,8 @@ public class M3U8PublicationService {
                 BOOKMARKS_PLAYLIST_NAME,
                 null,
                 categoryMode,
-                singleCategorySource);
+                singleCategorySource,
+                false);
     }
 
     private String resolveBookmarkPlaylistHost(String requestHost) {
@@ -223,10 +227,11 @@ public class M3U8PublicationService {
                                      String sourceName,
                                      String fallbackCategoryName,
                                      PublishedCategoryMode categoryMode,
-                                     boolean singleCategorySource) {
+                                     boolean singleCategorySource,
+                                     boolean splitFromMultiCategory) {
         for (String line : lines) {
             if (!line.trim().startsWith(EXTM3U)) {
-                result.append(rewritePublishedLine(line, sourceName, fallbackCategoryName, categoryMode, singleCategorySource)).append("\n");
+                result.append(rewritePublishedLine(line, sourceName, fallbackCategoryName, categoryMode, singleCategorySource, splitFromMultiCategory)).append("\n");
             }
         }
     }
@@ -235,11 +240,15 @@ public class M3U8PublicationService {
                                         String sourceName,
                                         String fallbackCategoryName,
                                         PublishedCategoryMode categoryMode,
-                                        boolean singleCategorySource) {
+                                        boolean singleCategorySource,
+                                        boolean splitFromMultiCategory) {
         if (line == null || !line.startsWith(EXTINF)) {
             return line;
         }
         if (categoryMode == PublishedCategoryMode.ORIGINAL_CATEGORY) {
+            if (splitFromMultiCategory && isNotBlank(fallbackCategoryName)) {
+                return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, fallbackCategoryName);
+            }
             return line;
         }
         if (singleCategorySource) {
@@ -256,7 +265,14 @@ public class M3U8PublicationService {
             if (line == null || !line.startsWith(EXTINF)) {
                 continue;
             }
-            categories.add(normalizePublishedCategory(parseQuotedAttribute(line, GROUP_TITLE_ATTR), fallbackCategoryName));
+            List<String> parsedCategories = splitGroupTitles(parseQuotedAttribute(line, GROUP_TITLE_ATTR));
+            if (parsedCategories.isEmpty()) {
+                categories.add(normalizePublishedCategory("", fallbackCategoryName));
+            } else {
+                for (String category : parsedCategories) {
+                    categories.add(normalizePublishedCategory(category, fallbackCategoryName));
+                }
+            }
             if (categories.size() > 1) {
                 return false;
             }
@@ -275,20 +291,21 @@ public class M3U8PublicationService {
     }
 
     private String replaceOrAppendQuotedAttribute(String line, String key, String value) {
+        String escapedValue = escapeAttributeValue(value);
         String marker = key + "=\"";
         int markerIndex = line.indexOf(marker);
         if (markerIndex >= 0) {
             int valueStart = markerIndex + marker.length();
             int valueEnd = line.indexOf('"', valueStart);
             if (valueEnd >= 0) {
-                return line.substring(0, valueStart) + value + line.substring(valueEnd);
+                return line.substring(0, valueStart) + escapedValue + line.substring(valueEnd);
             }
         }
         int commaIndex = line.lastIndexOf(',');
         if (commaIndex < 0) {
-            return line + " " + key + "=\"" + value + "\"";
+            return line + " " + key + "=\"" + escapedValue + "\"";
         }
-        return line.substring(0, commaIndex) + " " + key + "=\"" + value + "\"" + line.substring(commaIndex);
+        return line.substring(0, commaIndex) + " " + key + "=\"" + escapedValue + "\"" + line.substring(commaIndex);
     }
 
     private boolean isChannelSelected(String accountId,
@@ -391,8 +408,8 @@ public class M3U8PublicationService {
             }
 
             ParsedPlaylistEntry entry = parsePlaylistEntry(lines, index);
-            if (entry.channelEntry() != null) {
-                entries.add(entry.channelEntry());
+            if (entry.channelEntries() != null) {
+                entries.addAll(entry.channelEntries());
             }
             index = entry.nextIndex();
         }
@@ -404,7 +421,7 @@ public class M3U8PublicationService {
         List<String> entryLines = new ArrayList<>();
         entryLines.add(extinfLine);
 
-        String categoryName = normalizeCategoryName(parseQuotedAttribute(extinfLine, GROUP_TITLE_ATTR));
+        List<String> categoryNames = parseEffectiveCategoryNames(parseQuotedAttribute(extinfLine, GROUP_TITLE_ATTR));
         String title = parseEntryTitle(extinfLine);
         String sourceUrl = "";
         int index = startIndex + 1;
@@ -424,10 +441,12 @@ public class M3U8PublicationService {
         }
 
         String channelId = buildChannelId(parseQuotedAttribute(extinfLine, "tvg-id"), title, sourceUrl);
-        return new ParsedPlaylistEntry(
-                new PlaylistChannelEntry(categoryName, channelId, title, entryLines),
-                Math.max(index, startIndex + 1)
-        );
+        List<PlaylistChannelEntry> channelEntries = new ArrayList<>();
+        boolean splitFromMultiCategory = categoryNames.size() > 1;
+        for (String categoryName : categoryNames) {
+            channelEntries.add(new PlaylistChannelEntry(categoryName, channelId, title, entryLines, splitFromMultiCategory));
+        }
+        return new ParsedPlaylistEntry(channelEntries, Math.max(index, startIndex + 1));
     }
 
     private boolean isPlaylistMediaLine(String line) {
@@ -452,14 +471,18 @@ public class M3U8PublicationService {
         return isBlank(categoryName) ? CategoryType.UNCATEGORIZED.displayName() : categoryName.trim();
     }
 
-    private String parseQuotedAttribute(String line, String key) {
-        String marker = key + "=\"";
-        String[] split = line.split(marker, 2);
-        if (split.length < 2) {
-            return "";
+    private List<String> parseEffectiveCategoryNames(String categoryName) {
+        List<String> parsed = splitGroupTitles(categoryName);
+        if (parsed.isEmpty()) {
+            return List.of(CategoryType.UNCATEGORIZED.displayName());
         }
-        String[] value = split[1].split("\"", 2);
-        return value.length == 0 ? "" : value[0];
+        return parsed.stream()
+                .map(this::normalizeCategoryName)
+                .toList();
+    }
+
+    private String parseQuotedAttribute(String line, String key) {
+        return parseAttribute(line, key);
     }
 
     private String parseEntryTitle(String line) {
@@ -545,10 +568,10 @@ public class M3U8PublicationService {
     public record PlaylistChannel(String channelId, String title) {
     }
 
-    record PlaylistChannelEntry(String categoryName, String channelId, String title, List<String> lines) {
+    record PlaylistChannelEntry(String categoryName, String channelId, String title, List<String> lines, boolean splitFromMultiCategory) {
     }
 
-    private record ParsedPlaylistEntry(PlaylistChannelEntry channelEntry, int nextIndex) {
+    private record ParsedPlaylistEntry(List<PlaylistChannelEntry> channelEntries, int nextIndex) {
     }
 
     private record CategoryBucket(String displayName, List<PlaylistChannel> channels) {

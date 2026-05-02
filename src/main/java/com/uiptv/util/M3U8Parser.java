@@ -17,6 +17,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.uiptv.util.M3uPlaylistUtils.parseAttribute;
+import static com.uiptv.util.M3uPlaylistUtils.splitGroupTitles;
 import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
@@ -87,7 +89,7 @@ public class M3U8Parser {
                 if (!line.startsWith(EXTINF)) {
                     continue;
                 }
-                if (processCategoryLineSafely(reader, playlistEntries, line)) {
+                if (processCategoryLineSafely(playlistEntries, line)) {
                     hasUncategorizedEntries = true;
                 }
             }
@@ -101,28 +103,30 @@ public class M3U8Parser {
         return playlistEntries;
     }
 
-    private static boolean processCategoryLineSafely(BufferedReader reader, Set<PlaylistEntry> playlistEntries, String line) {
+    private static boolean processCategoryLineSafely(Set<PlaylistEntry> playlistEntries, String line) {
         try {
-            return processCategoryLine(reader, playlistEntries, line);
-        } catch (IOException e) {
+            return processCategoryLine(playlistEntries, line);
+        } catch (RuntimeException e) {
             UIptvAlert.showError(e.getMessage());
             return false;
         }
     }
 
-    private static boolean processCategoryLine(BufferedReader reader, Set<PlaylistEntry> playlistEntries, String line) throws IOException {
-        String groupTitle = parseItem(line, "group-title=\"");
-        boolean uncategorized = shouldTreatAsUncategorized(groupTitle);
-        PlaylistEntry categoryEntry = buildCategoryEntry(line, groupTitle);
-        if (categoryEntry != null) {
-            playlistEntries.add(categoryEntry);
+    private static boolean processCategoryLine(Set<PlaylistEntry> playlistEntries, String line) {
+        String tvgId = parseAttribute(line, "tvg-id");
+        List<String> groupTitles = splitGroupTitles(parseAttribute(line, "group-title"));
+        if (groupTitles.isEmpty()) {
+            return true;
         }
-        String mediaUrl = reader.readLine();
-        if (mediaUrl == null) {
-            throw new IOException("Unexpected end of playlist after category entry");
+        for (String groupTitle : groupTitles) {
+            PlaylistEntry categoryEntry = buildCategoryEntry(tvgId, groupTitle);
+            if (categoryEntry != null) {
+                playlistEntries.add(categoryEntry);
+            }
         }
-        return uncategorized;
+        return groupTitles.stream().anyMatch(M3U8Parser::shouldTreatAsUncategorized);
     }
+
     private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
@@ -139,7 +143,9 @@ public class M3U8Parser {
                 ParsedEntry parsed = parseEntryState(lines, index + 1);
                 EntryState state = parsed.state();
                 if (isNotBlank(state.url)) {
-                    playlistEntries.add(new PlaylistEntry(header.tvgId, header.groupTitle, header.title, state.url, header.logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
+                    for (String groupTitle : effectiveGroupTitles(header.groupTitles)) {
+                        playlistEntries.add(new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
+                    }
                 }
                 index = parsed.lastIndex() + 1;
             }
@@ -175,10 +181,10 @@ public class M3U8Parser {
 
     private static EntryHeader parseEntryHeader(String line) {
         return new EntryHeader(
-                parseItem(line, "tvg-id=\""),
-                parseItem(line, "group-title=\""),
+                parseAttribute(line, "tvg-id"),
+                splitGroupTitles(parseAttribute(line, "group-title")),
                 parseTitle(line),
-                parseItem(line, "tvg-logo=\"")
+                parseAttribute(line, "tvg-logo")
         );
     }
 
@@ -186,17 +192,24 @@ public class M3U8Parser {
         return !isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase(UNCATEGORIZED);
     }
 
-    private static PlaylistEntry buildCategoryEntry(String line, String groupTitle) {
+    private static List<String> effectiveGroupTitles(List<String> groupTitles) {
+        if (groupTitles == null || groupTitles.isEmpty()) {
+            return List.of(UNCATEGORIZED);
+        }
+        return groupTitles;
+    }
+
+    private static PlaylistEntry buildCategoryEntry(String tvgId, String groupTitle) {
         if (!isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase(CategoryType.ALL.displayName())) {
             return null;
         }
-        return new PlaylistEntry(parseItem(line, "tvg-id=\""), groupTitle, null, null, null);
+        return new PlaylistEntry(tvgId, groupTitle, null, null, null);
     }
 
     private static boolean applyMetaLine(EntryState state, String nextLine, String trimmed) {
         if (nextLine.startsWith(EXT_X_KEY)) {
             state.drmType = parseDrmType(nextLine);
-            state.drmLicenseUrl = parseItem(nextLine, "URI=\"");
+            state.drmLicenseUrl = parseAttribute(nextLine, "URI");
             return false;
         }
         if (nextLine.startsWith(KODIPROP_INPUTSTREAM_ADDON)) {
@@ -257,18 +270,10 @@ public class M3U8Parser {
         private String url;
     }
 
-    private record EntryHeader(String tvgId, String groupTitle, String title, String logo) {
+    private record EntryHeader(String tvgId, List<String> groupTitles, String title, String logo) {
     }
 
     private record ParsedEntry(EntryState state, int lastIndex) {
-    }
-
-    private static String parseItem(String line, String key) {
-        String[] firstItem = line.split(key);
-        if (firstItem.length > 1) {
-            return firstItem[1].split("\"")[0];
-        }
-        return EMPTY;
     }
 
     private static String parseTitle(String line) {

@@ -23,11 +23,11 @@ class HttpM3u8PlayListServerTest {
         Account account = new Account("acc", "user", "pass", "http://portal", null, null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://portal/list.m3u8", false);
         account.setDbId("acc-1");
-        account.setAccountName("AccountName");
+        account.setAccountName("Account \"Name\"");
 
         Channel channel = new Channel();
         channel.setChannelId("ch-1");
-        channel.setName("Channel One");
+        channel.setName("Channel \"One\"");
         channel.setCmd("http%3A%2F%2Forigin%2Fstream.ts");
 
         AccountService accountService = Mockito.mock(AccountService.class);
@@ -56,6 +56,8 @@ class HttpM3u8PlayListServerTest {
             assertEquals(200, exchange.getResponseCode());
             assertTrue(exchange.getResponseBodyText().contains("#EXTM3U"));
             assertTrue(exchange.getResponseBodyText().contains("http://origin/stream.ts"));
+            assertTrue(exchange.getResponseBodyText().contains("tvg-name=\"Channel 'One'\""));
+            assertTrue(exchange.getResponseBodyText().contains("group-title=\"Account 'Name'\""));
             assertEquals("http%3A%2F%2Forigin%2Fstream.ts", channel.getCmd());
         }
     }
