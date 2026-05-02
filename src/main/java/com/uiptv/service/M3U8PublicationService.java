@@ -5,7 +5,6 @@ import com.uiptv.db.PublishedM3uChannelSelectionDb;
 import com.uiptv.db.PublishedM3uSelectionDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.CategoryType;
-import com.uiptv.model.Configuration;
 import com.uiptv.model.PublishedM3uCategorySelection;
 import com.uiptv.model.PublishedM3uChannelSelection;
 import com.uiptv.model.PublishedM3uSelection;
@@ -169,9 +168,9 @@ public class M3U8PublicationService {
     }
 
     private void appendSelectedAccountPlaylist(StringBuilder result,
-                                              Account account,
-                                              PublicationSelections selections,
-                                              PublishedCategoryMode categoryMode) {
+                                               Account account,
+                                               PublicationSelections selections,
+                                               PublishedCategoryMode categoryMode) {
         try {
             List<PlaylistChannelEntry> selectedEntries = new ArrayList<>();
             for (PlaylistChannelEntry entry : parsePlaylistEntries(account)) {
@@ -568,7 +567,8 @@ public class M3U8PublicationService {
     public record PlaylistChannel(String channelId, String title) {
     }
 
-    record PlaylistChannelEntry(String categoryName, String channelId, String title, List<String> lines, boolean splitFromMultiCategory) {
+    record PlaylistChannelEntry(String categoryName, String channelId, String title, List<String> lines,
+                                boolean splitFromMultiCategory) {
     }
 
     private record ParsedPlaylistEntry(List<PlaylistChannelEntry> channelEntries, int nextIndex) {
