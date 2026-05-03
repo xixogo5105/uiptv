@@ -269,7 +269,24 @@ These classes are kept in CSS as compatibility hooks/placeholders:
 - `.custom-popup-title`
 - `.custom-popup-close`
 
-### 8.12 JavaFX structural selectors used by themes
+### 8.12 Update dialog classes
+
+These classes style the release-notification dialog shown by `UpdateChecker`:
+
+- `.update-dialog-stage-root`: Root container for the custom update window.
+- `.update-dialog-root`: Root container for update dialog content.
+- `.update-dialog-actions`: Footer action row for close/download buttons.
+- `.update-dialog-hero`: Highlighted banner area at the top of the update window.
+- `.update-dialog-icon`: Circular accent icon container.
+- `.update-dialog-icon-glyph`: SVG exclamation glyph inside the accent icon.
+- `.update-dialog-badge`: Small release-status badge, such as `NEW RELEASE`.
+- `.update-dialog-version-chip`: Version pill shown on the right side of the hero row.
+- `.update-dialog-title`: Main update headline.
+- `.update-dialog-notes-card`: Framed release-notes panel.
+- `.update-dialog-notes-title`: Release-notes heading.
+- `.update-dialog-notes-area`: Scrollable text area containing the release notes.
+
+### 8.13 JavaFX structural selectors used by themes
 
 These are framework selectors (not app-owned class names) and are intentionally themed:
 
@@ -290,7 +307,7 @@ These are framework selectors (not app-owned class names) and are intentionally 
 - `.dialog-pane`
 - `.dialog-pane > .header-panel`
 
-### 8.13 Notes for custom themes
+### 8.14 Notes for custom themes
 
 1. Keep both theme files in sync for selector availability.
 2. Prefer overriding existing hooks instead of introducing ad-hoc selectors.

@@ -679,6 +679,92 @@
     -fx-font-size: 0.923em;
 }
 
+.update-dialog-root {
+    -fx-padding: 2;
+}
+
+.update-dialog-stage-root {
+    -fx-background-color: -fx-base;
+}
+
+.update-dialog-actions {
+    -fx-alignment: center-right;
+}
+
+.update-dialog-hero {
+    -fx-background-color: linear-gradient(to right, #17304e, #1c3656);
+    -fx-border-color: #35608f;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 14;
+    -fx-alignment: top-left;
+}
+
+.update-dialog-icon {
+    -fx-min-width: 28;
+    -fx-pref-width: 28;
+    -fx-max-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+    -fx-background-color: linear-gradient(to bottom, #4da0ff, #1f73d2);
+    -fx-background-radius: 999;
+    -fx-border-color: #8fc0ff;
+    -fx-border-width: 1;
+    -fx-border-radius: 999;
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+
+.update-dialog-icon-glyph {
+    -fx-fill: white;
+}
+
+.update-dialog-badge {
+    -fx-background-color: #27486d;
+    -fx-text-fill: #d7e9ff;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 999;
+    -fx-font-size: 0.846em;
+    -fx-font-weight: bold;
+}
+
+.update-dialog-version-chip {
+    -fx-background-color: #224b34;
+    -fx-text-fill: #d9f7e4;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 999;
+    -fx-border-color: #4f8d66;
+    -fx-border-width: 1;
+    -fx-border-radius: 999;
+    -fx-font-size: 0.923em;
+    -fx-font-weight: bold;
+}
+
+.update-dialog-title {
+    -fx-font-size: 1.23em;
+}
+
+.update-dialog-notes-card {
+    -fx-background-color: #31363c;
+    -fx-border-color: #4e5258;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 12;
+}
+
+.update-dialog-notes-title {
+    -fx-text-fill: #f1f5f9;
+}
+
+.update-dialog-notes-area {
+    -fx-background-insets: 0;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
 /* ==========================================================================
    Global Style Hooks
    Keep these selectors in both light and dark stylesheets so user overrides

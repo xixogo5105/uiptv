@@ -9,15 +9,14 @@ import java.lang.reflect.Method;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VersionManagerTest {
 
     @Test
-    void readsUpdateMetadataFromClasspathResource() {
+    void readsBuildVersionFromClasspathResource() {
         assertNotEquals("N/A", VersionManager.getCurrentVersion());
-        assertNotEquals("N/A", VersionManager.getReleaseUrl());
-        assertNotEquals("N/A", VersionManager.getReleaseDescription());
-        assertFalse(VersionManager.getReleaseDescription().isBlank());
+        assertEquals("https://github.com/xixogo5105/uiptv/releases/latest", VersionManager.getReleaseUrl());
     }
 
     @Test
@@ -27,11 +26,19 @@ class VersionManagerTest {
     }
 
     @Test
-    void missingUpdateMetadataFallsBackToNa() throws Exception {
+    void resolveVersion_skipsUnresolvedPlaceholderValues() {
+        assertEquals("0.1.8", VersionManager.resolveVersion("${project.version}", null, "0.1.8"));
+        assertEquals("N/A", VersionManager.resolveVersion("${project.version}", "", null));
+        assertTrue(VersionManager.isResolvedVersionValue("0.1.10"));
+        assertFalse(VersionManager.isResolvedVersionValue("${project.version}"));
+    }
+
+    @Test
+    void missingVersionMetadataFallsBackToNa() throws Exception {
         ClassLoader shadowLoader = new ClassLoader(VersionManager.class.getClassLoader()) {
             @Override
             public InputStream getResourceAsStream(String name) {
-                if ("update.json".equals(name)) {
+                if ("app-version.properties".equals(name) || "META-INF/maven/com.spc/uiptv/pom.properties".equals(name)) {
                     return null;
                 }
                 return super.getResourceAsStream(name);
@@ -67,8 +74,8 @@ class VersionManagerTest {
         Method getReleaseUrl = shadowVersionManager.getMethod("getReleaseUrl");
         Method getReleaseDescription = shadowVersionManager.getMethod("getReleaseDescription");
 
-        assertEquals("N/A", getCurrentVersion.invoke(null));
-        assertEquals("N/A", getReleaseUrl.invoke(null));
+        assertEquals(VersionManager.getCurrentVersion(), getCurrentVersion.invoke(null));
+        assertEquals("https://github.com/xixogo5105/uiptv/releases/latest", getReleaseUrl.invoke(null));
         assertEquals("N/A", getReleaseDescription.invoke(null));
     }
 }
