@@ -24,6 +24,7 @@ public final class SQLiteTableSync {
     private static final String SQL_INSERT_INTO = "INSERT INTO ";
     private static final String SQL_VALUES = ") VALUES (";
     private static final String ACCOUNT_ID = "accountId";
+    private static final Set<String> CONFIGURATION_SYNC_EXCLUDED_COLUMNS = Set.of("filterLockHash");
 
     private SQLiteTableSync() {
     }
@@ -214,6 +215,7 @@ public final class SQLiteTableSync {
         List<String> targetColumns = getTableColumns(targetConn, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
         List<String> commonColumns = sourceColumns.stream()
                 .filter(new LinkedHashSet<>(targetColumns)::contains)
+                .filter(column -> !CONFIGURATION_SYNC_EXCLUDED_COLUMNS.contains(column))
                 .toList();
 
         if (commonColumns.isEmpty()) {

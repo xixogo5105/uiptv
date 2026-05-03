@@ -82,6 +82,12 @@ public class ConfigurationUI extends VBox {
     private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "configFilterCategoriesPrompt", 5);
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "configFilterChannelsPrompt", 5);
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
+    private final Label filterLockStatusLabel = new Label();
+    private final Button filterLockPasswordButton = new Button();
+    private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
+    private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
+    private final CheckBox filterDisablePasswordCheckBox = new CheckBox(I18n.tr("filterLockDisablePasswordAction"));
+    private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final CheckBox enableFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableFfmpeg")));
     private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableLitePlayerFfmpeg")));
@@ -125,6 +131,9 @@ public class ConfigurationUI extends VBox {
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private String dbId;
+    private String persistedFilterCategoriesValue = "";
+    private String persistedFilterChannelsValue = "";
+    private boolean persistedPauseFilteringValue = false;
     private boolean ignorePlayerSelectionPrompt = false;
     private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
     private String vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
@@ -207,9 +216,13 @@ public class ConfigurationUI extends VBox {
         playerPath3.setPrefWidth(295);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
+        filterCategoriesWithTextContains.setPrefRowCount(6);
+        filterChannelWithTextContains.setPrefRowCount(6);
         registerConfigurationChangeListener();
 
         filterPausedCheckBox.setMinWidth(250);
+        filterLockStatusLabel.setWrapText(true);
+        filterLockStatusLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         cacheExpiryDays.setPrefColumnCount(4);
         cacheExpiryDays.setMaxWidth(70);
         Label cacheExpiryLabel = new Label(I18n.tr("configCacheExpiresInDays"));
@@ -252,7 +265,10 @@ public class ConfigurationUI extends VBox {
         resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
-        VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
+        filterAdminControls.getChildren().setAll(filterCategoriesWithTextContains, filterChannelWithTextContains);
+        HBox filterLockActions = new HBox(8, filterLockPasswordButton, filterUnlockButton, filterRelockButton);
+        filterLockActions.setAlignment(Pos.CENTER_LEFT);
+        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterDisablePasswordCheckBox, filterAdminControls);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
         updateThemeCssStatusLabels();
@@ -302,12 +318,14 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
+        addFilterLockButtonHandlers();
         addResolveChainHelpClickHandler();
         addDatabaseSyncButtonHandlers();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
+        refreshFilterLockUi();
     }
 
     private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
@@ -724,6 +742,44 @@ public class ConfigurationUI extends VBox {
         tmdbApiKeyPageLink.setOnAction(event -> ServerUrlUtil.openInBrowser(TMDB_API_KEY_URL));
     }
 
+    private void addFilterLockButtonHandlers() {
+        filterLockPasswordButton.setOnAction(event -> {
+            FilterLockDialogs.openPasswordChangeDialog(this);
+            refreshConfigurationForm();
+        });
+        filterUnlockButton.setOnAction(event -> {
+            if (FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason")) {
+                refreshFilterLockUi();
+            }
+        });
+        filterRelockButton.setOnAction(event -> {
+            FilterLockService.getInstance().clearUnlockSession();
+            refreshFilterLockUi();
+        });
+        filterDisablePasswordCheckBox.setOnAction(event -> {
+            if (!filterDisablePasswordCheckBox.isSelected()) {
+                return;
+            }
+            boolean disabled = FilterLockDialogs.openDisablePasswordDialog(this);
+            filterDisablePasswordCheckBox.setSelected(false);
+            if (disabled) {
+                refreshConfigurationForm();
+            }
+        });
+        filterPausedCheckBox.setOnAction(event -> {
+            FilterLockService filterLockService = FilterLockService.getInstance();
+            if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
+                return;
+            }
+            if (!FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason")) {
+                filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+                return;
+            }
+            refreshFilterLockUi();
+            filterPausedCheckBox.setSelected(!persistedPauseFilteringValue);
+        });
+    }
+
     private void addVlcOptionsLinkClickHandler() {
         vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
@@ -766,6 +822,55 @@ public class ConfigurationUI extends VBox {
         updateVlcOptionsLinkVisibility();
         updateWideViewVisibility();
         refreshServerStatusUI();
+        refreshFilterLockUi();
+    }
+
+    private void refreshFilterLockUi() {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        boolean passwordSet = filterLockService.hasPasswordConfigured();
+        boolean unlocked = filterLockService.isUnlocked();
+
+        filterLockPasswordButton.setText(I18n.tr(passwordSet ? "filterLockChangePasswordAction" : "filterLockSetPasswordAction"));
+        filterUnlockButton.setManaged(passwordSet && !unlocked);
+        filterUnlockButton.setVisible(passwordSet && !unlocked);
+        filterRelockButton.setManaged(passwordSet && unlocked);
+        filterRelockButton.setVisible(passwordSet && unlocked);
+        filterDisablePasswordCheckBox.setManaged(passwordSet);
+        filterDisablePasswordCheckBox.setVisible(passwordSet);
+        filterDisablePasswordCheckBox.setSelected(false);
+
+        if (!passwordSet) {
+            filterLockStatusLabel.setText(I18n.tr("filterLockStatusNotSet"));
+            filterCategoriesWithTextContains.setEditable(true);
+            filterChannelWithTextContains.setEditable(true);
+            filterCategoriesWithTextContains.setPromptText(I18n.tr("configFilterCategoriesPrompt"));
+            filterChannelWithTextContains.setPromptText(I18n.tr("configFilterChannelsPrompt"));
+            filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+            filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            return;
+        }
+
+        if (unlocked) {
+            filterLockStatusLabel.setText(I18n.tr("filterLockStatusUnlocked", filterLockService.getUnlockWindowMinutes()));
+            filterCategoriesWithTextContains.setEditable(true);
+            filterChannelWithTextContains.setEditable(true);
+            filterCategoriesWithTextContains.setPromptText(I18n.tr("configFilterCategoriesPrompt"));
+            filterChannelWithTextContains.setPromptText(I18n.tr("configFilterChannelsPrompt"));
+            filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+            filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            return;
+        }
+
+        filterLockStatusLabel.setText(I18n.tr("filterLockStatusLocked", filterLockService.getUnlockWindowMinutes()));
+        filterCategoriesWithTextContains.clear();
+        filterChannelWithTextContains.clear();
+        filterCategoriesWithTextContains.setEditable(false);
+        filterChannelWithTextContains.setEditable(false);
+        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+        filterCategoriesWithTextContains.setPromptText(I18n.tr("filterLockHiddenCategoriesPrompt"));
+        filterChannelWithTextContains.setPromptText(I18n.tr("filterLockHiddenChannelsPrompt"));
     }
 
     private void applyConfigurationToForm(Configuration configuration) {
@@ -776,9 +881,12 @@ public class ConfigurationUI extends VBox {
         playerPath1.setText(configuration.getPlayerPath1());
         playerPath2.setText(configuration.getPlayerPath2());
         playerPath3.setText(configuration.getPlayerPath3());
-        filterCategoriesWithTextContains.setText(configuration.getFilterCategoriesList());
-        filterChannelWithTextContains.setText(configuration.getFilterChannelsList());
-        filterPausedCheckBox.setSelected(configuration.isPauseFiltering());
+        persistedFilterCategoriesValue = configuration.getFilterCategoriesList() == null ? "" : configuration.getFilterCategoriesList();
+        persistedFilterChannelsValue = configuration.getFilterChannelsList() == null ? "" : configuration.getFilterChannelsList();
+        persistedPauseFilteringValue = configuration.isPauseFiltering();
+        filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+        filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
         darkThemeCheckBox.setSelected(configuration.isDarkTheme());
         enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
         wideViewCheckBox.setSelected(configuration.isWideView());
@@ -806,6 +914,10 @@ public class ConfigurationUI extends VBox {
                 saveButton.setDisable(true);
 
                 Configuration previous = service.read();
+                if (!ensureFilterAccessForPendingSave()) {
+                    saveButton.setDisable(false);
+                    return;
+                }
                 Configuration newConfiguration = buildConfigurationToSave();
                 saveConfiguration(newConfiguration);
                 applyPostSaveEffects(previous, newConfiguration);
@@ -823,8 +935,8 @@ public class ConfigurationUI extends VBox {
     private Configuration buildConfigurationToSave() {
         Configuration configuration = new Configuration(
                 playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), resolveDefaultPlayerPath(),
-                filterCategoriesWithTextContains.getText(), filterChannelWithTextContains.getText(),
-                filterPausedCheckBox.isSelected(),
+                resolveFilterCategoriesValueForSave(), resolveFilterChannelsValueForSave(),
+                resolvePauseFilteringValueForSave(),
                 darkThemeCheckBox.isSelected(), serverPort.getText(),
                 defaultEmbedPlayer.isSelected(),
                 enableFfmpegCheckBox.isSelected(),
@@ -835,6 +947,7 @@ public class ConfigurationUI extends VBox {
         configuration.setWideView(wideViewCheckBox.isSelected());
         configuration.setLanguageLocale(getSelectedLanguageTag());
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
+        configuration.setFilterLockHash(service.read().getFilterLockHash());
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
         configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
@@ -844,6 +957,45 @@ public class ConfigurationUI extends VBox {
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
         configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
         return configuration;
+    }
+
+    private boolean ensureFilterAccessForPendingSave() {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
+            return true;
+        }
+        boolean filterValuesChanged = !java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
+                || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)
+                || filterPausedCheckBox.isSelected() != persistedPauseFilteringValue;
+        if (!filterValuesChanged) {
+            return true;
+        }
+        boolean unlocked = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason");
+        if (unlocked) {
+            refreshFilterLockUi();
+        }
+        return unlocked;
+    }
+
+    private String resolveFilterCategoriesValueForSave() {
+        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+            return persistedFilterCategoriesValue;
+        }
+        return filterCategoriesWithTextContains.getText();
+    }
+
+    private String resolveFilterChannelsValueForSave() {
+        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+            return persistedFilterChannelsValue;
+        }
+        return filterChannelWithTextContains.getText();
+    }
+
+    private boolean resolvePauseFilteringValueForSave() {
+        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+            return persistedPauseFilteringValue;
+        }
+        return filterPausedCheckBox.isSelected();
     }
 
     private String resolveDefaultPlayerPath() {

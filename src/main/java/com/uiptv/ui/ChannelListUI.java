@@ -208,7 +208,7 @@ public class ChannelListUI extends HBox {
         boolean isBookmarked = account.getAction() == vod
                 ? isVodSaved(channel, context, savedVodKeys)
                 : isChannelBookmarked(channel, context, accountBookmarks);
-        return new ChannelItem(
+        ChannelItem item = new ChannelItem(
                 new SimpleStringProperty(channel.getName()),
                 new SimpleStringProperty(channel.getChannelId()),
                 new SimpleStringProperty(channel.getCmd()),
@@ -216,6 +216,17 @@ public class ChannelListUI extends HBox {
                 new SimpleStringProperty(normalizedLogo),
                 channel
         );
+        if (account.getType() == STALKER_PORTAL && channel.getCensored() == 1) {
+            com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
+                    "[ParentalLock] censoredChannelLoaded"
+                            + " account=" + account.getAccountName()
+                            + " action=" + account.getAction()
+                            + " categoryTitle=" + categoryTitle
+                            + " channelId=" + channel.getChannelId()
+                            + " name=" + channel.getName()
+                            + " censored=" + channel.getCensored());
+        }
+        return item;
     }
 
     private String buildChannelKey(Channel channel) {
@@ -958,6 +969,9 @@ public class ChannelListUI extends HBox {
 
     private void playOrShowSeries(ChannelItem item) {
         if (item == null) return;
+        if (!ensureCensoredAccess(item)) {
+            return;
+        }
         if (showCachedEpisodesIfPresent(item)) {
             return;
         }
@@ -1361,6 +1375,9 @@ public class ChannelListUI extends HBox {
         if (item == null) {
             return;
         }
+        if (!ensureCensoredAccess(item)) {
+            return;
+        }
         Channel channelForPlayback = resolveChannelForPlayback(item);
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(account, channelForPlayback, playerPath)
                 .categoryId(categoryId)
@@ -1393,6 +1410,39 @@ public class ChannelListUI extends HBox {
             fallback.setManifestType(item.getChannel().getManifestType());
         }
         return fallback;
+    }
+
+    private boolean ensureCensoredAccess(ChannelItem item) {
+        if (item == null || item.getChannel() == null) {
+            com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class, "[ParentalLock] channelAccessCheck skipped: missing item/channel");
+            return true;
+        }
+        int censored = item.getChannel().getCensored();
+        boolean isStalker = account.getType() == STALKER_PORTAL;
+        boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();
+        boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
+        com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
+                "[ParentalLock] channelAccessCheck"
+                        + " account=" + account.getAccountName()
+                        + " type=" + account.getType()
+                        + " action=" + account.getAction()
+                        + " categoryTitle=" + categoryTitle
+                        + " channelId=" + item.getChannelId()
+                        + " name=" + item.getChannelName()
+                        + " censored=" + censored
+                        + " passwordConfigured=" + passwordConfigured
+                        + " sessionUnlocked=" + sessionUnlocked);
+        if (!isStalker || censored != 1) {
+            return true;
+        }
+        boolean unlocked = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockCensoredChannelReason");
+        com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
+                "[ParentalLock] channelAccessResult"
+                        + " account=" + account.getAccountName()
+                        + " channelId=" + item.getChannelId()
+                        + " name=" + item.getChannelName()
+                        + " unlocked=" + unlocked);
+        return unlocked;
     }
 
 

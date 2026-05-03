@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT,
     tmdbReadAccessToken
     TEXT,
+    filterLockHash
+    TEXT,
     uiZoomPercent
     TEXT,
     enableLitePlayerFfmpeg

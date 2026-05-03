@@ -67,6 +67,7 @@ public class DatabaseUtils {
                 new DataColumn("wideView", "TEXT"),
                 new DataColumn("languageLocale", "TEXT"),
                 new DataColumn("tmdbReadAccessToken", "TEXT"),
+                new DataColumn("filterLockHash", "TEXT"),
                 new DataColumn("uiZoomPercent", "TEXT"),
                 new DataColumn("enableLitePlayerFfmpeg", "TEXT"),
                 new DataColumn("autoRunServerOnStartup", "TEXT"),

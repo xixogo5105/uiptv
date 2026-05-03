@@ -294,6 +294,9 @@ public abstract class BaseMainApplicationUI {
     ) {
         accountListUI.addUpdateCallbackHandler(param -> {
             manageAccountUI.editAccount((Account) param);
+        });
+        accountListUI.addExplicitEditCallbackHandler(param -> {
+            manageAccountUI.editAccount((Account) param);
             if (!useEmbeddedAccountFlow()) {
                 TabPane tabPane = manageAccountTab.getTabPane();
                 if (tabPane != null) {

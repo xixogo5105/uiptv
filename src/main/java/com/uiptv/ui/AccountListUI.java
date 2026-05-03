@@ -63,6 +63,7 @@ public class AccountListUI extends HBox {
     private ManageAccountUI manageAccountUI;
     private Node currentContent;
     private Callback<Object> onEditCallback;
+    private Callback<Object> onExplicitEditCallback;
     private Callback<Object> onDeleteCallback;
     private boolean isPromptShowing = false;
     private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
@@ -100,6 +101,10 @@ public class AccountListUI extends HBox {
 
     public void addUpdateCallbackHandler(Callback<Object> onEditCallback) {
         this.onEditCallback = onEditCallback;
+    }
+
+    public void addExplicitEditCallbackHandler(Callback<Object> onExplicitEditCallback) {
+        this.onExplicitEditCallback = onExplicitEditCallback;
     }
 
     public void addDeleteCallbackHandler(Callback<Object> onDeleteCallback) {
@@ -468,7 +473,7 @@ public class AccountListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
-        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(row.getItem())));
+        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(row.getItem(), true)));
 
         MenuItem itv = new MenuItem(I18n.tr("autoTvChannels"));
         itv.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv)));
@@ -598,7 +603,12 @@ public class AccountListUI extends HBox {
 
         new Thread(() -> {
             try {
-                final List<Category> list = CategoryService.getInstance().get(account);
+                final List<Category> list = CategoryService.getInstance().get(account, true,
+                        message -> com.uiptv.util.AppLog.addInfoLog(AccountListUI.class,
+                                "[ParentalLock] account=" + account.getAccountName()
+                                        + " type=" + account.getType()
+                                        + " action=" + account.getAction()
+                                        + " categories: " + message));
 
                 Platform.runLater(() -> categoryListUI.setItems(list));
             } catch (Exception e) {
@@ -617,6 +627,10 @@ public class AccountListUI extends HBox {
     }
 
     private void openManageAccount(AccountItem item) {
+        openManageAccount(item, false);
+    }
+
+    private void openManageAccount(AccountItem item, boolean explicitManageAction) {
         if (item == null) {
             return;
         }
@@ -631,15 +645,21 @@ public class AccountListUI extends HBox {
             return;
         }
         if (!embeddedMode && manageAccountUI != null) {
-            if (onEditCallback != null) {
-                onEditCallback.call(account);
+            Callback<Object> callback = explicitManageAction && onExplicitEditCallback != null
+                    ? onExplicitEditCallback
+                    : onEditCallback;
+            if (callback != null) {
+                callback.call(account);
             } else {
                 manageAccountUI.editAccount(account);
             }
             return;
         }
-        if (onEditCallback != null) {
-            onEditCallback.call(account);
+        Callback<Object> callback = explicitManageAction && onExplicitEditCallback != null
+                ? onExplicitEditCallback
+                : onEditCallback;
+        if (callback != null) {
+            callback.call(account);
         }
     }
 

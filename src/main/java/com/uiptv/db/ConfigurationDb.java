@@ -104,6 +104,7 @@ public class ConfigurationDb extends BaseDb {
         c.setWideView(safeBoolean(resultSet, "wideView"));
         c.setLanguageLocale(nullSafeString(resultSet, "languageLocale"));
         c.setTmdbReadAccessToken(nullSafeString(resultSet, "tmdbReadAccessToken"));
+        c.setFilterLockHash(nullSafeString(resultSet, "filterLockHash"));
         c.setUiZoomPercent(nullSafeString(resultSet, "uiZoomPercent"));
         c.setEnableLitePlayerFfmpeg(safeBoolean(resultSet, "enableLitePlayerFfmpeg"));
         c.setAutoRunServerOnStartup(safeBoolean(resultSet, "autoRunServerOnStartup"));
@@ -131,7 +132,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(26, current.getDbId());
+                statement.setString(27, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -165,15 +166,16 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(14, configuration.isWideView() ? "1" : "0");
         statement.setString(15, configuration.getLanguageLocale());
         statement.setString(16, configuration.getTmdbReadAccessToken());
-        statement.setString(17, configuration.getUiZoomPercent());
-        statement.setString(18, configuration.isEnableLitePlayerFfmpeg() ? "1" : "0");
-        statement.setString(19, configuration.isAutoRunServerOnStartup() ? "1" : "0");
-        statement.setString(20, configuration.getVlcNetworkCachingMs());
-        statement.setString(21, configuration.getVlcLiveCachingMs());
-        statement.setString(22, configuration.getPublishedM3uCategoryMode());
-        statement.setString(23, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
-        statement.setString(24, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
-        statement.setString(25, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
+        statement.setString(17, configuration.getFilterLockHash());
+        statement.setString(18, configuration.getUiZoomPercent());
+        statement.setString(19, configuration.isEnableLitePlayerFfmpeg() ? "1" : "0");
+        statement.setString(20, configuration.isAutoRunServerOnStartup() ? "1" : "0");
+        statement.setString(21, configuration.getVlcNetworkCachingMs());
+        statement.setString(22, configuration.getVlcLiveCachingMs());
+        statement.setString(23, configuration.getPublishedM3uCategoryMode());
+        statement.setString(24, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
+        statement.setString(25, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+        statement.setString(26, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
     }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {
