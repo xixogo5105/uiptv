@@ -137,7 +137,11 @@ public class AccountListUI extends HBox {
         accountName.setCellFactory(_ -> createAccountNameCell());
         installAccountHeaderSortHandler();
         HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
+        sceneBox.setAlignment(Pos.CENTER_LEFT);
         sceneBox.setMaxHeight(25);
+        HBox.setHgrow(table.getTextField(), Priority.ALWAYS);
+        table.getTextField().setMinWidth(120);
+        table.getTextField().setMaxWidth(Double.MAX_VALUE);
         newAccountButton.setManaged(embeddedMode);
         newAccountButton.setVisible(embeddedMode);
         AutoGrowPaneVBox contentBox = new AutoGrowPaneVBox(5, sceneBox, table);
@@ -166,10 +170,12 @@ public class AccountListUI extends HBox {
     }
 
     private void configureNewAccountButton() {
-        newAccountButton.setMinWidth(56);
+        newAccountButton.setMinWidth(64);
         newAccountButton.setPrefWidth(64);
-        newAccountButton.setMinHeight(26);
-        newAccountButton.setPrefHeight(26);
+        newAccountButton.setMaxWidth(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setMinHeight(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setPadding(new Insets(6, 12, 6, 12));
         newAccountButton.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
         newAccountButton.setOnAction(_ -> {
             if (!embeddedMode) {
