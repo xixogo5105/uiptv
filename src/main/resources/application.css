@@ -615,24 +615,25 @@
     -fx-alignment: top-left;
 }
 
-.update-dialog-icon {
-    -fx-min-width: 28;
-    -fx-pref-width: 28;
-    -fx-max-width: 28;
-    -fx-min-height: 28;
-    -fx-pref-height: 28;
-    -fx-max-height: 28;
-    -fx-background-color: linear-gradient(to bottom, #2f8cff, #0d66d0);
-    -fx-background-radius: 999;
-    -fx-border-color: #7bb4ff;
-    -fx-border-width: 1;
-    -fx-border-radius: 999;
-    -fx-padding: 0;
+.update-dialog-icon-shell {
+    -fx-min-width: 88;
+    -fx-pref-width: 88;
+    -fx-max-width: 88;
+    -fx-min-height: 88;
+    -fx-pref-height: 88;
+    -fx-max-height: 88;
+    -fx-padding: 8;
     -fx-alignment: center;
+    -fx-background-color: linear-gradient(to bottom right, rgba(255,255,255,0.92), rgba(239,246,255,0.88));
+    -fx-background-radius: 22;
+    -fx-border-color: rgba(123,180,255,0.65);
+    -fx-border-width: 1;
+    -fx-border-radius: 22;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.12), 18, 0.16, 0, 6);
 }
 
-.update-dialog-icon-glyph {
-    -fx-fill: white;
+.update-dialog-icon-image {
+    -fx-effect: dropshadow(gaussian, rgba(13, 102, 208, 0.18), 14, 0.18, 0, 3);
 }
 
 .update-dialog-badge {

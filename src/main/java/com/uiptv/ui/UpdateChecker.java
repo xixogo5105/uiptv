@@ -1,34 +1,13 @@
 package com.uiptv.ui;
 
+import com.uiptv.ui.dialog.UpdateAvailableDialog;
 import com.uiptv.util.I18n;
-
 import com.uiptv.util.VersionManager;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.HostServices;
 import javafx.application.Platform;
-import javafx.geometry.Insets;
-import javafx.geometry.NodeOrientation;
-import javafx.geometry.Pos;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
-import javafx.scene.control.Separator;
-import javafx.scene.control.TextArea;
-import javafx.scene.Scene;
-import javafx.scene.image.Image;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
-import javafx.scene.shape.SVGPath;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
-import org.json.JSONObject;
 import com.uiptv.util.HttpUtil;
-
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.json.JSONObject;
 
 public class UpdateChecker {
     static final String LATEST_RELEASE_API_URL = "https://api.github.com/repos/xixogo5105/uiptv/releases/latest";
@@ -107,121 +86,7 @@ public class UpdateChecker {
     }
 
     private static boolean showUpdateAvailableDialog(UpdateInfo updateInfo) {
-        AtomicBoolean shouldDownload = new AtomicBoolean(false);
-        Stage stage = new Stage();
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle("Update Available");
-        stage.setResizable(false);
-        Image icon = loadAppIcon();
-        if (icon != null) {
-            stage.getIcons().add(icon);
-        }
-
-        StackPane accentIcon = new StackPane();
-        accentIcon.getStyleClass().add("update-dialog-icon");
-        SVGPath accentIconGlyph = new SVGPath();
-        accentIconGlyph.setContent("M6 2 H10 V10 H6 Z M6 12 H10 V16 H6 Z");
-        accentIconGlyph.setScaleX(1.4);
-        accentIconGlyph.setScaleY(1.4);
-        accentIconGlyph.getStyleClass().add("update-dialog-icon-glyph");
-        accentIcon.getChildren().add(accentIconGlyph);
-
-        Label badgeLabel = new Label("NEW RELEASE");
-        badgeLabel.getStyleClass().add("update-dialog-badge");
-
-        Label versionChip = new Label("v" + updateInfo.getVersion());
-        versionChip.getStyleClass().add("update-dialog-version-chip");
-
-        Region titleSpacer = new Region();
-        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-
-        HBox badgeRow = new HBox(8, badgeLabel, titleSpacer, versionChip);
-        badgeRow.setAlignment(Pos.CENTER_LEFT);
-
-        Label titleLabel = new Label("A new UIPTV version is ready");
-        titleLabel.getStyleClass().addAll("strong-label", "update-dialog-title");
-        titleLabel.setWrapText(true);
-
-        Label introLabel = new Label("Review the release notes below and click Download to open the release page.");
-        introLabel.getStyleClass().add("dim-label");
-        introLabel.setWrapText(true);
-
-        VBox titleBlock = new VBox(6, badgeRow, titleLabel, introLabel);
-        titleBlock.setAlignment(Pos.CENTER_LEFT);
-
-        HBox heroRow = new HBox(12, accentIcon, titleBlock);
-        heroRow.getStyleClass().add("update-dialog-hero");
-        heroRow.setAlignment(Pos.TOP_LEFT);
-        heroRow.setPrefWidth(748);
-        heroRow.setMaxWidth(748);
-
-        Label notesLabel = new Label("Release notes");
-        notesLabel.getStyleClass().addAll("strong-label", "update-dialog-notes-title");
-
-        TextArea releaseNotesArea = new TextArea(updateInfo.getDescription());
-        releaseNotesArea.getStyleClass().add("update-dialog-notes-area");
-        releaseNotesArea.setEditable(false);
-        releaseNotesArea.setWrapText(true);
-        releaseNotesArea.setFocusTraversable(false);
-        releaseNotesArea.setPrefWidth(748);
-        releaseNotesArea.setPrefHeight(322);
-        releaseNotesArea.setMinHeight(220);
-        releaseNotesArea.setMaxWidth(Double.MAX_VALUE);
-
-        VBox notesCard = new VBox(10, notesLabel, new Separator(), releaseNotesArea);
-        notesCard.getStyleClass().add("update-dialog-notes-card");
-        notesCard.setPrefWidth(748);
-        notesCard.setMaxWidth(748);
-
-        VBox content = new VBox(14, heroRow, notesCard);
-        content.getStyleClass().add("update-dialog-root");
-        content.setAlignment(Pos.TOP_CENTER);
-        content.setFillWidth(false);
-        content.setPrefWidth(748);
-        content.setMaxWidth(748);
-
-        Button closeButton = new Button(I18n.tr("commonClose"));
-        closeButton.setCancelButton(true);
-        closeButton.setOnAction(event -> stage.close());
-
-        Button downloadButton = new Button("Download");
-        downloadButton.getStyleClass().add("prominent");
-        downloadButton.setDefaultButton(true);
-        downloadButton.setOnAction(event -> {
-            shouldDownload.set(true);
-            stage.close();
-        });
-
-        HBox actions = new HBox(10, closeButton, downloadButton);
-        actions.getStyleClass().add("update-dialog-actions");
-        actions.setAlignment(Pos.CENTER_RIGHT);
-
-        BorderPane root = new BorderPane();
-        root.getStyleClass().add("update-dialog-stage-root");
-        root.setPadding(new Insets(18, 24, 18, 24));
-        root.setCenter(content);
-        root.setBottom(actions);
-        BorderPane.setMargin(actions, new Insets(14, 0, 0, 0));
-
-        Scene scene = new Scene(root, 820, 612);
-        scene.setFill(null);
-        I18n.applySceneOrientation(scene);
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        stage.getScene();
-        stage.setScene(scene);
-        stage.showAndWait();
-        return shouldDownload.get();
-    }
-
-    private static Image loadAppIcon() {
-        try {
-            java.io.InputStream stream = UpdateChecker.class.getResourceAsStream("/icon.png");
-            return stream == null ? null : new Image(stream);
-        } catch (Exception ignored) {
-            return null;
-        }
+        return UpdateAvailableDialog.show(updateInfo);
     }
 
     private static java.util.Map<String, String> githubHeaders() {

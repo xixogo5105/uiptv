@@ -271,14 +271,14 @@ These classes are kept in CSS as compatibility hooks/placeholders:
 
 ### 8.12 Update dialog classes
 
-These classes style the release-notification dialog shown by `UpdateChecker`:
+These classes style the release-notification dialog shown by `UpdateChecker` and rendered by `UpdateAvailableDialog`:
 
 - `.update-dialog-stage-root`: Root container for the custom update window.
 - `.update-dialog-root`: Root container for update dialog content.
 - `.update-dialog-actions`: Footer action row for close/download buttons.
 - `.update-dialog-hero`: Highlighted banner area at the top of the update window.
-- `.update-dialog-icon`: Circular accent icon container.
-- `.update-dialog-icon-glyph`: SVG exclamation glyph inside the accent icon.
+- `.update-dialog-icon-shell`: Framed hero container for the official app logo.
+- `.update-dialog-icon-image`: App logo image inside the hero container.
 - `.update-dialog-badge`: Small release-status badge, such as `NEW RELEASE`.
 - `.update-dialog-version-chip`: Version pill shown on the right side of the hero row.
 - `.update-dialog-title`: Main update headline.
