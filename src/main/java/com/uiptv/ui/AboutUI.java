@@ -10,6 +10,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.OverrunStyle;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -19,17 +20,26 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.geometry.Rectangle2D;
 
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
+    private static final double BASE_SCENE_WIDTH = 760;
+    private static final double BASE_SCENE_HEIGHT = 536;
+    private static final double MIN_SCENE_WIDTH = 560;
+    private static final double MIN_SCENE_HEIGHT = 420;
+    private static final double CONTENT_MAX_WIDTH = 720;
 
     private AboutUI(HostServices hostServices) {
         Stage stage = new Stage();
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle(I18n.tr("autoAboutUIPTV"));
-        stage.setResizable(false);
+        stage.setMinWidth(MIN_SCENE_WIDTH);
+        stage.setMinHeight(MIN_SCENE_HEIGHT);
+        stage.setResizable(true);
 
         Image image = new Image(getClass().getResourceAsStream("/icon.png"));
         stage.getIcons().add(image);
@@ -109,8 +119,7 @@ public class AboutUI {
         VBox infoBox = new VBox(8);
         infoBox.setAlignment(Pos.TOP_LEFT);
         infoBox.setFillWidth(true);
-        infoBox.setPrefWidth(500);
-        infoBox.setMinWidth(500);
+        infoBox.setMaxWidth(Double.MAX_VALUE);
         infoBox.getStyleClass().add("about-card");
         infoBox.getChildren().addAll(
                 overviewLabel,
@@ -136,18 +145,26 @@ public class AboutUI {
         VBox content = new VBox(14, heroBox, infoBox);
         content.setAlignment(Pos.TOP_LEFT);
         content.setFillWidth(true);
+        content.setMaxWidth(CONTENT_MAX_WIDTH);
 
         HBox actions = new HBox(8, closeButton, updateButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.getStyleClass().add("about-actions");
 
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(false);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
+
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(18));
         root.getStyleClass().add("about-root");
-        root.setCenter(content);
+        root.setCenter(scrollPane);
         root.setBottom(actions);
 
-        Scene scene = new Scene(root, 760, 500);
+        Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
         I18n.applySceneOrientation(scene);
         if (RootApplication.getCurrentTheme() != null) {
             scene.getStylesheets().add(RootApplication.getCurrentTheme());
@@ -166,7 +183,7 @@ public class AboutUI {
         label.setTextOverrun(OverrunStyle.CLIP);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setMinHeight(Region.USE_PREF_SIZE);
-        label.setMaxWidth(500);
+        label.setMinWidth(0);
         label.getStyleClass().add("about-body");
         return label;
     }
@@ -177,7 +194,7 @@ public class AboutUI {
         label.setTextOverrun(OverrunStyle.CLIP);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setMinHeight(Region.USE_PREF_SIZE);
-        label.setMaxWidth(500);
+        label.setMinWidth(0);
         label.getStyleClass().add("about-description");
         return label;
     }
@@ -197,6 +214,20 @@ public class AboutUI {
         spacer.setMinHeight(height);
         spacer.setPrefHeight(height);
         return spacer;
+    }
+
+    private static double resolveSceneWidth() {
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        return clamp(bounds.getWidth() - 80, MIN_SCENE_WIDTH, BASE_SCENE_WIDTH);
+    }
+
+    private static double resolveSceneHeight() {
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        return clamp(bounds.getHeight() - 56, MIN_SCENE_HEIGHT, BASE_SCENE_HEIGHT);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static String resolveReleaseSummary() {

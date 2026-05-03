@@ -8,6 +8,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextArea;
 import javafx.scene.image.Image;
@@ -18,14 +19,20 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.geometry.Rectangle2D;
 
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class UpdateAvailableDialog {
     private static final String APP_ICON_RESOURCE = "/icon.png";
+    private static final double BASE_SCENE_WIDTH = 820;
+    private static final double BASE_SCENE_HEIGHT = 648;
+    private static final double MIN_SCENE_WIDTH = 560;
+    private static final double MIN_SCENE_HEIGHT = 440;
 
     private UpdateAvailableDialog() {
     }
@@ -35,7 +42,9 @@ public final class UpdateAvailableDialog {
         Stage stage = new Stage();
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle("Update Available");
-        stage.setResizable(false);
+        stage.setMinWidth(MIN_SCENE_WIDTH);
+        stage.setMinHeight(MIN_SCENE_HEIGHT);
+        stage.setResizable(true);
 
         Image appIcon = loadAppIcon();
         if (appIcon != null) {
@@ -45,11 +54,11 @@ public final class UpdateAvailableDialog {
         BorderPane root = new BorderPane();
         root.getStyleClass().add("update-dialog-stage-root");
         root.setPadding(new Insets(18, 24, 18, 24));
-        root.setCenter(createContent(updateInfo, appIcon));
+        root.setCenter(createScrollContent(updateInfo, appIcon));
         root.setBottom(createActions(stage, shouldDownload));
         BorderPane.setMargin(root.getBottom(), new Insets(14, 0, 0, 0));
 
-        Scene scene = new Scene(root, 820, 612);
+        Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
         I18n.applySceneOrientation(scene);
         if (RootApplication.getCurrentTheme() != null) {
             scene.getStylesheets().add(RootApplication.getCurrentTheme());
@@ -60,13 +69,22 @@ public final class UpdateAvailableDialog {
         return shouldDownload.get();
     }
 
+    private static ScrollPane createScrollContent(UpdateInfo updateInfo, Image appIcon) {
+        ScrollPane scrollPane = new ScrollPane(createContent(updateInfo, appIcon));
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(false);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
+        return scrollPane;
+    }
+
     private static VBox createContent(UpdateInfo updateInfo, Image appIcon) {
         VBox content = new VBox(14, createHero(updateInfo, appIcon), createNotesCard(updateInfo));
         content.getStyleClass().add("update-dialog-root");
-        content.setAlignment(Pos.TOP_CENTER);
-        content.setFillWidth(false);
-        content.setPrefWidth(748);
-        content.setMaxWidth(748);
+        content.setAlignment(Pos.TOP_LEFT);
+        content.setFillWidth(true);
+        content.setMaxWidth(Double.MAX_VALUE);
         return content;
     }
 
@@ -93,12 +111,13 @@ public final class UpdateAvailableDialog {
 
         VBox titleBlock = new VBox(6, badgeRow, titleLabel, introLabel);
         titleBlock.setAlignment(Pos.CENTER_LEFT);
+        titleBlock.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(titleBlock, Priority.ALWAYS);
 
         HBox heroRow = new HBox(14, createHeroIcon(appIcon), titleBlock);
         heroRow.getStyleClass().add("update-dialog-hero");
         heroRow.setAlignment(Pos.TOP_LEFT);
-        heroRow.setPrefWidth(748);
-        heroRow.setMaxWidth(748);
+        heroRow.setMaxWidth(Double.MAX_VALUE);
         return heroRow;
     }
 
@@ -111,15 +130,16 @@ public final class UpdateAvailableDialog {
         releaseNotesArea.setEditable(false);
         releaseNotesArea.setWrapText(true);
         releaseNotesArea.setFocusTraversable(false);
-        releaseNotesArea.setPrefWidth(748);
         releaseNotesArea.setPrefHeight(322);
         releaseNotesArea.setMinHeight(220);
         releaseNotesArea.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(releaseNotesArea, Priority.ALWAYS);
 
         VBox notesCard = new VBox(10, notesLabel, new Separator(), releaseNotesArea);
         notesCard.getStyleClass().add("update-dialog-notes-card");
-        notesCard.setPrefWidth(748);
-        notesCard.setMaxWidth(748);
+        notesCard.setFillWidth(true);
+        notesCard.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(notesCard, Priority.ALWAYS);
         return notesCard;
     }
 
@@ -165,5 +185,19 @@ public final class UpdateAvailableDialog {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static double resolveSceneWidth() {
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        return clamp(bounds.getWidth() - 80, MIN_SCENE_WIDTH, BASE_SCENE_WIDTH);
+    }
+
+    private static double resolveSceneHeight() {
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        return clamp(bounds.getHeight() - 56, MIN_SCENE_HEIGHT, BASE_SCENE_HEIGHT);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
