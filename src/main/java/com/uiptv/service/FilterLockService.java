@@ -11,6 +11,7 @@ import java.util.Base64;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+@SuppressWarnings("java:S6548")
 public class FilterLockService {
     private static final String HASH_ALGORITHM = "PBKDF2WithHmacSHA256";
     private static final String HASH_PREFIX = "pbkdf2-sha256";

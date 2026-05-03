@@ -292,9 +292,7 @@ public abstract class BaseMainApplicationUI {
             BookmarkChannelListUI bookmarkChannelListUI,
             Supplier<WatchingNowUI> watchingNowSupplier
     ) {
-        accountListUI.addUpdateCallbackHandler(param -> {
-            manageAccountUI.editAccount((Account) param);
-        });
+        accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
         accountListUI.addExplicitEditCallbackHandler(param -> {
             manageAccountUI.editAccount((Account) param);
             if (!useEmbeddedAccountFlow()) {

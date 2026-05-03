@@ -67,6 +67,9 @@ public class ChannelListUI extends HBox {
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private static final String LOG_ACCOUNT = " account=";
+    private static final String LOG_CHANNEL_ID = " channelId=";
+    private static final String LOG_NAME = " name=";
     private static final int MAX_SERIES_EPISODE_CACHE_ENTRIES = Integer.getInteger("uiptv.series.cache.maxEntries", 48);
     private final Map<String, EpisodeList> seriesEpisodesCache = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
@@ -219,11 +222,11 @@ public class ChannelListUI extends HBox {
         if (account.getType() == STALKER_PORTAL && channel.getCensored() == 1) {
             com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
                     "[ParentalLock] censoredChannelLoaded"
-                            + " account=" + account.getAccountName()
+                            + LOG_ACCOUNT + account.getAccountName()
                             + " action=" + account.getAction()
                             + " categoryTitle=" + categoryTitle
-                            + " channelId=" + channel.getChannelId()
-                            + " name=" + channel.getName()
+                            + LOG_CHANNEL_ID + channel.getChannelId()
+                            + LOG_NAME + channel.getName()
                             + " censored=" + channel.getCensored());
         }
         return item;
@@ -1423,12 +1426,12 @@ public class ChannelListUI extends HBox {
         boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
         com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
                 "[ParentalLock] channelAccessCheck"
-                        + " account=" + account.getAccountName()
+                        + LOG_ACCOUNT + account.getAccountName()
                         + " type=" + account.getType()
                         + " action=" + account.getAction()
                         + " categoryTitle=" + categoryTitle
-                        + " channelId=" + item.getChannelId()
-                        + " name=" + item.getChannelName()
+                        + LOG_CHANNEL_ID + item.getChannelId()
+                        + LOG_NAME + item.getChannelName()
                         + " censored=" + censored
                         + " passwordConfigured=" + passwordConfigured
                         + " sessionUnlocked=" + sessionUnlocked);
@@ -1438,9 +1441,9 @@ public class ChannelListUI extends HBox {
         boolean unlocked = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockCensoredChannelReason");
         com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
                 "[ParentalLock] channelAccessResult"
-                        + " account=" + account.getAccountName()
-                        + " channelId=" + item.getChannelId()
-                        + " name=" + item.getChannelName()
+                        + LOG_ACCOUNT + account.getAccountName()
+                        + LOG_CHANNEL_ID + item.getChannelId()
+                        + LOG_NAME + item.getChannelName()
                         + " unlocked=" + unlocked);
         return unlocked;
     }

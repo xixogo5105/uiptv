@@ -38,6 +38,13 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class CategoryListUI extends HBox {
     private static final String ALL_CATEGORY_SENTINEL = "all";
+    private static final String PARENTAL_LOCK_LOG_PREFIX = "[ParentalLock] ";
+    private static final String LOG_ACCOUNT = " account=";
+    private static final String LOG_TYPE = " type=";
+    private static final String LOG_ACTION = " action=";
+    private static final String LOG_CATEGORY_ID = " categoryId=";
+    private static final String LOG_TITLE = " title=";
+    private static final String LOG_CHANNELS = " channels: ";
     private final Account account;
     private final boolean embeddedMode;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
@@ -78,9 +85,9 @@ public class CategoryListUI extends HBox {
         List<Category> processedList = new CategoryResolver().resolveCategories(account, list);
         long censoredCount = processedList.stream().filter(category -> category != null && category.getCensored() == 1).count();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                "[ParentalLock] account=" + account.getAccountName()
-                        + " type=" + account.getType()
-                        + " action=" + activeMode
+                PARENTAL_LOCK_LOG_PREFIX + "account=" + account.getAccountName()
+                        + LOG_TYPE + account.getType()
+                        + LOG_ACTION + activeMode
                         + " categoriesLoaded=" + processedList.size()
                         + " censoredCategories=" + censoredCount);
 
@@ -261,11 +268,7 @@ public class CategoryListUI extends HBox {
             try {
                 account.setAction(mode);
                 List<Category> categories = CategoryService.getInstance().get(account, true,
-                        message -> com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                                "[ParentalLock] account=" + account.getAccountName()
-                                        + " type=" + account.getType()
-                                        + " action=" + mode
-                                        + " categories: " + message));
+                        message -> logCategoryFetch(mode, message));
                 Platform.runLater(() -> {
                     modeStates.computeIfAbsent(mode, k -> new ModeState()).categories = new ArrayList<>(categories);
                     if (activeMode == mode) {
@@ -349,30 +352,8 @@ public class CategoryListUI extends HBox {
         if (item == null) {
             return;
         }
-        if (account.getType() == STALKER_PORTAL && item.isCensored()) {
-            boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();
-            boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
-            com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                    "[ParentalLock] categoryAccessCheck"
-                            + " account=" + account.getAccountName()
-                            + " categoryId=" + item.getCategoryId()
-                            + " title=" + item.getCategoryTitle()
-                            + " censored=true"
-                            + " passwordConfigured=" + passwordConfigured
-                            + " sessionUnlocked=" + sessionUnlocked);
-            if (!FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockCensoredCategoryReason")) {
-                com.uiptv.util.AppLog.addWarningLog(CategoryListUI.class,
-                        "[ParentalLock] categoryAccessDenied"
-                                + " account=" + account.getAccountName()
-                                + " categoryId=" + item.getCategoryId()
-                                + " title=" + item.getCategoryTitle());
-                return;
-            }
-            com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                    "[ParentalLock] categoryAccessGranted"
-                            + " account=" + account.getAccountName()
-                            + " categoryId=" + item.getCategoryId()
-                            + " title=" + item.getCategoryTitle());
+        if (!ensureCategoryAccess(item)) {
+            return;
         }
         final Account.AccountAction mode = activeMode;
         account.setAction(mode);
@@ -498,12 +479,7 @@ public class CategoryListUI extends HBox {
             return;
         }
         ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(),
-                message -> com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                        "[ParentalLock] account=" + account.getAccountName()
-                                + " type=" + account.getType()
-                                + " action=" + account.getAction()
-                                + " categoryId=" + item.getCategoryId()
-                                + " channels: " + message),
+                message -> logChannelFetch(item, message),
                 channelListUI::addItems, isCancelled::getAsBoolean,
                 progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
     }
@@ -516,12 +492,7 @@ public class CategoryListUI extends HBox {
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
             ChannelService.getInstance().get(selectedCategoryKey(item), account, item.getId(),
-                    message -> com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                            "[ParentalLock] account=" + account.getAccountName()
-                                    + " type=" + account.getType()
-                                    + " action=" + account.getAction()
-                                    + " categoryId=" + item.getCategoryId()
-                                    + " channels: " + message),
+                    message -> logChannelFetch(item, message),
                     channelListUI::addItems, isCancelled::getAsBoolean,
                     progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
             return;
@@ -532,16 +503,58 @@ public class CategoryListUI extends HBox {
             }
             if (categoryItem != null && !isAllCategory(categoryItem)) {
                 ChannelService.getInstance().get(selectedCategoryKey(categoryItem), account, categoryItem.getId(),
-                        message -> com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                                "[ParentalLock] account=" + account.getAccountName()
-                                        + " type=" + account.getType()
-                                        + " action=" + account.getAction()
-                                        + " categoryId=" + categoryItem.getCategoryId()
-                                        + " channels: " + message),
+                        message -> logChannelFetch(categoryItem, message),
                         channelListUI::addItems, isCancelled::getAsBoolean,
                         progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
             }
         }
+    }
+
+    private boolean ensureCategoryAccess(CategoryItem item) {
+        if (account.getType() != STALKER_PORTAL || !item.isCensored()) {
+            return true;
+        }
+        boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();
+        boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
+        com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
+                PARENTAL_LOCK_LOG_PREFIX + "categoryAccessCheck"
+                        + LOG_ACCOUNT + account.getAccountName()
+                        + LOG_CATEGORY_ID + item.getCategoryId()
+                        + LOG_TITLE + item.getCategoryTitle()
+                        + " censored=true"
+                        + " passwordConfigured=" + passwordConfigured
+                        + " sessionUnlocked=" + sessionUnlocked);
+        if (!FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockCensoredCategoryReason")) {
+            com.uiptv.util.AppLog.addWarningLog(CategoryListUI.class,
+                    PARENTAL_LOCK_LOG_PREFIX + "categoryAccessDenied"
+                            + LOG_ACCOUNT + account.getAccountName()
+                            + LOG_CATEGORY_ID + item.getCategoryId()
+                            + LOG_TITLE + item.getCategoryTitle());
+            return false;
+        }
+        com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
+                PARENTAL_LOCK_LOG_PREFIX + "categoryAccessGranted"
+                        + LOG_ACCOUNT + account.getAccountName()
+                        + LOG_CATEGORY_ID + item.getCategoryId()
+                        + LOG_TITLE + item.getCategoryTitle());
+        return true;
+    }
+
+    private void logCategoryFetch(Account.AccountAction mode, String message) {
+        com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
+                PARENTAL_LOCK_LOG_PREFIX + "account=" + account.getAccountName()
+                        + LOG_TYPE + account.getType()
+                        + LOG_ACTION + mode
+                        + " categories: " + message);
+    }
+
+    private void logChannelFetch(CategoryItem item, String message) {
+        com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
+                PARENTAL_LOCK_LOG_PREFIX + "account=" + account.getAccountName()
+                        + LOG_TYPE + account.getType()
+                        + LOG_ACTION + account.getAction()
+                        + LOG_CATEGORY_ID + item.getCategoryId()
+                        + LOG_CHANNELS + message);
     }
 
     private boolean isLoadingCancelled(BooleanSupplier isCancelled) {

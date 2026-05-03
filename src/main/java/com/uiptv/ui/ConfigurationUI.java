@@ -53,10 +53,13 @@ public class ConfigurationUI extends VBox {
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
+    private static final String CONFIG_FILTER_CATEGORIES_PROMPT = "configFilterCategoriesPrompt";
+    private static final String CONFIG_FILTER_CHANNELS_PROMPT = "configFilterChannelsPrompt";
     private static final String CONFIG_EMBED_PLAYER_RESTART_NEEDED = "configEmbedPlayerRestartNeeded";
     private static final String CONFIG_DATABASE_SYNC_IN_PROGRESS = "configDatabaseSyncInProgress";
     private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
     private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
+    private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
     private static final String DIALOG_TITLE_COMMON_INFO = "commonInfo";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
@@ -79,8 +82,8 @@ public class ConfigurationUI extends VBox {
     private final UIptvText playerPath1 = new UIptvText("playerPath1", "configPlayerPath1Prompt", 5);
     private final UIptvText playerPath2 = new UIptvText("playerPath2", "configPlayerPath2Prompt", 5);
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "configPlayerPath3Prompt", 5);
-    private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "configFilterCategoriesPrompt", 5);
-    private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "configFilterChannelsPrompt", 5);
+    private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", CONFIG_FILTER_CATEGORIES_PROMPT, 5);
+    private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", CONFIG_FILTER_CHANNELS_PROMPT, 5);
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
     private final Label filterLockStatusLabel = new Label();
     private final Button filterLockPasswordButton = new Button();
@@ -748,7 +751,7 @@ public class ConfigurationUI extends VBox {
             refreshConfigurationForm();
         });
         filterUnlockButton.setOnAction(event -> {
-            if (FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason")) {
+            if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
                 refreshFilterLockUi();
             }
         });
@@ -771,7 +774,7 @@ public class ConfigurationUI extends VBox {
             if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
                 return;
             }
-            if (!FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason")) {
+            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
                 filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
                 return;
             }
@@ -843,8 +846,8 @@ public class ConfigurationUI extends VBox {
             filterLockStatusLabel.setText(I18n.tr("filterLockStatusNotSet"));
             filterCategoriesWithTextContains.setEditable(true);
             filterChannelWithTextContains.setEditable(true);
-            filterCategoriesWithTextContains.setPromptText(I18n.tr("configFilterCategoriesPrompt"));
-            filterChannelWithTextContains.setPromptText(I18n.tr("configFilterChannelsPrompt"));
+            filterCategoriesWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CATEGORIES_PROMPT));
+            filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
             filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
@@ -855,8 +858,8 @@ public class ConfigurationUI extends VBox {
             filterLockStatusLabel.setText(I18n.tr("filterLockStatusUnlocked", filterLockService.getUnlockWindowMinutes()));
             filterCategoriesWithTextContains.setEditable(true);
             filterChannelWithTextContains.setEditable(true);
-            filterCategoriesWithTextContains.setPromptText(I18n.tr("configFilterCategoriesPrompt"));
-            filterChannelWithTextContains.setPromptText(I18n.tr("configFilterChannelsPrompt"));
+            filterCategoriesWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CATEGORIES_PROMPT));
+            filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
             filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
@@ -970,7 +973,7 @@ public class ConfigurationUI extends VBox {
         if (!filterValuesChanged) {
             return true;
         }
-        boolean unlocked = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason");
+        boolean unlocked = FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON);
         if (unlocked) {
             refreshFilterLockUi();
         }

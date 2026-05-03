@@ -9,8 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.stream.Collectors;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -25,7 +23,7 @@ class ContentFilterFlowTest extends DbBackedTest {
 
         assertEquals(2, channels.size());
         assertEquals(List.of("Sports Live", "Kids Plus"),
-                channels.stream().map(Channel::getName).collect(Collectors.toList()));
+                channels.stream().map(Channel::getName).toList());
     }
 
     @Test
@@ -47,7 +45,7 @@ class ContentFilterFlowTest extends DbBackedTest {
 
         assertEquals(2, categories.size());
         assertEquals(List.of("Sports", "Documentary"),
-                categories.stream().map(Category::getTitle).collect(Collectors.toList()));
+                categories.stream().map(Category::getTitle).toList());
     }
 
     @Test

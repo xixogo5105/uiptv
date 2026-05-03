@@ -37,12 +37,12 @@ class FilterLockServiceTest extends DbBackedTest {
         ConfigurationService.getInstance().save(configuration);
 
         Configuration persisted = ConfigurationService.getInstance().read();
-        assertThrows(IllegalArgumentException.class,
-                () -> FilterLockService.getInstance().applyPasswordChange(
-                        persisted,
-                        "wrong password",
-                        "new parent lock secret"
-                ));
+        Runnable changeWithWrongPassword = () -> FilterLockService.getInstance().applyPasswordChange(
+                persisted,
+                "wrong password",
+                "new parent lock secret"
+        );
+        assertThrows(IllegalArgumentException.class, changeWithWrongPassword::run);
 
         FilterLockService.getInstance().applyPasswordChange(
                 persisted,
@@ -60,8 +60,8 @@ class FilterLockServiceTest extends DbBackedTest {
     void shortPassword_isRejected() {
         Configuration configuration = ConfigurationService.getInstance().read();
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> FilterLockService.getInstance().applyInitialPassword(configuration, "short"));
+        Runnable applyShortPassword = () -> FilterLockService.getInstance().applyInitialPassword(configuration, "short");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, applyShortPassword::run);
 
         assertEquals("filterLockPasswordTooShort", ex.getMessage());
     }
@@ -83,8 +83,8 @@ class FilterLockServiceTest extends DbBackedTest {
         ConfigurationService.getInstance().save(configuration);
 
         Configuration persisted = ConfigurationService.getInstance().read();
-        assertThrows(IllegalArgumentException.class,
-                () -> FilterLockService.getInstance().clearPassword(persisted, "wrong"));
+        Runnable clearWithWrongPassword = () -> FilterLockService.getInstance().clearPassword(persisted, "wrong");
+        assertThrows(IllegalArgumentException.class, clearWithWrongPassword::run);
 
         FilterLockService.getInstance().clearPassword(persisted, "secret");
         ConfigurationService.getInstance().save(persisted);
