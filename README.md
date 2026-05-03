@@ -45,7 +45,7 @@ Native installers and packages are currently published for Windows (x86_64), Lin
   - You can still configure an external player (like MPV, SMPlayer, etc.) for maximum control.
 - **Watching Now + Series Resume**: Track watched series/episodes and continue from where you left off on desktop and web.
 - **VOD/Series Metadata**: Enhanced details for movies/series including richer cards and IMDb-oriented metadata flows.
-- **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
+- **Parental Lock & Filtering**: Protect blocked keywords and Stalker censored content with a local password, while still supporting category/channel filtering and pause/unpause controls. These restrictions also affect content exposed through the web server.
 - **Theme Modes & Styling**: Built-in light/dark themes are included, theme zoom can be saved from Settings, and users can override each theme with full CSS files. See [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 - **Parental Lock**: Protect blocked keywords and Stalker censored content with a local password, including unlock/relock controls around filter management.
 - **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.

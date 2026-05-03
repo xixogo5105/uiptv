@@ -13,7 +13,7 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Installing on macOS](#installing-on-macos)
 3. [Configuration](#3-configuration)
    - [Player Settings](#player-settings)
-   - [Filtering Content](#filtering-content)
+   - [Parental Lock](#parental-lock)
    - [Appearance & Styling](#appearance--styling)
    - [Cache Management](#cache-management)
    - [Web Server Settings](#web-server-settings)
@@ -53,7 +53,7 @@ Key highlights include:
 - **Flexible Player Support**: Use the embedded VLC-based player or your favorite external player (MPV, SMPlayer, etc.).
 - **Web SPA/PWA**: Stream your content to any device on your local network via a modern browser-first interface.
 - **Live TV + VOD + Series**: Unified content modes with watched-state/resume flows.
-- **Privacy & Control**: Robust filtering options to hide unwanted content and local caching for performance.
+- **Privacy & Control**: Parental-lock controls, protected filtering, and local caching keep playback practical without exposing unwanted content.
 
 ### What's New
 
@@ -160,8 +160,8 @@ UIPTV offers flexibility in how you watch your content:
 - **Wide View**: Enables a wider embedded player layout.
 - **Restart Requirement**: Changing embedded player mode or wide view requires app restart for full effect.
 
-### Filtering Content
-Keep your channel list clean and safe:
+### Parental Lock
+Keep your channel list controlled and protected:
 - **Show/Hide Filters**: Filter input text areas can be collapsed/expanded.
 - **Category Filter**: Enter keywords (comma-separated) to hide entire categories (e.g., `adult, xxx, shopping`).
 - **Channel Filter**: Enter specific channel names to exclude them from your list.
