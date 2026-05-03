@@ -28,7 +28,7 @@ import javafx.geometry.Rectangle2D;
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
     private static final double BASE_SCENE_WIDTH = 760;
-    private static final double BASE_SCENE_HEIGHT = 536;
+    private static final double BASE_SCENE_HEIGHT = 561;
     private static final double MIN_SCENE_WIDTH = 560;
     private static final double MIN_SCENE_HEIGHT = 420;
     private static final double CONTENT_MAX_WIDTH = 720;
