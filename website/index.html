@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta content="UIPTV is an open-source IPTV player for Windows, Linux, and macOS with desktop + web SPA support, Live/VOD/Series playback, localized UI, theme customization, and bulk account import tooling."
+    <meta content="UIPTV is an open-source IPTV player for Windows, Linux, and macOS with desktop + web SPA support, Live/VOD/Series playback, localized UI, parental lock controls, remote database sync, playlist publishing, and bulk account import tooling."
           name="description">
     <meta content="UIPTV, IPTV Player, Stalker Portal, Xtreme Codes, M3U, HLS, FFmpeg, VLC, JavaFX, Open Source"
           name="keywords">
@@ -12,14 +12,14 @@
     <meta content="website" property="og:type">
     <meta content="https://xixogo5105.github.io/uiptv/" property="og:url">
     <meta content="UIPTV | Desktop + Web IPTV, Reimagined" property="og:title">
-    <meta content="Live TV, VOD, and Series in one place with desktop + web parity, localized UI, playlist publishing, and robust account import tooling."
+    <meta content="Live TV, VOD, and Series in one place with desktop + web parity, localized UI, parental lock, playlist publishing, remote sync, and robust account import tooling."
           property="og:description">
     <meta content="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" property="og:image">
 
     <meta content="summary_large_image" property="twitter:card">
     <meta content="https://xixogo5105.github.io/uiptv/" property="twitter:url">
     <meta content="UIPTV | Desktop + Web IPTV, Reimagined" property="twitter:title">
-    <meta content="Live TV, VOD, and Series in one place with modern web access, localized UI, and import tools."
+    <meta content="Live TV, VOD, and Series in one place with modern web access, localized UI, parental lock, remote sync, and import tools."
           property="twitter:description">
     <meta content="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37"
           property="twitter:image">
@@ -138,6 +138,14 @@
             <h3>Import + Account Tooling Refresh</h3>
             <p>Stalker, Xtreme, and M3U flows now align with current parsers, with stronger bulk import guidance,
                 account maintenance, and cache reload controls.</p></article>
+        <article class="release-card"><i class="fas fa-shield-halved"></i>
+            <h3>Parental Lock</h3>
+            <p>Blocked keywords and Stalker censored content can now be protected with a local password, including
+                unlock, relock, change, and disable flows.</p></article>
+        <article class="release-card"><i class="fas fa-right-left"></i>
+            <h3>Remote Database Sync</h3>
+            <p>One-way database sync can now be approved and applied between running UIPTV instances, with clearer
+                progress and completion feedback.</p></article>
     </div>
 </section>
 
@@ -163,14 +171,22 @@
             <h3>Local-Network Web Server</h3>
             <p>Serve channels, series, and playlists to browsers on phones, tablets, and TVs, with optional FFmpeg
                 compatibility mode for TS streams.</p></article>
+        <article class="feature-card"><i class="fas fa-shield-halved"></i>
+            <h3>Parental Lock + Censored Content Control</h3>
+            <p>Password-protect filter management and require a local unlock step before opening Stalker categories or
+                channels flagged as censored by the provider.</p></article>
         <article class="feature-card"><i class="fas fa-bookmark"></i>
             <h3>Bookmarks + Playlist Publish</h3>
             <p>Favorites and bookmarks can be exposed through generated playlist endpoints for remote clients and
-                external players.</p></article>
+                external players, with category/channel selection controls for narrower published outputs.</p></article>
         <article class="feature-card"><i class="fas fa-database"></i>
             <h3>Cache + Maintenance Tools</h3>
             <p>Control cache expiry, clear/reload globally, reload by account, manage Stalker MAC flows, and reset
                 Watching Now when needed.</p></article>
+        <article class="feature-card"><i class="fas fa-right-left"></i>
+            <h3>Database Sync Workflows</h3>
+            <p>Keep accounts and configuration aligned across setups with local file sync and approval-based remote
+                sync between running UIPTV instances.</p></article>
     </div>
 </section>
 
@@ -184,6 +200,8 @@
             <h3><i class="fas fa-satellite-dish"></i> Stalker Portal</h3>
             <p>MAC-based import with optional serial/device/signature fields, timezone and HTTP method support, plus
                 verify/manage MAC tools for cleanup.</p>
+            <p>Grouping is device-aware: MAC-only entries group together by portal URL, while extra-parameter entries
+                stay separate unless the device identity matches exactly.</p>
             <a href="https://github.com/xixogo5105/uiptv/blob/main/STALKER_IMPORT_GUIDE.md" rel="noreferrer"
                target="_blank">Open Stalker Guide</a>
         </article>
@@ -191,6 +209,8 @@
             <h3><i class="fas fa-key"></i> Xtreme Codes</h3>
             <p>Labeled and unlabeled credential parsing with automatic unique account naming, parser-safe field
                 handling, and account-level reload support.</p>
+            <p>Optional grouping can merge multiple username/password pairs under one host account instead of creating
+                numbered duplicates.</p>
             <a href="https://github.com/xixogo5105/uiptv/blob/main/XTREME_IMPORT_GUIDE.md" rel="noreferrer"
                target="_blank">Open Xtreme Guide</a>
         </article>
@@ -198,6 +218,8 @@
             <h3><i class="fas fa-link"></i> M3U / M3U8</h3>
             <p>Bulk playlist import from local files or URLs, with optional M3U-to-Xtreme conversion when compatible
                 credentials are detected.</p>
+            <p>Imported playlists can also feed curated published M3U exports using account, category, and channel
+                selections.</p>
             <a href="https://github.com/xixogo5105/uiptv/blob/main/M3U_IMPORT_GUIDE.md" rel="noreferrer"
                target="_blank">Open M3U Guide</a>
         </article>

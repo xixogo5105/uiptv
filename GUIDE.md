@@ -62,6 +62,8 @@ Key highlights include:
 - **Browser player path**: Desktop context menus and default playback settings can route playback through the local web player when needed.
 - **Watching Now improvements**: Series watch-state and resume flows are available in both desktop and web experiences.
 - **Import tooling refresh**: The Stalker, M3U, and Xtreme import guides have been aligned with current parser behavior.
+- **Parental lock**: Filter management and Stalker censored content can now be protected with a local password.
+- **Remote sync**: One-way database sync can now be approved and executed against another running UIPTV instance.
 
 For advanced desktop theming, see [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 
@@ -165,6 +167,7 @@ Keep your channel list clean and safe:
 - **Channel Filter**: Enter specific channel names to exclude them from your list.
 - **Pause Filtering**: Toggle this option to temporarily show all hidden content without deleting your filter lists.
 - **Web Server Impact**: Note that these filters also apply to the content served via the web server. If you filter out a category here, it will not be visible on your remote devices.
+- **Parental Lock Password**: You can set, change, relock, or disable a parental lock password. When enabled, protected filter keywords remain hidden until unlocked, and Stalker censored content can prompt for the password before opening.
 
 ### Appearance & Styling
 Make UIPTV look the way you want:
@@ -186,7 +189,7 @@ UIPTV uses a local SQLite database to cache account, category, channel, bookmark
 - **Server Port**: Configure the listening port.
 - **Start/Stop/Open**: Manage server lifecycle from the Configuration tab.
 - **FFmpeg Transcoding**: Enable optional TS-friendly web playback compatibility.
-- **Publish M3U8**: Generate merged playlists for remote-player consumption.
+- **Publish M3U8**: Generate merged playlists for remote-player consumption, with account/category/channel selection controls for narrower exports.
 
 ### Updates & About
 - **About Page**: Provides version information and credits.
@@ -208,6 +211,8 @@ Used by many IPTV providers. See [STALKER_IMPORT_GUIDE.md](STALKER_IMPORT_GUIDE.
 3. Enter your **MAC Address** (usually linked to your subscription).
 4. Optional: set `HTTP Method` and `Timezone` when needed.
 5. Optional: set `Serial`, `Device ID 1/2`, and `Signature`.
+   - During bulk import, MAC-only entries can group together by portal URL.
+   - Entries carrying `Serial`, `Device ID 1`, `Device ID 2`, or `Signature` are treated as separate device-bound accounts and only group with later imports carrying the same extra-parameter identity.
 6. Click **Add Account**.
 
 ### Xtreme Codes
@@ -261,8 +266,10 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
      ```
 3. **Options**:
    - **Group Account(s) by MAC Address** (Stalker Mode only):
-     - When enabled, this option groups multiple portal URLs under a single MAC address entry if they share the same MAC.
-     - **Note**: This option is **not applicable** if the account details include unique attributes such as `signature`, `device_id`, etc., as these are bound to a specific portal/MAC combination.
+     - MAC-only entries group together by portal URL.
+     - Entries with `Serial`, `Device ID 1`, `Device ID 2`, or `Signature` stay separate unless a later import has the same extra-parameter identity.
+   - **Group Accounts by Username/Password** (Xtreme Mode only):
+     - Reuses one host account and stores multiple username/password pairs under it.
    - **Convert M3U to Xtreme** (M3U Mode only):
      - When enabled, the parser attempts to convert M3U URLs into Xtreme Codes API accounts (Host, Username, Password) for better compatibility and performance.
      - This is only available when parsing M3U links.
@@ -409,6 +416,11 @@ Run the application from the command line with the `sync` argument:
 uiptv sync "/path/to/first.db" "/path/to/second.db"
 ```
 This command will synchronize the configuration and account tables between the two specified SQLite database files.
+
+The current sync tooling also supports:
+- one-way sync between local databases
+- approval-based remote sync between two running UIPTV instances
+- propagation of published M3U selections and related configuration tables
 
 ### Troubleshooting
 

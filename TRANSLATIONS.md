@@ -4,6 +4,14 @@ UIPTV needs open source volunteers to help improve and maintain human translatio
 
 Machine translation is not enough for this project. The UI includes account management, playback controls, settings, metadata, tabs, filters, and locale-specific labels that need clear and natural wording from native speakers. If UIPTV supports your language, or should support your language better, your help is needed.
 
+Recent releases added or expanded translation coverage for:
+
+- parental lock prompts and warnings
+- remote database sync approval/progress messages
+- player help links and configuration hints
+- published playlist and import-tooling labels
+- localized season/episode/tab numbering and RTL-sensitive UI text
+
 ## How You Can Help
 
 Please contribute translations in your native language and review existing wording for:
@@ -24,6 +32,7 @@ When editing translation files:
 5. Preserve escaping, special characters, and line structure.
 6. Keep terminology consistent across the full locale.
 7. If a string should remain in English for technical reasons, leave it unchanged rather than guessing.
+8. Pay special attention to quoted strings and apostrophes because some messages are used through `MessageFormat`.
 
 ## Files That Need Human Translation
 

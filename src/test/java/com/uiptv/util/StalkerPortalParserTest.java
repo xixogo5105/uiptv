@@ -151,4 +151,123 @@ class StalkerPortalParserTest {
         assertEquals("Europe/Paris", metadata.getTimezone());
         assertEquals("Europe/Paris", detectTimezone.invoke(parser, "timezone Europe/Paris"));
     }
+
+    @Test
+    void groupedImportReusesExistingExtraParamAccountWhenIdentityMatches() {
+        String serial = "AABBCCDDEE";
+        String device1 = "AABBCCDDEEFF001122334455667788AA";
+        String device2 = "AABBCCDDEEFF001122334455667788BB";
+        String signature = "AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899";
+
+        Account existing = new Account();
+        existing.setAccountName("portal.example(1)");
+        existing.setUrl("http://portal.example/c");
+        existing.setMacAddress("00:11:22:33:44:55");
+        existing.setMacAddressList("00:11:22:33:44:55");
+        existing.setSerialNumber(serial);
+        existing.setDeviceId1(device1);
+        existing.setDeviceId2(device2);
+        existing.setSignature(signature);
+
+        List<Account> savedAccounts = new ArrayList<>();
+        StalkerPortalParser parser = new StalkerPortalParser(
+                name -> "portal.example(1)".equals(name) ? existing : null,
+                savedAccounts::add
+        );
+
+        String input = """
+                http://portal.example/c
+                00:11:22:33:44:66
+                serial: %s
+                device id 1: %s
+                device id 2: %s
+                signature: %s
+                """.formatted(serial, device1, device2, signature);
+
+        parser.parseAndSave(input, true, false);
+
+        assertEquals(1, savedAccounts.size());
+        assertSame(existing, savedAccounts.get(0));
+        assertEquals("00:11:22:33:44:55,00:11:22:33:44:66", existing.getMacAddressList());
+    }
+
+    @Test
+    void groupedImportWithoutExtraParamsCreatesSeparateMacOnlyAccount() {
+        String serial = "AABBCCDDEE";
+        String device1 = "AABBCCDDEEFF001122334455667788AA";
+        String device2 = "AABBCCDDEEFF001122334455667788BB";
+        String signature = "AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899";
+
+        Account existing = new Account();
+        existing.setAccountName("portal.example(1)");
+        existing.setUrl("http://portal.example/c");
+        existing.setMacAddress("00:11:22:33:44:55");
+        existing.setMacAddressList("00:11:22:33:44:55");
+        existing.setSerialNumber(serial);
+        existing.setDeviceId1(device1);
+        existing.setDeviceId2(device2);
+        existing.setSignature(signature);
+
+        List<Account> savedAccounts = new ArrayList<>();
+        StalkerPortalParser parser = new StalkerPortalParser(
+                name -> "portal.example(1)".equals(name) ? existing : null,
+                savedAccounts::add
+        );
+
+        String input = """
+                http://portal.example/c
+                00:11:22:33:44:66
+                00:11:22:33:44:77
+                """;
+
+        parser.parseAndSave(input, true, false);
+
+        assertEquals(1, savedAccounts.size());
+        Account plain = savedAccounts.get(0);
+        assertNotSame(existing, plain);
+        assertEquals("portal.example", plain.getAccountName());
+        assertEquals("00:11:22:33:44:66,00:11:22:33:44:77", plain.getMacAddressList());
+        assertNull(plain.getSerialNumber());
+        assertNull(plain.getDeviceId1());
+        assertNull(plain.getDeviceId2());
+        assertNull(plain.getSignature());
+    }
+
+    @Test
+    void groupedImportCreatesSeparateMacOnlyAccountAlongsideExtraParamAccountInSameBatch() {
+        String serial = "AABBCCDDEE";
+        String device1 = "AABBCCDDEEFF001122334455667788AA";
+        String device2 = "AABBCCDDEEFF001122334455667788BB";
+        String signature = "AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899";
+
+        List<Account> savedAccounts = new ArrayList<>();
+        StalkerPortalParser parser = new StalkerPortalParser(name -> null, savedAccounts::add);
+
+        String input = """
+                http://portal.example/c
+                00:11:22:33:44:55
+                serial: %s
+                device id 1: %s
+                device id 2: %s
+                signature: %s
+                00:11:22:33:44:66
+                00:11:22:33:44:77
+                """.formatted(serial, device1, device2, signature);
+
+        parser.parseAndSave(input, true, false);
+
+        assertEquals(2, savedAccounts.size());
+        Account extra = savedAccounts.stream()
+                .filter(account -> serial.equals(account.getSerialNumber()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("00:11:22:33:44:55", extra.getMacAddressList());
+
+        Account plain = savedAccounts.stream()
+                .filter(account -> account.getSerialNumber() == null)
+                .findFirst()
+                .orElseThrow();
+        assertEquals("portal.example", plain.getAccountName());
+        assertEquals("00:11:22:33:44:66,00:11:22:33:44:77", plain.getMacAddressList());
+    }
 }

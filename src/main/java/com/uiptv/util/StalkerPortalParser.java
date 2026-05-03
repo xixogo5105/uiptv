@@ -100,6 +100,7 @@ public class StalkerPortalParser implements AccountParser {
 
     private List<Account> saveAccounts(List<Account> accounts, boolean groupAccountsByMac) {
         Map<String, Account> groupedAccounts = new LinkedHashMap<>();
+        Map<String, Account> groupedExtraAccounts = new LinkedHashMap<>();
         List<Account> individualAccounts = new ArrayList<>();
         List<Account> createdAccounts = new ArrayList<>();
         Set<String> processedNames = new HashSet<>();
@@ -110,7 +111,11 @@ public class StalkerPortalParser implements AccountParser {
 
         for (Account currentAccount : validAccounts) {
             if (groupAccountsByMac) {
-                saveGroupedAccount(currentAccount, groupedAccounts, createdAccounts, processedNames);
+                if (hasExtraParams(currentAccount)) {
+                    saveGroupedExtraParamAccount(currentAccount, groupedExtraAccounts, individualAccounts, createdAccounts, processedNames);
+                } else {
+                    saveGroupedAccount(currentAccount, groupedAccounts, createdAccounts, processedNames);
+                }
             } else {
                 saveIndividualAccount(currentAccount, individualAccounts, createdAccounts, processedNames);
             }
@@ -181,6 +186,13 @@ public class StalkerPortalParser implements AccountParser {
         }
     }
 
+    private boolean hasExtraParams(Account account) {
+        return isNotBlank(account.getSerialNumber())
+                || isNotBlank(account.getDeviceId1())
+                || isNotBlank(account.getDeviceId2())
+                || isNotBlank(account.getSignature());
+    }
+
 
     private void saveGroupedAccount(Account currentAccount, Map<String, Account> groupedAccounts,
                                     List<Account> createdAccounts, Set<String> processedNames) {
@@ -204,6 +216,31 @@ public class StalkerPortalParser implements AccountParser {
         groupedAccounts.put(name, currentAccount);
         processedNames.add(name);
         createdAccounts.add(currentAccount);
+    }
+
+    private void saveGroupedExtraParamAccount(Account currentAccount, Map<String, Account> groupedExtraAccounts,
+                                              List<Account> individualAccounts, List<Account> createdAccounts,
+                                              Set<String> processedNames) {
+        String identityKey = buildExtraParamIdentityKey(currentAccount);
+        Account existing = groupedExtraAccounts.get(identityKey);
+        if (existing != null) {
+            appendMacAddress(existing, currentAccount.getMacAddress());
+            mergeExtraParams(existing, currentAccount);
+            return;
+        }
+
+        Account existingInDb = findExistingExtraParamAccount(currentAccount);
+        if (existingInDb != null) {
+            appendMacAddress(existingInDb, currentAccount.getMacAddress());
+            mergeExtraParams(existingInDb, currentAccount);
+            groupedExtraAccounts.put(identityKey, existingInDb);
+            individualAccounts.add(existingInDb);
+            processedNames.add(existingInDb.getAccountName());
+            return;
+        }
+
+        saveIndividualAccount(currentAccount, individualAccounts, createdAccounts, processedNames);
+        groupedExtraAccounts.put(identityKey, currentAccount);
     }
 
     private void saveIndividualAccount(Account currentAccount, List<Account> individualAccounts,
@@ -236,6 +273,50 @@ public class StalkerPortalParser implements AccountParser {
         if (!macList.contains(macAddress)) {
             account.setMacAddressList(macList + "," + macAddress);
         }
+    }
+
+    private Account findExistingExtraParamAccount(Account account) {
+        String baseName = getNameFromUrl(account.getUrl().replace("_", ""));
+        Account directMatch = accountProvider.apply(baseName);
+        if (isSameExtraParamAccount(directMatch, account)) {
+            return directMatch;
+        }
+
+        for (int counter = 1; counter < 1000; counter++) {
+            Account candidate = accountProvider.apply(baseName + "(" + counter + ")");
+            if (candidate == null) {
+                return null;
+            }
+            if (isSameExtraParamAccount(candidate, account)) {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean isSameExtraParamAccount(Account candidate, Account account) {
+        return candidate != null
+                && hasExtraParams(candidate)
+                && normalizeIdentityValue(getNameFromUrl(candidate.getUrl().replace("_", "")))
+                .equals(normalizeIdentityValue(getNameFromUrl(account.getUrl().replace("_", ""))))
+                && normalizeIdentityValue(candidate.getSerialNumber()).equals(normalizeIdentityValue(account.getSerialNumber()))
+                && normalizeIdentityValue(candidate.getDeviceId1()).equals(normalizeIdentityValue(account.getDeviceId1()))
+                && normalizeIdentityValue(candidate.getDeviceId2()).equals(normalizeIdentityValue(account.getDeviceId2()))
+                && normalizeIdentityValue(candidate.getSignature()).equals(normalizeIdentityValue(account.getSignature()));
+    }
+
+    private String buildExtraParamIdentityKey(Account account) {
+        return String.join("|",
+                normalizeIdentityValue(getNameFromUrl(account.getUrl().replace("_", ""))),
+                normalizeIdentityValue(account.getSerialNumber()),
+                normalizeIdentityValue(account.getDeviceId1()),
+                normalizeIdentityValue(account.getDeviceId2()),
+                normalizeIdentityValue(account.getSignature()));
+    }
+
+    private String normalizeIdentityValue(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private void mergeExtraParams(Account target, Account source) {

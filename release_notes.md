@@ -12,6 +12,24 @@ Default DB path:
 
 If `uiptv.ini` exists at `<user.home>/uiptv.ini` and contains `db.path=...`, that configured value is used instead of the default path.
 
+## Unreleased (post-`v0.1.10`)
+
+### Highlights
+
+- Added parental lock password flows for protected filter management and Stalker censored content.
+- Added approval-based remote database sync alongside the existing local database sync workflow.
+- Expanded published M3U selection so exports can be narrowed by account/category/channel.
+- Improved M3U playback and reload behavior, including better HLS/redirect handling and remote-cache robustness.
+- Added Stalker diagnostics and refined browser/player help flows.
+- Refined Stalker bulk-import grouping semantics:
+  - MAC-only entries group together by portal URL
+  - extra-parameter entries stay separate unless the device identity matches exactly
+
+### Documentation Notes
+
+- Import guides were refreshed to match current parser behavior.
+- Website and README copy were updated to reflect parental lock, remote sync, published playlist controls, and current Stalker grouping rules.
+
 ## 0.1.10
 
 ### Highlights Since `v0.1.9`

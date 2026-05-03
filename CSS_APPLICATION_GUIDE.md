@@ -2,6 +2,8 @@
 
 This guide describes how desktop JavaFX styles are resolved in UIPTV and how to safely customize them.
 
+This guide applies to the **desktop JavaFX application**. The local-network web app (`web/`) and project website (`website/`) use separate HTML/CSS stacks.
+
 ## 1. Theme Source Selection
 
 UIPTV resolves exactly one stylesheet source per theme:
@@ -79,7 +81,17 @@ Recommended production approach:
 1. Bundle fonts locally with the app (or host in trusted LAN path)
 2. Reference local URLs in CSS for deterministic rendering
 
-## 7. CSS Safety Checklist
+## 7. Recent Areas Worth Retesting
+
+Since `v0.1.10`, several desktop areas have changed enough that custom CSS should be rechecked against them:
+
+- parental lock controls and related filter-management prompts
+- published M3U selection views
+- remote database sync dialogs and progress feedback
+- player configuration/help-link layouts
+- account reload/verification flows
+
+## 8. CSS Safety Checklist
 
 Before shipping custom CSS:
 
@@ -89,7 +101,7 @@ Before shipping custom CSS:
 4. Ensure no required selector was removed accidentally
 5. Keep comments for any non-obvious override blocks
 
-## 8. Complete Class Reference
+## 9. Complete Class Reference
 
 This section lists style classes used across the desktop app and widgets.
 
