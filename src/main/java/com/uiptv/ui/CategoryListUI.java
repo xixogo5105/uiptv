@@ -39,6 +39,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class CategoryListUI extends HBox {
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private static final String PARENTAL_LOCK_LOG_PREFIX = "[ParentalLock] ";
+    private static final String LOG_ACCOUNT_START = "account=";
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_TYPE = " type=";
     private static final String LOG_ACTION = " action=";
@@ -85,7 +86,7 @@ public class CategoryListUI extends HBox {
         List<Category> processedList = new CategoryResolver().resolveCategories(account, list);
         long censoredCount = processedList.stream().filter(category -> category != null && category.getCensored() == 1).count();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                PARENTAL_LOCK_LOG_PREFIX + "account=" + account.getAccountName()
+                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()
                         + LOG_TYPE + account.getType()
                         + LOG_ACTION + activeMode
                         + " categoriesLoaded=" + processedList.size()
@@ -542,7 +543,7 @@ public class CategoryListUI extends HBox {
 
     private void logCategoryFetch(Account.AccountAction mode, String message) {
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                PARENTAL_LOCK_LOG_PREFIX + "account=" + account.getAccountName()
+                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()
                         + LOG_TYPE + account.getType()
                         + LOG_ACTION + mode
                         + " categories: " + message);
@@ -550,7 +551,7 @@ public class CategoryListUI extends HBox {
 
     private void logChannelFetch(CategoryItem item, String message) {
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                PARENTAL_LOCK_LOG_PREFIX + "account=" + account.getAccountName()
+                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()
                         + LOG_TYPE + account.getType()
                         + LOG_ACTION + account.getAction()
                         + LOG_CATEGORY_ID + item.getCategoryId()
