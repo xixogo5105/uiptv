@@ -850,6 +850,49 @@
     -fx-background-color: -fx-base;
 }
 
+.about-hero {
+    -fx-background-color: linear-gradient(to right, #17304e, #1c3656);
+    -fx-border-color: #35608f;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 16;
+}
+
+.about-hero-icon-shell {
+    -fx-background-color: linear-gradient(to bottom, #4da0ff, #1f73d2);
+    -fx-border-color: #8fc0ff;
+    -fx-border-width: 1;
+    -fx-border-radius: 18;
+    -fx-background-radius: 18;
+    -fx-padding: 10;
+    -fx-alignment: center;
+}
+
+.about-hero-image {
+}
+
+.about-badge {
+    -fx-background-color: #27486d;
+    -fx-text-fill: #d7e9ff;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 999;
+    -fx-font-size: 0.846em;
+    -fx-font-weight: bold;
+}
+
+.about-version-chip {
+    -fx-background-color: #224b34;
+    -fx-text-fill: #d9f7e4;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 999;
+    -fx-border-color: #4f8d66;
+    -fx-border-width: 1;
+    -fx-border-radius: 999;
+    -fx-font-size: 0.923em;
+    -fx-font-weight: bold;
+}
+
 .about-title {
     -fx-font-size: 1.6em;
     -fx-font-weight: bold;
@@ -869,9 +912,23 @@
     -fx-opacity: 0.96;
 }
 
+.about-card {
+    -fx-background-color: #31363c;
+    -fx-border-color: #4e5258;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 14;
+}
+
 .about-meta {
     -fx-font-size: 0.9em;
     -fx-opacity: 0.88;
+}
+
+.about-inline-row {
+    -fx-hgap: 10;
+    -fx-vgap: 4;
 }
 
 .about-link {
@@ -879,5 +936,5 @@
 }
 
 .about-actions {
-    -fx-padding: 10 0 0 0;
+    -fx-padding: 14 0 0 0;
 }

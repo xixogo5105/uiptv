@@ -17,6 +17,7 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -34,10 +35,14 @@ public class AboutUI {
         stage.getIcons().add(image);
 
         ImageView imageView = new ImageView(image);
-        imageView.setFitHeight(84);
-        imageView.setFitWidth(84);
+        imageView.setFitHeight(72);
+        imageView.setFitWidth(72);
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
+        imageView.getStyleClass().add("about-hero-image");
+
+        StackPane imageShell = new StackPane(imageView);
+        imageShell.getStyleClass().add("about-hero-icon-shell");
 
         Label titleLabel = new Label(I18n.tr("autoAboutUiptvTitle", VersionManager.getCurrentVersion()));
         titleLabel.setWrapText(true);
@@ -45,6 +50,12 @@ public class AboutUI {
 
         Label subtitleLabel = createBodyLabel(I18n.tr("autoAboutUiptvTagline"));
         subtitleLabel.getStyleClass().add("about-subtitle");
+
+        Label desktopBadge = new Label("DESKTOP APP");
+        desktopBadge.getStyleClass().add("about-badge");
+
+        Label versionChip = new Label("v" + VersionManager.getCurrentVersion());
+        versionChip.getStyleClass().add("about-version-chip");
 
         Label overviewLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvOverview"));
         Label webSyncLabel = createDescriptionLabel(I18n.tr("autoAboutUiptvWebSync"));
@@ -70,25 +81,38 @@ public class AboutUI {
         link.setOnAction(e -> hostServices.showDocument(FALLBACK_PROJECT_URL));
         link.getStyleClass().add("about-link");
 
+        Region badgeSpacer = new Region();
+        HBox.setHgrow(badgeSpacer, Priority.ALWAYS);
+        HBox badgeRow = new HBox(8, desktopBadge, badgeSpacer, versionChip);
+        badgeRow.setAlignment(Pos.CENTER_LEFT);
+
         FlowPane creditsRow = new FlowPane(10, 4, authorLabel, platformLabel);
         creditsRow.setAlignment(Pos.CENTER_LEFT);
         creditsRow.setRowValignment(javafx.geometry.VPos.CENTER);
         creditsRow.setPrefWrapLength(500);
+        creditsRow.getStyleClass().add("about-inline-row");
 
         FlowPane footerRow = new FlowPane(10, 4, poweredByLabel, link);
         footerRow.setAlignment(Pos.CENTER_LEFT);
         footerRow.setRowValignment(javafx.geometry.VPos.CENTER);
         footerRow.setPrefWrapLength(500);
+        footerRow.getStyleClass().add("about-inline-row");
+
+        VBox heroText = new VBox(6, badgeRow, titleLabel, subtitleLabel);
+        heroText.setAlignment(Pos.TOP_LEFT);
+        HBox.setHgrow(heroText, Priority.ALWAYS);
+
+        HBox heroBox = new HBox(14, imageShell, heroText);
+        heroBox.setAlignment(Pos.TOP_LEFT);
+        heroBox.getStyleClass().add("about-hero");
 
         VBox infoBox = new VBox(8);
         infoBox.setAlignment(Pos.TOP_LEFT);
         infoBox.setFillWidth(true);
         infoBox.setPrefWidth(500);
         infoBox.setMinWidth(500);
+        infoBox.getStyleClass().add("about-card");
         infoBox.getChildren().addAll(
-                titleLabel,
-                subtitleLabel,
-                spacer(2),
                 overviewLabel,
                 webSyncLabel,
                 releaseNotesLabel,
@@ -102,27 +126,28 @@ public class AboutUI {
 
         Button updateButton = new Button(I18n.tr("autoCheckForUpdates"));
         updateButton.setDefaultButton(true);
+        updateButton.getStyleClass().add("prominent");
         updateButton.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
 
         Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.setCancelButton(true);
         closeButton.setOnAction(e -> stage.close());
 
-        HBox content = new HBox(10, imageView, infoBox);
+        VBox content = new VBox(14, heroBox, infoBox);
         content.setAlignment(Pos.TOP_LEFT);
-        HBox.setHgrow(content, Priority.ALWAYS);
+        content.setFillWidth(true);
 
         HBox actions = new HBox(8, closeButton, updateButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.getStyleClass().add("about-actions");
 
         BorderPane root = new BorderPane();
-        root.setPadding(new Insets(10));
+        root.setPadding(new Insets(18));
         root.getStyleClass().add("about-root");
         root.setCenter(content);
         root.setBottom(actions);
 
-        Scene scene = new Scene(root, 720, 450);
+        Scene scene = new Scene(root, 760, 500);
         I18n.applySceneOrientation(scene);
         if (RootApplication.getCurrentTheme() != null) {
             scene.getStylesheets().add(RootApplication.getCurrentTheme());

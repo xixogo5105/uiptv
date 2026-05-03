@@ -307,7 +307,19 @@ These are framework selectors (not app-owned class names) and are intentionally 
 - `.dialog-pane`
 - `.dialog-pane > .header-panel`
 
-### 8.14 Notes for custom themes
+### 8.14 About window additions
+
+The About window also uses these themed hooks now:
+
+- `.about-hero`: Branded header panel for the About window.
+- `.about-hero-icon-shell`: Framed icon container in the hero panel.
+- `.about-hero-image`: App icon image inside the hero panel.
+- `.about-badge`: Small status/category badge in the hero row.
+- `.about-version-chip`: Version pill shown in the hero row.
+- `.about-card`: Framed body card for the descriptive content.
+- `.about-inline-row`: Inline metadata rows inside the About card.
+
+### 8.15 Notes for custom themes
 
 1. Keep both theme files in sync for selector availability.
 2. Prefer overriding existing hooks instead of introducing ad-hoc selectors.
