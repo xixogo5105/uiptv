@@ -84,7 +84,7 @@ public class VersionManager {
             factory.setExpandEntityReferences(false);
             var builder = factory.newDocumentBuilder();
             var document = builder.parse(pomPath.toFile());
-            var versionNodes = document.getDocumentElement().getElementsByTagName("version");
+            var versionNodes = document.getDocumentElement().getElementsByTagName(VERSION_PROPERTY);
             if (versionNodes.getLength() == 0) {
                 return null;
             }
