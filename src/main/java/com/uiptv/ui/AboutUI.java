@@ -227,13 +227,13 @@ public class AboutUI {
     }
 
     private static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private static String resolveReleaseSummary() {
         String currentVersion = VersionManager.getCurrentVersion();
-        String releaseDescription = VersionManager.getReleaseDescription();
-        if ("N/A".equals(releaseDescription) || releaseDescription.isBlank()) {
+        String releaseDescription = VersionManager.RELEASE_DESCRIPTION;
+        if (VersionManager.NOT_AVAILABLE.equals(releaseDescription) || releaseDescription.isBlank()) {
             return currentVersion;
         }
         String language = I18n.getCurrentLocale().getLanguage();

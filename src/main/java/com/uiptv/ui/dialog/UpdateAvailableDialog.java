@@ -182,7 +182,7 @@ public final class UpdateAvailableDialog {
     private static Image loadAppIcon() {
         try (InputStream stream = UpdateAvailableDialog.class.getResourceAsStream(APP_ICON_RESOURCE)) {
             return stream == null ? null : new Image(stream);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             return null;
         }
     }
@@ -198,6 +198,6 @@ public final class UpdateAvailableDialog {
     }
 
     private static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 }
