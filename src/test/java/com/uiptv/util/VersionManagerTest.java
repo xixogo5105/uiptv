@@ -72,10 +72,10 @@ class VersionManagerTest {
         Class<?> shadowVersionManager = Class.forName("com.uiptv.util.VersionManager", true, shadowLoader);
         Method getCurrentVersion = shadowVersionManager.getMethod("getCurrentVersion");
         Method getReleaseUrl = shadowVersionManager.getMethod("getReleaseUrl");
-        Method getReleaseDescription = shadowVersionManager.getMethod("getReleaseDescription");
+        var releaseDescriptionField = shadowVersionManager.getField("RELEASE_DESCRIPTION");
 
         assertEquals(VersionManager.getCurrentVersion(), getCurrentVersion.invoke(null));
         assertEquals("https://github.com/xixogo5105/uiptv/releases/latest", getReleaseUrl.invoke(null));
-        assertEquals("N/A", getReleaseDescription.invoke(null));
+        assertEquals("N/A", releaseDescriptionField.get(null));
     }
 }
