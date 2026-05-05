@@ -228,6 +228,10 @@
     -fx-border-color: transparent;
 }
 
+.section-help-link {
+    -fx-padding: 0;
+}
+
 .hyperlink:hover {
     -fx-text-fill: #b8dcff;
 }

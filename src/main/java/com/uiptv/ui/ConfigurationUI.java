@@ -64,6 +64,7 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
+    private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
@@ -102,6 +103,13 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
     private final Hyperlink ffmpegTranscodingHelpLink = new Hyperlink("(?)");
     private final Hyperlink litePlayerFfmpegHelpLink = new Hyperlink("(?)");
+    private final Hyperlink videoPlayersHelpLink = new Hyperlink("(?)");
+    private final Hyperlink filtersHelpLink = new Hyperlink("(?)");
+    private final Hyperlink themeHelpLink = new Hyperlink("(?)");
+    private final Hyperlink cacheFilteringHelpLink = new Hyperlink("(?)");
+    private final Hyperlink databaseSyncHelpLink = new Hyperlink("(?)");
+    private final Hyperlink ffmpegAndWebServerHelpLink = new Hyperlink("(?)");
+    private final Hyperlink tmdbMetadataHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
@@ -194,6 +202,14 @@ public class ConfigurationUI extends VBox {
         configurePlayerUserData();
         addWideViewHelpClickHandler();
         addFfmpegHelpClickHandlers();
+        addVideoPlayersHelpClickHandler();
+        addThemeHelpClickHandler();
+        addDatabaseSyncHelpClickHandler();
+        addFiltersHelpClickHandler();
+        addCacheFilteringHelpClickHandler();
+        addFfmpegAndWebServerHelpClickHandler();
+        addTmdbMetadataHelpClickHandler();
+        configureHelpLinks();
         defaultEmbedPlayer.setSelected(true);
         applyConfigurationToForm(configuration);
         selectDefaultPlayer(configuration);
@@ -246,8 +262,8 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(box4Spacer, Priority.ALWAYS);
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
-        HBox wideViewRow = new HBox(6, wideViewCheckBox, wideViewHelpLink);
-        HBox resolveChainRow = new HBox(6, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
+        HBox wideViewRow = new HBox(4, wideViewCheckBox, wideViewHelpLink);
+        HBox resolveChainRow = new HBox(4, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
@@ -258,11 +274,8 @@ public class ConfigurationUI extends VBox {
         wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
-        Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
-        tmdbHelpLabel.setWrapText(true);
-        tmdbHelpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
-        VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
+        VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
         resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
@@ -285,8 +298,8 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
-        HBox ffmpegTranscodingRow = new HBox(6, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
-        HBox litePlayerFfmpegRow = new HBox(6, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
+        HBox ffmpegTranscodingRow = new HBox(4, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
+        HBox litePlayerFfmpegRow = new HBox(4, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
         HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
         ffmpegTranscodingRow.setAlignment(Pos.CENTER_LEFT);
         litePlayerFfmpegRow.setAlignment(Pos.CENTER_LEFT);
@@ -301,13 +314,13 @@ public class ConfigurationUI extends VBox {
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
         contentContainer.getChildren().addAll(
-                createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
-                createCollapsibleGroupPane(I18n.tr("configFilters"), null, filtersGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configDarkTheme"), I18n.tr("configThemeDescription"), themeOverridesGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), null, cacheGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), I18n.tr("configDatabaseSyncDescription"), databaseSyncGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), null, serverGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, true),
+                createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), playersGroup, false, videoPlayersHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configFilters"), filtersGroup, true, filtersHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configDarkTheme"), themeOverridesGroup, true, themeHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), cacheGroup, true, cacheFilteringHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), databaseSyncGroup, true, databaseSyncHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), serverGroup, true, ffmpegAndWebServerHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), tmdbConfigSection, true, tmdbMetadataHelpLink),
                 saveButton
         );
         addSaveButtonClickHandler();
@@ -331,23 +344,18 @@ public class ConfigurationUI extends VBox {
         refreshFilterLockUi();
     }
 
-    private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
+    private BorderPane createCollapsibleGroupPane(String title, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
         BorderPane pane = new BorderPane(content);
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("strong-label");
-        VBox titleContainer = new VBox(4, titleLabel);
+        HBox titleRow = new HBox(4, titleLabel);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        if (helpLink != null) {
+            titleRow.getChildren().add(helpLink);
+        }
+        VBox titleContainer = new VBox(4, titleRow);
         titleContainer.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(titleContainer, Priority.ALWAYS);
-        final Label descriptionLabel;
-        if (description != null && !description.isBlank()) {
-            Label label = new Label(description);
-            label.setWrapText(true);
-            label.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
-            titleContainer.getChildren().add(label);
-            descriptionLabel = label;
-        } else {
-            descriptionLabel = null;
-        }
 
         Hyperlink toggleLink = new Hyperlink();
         toggleLink.setMinWidth(Region.USE_PREF_SIZE);
@@ -358,10 +366,6 @@ public class ConfigurationUI extends VBox {
         final Runnable refreshToggleLabel = () -> {
             boolean expanded = content.isVisible() && content.isManaged();
             toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
-            if (descriptionLabel != null) {
-                descriptionLabel.setVisible(expanded);
-                descriptionLabel.setManaged(expanded);
-            }
         };
         content.setVisible(!collapsedByDefault);
         content.setManaged(!collapsedByDefault);
@@ -390,10 +394,6 @@ public class ConfigurationUI extends VBox {
         themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
         Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
         HBox.setHgrow(themeZoomComboBox, Priority.ALWAYS);
-
-        Label themeZoomHelpLabel = new Label(I18n.tr("configThemeZoomHelp"));
-        themeZoomHelpLabel.setWrapText(true);
-        themeZoomHelpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
 
         lightThemeCssStatus.setEditable(false);
         darkThemeCssStatus.setEditable(false);
@@ -441,7 +441,7 @@ public class ConfigurationUI extends VBox {
         GridPane.setHgrow(languageComboBox, Priority.ALWAYS);
         GridPane.setHgrow(themeZoomComboBox, Priority.ALWAYS);
 
-        VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid, themeZoomHelpLabel);
+        VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid);
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
@@ -787,6 +787,28 @@ public class ConfigurationUI extends VBox {
         vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
 
+    private void configureHelpLinks() {
+        java.util.List.of(
+                wideViewHelpLink,
+                resolveChainAndDeepRedirectsHelpLink,
+                ffmpegTranscodingHelpLink,
+                litePlayerFfmpegHelpLink,
+                videoPlayersHelpLink,
+                filtersHelpLink,
+                themeHelpLink,
+                cacheFilteringHelpLink,
+                databaseSyncHelpLink,
+                ffmpegAndWebServerHelpLink,
+                tmdbMetadataHelpLink
+        ).forEach(this::configureHelpLink);
+    }
+
+    private void configureHelpLink(Hyperlink helpLink) {
+        helpLink.setMinWidth(Region.USE_PREF_SIZE);
+        helpLink.setPadding(Insets.EMPTY);
+        helpLink.getStyleClass().add(STYLE_CLASS_HELP_LINK);
+    }
+
     private void addResolveChainHelpClickHandler() {
         resolveChainAndDeepRedirectsHelpLink.setOnAction(event -> showResolveChainHelp());
     }
@@ -798,6 +820,34 @@ public class ConfigurationUI extends VBox {
     private void addFfmpegHelpClickHandlers() {
         ffmpegTranscodingHelpLink.setOnAction(event -> showFfmpegTranscodingHelp());
         litePlayerFfmpegHelpLink.setOnAction(event -> showLitePlayerFfmpegHelp());
+    }
+
+    private void addVideoPlayersHelpClickHandler() {
+        videoPlayersHelpLink.setOnAction(event -> showVideoPlayersHelp());
+    }
+
+    private void addThemeHelpClickHandler() {
+        themeHelpLink.setOnAction(event -> showThemeHelp());
+    }
+
+    private void addDatabaseSyncHelpClickHandler() {
+        databaseSyncHelpLink.setOnAction(event -> showDatabaseSyncHelp());
+    }
+
+    private void addFiltersHelpClickHandler() {
+        filtersHelpLink.setOnAction(event -> showFiltersHelp());
+    }
+
+    private void addCacheFilteringHelpClickHandler() {
+        cacheFilteringHelpLink.setOnAction(event -> showCacheFilteringHelp());
+    }
+
+    private void addFfmpegAndWebServerHelpClickHandler() {
+        ffmpegAndWebServerHelpLink.setOnAction(event -> showFfmpegAndWebServerHelp());
+    }
+
+    private void addTmdbMetadataHelpClickHandler() {
+        tmdbMetadataHelpLink.setOnAction(event -> showTmdbMetadataHelp());
     }
 
     private void addDatabaseSyncButtonHandlers() {
@@ -1165,10 +1215,7 @@ public class ConfigurationUI extends VBox {
     private VBox buildDatabaseSyncGroup() {
         importDatabaseButton.setMaxWidth(Double.MAX_VALUE);
         exportDatabaseButton.setMaxWidth(Double.MAX_VALUE);
-        Label helpLabel = new Label(I18n.tr("configDatabaseSyncHelp"));
-        helpLabel.setWrapText(true);
-        helpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
-        return new VBox(10, helpLabel, importDatabaseButton, exportDatabaseButton);
+        return new VBox(10, importDatabaseButton, exportDatabaseButton);
     }
 
     private void saveVlcOptionsConfiguration(boolean showReloadMessage) {
@@ -1804,50 +1851,116 @@ public class ConfigurationUI extends VBox {
         return I18n.tr("configEnableLitePlayerFfmpegHelpTitle");
     }
 
+    static String videoPlayersHelpText() {
+        return I18n.tr("configVideoPlayersHelp");
+    }
+
+    static String videoPlayersHelpTitle() {
+        return I18n.tr("configVideoPlayersHelpTitle");
+    }
+
+    static String themeHelpText() {
+        return I18n.tr("configThemeHelp");
+    }
+
+    static String themeHelpTitle() {
+        return I18n.tr("configThemeHelpTitle");
+    }
+
+    static String databaseSyncHelpText() {
+        return I18n.tr("configDatabaseSyncHelpText");
+    }
+
+    static String databaseSyncHelpTitle() {
+        return I18n.tr("configDatabaseSyncHelpTitle");
+    }
+
+    static String filtersHelpText() {
+        return I18n.tr("configFiltersHelpText");
+    }
+
+    static String filtersHelpTitle() {
+        return I18n.tr("configFiltersHelpTitle");
+    }
+
+    static String cacheFilteringHelpText() {
+        return I18n.tr("configCacheFilteringHelpText");
+    }
+
+    static String cacheFilteringHelpTitle() {
+        return I18n.tr("configCacheFilteringHelpTitle");
+    }
+
+    static String ffmpegAndWebServerHelpText() {
+        return I18n.tr("configFfmpegAndWebServerHelpText");
+    }
+
+    static String ffmpegAndWebServerHelpTitle() {
+        return I18n.tr("configFfmpegAndWebServerHelpTitle");
+    }
+
+    static String tmdbMetadataHelpText() {
+        return I18n.tr("configTmdbMetadataHelpText");
+    }
+
+    static String tmdbMetadataHelpTitle() {
+        return I18n.tr("configTmdbMetadataHelpTitle");
+    }
+
     private void showResolveChainHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(resolveChainHelpTitle());
-        alert.setContentText(resolveChainHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        showHelpDialog(resolveChainHelpTitle(), resolveChainHelpText());
     }
 
     private void showWideViewHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(wideViewHelpTitle());
-        alert.setContentText(wideViewHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        showHelpDialog(wideViewHelpTitle(), wideViewHelpText());
     }
 
     private void showFfmpegTranscodingHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(ffmpegTranscodingHelpTitle());
-        alert.setContentText(ffmpegTranscodingHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        showHelpDialog(ffmpegTranscodingHelpTitle(), ffmpegTranscodingHelpText());
     }
 
     private void showLitePlayerFfmpegHelp() {
+        showHelpDialog(litePlayerFfmpegHelpTitle(), litePlayerFfmpegHelpText());
+    }
+
+    private void showVideoPlayersHelp() {
+        showHelpDialog(videoPlayersHelpTitle(), videoPlayersHelpText());
+    }
+
+    private void showThemeHelp() {
+        showHelpDialog(themeHelpTitle(), themeHelpText());
+    }
+
+    private void showDatabaseSyncHelp() {
+        showHelpDialog(databaseSyncHelpTitle(), databaseSyncHelpText());
+    }
+
+    private void showFiltersHelp() {
+        showHelpDialog(filtersHelpTitle(), filtersHelpText());
+    }
+
+    private void showCacheFilteringHelp() {
+        showHelpDialog(cacheFilteringHelpTitle(), cacheFilteringHelpText());
+    }
+
+    private void showFfmpegAndWebServerHelp() {
+        showHelpDialog(ffmpegAndWebServerHelpTitle(), ffmpegAndWebServerHelpText());
+    }
+
+    private void showTmdbMetadataHelp() {
+        showHelpDialog(tmdbMetadataHelpTitle(), tmdbMetadataHelpText());
+    }
+
+    private void showHelpDialog(String title, String text) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(litePlayerFfmpegHelpTitle());
-        alert.setContentText(litePlayerFfmpegHelpText());
+        alert.setHeaderText(title);
+        alert.setContentText(text);
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
         alert.initModality(javafx.stage.Modality.NONE);
         alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         alert.showAndWait();
     }
-
     static String stripTrailingHelp(String label) {
         if (label == null) {
             return "";
