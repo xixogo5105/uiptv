@@ -13,11 +13,17 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -49,6 +55,21 @@ public class HandshakeService {
     private static final String KEY_TIMEZONE = "timezone";
     private static final DateTimeFormatter EXTEND_AT_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter CANONICAL_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final List<DateTimeFormatter> ACCOUNT_INFO_EXPIRY_DATE_TIME_FORMATTERS = List.of(
+            new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMMM d, yyyy, h:mm a").toFormatter(Locale.ENGLISH),
+            new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMM d, yyyy, h:mm a").toFormatter(Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+            DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),
+            DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss"),
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+    );
+    private static final List<DateTimeFormatter> ACCOUNT_INFO_EXPIRY_DATE_FORMATTERS = List.of(
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+            DateTimeFormatter.ofPattern("yyyy/MM/dd"),
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"),
+            DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    );
 
     private HandshakeService() {
     }
@@ -250,6 +271,8 @@ public class HandshakeService {
         updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, KEY_DEFAULT_TIMEZONE), nullSafeString(js, KEY_DEFAULT_TIMEZONE),
                 nullSafeString(accountInfoJson, KEY_TIMEZONE), nullSafeString(js, KEY_TIMEZONE)),
                 info::getDefaultTimezone, info::setDefaultTimezone);
+        updated |= updateIfNotBlank(firstAccountInfoExpiry(accountInfoJson, js, info.getExpireDate()),
+                info::getExpireDate, info::setExpireDate);
         updated |= applyAllowedStbTypes(info, accountInfoJson);
         if (accountInfoJson != js) {
             updated |= applyAllowedStbTypes(info, js);
@@ -348,6 +371,24 @@ public class HandshakeService {
         return "";
     }
 
+    private String firstAccountInfoExpiry(JSONObject accountInfoJson, JSONObject rootJson, String existingExpiry) {
+        if (isNotBlank(normalizeExpiry(existingExpiry))) {
+            return "";
+        }
+        String[] candidates = {
+                normalizeAccountInfoExpiry(nullSafeString(accountInfoJson, "end_date")),
+                normalizeAccountInfoExpiry(nullSafeString(rootJson, "end_date")),
+                normalizeAccountInfoExpiry(nullSafeString(accountInfoJson, "phone")),
+                normalizeAccountInfoExpiry(nullSafeString(rootJson, "phone"))
+        };
+        for (String candidate : candidates) {
+            if (isNotBlank(candidate)) {
+                return candidate;
+            }
+        }
+        return "";
+    }
+
     private String normalizeExpiry(String value) {
         if (isBlank(value)) {
             return "";
@@ -357,6 +398,30 @@ public class HandshakeService {
             return "";
         }
         return trimmed;
+    }
+
+    private String normalizeAccountInfoExpiry(String value) {
+        String normalized = normalizeExpiry(value);
+        if (isBlank(normalized)) {
+            return "";
+        }
+        for (DateTimeFormatter formatter : ACCOUNT_INFO_EXPIRY_DATE_TIME_FORMATTERS) {
+            try {
+                LocalDateTime dateTime = LocalDateTime.parse(normalized, formatter);
+                return CANONICAL_DATE_TIME_FORMATTER.format(dateTime);
+            } catch (DateTimeParseException _) {
+                // Try the next formatter.
+            }
+        }
+        for (DateTimeFormatter formatter : ACCOUNT_INFO_EXPIRY_DATE_FORMATTERS) {
+            try {
+                LocalDate date = LocalDate.parse(normalized, formatter);
+                return CANONICAL_DATE_TIME_FORMATTER.format(date.atStartOfDay());
+            } catch (DateTimeParseException _) {
+                // Try the next formatter.
+            }
+        }
+        return "";
     }
 
     private String resolveExtendAt(String value) {
