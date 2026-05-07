@@ -72,6 +72,7 @@ public class UIptvServer {
         server.createContext("/seriesEpisodes", new HttpSeriesEpisodesJsonServer());
         server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
         server.createContext("/watchingNow", new HttpWatchingNowJsonServer());
+        server.createContext("/watchingNowSeriesEpisodes", new HttpWatchingNowSeriesEpisodesJsonServer());
         server.createContext("/watchingNowSeriesAction", new HttpWatchingNowSeriesActionServer());
         server.createContext("/watchingNowVod", new HttpWatchingNowVodJsonServer());
         server.createContext("/watchingNowVodAction", new HttpWatchingNowVodActionServer());

@@ -166,6 +166,7 @@ public class AccountService {
             PublishedM3uChannelSelectionDb.get().deleteByAccountId(account.getDbId());
         }
         SeriesWatchStateDb.get().deleteByAccount(accountId);
+        SeriesWatchingNowSnapshotDb.get().deleteByAccount(accountId);
         VodWatchStateDb.get().deleteByAccount(accountId);
         ChannelDb.get().deleteByAccount(accountId);
         CategoryDb.get().deleteByAccount(account);

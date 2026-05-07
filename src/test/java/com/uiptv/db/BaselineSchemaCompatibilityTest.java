@@ -7,6 +7,7 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.model.VodWatchState;
 import com.uiptv.service.AccountService;
@@ -344,6 +345,23 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         assertNotNull(savedState);
         assertEquals("episode-1", savedState.getEpisodeId());
         assertEquals("MANUAL", savedState.getSource());
+
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(seriesAccount.getDbId());
+        snapshot.setCategoryId(seriesCategories.get(0).getCategoryId());
+        snapshot.setSeriesId(seriesChannel.getChannelId());
+        snapshot.setCategoryDbId(seriesCategories.get(0).getDbId());
+        snapshot.setSeriesTitle(seriesChannel.getName());
+        snapshot.setSeriesPoster(seriesChannel.getLogo());
+        snapshot.setEpisodesJson("[\"" + episode.toJson().replace("\"", "\\\\\"") + "\"]");
+        snapshot.setUpdatedAt(System.currentTimeMillis());
+        SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
+
+        SeriesWatchingNowSnapshot savedSnapshot = SeriesWatchingNowSnapshotDb.get()
+                .getBySeries(seriesAccount.getDbId(), seriesCategories.get(0).getCategoryId(), seriesChannel.getChannelId());
+        assertNotNull(savedSnapshot);
+        assertEquals("Series One", savedSnapshot.getSeriesTitle());
+        assertEquals(seriesCategories.get(0).getDbId(), savedSnapshot.getCategoryDbId());
     }
 
     private void resetDatabaseToBaselineOnly() {

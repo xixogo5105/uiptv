@@ -294,6 +294,17 @@ public class DatabaseUtils {
                 new DataColumn("seriesChannelSnapshot", "TEXT"),
                 new DataColumn("seriesEpisodeSnapshot", "TEXT")
         )));
+        dbStructure.put(DbTable.SERIES_WATCHING_NOW_SNAPSHOT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
+                new DataColumn("seriesId", "TEXT"),
+                new DataColumn("categoryDbId", "TEXT"),
+                new DataColumn("seriesTitle", "TEXT"),
+                new DataColumn("seriesPoster", "TEXT"),
+                new DataColumn("episodesJson", "TEXT"),
+                new DataColumn(COLUMN_UPDATED_AT, INTEGER_TYPE)
+        )));
         dbStructure.put(DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL_UNIQUE)
@@ -408,6 +419,7 @@ public class DatabaseUtils {
         SERIES_CHANNEL_TABLE("SeriesChannel"),
         SERIES_EPISODE_TABLE("SeriesEpisode"),
         SERIES_WATCH_STATE_TABLE("SeriesWatchState"),
+        SERIES_WATCHING_NOW_SNAPSHOT_TABLE("SeriesWatchingNowSnapshot"),
         PUBLISHED_M3U_SELECTION_TABLE("PublishedM3uSelection"),
         PUBLISHED_M3U_CATEGORY_SELECTION_TABLE("PublishedM3uCategorySelection"),
         PUBLISHED_M3U_CHANNEL_SELECTION_TABLE("PublishedM3uChannelSelection"),

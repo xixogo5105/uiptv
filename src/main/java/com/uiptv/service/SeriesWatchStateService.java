@@ -105,12 +105,15 @@ public class SeriesWatchStateService {
             return;
         }
         String canonicalSeriesId = canonicalizeSeriesId(seriesId);
-        SeriesWatchStateDb.get().clear(accountId, normalizeCategoryId(accountId, categoryId), canonicalSeriesId);
+        String normalizedCategory = normalizeCategoryId(accountId, categoryId);
+        SeriesWatchStateDb.get().clear(accountId, normalizedCategory, canonicalSeriesId);
+        SeriesWatchingNowSnapshotService.getInstance().clear(accountId, normalizedCategory, canonicalSeriesId);
         notifyListeners(accountId, canonicalSeriesId);
     }
 
     public void clearAllSeriesLastWatched() {
         SeriesWatchStateDb.get().clearAllSeries();
+        SeriesWatchingNowSnapshotService.getInstance().clearAll();
         notifyListeners("", "");
     }
 

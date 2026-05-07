@@ -159,12 +159,26 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (!cacheInfo.resolvedFromCache && isBlank(cacheInfo.seriesTitle) && scopedState.getSeriesId().matches("^\\d+$")) {
             return null;
         }
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
+        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
         if (list == null) {
             list = new EpisodeList();
         }
+        if (list.getSeasonInfo() == null) {
+            list.setSeasonInfo(new com.uiptv.shared.SeasonInfo());
+        }
         if (list.getSeasonInfo() != null && isBlank(list.getSeasonInfo().getName()) && !isBlank(cacheInfo.seriesTitle)) {
             list.getSeasonInfo().setName(cacheInfo.seriesTitle);
+        }
+        if (list.getEpisodes() != null && !list.getEpisodes().isEmpty()) {
+            SeriesWatchingNowSnapshotService.getInstance().save(
+                    account,
+                    scopedState.getCategoryId(),
+                    scopedState.getSeriesId(),
+                    row.getCategoryDbId(),
+                    cacheInfo.seriesTitle,
+                    cacheInfo.seriesPoster,
+                    list
+            );
         }
         List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, list);
         if (episodes.isEmpty()) {
@@ -1180,6 +1194,15 @@ public abstract class BaseWatchingNowUI extends VBox {
         new Thread(() -> {
             EpisodeList refreshed = SeriesEpisodeService.getInstance()
                     .reloadEpisodesFromPortal(data.account, data.state.getCategoryId(), data.state.getSeriesId(), () -> false);
+            SeriesWatchingNowSnapshotService.getInstance().save(
+                    data.account,
+                    data.state.getCategoryId(),
+                    data.state.getSeriesId(),
+                    "",
+                    data.seriesTitle,
+                    resolveSeriesPosterUrl(data),
+                    refreshed
+            );
             List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, refreshed);
             Platform.runLater(() -> {
                 // Always discard old episodes on reload and rebuild tabs from the latest response.

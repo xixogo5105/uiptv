@@ -54,6 +54,29 @@ public class SeriesEpisodeService {
         return new EpisodeList();
     }
 
+    public EpisodeList getEpisodesForWatchingNow(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+        if (account == null || isBlank(seriesId)) {
+            return new EpisodeList();
+        }
+
+        EpisodeList cached = loadFromDbAnyAge(account, categoryId, seriesId);
+        if (hasEpisodes(cached)) {
+            return cached;
+        }
+
+        EpisodeList snapshot = SeriesWatchingNowSnapshotService.getInstance()
+                .loadEpisodeList(account.getDbId(), categoryId, seriesId);
+        if (hasEpisodes(snapshot)) {
+            return snapshot;
+        }
+
+        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
+        if (hasEpisodes(fetched)) {
+            return fetched;
+        }
+        return new EpisodeList();
+    }
+
     public EpisodeList reloadEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
         if (account == null || isBlank(seriesId)) {
             return new EpisodeList();

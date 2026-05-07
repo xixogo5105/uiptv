@@ -2,10 +2,12 @@ package com.uiptv.service;
 
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.SeriesWatchingNowSnapshotDb;
 import com.uiptv.db.SeriesWatchStateDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.util.AccountType;
 import org.json.JSONObject;
@@ -63,6 +65,59 @@ class WatchingNowSeriesResolverTest extends DbBackedTest {
         List<WatchingNowSeriesResolver.SeriesRow> rows = resolver.resolveForAccount(account);
 
         assertTrue(rows.isEmpty());
+    }
+
+    @Test
+    void resolve_fallsBackToWatchingNowSnapshotWhenSeriesCacheIsMissing() {
+        Account account = createSeriesAccount("resolver-series-snapshot-fallback");
+
+        SeriesWatchStateDb.get().upsert(state(account, "unknown", "12345", "ep-1", "Episode 1", "1", 1, 100L));
+
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(account.getDbId());
+        snapshot.setCategoryId("unknown");
+        snapshot.setSeriesId("12345");
+        snapshot.setCategoryDbId("unknown-db");
+        snapshot.setSeriesTitle("Snapshot Only Series");
+        snapshot.setSeriesPoster("https://img/snapshot-only.png");
+        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-1\\\",\\\"name\\\":\\\"Episode 1\\\",\\\"cmd\\\":\\\"http://example.com/ep-1\\\",\\\"season\\\":\\\"1\\\",\\\"episodeNum\\\":\\\"1\\\"}\"]");
+        snapshot.setUpdatedAt(150L);
+        SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
+
+        WatchingNowSeriesResolver resolver = new WatchingNowSeriesResolver();
+        List<WatchingNowSeriesResolver.SeriesRow> rows = resolver.resolveForAccount(account);
+
+        assertEquals(1, rows.size());
+        WatchingNowSeriesResolver.SeriesRow row = rows.getFirst();
+        assertEquals("Snapshot Only Series", row.getSeriesTitle());
+        assertEquals("https://img/snapshot-only.png", row.getSeriesPoster());
+        assertEquals("unknown-db", row.getCategoryDbId());
+    }
+
+    @Test
+    void resolve_matchesSnapshotWhenSnapshotWasSavedWithCompositeSeriesId() {
+        Account account = createSeriesAccount("resolver-series-snapshot-composite");
+
+        SeriesWatchStateDb.get().upsert(state(account, "unknown", "12345", "ep-1", "Episode 1", "1", 1, 100L));
+
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(account.getDbId());
+        snapshot.setCategoryId("unknown");
+        snapshot.setSeriesId("12345:12345");
+        snapshot.setCategoryDbId("unknown-db");
+        snapshot.setSeriesTitle("Composite Snapshot Series");
+        snapshot.setSeriesPoster("https://img/composite.png");
+        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-1\\\",\\\"name\\\":\\\"Episode 1\\\",\\\"cmd\\\":\\\"http://example.com/ep-1\\\"}\"]");
+        snapshot.setUpdatedAt(200L);
+        SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
+
+        WatchingNowSeriesResolver resolver = new WatchingNowSeriesResolver();
+        List<WatchingNowSeriesResolver.SeriesRow> rows = resolver.resolveForAccount(account);
+
+        assertEquals(1, rows.size());
+        WatchingNowSeriesResolver.SeriesRow row = rows.getFirst();
+        assertEquals("Composite Snapshot Series", row.getSeriesTitle());
+        assertEquals("https://img/composite.png", row.getSeriesPoster());
     }
 
     private Account createSeriesAccount(String name) {

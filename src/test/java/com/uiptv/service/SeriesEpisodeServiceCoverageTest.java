@@ -3,6 +3,7 @@ package com.uiptv.service;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.XtremeParser;
@@ -83,6 +84,28 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
             assertEquals("4", list.getEpisodes().get(0).getSeason());
             assertEquals(1, SeriesEpisodeDb.get().getEpisodes(account, "cat-s", "series-s").size());
         }
+    }
+
+    @Test
+    void getEpisodesForWatchingNow_fallsBackToSnapshotWhenCacheIsMissing() {
+        Account account = createSeriesAccount("watching-now-snapshot-fallback");
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(account.getDbId());
+        snapshot.setCategoryId("cat-s");
+        snapshot.setSeriesId("series-s");
+        snapshot.setCategoryDbId("cat-s-db");
+        snapshot.setSeriesTitle("Series Snapshot");
+        snapshot.setSeriesPoster("http://img/series-s.png");
+        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-s1\\\",\\\"name\\\":\\\"Season 1 Episode 6\\\",\\\"cmd\\\":\\\"cmd://snapshot\\\",\\\"season\\\":\\\"1\\\",\\\"episodeNum\\\":\\\"6\\\"}\"]");
+        snapshot.setUpdatedAt(77L);
+        com.uiptv.db.SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
+
+        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, "cat-s", "series-s", () -> false);
+
+        assertEquals(1, list.getEpisodes().size());
+        assertEquals("ep-s1", list.getEpisodes().getFirst().getId());
+        assertEquals("1", list.getEpisodes().getFirst().getSeason());
+        assertEquals("6", list.getEpisodes().getFirst().getEpisodeNum());
     }
 
     @Test

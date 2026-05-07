@@ -3,13 +3,18 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.SeriesWatchingNowSnapshotService;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -38,6 +43,9 @@ public class HttpWatchingNowSeriesActionServer implements HttpHandler {
         String episodeName = opt(body, "episodeName");
         String season = opt(body, "season");
         String episodeNum = opt(body, "episodeNum");
+        String categoryDbId = opt(body, "categoryDbId");
+        String seriesTitle = opt(body, "seriesTitle");
+        String seriesPoster = opt(body, "seriesPoster");
         if (isBlank(accountId) || isBlank(seriesId) || isBlank(episodeId)) {
             writeJson(ex, 400, "{\"status\":\"error\",\"message\":\"accountId, seriesId, episodeId are required\"}");
             return;
@@ -55,6 +63,15 @@ public class HttpWatchingNowSeriesActionServer implements HttpHandler {
                 episodeName,
                 season,
                 episodeNum
+        );
+        SeriesWatchingNowSnapshotService.getInstance().saveChannels(
+                account,
+                categoryId,
+                seriesId,
+                categoryDbId,
+                seriesTitle,
+                seriesPoster,
+                parseChannels(body.optJSONArray("episodes"))
         );
         writeJson(ex, 200, "{\"status\":\"ok\"}");
     }
@@ -87,6 +104,24 @@ public class HttpWatchingNowSeriesActionServer implements HttpHandler {
             return "";
         }
         return String.valueOf(body.opt(key)).trim();
+    }
+
+    private List<Channel> parseChannels(JSONArray payload) {
+        if (payload == null || payload.isEmpty()) {
+            return List.of();
+        }
+        List<Channel> channels = new ArrayList<>();
+        for (int i = 0; i < payload.length(); i++) {
+            Object value = payload.opt(i);
+            if (value == null) {
+                continue;
+            }
+            Channel channel = Channel.fromJson(String.valueOf(value));
+            if (channel != null) {
+                channels.add(channel);
+            }
+        }
+        return channels;
     }
 
     private void writeJson(HttpExchange ex, int status, String body) throws IOException {

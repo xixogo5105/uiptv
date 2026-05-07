@@ -27,4 +27,9 @@ class WatchingNowUITest {
     void tabLabels_exposeSeriesFirstAndVodSecond() {
         assertEquals(List.of("Series", "VOD"), WatchingNowUI.tabLabels());
     }
+
+    @Test
+    void refreshButtonLabel_usesReloadCacheTranslation() {
+        assertEquals("Reload Cache", WatchingNowUI.refreshButtonLabel());
+    }
 }

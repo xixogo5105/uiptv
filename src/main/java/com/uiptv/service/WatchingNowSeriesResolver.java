@@ -5,6 +5,7 @@ import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.model.SeriesWatchState;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -63,15 +64,27 @@ public class WatchingNowSeriesResolver {
         SnapshotScope scope = resolveSnapshotScope(state);
         SeriesWatchState scopedState = copyStateWithScope(state, scope.categoryId, scope.parentChannelId);
         SeriesCacheInfo cacheInfo = resolveSeriesInfoFromCache(account, scopedState);
+        SeriesWatchingNowSnapshot snapshot = SeriesWatchingNowSnapshotService.getInstance()
+                .getSnapshot(account.getDbId(), scopedState.getCategoryId(), scopedState.getSeriesId());
         if (!isBlank(scope.seriesTitle)) {
             cacheInfo = new SeriesCacheInfo(scope.seriesTitle, firstNonBlank(scope.seriesPoster, cacheInfo.seriesPoster), true);
         } else if (!isBlank(scope.seriesPoster)) {
             cacheInfo = new SeriesCacheInfo(cacheInfo.seriesTitle, scope.seriesPoster, cacheInfo.resolvedFromCache);
         }
+        if ((!cacheInfo.resolvedFromCache || isBlank(cacheInfo.seriesTitle)) && snapshot != null) {
+            cacheInfo = new SeriesCacheInfo(
+                    firstNonBlank(snapshot.getSeriesTitle(), cacheInfo.seriesTitle),
+                    firstNonBlank(snapshot.getSeriesPoster(), cacheInfo.seriesPoster),
+                    true
+            );
+        }
         if (!cacheInfo.resolvedFromCache && isAllDigits(scopedState.getSeriesId())) {
             return null;
         }
         String categoryDbId = resolveSeriesCategoryDbId(account, scopedState.getCategoryId());
+        if (isBlank(categoryDbId) && snapshot != null) {
+            categoryDbId = safe(snapshot.getCategoryDbId());
+        }
         if (isBlank(categoryDbId)) {
             categoryDbId = safe(scopedState.getCategoryId());
         }

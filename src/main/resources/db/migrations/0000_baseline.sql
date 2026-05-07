@@ -548,6 +548,30 @@ CREATE TABLE IF NOT EXISTS SeriesWatchState
     TEXT
 );
 
+CREATE TABLE IF NOT EXISTS SeriesWatchingNowSnapshot
+(
+    id
+    INTEGER
+    PRIMARY
+    KEY,
+    accountId
+    TEXT,
+    categoryId
+    TEXT,
+    seriesId
+    TEXT,
+    categoryDbId
+    TEXT,
+    seriesTitle
+    TEXT,
+    seriesPoster
+    TEXT,
+    episodesJson
+    TEXT,
+    updatedAt
+    INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS BookmarkCategory
 (
     id

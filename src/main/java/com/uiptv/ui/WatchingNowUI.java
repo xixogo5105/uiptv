@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
+import javafx.scene.control.Button;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.Priority;
@@ -17,7 +18,7 @@ public class WatchingNowUI extends VBox {
 
     public WatchingNowUI() {
         tabPane = buildTabs();
-        getChildren().add(tabPane);
+        getChildren().setAll(tabPane);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
         registerThumbnailModeListener();
     }
@@ -32,19 +33,39 @@ public class WatchingNowUI extends VBox {
         vodDelegate.refreshIfNeeded();
     }
 
+    static String refreshButtonLabel() {
+        return I18n.tr("autoReloadCache");
+    }
+
     private TabPane buildTabs() {
         seriesDelegate = buildSeriesDelegate();
         vodDelegate = new VodWatchingNowUI();
 
         TabPane tabs = new TabPane();
         List<String> tabLabels = tabLabels();
-        Tab seriesTab = new Tab(tabLabels.get(0), seriesDelegate);
+        Tab seriesTab = new Tab(tabLabels.get(0), buildTabContent(seriesDelegate));
         seriesTab.setClosable(false);
-        Tab vodTab = new Tab(tabLabels.get(1), vodDelegate);
+        Tab vodTab = new Tab(tabLabels.get(1), buildTabContent(vodDelegate));
         vodTab.setClosable(false);
         tabs.getTabs().setAll(seriesTab, vodTab);
         tabs.getSelectionModel().select(0);
         return tabs;
+    }
+
+    private VBox buildTabContent(BaseWatchingNowUI delegate) {
+        Button refreshButton = new Button(refreshButtonLabel());
+        refreshButton.setOnAction(event -> delegate.forceReload());
+        VBox content = new VBox(8, refreshButton, delegate);
+        VBox.setVgrow(delegate, Priority.ALWAYS);
+        return content;
+    }
+
+    private VBox buildTabContent(VodWatchingNowUI delegate) {
+        Button refreshButton = new Button(refreshButtonLabel());
+        refreshButton.setOnAction(event -> delegate.forceReload());
+        VBox content = new VBox(8, refreshButton, delegate);
+        VBox.setVgrow(delegate, Priority.ALWAYS);
+        return content;
     }
 
     static List<String> tabLabels() {

@@ -73,3 +73,4 @@
 0193_create_published_m3u_selection_detail_tables.sql
 0194_add_configuration_published_m3u_category_mode.sql
 0195_add_configuration_filter_lock_hash.sql
+0196_create_series_watching_now_snapshot_table.sql

@@ -164,6 +164,7 @@ public class ConfigurationUI extends VBox {
 
     static void clearWatchingNowStates() {
         SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
+        SeriesWatchingNowSnapshotService.getInstance().clearAll();
         VodWatchStateService.getInstance().clearAll();
     }
 
