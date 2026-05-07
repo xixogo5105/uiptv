@@ -42,6 +42,7 @@ public class DatabaseUtils {
     private static final String COLUMN_INPUTSTREAM_ADDON = "inputstreamaddon";
     private static final String COLUMN_MANIFEST_TYPE = "manifestType";
     private static final String COLUMN_NUMBER = "number";
+    private static final String COLUMN_SERIES_ID = "seriesId";
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
     private static final String COLUMN_UPDATED_AT = "updatedAt";
@@ -264,7 +265,7 @@ public class DatabaseUtils {
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
-                new DataColumn("seriesId", "TEXT"),
+                new DataColumn(COLUMN_SERIES_ID, "TEXT"),
                 new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
                 new DataColumn("name", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
@@ -283,7 +284,7 @@ public class DatabaseUtils {
                 new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn("mode", "TEXT"),
                 new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
-                new DataColumn("seriesId", "TEXT"),
+                new DataColumn(COLUMN_SERIES_ID, "TEXT"),
                 new DataColumn("episodeId", "TEXT"),
                 new DataColumn("episodeName", "TEXT"),
                 new DataColumn("season", "TEXT"),
@@ -298,7 +299,7 @@ public class DatabaseUtils {
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
-                new DataColumn("seriesId", "TEXT"),
+                new DataColumn(COLUMN_SERIES_ID, "TEXT"),
                 new DataColumn("categoryDbId", "TEXT"),
                 new DataColumn("seriesTitle", "TEXT"),
                 new DataColumn("seriesPoster", "TEXT"),

@@ -65,13 +65,12 @@ public class HttpWatchingNowSeriesEpisodesJsonServer implements HttpHandler {
 
     private SeriesMetadata resolveMetadata(Account account, String categoryId, String seriesId) {
         for (WatchingNowSeriesResolver.SeriesRow row : resolver.resolveForAccount(account)) {
-            if (!safe(seriesId).equals(safe(row.getState().getSeriesId()))) {
-                continue;
+            boolean matchingSeries = safe(seriesId).equals(safe(row.getState().getSeriesId()));
+            boolean matchingCategory = StringUtils.isBlank(categoryId)
+                    || safe(categoryId).equals(safe(row.getState().getCategoryId()));
+            if (matchingSeries && matchingCategory) {
+                return new SeriesMetadata(row.getCategoryDbId(), row.getSeriesTitle(), row.getSeriesPoster());
             }
-            if (!StringUtils.isBlank(categoryId) && !safe(categoryId).equals(safe(row.getState().getCategoryId()))) {
-                continue;
-            }
-            return new SeriesMetadata(row.getCategoryDbId(), row.getSeriesTitle(), row.getSeriesPoster());
         }
         return new SeriesMetadata("", "", "");
     }

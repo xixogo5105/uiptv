@@ -1324,38 +1324,14 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void registerListeners() {
-        // Register series watch state listener
-        if (!watchStateListenerRegistered) {
-            SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
-            watchStateListenerRegistered = true;
-        }
-
-        // Register account change listener
-        if (!accountListenerRegistered) {
-            AccountService.getInstance().addChangeListener(accountChangeListener);
-            accountListenerRegistered = true;
-        }
+        ensureListenersRegistered();
 
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
-                if (watchStateListenerRegistered) {
-                    SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
-                    watchStateListenerRegistered = false;
-                }
-                if (accountListenerRegistered) {
-                    AccountService.getInstance().removeChangeListener(accountChangeListener);
-                    accountListenerRegistered = false;
-                }
+                unregisterListeners();
                 releaseUiState();
             } else {
-                if (!watchStateListenerRegistered) {
-                    SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
-                    watchStateListenerRegistered = true;
-                }
-                if (!accountListenerRegistered) {
-                    AccountService.getInstance().addChangeListener(accountChangeListener);
-                    accountListenerRegistered = true;
-                }
+                ensureListenersRegistered();
                 refreshIfNeeded();
             }
         });
@@ -1364,6 +1340,28 @@ public abstract class BaseWatchingNowUI extends VBox {
                 refreshIfNeeded();
             }
         });
+    }
+
+    private void ensureListenersRegistered() {
+        if (!watchStateListenerRegistered) {
+            SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+            watchStateListenerRegistered = true;
+        }
+        if (!accountListenerRegistered) {
+            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountListenerRegistered = true;
+        }
+    }
+
+    private void unregisterListeners() {
+        if (watchStateListenerRegistered) {
+            SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
+            watchStateListenerRegistered = false;
+        }
+        if (accountListenerRegistered) {
+            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountListenerRegistered = false;
+        }
     }
 
     private void onDataChanged(String accountId, String seriesId) {

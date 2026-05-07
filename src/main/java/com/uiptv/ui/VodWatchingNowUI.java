@@ -483,37 +483,13 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private void registerListeners() {
-        // Register VOD watch state listener
-        if (!listenerRegistered) {
-            VodWatchStateService.getInstance().addChangeListener(changeListener);
-            listenerRegistered = true;
-        }
-
-        // Register account change listener
-        if (!accountListenerRegistered) {
-            AccountService.getInstance().addChangeListener(accountChangeListener);
-            accountListenerRegistered = true;
-        }
+        ensureListenersRegistered();
 
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
-                if (listenerRegistered) {
-                    VodWatchStateService.getInstance().removeChangeListener(changeListener);
-                    listenerRegistered = false;
-                }
-                if (accountListenerRegistered) {
-                    AccountService.getInstance().removeChangeListener(accountChangeListener);
-                    accountListenerRegistered = false;
-                }
+                unregisterListeners();
             } else {
-                if (!listenerRegistered) {
-                    VodWatchStateService.getInstance().addChangeListener(changeListener);
-                    listenerRegistered = true;
-                }
-                if (!accountListenerRegistered) {
-                    AccountService.getInstance().addChangeListener(accountChangeListener);
-                    accountListenerRegistered = true;
-                }
+                ensureListenersRegistered();
                 refreshIfNeeded();
             }
         });
@@ -522,6 +498,28 @@ public class VodWatchingNowUI extends VBox {
                 refreshIfNeeded();
             }
         });
+    }
+
+    private void ensureListenersRegistered() {
+        if (!listenerRegistered) {
+            VodWatchStateService.getInstance().addChangeListener(changeListener);
+            listenerRegistered = true;
+        }
+        if (!accountListenerRegistered) {
+            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountListenerRegistered = true;
+        }
+    }
+
+    private void unregisterListeners() {
+        if (listenerRegistered) {
+            VodWatchStateService.getInstance().removeChangeListener(changeListener);
+            listenerRegistered = false;
+        }
+        if (accountListenerRegistered) {
+            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountListenerRegistered = false;
+        }
     }
 
     private void onDataChanged(String accountId, String vodId) {

@@ -30,32 +30,10 @@ public class SeriesWatchingNowSnapshotService {
         if (isBlank(accountId) || isBlank(seriesId)) {
             return null;
         }
-        String canonicalSeriesId = canonicalizeSeriesId(seriesId);
-        SeriesWatchingNowSnapshot exact = SeriesWatchingNowSnapshotDb.get().getBySeries(accountId, normalize(categoryId), canonicalSeriesId);
-        if (exact != null) {
-            return exact;
-        }
-        for (String candidateId : buildSeriesIdCandidates(seriesId)) {
-            if (candidateId.equals(canonicalSeriesId)) {
-                continue;
-            }
-            SeriesWatchingNowSnapshot candidateMatch = SeriesWatchingNowSnapshotDb.get().getBySeries(accountId, normalize(categoryId), candidateId);
-            if (candidateMatch != null) {
-                return candidateMatch;
-            }
-        }
-        SeriesWatchingNowSnapshot latest = null;
-        for (String candidateId : buildSeriesIdCandidates(seriesId)) {
-            for (SeriesWatchingNowSnapshot candidate : SeriesWatchingNowSnapshotDb.get().getBySeries(accountId, candidateId)) {
-                if (candidate == null) {
-                    continue;
-                }
-                if (latest == null || candidate.getUpdatedAt() > latest.getUpdatedAt()) {
-                    latest = candidate;
-                }
-            }
-        }
-        return latest;
+        String normalizedCategory = normalize(categoryId);
+        List<String> candidateIds = buildSeriesIdCandidates(seriesId);
+        SeriesWatchingNowSnapshot exact = findExactSnapshot(accountId, normalizedCategory, candidateIds);
+        return exact != null ? exact : findLatestSnapshot(accountId, candidateIds);
     }
 
     public EpisodeList loadEpisodeList(String accountId, String categoryId, String seriesId) {
@@ -71,15 +49,10 @@ public class SeriesWatchingNowSnapshotService {
         }
         EpisodeList list = new EpisodeList();
         for (int i = 0; i < payload.length(); i++) {
-            Object value = payload.opt(i);
-            if (value == null) {
-                continue;
+            Channel channel = readChannel(payload, i);
+            if (channel != null) {
+                list.getEpisodes().add(toEpisode(channel));
             }
-            Channel channel = Channel.fromJson(String.valueOf(value));
-            if (channel == null) {
-                continue;
-            }
-            list.getEpisodes().add(toEpisode(channel));
         }
         return list;
     }
@@ -97,11 +70,7 @@ public class SeriesWatchingNowSnapshotService {
         }
         List<Channel> channels = new ArrayList<>();
         for (int i = 0; i < payload.length(); i++) {
-            Object value = payload.opt(i);
-            if (value == null) {
-                continue;
-            }
-            Channel channel = Channel.fromJson(String.valueOf(value));
+            Channel channel = readChannel(payload, i);
             if (channel != null) {
                 channels.add(channel);
             }
@@ -205,30 +174,7 @@ public class SeriesWatchingNowSnapshotService {
     private Episode toEpisode(Channel channel) {
         Episode parsed = Episode.fromJson(channel.getExtraJson());
         if (parsed != null && !isBlank(parsed.getId())) {
-            if (isBlank(parsed.getSeason())) {
-                parsed.setSeason(channel.getSeason());
-            }
-            if (isBlank(parsed.getEpisodeNum())) {
-                parsed.setEpisodeNum(channel.getEpisodeNum());
-            }
-            if (parsed.getInfo() == null) {
-                parsed.setInfo(new com.uiptv.shared.EpisodeInfo());
-            }
-            if (isBlank(parsed.getInfo().getMovieImage())) {
-                parsed.getInfo().setMovieImage(channel.getLogo());
-            }
-            if (isBlank(parsed.getInfo().getPlot())) {
-                parsed.getInfo().setPlot(channel.getDescription());
-            }
-            if (isBlank(parsed.getInfo().getReleaseDate())) {
-                parsed.getInfo().setReleaseDate(channel.getReleaseDate());
-            }
-            if (isBlank(parsed.getInfo().getRating())) {
-                parsed.getInfo().setRating(channel.getRating());
-            }
-            if (isBlank(parsed.getInfo().getDuration())) {
-                parsed.getInfo().setDuration(channel.getDuration());
-            }
+            hydrateParsedEpisode(parsed, channel);
             return parsed;
         }
         Episode episode = new Episode();
@@ -249,6 +195,70 @@ public class SeriesWatchingNowSnapshotService {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private SeriesWatchingNowSnapshot findExactSnapshot(String accountId, String normalizedCategory, List<String> candidateIds) {
+        for (String candidateId : candidateIds) {
+            SeriesWatchingNowSnapshot match = SeriesWatchingNowSnapshotDb.get().getBySeries(accountId, normalizedCategory, candidateId);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    private SeriesWatchingNowSnapshot findLatestSnapshot(String accountId, List<String> candidateIds) {
+        SeriesWatchingNowSnapshot latest = null;
+        for (String candidateId : candidateIds) {
+            latest = newerSnapshot(latest, SeriesWatchingNowSnapshotDb.get().getBySeries(accountId, candidateId));
+        }
+        return latest;
+    }
+
+    private SeriesWatchingNowSnapshot newerSnapshot(SeriesWatchingNowSnapshot current, List<SeriesWatchingNowSnapshot> candidates) {
+        SeriesWatchingNowSnapshot latest = current;
+        for (SeriesWatchingNowSnapshot candidate : candidates) {
+            if (candidate != null && (latest == null || candidate.getUpdatedAt() > latest.getUpdatedAt())) {
+                latest = candidate;
+            }
+        }
+        return latest;
+    }
+
+    private Channel readChannel(JSONArray payload, int index) {
+        Object value = payload.opt(index);
+        return value == null ? null : Channel.fromJson(String.valueOf(value));
+    }
+
+    private void hydrateParsedEpisode(Episode parsed, Channel channel) {
+        if (isBlank(parsed.getSeason())) {
+            parsed.setSeason(channel.getSeason());
+        }
+        if (isBlank(parsed.getEpisodeNum())) {
+            parsed.setEpisodeNum(channel.getEpisodeNum());
+        }
+        if (parsed.getInfo() == null) {
+            parsed.setInfo(new com.uiptv.shared.EpisodeInfo());
+        }
+        mergeEpisodeInfo(parsed.getInfo(), channel);
+    }
+
+    private void mergeEpisodeInfo(com.uiptv.shared.EpisodeInfo info, Channel channel) {
+        if (isBlank(info.getMovieImage())) {
+            info.setMovieImage(channel.getLogo());
+        }
+        if (isBlank(info.getPlot())) {
+            info.setPlot(channel.getDescription());
+        }
+        if (isBlank(info.getReleaseDate())) {
+            info.setReleaseDate(channel.getReleaseDate());
+        }
+        if (isBlank(info.getRating())) {
+            info.setRating(channel.getRating());
+        }
+        if (isBlank(info.getDuration())) {
+            info.setDuration(channel.getDuration());
+        }
     }
 
     private String canonicalizeSeriesId(String seriesId) {

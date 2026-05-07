@@ -119,6 +119,7 @@ class HttpWatchingNowSeriesEpisodesJsonServerTest extends DbBackedTest {
 
         @Override
         public void close() {
+            // No-op for test stub.
         }
 
         @Override
@@ -163,10 +164,12 @@ class HttpWatchingNowSeriesEpisodesJsonServerTest extends DbBackedTest {
 
         @Override
         public void setAttribute(String name, Object value) {
+            // No-op for test stub.
         }
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // No-op for test stub.
         }
 
         @Override
