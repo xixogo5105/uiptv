@@ -70,8 +70,10 @@ public abstract class BaseWatchingNowUI extends VBox {
     private String selectedSeriesKey = "";
     private String renderedDetailKey = "";
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
+    private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
     private HBox selectedSeriesCard;
     private boolean watchStateListenerRegistered = false;
+    private boolean accountListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
         setPadding(new Insets(5));
@@ -85,8 +87,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (thumbnailsEnabled()) {
             ImageCacheManager.clearCache(WATCHING_NOW_CACHE);
         }
+        // Initialize with empty state instead of loading on startup
+        contentBox.getChildren().setAll(new Label("")); // Empty container
         registerListeners();
-        refreshIfNeeded();
+        // Mark as dirty to load data when visible
+        dirty = true;
     }
 
     protected abstract boolean thumbnailsEnabled();
@@ -1296,21 +1301,37 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void registerListeners() {
+        // Register series watch state listener
         if (!watchStateListenerRegistered) {
             SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
             watchStateListenerRegistered = true;
         }
+
+        // Register account change listener
+        if (!accountListenerRegistered) {
+            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountListenerRegistered = true;
+        }
+
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 if (watchStateListenerRegistered) {
                     SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
                     watchStateListenerRegistered = false;
                 }
+                if (accountListenerRegistered) {
+                    AccountService.getInstance().removeChangeListener(accountChangeListener);
+                    accountListenerRegistered = false;
+                }
                 releaseUiState();
             } else {
                 if (!watchStateListenerRegistered) {
                     SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
                     watchStateListenerRegistered = true;
+                }
+                if (!accountListenerRegistered) {
+                    AccountService.getInstance().addChangeListener(accountChangeListener);
+                    accountListenerRegistered = true;
                 }
                 refreshIfNeeded();
             }
@@ -1323,12 +1344,19 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void onDataChanged(String accountId, String seriesId) {
-        if (isBlank(accountId) || isBlank(seriesId)) {
+        // If panelDataByKey is empty (UI not yet rendered), do a full refresh instead of delta
+        if (panelDataByKey.isEmpty() || isBlank(accountId) || isBlank(seriesId)) {
             dirty = true;
             Platform.runLater(this::refreshIfNeeded);
             return;
         }
         refreshSeriesEntryAsync(accountId, seriesId);
+    }
+
+    private void onAccountsChanged() {
+        // When accounts change (e.g., deleted), force full refresh
+        dirty = true;
+        Platform.runLater(this::refreshIfNeeded);
     }
 
     private void refreshSeriesEntryAsync(String accountId, String seriesId) {
