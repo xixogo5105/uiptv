@@ -992,16 +992,10 @@ public class ConfigurationUI extends VBox {
         resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
         cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
         tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
-        String durationStr = configuration.getFilterLockUnlockDurationMinutes();
-        Integer duration = null;
-        if (durationStr != null && !durationStr.isEmpty()) {
-            try {
-                duration = Integer.parseInt(durationStr);
-            } catch (NumberFormatException _) {
-                duration = null;
-            }
-        }
-        filterLockUnlockDurationComboBox.setValue(duration != null ? duration : 15);
+        Integer duration = configuration.getFilterLockUnlockDurationMinutes() != null && !configuration.getFilterLockUnlockDurationMinutes().isEmpty()
+            ? Integer.parseInt(configuration.getFilterLockUnlockDurationMinutes())
+            : 15;
+        filterLockUnlockDurationComboBox.setValue(duration);
         vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
         vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
         vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
