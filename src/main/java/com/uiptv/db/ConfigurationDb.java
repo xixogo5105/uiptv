@@ -86,6 +86,7 @@ public class ConfigurationDb extends BaseDb {
 
     @Override
     Configuration populate(ResultSet resultSet) {
+        String duration = nullSafeString(resultSet, "filterLockUnlockDurationMinutes");
         Configuration c = new Configuration(
                 nullSafeString(resultSet, "playerPath1"),
                 nullSafeString(resultSet, "playerPath2"),
@@ -114,6 +115,7 @@ public class ConfigurationDb extends BaseDb {
         c.setEnableVlcHttpUserAgent(missingOrTrue(resultSet, "enableVlcHttpUserAgent"));
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
         c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
+        c.setFilterLockUnlockDurationMinutes(duration);
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -132,7 +134,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(27, current.getDbId());
+                statement.setString(28, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -176,7 +178,8 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(24, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
         statement.setString(25, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
         statement.setString(26, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
-    }
+        statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
+     }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {
         try {

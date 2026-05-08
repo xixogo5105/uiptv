@@ -6983,3 +6983,7 @@ dependency-reduced-pom.xml
 /web/node_modules/.package-lock.json
 /web/scripts/build-web-assets.mjs
 /web/package-lock.json
+/.claude/
+/.continue/
+/.junie/
+/CLAUDE.md

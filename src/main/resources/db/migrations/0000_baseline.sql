@@ -65,7 +65,11 @@ CREATE TABLE IF NOT EXISTS Configuration
     resolveChainAndDeepRedirects
     TEXT
     default
-    '0'
+       '0',
+    filterLockUnlockDurationMinutes
+    TEXT
+    default
+       '15'
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride

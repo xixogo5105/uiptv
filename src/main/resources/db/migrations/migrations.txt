@@ -74,3 +74,4 @@
 0194_add_configuration_published_m3u_category_mode.sql
 0195_add_configuration_filter_lock_hash.sql
 0196_create_series_watching_now_snapshot_table.sql
+0197_add_configuration_filter_lock_unlock_duration_minutes.sql

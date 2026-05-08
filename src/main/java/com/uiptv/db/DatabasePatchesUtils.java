@@ -65,7 +65,7 @@ public class DatabasePatchesUtils {
             conn.rollback();
             upsertMigrationRecord(conn, migrationName, checksum, "failed", safeError(ex));
             conn.commit();
-        } finally {
+         } finally {
             conn.setAutoCommit(originalAutoCommit);
         }
     }

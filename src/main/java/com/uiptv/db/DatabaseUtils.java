@@ -77,7 +77,8 @@ public class DatabaseUtils {
                 new DataColumn("publishedM3uCategoryMode", "TEXT"),
                 new DataColumn("enableVlcHttpUserAgent", "TEXT"),
                 new DataColumn("enableVlcHttpForwardCookies", "TEXT"),
-                new DataColumn("resolveChainAndDeepRedirects", "TEXT")
+                new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
+                new DataColumn("filterLockUnlockDurationMinutes", "TEXT")
         )));
         dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

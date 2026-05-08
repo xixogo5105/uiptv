@@ -21,6 +21,7 @@ public class Configuration extends BaseJson {
     private String languageLocale;
     private String tmdbReadAccessToken;
     private String filterLockHash;
+    private String filterLockUnlockDurationMinutes = "15";
     private String uiZoomPercent;
     private String vlcNetworkCachingMs;
     private String vlcLiveCachingMs;

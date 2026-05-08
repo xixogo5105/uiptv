@@ -93,5 +93,31 @@ class FilterLockServiceTest extends DbBackedTest {
         assertTrue(saved.getFilterLockHash() == null || saved.getFilterLockHash().isBlank());
         assertTrue(FilterLockService.getInstance().isUnlocked());
         assertFalse(FilterLockService.getInstance().hasPasswordConfigured());
+      }
+
+      @Test
+    void filterLockUnlockDurationDefaultsTo15Minutes() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        assertEquals("15", configuration.getFilterLockUnlockDurationMinutes());
+      }
+
+      @Test
+    void filterLockUnlockDurationCanBeSetToCustomValue() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setFilterLockUnlockDurationMinutes("30");
+        ConfigurationService.getInstance().save(configuration);
+
+        Configuration saved = ConfigurationService.getInstance().read();
+        assertEquals("30", saved.getFilterLockUnlockDurationMinutes());
+      }
+
+      @Test
+    void filterLockUnlockDurationPersistsWithCorrectValues() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setFilterLockUnlockDurationMinutes("60");
+        ConfigurationService.getInstance().save(configuration);
+
+        Configuration saved = ConfigurationService.getInstance().read();
+        assertEquals("60", saved.getFilterLockUnlockDurationMinutes());
+      }
     }
-}
