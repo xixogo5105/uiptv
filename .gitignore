@@ -6987,3 +6987,4 @@ dependency-reduced-pom.xml
 /.continue/
 /.junie/
 /CLAUDE.md
+/.mvn/

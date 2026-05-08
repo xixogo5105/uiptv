@@ -55,8 +55,6 @@ class ConfigurationUISaveFilterLockTest extends DbBackedTest {
 
      @Test
      void wasFilterAlreadyUnlocked_returnsTrueWhenNoPasswordConfigured() {
-        Configuration configuration = configurationService.read();
-
         assertTrue(filterLockService.isUnlocked());
         assertFalse(filterLockService.hasPasswordConfigured());
       }

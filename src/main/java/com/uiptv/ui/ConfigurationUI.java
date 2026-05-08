@@ -997,7 +997,7 @@ public class ConfigurationUI extends VBox {
         if (durationStr != null && !durationStr.isEmpty()) {
             try {
                 duration = Integer.parseInt(durationStr);
-            } catch (NumberFormatException e) {
+            } catch (NumberFormatException _) {
                 duration = null;
             }
         }
