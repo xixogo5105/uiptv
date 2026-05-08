@@ -564,7 +564,7 @@ public class ConfigurationUI extends VBox {
                 currentThemeCssOverride.setLightThemeCssContent(cssContents);
             }
             updateThemeCssStatusLabels();
-        } catch (Exception _) {
+        } catch (Exception e) {
             showErrorAlert(I18n.tr("configUnableToReadCss"));
         }
     }
@@ -598,7 +598,7 @@ public class ConfigurationUI extends VBox {
             }
             Files.writeString(target.toPath(), cssContent, StandardCharsets.UTF_8);
             showMessageAlert(I18n.tr("configCssExportSuccess"));
-        } catch (Exception _) {
+        } catch (Exception e) {
             showErrorAlert(I18n.tr("configCssExportFailed"));
         }
     }
@@ -641,7 +641,7 @@ public class ConfigurationUI extends VBox {
                 try {
                     cacheService.clearAllCache();
                     showMessageAlert(I18n.tr("configCacheCleared"));
-                } catch (Exception _) {
+                } catch (Exception e) {
                     showMessageAlert(I18n.tr("configCacheClearFailed"));
                 }
             }
@@ -654,7 +654,7 @@ public class ConfigurationUI extends VBox {
                 try {
                     clearWatchingNowStates();
                     showMessageAlert(I18n.tr("configWatchNowCleared"));
-                } catch (Exception _) {
+                } catch (Exception e) {
                     showMessageAlert(I18n.tr("configWatchNowClearFailed"));
                 }
             }
@@ -1829,7 +1829,7 @@ public class ConfigurationUI extends VBox {
         try {
             int port = Integer.parseInt(value);
             return port > 0 && port <= 65_535 ? port : -1;
-        } catch (NumberFormatException _) {
+        } catch (NumberFormatException ex) {
             return -1;
         }
     }
