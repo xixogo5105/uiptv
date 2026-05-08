@@ -564,7 +564,7 @@ public class ConfigurationUI extends VBox {
                 currentThemeCssOverride.setLightThemeCssContent(cssContents);
             }
             updateThemeCssStatusLabels();
-        } catch (Exception ex) {
+        } catch (Exception _) {
             showErrorAlert(I18n.tr("configUnableToReadCss"));
         }
     }
@@ -599,7 +599,7 @@ public class ConfigurationUI extends VBox {
             }
             Files.writeString(target.toPath(), cssContent, StandardCharsets.UTF_8);
             showMessageAlert(I18n.tr("configCssExportSuccess"));
-        } catch (Exception ex) {
+        } catch (Exception _) {
             showErrorAlert(I18n.tr("configCssExportFailed"));
         }
     }
@@ -642,7 +642,7 @@ public class ConfigurationUI extends VBox {
                 try {
                     cacheService.clearAllCache();
                     showMessageAlert(I18n.tr("configCacheCleared"));
-                } catch (Exception ex) {
+                } catch (Exception _) {
                     showMessageAlert(I18n.tr("configCacheClearFailed"));
                 }
             }
@@ -655,7 +655,7 @@ public class ConfigurationUI extends VBox {
                 try {
                     clearWatchingNowStates();
                     showMessageAlert(I18n.tr("configWatchNowCleared"));
-                } catch (Exception ex) {
+                } catch (Exception _) {
                     showMessageAlert(I18n.tr("configWatchNowClearFailed"));
                 }
             }
@@ -1032,7 +1032,7 @@ public class ConfigurationUI extends VBox {
                 if (restartRequired(previous, newConfiguration)) {
                     showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
                 }
-            } catch (Exception ex) {
+            } catch (Exception _) {
                 showErrorAlert(I18n.tr("configFailedToSave"));
                 saveButton.setDisable(false);
             }
@@ -1830,7 +1830,7 @@ public class ConfigurationUI extends VBox {
         try {
             int port = Integer.parseInt(value);
             return port > 0 && port <= 65_535 ? port : -1;
-        } catch (NumberFormatException ex) {
+        } catch (NumberFormatException _) {
             return -1;
         }
     }
