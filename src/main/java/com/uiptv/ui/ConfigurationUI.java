@@ -1031,7 +1031,7 @@ public class ConfigurationUI extends VBox {
                 if (restartRequired(previous, newConfiguration)) {
                     showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
                 }
-            } catch (Exception _) {
+            } catch (Exception e) {
                 showErrorAlert(I18n.tr("configFailedToSave"));
                 saveButton.setDisable(false);
             }
