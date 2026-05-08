@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
+@SuppressWarnings("java:S7467")
 public class ConfigurationUI extends VBox {
     private static final String EMBEDDED_PLAYER_PATH = PlaybackUIService.EMBEDDED_PLAYER_PATH;
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
