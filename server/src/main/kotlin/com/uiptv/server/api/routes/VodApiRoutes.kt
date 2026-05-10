@@ -6,6 +6,15 @@ import com.uiptv.db.VodChannelDb
 import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.SeriesWatchState
+import com.uiptv.server.api.dto.ChannelRouteDto
+import com.uiptv.server.api.dto.ErrorResponse
+import com.uiptv.server.api.dto.StatusResponse
+import com.uiptv.server.api.dto.VodDetailsResponseDto
+import com.uiptv.server.api.dto.VodInfoDto
+import com.uiptv.server.api.dto.WatchingNowSeriesRowDto
+import com.uiptv.server.api.dto.WatchingNowSeriesActionRequest
+import com.uiptv.server.api.dto.WatchingNowVodRowDto
+import com.uiptv.server.api.dto.WatchingNowVodActionRequest
 import com.uiptv.service.AccountService
 import com.uiptv.service.HandshakeService
 import com.uiptv.service.ImdbMetadataService
@@ -17,17 +26,18 @@ import com.uiptv.service.WatchingNowSeriesResolver
 import com.uiptv.service.WatchingNowVodResolver
 import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeList
-import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
-import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveText
-import io.ktor.server.response.respondText
+import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
-import org.json.JSONArray
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import org.json.JSONObject
 
 fun Route.registerVodApiRoutes(
@@ -42,19 +52,20 @@ fun Route.registerVodApiRoutes(
     vodResolver: WatchingNowVodResolver
 ) {
     get("/vodDetails") {
-        val response = buildVodDetailsResponse(
-            accountService.getById(call.request.queryParameters["accountId"]),
-            call.request.queryParameters["categoryId"],
-            call.request.queryParameters["channelId"],
-            call.request.queryParameters["vodName"],
-            handshakeService,
-            imdbMetadataService
+        call.respond(
+            buildVodDetailsResponse(
+                accountService.getById(call.request.queryParameters["accountId"]),
+                call.request.queryParameters["categoryId"],
+                call.request.queryParameters["channelId"],
+                call.request.queryParameters["vodName"],
+                handshakeService,
+                imdbMetadataService
+            )
         )
-        call.respondText(response, ContentType.Application.Json)
     }
 
     get("/watchingNow") {
-        call.respondText(buildWatchingNowSeriesResponse(seriesResolver), ContentType.Application.Json)
+        call.respond(buildWatchingNowSeriesResponse(seriesResolver))
     }
 
     get("/watchingNowSeriesEpisodes") {
@@ -67,40 +78,36 @@ fun Route.registerVodApiRoutes(
             seriesEpisodeService,
             seriesWatchingNowSnapshotService
         )
-        call.respondText(response, ContentType.Application.Json)
+        call.respond(response.map(::toChannelRouteDto))
     }
 
     post("/watchingNowSeriesAction") {
-        val body = routeJsonBody(call.receiveText())
         val result = upsertWatchingNowSeries(
-            body,
+            call.receivePayload<WatchingNowSeriesActionRequest>(),
             accountService,
             seriesWatchStateService,
             seriesWatchingNowSnapshotService
         )
-        call.respondText(result.body, ContentType.Application.Json, result.status)
+        call.respond(result.status, result.payload)
     }
 
     delete("/watchingNowSeriesAction") {
-        val body = routeJsonBody(call.receiveText())
-        val result = deleteWatchingNowSeries(body, seriesWatchStateService)
-        call.respondText(result.body, ContentType.Application.Json, result.status)
+        val result = deleteWatchingNowSeries(call.receivePayload<WatchingNowSeriesActionRequest>(), seriesWatchStateService)
+        call.respond(result.status, result.payload)
     }
 
     get("/watchingNowVod") {
-        call.respondText(buildWatchingNowVodResponse(vodResolver), ContentType.Application.Json)
+        call.respond(buildWatchingNowVodResponse(vodResolver))
     }
 
     post("/watchingNowVodAction") {
-        val body = routeJsonBody(call.receiveText())
-        val result = upsertWatchingNowVod(body, accountService, vodWatchStateService)
-        call.respondText(result.body, ContentType.Application.Json, result.status)
+        val result = upsertWatchingNowVod(call.receivePayload<WatchingNowVodActionRequest>(), accountService, vodWatchStateService)
+        call.respond(result.status, result.payload)
     }
 
     delete("/watchingNowVodAction") {
-        val body = routeJsonBody(call.receiveText())
-        val result = deleteWatchingNowVod(body, vodWatchStateService)
-        call.respondText(result.body, ContentType.Application.Json, result.status)
+        val result = deleteWatchingNowVod(call.receivePayload<WatchingNowVodActionRequest>(), vodWatchStateService)
+        call.respond(result.status, result.payload)
     }
 }
 
@@ -112,7 +119,7 @@ private fun buildVodDetailsResponse(
     vodName: String?,
     handshakeService: HandshakeService,
     imdbMetadataService: ImdbMetadataService
-): String {
+): VodDetailsResponseDto {
     val vodInfo = JSONObject()
     vodInfo.put("name", if (StringUtils.isBlank(vodName)) "VOD" else vodName)
     vodInfo.put("cover", "")
@@ -164,36 +171,48 @@ private fun buildVodDetailsResponse(
     mergeMissing(vodInfo, "tmdb", imdb.optString("tmdb", ""))
     mergeMissing(vodInfo, "imdbUrl", imdb.optString("imdbUrl", ""))
 
-    return JSONObject().put("vodInfo", vodInfo).toString()
+    return VodDetailsResponseDto(
+        vodInfo = VodInfoDto(
+            name = vodInfo.optString("name", ""),
+            cover = vodInfo.optString("cover", ""),
+            plot = vodInfo.optString("plot", ""),
+            cast = vodInfo.optString("cast", ""),
+            director = vodInfo.optString("director", ""),
+            genre = vodInfo.optString("genre", ""),
+            releaseDate = vodInfo.optString("releaseDate", ""),
+            rating = vodInfo.optString("rating", ""),
+            tmdb = vodInfo.optString("tmdb", ""),
+            imdbUrl = vodInfo.optString("imdbUrl", ""),
+            duration = vodInfo.optString("duration", "")
+        )
+    )
 }
 
-private fun buildWatchingNowSeriesResponse(resolver: WatchingNowSeriesResolver): String {
-    val payload = JSONArray()
+private fun buildWatchingNowSeriesResponse(resolver: WatchingNowSeriesResolver): List<WatchingNowSeriesRowDto> =
     resolver.resolveAll()
         .map { row ->
-            JSONObject()
-                .put("key", "${safeRoute(row.account.dbId)}|${safeRoute(row.state.seriesId)}")
-                .put("accountId", safeRoute(row.account.dbId))
-                .put("accountName", safeRoute(row.account.accountName))
-                .put("accountType", safeRoute(row.account.type.name))
-                .put("categoryId", safeRoute(row.state.categoryId))
-                .put("categoryDbId", safeRoute(row.categoryDbId))
-                .put("seriesId", safeRoute(row.state.seriesId))
-                .put("episodeId", safeRoute(row.state.episodeId))
-                .put("episodeName", safeRoute(row.state.episodeName))
-                .put("season", safeRoute(row.state.season))
-                .put("episodeNum", row.state.episodeNum)
-                .put("seriesTitle", safeRoute(row.seriesTitle))
-                .put("seriesPoster", safeRoute(row.seriesPoster))
-                .put("updatedAt", row.state.updatedAt)
+            WatchingNowSeriesRowDto(
+                key = "${safeRoute(row.account.dbId)}|${safeRoute(row.state.seriesId)}",
+                accountId = safeRoute(row.account.dbId),
+                accountName = safeRoute(row.account.accountName),
+                accountType = safeRoute(row.account.type.name),
+                categoryId = safeRoute(row.state.categoryId),
+                categoryDbId = safeRoute(row.categoryDbId),
+                seriesId = safeRoute(row.state.seriesId),
+                episodeId = safeRoute(row.state.episodeId),
+                episodeName = safeRoute(row.state.episodeName),
+                season = safeRoute(row.state.season),
+                episodeNum = row.state.episodeNum.toString(),
+                seriesTitle = safeRoute(row.seriesTitle),
+                seriesPoster = safeRoute(row.seriesPoster),
+                updatedAt = row.state.updatedAt
+            )
         }
         .sortedWith(
-            compareByDescending<JSONObject> { it.optLong("updatedAt", 0L) }
-                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.optString("seriesTitle", "") }
+            compareByDescending<WatchingNowSeriesRowDto> { it.updatedAt }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.seriesTitle }
         )
-        .forEach(payload::put)
-    return payload.toString()
-}
+        
 
 private fun buildWatchingNowSeriesEpisodesResponse(
     account: Account?,
@@ -203,9 +222,9 @@ private fun buildWatchingNowSeriesEpisodesResponse(
     seriesWatchStateService: SeriesWatchStateService,
     seriesEpisodeService: SeriesEpisodeService,
     snapshotService: SeriesWatchingNowSnapshotService
-): String {
+): List<Channel> {
     if (account == null || StringUtils.isBlank(seriesId)) {
-        return "[]"
+        return emptyList()
     }
 
     var cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId.orEmpty(), seriesId.orEmpty())
@@ -230,30 +249,36 @@ private fun buildWatchingNowSeriesEpisodesResponse(
         metadata.seriesPoster,
         episodesAsChannels
     )
-    return ServerUtils.objectToJson(episodesAsChannels)
+    return episodesAsChannels
 }
 
 private fun upsertWatchingNowSeries(
-    body: JSONObject,
+    body: WatchingNowSeriesActionRequest,
     accountService: AccountService,
     seriesWatchStateService: SeriesWatchStateService,
     snapshotService: SeriesWatchingNowSnapshotService
 ): RouteMutationResult {
-    val accountId = routeOpt(body, "accountId")
-    val categoryId = routeOpt(body, "categoryId")
-    val seriesId = routeOpt(body, "seriesId")
-    val episodeId = routeOpt(body, "episodeId")
-    val episodeName = routeOpt(body, "episodeName")
-    val season = routeOpt(body, "season")
-    val episodeNum = routeOpt(body, "episodeNum")
-    val categoryDbId = routeOpt(body, "categoryDbId")
-    val seriesTitle = routeOpt(body, "seriesTitle")
-    val seriesPoster = routeOpt(body, "seriesPoster")
+    val accountId = body.accountId.orEmpty()
+    val categoryId = body.categoryId.orEmpty()
+    val seriesId = body.seriesId.orEmpty()
+    val episodeId = body.episodeId.orEmpty()
+    val episodeName = body.episodeName.orEmpty()
+    val season = body.season.orEmpty()
+    val episodeNum = body.episodeNum.orEmpty()
+    val categoryDbId = body.categoryDbId.orEmpty()
+    val seriesTitle = body.seriesTitle.orEmpty()
+    val seriesPoster = body.seriesPoster.orEmpty()
     if (accountId.isBlank() || seriesId.isBlank() || episodeId.isBlank()) {
-        return RouteMutationResult(HttpStatusCode.BadRequest, """{"status":"error","message":"accountId, seriesId, episodeId are required"}""")
+        return RouteMutationResult(
+            HttpStatusCode.BadRequest,
+            StatusResponse(status = "error", message = "accountId, seriesId, episodeId are required")
+        )
     }
     val account = accountService.getById(accountId)
-        ?: return RouteMutationResult(HttpStatusCode.NotFound, """{"status":"error","message":"account not found"}""")
+        ?: return RouteMutationResult(
+            HttpStatusCode.NotFound,
+            ErrorResponse("not_found", "account not found")
+        )
 
     seriesWatchStateService.markSeriesEpisodeManual(account, categoryId, seriesId, episodeId, episodeName, season, episodeNum)
     snapshotService.saveChannels(
@@ -263,69 +288,75 @@ private fun upsertWatchingNowSeries(
         categoryDbId,
         seriesTitle,
         seriesPoster,
-        routeChannels(body.optJSONArray("episodes"))
+        routeChannels(body.episodes)
     )
-    return RouteMutationResult(HttpStatusCode.OK, """{"status":"ok"}""")
+    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
 }
 
 private fun deleteWatchingNowSeries(
-    body: JSONObject,
+    body: WatchingNowSeriesActionRequest,
     seriesWatchStateService: SeriesWatchStateService
 ): RouteMutationResult {
-    val accountId = routeOpt(body, "accountId")
-    val categoryId = routeOpt(body, "categoryId")
-    val seriesId = routeOpt(body, "seriesId")
+    val accountId = body.accountId.orEmpty()
+    val categoryId = body.categoryId.orEmpty()
+    val seriesId = body.seriesId.orEmpty()
     if (accountId.isBlank() || seriesId.isBlank()) {
-        return RouteMutationResult(HttpStatusCode.BadRequest, """{"status":"error","message":"accountId and seriesId are required"}""")
+        return RouteMutationResult(
+            HttpStatusCode.BadRequest,
+            StatusResponse(status = "error", message = "accountId and seriesId are required")
+        )
     }
     seriesWatchStateService.clearSeriesLastWatched(accountId, categoryId, seriesId)
-    return RouteMutationResult(HttpStatusCode.OK, """{"status":"ok"}""")
+    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
 }
 
-private fun buildWatchingNowVodResponse(vodResolver: WatchingNowVodResolver): String {
-    val payload = JSONArray()
+private fun buildWatchingNowVodResponse(vodResolver: WatchingNowVodResolver): List<WatchingNowVodRowDto> =
     vodResolver.resolveAll()
         .map { row ->
-            val item = JSONObject()
-                .put("accountId", safeRoute(row.account.dbId))
-                .put("accountName", safeRoute(row.account.accountName))
-                .put("accountType", safeRoute(row.account.type.name))
-                .put("categoryId", safeRoute(row.state.categoryId))
-                .put("vodId", safeRoute(row.state.vodId))
-                .put("vodName", safeRoute(row.displayTitle))
-                .put("vodLogo", safeRoute(row.metadata.logo))
-                .put("plot", safeRoute(row.metadata.plot))
-                .put("releaseDate", safeRoute(row.metadata.releaseDate))
-                .put("rating", safeRoute(row.metadata.rating))
-                .put("duration", safeRoute(row.metadata.duration))
-                .put("updatedAt", row.state.updatedAt)
-            row.playbackChannel?.let { item.put("playItem", JSONObject(it.toJson())) }
-            item
+            WatchingNowVodRowDto(
+                accountId = safeRoute(row.account.dbId),
+                accountName = safeRoute(row.account.accountName),
+                accountType = safeRoute(row.account.type.name),
+                categoryId = safeRoute(row.state.categoryId),
+                vodId = safeRoute(row.state.vodId),
+                vodName = safeRoute(row.displayTitle),
+                vodLogo = safeRoute(row.metadata.logo),
+                plot = safeRoute(row.metadata.plot),
+                releaseDate = safeRoute(row.metadata.releaseDate),
+                rating = safeRoute(row.metadata.rating),
+                duration = safeRoute(row.metadata.duration),
+                updatedAt = row.state.updatedAt,
+                playItem = row.playbackChannel?.let(::toChannelRouteDto)
+            )
         }
         .sortedWith(
-            compareByDescending<JSONObject> { it.optLong("updatedAt", 0L) }
-                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.optString("vodName", "") }
+            compareByDescending<WatchingNowVodRowDto> { it.updatedAt }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.vodName }
         )
-        .forEach(payload::put)
-    return payload.toString()
-}
+        
 
 private fun upsertWatchingNowVod(
-    body: JSONObject,
+    body: WatchingNowVodActionRequest,
     accountService: AccountService,
     vodWatchStateService: VodWatchStateService
 ): RouteMutationResult {
-    val accountId = routeOpt(body, "accountId")
-    val categoryId = routeOpt(body, "categoryId")
-    val vodId = routeOpt(body, "vodId")
-    val vodName = routeOpt(body, "vodName")
-    val vodCmd = routeOpt(body, "vodCmd")
-    val vodLogo = routeOpt(body, "vodLogo")
+    val accountId = body.accountId.orEmpty()
+    val categoryId = body.categoryId.orEmpty()
+    val vodId = body.vodId.orEmpty()
+    val vodName = body.vodName.orEmpty()
+    val vodCmd = body.vodCmd.orEmpty()
+    val vodLogo = body.vodLogo.orEmpty()
     if (accountId.isBlank() || vodId.isBlank()) {
-        return RouteMutationResult(HttpStatusCode.BadRequest, """{"status":"error","message":"accountId and vodId are required"}""")
+        return RouteMutationResult(
+            HttpStatusCode.BadRequest,
+            StatusResponse(status = "error", message = "accountId and vodId are required")
+        )
     }
     val account = accountService.getById(accountId)
-        ?: return RouteMutationResult(HttpStatusCode.NotFound, """{"status":"error","message":"account not found"}""")
+        ?: return RouteMutationResult(
+            HttpStatusCode.NotFound,
+            ErrorResponse("not_found", "account not found")
+        )
     val channel = Channel().apply {
         channelId = vodId
         this.categoryId = categoryId
@@ -334,40 +365,33 @@ private fun upsertWatchingNowVod(
         logo = vodLogo
     }
     vodWatchStateService.save(account, categoryId, channel)
-    return RouteMutationResult(HttpStatusCode.OK, """{"status":"ok"}""")
+    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
 }
 
 private fun deleteWatchingNowVod(
-    body: JSONObject,
+    body: WatchingNowVodActionRequest,
     vodWatchStateService: VodWatchStateService
 ): RouteMutationResult {
-    val accountId = routeOpt(body, "accountId")
-    val categoryId = routeOpt(body, "categoryId")
-    val vodId = routeOpt(body, "vodId")
+    val accountId = body.accountId.orEmpty()
+    val categoryId = body.categoryId.orEmpty()
+    val vodId = body.vodId.orEmpty()
     if (accountId.isBlank() || vodId.isBlank()) {
-        return RouteMutationResult(HttpStatusCode.BadRequest, """{"status":"error","message":"accountId and vodId are required"}""")
+        return RouteMutationResult(
+            HttpStatusCode.BadRequest,
+            StatusResponse(status = "error", message = "accountId and vodId are required")
+        )
     }
     vodWatchStateService.remove(accountId, categoryId, vodId)
-    return RouteMutationResult(HttpStatusCode.OK, """{"status":"ok"}""")
+    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
 }
 
-private fun routeJsonBody(text: String): JSONObject =
-    try {
-        if (text.isBlank()) JSONObject() else JSONObject(text)
-    } catch (_: Exception) {
-        JSONObject()
-    }
-
-private fun routeOpt(body: JSONObject?, key: String): String =
-    if (body == null || !body.has(key) || body.isNull(key)) "" else body.opt(key).toString().trim()
-
-private fun routeChannels(payload: JSONArray?): List<Channel> {
-    if (payload == null || payload.isEmpty) {
+private fun routeChannels(payload: JsonArray?): List<Channel> {
+    if (payload == null || payload.isEmpty()) {
         return emptyList()
     }
     val channels = ArrayList<Channel>()
-    for (index in 0 until payload.length()) {
-        val raw = payload.opt(index)?.toString() ?: continue
+    payload.forEach { element ->
+        val raw = element.toString()
         Channel.fromJson(raw)?.let(channels::add)
     }
     return channels
@@ -468,9 +492,39 @@ private fun mergeMissing(target: JSONObject, key: String, incoming: String?) {
 
 private fun safeRoute(value: String?): String = value?.trim().orEmpty()
 
+private fun toChannelRouteDto(channel: Channel): ChannelRouteDto =
+    ChannelRouteDto(
+        dbId = channel.dbId,
+        channelId = channel.channelId,
+        categoryId = channel.categoryId,
+        name = channel.name,
+        number = channel.number,
+        cmd = channel.cmd,
+        cmd_1 = channel.cmd_1,
+        cmd_2 = channel.cmd_2,
+        cmd_3 = channel.cmd_3,
+        logo = channel.logo,
+        description = channel.description,
+        season = channel.season,
+        episodeNum = channel.episodeNum,
+        releaseDate = channel.releaseDate,
+        rating = channel.rating,
+        duration = channel.duration,
+        extraJson = channel.extraJson,
+        censored = channel.censored,
+        status = channel.status,
+        hd = channel.hd,
+        watched = channel.watched,
+        drmType = channel.drmType,
+        drmLicenseUrl = channel.drmLicenseUrl,
+        clearKeysJson = channel.clearKeysJson,
+        inputstreamaddon = channel.inputstreamaddon,
+        manifestType = channel.manifestType
+    )
+
 private data class RouteMutationResult(
     val status: HttpStatusCode,
-    val body: String
+    val payload: Any
 )
 
 private data class WatchingNowSeriesMetadata(
@@ -478,3 +532,16 @@ private data class WatchingNowSeriesMetadata(
     val seriesTitle: String,
     val seriesPoster: String
 )
+
+private suspend inline fun <reified T> ApplicationCall.receivePayload(): T {
+    val text = receiveText()
+    if (text.isBlank()) {
+        throw IllegalArgumentException("Request body is required")
+    }
+    return vodRouteJson.decodeFromString(text)
+}
+
+private val vodRouteJson = Json {
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}

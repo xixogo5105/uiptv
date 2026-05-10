@@ -40,10 +40,22 @@ import java.util.function.Supplier
 
 class ChannelService private constructor() {
     private val cacheService: CacheService = CacheServiceImpl()
-    private val contentFilterServiceProvider: () -> ContentFilterService = { ContentFilterService.getInstance() }
-    private val logoResolverServiceProvider: () -> LogoResolverService = { LogoResolverService.getInstance() }
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() }
+    private var contentFilterService: ContentFilterService = ContentFilterService.getInstance()
+    private var logoResolverService: LogoResolverService = LogoResolverService.getInstance()
+    private var configurationService: ConfigurationService = ConfigurationService.getInstance()
+    private var handshakeService: HandshakeService = HandshakeService.getInstance()
+
+    fun configureDependencies(
+        contentFilterService: ContentFilterService = ContentFilterService.getInstance(),
+        logoResolverService: LogoResolverService = LogoResolverService.getInstance(),
+        configurationService: ConfigurationService = ConfigurationService.getInstance(),
+        handshakeService: HandshakeService = HandshakeService.getInstance()
+    ): ChannelService = apply {
+        this.contentFilterService = contentFilterService
+        this.logoResolverService = logoResolverService
+        this.configurationService = configurationService
+        this.handshakeService = handshakeService
+    }
 
     @Throws(IOException::class)
     fun get(categoryId: String, account: Account, dbId: String): List<Channel> =
@@ -265,7 +277,7 @@ class ChannelService private constructor() {
     }
 
     private fun isVodSeriesChannelsFresh(account: Account, dbCategoryId: String): Boolean {
-        val cacheTtlMs = configurationServiceProvider().getCacheExpiryMs()
+        val cacheTtlMs = configurationService.getCacheExpiryMs()
         return when (account.action) {
             Account.AccountAction.vod -> VodChannelDb.get().isFresh(account, dbCategoryId, cacheTtlMs)
             Account.AccountAction.series -> SeriesChannelDb.get().isFresh(account, dbCategoryId, cacheTtlMs)
@@ -655,7 +667,7 @@ class ChannelService private constructor() {
     ): PageFetchResult {
         if (!isEmptyChannelPage(firstPage) || request.account.type != AccountType.STALKER_PORTAL) return firstPage
         log(logger, "No channels returned. Refreshing Stalker session and retrying page $startPage once...")
-        handshakeServiceProvider().hardTokenRefresh(request.account)
+        handshakeService.hardTokenRefresh(request.account)
         throttle?.awaitPermit()
         return try {
             val page = fetchStalkerPage(request.category, request.account, request.movieId, request.seriesId, request.censor, startPage, logger)
@@ -722,7 +734,7 @@ class ChannelService private constructor() {
         if (account == null || account.type != AccountType.STALKER_PORTAL) return
         if (account.isConnected() && isNotBlank(account.serverPortalUrl)) return
         log(logger, "Ensuring Stalker session...")
-        handshakeServiceProvider().connect(account)
+        handshakeService.connect(account)
     }
 
     private fun log(logger: LoggerCallback?, message: String) {
@@ -933,10 +945,10 @@ class ChannelService private constructor() {
         return PortalAddress(scheme, host, port)
     }
 
-    fun censor(channelList: List<Channel>): List<Channel> = contentFilterServiceProvider().filterChannels(channelList) ?: channelList
+    fun censor(channelList: List<Channel>): List<Channel> = contentFilterService.filterChannels(channelList) ?: channelList
 
     private fun maybeFilterChannels(channels: List<Channel>, applyFilter: Boolean): List<Channel> =
-        if (applyFilter) contentFilterServiceProvider().filterChannels(channels) ?: channels else channels
+        if (applyFilter) contentFilterService.filterChannels(channels) ?: channels else channels
 
     private fun dedupeChannels(channels: List<Channel>?): List<Channel> {
         if (channels.isNullOrEmpty()) return channels ?: emptyList()
@@ -957,7 +969,7 @@ class ChannelService private constructor() {
         val currentLogo = channel.logo
         val hasAbsoluteLogo = isNotBlank(currentLogo) && (currentLogo!!.startsWith("http://") || currentLogo.startsWith("https://"))
         if (hasAbsoluteLogo) return
-        val resolved = logoResolverServiceProvider().resolve(channel.name, currentLogo)
+        val resolved = logoResolverService.resolve(channel.name, currentLogo)
         if (isNotBlank(resolved)) channel.logo = resolved
     }
 

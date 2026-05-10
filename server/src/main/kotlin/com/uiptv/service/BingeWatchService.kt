@@ -19,9 +19,21 @@ object BingeWatchService {
     private const val EPISODE_ID_QUERY = "&episodeId="
 
     private val sessions = ConcurrentHashMap<String, Session>()
+    private var accountServiceOverride: AccountService? = null
+    private var seriesWatchStateServiceOverride: SeriesWatchStateService? = null
+    private var playerServiceOverride: PlayerService? = null
 
     @JvmStatic
     fun getInstance(): BingeWatchService = this
+    fun configureDependencies(
+        accountService: AccountService,
+        seriesWatchStateService: SeriesWatchStateService,
+        playerService: PlayerService
+    ): BingeWatchService = apply {
+        this.accountServiceOverride = accountService
+        this.seriesWatchStateServiceOverride = seriesWatchStateService
+        this.playerServiceOverride = playerService
+    }
     fun createSession(
         account: Account?,
         seriesId: String?,
@@ -120,12 +132,12 @@ object BingeWatchService {
         }
         val episode = session.findEpisode(episodeId.orEmpty()) ?: return null
 
-        val account = AccountService.getInstance().getById(session.accountId) ?: return null
+        val account = accountService().getById(session.accountId) ?: return null
         account.action = Account.AccountAction.series
 
         val channel = Channel.fromJson(episode.channelJson) ?: return null
 
-        SeriesWatchStateService.getInstance().markSeriesEpisodeManualIfNewer(
+        seriesWatchStateService().markSeriesEpisodeManualIfNewer(
             account,
             session.seriesCategoryId,
             session.seriesId,
@@ -135,7 +147,7 @@ object BingeWatchService {
             episode.episodeNumber
         )
 
-        val response: PlayerResponse = PlayerService.getInstance().get(
+        val response: PlayerResponse = playerService().get(
             account,
             channel,
             episode.episodeId,
@@ -240,6 +252,13 @@ object BingeWatchService {
         if (isBlank(first)) safe(fallback) else first.orEmpty().trim()
 
     private fun safe(value: String?): String = value?.trim().orEmpty()
+
+    private fun accountService(): AccountService = accountServiceOverride ?: AccountService.getInstance()
+
+    private fun seriesWatchStateService(): SeriesWatchStateService =
+        seriesWatchStateServiceOverride ?: SeriesWatchStateService.getInstance()
+
+    private fun playerService(): PlayerService = playerServiceOverride ?: PlayerService.getInstance()
 
     private data class Session(
         val accountId: String,

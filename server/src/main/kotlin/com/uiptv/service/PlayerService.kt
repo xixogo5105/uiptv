@@ -18,15 +18,19 @@ import java.util.concurrent.CopyOnWriteArraySet
 object PlayerService {
     private val log = LoggerFactory.getLogger(PlayerService::class.java)
     private val playbackResolvedListeners = CopyOnWriteArraySet<PlaybackResolvedListener>()
-    private val seriesWatchStateServiceProvider: () -> SeriesWatchStateService = { SeriesWatchStateService.getInstance() }
+    private var seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService
     private val xtremePlayerService = XtremePlayerService()
     private val stalkerPortalPlayerService = StalkerPortalPlayerService()
     private val predefinedPlayerService = PredefinedPlayerService()
 
     init {
         addPlaybackResolvedListener { account, channel, seriesId, parentSeriesId, categoryId ->
-            seriesWatchStateServiceProvider().onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId)
+            seriesWatchStateService.onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId)
         }
+    }
+
+    fun configureDependencies(seriesWatchStateService: SeriesWatchStateService): PlayerService = apply {
+        this.seriesWatchStateService = seriesWatchStateService
     }
 
     @JvmStatic

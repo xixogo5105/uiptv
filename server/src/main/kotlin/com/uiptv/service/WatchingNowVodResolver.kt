@@ -9,15 +9,18 @@ import org.json.JSONObject
 import java.util.function.Consumer
 import java.util.function.Supplier
 
-class WatchingNowVodResolver {
+class WatchingNowVodResolver(
+    private val accountService: AccountService = AccountService,
+    private val vodWatchStateService: VodWatchStateService = VodWatchStateService
+) {
     fun resolveAll(): List<VodRow> =
-        AccountService.getInstance().getAll().values.flatMap { resolveForAccount(it) }
+        accountService.getAll().values.flatMap { resolveForAccount(it) }
 
     fun resolveForAccount(account: Account?): List<VodRow> {
         if (account == null || isBlank(account.dbId)) {
             return emptyList()
         }
-        return VodWatchStateService.getInstance().getAllByAccount(account.dbId.orEmpty())
+        return vodWatchStateService.getAllByAccount(account.dbId.orEmpty())
             .mapNotNull { buildRow(account, it) }
     }
 

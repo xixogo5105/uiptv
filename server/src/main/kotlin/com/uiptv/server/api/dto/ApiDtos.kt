@@ -6,6 +6,8 @@ import com.uiptv.service.remotesync.RemoteSyncOptions
 import com.uiptv.service.remotesync.RemoteSyncRequest
 import com.uiptv.service.remotesync.RemoteSyncSessionState
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class ErrorResponse(
@@ -145,4 +147,165 @@ data class RemoteSyncCompleteRequest(
     val sessionId: String = "",
     val success: Boolean = false,
     val message: String = ""
+)
+
+@Serializable
+data class WatchingNowSeriesActionRequest(
+    val accountId: String? = null,
+    val categoryId: String? = null,
+    val seriesId: String? = null,
+    val episodeId: String? = null,
+    val episodeName: String? = null,
+    val season: String? = null,
+    val episodeNum: String? = null,
+    val categoryDbId: String? = null,
+    val seriesTitle: String? = null,
+    val seriesPoster: String? = null,
+    val episodes: JsonArray? = null
+)
+
+@Serializable
+data class WatchingNowVodActionRequest(
+    val accountId: String? = null,
+    val categoryId: String? = null,
+    val vodId: String? = null,
+    val vodName: String? = null,
+    val vodCmd: String? = null,
+    val vodLogo: String? = null
+)
+
+@Serializable
+data class PlayerPlaybackResponseDto(
+    val url: String = "",
+    val strategyHint: String? = null,
+    val channel: PlayerPlaybackChannelDto? = null,
+    val title: String? = null,
+    val drm: PlayerPlaybackDrmDto? = null,
+    val ffmpegMode: String? = null,
+    val bingeWatch: PlayerPlaybackBingeWatchDto? = null
+)
+
+@Serializable
+data class PlayerPlaybackChannelDto(
+    val channelId: String = "",
+    val name: String = "",
+    val logo: String = "",
+    val season: String = "",
+    val episodeNum: String = ""
+)
+
+@Serializable
+data class PlayerPlaybackDrmDto(
+    val type: String? = null,
+    val licenseUrl: String? = null,
+    val clearKeys: JsonObject? = null,
+    val inputstreamaddon: String? = null,
+    val manifestType: String? = null
+)
+
+@Serializable
+data class PlayerPlaybackBingeWatchDto(
+    val token: String,
+    val currentEpisodeId: String = "",
+    val items: List<PlayerPlaybackBingeWatchItemDto>
+)
+
+@Serializable
+data class PlayerPlaybackBingeWatchItemDto(
+    val episodeId: String = "",
+    val episodeName: String = "",
+    val season: String = "",
+    val episodeNumber: String = ""
+)
+
+@Serializable
+data class ChannelRouteDto(
+    val dbId: String? = null,
+    val channelId: String? = null,
+    val categoryId: String? = null,
+    val name: String? = null,
+    val number: String? = null,
+    val cmd: String? = null,
+    val cmd_1: String? = null,
+    val cmd_2: String? = null,
+    val cmd_3: String? = null,
+    val logo: String? = null,
+    val description: String? = null,
+    val season: String? = null,
+    val episodeNum: String? = null,
+    val releaseDate: String? = null,
+    val rating: String? = null,
+    val duration: String? = null,
+    val extraJson: String? = null,
+    val censored: Int = 0,
+    val status: Int = 0,
+    val hd: Int = 0,
+    val watched: Boolean = false,
+    val drmType: String? = null,
+    val drmLicenseUrl: String? = null,
+    val clearKeysJson: String? = null,
+    val inputstreamaddon: String? = null,
+    val manifestType: String? = null
+)
+
+@Serializable
+data class VodInfoDto(
+    val name: String = "",
+    val cover: String = "",
+    val plot: String = "",
+    val cast: String = "",
+    val director: String = "",
+    val genre: String = "",
+    val releaseDate: String = "",
+    val rating: String = "",
+    val tmdb: String = "",
+    val imdbUrl: String = "",
+    val duration: String = ""
+)
+
+@Serializable
+data class VodDetailsResponseDto(
+    val vodInfo: VodInfoDto
+)
+
+@Serializable
+data class WatchingNowSeriesRowDto(
+    val key: String = "",
+    val accountId: String = "",
+    val accountName: String = "",
+    val accountType: String = "",
+    val categoryId: String = "",
+    val categoryDbId: String = "",
+    val seriesId: String = "",
+    val episodeId: String = "",
+    val episodeName: String = "",
+    val season: String = "",
+    val episodeNum: String = "",
+    val seriesTitle: String = "",
+    val seriesPoster: String = "",
+    val updatedAt: Long = 0L
+)
+
+@Serializable
+data class WatchingNowVodRowDto(
+    val accountId: String = "",
+    val accountName: String = "",
+    val accountType: String = "",
+    val categoryId: String = "",
+    val vodId: String = "",
+    val vodName: String = "",
+    val vodLogo: String = "",
+    val plot: String = "",
+    val releaseDate: String = "",
+    val rating: String = "",
+    val duration: String = "",
+    val updatedAt: Long = 0L,
+    val playItem: ChannelRouteDto? = null
+)
+
+@Serializable
+data class SeriesDetailsResponseDto(
+    val seasonInfo: JsonObject,
+    val episodes: List<ChannelRouteDto>,
+    val episodesMeta: List<JsonObject> = emptyList()
 )

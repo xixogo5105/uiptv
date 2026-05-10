@@ -11,9 +11,13 @@ import com.uiptv.util.StringUtils.isBlank
 import org.json.JSONArray
 import org.json.JSONObject
 
-class WatchingNowSeriesResolver {
+class WatchingNowSeriesResolver(
+    private val accountService: AccountService = AccountService,
+    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
+    private val seriesWatchingNowSnapshotService: SeriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService
+) {
     fun resolveAll(): List<SeriesRow> =
-        AccountService.getInstance().getAll().values.flatMap { resolveForAccount(it) }
+        accountService.getAll().values.flatMap { resolveForAccount(it) }
 
     fun resolveForAccount(account: Account?): List<SeriesRow> {
         if (account == null || isBlank(account.dbId)) {
@@ -25,7 +29,7 @@ class WatchingNowSeriesResolver {
 
     private fun dedupeSeriesStates(accountId: String): Map<String, SeriesWatchState> {
         val deduped = LinkedHashMap<String, SeriesWatchState>()
-        SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountId).forEach { state ->
+        seriesWatchStateService.getAllSeriesLastWatchedByAccount(accountId).forEach { state ->
             if (isBlank(state.seriesId)) {
                 return@forEach
             }
@@ -42,8 +46,8 @@ class WatchingNowSeriesResolver {
         val scope = resolveSnapshotScope(state)
         val scopedState = copyStateWithScope(state, scope.categoryId, scope.parentChannelId)
         var cacheInfo = resolveSeriesInfoFromCache(account, scopedState)
-        val snapshot: SeriesWatchingNowSnapshot? = SeriesWatchingNowSnapshotService.getInstance()
-            .getSnapshot(account.dbId, scopedState.categoryId, scopedState.seriesId)
+        val snapshot: SeriesWatchingNowSnapshot? =
+            seriesWatchingNowSnapshotService.getSnapshot(account.dbId, scopedState.categoryId, scopedState.seriesId)
 
         if (!isBlank(scope.seriesTitle)) {
             cacheInfo = SeriesCacheInfo(scope.seriesTitle, firstNonBlank(scope.seriesPoster, cacheInfo.seriesPoster), true)

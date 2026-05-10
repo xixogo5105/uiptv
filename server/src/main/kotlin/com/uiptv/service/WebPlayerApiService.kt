@@ -3,22 +3,33 @@ package com.uiptv.service
 import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.PlayerResponse
+import com.uiptv.server.api.dto.PlayerPlaybackBingeWatchDto
+import com.uiptv.server.api.dto.PlayerPlaybackBingeWatchItemDto
+import com.uiptv.server.api.dto.PlayerPlaybackChannelDto
+import com.uiptv.server.api.dto.PlayerPlaybackDrmDto
+import com.uiptv.server.api.dto.PlayerPlaybackResponseDto
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 
 @Suppress("java:S1075")
 class WebPlayerApiService(
-    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() },
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() },
-    private val ffmpegServiceProvider: () -> FfmpegService = { FfmpegService.getInstance() },
-    private val bingeWatchServiceProvider: () -> BingeWatchService = { BingeWatchService.getInstance() },
-    private val playerRequestResolverProvider: () -> PlayerRequestResolver = { PlayerRequestResolver() }
+    private val accountService: AccountService = AccountService,
+    private val configurationService: ConfigurationService = ConfigurationService,
+    private val ffmpegService: FfmpegService = FfmpegService,
+    private val bingeWatchService: BingeWatchService = BingeWatchService,
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver()
 ) {
+    private val json = Json {
+        explicitNulls = false
+    }
+
     companion object {
         const val SEASON = "season"
         const val EPISODE_NUM = "episodeNum"
@@ -56,10 +67,14 @@ class WebPlayerApiService(
     }
 
     fun buildJsonPlaybackResponse(requestPath: String?, params: Map<String, String?>): String {
+        return json.encodeToString(buildPlaybackResponse(requestPath, params))
+    }
+
+    fun buildPlaybackResponse(requestPath: String?, params: Map<String, String?>): PlayerPlaybackResponseDto {
         val mode = resolveRequestedMode(requestPath, params["mode"])
         val resolved = resolvePlayback(params, mode)
         applyWebPlaybackProcessing(resolved.response, mode, params["hvec"], isEnabledFlag(params[QUERY_PARAM_PREFER_HLS]))
-        return buildJsonResponse(resolved)
+        return buildPlaybackDto(resolved)
     }
 
     private fun resolvePlayback(params: Map<String, String?>, mode: String): ResolvedWebPlayback {
@@ -79,7 +94,7 @@ class WebPlayerApiService(
         }
         if (isNotBlank(bookmarkId)) {
             return ResolvedWebPlayback(
-                playerRequestResolverProvider().resolveBookmarkPlayback(bookmarkId!!, mode, seriesParentId),
+                playerRequestResolver.resolveBookmarkPlayback(bookmarkId!!, mode, seriesParentId),
                 "",
                 "",
                 emptyList()
@@ -113,7 +128,7 @@ class WebPlayerApiService(
 
     private fun resolveDirectUrlPlayback(accountId: String?, directUrl: String, requestChannel: Channel): ResolvedWebPlayback {
         val response = PlayerResponse(directUrl)
-        val account = if (isBlank(accountId)) null else accountServiceProvider().getById(accountId)
+        val account = if (isBlank(accountId)) null else accountService.getById(accountId)
         if (hasChannelMetadata(requestChannel)) {
             response.setFromChannel(requestChannel, account)
         }
@@ -121,17 +136,17 @@ class WebPlayerApiService(
     }
 
     private fun resolveBingeWatchPlayback(requestChannel: Channel, accountId: String?, token: String, episodeId: String?): ResolvedWebPlayback {
-        val items = bingeWatchServiceProvider().getPlaylistItems(token)
+        val items = bingeWatchService.getPlaylistItems(token)
         if (items.isEmpty()) {
             return ResolvedWebPlayback(PlayerResponse(""), token, "", emptyList())
         }
         val currentEpisodeId = if (isNotBlank(episodeId)) episodeId!! else items[0].episodeId
-        val resolvedEpisode = bingeWatchServiceProvider().resolveEpisode(token, currentEpisodeId)
+        val resolvedEpisode = bingeWatchService.resolveEpisode(token, currentEpisodeId)
         if (resolvedEpisode == null || isBlank(resolvedEpisode.url)) {
             return ResolvedWebPlayback(PlayerResponse(""), token, currentEpisodeId, items)
         }
         val response = PlayerResponse(resolvedEpisode.url)
-        val account = if (isBlank(accountId)) null else accountServiceProvider().getById(accountId)
+        val account = if (isBlank(accountId)) null else accountService.getById(accountId)
         val channel = requestChannel
         if (isBlank(channel.name)) {
             channel.name = resolvedEpisode.episodeName
@@ -153,8 +168,8 @@ class WebPlayerApiService(
         seriesId: String?,
         requestChannel: Channel
     ): PlayerResponse {
-        val account = accountServiceProvider().getById(accountId)
-        return playerRequestResolverProvider().resolveDirectPlayback(account, categoryId, channelId, mode, seriesParentId, seriesId, requestChannel)
+        val account = accountService.getById(accountId)
+        return playerRequestResolver.resolveDirectPlayback(account, categoryId, channelId, mode, seriesParentId, seriesId, requestChannel)
     }
 
     private fun buildRequestChannel(channelId: String?, params: Map<String, String?>): Channel =
@@ -175,59 +190,46 @@ class WebPlayerApiService(
             episodeNum = sanitizeParam(params[EPISODE_NUM])
         }
 
-    private fun buildJsonResponse(resolved: ResolvedWebPlayback): String {
+    private fun buildPlaybackDto(resolved: ResolvedWebPlayback): PlayerPlaybackResponseDto {
         val response = resolved.response
-        val json = JSONObject()
-        json.put("url", response?.url ?: "")
-        putIfNotBlank(json, JSON_KEY_STRATEGY_HINT, determineStrategyHint(response))
-        appendChannelJson(json, response)
-        appendDrmJson(json, response)
-        putIfNotBlank(json, "ffmpegMode", response?.ffmpegMode)
-        appendBingeWatchJson(json, resolved)
-        return json.toString()
-    }
-
-    private fun appendChannelJson(json: JSONObject, response: PlayerResponse?) {
-        val channel = response?.channel ?: return
-        if (!hasChannelMetadata(channel)) return
-        val channelJson = JSONObject()
-        channelJson.put("channelId", safe(channel.channelId))
-        channelJson.put("name", safe(channel.name))
-        channelJson.put("logo", safe(channel.logo))
-        channelJson.put(SEASON, safe(channel.season))
-        channelJson.put(EPISODE_NUM, safe(channel.episodeNum))
-        json.put("channel", channelJson)
-        if (isNotBlank(channel.name)) json.put("title", channel.name)
-    }
-
-    private fun appendDrmJson(json: JSONObject, response: PlayerResponse?) {
-        if (!hasDrmMetadata(response)) return
-        val drm = JSONObject()
-        putIfNotBlank(drm, "type", response!!.drmType)
-        putIfNotBlank(drm, "licenseUrl", response.drmLicenseUrl)
-        parseClearKeysJson(response.clearKeysJson)?.takeIf { !it.isEmpty }?.let { drm.put("clearKeys", it) }
-        putIfNotBlank(drm, INPUTSTREAMADDON, response.inputstreamaddon)
-        putIfNotBlank(drm, MANIFEST_TYPE, response.manifestType)
-        json.put("drm", drm)
-    }
-
-    private fun appendBingeWatchJson(json: JSONObject, resolved: ResolvedWebPlayback) {
-        if (isBlank(resolved.bingeWatchToken) || resolved.playlistItems.isEmpty()) return
-        val binge = JSONObject()
-        binge.put("token", resolved.bingeWatchToken)
-        binge.put("currentEpisodeId", safe(resolved.currentEpisodeId))
-        binge.put("items", JSONArray().apply {
-            resolved.playlistItems.forEach { item ->
-                put(
-                    JSONObject()
-                        .put("episodeId", safe(item.episodeId))
-                        .put("episodeName", safe(item.episodeName))
-                        .put(SEASON, safe(item.season))
-                        .put("episodeNumber", safe(item.episodeNumber))
+        return PlayerPlaybackResponseDto(
+            url = response?.url ?: "",
+            strategyHint = determineStrategyHint(response).takeIf(String::isNotBlank),
+            channel = response?.channel?.takeIf(::hasChannelMetadata)?.let { channel ->
+                PlayerPlaybackChannelDto(
+                    channelId = safe(channel.channelId),
+                    name = safe(channel.name),
+                    logo = safe(channel.logo),
+                    season = safe(channel.season),
+                    episodeNum = safe(channel.episodeNum)
+                )
+            },
+            title = response?.channel?.name?.takeIf(::isNotBlank),
+            drm = response?.takeIf(::hasDrmMetadata)?.let { drm ->
+                PlayerPlaybackDrmDto(
+                    type = drm.drmType?.takeIf(::isNotBlank),
+                    licenseUrl = drm.drmLicenseUrl?.takeIf(::isNotBlank),
+                    clearKeys = parseClearKeysJson(drm.clearKeysJson),
+                    inputstreamaddon = drm.inputstreamaddon?.takeIf(::isNotBlank),
+                    manifestType = drm.manifestType?.takeIf(::isNotBlank)
+                )
+            },
+            ffmpegMode = response?.ffmpegMode?.takeIf(::isNotBlank),
+            bingeWatch = resolved.takeIf { isNotBlank(it.bingeWatchToken) && it.playlistItems.isNotEmpty() }?.let { binge ->
+                PlayerPlaybackBingeWatchDto(
+                    token = binge.bingeWatchToken,
+                    currentEpisodeId = safe(binge.currentEpisodeId),
+                    items = binge.playlistItems.map { item ->
+                        PlayerPlaybackBingeWatchItemDto(
+                            episodeId = safe(item.episodeId),
+                            episodeName = safe(item.episodeName),
+                            season = safe(item.season),
+                            episodeNumber = safe(item.episodeNumber)
+                        )
+                    }
                 )
             }
-        })
-        json.put("bingeWatch", binge)
+        )
     }
 
     fun applyWebPlaybackProcessing(response: PlayerResponse?, mode: String, hvec: String?, preferHls: Boolean) {
@@ -249,14 +251,14 @@ class WebPlayerApiService(
             }
             return
         }
-        val allowTranscoding = configurationServiceProvider().read().enableFfmpegTranscoding
+        val allowTranscoding = configurationService.read().enableFfmpegTranscoding
         applyTransmuxedPlayback(response, mode, originalUrl, hvec, preferHls, allowTranscoding)
     }
 
     private fun shouldStartTransmuxing(response: PlayerResponse, mode: String, originalUrl: String, preferHls: Boolean): Boolean {
         val forceWebHls = preferHls || shouldForceWebHls(mode, response) || shouldForceWebHlsForUrl(mode, originalUrl)
         if (shouldPreferDirectLivePlayback(mode, originalUrl) && !forceWebHls) return false
-        return forceWebHls || ffmpegServiceProvider().isTransmuxingNeeded(response.url ?: "")
+        return forceWebHls || ffmpegService.isTransmuxingNeeded(response.url ?: "")
     }
 
     private fun applyTransmuxedPlayback(response: PlayerResponse, mode: String, originalUrl: String, hvec: String?, preferHls: Boolean, allowTranscoding: Boolean) {
@@ -302,21 +304,21 @@ class WebPlayerApiService(
 
     private fun stopTransmuxingIfActive() {
         try {
-            ffmpegServiceProvider().stopTransmuxing()
+            ffmpegService.stopTransmuxing()
         } catch (_: Exception) {
         }
     }
 
     private fun tryStartTransmuxingInput(inputUrl: String, forceWebHls: Boolean): Boolean =
         try {
-            ffmpegServiceProvider().startTransmuxing(inputUrl, forceWebHls)
+            ffmpegService.startTransmuxing(inputUrl, forceWebHls)
         } catch (_: Exception) {
             false
         }
 
     private fun tryStartTranscodingInput(inputUrl: String, forceWebHls: Boolean): Boolean =
         try {
-            ffmpegServiceProvider().startTranscoding(inputUrl, forceWebHls)
+            ffmpegService.startTranscoding(inputUrl, forceWebHls)
         } catch (_: Exception) {
             false
         }
@@ -434,16 +436,12 @@ class WebPlayerApiService(
     private fun hasDrmMetadata(response: PlayerResponse?): Boolean =
         response != null && (isNotBlank(response.drmType) || isNotBlank(response.inputstreamaddon) || isNotBlank(response.manifestType))
 
-    private fun parseClearKeysJson(clearKeysJson: String?): JSONObject? =
+    private fun parseClearKeysJson(clearKeysJson: String?): JsonObject? =
         if (isBlank(clearKeysJson)) null else try {
-            JSONObject(clearKeysJson)
+            json.parseToJsonElement(clearKeysJson.orEmpty()).jsonObject
         } catch (_: Exception) {
             null
         }
-
-    private fun putIfNotBlank(json: JSONObject, key: String, value: String?) {
-        if (isNotBlank(value)) json.put(key, value)
-    }
 
     private fun safe(value: String?): String {
         if (value == null) return ""

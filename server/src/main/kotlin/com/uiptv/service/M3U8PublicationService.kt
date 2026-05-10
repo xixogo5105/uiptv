@@ -31,12 +31,12 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.io.path.readText
 
 object M3U8PublicationService {
-    private val publishedSelectionDb = PublishedM3uSelectionDb.get()
-    private val publishedCategorySelectionDb = PublishedM3uCategorySelectionDb.get()
-    private val publishedChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
-    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
-    private val bookmarkServiceProvider: () -> BookmarkService = { BookmarkService.getInstance() }
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+    private var publishedSelectionDb: PublishedM3uSelectionDb = PublishedM3uSelectionDb.get()
+    private var publishedCategorySelectionDb: PublishedM3uCategorySelectionDb = PublishedM3uCategorySelectionDb.get()
+    private var publishedChannelSelectionDb: PublishedM3uChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
+    private var accountService: AccountService = AccountService.getInstance()
+    private var bookmarkService: BookmarkService = BookmarkService.getInstance()
+    private var configurationService: ConfigurationService = ConfigurationService.getInstance()
 
     private const val COMMENT_PREFIX = "#"
     private const val EXTM3U = "#EXTM3U"
@@ -49,6 +49,21 @@ object M3U8PublicationService {
 
     @JvmStatic
     fun getInstance(): M3U8PublicationService = this
+    fun configureDependencies(
+        accountService: AccountService,
+        bookmarkService: BookmarkService,
+        configurationService: ConfigurationService,
+        publishedSelectionDb: PublishedM3uSelectionDb = PublishedM3uSelectionDb.get(),
+        publishedCategorySelectionDb: PublishedM3uCategorySelectionDb = PublishedM3uCategorySelectionDb.get(),
+        publishedChannelSelectionDb: PublishedM3uChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
+    ): M3U8PublicationService = apply {
+        this.accountService = accountService
+        this.bookmarkService = bookmarkService
+        this.configurationService = configurationService
+        this.publishedSelectionDb = publishedSelectionDb
+        this.publishedCategorySelectionDb = publishedCategorySelectionDb
+        this.publishedChannelSelectionDb = publishedChannelSelectionDb
+    }
     fun getSelectedAccountIds(): Set<String> = getSelections().accountIds
     fun setSelectedAccountIds(accountIds: Set<String>?) {
         saveSelections(PublicationSelections(accountIds ?: emptySet(), emptyMap(), emptyMap()))
@@ -101,7 +116,7 @@ object M3U8PublicationService {
         if (isBookmarksPlaylistAccountId(accountId)) {
             return PlaylistAccount(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME, emptyList())
         }
-        val account = accountServiceProvider().getById(accountId) ?: return null
+        val account = accountService.getById(accountId) ?: return null
         if (!isPublishableAccount(account)) return null
         return try {
             toPlaylistAccount(account, parsePlaylistEntries(account))
@@ -115,7 +130,7 @@ object M3U8PublicationService {
     fun getPublishedM3u8(requestHost: String?): String {
         val selections = getSelections()
         if (selections.accountIds.isEmpty()) return ""
-        val categoryMode = configurationServiceProvider().getPublishedM3uCategoryMode()
+        val categoryMode = configurationService.getPublishedM3uCategoryMode()
 
         val result = StringBuilder()
         result.append(EXTM3U).append("\n")
@@ -128,12 +143,12 @@ object M3U8PublicationService {
     fun isBookmarksPlaylistAccountId(accountId: String?): Boolean = BOOKMARKS_PLAYLIST_ACCOUNT_ID == accountId
 
     private fun getPublishableAccounts(): List<Account> =
-        accountServiceProvider().getAll().values.filter { isPublishableAccount(it) }
+        accountService.getAll().values.filter { isPublishableAccount(it) }
 
     private fun getSelectedAccounts(accountIds: Set<String>): List<Account> =
         accountIds.asSequence()
             .filter { !isBookmarksPlaylistAccountId(it) }
-            .mapNotNull(accountServiceProvider()::getById)
+            .mapNotNull(accountService::getById)
             .filter { isPublishableAccount(it) }
             .toList()
 
@@ -198,7 +213,6 @@ object M3U8PublicationService {
 
     fun buildBookmarkPlaylist(host: String): String {
         val allTabName = com.uiptv.util.I18n.tr("commonAll")
-        val bookmarkService = bookmarkServiceProvider()
         val bookmarks = bookmarkService.read()
         val categoryNameById = bookmarkService.getAllCategories()
             .mapNotNull { category ->

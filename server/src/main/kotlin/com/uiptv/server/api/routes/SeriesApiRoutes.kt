@@ -19,10 +19,11 @@ import com.uiptv.util.AccountType
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
 import com.uiptv.util.XtremeApiParser
-import io.ktor.http.ContentType
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -34,27 +35,33 @@ fun Route.registerSeriesApiRoutes(
     imdbMetadataService: ImdbMetadataService
 ) {
     get("/seriesEpisodes") {
-        val response = buildSeriesEpisodesResponse(
-            accountService.getById(call.request.queryParameters["accountId"]),
-            call.request.queryParameters["seriesId"],
-            call.request.queryParameters["categoryId"],
-            configurationService,
-            seriesWatchStateService
+        call.respond(
+            seriesRouteJson.parseToJsonElement(
+                buildSeriesEpisodesResponse(
+                    accountService.getById(call.request.queryParameters["accountId"]),
+                    call.request.queryParameters["seriesId"],
+                    call.request.queryParameters["categoryId"],
+                    configurationService,
+                    seriesWatchStateService
+                )
+            )
         )
-        call.respondText(response, ContentType.Application.Json)
     }
 
     get("/seriesDetails") {
-        val response = buildSeriesDetailsResponse(
-            accountService.getById(call.request.queryParameters["accountId"]),
-            call.request.queryParameters["seriesId"],
-            call.request.queryParameters["categoryId"],
-            call.request.queryParameters["seriesName"],
-            configurationService,
-            handshakeService,
-            imdbMetadataService
+        call.respond(
+            seriesRouteJson.parseToJsonElement(
+                buildSeriesDetailsResponse(
+                    accountService.getById(call.request.queryParameters["accountId"]),
+                    call.request.queryParameters["seriesId"],
+                    call.request.queryParameters["categoryId"],
+                    call.request.queryParameters["seriesName"],
+                    configurationService,
+                    handshakeService,
+                    imdbMetadataService
+                )
+            )
         )
-        call.respondText(response, ContentType.Application.Json)
     }
 }
 
@@ -501,4 +508,9 @@ private fun resolveSeriesCategoryId(rawCategoryId: String?): String {
     val categoryId = rawCategoryId ?: return ""
     val category: Category? = SeriesCategoryDb.get().getById(categoryId)
     return if (category != null && StringUtils.isNotBlank(category.categoryId)) category.categoryId ?: categoryId else categoryId
+}
+
+private val seriesRouteJson = Json {
+    ignoreUnknownKeys = true
+    explicitNulls = false
 }

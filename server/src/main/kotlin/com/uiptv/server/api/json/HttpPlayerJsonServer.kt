@@ -2,6 +2,14 @@ package com.uiptv.server.api.json
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
+import com.uiptv.db.ChannelDb
+import com.uiptv.db.SeriesCategoryDb
+import com.uiptv.db.VodChannelDb
+import com.uiptv.service.AccountService
+import com.uiptv.service.BookmarkService
+import com.uiptv.service.BingeWatchService
+import com.uiptv.service.ConfigurationService
+import com.uiptv.service.FfmpegService
 import com.uiptv.service.PlayerRequestResolver
 import com.uiptv.service.WebPlayerApiService
 import com.uiptv.util.AppLog
@@ -11,9 +19,26 @@ import com.uiptv.util.ServerUtils.getParam
 import java.io.IOException
 
 class HttpPlayerJsonServer(
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
-    private val webPlayerApiService: WebPlayerApiService =
-        WebPlayerApiService(playerRequestResolverProvider = { playerRequestResolver })
+    private val playerRequestResolverProvider: () -> PlayerRequestResolver = {
+        PlayerRequestResolver(
+            bookmarkService = BookmarkService.getInstance(),
+            accountService = AccountService.getInstance(),
+            playerService = com.uiptv.service.PlayerService.getInstance(),
+            seriesCategoryDb = SeriesCategoryDb.get(),
+            vodChannelDb = VodChannelDb.get(),
+            channelDb = ChannelDb.get()
+        )
+    },
+    private val webPlayerApiServiceProvider: () -> WebPlayerApiService = {
+        val playerRequestResolver = playerRequestResolverProvider()
+        WebPlayerApiService(
+            accountService = AccountService.getInstance(),
+            configurationService = ConfigurationService.getInstance(),
+            ffmpegService = FfmpegService.getInstance(),
+            bingeWatchService = BingeWatchService.getInstance(),
+            playerRequestResolver = playerRequestResolver
+        )
+    }
 ) : HttpHandler {
     companion object {
         const val SEASON = "season"
@@ -46,28 +71,28 @@ class HttpPlayerJsonServer(
     }
 
     fun buildJsonPlaybackResponse(requestPath: String?, params: Map<String, String?>): String =
-        webPlayerApiService.buildJsonPlaybackResponse(requestPath, params)
+        webPlayerApiServiceProvider().buildJsonPlaybackResponse(requestPath, params)
 
     @Suppress("unused")
-    private fun sanitizeParam(value: String?): String = webPlayerApiService.sanitizeParam(value)
+    private fun sanitizeParam(value: String?): String = webPlayerApiServiceProvider().sanitizeParam(value)
 
     @Suppress("unused")
-    private fun isHvecEnabled(value: String?): Boolean = webPlayerApiService.isHvecEnabled(value)
+    private fun isHvecEnabled(value: String?): Boolean = webPlayerApiServiceProvider().isHvecEnabled(value)
 
     @Suppress("unused")
     private fun normalizeWebPlaybackUrl(mode: String, url: String): String =
-        webPlayerApiService.normalizeWebPlaybackUrl(mode, url)
+        webPlayerApiServiceProvider().normalizeWebPlaybackUrl(mode, url)
 
     @Suppress("unused")
-    private fun downgradeHttpsToHttp(url: String): String = webPlayerApiService.downgradeHttpsToHttp(url)
+    private fun downgradeHttpsToHttp(url: String): String = webPlayerApiServiceProvider().downgradeHttpsToHttp(url)
 
     @Suppress("unused")
     private fun shouldForceWebHlsForUrl(mode: String, url: String): Boolean =
-        webPlayerApiService.shouldForceWebHlsForUrl(mode, url)
+        webPlayerApiServiceProvider().shouldForceWebHlsForUrl(mode, url)
 
     @Suppress("unused")
     private fun applyWebPlaybackProcessing(response: com.uiptv.model.PlayerResponse?, mode: String, hvec: String?, preferHls: Boolean) {
-        webPlayerApiService.applyWebPlaybackProcessing(response, mode, hvec, preferHls)
+        webPlayerApiServiceProvider().applyWebPlaybackProcessing(response, mode, hvec, preferHls)
     }
 
     private fun queryParams(ex: HttpExchange): Map<String, String?> = buildMap {

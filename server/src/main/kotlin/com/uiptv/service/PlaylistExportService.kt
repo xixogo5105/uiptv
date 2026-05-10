@@ -14,13 +14,13 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.LinkedHashMap
 
 class PlaylistExportService(
-    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() },
-    private val bookmarkServiceProvider: () -> BookmarkService = { BookmarkService.getInstance() },
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() },
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() },
-    private val playerServiceProvider: () -> PlayerService = { PlayerService.getInstance() },
-    private val playerRequestResolverProvider: () -> PlayerRequestResolver = { PlayerRequestResolver() },
-    private val channelDbProvider: () -> ChannelDb = { ChannelDb.get() }
+    private val accountService: AccountService = AccountService,
+    private val bookmarkService: BookmarkService = BookmarkService,
+    private val configurationService: ConfigurationService = ConfigurationService,
+    private val handshakeService: HandshakeService = HandshakeService,
+    private val playerService: PlayerService = PlayerService,
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
+    private val channelDb: ChannelDb = ChannelDb.get()
 ) {
     companion object {
         const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
@@ -39,16 +39,16 @@ class PlaylistExportService(
     )
 
     fun buildSingleChannelPlaylist(accountId: String?, categoryId: String?, channelId: String?): PlaylistDocument {
-        val account = accountServiceProvider().getById(accountId ?: "")
-        val channel = channelDbProvider().getChannelById(channelId ?: "", categoryId ?: "")
+        val account = accountService.getById(accountId ?: "")
+        val channel = channelDb.getChannelById(channelId ?: "", categoryId ?: "")
         if (account == null || channel == null) {
             return PlaylistDocument("", "playlist.m3u8")
         }
 
-        handshakeServiceProvider().hardTokenRefresh(account)
+        handshakeService.hardTokenRefresh(account)
         val originalCmd = channel.cmd ?: ""
         channel.cmd = URLDecoder.decode(originalCmd, UTF_8)
-        val playerResponse = playerServiceProvider().get(account, channel)
+        val playerResponse = playerService.get(account, channel)
         val cmd = playerResponse.url
         channel.cmd = originalCmd
 
@@ -76,7 +76,7 @@ class PlaylistExportService(
         if (isBlank(bookmarkId)) {
             return BookmarkRedirectResult(404)
         }
-        val bookmark = bookmarkServiceProvider().getBookmark(bookmarkId) ?: return BookmarkRedirectResult(404)
+        val bookmark = bookmarkService.getBookmark(bookmarkId) ?: return BookmarkRedirectResult(404)
         val url = resolveBookmarkPlaybackUrl(bookmark)
         if (isBlank(url)) {
             return BookmarkRedirectResult(502, responseBody = "Unable to resolve bookmark playback.")
@@ -85,9 +85,9 @@ class PlaylistExportService(
     }
 
     private fun resolveBookmarkPlaybackUrl(bookmark: Bookmark): String {
-        val account = accountServiceProvider().getAll()[bookmark.accountName] ?: return ""
+        val account = accountService.getAll()[bookmark.accountName] ?: return ""
         val response: PlayerResponse =
-            playerRequestResolverProvider().resolveBookmarkPlayback(bookmark.dbId.orEmpty(), "", "")
+            playerRequestResolver.resolveBookmarkPlayback(bookmark.dbId.orEmpty(), "", "")
         if (isBlank(response.url)) {
             return ""
         }
@@ -95,7 +95,7 @@ class PlaylistExportService(
     }
 
     private fun resolveBookmarkRedirectChain(url: String, account: Account): String {
-        if (!configurationServiceProvider().isResolveChainAndDeepRedirectsEnabled(account)) {
+        if (!configurationService.isResolveChainAndDeepRedirectsEnabled(account)) {
             return url
         }
         return HlsPlaylistResolver.resolveHlsPlaylistChain(url, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH)
@@ -103,7 +103,7 @@ class PlaylistExportService(
 
     private fun createBrowserHeaders(): Map<String, String> {
         val headers = LinkedHashMap<String, String>()
-        if (configurationServiceProvider().isVlcHttpUserAgentEnabled()) {
+        if (configurationService.isVlcHttpUserAgentEnabled()) {
             headers["User-Agent"] = CHROME_USER_AGENT
         }
         headers["Accept"] = "application/vnd.apple.mpegurl, */*"

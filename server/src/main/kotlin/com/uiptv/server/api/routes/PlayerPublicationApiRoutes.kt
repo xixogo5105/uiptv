@@ -1,5 +1,6 @@
 package com.uiptv.server.api.routes
 
+import com.uiptv.server.api.dto.PlayerPlaybackResponseDto
 import com.uiptv.service.PlaylistExportService
 import com.uiptv.service.WebPlayerApiService
 import io.ktor.http.ContentType
@@ -8,25 +9,25 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.path
 import io.ktor.server.response.header
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.head
 import io.ktor.server.routing.route
 import io.ktor.server.routing.options
-
 fun Route.registerPlayerPublicationApiRoutes(
     webPlayerApiService: WebPlayerApiService,
     playlistExportService: PlaylistExportService
 ) {
     route("/player") {
         get {
-            call.respondJson(webPlayerApiService.buildJsonPlaybackResponse(call.request.path(), call.request.queryParameters.toSingleMap()))
+            call.respondPlayerPlayback(webPlayerApiService.buildPlaybackResponse(call.request.path(), call.request.queryParameters.toSingleMap()))
         }
     }
     route("/player/{...}") {
         get {
-            call.respondJson(webPlayerApiService.buildJsonPlaybackResponse(call.request.path(), call.request.queryParameters.toSingleMap()))
+            call.respondPlayerPlayback(webPlayerApiService.buildPlaybackResponse(call.request.path(), call.request.queryParameters.toSingleMap()))
         }
     }
 
@@ -68,10 +69,9 @@ fun Route.registerPlayerPublicationApiRoutes(
     }
 }
 
-private suspend fun ApplicationCall.respondJson(body: String) {
+private suspend fun ApplicationCall.respondPlayerPlayback(body: PlayerPlaybackResponseDto) {
     response.header("Access-Control-Allow-Origin", "*")
-    response.header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-    respondText(body, ContentType.Application.Json)
+    respond(body)
 }
 
 private suspend fun ApplicationCall.respondPlaylist(body: String, fileName: String) {

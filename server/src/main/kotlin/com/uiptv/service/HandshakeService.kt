@@ -72,11 +72,19 @@ object HandshakeService {
         DateTimeFormatter.ofPattern(DATE_US_FORMAT),
         DateTimeFormatter.ofPattern(DATE_EU_FORMAT)
     )
-    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
-    private val accountInfoServiceProvider: () -> AccountInfoService = { AccountInfoService.getInstance() }
+    private var accountService: AccountService = AccountService.getInstance()
+    private var accountInfoService: AccountInfoService = AccountInfoService.getInstance()
 
     @JvmStatic
     fun getInstance(): HandshakeService = this
+
+    fun configureDependencies(
+        accountService: AccountService,
+        accountInfoService: AccountInfoService
+    ): HandshakeService = apply {
+        this.accountService = accountService
+        this.accountInfoService = accountInfoService
+    }
 
     private fun getHandshakeParams(): Map<String, String> {
         val params = HashMap<String, String>()
@@ -129,14 +137,14 @@ object HandshakeService {
         (UUID.randomUUID().toString() + UUID.randomUUID()).replace("-", "").substring(0, 39)
     fun connect(account: Account) {
         account.token = null
-        accountServiceProvider().syncSessionToken(account)
-        if (isBlank(accountServiceProvider().ensureServerPortalUrl(account))) {
+        accountService.syncSessionToken(account)
+        if (isBlank(accountService.ensureServerPortalUrl(account))) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_RESOLVE_URL + account.accountName)
             return
         }
         var json = fetch(getHandshakeParams(), account)
         account.token = parseJasonToken(json)
-        accountServiceProvider().syncSessionToken(account)
+        accountService.syncSessionToken(account)
         if (account.isNotConnected()) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_TOKEN + json)
             return
@@ -153,7 +161,7 @@ object HandshakeService {
     fun fetchAccountInfo(account: Account?): AccountInfo? {
         if (account == null) return null
         account.token = null
-        if (isBlank(accountServiceProvider().ensureServerPortalUrl(account))) {
+        if (isBlank(accountService.ensureServerPortalUrl(account))) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_RESOLVE_URL + account.accountName)
             return null
         }
@@ -174,14 +182,14 @@ object HandshakeService {
     }
     fun hardTokenRefresh(account: Account) {
         account.token = null
-        accountServiceProvider().syncSessionToken(account)
-        if (isBlank(accountServiceProvider().ensureServerPortalUrl(account))) {
+        accountService.syncSessionToken(account)
+        if (isBlank(accountService.ensureServerPortalUrl(account))) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_RESOLVE_URL + account.accountName)
             return
         }
         var json = fetch(getHandshakeParams(), account)
         account.token = parseJasonToken(json)
-        accountServiceProvider().syncSessionToken(account)
+        accountService.syncSessionToken(account)
         if (account.isNotConnected()) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_TOKEN + json)
         }
@@ -418,7 +426,7 @@ object HandshakeService {
     }
     fun resolveStbType(account: Account?): String {
         if (account == null || isBlank(account.dbId)) return DEFAULT_STB_TYPE
-        val info = accountInfoServiceProvider().getByAccountId(account.dbId)
+        val info = accountInfoService.getByAccountId(account.dbId)
         if (info == null) return DEFAULT_STB_TYPE
         val preferred = info.preferredStbType
         if (isNotBlank(preferred)) return preferred!!
@@ -540,7 +548,7 @@ object HandshakeService {
 
     private fun resolveAccountInfo(account: Account?): AccountInfo? {
         if (account == null || isBlank(account.dbId)) return null
-        val existing = accountInfoServiceProvider().getByAccountId(account.dbId)
+        val existing = accountInfoService.getByAccountId(account.dbId)
         if (existing == null) {
             return AccountInfo(accountId = account.dbId)
         }
@@ -550,7 +558,7 @@ object HandshakeService {
 
     private fun persistAccountInfo(info: AccountInfo?) {
         if (info == null || isBlank(info.accountId)) return
-        accountInfoServiceProvider().save(info)
+        accountInfoService.save(info)
     }
 
     private fun createTransientAccountInfo(account: Account?): AccountInfo {

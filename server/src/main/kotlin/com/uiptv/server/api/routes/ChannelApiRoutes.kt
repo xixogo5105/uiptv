@@ -8,15 +8,14 @@ import com.uiptv.model.Account
 import com.uiptv.model.Category
 import com.uiptv.model.CategoryType
 import com.uiptv.model.Channel
+import com.uiptv.server.api.dto.ChannelRouteDto
 import com.uiptv.service.AccountService
 import com.uiptv.service.ChannelService
 import com.uiptv.service.ConfigurationService
 import com.uiptv.service.SeriesWatchStateService
 import com.uiptv.util.AccountType
-import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
-import io.ktor.http.ContentType
-import io.ktor.server.response.respondText
+import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import org.json.JSONArray
@@ -31,7 +30,7 @@ fun Route.registerChannelApiRoutes(
     get("/channels") {
         val account = accountService.getById(call.request.queryParameters["accountId"])
         if (account == null) {
-            call.respondText("[]", ContentType.Application.Json)
+            call.respond(emptyList<ChannelRouteDto>())
             return@get
         }
         applyChannelMode(account, call.request.queryParameters["mode"])
@@ -42,7 +41,7 @@ fun Route.registerChannelApiRoutes(
             val categoryApiId = if (CategoryType.isAll(categoryId)) "" else resolveCategoryApiId(account, categoryId)
             response = enrichSeriesRowsWatched(account, categoryApiId, response, seriesWatchStateService)
         }
-        call.respondText(dedupeJsonResponse(response), ContentType.Application.Json)
+        call.respond(dedupeChannels(response).map(::toChannelRouteDto))
     }
 }
 
@@ -53,7 +52,7 @@ private fun resolveChannelsResponse(
     channelService: ChannelService,
     configurationService: ConfigurationService,
     seriesWatchStateService: SeriesWatchStateService
-): String {
+): List<Channel> {
     if (shouldServeSeriesEpisodes(account, categoryId, movieId)) {
         return resolveSeriesEpisodesResponse(account, categoryId, movieId, channelService, configurationService, seriesWatchStateService)
     }
@@ -61,7 +60,7 @@ private fun resolveChannelsResponse(
         return readAllCategoryChannels(account, channelService)
     }
     val category = resolveCategoryByDbId(account, categoryId) ?: Category(categoryId, categoryId, categoryId, false, 0)
-    return channelService.readToJson(category, account)
+    return parseChannelsJson(channelService.readToJson(category, account))
 }
 
 private fun applyChannelMode(account: Account, mode: String?) {
@@ -88,16 +87,15 @@ private fun resolveSeriesEpisodesResponse(
     channelService: ChannelService,
     configurationService: ConfigurationService,
     seriesWatchStateService: SeriesWatchStateService
-): String {
-    val requestedMovieId = movieId ?: return "[]"
+): List<Channel> {
+    val requestedMovieId = movieId ?: return emptyList()
     val categoryApiId = resolveCategoryApiId(account, categoryId)
     val cachedResponse = readFreshSeriesEpisodes(account, categoryApiId, requestedMovieId, configurationService, seriesWatchStateService)
     if (cachedResponse != null) {
         return cachedResponse
     }
     val episodes = fetchAndCacheSeriesEpisodes(account, categoryId, requestedMovieId, channelService)
-    val response = ServerUtils.objectToJson(episodes)
-    return enrichSeriesEpisodesWatched(account, categoryApiId, requestedMovieId, response, seriesWatchStateService)
+    return enrichSeriesEpisodesWatched(account, categoryApiId, requestedMovieId, episodes, seriesWatchStateService)
 }
 
 private fun readFreshSeriesEpisodes(
@@ -106,7 +104,7 @@ private fun readFreshSeriesEpisodes(
     movieId: String,
     configurationService: ConfigurationService,
     seriesWatchStateService: SeriesWatchStateService
-): String? {
+): List<Channel>? {
     if (!SeriesEpisodeDb.get().isFresh(account, categoryApiId, movieId, configurationService.getCacheExpiryMs())) {
         return null
     }
@@ -114,8 +112,7 @@ private fun readFreshSeriesEpisodes(
     if (cached.isEmpty()) {
         return null
     }
-    val cachedJson = ServerUtils.objectToJson(cached)
-    return enrichSeriesEpisodesWatched(account, categoryApiId, movieId, cachedJson, seriesWatchStateService)
+    return enrichSeriesEpisodesWatched(account, categoryApiId, movieId, cached, seriesWatchStateService)
 }
 
 private fun fetchAndCacheSeriesEpisodes(
@@ -132,12 +129,12 @@ private fun fetchAndCacheSeriesEpisodes(
     return episodes
 }
 
-private fun readAllCategoryChannels(account: Account, channelService: ChannelService): String {
-    val allChannels = JSONArray()
+private fun readAllCategoryChannels(account: Account, channelService: ChannelService): List<Channel> {
+    val allChannels = ArrayList<Channel>()
     resolveRequestedCategories(resolveCategoriesForAccount(account)).forEach { category ->
-        appendChannels(allChannels, channelService.readToJson(category, account))
+        allChannels += parseChannelsJson(channelService.readToJson(category, account))
     }
-    return allChannels.toString()
+    return allChannels
 }
 
 private fun resolveRequestedCategories(categories: List<Category>): List<Category> {
@@ -148,34 +145,35 @@ private fun resolveRequestedCategories(categories: List<Category>): List<Categor
     return categories.firstOrNull { CategoryType.isAll(it.title) }?.let(::listOf) ?: emptyList()
 }
 
-private fun appendChannels(target: JSONArray, channelsJson: String?) {
-    if (channelsJson.isNullOrEmpty()) {
-        return
+private fun parseChannelsJson(channelsJson: String?): List<Channel> {
+    if (channelsJson.isNullOrBlank()) {
+        return emptyList()
     }
-    val channelsArray = JSONArray(channelsJson)
-    for (index in 0 until channelsArray.length()) {
-        target.put(channelsArray.getJSONObject(index))
+    return try {
+        val channels = ArrayList<Channel>()
+        val channelsArray = JSONArray(channelsJson)
+        for (index in 0 until channelsArray.length()) {
+            Channel.fromJson(channelsArray.getJSONObject(index).toString())?.let(channels::add)
+        }
+        channels
+    } catch (_: Exception) {
+        emptyList()
     }
 }
 
-private fun dedupeJsonResponse(response: String): String =
-    try {
-        val array = JSONArray(response)
-        val deduped = JSONArray()
-        val seen = LinkedHashSet<String>()
-        for (index in 0 until array.length()) {
-            val item = array.optJSONObject(index) ?: continue
-            val key = item.optString("channelId", "").trim() + "|" +
-                item.optString("cmd", "").trim() + "|" +
-                item.optString("name", "").trim().lowercase()
-            if (seen.add(key)) {
-                deduped.put(item)
-            }
+private fun dedupeChannels(channels: List<Channel>): List<Channel> {
+    val seen = LinkedHashSet<String>()
+    val deduped = ArrayList<Channel>()
+    channels.forEach { channel ->
+        val key = channel.channelId.orEmpty().trim() + "|" +
+            channel.cmd.orEmpty().trim() + "|" +
+            channel.name.orEmpty().trim().lowercase()
+        if (seen.add(key)) {
+            deduped += channel
         }
-        deduped.toString()
-    } catch (_: Exception) {
-        response
     }
+    return deduped
+}
 
 private fun resolveCategoryByDbId(account: Account, categoryId: String?): Category? =
     when (account.action) {
@@ -197,60 +195,43 @@ private fun resolveCategoriesForAccount(account: Account): List<Category> =
 private fun enrichSeriesRowsWatched(
     account: Account,
     fallbackCategoryId: String,
-    response: String,
+    channels: List<Channel>,
     seriesWatchStateService: SeriesWatchStateService
-): String =
-    try {
-        val rows = JSONArray(response)
-        if (rows.isEmpty) {
-            return response
+): List<Channel> {
+    channels.forEach { channel ->
+        var rowCategoryId = channel.categoryId.orEmpty()
+        if (StringUtils.isBlank(rowCategoryId)) {
+            rowCategoryId = fallbackCategoryId
         }
-        for (index in 0 until rows.length()) {
-            val item = rows.optJSONObject(index) ?: continue
-            val seriesId = item.optString("channelId", "")
-            var rowCategoryId = item.optString("categoryId", "")
-            if (StringUtils.isBlank(rowCategoryId)) {
-                rowCategoryId = fallbackCategoryId
-            }
-            rowCategoryId = normalizeSeriesCategoryId(rowCategoryId)
-            item.put("watched", seriesWatchStateService.getSeriesLastWatched(account.dbId, rowCategoryId, seriesId) != null)
-        }
-        rows.toString()
-    } catch (_: Exception) {
-        response
+        rowCategoryId = normalizeSeriesCategoryId(rowCategoryId)
+        channel.watched = seriesWatchStateService.getSeriesLastWatched(account.dbId, rowCategoryId, channel.channelId.orEmpty()) != null
     }
+    return channels
+}
 
 private fun enrichSeriesEpisodesWatched(
     account: Account,
     categoryId: String,
     seriesId: String,
-    response: String,
+    channels: List<Channel>,
     seriesWatchStateService: SeriesWatchStateService
-): String =
-    try {
-        val rows = JSONArray(response)
-        if (rows.isEmpty) {
-            return response
-        }
-        val scopedCategoryId = normalizeSeriesCategoryId(categoryId)
-        val state = seriesWatchStateService.getSeriesLastWatched(account.dbId, scopedCategoryId, seriesId)
-        for (index in 0 until rows.length()) {
-            val item = rows.optJSONObject(index) ?: continue
-            item.put(
-                "watched",
-                seriesWatchStateService.isMatchingEpisode(
-                    state,
-                    item.optString("channelId", ""),
-                    item.optString("season", ""),
-                    item.optString("episodeNum", ""),
-                    item.optString("name", "")
-                )
-            )
-        }
-        rows.toString()
-    } catch (_: Exception) {
-        response
+): List<Channel> {
+    if (channels.isEmpty()) {
+        return channels
     }
+    val scopedCategoryId = normalizeSeriesCategoryId(categoryId)
+    val state = seriesWatchStateService.getSeriesLastWatched(account.dbId, scopedCategoryId, seriesId)
+    channels.forEach { channel ->
+        channel.watched = seriesWatchStateService.isMatchingEpisode(
+            state,
+            channel.channelId.orEmpty(),
+            channel.season.orEmpty(),
+            channel.episodeNum.orEmpty(),
+            channel.name.orEmpty()
+        )
+    }
+    return channels
+}
 
 private fun normalizeSeriesCategoryId(categoryId: String): String {
     if (StringUtils.isBlank(categoryId)) {
@@ -263,3 +244,33 @@ private fun normalizeSeriesCategoryId(categoryId: String): String {
         categoryId
     }
 }
+
+private fun toChannelRouteDto(channel: Channel): ChannelRouteDto =
+    ChannelRouteDto(
+        dbId = channel.dbId,
+        channelId = channel.channelId,
+        categoryId = channel.categoryId,
+        name = channel.name,
+        number = channel.number,
+        cmd = channel.cmd,
+        cmd_1 = channel.cmd_1,
+        cmd_2 = channel.cmd_2,
+        cmd_3 = channel.cmd_3,
+        logo = channel.logo,
+        description = channel.description,
+        season = channel.season,
+        episodeNum = channel.episodeNum,
+        releaseDate = channel.releaseDate,
+        rating = channel.rating,
+        duration = channel.duration,
+        extraJson = channel.extraJson,
+        censored = channel.censored,
+        status = channel.status,
+        hd = channel.hd,
+        watched = channel.watched,
+        drmType = channel.drmType,
+        drmLicenseUrl = channel.drmLicenseUrl,
+        clearKeysJson = channel.clearKeysJson,
+        inputstreamaddon = channel.inputstreamaddon,
+        manifestType = channel.manifestType
+    )
