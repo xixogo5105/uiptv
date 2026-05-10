@@ -6,7 +6,7 @@
 
     <groupId>com.spc</groupId>
     <artifactId>uiptv</artifactId>
-    <version>0.1.10</version>
+    <version>0.1.11</version>
     <packaging>pom</packaging>
     <name>UIPTV</name>
 
@@ -369,6 +369,16 @@
                         <goals><goal>report</goal></goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <useModulePath>false</useModulePath>
+                    <systemPropertyVariables>
+                        <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

@@ -5,6 +5,8 @@ import com.uiptv.ui.util.*;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.VodWatchState;
+import com.uiptv.service.AccountChangeListener;
+import com.uiptv.service.AccountService;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.VodWatchStateChangeListener;
 import com.uiptv.service.VodWatchStateService;
@@ -43,7 +45,9 @@ public class VodWatchingNowUI extends VBox {
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
     private volatile boolean dirty = true;
     private final VodWatchStateChangeListener changeListener = this::onDataChanged;
+    private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
     private boolean listenerRegistered = false;
+    private boolean accountListenerRegistered = false;
     private HBox selectedCard;
 
     public VodWatchingNowUI() {
@@ -60,8 +64,11 @@ public class VodWatchingNowUI extends VBox {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
             ImageCacheManager.clearCache(VOD_WATCHING_NOW_CACHE);
         }
+        // Initialize with empty state instead of loading on startup
+        contentBox.getChildren().setAll(new Label("")); // Empty container
         registerListeners();
-        refreshIfNeeded();
+        // Mark as dirty to load data when visible
+        dirty = true;
     }
 
     public void forceReload() {
@@ -478,21 +485,13 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private void registerListeners() {
-        if (!listenerRegistered) {
-            VodWatchStateService.getInstance().addChangeListener(changeListener);
-            listenerRegistered = true;
-        }
+        ensureListenersRegistered();
+
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
-                if (listenerRegistered) {
-                    VodWatchStateService.getInstance().removeChangeListener(changeListener);
-                    listenerRegistered = false;
-                }
+                unregisterListeners();
             } else {
-                if (!listenerRegistered) {
-                    VodWatchStateService.getInstance().addChangeListener(changeListener);
-                    listenerRegistered = true;
-                }
+                ensureListenersRegistered();
                 refreshIfNeeded();
             }
         });
@@ -503,7 +502,41 @@ public class VodWatchingNowUI extends VBox {
         });
     }
 
+    private void ensureListenersRegistered() {
+        if (!listenerRegistered) {
+            VodWatchStateService.getInstance().addChangeListener(changeListener);
+            listenerRegistered = true;
+        }
+        if (!accountListenerRegistered) {
+            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountListenerRegistered = true;
+        }
+    }
+
+    private void unregisterListeners() {
+        if (listenerRegistered) {
+            VodWatchStateService.getInstance().removeChangeListener(changeListener);
+            listenerRegistered = false;
+        }
+        if (accountListenerRegistered) {
+            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountListenerRegistered = false;
+        }
+    }
+
     private void onDataChanged(String accountId, String vodId) {
+        // If panelDataByKey is empty (UI not yet rendered), do a full refresh instead of delta
+        if (panelDataByKey.isEmpty()) {
+            dirty = true;
+            Platform.runLater(this::refreshIfNeeded);
+            return;
+        }
+        dirty = true;
+        Platform.runLater(this::refreshIfNeeded);
+    }
+
+    private void onAccountsChanged() {
+        // When accounts change (e.g., deleted), force full refresh
         dirty = true;
         Platform.runLater(this::refreshIfNeeded);
     }

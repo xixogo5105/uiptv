@@ -1,22 +1,29 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
+import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
 import com.uiptv.ui.main.WideMainApplicationUI;
-import com.uiptv.util.*;
+import com.uiptv.ui.util.StyleClassDecorator;
+import com.uiptv.ui.util.ThemeStylesheetResolver;
+import com.uiptv.ui.util.UiI18n;
+import com.uiptv.ui.util.UiServerUrlUtil;
+import com.uiptv.util.AppLog;
+import com.uiptv.util.EmbeddedPlayerWideViewUtil;
+import com.uiptv.util.I18n;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
-import javafx.geometry.Rectangle2D;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 
@@ -27,6 +34,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 
 import static java.lang.System.exit;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
@@ -59,21 +67,33 @@ public class RootApplication extends Application {
 
     private static void handleSync(String[] args) {
         if (args.length != 3) {
-            com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Usage: sync <first_db_path> <second_db_path>");
+            com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Usage: sync <source_db_path> <target_db_path>");
             exit(1);
         }
-        String firstDB = stripWrappingQuotes(args[1]);
-        String secondDB = stripWrappingQuotes(args[2]);
+        String sourceDB = stripWrappingQuotes(args[1]);
+        String targetDB = stripWrappingQuotes(args[2]);
         try {
-            syncDatabases(firstDB, secondDB);
+            syncDatabases(sourceDB, targetDB);
             com.uiptv.util.AppLog.addInfoLog(RootApplication.class, "Sync complete!");
         } catch (SQLException e) {
             com.uiptv.util.AppLog.addErrorLog(RootApplication.class, "Error syncing tables: " + e.getMessage());
         }
     }
 
-    public static void syncDatabases(String firstDB, String secondDB) throws SQLException {
-        databaseSyncService.syncDatabases(firstDB, secondDB);
+    public static void syncDatabases(String sourceDB, String targetDB) throws SQLException {
+        databaseSyncService.syncDatabases(sourceDB, targetDB);
+    }
+
+    public static void syncDatabases(String sourceDB, String targetDB, boolean syncConfiguration, boolean syncExternalPlayerPaths) throws SQLException {
+        databaseSyncService.syncDatabases(sourceDB, targetDB, syncConfiguration, syncExternalPlayerPaths);
+    }
+
+    public static DatabaseSyncService.DatabaseSyncReport syncDatabasesWithReport(String sourceDB,
+                                                                                 String targetDB,
+                                                                                 boolean syncConfiguration,
+                                                                                 boolean syncExternalPlayerPaths,
+                                                                                 DatabaseSyncService.SyncProgressListener progressListener) throws SQLException {
+        return databaseSyncService.syncDatabasesWithReport(sourceDB, targetDB, syncConfiguration, syncExternalPlayerPaths, progressListener);
     }
 
     private static String stripWrappingQuotes(String value) {
@@ -158,6 +178,9 @@ public class RootApplication extends Application {
         UiServerUrlUtil.setHostServices(getHostServices());
         Configuration bootConfiguration = configurationService.read();
         I18n.initialize(bootConfiguration == null ? null : bootConfiguration.getLanguageLocale());
+        FxRemoteSyncUiBridge remoteSyncUiBridge = new FxRemoteSyncUiBridge();
+        RemoteSyncSessionService.getInstance().setApprovalPrompt(remoteSyncUiBridge);
+        RemoteSyncSessionService.getInstance().setNotifier(remoteSyncUiBridge);
 
         boolean embeddedEnabled = bootConfiguration != null && bootConfiguration.isEmbeddedPlayer();
         boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
@@ -173,6 +196,7 @@ public class RootApplication extends Application {
         primaryStage.setScene(loadingScene);
         primaryStage.show();
         Platform.runLater(() -> applyMaximizedBounds(primaryStage));
+        autoStartInternalServer(bootConfiguration);
 
         Platform.runLater(() -> {
             BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
@@ -216,6 +240,19 @@ public class RootApplication extends Application {
                 GUIDED_MAX_HEIGHT_PIXELS,
                 embeddedEnabled
         );
+    }
+
+    private void autoStartInternalServer(Configuration configuration) {
+        if (configuration == null || !configuration.isAutoRunServerOnStartup()) {
+            return;
+        }
+        Platform.runLater(() -> {
+            try {
+                UIptvServer.ensureStarted();
+            } catch (IOException e) {
+                showErrorAlert(I18n.tr("configAutoRunServerStartupFailed", e.getMessage()));
+            }
+        });
     }
 
     @Override

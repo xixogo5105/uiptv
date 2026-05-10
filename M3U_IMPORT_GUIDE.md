@@ -8,6 +8,7 @@ This guide explains how to bulk import M3U/M3U8 playlist URLs and optionally con
 - You can publish merged playlists from Configuration and consume them via:
   - `/iptv.m3u`
   - `/iptv.m3u8`
+- Published playlists can now be narrowed by account/category/channel selection instead of being all-or-nothing exports.
 - Conversion to Xtreme remains optional and only applies when URL requirements are met.
 - Import parser accepts valid URLs only (invalid tokens are ignored).
 
@@ -154,6 +155,15 @@ All 4 URLs parsed correctly, can be on same line or separate lines
 6. Paste your M3U URLs in the text field
 7. Click "Save"
 8. All accounts will be imported
+
+## Published Playlist Note
+
+After import, the **Publish M3U8** workflow can expose:
+- all selected accounts
+- selected categories only
+- selected channels only
+
+That makes M3U import useful both for direct playback and for curated downstream playlist publishing.
 
 ## Conversion Reference
 

@@ -42,6 +42,7 @@ public class DatabaseUtils {
     private static final String COLUMN_INPUTSTREAM_ADDON = "inputstreamaddon";
     private static final String COLUMN_MANIFEST_TYPE = "manifestType";
     private static final String COLUMN_NUMBER = "number";
+    private static final String COLUMN_SERIES_ID = "seriesId";
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
     private static final String COLUMN_UPDATED_AT = "updatedAt";
@@ -67,13 +68,17 @@ public class DatabaseUtils {
                 new DataColumn("wideView", "TEXT"),
                 new DataColumn("languageLocale", "TEXT"),
                 new DataColumn("tmdbReadAccessToken", "TEXT"),
+                new DataColumn("filterLockHash", "TEXT"),
                 new DataColumn("uiZoomPercent", "TEXT"),
                 new DataColumn("enableLitePlayerFfmpeg", "TEXT"),
+                new DataColumn("autoRunServerOnStartup", "TEXT"),
                 new DataColumn("vlcNetworkCachingMs", "TEXT"),
                 new DataColumn("vlcLiveCachingMs", "TEXT"),
+                new DataColumn("publishedM3uCategoryMode", "TEXT"),
                 new DataColumn("enableVlcHttpUserAgent", "TEXT"),
                 new DataColumn("enableVlcHttpForwardCookies", "TEXT"),
-                new DataColumn("resolveChainAndDeepRedirects", "TEXT")
+                new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
+                new DataColumn("filterLockUnlockDurationMinutes", "TEXT")
         )));
         dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -101,6 +106,7 @@ public class DatabaseUtils {
                 new DataColumn("type", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
                 new DataColumn("pinToTop", "TEXT"),
+                new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
                 new DataColumn("httpMethod", "TEXT"),
                 new DataColumn("timezone", "TEXT")
         )));
@@ -260,7 +266,7 @@ public class DatabaseUtils {
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
-                new DataColumn("seriesId", "TEXT"),
+                new DataColumn(COLUMN_SERIES_ID, "TEXT"),
                 new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
                 new DataColumn("name", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
@@ -279,7 +285,7 @@ public class DatabaseUtils {
                 new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
                 new DataColumn("mode", "TEXT"),
                 new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
-                new DataColumn("seriesId", "TEXT"),
+                new DataColumn(COLUMN_SERIES_ID, "TEXT"),
                 new DataColumn("episodeId", "TEXT"),
                 new DataColumn("episodeName", "TEXT"),
                 new DataColumn("season", "TEXT"),
@@ -290,9 +296,33 @@ public class DatabaseUtils {
                 new DataColumn("seriesChannelSnapshot", "TEXT"),
                 new DataColumn("seriesEpisodeSnapshot", "TEXT")
         )));
+        dbStructure.put(DbTable.SERIES_WATCHING_NOW_SNAPSHOT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, "TEXT"),
+                new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
+                new DataColumn(COLUMN_SERIES_ID, "TEXT"),
+                new DataColumn("categoryDbId", "TEXT"),
+                new DataColumn("seriesTitle", "TEXT"),
+                new DataColumn("seriesPoster", "TEXT"),
+                new DataColumn("episodesJson", "TEXT"),
+                new DataColumn(COLUMN_UPDATED_AT, INTEGER_TYPE)
+        )));
         dbStructure.put(DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL_UNIQUE)
+        )));
+        dbStructure.put(DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL),
+                new DataColumn("categoryName", TEXT_NOT_NULL),
+                new DataColumn("selected", TEXT_NOT_NULL)
+        )));
+        dbStructure.put(DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn(COLUMN_ACCOUNT_ID, TEXT_NOT_NULL),
+                new DataColumn("categoryName", TEXT_NOT_NULL),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
+                new DataColumn("selected", TEXT_NOT_NULL)
         )));
         dbStructure.put(DbTable.BOOKMARK_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -391,7 +421,10 @@ public class DatabaseUtils {
         SERIES_CHANNEL_TABLE("SeriesChannel"),
         SERIES_EPISODE_TABLE("SeriesEpisode"),
         SERIES_WATCH_STATE_TABLE("SeriesWatchState"),
+        SERIES_WATCHING_NOW_SNAPSHOT_TABLE("SeriesWatchingNowSnapshot"),
         PUBLISHED_M3U_SELECTION_TABLE("PublishedM3uSelection"),
+        PUBLISHED_M3U_CATEGORY_SELECTION_TABLE("PublishedM3uCategorySelection"),
+        PUBLISHED_M3U_CHANNEL_SELECTION_TABLE("PublishedM3uChannelSelection"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
         BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
 

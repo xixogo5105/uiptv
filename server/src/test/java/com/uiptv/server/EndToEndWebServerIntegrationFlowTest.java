@@ -846,8 +846,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         String firstBookmarkId = BookmarkService.getInstance().read().get(0).getDbId();
         HttpTextResponse bookmarkEntry = get("/bookmarkEntry.ts?bookmarkId=" + firstBookmarkId);
-        assertEquals(200, bookmarkEntry.statusCode());
-        assertTrue(bookmarkEntry.body().contains("#EXTM3U"));
+        assertEquals(307, bookmarkEntry.statusCode());
+        assertTrue(bookmarkEntry.firstHeader("location").startsWith("http"));
 
         HttpTextResponse iptvM3u8 = get("/iptv.m3u8");
         HttpTextResponse iptvM3u = get("/iptv.m3u");
@@ -1009,6 +1009,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         conn.setRequestMethod(method);
         conn.setConnectTimeout(20_000);
         conn.setReadTimeout(20_000);
+        conn.setInstanceFollowRedirects(false);
         conn.setRequestProperty("Accept", "application/json, */*");
 
         if (contentType != null) {
@@ -1030,8 +1031,9 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 responseBody = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
         }
+        Map<String, List<String>> responseHeaders = conn.getHeaderFields();
         conn.disconnect();
-        return new HttpTextResponse(status, responseBody);
+        return new HttpTextResponse(status, responseBody, responseHeaders);
     }
 
     private JSONArray jsonArrayBody(HttpTextResponse response) {
@@ -1052,7 +1054,18 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         return values;
     }
 
-    private record HttpTextResponse(int statusCode, String body) {
+    private record HttpTextResponse(int statusCode, String body, Map<String, List<String>> headers) {
+        String firstHeader(String name) {
+            if (headers == null || name == null) {
+                return "";
+            }
+            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+                if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name) && entry.getValue() != null && !entry.getValue().isEmpty()) {
+                    return entry.getValue().get(0);
+                }
+            }
+            return "";
+        }
     }
 
     private int findFreePort() throws IOException {

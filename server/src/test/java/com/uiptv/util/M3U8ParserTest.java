@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -87,6 +88,38 @@ class M3U8ParserTest {
         List<PlaylistEntry> entries = parseContent(content);
         assertEquals(1, entries.size());
         assertEquals("Next Channel", entries.get(0).getTitle());
+    }
+
+    @Test
+    void splitsSemicolonSeparatedGroupTitlesForChannelEntries() throws IOException {
+        String content = """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="shared" group-title="News; Sports ;News",Shared Channel
+                https://example.com/shared.m3u8
+                """;
+
+        List<PlaylistEntry> entries = parseContent(content);
+
+        assertEquals(2, entries.size());
+        assertEquals(Set.of("News", "Sports"), entries.stream().map(PlaylistEntry::getGroupTitle).collect(java.util.stream.Collectors.toSet()));
+        assertTrue(entries.stream().allMatch(entry -> "Shared Channel".equals(entry.getTitle())));
+    }
+
+    @Test
+    void splitsSemicolonSeparatedGroupTitlesForCategories() throws IOException {
+        Path temp = Files.createTempFile("m3u8-parser-categories-", ".m3u");
+        Files.writeString(temp, """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="shared" group-title="News;Sports",Shared Channel
+                https://example.com/shared.m3u8
+                """, StandardCharsets.UTF_8);
+        try {
+            Set<PlaylistEntry> categories = M3U8Parser.parsePathCategory(temp.toString());
+            assertTrue(categories.stream().anyMatch(entry -> "News".equals(entry.getGroupTitle())));
+            assertTrue(categories.stream().anyMatch(entry -> "Sports".equals(entry.getGroupTitle())));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
     }
 
     private List<PlaylistEntry> parseContent(String content) throws IOException {

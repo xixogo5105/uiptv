@@ -4,8 +4,10 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
+import com.uiptv.db.SeriesWatchingNowSnapshotDb;
 import com.uiptv.db.SeriesWatchStateDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
@@ -61,6 +63,17 @@ class HttpWatchingNowSeriesActionServerTest extends DbBackedTest {
         create.put("episodeName", "Episode One");
         create.put("season", "1");
         create.put("episodeNum", "1");
+        create.put("categoryDbId", "series-cat-db");
+        create.put("seriesTitle", "Series One");
+        create.put("seriesPoster", "http://img/series-1.png");
+        create.put("episodes", new org.json.JSONArray()
+                .put(new JSONObject()
+                        .put("channelId", "ep-1")
+                        .put("name", "Episode One")
+                        .put("cmd", "http://stream/ep-1")
+                        .put("season", "1")
+                        .put("episodeNum", "1")
+                        .toString()));
         StubHttpExchange createExchange = new StubHttpExchange("/watchingNowSeriesAction", "POST", create.toString());
         handler.handle(createExchange);
         assertEquals(200, createExchange.getResponseCode());
@@ -68,6 +81,10 @@ class HttpWatchingNowSeriesActionServerTest extends DbBackedTest {
         SeriesWatchState saved = SeriesWatchStateDb.get().getBySeries(account.getDbId(), "series-cat", "series-1");
         assertNotNull(saved);
         assertEquals("ep-1", saved.getEpisodeId());
+        SeriesWatchingNowSnapshot savedSnapshot = SeriesWatchingNowSnapshotDb.get()
+                .getBySeries(account.getDbId(), "series-cat", "series-1");
+        assertNotNull(savedSnapshot);
+        assertEquals("Series One", savedSnapshot.getSeriesTitle());
 
         JSONObject deleteMissing = new JSONObject();
         deleteMissing.put("accountId", account.getDbId());
@@ -83,6 +100,7 @@ class HttpWatchingNowSeriesActionServerTest extends DbBackedTest {
         handler.handle(deleteExchange);
         assertEquals(200, deleteExchange.getResponseCode());
         assertNull(SeriesWatchStateDb.get().getBySeries(account.getDbId(), "series-cat", "series-1"));
+        assertNull(SeriesWatchingNowSnapshotDb.get().getBySeries(account.getDbId(), "series-cat", "series-1"));
     }
 
     private Account createAccount(String name) {

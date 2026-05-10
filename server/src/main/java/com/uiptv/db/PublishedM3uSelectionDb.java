@@ -49,26 +49,34 @@ public class PublishedM3uSelectionDb extends BaseDb {
         }
     }
 
+    public void replaceSelections(Connection conn, Set<String> accountIds) throws SQLException {
+        replaceSelectionsOnConnection(conn, accountIds);
+    }
+
+    private void replaceSelectionsOnConnection(Connection conn, Set<String> accountIds) throws SQLException {
+        try (PreparedStatement delete = conn.prepareStatement("DELETE FROM " + PUBLISHED_M3U_SELECTION_TABLE.getTableName())) {
+            delete.executeUpdate();
+        }
+
+        if (accountIds != null && !accountIds.isEmpty()) {
+            try (PreparedStatement insert = conn.prepareStatement(insertTableSql(PUBLISHED_M3U_SELECTION_TABLE))) {
+                for (String accountId : accountIds) {
+                    if (isBlank(accountId)) {
+                        continue;
+                    }
+                    insert.setString(1, accountId);
+                    insert.addBatch();
+                }
+                insert.executeBatch();
+            }
+        }
+    }
+
     private void replaceSelectionsInTransaction(Connection conn, Set<String> accountIds) throws SQLException {
         boolean originalAutoCommit = conn.getAutoCommit();
         try {
             conn.setAutoCommit(false);
-            try (PreparedStatement delete = conn.prepareStatement("DELETE FROM " + PUBLISHED_M3U_SELECTION_TABLE.getTableName())) {
-                delete.executeUpdate();
-            }
-
-            if (accountIds != null && !accountIds.isEmpty()) {
-                try (PreparedStatement insert = conn.prepareStatement(insertTableSql(PUBLISHED_M3U_SELECTION_TABLE))) {
-                    for (String accountId : accountIds) {
-                        if (isBlank(accountId)) {
-                            continue;
-                        }
-                        insert.setString(1, accountId);
-                        insert.addBatch();
-                    }
-                    insert.executeBatch();
-                }
-            }
+            replaceSelectionsOnConnection(conn, accountIds);
             conn.commit();
         } catch (SQLException e) {
             conn.rollback();

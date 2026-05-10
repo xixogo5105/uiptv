@@ -14,6 +14,8 @@ import com.uiptv.util.StringUtils;
 import java.io.IOException;
 import java.net.URLDecoder;
 
+import static com.uiptv.util.M3uPlaylistUtils.escapeAttributeValue;
+import static com.uiptv.util.M3uPlaylistUtils.sanitizeTitle;
 import static com.uiptv.util.ServerUtils.generateM3u8Response;
 import static com.uiptv.util.ServerUtils.getParam;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -32,8 +34,10 @@ public class HttpM3u8PlayListServer implements HttpHandler {
         
         channel.setCmd(originalCmd);
 
+        String channelName = sanitizeTitle(channel.getName());
+
         String response = "#EXTM3U\n" +
-                "#EXTINF:-1 tvg-id=\"" + account.getDbId() + "\" tvg-name=\"" + channel.getName() + "\" group-title=\"" + account.getAccountName() + "\"," + channel.getName() + "\n" + StringUtils.EMPTY + cmd + "\n";
+                "#EXTINF:-1 tvg-id=\"" + escapeAttributeValue(account.getDbId()) + "\" tvg-name=\"" + escapeAttributeValue(channelName) + "\" group-title=\"" + escapeAttributeValue(account.getAccountName()) + "\"," + channelName + "\n" + StringUtils.EMPTY + cmd + "\n";
         generateM3u8Response(ex, response, getParam(ex, "accountId") + "-" + getParam(ex, "categoryId") + "-" + getParam(ex, "channelId") + ".m3u8");
     }
 }

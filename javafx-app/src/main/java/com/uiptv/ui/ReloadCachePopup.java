@@ -484,6 +484,8 @@ public class ReloadCachePopup extends VBox {
             if (fetchedChannelCount <= 0) {
                 logMessage(account, LOG_NO_CHANNELS_FOUND);
                 addIssue(accountIssues, I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
+            } else {
+                logMessage(account, I18n.tr("reloadSavedToCache"));
             }
         } catch (SkipAccountReloadException _) {
             failed = true;
@@ -505,6 +507,7 @@ public class ReloadCachePopup extends VBox {
 
     private void handleReloadLogMessage(Account account, String message, List<String> accountIssues, boolean[] globalFailurePrompted) {
         logMessage(account, message);
+        refreshAccountInfoTitle(account);
         String issue = extractIssueReason(account, message);
         if (issue != null) {
             addIssue(accountIssues, issue);
@@ -940,14 +943,14 @@ public class ReloadCachePopup extends VBox {
         String statusValue = info.getAccountStatus() != null ? info.getAccountStatus().toDisplay() : "";
         String expiryValue = AccountInfoUiUtil.formatDate(info.getExpireDate());
         if (expiryValue.isBlank()) {
-            expiryValue = "Unlimited";
+            expiryValue = "Unknown";
         }
         if (statusValue.isBlank()) {
             statusValue = "unknown";
         }
         AccountInfoUiUtil.StatusState statusStateValue = AccountInfoUiUtil.resolveStatusState(statusValue);
         AccountInfoUiUtil.ExpiryState expiryStateValue = info.getExpireDate() == null || info.getExpireDate().isBlank()
-                ? AccountInfoUiUtil.ExpiryState.OK
+                ? AccountInfoUiUtil.ExpiryState.UNKNOWN
                 : AccountInfoUiUtil.resolveExpiryState(info.getExpireDate());
         final String expiry = expiryValue;
         final String status = statusValue;
@@ -1031,7 +1034,7 @@ public class ReloadCachePopup extends VBox {
             return countTranslation;
         }
         if (isSavedSuccessfullyLog(trimmed)) {
-            return I18n.tr("reloadSaved");
+            return "";
         }
         String pageTranslation = translatePageFetchLog(trimmed);
         if (pageTranslation != null) {

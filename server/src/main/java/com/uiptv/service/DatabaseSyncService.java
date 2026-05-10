@@ -2,11 +2,26 @@ package com.uiptv.service;
 
 import com.uiptv.db.DatabaseUtils;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.sql.SQLException;
 
+import static com.uiptv.util.SQLiteTableSync.ensureDatabaseReady;
+import static com.uiptv.util.SQLiteTableSync.replaceTable;
+import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uCategorySelections;
+import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uChannelSelections;
+import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uSelections;
 import static com.uiptv.util.SQLiteTableSync.syncTables;
 
 public class DatabaseSyncService {
+    private static final List<DatabaseUtils.DbTable> CONFIGURATION_SYNCABLE = List.of(
+            DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE,
+            DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE,
+            DatabaseUtils.DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE,
+            DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE
+    );
+
     private DatabaseSyncService() {
     }
 
@@ -18,11 +33,114 @@ public class DatabaseSyncService {
         return SingletonHelper.INSTANCE;
     }
 
-    public void syncDatabases(String firstDB, String secondDB) throws SQLException {
-        for (DatabaseUtils.DbTable tableName : DatabaseUtils.DbTable.values()) {
-            if (DatabaseUtils.Syncable.contains(tableName)) {
-                syncTables(firstDB, secondDB, tableName);
-            }
+    public void syncDatabases(String sourceDB, String targetDB) throws SQLException {
+        syncDatabases(sourceDB, targetDB, false, false);
+    }
+
+    public void syncDatabases(String sourceDB, String targetDB, boolean syncConfiguration, boolean syncExternalPlayerPaths) throws SQLException {
+        syncDatabasesWithReport(sourceDB, targetDB, syncConfiguration, syncExternalPlayerPaths, null);
+    }
+
+    public DatabaseSyncReport syncDatabasesWithReport(String sourceDB,
+                                                      String targetDB,
+                                                      boolean syncConfiguration,
+                                                      boolean syncExternalPlayerPaths,
+                                                      SyncProgressListener progressListener) throws SQLException {
+        ensureDatabaseReady(targetDB);
+        List<TableSyncResult> tableResults = new ArrayList<>();
+        int totalSteps = DatabaseUtils.Syncable.size() + (syncConfiguration ? 1 + CONFIGURATION_SYNCABLE.size() : 0);
+        int completedSteps = 0;
+        for (DatabaseUtils.DbTable tableName : DatabaseUtils.Syncable) {
+            notifyProgress(progressListener, completedSteps, totalSteps, tableName.getTableName());
+            int syncedRows = syncTables(sourceDB, targetDB, tableName);
+            tableResults.add(new TableSyncResult(tableName.getTableName(), syncedRows));
+            completedSteps++;
+        }
+        boolean configurationCopied = false;
+        if (syncConfiguration) {
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
+            configurationCopied = com.uiptv.util.SQLiteTableSync.syncConfiguration(sourceDB, targetDB, syncExternalPlayerPaths);
+            completedSteps++;
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName());
+            tableResults.add(new TableSyncResult(
+                    DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(),
+                    replaceTable(sourceDB, targetDB, DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE)
+            ));
+            completedSteps++;
+
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName());
+            tableResults.add(new TableSyncResult(
+                    DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(),
+                    syncPublishedM3uSelections(sourceDB, targetDB)
+            ));
+            completedSteps++;
+
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE.getTableName());
+            tableResults.add(new TableSyncResult(
+                    DatabaseUtils.DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE.getTableName(),
+                    syncPublishedM3uCategorySelections(sourceDB, targetDB)
+            ));
+            completedSteps++;
+
+            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.getTableName());
+            tableResults.add(new TableSyncResult(
+                    DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.getTableName(),
+                    syncPublishedM3uChannelSelections(sourceDB, targetDB)
+            ));
+            completedSteps++;
+        }
+        notifyProgress(progressListener, completedSteps, totalSteps, null);
+        return new DatabaseSyncReport(tableResults, syncConfiguration, configurationCopied, syncExternalPlayerPaths);
+    }
+
+    private void notifyProgress(SyncProgressListener progressListener, int completedSteps, int totalSteps, String currentStep) {
+        if (progressListener == null) {
+            return;
+        }
+        progressListener.onProgress(completedSteps, totalSteps, currentStep);
+    }
+
+    @FunctionalInterface
+    public interface SyncProgressListener {
+        void onProgress(int completedSteps, int totalSteps, String currentStep);
+    }
+
+    public record DatabaseSyncReport(List<TableSyncResult> tableResults,
+                                     boolean configurationRequested,
+                                     boolean configurationCopied,
+                                     boolean externalPlayerPathsIncluded) {
+        public DatabaseSyncReport {
+            tableResults = Collections.unmodifiableList(new ArrayList<>(tableResults));
+        }
+
+        public List<TableSyncResult> getTableResults() {
+            return tableResults;
+        }
+
+        public boolean isConfigurationRequested() {
+            return configurationRequested;
+        }
+
+        public boolean isConfigurationCopied() {
+            return configurationCopied;
+        }
+
+        public boolean isExternalPlayerPathsIncluded() {
+            return externalPlayerPathsIncluded;
+        }
+
+        public int getTotalRowsSynced() {
+            return tableResults.stream().mapToInt(TableSyncResult::getRowCount).sum();
+        }
+    }
+
+    public record TableSyncResult(String tableName, int rowCount) {
+        public String getTableName() {
+            return tableName;
+        }
+
+        public int getRowCount() {
+            return rowCount;
         }
     }
 }

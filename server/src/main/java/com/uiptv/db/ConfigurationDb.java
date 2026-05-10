@@ -4,9 +4,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 
 import java.sql.*;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.CONFIGURATION_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
@@ -48,15 +46,13 @@ public class ConfigurationDb extends BaseDb {
         }
 
         try (Connection conn = connect()) {
-            Set<String> clearedTables = new HashSet<>();
+            // Live channels reference live category row ids, so they must be deleted
+            // before the live categories themselves are removed.
+            deleteAccountLiveChannels(conn, account.getDbId());
             for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                deleteAccountCacheForTable(conn, table, account.getDbId());
-                clearedTables.add(table.getTableName());
-            }
-
-            // Live channels are tied to live categories, so clear them once via explicit join if not already covered.
-            if (!clearedTables.contains(DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName())) {
-                deleteAccountLiveChannels(conn, account.getDbId());
+                if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) {
+                    deleteAccountCacheForTable(conn, table, account.getDbId());
+                }
             }
 
             String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
@@ -71,11 +67,6 @@ public class ConfigurationDb extends BaseDb {
     }
 
     private void deleteAccountCacheForTable(Connection conn, DatabaseUtils.DbTable table, String accountId) throws SQLException {
-        if (table == DatabaseUtils.DbTable.CHANNEL_TABLE) {
-            deleteAccountLiveChannels(conn, accountId);
-            return;
-        }
-
         String sql = DELETE_FROM + validatedTableName(table) + " WHERE accountId=?";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, accountId);
@@ -95,6 +86,7 @@ public class ConfigurationDb extends BaseDb {
 
     @Override
     Configuration populate(ResultSet resultSet) {
+        String duration = nullSafeString(resultSet, "filterLockUnlockDurationMinutes");
         Configuration c = new Configuration(
                 nullSafeString(resultSet, "playerPath1"),
                 nullSafeString(resultSet, "playerPath2"),
@@ -113,13 +105,17 @@ public class ConfigurationDb extends BaseDb {
         c.setWideView(safeBoolean(resultSet, "wideView"));
         c.setLanguageLocale(nullSafeString(resultSet, "languageLocale"));
         c.setTmdbReadAccessToken(nullSafeString(resultSet, "tmdbReadAccessToken"));
+        c.setFilterLockHash(nullSafeString(resultSet, "filterLockHash"));
         c.setUiZoomPercent(nullSafeString(resultSet, "uiZoomPercent"));
         c.setEnableLitePlayerFfmpeg(safeBoolean(resultSet, "enableLitePlayerFfmpeg"));
+        c.setAutoRunServerOnStartup(safeBoolean(resultSet, "autoRunServerOnStartup"));
         c.setVlcNetworkCachingMs(nullSafeString(resultSet, "vlcNetworkCachingMs"));
         c.setVlcLiveCachingMs(nullSafeString(resultSet, "vlcLiveCachingMs"));
+        c.setPublishedM3uCategoryMode(nullSafeString(resultSet, "publishedM3uCategoryMode"));
         c.setEnableVlcHttpUserAgent(missingOrTrue(resultSet, "enableVlcHttpUserAgent"));
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
-        c.setResolveChainAndDeepRedirects(missingOrTrue(resultSet, "resolveChainAndDeepRedirects"));
+        c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
+        c.setFilterLockUnlockDurationMinutes(duration);
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -138,7 +134,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(24, current.getDbId());
+                statement.setString(28, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -172,14 +168,18 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(14, configuration.isWideView() ? "1" : "0");
         statement.setString(15, configuration.getLanguageLocale());
         statement.setString(16, configuration.getTmdbReadAccessToken());
-        statement.setString(17, configuration.getUiZoomPercent());
-        statement.setString(18, configuration.isEnableLitePlayerFfmpeg() ? "1" : "0");
-        statement.setString(19, configuration.getVlcNetworkCachingMs());
-        statement.setString(20, configuration.getVlcLiveCachingMs());
-        statement.setString(21, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
-        statement.setString(22, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
-        statement.setString(23, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
-    }
+        statement.setString(17, configuration.getFilterLockHash());
+        statement.setString(18, configuration.getUiZoomPercent());
+        statement.setString(19, configuration.isEnableLitePlayerFfmpeg() ? "1" : "0");
+        statement.setString(20, configuration.isAutoRunServerOnStartup() ? "1" : "0");
+        statement.setString(21, configuration.getVlcNetworkCachingMs());
+        statement.setString(22, configuration.getVlcLiveCachingMs());
+        statement.setString(23, configuration.getPublishedM3uCategoryMode());
+        statement.setString(24, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
+        statement.setString(25, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+        statement.setString(26, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
+        statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
+     }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {
         try {

@@ -7,6 +7,8 @@ import com.uiptv.model.*;
 import com.uiptv.shared.Episode;
 
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -107,7 +109,7 @@ public class PlayerRequestResolver {
 
     private Channel createLegacyBookmarkChannel(Bookmark bookmark) {
         Channel channel = new Channel();
-        channel.setCmd(bookmark.getCmd());
+        channel.setCmd(decodeBookmarkCmd(bookmark.getCmd()));
         channel.setChannelId(bookmark.getChannelId());
         channel.setName(bookmark.getChannelName());
         channel.setDrmType(bookmark.getDrmType());
@@ -116,6 +118,17 @@ public class PlayerRequestResolver {
         channel.setInputstreamaddon(bookmark.getInputstreamaddon());
         channel.setManifestType(bookmark.getManifestType());
         return channel;
+    }
+
+    private String decodeBookmarkCmd(String value) {
+        if (isBlank(value)) {
+            return value;
+        }
+        try {
+            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+        } catch (Exception _) {
+            return value;
+        }
     }
 
     private Channel resolveRequestedChannel(Account account, String categoryId, String channelId, String mode) {

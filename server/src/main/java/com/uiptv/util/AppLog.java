@@ -46,8 +46,10 @@ public final class AppLog {
         for (Consumer<String> listener : listeners) {
             try {
                 listener.accept(safeLog);
-            } catch (Exception _) {
+            } catch (Exception e) {
                 // Keep logging resilient if a listener fails.
+                Logger logger = LoggerFactory.getLogger(AppLog.class);
+                logger.error("Log listener failed", e);
             }
         }
     }

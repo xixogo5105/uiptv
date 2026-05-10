@@ -1,1 +1,1 @@
-ALTER TABLE Configuration ADD COLUMN resolveChainAndDeepRedirects TEXT default '1';
+--@add_column Configuration resolveChainAndDeepRedirects TEXT default '0'

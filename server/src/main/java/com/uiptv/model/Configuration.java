@@ -20,9 +20,12 @@ public class Configuration extends BaseJson {
     private String cacheExpiryDays;
     private String languageLocale;
     private String tmdbReadAccessToken;
+    private String filterLockHash;
+    private String filterLockUnlockDurationMinutes = "15";
     private String uiZoomPercent;
     private String vlcNetworkCachingMs;
     private String vlcLiveCachingMs;
+    private String publishedM3uCategoryMode;
     private boolean darkTheme;
     private boolean pauseFiltering;
     private boolean pauseCaching;
@@ -30,10 +33,11 @@ public class Configuration extends BaseJson {
     private boolean wideView;
     private boolean enableFfmpegTranscoding;
     private boolean enableLitePlayerFfmpeg;
+    private boolean autoRunServerOnStartup;
     private boolean enableThumbnails = true;
     private boolean enableVlcHttpUserAgent = true;
     private boolean enableVlcHttpForwardCookies = true;
-    private boolean resolveChainAndDeepRedirects = true;
+    private boolean resolveChainAndDeepRedirects = false;
 
 
     @SuppressWarnings("java:S107")

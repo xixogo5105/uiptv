@@ -3,8 +3,10 @@ package com.uiptv.ui;
 import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.service.VodWatchStateService;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.AfterEach;
@@ -62,15 +64,29 @@ class ConfigurationUIClearWatchingNowTest {
                 "1",
                 "1"
         );
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(account.getDbId());
+        snapshot.setCategoryId("series-cat");
+        snapshot.setSeriesId("series-1");
+        snapshot.setCategoryDbId("series-cat-db");
+        snapshot.setSeriesTitle("Series 1");
+        snapshot.setSeriesPoster("http://img/series-1.png");
+        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-1\\\",\\\"name\\\":\\\"Episode 1\\\",\\\"cmd\\\":\\\"http://127.0.0.1/ep/1.m3u8\\\"}\"]");
+        snapshot.setUpdatedAt(System.currentTimeMillis());
+        com.uiptv.db.SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
 
         assertFalse(SeriesWatchStateService.getInstance()
                 .getAllSeriesLastWatchedByAccount(account.getDbId()).isEmpty());
+        assertFalse(SeriesWatchingNowSnapshotService.getInstance()
+                .loadEpisodeList(account.getDbId(), "series-cat", "series-1").getEpisodes().isEmpty());
         assertFalse(VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).isEmpty());
 
         ConfigurationUI.clearWatchingNowStates();
 
         assertTrue(SeriesWatchStateService.getInstance()
                 .getAllSeriesLastWatchedByAccount(account.getDbId()).isEmpty());
+        assertTrue(SeriesWatchingNowSnapshotService.getInstance()
+                .loadEpisodeList(account.getDbId(), "series-cat", "series-1").getEpisodes().isEmpty());
         assertTrue(VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).isEmpty());
     }
 

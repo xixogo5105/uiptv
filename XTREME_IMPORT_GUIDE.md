@@ -6,6 +6,7 @@ This guide explains how to bulk import Xtreme Codes accounts.
 
 - Imported Xtreme accounts support Live TV, VOD, and Series flows in both desktop and web views.
 - If multiple accounts share the same host URL, UIPTV auto-suffixes account names (`name`, `name (2)`, `name (3)`, ...).
+- Bulk import can also reuse one host account and append multiple username/password pairs when **Group Accounts by Username/Password** is enabled.
 - Account cache reload is available after import from the **Manage Account** screen.
 
 ## Format Overview
@@ -43,6 +44,25 @@ Result: All 3 accounts will be imported with unique names:
 - `192.168.1.100` (first account)
 - `192.168.1.100 (2)` (second account)
 - `192.168.1.100 (3)` (third account)
+
+## Example: Group Multiple Credentials Under One Host Account
+
+With **Group Accounts by Username/Password** enabled:
+
+```
+http://192.168.1.100:2095
+User : LoremUser01
+Pass : IpsumPass01
+
+http://192.168.1.100:2095
+User : DolorUser02
+Pass : SitPass02
+```
+
+Result:
+- One account named `192.168.1.100`
+- Both credential pairs are stored on that account
+- The default username/password remains selectable from the merged credential list
 
 ## Example: Multiple Servers
 
@@ -83,9 +103,10 @@ Result: All 3 accounts will be imported with their credentials properly extracte
 2. Go to "Parse Multiple Accounts" (usually in the UI menu)
 3. Select "Xtreme" as the account type
 4. Paste your accounts in the text field
-5. Optional: keep **"Start verification after parsing"** enabled to run post-import checks
-6. Click "Save"
-7. All accounts will be imported with unique names
+5. Optional: enable **"Group Accounts by Username/Password"** to merge same-host credentials into one account
+6. Optional: keep **"Start verification after parsing"** enabled to run post-import checks
+7. Click "Save"
+8. Accounts will be imported either as separate entries or as grouped host accounts, depending on the checkbox state
 
 ## Notes
 

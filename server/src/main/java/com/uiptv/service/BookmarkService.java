@@ -69,6 +69,15 @@ public class BookmarkService {
         }
     }
 
+    public void removeByAccountName(String accountName) {
+        try {
+            BookmarkDb.get().deleteByAccountName(accountName);
+            touchChange();
+        } catch (Exception _) {
+            AppLog.addErrorLog(BookmarkService.class, "Error while removing bookmarks for account");
+        }
+    }
+
     public String readToJson() {
         List<Bookmark> bookmarks = new ArrayList<>(BookmarkDb.get().getBookmarks());
         List<BookmarkResolver.ResolvedBookmark> resolved = new BookmarkResolver().resolveBookmarks(bookmarks);
@@ -98,6 +107,10 @@ public class BookmarkService {
 
     public void removeCategory(BookmarkCategory category) {
         BookmarkDb.get().deleteCategory(category);
+        touchChange();
+    }
+
+    public void notifyBookmarksChanged() {
         touchChange();
     }
 

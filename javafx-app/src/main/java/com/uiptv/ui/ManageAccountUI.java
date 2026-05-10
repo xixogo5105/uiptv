@@ -78,6 +78,7 @@ public class ManageAccountUI extends VBox {
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "manageDeviceId2Prompt", 5);
     private final UIptvText signature = new UIptvText("signature", "manageSignaturePrompt", 5);
     private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
+    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
@@ -238,17 +239,17 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case M3U8_URL:
             case RSS_FEED:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
         }
 
@@ -478,7 +479,7 @@ public class ManageAccountUI extends VBox {
         AccountInfo info = accountInfoService.getByAccountId(accountToVerify.getDbId());
         String expiry = info != null ? AccountInfoUiUtil.formatDate(info.getExpireDate()) : "";
         if (isBlank(expiry)) {
-            expiry = "Unlimited";
+            expiry = "Unknown";
         }
         String status = info != null && info.getAccountStatus() != null ? info.getAccountStatus().toDisplay() : "unknown";
         progressDialog.addProgressText(I18n.tr("manageAccountInfoExpireDate") + ": " + expiry);
@@ -609,6 +610,7 @@ public class ManageAccountUI extends VBox {
         macAddress.setPromptText(I18n.tr(PRIMARY_MAC_ADDRESS_HINT_KEY));
         accountType.setValue(STALKER_PORTAL.getDisplay());
         pinToTopCheckBox.setSelected(false);
+        resolveChainAndDeepRedirectsCheckBox.setSelected(false);
         httpMethodCombo.setValue("GET");
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
@@ -802,14 +804,15 @@ public class ManageAccountUI extends VBox {
         }
 
         String rawExpire = info != null ? safeText(info.getExpireDate()) : "";
-        boolean unlimited = isBlank(rawExpire) || rawExpire.startsWith("0000-00-00");
-        if (unlimited) {
-            setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, "Unlimited");
-            AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, AccountInfoUiUtil.colorForExpiry(AccountInfoUiUtil.ExpiryState.OK), true);
+        boolean missingExpiry = isBlank(rawExpire) || rawExpire.startsWith("0000-00-00");
+        if (missingExpiry) {
+            setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, "Unknown");
+            AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, AccountInfoUiUtil.colorForExpiry(AccountInfoUiUtil.ExpiryState.UNKNOWN), true);
         } else {
             AccountInfoUiUtil.ParsedDate parsedExpire = AccountInfoUiUtil.parseDateValue(rawExpire);
-            setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, parsedExpire.display());
-            updateExpiryIndicator(parsedExpire.instant(), isNotBlank(parsedExpire.display()));
+            String displayExpire = AccountInfoUiUtil.formatDate(rawExpire);
+            setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, displayExpire);
+            updateExpiryIndicator(parsedExpire.instant(), isNotBlank(displayExpire));
         }
 
         com.uiptv.model.AccountStatus status = info != null ? info.getAccountStatus() : null;
@@ -940,7 +943,35 @@ public class ManageAccountUI extends VBox {
         if (isBlank(key)) {
             return;
         }
-        lines.add(key + ": " + value);
+        lines.add(key + ": " + formatProfileValue(key, value));
+    }
+
+    private String formatProfileValue(String key, String value) {
+        if (isBlank(value)) {
+            return value;
+        }
+        if (!looksLikeDateValue(key, value)) {
+            return value;
+        }
+        String formatted = AccountInfoUiUtil.formatDate(value);
+        return isNotBlank(formatted) ? formatted : value;
+    }
+
+    private boolean looksLikeDateValue(String key, String value) {
+        String normalizedKey = key == null ? "" : key.toLowerCase(java.util.Locale.ROOT);
+        if (normalizedKey.contains("date")
+                || normalizedKey.contains("time")
+                || normalizedKey.contains("created")
+                || normalizedKey.contains("updated")
+                || normalizedKey.contains("watchdog")
+                || normalizedKey.contains("active")
+                || normalizedKey.contains("start")
+                || normalizedKey.contains("expire")
+                || normalizedKey.endsWith("at")) {
+            return true;
+        }
+        AccountInfoUiUtil.ParsedDate parsed = AccountInfoUiUtil.parseDateValue(value);
+        return isNotBlank(parsed.display()) && !parsed.display().equals(value.trim());
     }
 
     private void updateStatusIndicator(String statusText) {
@@ -1021,6 +1052,7 @@ public class ManageAccountUI extends VBox {
         if (accountId != null) {
             account.setDbId(accountId);
         }
+        account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
         account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
         return account;
@@ -1144,6 +1176,7 @@ public class ManageAccountUI extends VBox {
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
+        resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         accountType.setValue(account.getType().getDisplay());

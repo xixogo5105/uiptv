@@ -1,7 +1,7 @@
 package com.uiptv.player;
 
-import com.uiptv.util.HttpUtil;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.util.HttpUtil;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -56,7 +56,8 @@ class BaseVideoPlayerHlsResolutionTest {
         try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
              MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(true);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(true);
+            Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
             httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")))
                     .thenReturn(master);
             httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(variantUrl), Mockito.anyMap(), Mockito.eq("GET")))
@@ -79,7 +80,7 @@ class BaseVideoPlayerHlsResolutionTest {
         try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
              MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled()).thenReturn(false);
+            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(false);
 
             String resolved = player.resolve(uri);
 
@@ -124,16 +125,16 @@ class BaseVideoPlayerHlsResolutionTest {
 
     private static final class TestPlayer extends BaseVideoPlayer {
         @Override protected javafx.scene.Node getVideoView() { return null; }
-        @Override protected void playMedia(String uri) { /* no-op test stub */ }
-        @Override protected void stopMedia() { /* no-op test stub */ }
-        @Override protected void disposeMedia() { /* no-op test stub */ }
-        @Override protected void setVolume(double volume) { /* no-op test stub */ }
-        @Override protected void setMute(boolean mute) { /* no-op test stub */ }
-        @Override protected void seek(float position) { /* no-op test stub */ }
-        @Override protected void seekBySeconds(int deltaSeconds) { /* no-op test stub */ }
-        @Override protected void updateVideoSize() { /* no-op test stub */ }
-        @Override protected void pauseMedia() { /* no-op test stub */ }
-        @Override protected void resumeMedia() { /* no-op test stub */ }
+        @Override protected void playMedia(String uri) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void stopMedia() { /* Test stub: playback is not exercised here. */ }
+        @Override protected void disposeMedia() { /* Test stub: playback is not exercised here. */ }
+        @Override protected void setVolume(double volume) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void setMute(boolean mute) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void seek(float position) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void seekBySeconds(int deltaSeconds) { /* Test stub: playback is not exercised here. */ }
+        @Override protected void updateVideoSize() { /* Test stub: layout is not exercised here. */ }
+        @Override protected void pauseMedia() { /* Test stub: playback is not exercised here. */ }
+        @Override protected void resumeMedia() { /* Test stub: playback is not exercised here. */ }
         @Override protected boolean isPlaying() { return false; }
         @Override public com.uiptv.player.api.VideoPlayerInterface.PlayerType getType() { return com.uiptv.player.api.VideoPlayerInterface.PlayerType.DUMMY; }
 

@@ -9,21 +9,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ContentFilterFlowTest extends DbBackedTest {
 
     @Test
-    void parseItvChannels_fromJsonFile_censorTrue_appliesConfiguredFilter() throws IOException {
+    void parseItvChannels_fromJsonFile_censorTrue_keepsCensoredItemsForParentalLockGate() throws IOException {
         saveConfiguration("", "premium", false);
         String json = readResource("json/itv_channels_filter_case.json");
 
         List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, true);
 
-        assertEquals(1, channels.size());
-        assertEquals("Sports Live", channels.get(0).getName());
+        assertEquals(2, channels.size());
+        assertEquals(List.of("Sports Live", "Kids Plus"),
+                channels.stream().map(Channel::getName).toList());
     }
 
     @Test
@@ -37,14 +37,15 @@ class ContentFilterFlowTest extends DbBackedTest {
     }
 
     @Test
-    void parseCategories_fromJsonFile_censorTrue_appliesConfiguredFilter() throws IOException {
+    void parseCategories_fromJsonFile_censorTrue_keepsCensoredItemsForParentalLockGate() throws IOException {
         saveConfiguration("premium", "", false);
         String json = readResource("json/categories_filter_case.json");
 
         List<Category> categories = CategoryService.getInstance().parseCategories(json, true);
 
-        assertEquals(1, categories.size());
-        assertEquals("Sports", categories.get(0).getTitle());
+        assertEquals(2, categories.size());
+        assertEquals(List.of("Sports", "Documentary"),
+                categories.stream().map(Category::getTitle).toList());
     }
 
     @Test

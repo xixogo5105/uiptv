@@ -13,6 +13,7 @@ import com.uiptv.service.BookmarkService;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.ServerUrlUtil;
@@ -127,6 +128,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         itemsLoaded.set(true);
         syncEpisodeList(newChannelList);
         syncSeasonInfo(newChannelList);
+        persistWatchingNowSnapshot(newChannelList);
         Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
         SeriesWatchState watchedState = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
         navigateToLastWatched(watchedState);
@@ -922,6 +924,46 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (isBlank(target.optString(key, "")) && !isBlank(source.optString(key, ""))) {
             target.put(key, source.optString(key, ""));
         }
+    }
+
+    private void persistWatchingNowSnapshot(EpisodeList episodeList) {
+        if (account == null || isBlank(account.getDbId()) || isBlank(seriesId)
+                || episodeList == null || episodeList.getEpisodes() == null || episodeList.getEpisodes().isEmpty()) {
+            return;
+        }
+        String title = firstNonBlank(
+                seasonInfo.optString("name", ""),
+                episodeList.getSeasonInfo() == null ? "" : safe(episodeList.getSeasonInfo().getName())
+        );
+        String poster = firstNonBlank(
+                seasonInfo.optString("cover", ""),
+                firstEpisodePoster(episodeList)
+        );
+        SeriesWatchingNowSnapshotService.getInstance().save(
+                account,
+                seriesCategoryId,
+                seriesId,
+                seriesCategoryId,
+                title,
+                poster,
+                episodeList
+        );
+    }
+
+    private String firstEpisodePoster(EpisodeList episodeList) {
+        if (episodeList == null || episodeList.getEpisodes() == null) {
+            return "";
+        }
+        for (Episode episode : episodeList.getEpisodes()) {
+            if (episode == null || episode.getInfo() == null) {
+                continue;
+            }
+            String poster = safe(episode.getInfo().getMovieImage());
+            if (!isBlank(poster)) {
+                return poster;
+            }
+        }
+        return "";
     }
 
     public static class EpisodeItem {

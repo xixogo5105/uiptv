@@ -1,17 +1,24 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.api.Callback;
 import com.uiptv.player.api.VideoPlayerInterface;
+import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.server.UIptvServer;
+import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.service.ConfigurationChangeListener;
+import com.uiptv.service.remotesync.RemoteSyncClientService;
+import com.uiptv.service.remotesync.RemoteSyncExecutionResult;
+import com.uiptv.service.remotesync.RemoteSyncOptions;
+import com.uiptv.service.remotesync.RemoteSyncProgressStep;
 import com.uiptv.service.*;
+import com.uiptv.ui.util.ThemeStylesheetResolver;
+import com.uiptv.ui.util.UiI18n;
+import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
-import com.uiptv.ui.util.ThemeStylesheetResolver;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -19,6 +26,7 @@ import com.uiptv.widget.UIptvTextArea;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -34,7 +42,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
@@ -44,11 +55,22 @@ public class ConfigurationUI extends VBox {
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
     private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
+    private static final String CONFIG_FILTER_CATEGORIES_PROMPT = "configFilterCategoriesPrompt";
+    private static final String CONFIG_FILTER_CHANNELS_PROMPT = "configFilterChannelsPrompt";
+    private static final String CONFIG_EMBED_PLAYER_RESTART_NEEDED = "configEmbedPlayerRestartNeeded";
+    private static final String CONFIG_DATABASE_SYNC_IN_PROGRESS = "configDatabaseSyncInProgress";
+    private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
+    private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
+    private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
     private static final String DIALOG_TITLE_COMMON_INFO = "commonInfo";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
+    private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
+    private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
+    private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
+    private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
@@ -63,12 +85,21 @@ public class ConfigurationUI extends VBox {
     private final UIptvText playerPath1 = new UIptvText("playerPath1", "configPlayerPath1Prompt", 5);
     private final UIptvText playerPath2 = new UIptvText("playerPath2", "configPlayerPath2Prompt", 5);
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "configPlayerPath3Prompt", 5);
-    private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", "configFilterCategoriesPrompt", 5);
-    private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", "configFilterChannelsPrompt", 5);
+    private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", CONFIG_FILTER_CATEGORIES_PROMPT, 5);
+    private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", CONFIG_FILTER_CHANNELS_PROMPT, 5);
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
+    private final Label filterLockStatusLabel = new Label();
+    private final Button filterLockPasswordButton = new Button();
+    private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
+    private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
+    private final CheckBox filterDisablePasswordCheckBox = new CheckBox(I18n.tr("filterLockDisablePasswordAction"));
+    private final ComboBox<Integer> filterLockUnlockDurationComboBox = new ComboBox<>();
+    private HBox filterLockDurationRow;
+    private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final CheckBox enableFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableFfmpeg")));
     private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableLitePlayerFfmpeg")));
+    private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
@@ -76,6 +107,13 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
     private final Hyperlink ffmpegTranscodingHelpLink = new Hyperlink("(?)");
     private final Hyperlink litePlayerFfmpegHelpLink = new Hyperlink("(?)");
+    private final Hyperlink videoPlayersHelpLink = new Hyperlink("(?)");
+    private final Hyperlink filtersHelpLink = new Hyperlink("(?)");
+    private final Hyperlink themeHelpLink = new Hyperlink("(?)");
+    private final Hyperlink cacheFilteringHelpLink = new Hyperlink("(?)");
+    private final Hyperlink databaseSyncHelpLink = new Hyperlink("(?)");
+    private final Hyperlink ffmpegAndWebServerHelpLink = new Hyperlink("(?)");
+    private final Hyperlink tmdbMetadataHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
@@ -98,12 +136,19 @@ public class ConfigurationUI extends VBox {
     private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
+    private final Button importDatabaseButton = new Button(I18n.tr(CONFIG_IMPORT_DATABASE));
+    private final Button exportDatabaseButton = new Button(I18n.tr(CONFIG_EXPORT_DATABASE));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
+    private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
+    private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private String dbId;
+    private String persistedFilterCategoriesValue = "";
+    private String persistedFilterChannelsValue = "";
+    private boolean persistedPauseFilteringValue = false;
     private boolean ignorePlayerSelectionPrompt = false;
     private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
     private String vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
@@ -114,6 +159,7 @@ public class ConfigurationUI extends VBox {
     private Timeline serverStatusTimeline;
     @SuppressWarnings("java:S1450")
     private Timeline saveSuccessTimeline;
+    private final ConfigurationChangeListener configurationChangeListener = revision -> javafx.application.Platform.runLater(this::refreshConfigurationForm);
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
@@ -122,6 +168,7 @@ public class ConfigurationUI extends VBox {
 
     static void clearWatchingNowStates() {
         SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
+        SeriesWatchingNowSnapshotService.getInstance().clearAll();
         VodWatchStateService.getInstance().clearAll();
     }
 
@@ -134,6 +181,11 @@ public class ConfigurationUI extends VBox {
         cssFileChooser.setTitle(I18n.tr("configCssSelectFile"));
         cssFileChooser.getExtensionFilters().setAll(
                 new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"),
+                new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
+        );
+        databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
+        databaseFileChooser.getExtensionFilters().setAll(
+                new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.db"),
                 new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
         );
 
@@ -155,32 +207,16 @@ public class ConfigurationUI extends VBox {
         configurePlayerUserData();
         addWideViewHelpClickHandler();
         addFfmpegHelpClickHandlers();
+        addVideoPlayersHelpClickHandler();
+        addThemeHelpClickHandler();
+        addDatabaseSyncHelpClickHandler();
+        addFiltersHelpClickHandler();
+        addCacheFilteringHelpClickHandler();
+        addFfmpegAndWebServerHelpClickHandler();
+        addTmdbMetadataHelpClickHandler();
+        configureHelpLinks();
         defaultEmbedPlayer.setSelected(true);
-        if (configuration != null) {
-            this.dbId = configuration.getDbId();
-            playerPath1.setText(configuration.getPlayerPath1());
-            playerPath2.setText(configuration.getPlayerPath2());
-            playerPath3.setText(configuration.getPlayerPath3());
-            filterCategoriesWithTextContains.setText(configuration.getFilterCategoriesList());
-            filterChannelWithTextContains.setText(configuration.getFilterChannelsList());
-            filterPausedCheckBox.setSelected(configuration.isPauseFiltering());
-            darkThemeCheckBox.setSelected(configuration.isDarkTheme());
-            enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
-            wideViewCheckBox.setSelected(configuration.isWideView());
-            serverPort.setText(configuration.getServerPort());
-            enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
-            enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
-            resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
-            cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
-            tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
-            vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
-            vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
-            vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
-            vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
-        }
-        if (configuration == null) {
-            resolveChainAndDeepRedirectsCheckBox.setSelected(true);
-        }
+        applyConfigurationToForm(configuration);
         selectDefaultPlayer(configuration);
         updateVlcOptionsLinkVisibility();
         updateWideViewVisibility();
@@ -204,8 +240,13 @@ public class ConfigurationUI extends VBox {
         playerPath3.setPrefWidth(295);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
+        filterCategoriesWithTextContains.setPrefRowCount(6);
+        filterChannelWithTextContains.setPrefRowCount(6);
+        registerConfigurationChangeListener();
 
         filterPausedCheckBox.setMinWidth(250);
+        filterLockStatusLabel.setWrapText(true);
+        filterLockStatusLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         cacheExpiryDays.setPrefColumnCount(4);
         cacheExpiryDays.setMaxWidth(70);
         Label cacheExpiryLabel = new Label(I18n.tr("configCacheExpiresInDays"));
@@ -226,8 +267,8 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(box4Spacer, Priority.ALWAYS);
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
-        HBox wideViewRow = new HBox(6, wideViewCheckBox, wideViewHelpLink);
-        HBox resolveChainRow = new HBox(6, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
+        HBox wideViewRow = new HBox(4, wideViewCheckBox, wideViewHelpLink);
+        HBox resolveChainRow = new HBox(4, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
@@ -238,17 +279,18 @@ public class ConfigurationUI extends VBox {
         wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
-        Label tmdbHelpLabel = new Label(I18n.tr("configTmdbReadAccessTokenHelp"));
-        tmdbHelpLabel.setWrapText(true);
-        tmdbHelpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
-        VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbHelpLabel, tmdbLinksRow);
+        VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
         resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
-        VBox filtersGroup = new VBox(10, filterCategoriesWithTextContains, filterChannelWithTextContains);
+        filterAdminControls.getChildren().setAll(filterCategoriesWithTextContains, filterChannelWithTextContains);
+        HBox filterLockActions = new HBox(8, filterLockPasswordButton, filterUnlockButton, filterRelockButton);
+        filterLockActions.setAlignment(Pos.CENTER_LEFT);
+        filterLockDurationRow = createFilterLockDurationRow();
+        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterDisablePasswordCheckBox, filterLockDurationRow, filterAdminControls);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
         updateThemeCssStatusLabels();
@@ -262,24 +304,29 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
-        HBox ffmpegTranscodingRow = new HBox(6, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
-        HBox litePlayerFfmpegRow = new HBox(6, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
+        HBox ffmpegTranscodingRow = new HBox(4, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
+        HBox litePlayerFfmpegRow = new HBox(4, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
+        HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
         ffmpegTranscodingRow.setAlignment(Pos.CENTER_LEFT);
         litePlayerFfmpegRow.setAlignment(Pos.CENTER_LEFT);
+        autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
         enableFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         enableLitePlayerFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button);
+        autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button, autoRunServerOnStartupRow);
         serverGroup.setFillWidth(true);
         ffmpegTranscodingHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         litePlayerFfmpegHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
+        VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
         contentContainer.getChildren().addAll(
-                createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), I18n.tr("configAddPlayerPathsHint"), playersGroup, false),
-                createCollapsibleGroupPane(I18n.tr("configFilters"), null, filtersGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configDarkTheme"), I18n.tr("configThemeDescription"), themeOverridesGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), null, cacheGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), null, serverGroup, true),
-                createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, true),
+                createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), playersGroup, false, videoPlayersHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configFilters"), filtersGroup, true, filtersHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configDarkTheme"), themeOverridesGroup, true, themeHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), cacheGroup, true, cacheFilteringHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), databaseSyncGroup, true, databaseSyncHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), serverGroup, true, ffmpegAndWebServerHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), tmdbConfigSection, true, tmdbMetadataHelpLink),
                 saveButton
         );
         addSaveButtonClickHandler();
@@ -293,30 +340,28 @@ public class ConfigurationUI extends VBox {
         addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
+        addFilterLockButtonHandlers();
         addResolveChainHelpClickHandler();
+        addDatabaseSyncButtonHandlers();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
+        refreshFilterLockUi();
     }
 
-    private BorderPane createCollapsibleGroupPane(String title, String description, Node content, boolean collapsedByDefault) {
+    private BorderPane createCollapsibleGroupPane(String title, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
         BorderPane pane = new BorderPane(content);
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("strong-label");
-        VBox titleContainer = new VBox(4, titleLabel);
+        HBox titleRow = new HBox(4, titleLabel);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        if (helpLink != null) {
+            titleRow.getChildren().add(helpLink);
+        }
+        VBox titleContainer = new VBox(4, titleRow);
         titleContainer.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(titleContainer, Priority.ALWAYS);
-        final Label descriptionLabel;
-        if (description != null && !description.isBlank()) {
-            Label label = new Label(description);
-            label.setWrapText(true);
-            label.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
-            titleContainer.getChildren().add(label);
-            descriptionLabel = label;
-        } else {
-            descriptionLabel = null;
-        }
 
         Hyperlink toggleLink = new Hyperlink();
         toggleLink.setMinWidth(Region.USE_PREF_SIZE);
@@ -327,10 +372,6 @@ public class ConfigurationUI extends VBox {
         final Runnable refreshToggleLabel = () -> {
             boolean expanded = content.isVisible() && content.isManaged();
             toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
-            if (descriptionLabel != null) {
-                descriptionLabel.setVisible(expanded);
-                descriptionLabel.setManaged(expanded);
-            }
         };
         content.setVisible(!collapsedByDefault);
         content.setManaged(!collapsedByDefault);
@@ -349,8 +390,36 @@ public class ConfigurationUI extends VBox {
         return pane;
     }
 
+    private HBox createFilterLockDurationRow() {
+        filterLockUnlockDurationComboBox.getStyleClass().add("uiptv-combo-box");
+        filterLockUnlockDurationComboBox.setMaxWidth(Double.MAX_VALUE);
+        filterLockUnlockDurationComboBox.getItems().setAll(15, 30, 45, 60, 120, 180);
+        filterLockUnlockDurationComboBox.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item + " " + I18n.tr("commonMinutes"));
+            }
+        });
+        filterLockUnlockDurationComboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item + " " + I18n.tr("commonMinutes"));
+            }
+        });
+
+        Label durationLabel = new Label(I18n.tr("filterLockUnlockDuration"));
+        HBox row = new HBox(8, durationLabel, filterLockUnlockDurationComboBox);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setVisible(false);
+        row.setManaged(false);
+
+        return row;
+    }
+
     private VBox buildThemeOverrideGroup() {
-        languageComboBox.getStyleClass().add("uiptv-combo-box");
+        // ...existing code...
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         Label languageLabel = new Label(I18n.tr("configLanguage"));
         HBox.setHgrow(languageComboBox, Priority.ALWAYS);
@@ -359,10 +428,6 @@ public class ConfigurationUI extends VBox {
         themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
         Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
         HBox.setHgrow(themeZoomComboBox, Priority.ALWAYS);
-
-        Label themeZoomHelpLabel = new Label(I18n.tr("configThemeZoomHelp"));
-        themeZoomHelpLabel.setWrapText(true);
-        themeZoomHelpLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
 
         lightThemeCssStatus.setEditable(false);
         darkThemeCssStatus.setEditable(false);
@@ -410,7 +475,7 @@ public class ConfigurationUI extends VBox {
         GridPane.setHgrow(languageComboBox, Priority.ALWAYS);
         GridPane.setHgrow(themeZoomComboBox, Priority.ALWAYS);
 
-        VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid, themeZoomHelpLabel);
+        VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid);
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
@@ -506,6 +571,7 @@ public class ConfigurationUI extends VBox {
         }
     }
 
+    @SuppressWarnings("unused")
     private void clearThemeCssOverride(boolean darkTheme) {
         if (darkTheme) {
             currentThemeCssOverride.setDarkThemeCssName(null);
@@ -616,14 +682,23 @@ public class ConfigurationUI extends VBox {
 
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
+            Stage activePopupStage = activePublishM3u8PopupStage.get();
+            if (activePopupStage != null && activePopupStage.isShowing()) {
+                activePopupStage.toFront();
+                activePopupStage.requestFocus();
+                return;
+            }
             Stage popupStage = new Stage();
             M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
-            Scene scene = new Scene(popup, 400, 300);
+            Scene scene = new Scene(popup, 680, 560);
             UiI18n.applySceneOrientation(scene);
             scene.getStylesheets().add(RootApplication.getCurrentTheme());
             popupStage.setTitle(I18n.tr("configPublishM3u8"));
             popupStage.setScene(scene);
-            popupStage.showAndWait();
+            popupStage.setOnHidden(hiddenEvent -> activePublishM3u8PopupStage.compareAndSet(popupStage, null));
+            activePublishM3u8PopupStage.set(popupStage);
+            popupStage.show();
+            popupStage.toFront();
         });
     }
 
@@ -705,8 +780,68 @@ public class ConfigurationUI extends VBox {
         tmdbApiKeyPageLink.setOnAction(event -> UiServerUrlUtil.openInBrowser(TMDB_API_KEY_URL));
     }
 
+    private void addFilterLockButtonHandlers() {
+        filterLockPasswordButton.setOnAction(event -> {
+            FilterLockDialogs.openPasswordChangeDialog(this);
+            refreshConfigurationForm();
+        });
+        filterUnlockButton.setOnAction(event -> {
+            if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+                refreshFilterLockUi();
+            }
+        });
+        filterRelockButton.setOnAction(event -> {
+            FilterLockService.getInstance().clearUnlockSession();
+            refreshFilterLockUi();
+        });
+        filterDisablePasswordCheckBox.setOnAction(event -> {
+            if (!filterDisablePasswordCheckBox.isSelected()) {
+                return;
+            }
+            boolean disabled = FilterLockDialogs.openDisablePasswordDialog(this);
+            filterDisablePasswordCheckBox.setSelected(false);
+            if (disabled) {
+                refreshConfigurationForm();
+            }
+        });
+        filterPausedCheckBox.setOnAction(event -> {
+            FilterLockService filterLockService = FilterLockService.getInstance();
+            if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
+                return;
+            }
+            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+                filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+                return;
+            }
+            refreshFilterLockUi();
+            filterPausedCheckBox.setSelected(!persistedPauseFilteringValue);
+        });
+    }
+
     private void addVlcOptionsLinkClickHandler() {
         vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
+    }
+
+    private void configureHelpLinks() {
+        java.util.List.of(
+                wideViewHelpLink,
+                resolveChainAndDeepRedirectsHelpLink,
+                ffmpegTranscodingHelpLink,
+                litePlayerFfmpegHelpLink,
+                videoPlayersHelpLink,
+                filtersHelpLink,
+                themeHelpLink,
+                cacheFilteringHelpLink,
+                databaseSyncHelpLink,
+                ffmpegAndWebServerHelpLink,
+                tmdbMetadataHelpLink
+        ).forEach(this::configureHelpLink);
+    }
+
+    private void configureHelpLink(Hyperlink helpLink) {
+        helpLink.setMinWidth(Region.USE_PREF_SIZE);
+        helpLink.setPadding(Insets.EMPTY);
+        helpLink.getStyleClass().add(STYLE_CLASS_HELP_LINK);
     }
 
     private void addResolveChainHelpClickHandler() {
@@ -722,6 +857,156 @@ public class ConfigurationUI extends VBox {
         litePlayerFfmpegHelpLink.setOnAction(event -> showLitePlayerFfmpegHelp());
     }
 
+    private void addVideoPlayersHelpClickHandler() {
+        videoPlayersHelpLink.setOnAction(event -> showVideoPlayersHelp());
+    }
+
+    private void addThemeHelpClickHandler() {
+        themeHelpLink.setOnAction(event -> showThemeHelp());
+    }
+
+    private void addDatabaseSyncHelpClickHandler() {
+        databaseSyncHelpLink.setOnAction(event -> showDatabaseSyncHelp());
+    }
+
+    private void addFiltersHelpClickHandler() {
+        filtersHelpLink.setOnAction(event -> showFiltersHelp());
+    }
+
+    private void addCacheFilteringHelpClickHandler() {
+        cacheFilteringHelpLink.setOnAction(event -> showCacheFilteringHelp());
+    }
+
+    private void addFfmpegAndWebServerHelpClickHandler() {
+        ffmpegAndWebServerHelpLink.setOnAction(event -> showFfmpegAndWebServerHelp());
+    }
+
+    private void addTmdbMetadataHelpClickHandler() {
+        tmdbMetadataHelpLink.setOnAction(event -> showTmdbMetadataHelp());
+    }
+
+    private void addDatabaseSyncButtonHandlers() {
+        importDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(true));
+        exportDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(false));
+    }
+
+    private void registerConfigurationChangeListener() {
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (oldScene == null && newScene != null) {
+                service.addChangeListener(configurationChangeListener);
+            } else if (oldScene != null && newScene == null) {
+                service.removeChangeListener(configurationChangeListener);
+            }
+        });
+    }
+
+    private void refreshConfigurationForm() {
+        if (getScene() == null) {
+            return;
+        }
+        Configuration configuration = service.read();
+        applyConfigurationToForm(configuration);
+        selectDefaultPlayer(configuration);
+        updateVlcOptionsLinkVisibility();
+        updateWideViewVisibility();
+        refreshServerStatusUI();
+        refreshFilterLockUi();
+    }
+
+    private void refreshFilterLockUi() {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        boolean passwordSet = filterLockService.hasPasswordConfigured();
+        boolean unlocked = filterLockService.isUnlocked();
+
+        filterLockPasswordButton.setText(I18n.tr(passwordSet ? "filterLockChangePasswordAction" : "filterLockSetPasswordAction"));
+        filterUnlockButton.setManaged(passwordSet && !unlocked);
+        filterUnlockButton.setVisible(passwordSet && !unlocked);
+        filterRelockButton.setManaged(passwordSet && unlocked);
+        filterRelockButton.setVisible(passwordSet && unlocked);
+        filterDisablePasswordCheckBox.setManaged(passwordSet);
+        filterDisablePasswordCheckBox.setVisible(passwordSet);
+        filterDisablePasswordCheckBox.setSelected(false);
+
+        if (!passwordSet) {
+            filterLockStatusLabel.setText(I18n.tr("filterLockStatusNotSet"));
+            filterCategoriesWithTextContains.setEditable(true);
+            filterChannelWithTextContains.setEditable(true);
+            filterCategoriesWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CATEGORIES_PROMPT));
+            filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
+            filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+            filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            updateFilterLockDurationRowVisibility(false);
+            return;
+        }
+
+        if (unlocked) {
+            filterLockStatusLabel.setText(I18n.tr("filterLockStatusUnlocked", filterLockService.getUnlockWindowMinutes()));
+            filterCategoriesWithTextContains.setEditable(true);
+            filterChannelWithTextContains.setEditable(true);
+            filterCategoriesWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CATEGORIES_PROMPT));
+            filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
+            filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+            filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            updateFilterLockDurationRowVisibility(true);
+            return;
+        }
+
+        filterLockStatusLabel.setText(I18n.tr("filterLockStatusLocked", filterLockService.getUnlockWindowMinutes()));
+        filterCategoriesWithTextContains.clear();
+        filterChannelWithTextContains.clear();
+        filterCategoriesWithTextContains.setEditable(false);
+        filterChannelWithTextContains.setEditable(false);
+        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+        filterCategoriesWithTextContains.setPromptText(I18n.tr("filterLockHiddenCategoriesPrompt"));
+        filterChannelWithTextContains.setPromptText(I18n.tr("filterLockHiddenChannelsPrompt"));
+        updateFilterLockDurationRowVisibility(false);
+    }
+
+    private void updateFilterLockDurationRowVisibility(boolean visible) {
+        if (filterLockDurationRow != null) {
+            filterLockDurationRow.setVisible(visible);
+            filterLockDurationRow.setManaged(visible);
+        }
+    }
+
+    private void applyConfigurationToForm(Configuration configuration) {
+        if (configuration == null) {
+            return;
+        }
+        this.dbId = configuration.getDbId();
+        playerPath1.setText(configuration.getPlayerPath1());
+        playerPath2.setText(configuration.getPlayerPath2());
+        playerPath3.setText(configuration.getPlayerPath3());
+        persistedFilterCategoriesValue = configuration.getFilterCategoriesList() == null ? "" : configuration.getFilterCategoriesList();
+        persistedFilterChannelsValue = configuration.getFilterChannelsList() == null ? "" : configuration.getFilterChannelsList();
+        persistedPauseFilteringValue = configuration.isPauseFiltering();
+        filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+        filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+        darkThemeCheckBox.setSelected(configuration.isDarkTheme());
+        enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
+        wideViewCheckBox.setSelected(configuration.isWideView());
+        serverPort.setText(configuration.getServerPort());
+        enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
+        enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
+        autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
+        resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
+        cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
+        tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
+        Integer duration = configuration.getFilterLockUnlockDurationMinutes() != null && !configuration.getFilterLockUnlockDurationMinutes().isEmpty()
+            ? Integer.parseInt(configuration.getFilterLockUnlockDurationMinutes())
+            : 15;
+        filterLockUnlockDurationComboBox.setValue(duration);
+        vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
+        vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
+        vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
+        vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
+        languageComboBox.getSelectionModel().select(I18n.resolveSupportedLanguage(configuration.getLanguageLocale()));
+        themeZoomComboBox.getSelectionModel().select(Integer.valueOf(service.normalizeUiZoomPercent(configuration.getUiZoomPercent())));
+    }
+
     private void addSaveButtonClickHandler() {
         saveButton.setOnAction(_ -> {
             try {
@@ -731,12 +1016,23 @@ public class ConfigurationUI extends VBox {
                 saveButton.setDisable(true);
 
                 Configuration previous = service.read();
+                boolean wasAlreadyUnlocked = wasFilterAlreadyUnlocked();
+                if (!ensureFilterAccessForPendingSave()) {
+                    saveButton.setDisable(false);
+                    return;
+                }
                 Configuration newConfiguration = buildConfigurationToSave();
                 saveConfiguration(newConfiguration);
                 applyPostSaveEffects(previous, newConfiguration);
+
+                  // Restore original lock state if user was not already unlocked
+                if (!wasAlreadyUnlocked) {
+                    FilterLockService.getInstance().clearUnlockSession();
+                }
+
                 showSaveSuccessAnimation();
                 if (restartRequired(previous, newConfiguration)) {
-                    showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
+                    showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
                 }
             } catch (Exception _) {
                 showErrorAlert(I18n.tr("configFailedToSave"));
@@ -748,8 +1044,8 @@ public class ConfigurationUI extends VBox {
     private Configuration buildConfigurationToSave() {
         Configuration configuration = new Configuration(
                 playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), resolveDefaultPlayerPath(),
-                filterCategoriesWithTextContains.getText(), filterChannelWithTextContains.getText(),
-                filterPausedCheckBox.isSelected(),
+                resolveFilterCategoriesValueForSave(), resolveFilterChannelsValueForSave(),
+                resolvePauseFilteringValueForSave(),
                 darkThemeCheckBox.isSelected(), serverPort.getText(),
                 defaultEmbedPlayer.isSelected(),
                 enableFfmpegCheckBox.isSelected(),
@@ -760,14 +1056,65 @@ public class ConfigurationUI extends VBox {
         configuration.setWideView(wideViewCheckBox.isSelected());
         configuration.setLanguageLocale(getSelectedLanguageTag());
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
+        configuration.setFilterLockHash(service.read().getFilterLockHash());
+        Integer saveDuration = filterLockUnlockDurationComboBox.getValue();
+        configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
+        configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
         configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
         configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
         return configuration;
+    }
+
+    private boolean wasFilterAlreadyUnlocked() {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        if (!filterLockService.hasPasswordConfigured()) {
+            return true;
+         }
+        return filterLockService.isUnlocked();
+      }
+
+    private boolean ensureFilterAccessForPendingSave() {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
+            return true;
+        }
+        boolean filterValuesChanged = !java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
+                || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)
+                || filterPausedCheckBox.isSelected() != persistedPauseFilteringValue;
+        if (!filterValuesChanged) {
+            return true;
+        }
+        boolean unlocked = FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON);
+        if (unlocked) {
+            refreshFilterLockUi();
+        }
+        return unlocked;
+    }
+
+    private String resolveFilterCategoriesValueForSave() {
+        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+            return persistedFilterCategoriesValue;
+        }
+        return filterCategoriesWithTextContains.getText();
+    }
+
+    private String resolveFilterChannelsValueForSave() {
+        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+            return persistedFilterChannelsValue;
+        }
+        return filterChannelWithTextContains.getText();
+    }
+
+    private boolean resolvePauseFilteringValueForSave() {
+        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+            return persistedPauseFilteringValue;
+        }
+        return filterPausedCheckBox.isSelected();
     }
 
     private String resolveDefaultPlayerPath() {
@@ -931,6 +1278,12 @@ public class ConfigurationUI extends VBox {
         return option == null ? ConfigurationService.DEFAULT_VLC_CACHING_MS : option.value();
     }
 
+    private VBox buildDatabaseSyncGroup() {
+        importDatabaseButton.setMaxWidth(Double.MAX_VALUE);
+        exportDatabaseButton.setMaxWidth(Double.MAX_VALUE);
+        return new VBox(10, importDatabaseButton, exportDatabaseButton);
+    }
+
     private void saveVlcOptionsConfiguration(boolean showReloadMessage) {
         Configuration previous = service.read();
         Configuration configuration = service.read();
@@ -944,8 +1297,592 @@ public class ConfigurationUI extends VBox {
             onSaveCallback.call(null);
         }
         if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
-            showMessageAlert(I18n.tr("configEmbedPlayerRestartNeeded"));
+            showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
         }
+    }
+
+    private void openDatabaseSyncPopup(boolean importMode) {
+        Stage activePopupStage = activeDatabaseSyncPopupStage.get();
+        if (activePopupStage != null && activePopupStage.isShowing()) {
+            activePopupStage.close();
+        }
+        Stage popupStage = new Stage();
+        popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
+
+        ToggleGroup locationModeGroup = new ToggleGroup();
+        RadioButton fileModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeFile"));
+        RadioButton remoteModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeRemote"));
+        fileModeButton.setToggleGroup(locationModeGroup);
+        remoteModeButton.setToggleGroup(locationModeGroup);
+        fileModeButton.setSelected(true);
+        TextField databasePathField = new TextField();
+        databasePathField.setPromptText("uiptv.db");
+        databasePathField.setPrefWidth(380);
+        TextField remoteHostField = new TextField();
+        remoteHostField.setPromptText(I18n.tr("configDatabaseSyncRemoteHostPrompt"));
+        remoteHostField.setPrefWidth(220);
+        TextField remotePortField = new TextField();
+        remotePortField.setPromptText(I18n.tr("configDatabaseSyncRemotePortPrompt"));
+        remotePortField.setPrefWidth(90);
+        Button testConnectionButton = new Button(I18n.tr("configDatabaseSyncTestConnection"));
+        Button browseButton = new Button("...");
+        CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
+        CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
+        syncExternalPlayerPathsCheckBox.disableProperty().bind(
+                syncConfigurationCheckBox.selectedProperty().not()
+                        .or(syncConfigurationCheckBox.disabledProperty())
+        );
+        Button runButton = new Button(I18n.tr(databaseSyncActionKey(importMode)));
+        Button cancelButton = new Button(I18n.tr("commonClose"));
+        ProgressBar progressBar = new ProgressBar(0);
+        Label progressLabel = new Label();
+        TextArea resultTextArea = new TextArea();
+        AtomicBoolean syncRunning = new AtomicBoolean(false);
+
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+        progressLabel.setWrapText(true);
+        progressLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
+        progressLabel.setVisible(false);
+        progressLabel.setManaged(false);
+        resultTextArea.setEditable(false);
+        resultTextArea.setWrapText(true);
+        resultTextArea.setPrefRowCount(12);
+        resultTextArea.setVisible(false);
+        resultTextArea.setManaged(false);
+
+        bindManagedVisibility(databasePathField, fileModeButton.selectedProperty());
+        bindManagedVisibility(browseButton, fileModeButton.selectedProperty());
+        bindManagedVisibility(remoteHostField, remoteModeButton.selectedProperty());
+        bindManagedVisibility(remotePortField, remoteModeButton.selectedProperty());
+        bindManagedVisibility(testConnectionButton, remoteModeButton.selectedProperty());
+
+        browseButton.setOnAction(event -> {
+            File selected = importMode
+                    ? databaseFileChooser.showOpenDialog(popupStage)
+                    : databaseFileChooser.showSaveDialog(popupStage);
+            if (selected != null) {
+                databasePathField.setText(selected.getAbsolutePath());
+            }
+        });
+        testConnectionButton.setOnAction(event -> testRemoteDatabaseConnection(remoteHostField.getText(), remotePortField.getText(), testConnectionButton));
+
+        DatabaseSyncDialogControls controls = new DatabaseSyncDialogControls(
+                databasePathField,
+                remoteHostField,
+                remotePortField,
+                browseButton,
+                testConnectionButton,
+                syncConfigurationCheckBox,
+                syncExternalPlayerPathsCheckBox,
+                runButton,
+                cancelButton,
+                progressBar,
+                progressLabel,
+                resultTextArea,
+                syncRunning
+        );
+
+        runButton.setOnAction(event -> runDatabaseSyncAction(new DatabaseSyncRunRequest(
+                popupStage,
+                importMode,
+                fileModeButton.isSelected(),
+                databasePathField.getText(),
+                remoteHostField.getText(),
+                remotePortField.getText(),
+                syncConfigurationCheckBox.isSelected(),
+                syncExternalPlayerPathsCheckBox.isSelected(),
+                controls
+        )));
+        cancelButton.setOnAction(event -> popupStage.close());
+        popupStage.setOnCloseRequest(event -> {
+            if (syncRunning.get()) {
+                event.consume();
+            }
+        });
+
+        HBox modeRow = new HBox(12, fileModeButton, remoteModeButton);
+        HBox pathRow = new HBox(8, databasePathField, browseButton);
+        HBox.setHgrow(databasePathField, Priority.ALWAYS);
+        HBox remoteRow = new HBox(
+                8,
+                new Label(I18n.tr("configDatabaseSyncRemoteHost")),
+                remoteHostField,
+                new Label(I18n.tr("configDatabaseSyncRemotePort")),
+                remotePortField,
+                testConnectionButton
+        );
+        HBox.setHgrow(remoteHostField, Priority.ALWAYS);
+        bindManagedVisibility(pathRow, fileModeButton.selectedProperty());
+        bindManagedVisibility(remoteRow, remoteModeButton.selectedProperty());
+        HBox buttons = new HBox(10, runButton, cancelButton);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+        Label descriptionLabel = new Label();
+        descriptionLabel.setWrapText(true);
+
+        Runnable textUpdater = () -> updateDatabaseSyncDirectionalText(
+                popupStage,
+                descriptionLabel,
+                runButton,
+                importMode,
+                fileModeButton.isSelected()
+        );
+        fileModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> textUpdater.run());
+        remoteModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> textUpdater.run());
+        textUpdater.run();
+
+        VBox root = new VBox(
+                12,
+                descriptionLabel,
+                modeRow,
+                pathRow,
+                remoteRow,
+                syncConfigurationCheckBox,
+                syncExternalPlayerPathsCheckBox,
+                progressBar,
+                progressLabel,
+                resultTextArea,
+                buttons
+        );
+        root.setPadding(new Insets(14));
+
+        Scene scene = new Scene(root, DATABASE_SYNC_POPUP_WIDTH, Region.USE_COMPUTED_SIZE);
+        UiI18n.applySceneOrientation(scene);
+        scene.getStylesheets().add(RootApplication.getCurrentTheme());
+        popupStage.setScene(scene);
+        popupStage.setOnHidden(hiddenEvent -> activeDatabaseSyncPopupStage.compareAndSet(popupStage, null));
+        activeDatabaseSyncPopupStage.set(popupStage);
+        popupStage.showAndWait();
+    }
+
+    private void updateDatabaseSyncDirectionalText(Stage popupStage,
+                                                   Label descriptionLabel,
+                                                   Button runButton,
+                                                   boolean importMode,
+                                                   boolean fileMode) {
+        String sourceLabel = databaseSyncSourceLabel(importMode, fileMode);
+        String destinationLabel = databaseSyncDestinationLabel(importMode, fileMode);
+        popupStage.setTitle(I18n.tr("configDatabaseSyncDirectionTitle", sourceLabel, destinationLabel));
+        descriptionLabel.setText(I18n.tr("configDatabaseSyncDirectionDescription", sourceLabel, destinationLabel));
+        runButton.setText(I18n.tr("configDatabaseSyncDirectionAction", sourceLabel, destinationLabel));
+    }
+
+    private String databaseSyncSourceLabel(boolean importMode, boolean fileMode) {
+        if (importMode) {
+            return I18n.tr(fileMode ? "configDatabaseSyncSelectedFile" : "configDatabaseSyncRemoteMachine");
+        }
+        return I18n.tr("configDatabaseSyncThisMachine");
+    }
+
+    private String databaseSyncDestinationLabel(boolean importMode, boolean fileMode) {
+        if (importMode) {
+            return I18n.tr("configDatabaseSyncThisMachine");
+        }
+        return I18n.tr(fileMode ? "configDatabaseSyncSelectedFile" : "configDatabaseSyncRemoteMachine");
+    }
+
+    private void runDatabaseSyncAction(DatabaseSyncRunRequest request) {
+        if (!request.fileMode()) {
+            runRemoteDatabaseSyncAction(
+                    request.popupStage(),
+                    request.importMode(),
+                    request.remoteHost(),
+                    request.remotePort(),
+                    request.syncConfiguration(),
+                    request.syncExternalPlayerPaths(),
+                    request.controls()
+            );
+            return;
+        }
+        String normalizedPath = normalizeSelectedPath(request.selectedPath());
+        if (isMissingDatabasePath(normalizedPath)) {
+            showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
+            return;
+        }
+        if (isMissingImportSource(request.importMode(), normalizedPath)) {
+            showErrorAlert(I18n.tr("configDatabaseSyncPathMissing"));
+            return;
+        }
+
+        Configuration previousConfiguration = request.importMode() ? service.read() : null;
+        String sourcePath = resolveDatabaseSyncSourcePath(request.importMode(), normalizedPath);
+        String targetPath = resolveDatabaseSyncTargetPath(request.importMode(), normalizedPath);
+
+        DatabaseSyncDialogControls controls = request.controls();
+        setDatabaseSyncControlsDisabled(true, controls);
+        controls.syncRunning().set(true);
+        controls.cancelButton().setDisable(true);
+        controls.runButton().setVisible(false);
+        controls.runButton().setManaged(false);
+        controls.progressBar().setVisible(true);
+        controls.progressBar().setManaged(true);
+        controls.progressLabel().setVisible(true);
+        controls.progressLabel().setManaged(true);
+        controls.resultTextArea().clear();
+        controls.resultTextArea().setVisible(false);
+        controls.resultTextArea().setManaged(false);
+        controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+        controls.progressLabel().setText(I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS));
+        request.popupStage().sizeToScene();
+
+        Task<DatabaseSyncService.DatabaseSyncReport> task = new Task<>() {
+            @Override
+            protected DatabaseSyncService.DatabaseSyncReport call() throws Exception {
+                return RootApplication.syncDatabasesWithReport(
+                        sourcePath,
+                        targetPath,
+                        request.syncConfiguration(),
+                        request.syncExternalPlayerPaths(),
+                        (completedSteps, totalSteps, currentStep) -> {
+                            updateProgress(totalSteps == 0 ? 1 : completedSteps, totalSteps == 0 ? 1 : totalSteps);
+                            updateMessage(formatDatabaseSyncProgressMessage(request.importMode(), currentStep));
+                        }
+                );
+            }
+        };
+
+        controls.progressBar().progressProperty().bind(task.progressProperty());
+        controls.progressLabel().textProperty().bind(task.messageProperty());
+
+        task.setOnSucceeded(event -> {
+            controls.progressBar().progressProperty().unbind();
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            applyPostDatabaseImport(request.importMode(), previousConfiguration, request.syncConfiguration());
+            refreshAppDataAfterDatabaseChange(request.importMode());
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(request.importMode() ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            controls.resultTextArea().setText(buildDatabaseSyncSummary(request.importMode(), task.getValue()));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
+            request.popupStage().sizeToScene();
+        });
+
+        task.setOnFailed(event -> {
+            controls.progressBar().progressProperty().unbind();
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(request.importMode() ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            controls.resultTextArea().setText(I18n.tr("configDatabaseSyncFailedWithReason",
+                    I18n.tr(databaseSyncActionKey(request.importMode())),
+                    summarizeExceptionMessage(task.getException())));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
+            request.popupStage().sizeToScene();
+        });
+
+        Thread worker = new Thread(task, request.importMode() ? "database-import-task" : "database-export-task");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void runRemoteDatabaseSyncAction(Stage popupStage,
+                                             boolean importMode,
+                                             String remoteHost,
+                                             String remotePort,
+                                             boolean syncConfiguration,
+                                             boolean syncExternalPlayerPaths,
+                                             DatabaseSyncDialogControls controls) {
+        String normalizedHost = normalizeSelectedPath(remoteHost);
+        String normalizedPort = normalizeSelectedPath(remotePort);
+        if (normalizedHost.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemoteHostRequired"));
+            return;
+        }
+        if (normalizedPort.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortRequired"));
+            return;
+        }
+        int port = parseRemotePort(normalizedPort);
+        if (port <= 0) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortInvalid"));
+            return;
+        }
+
+        Configuration previousConfiguration = importMode ? service.read() : null;
+        setDatabaseSyncControlsDisabled(true, controls);
+        controls.syncRunning().set(true);
+        controls.cancelButton().setDisable(true);
+        controls.runButton().setVisible(false);
+        controls.runButton().setManaged(false);
+        controls.progressBar().setVisible(true);
+        controls.progressBar().setManaged(true);
+        controls.progressLabel().setVisible(true);
+        controls.progressLabel().setManaged(true);
+        controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+        controls.progressLabel().setText(I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS));
+        controls.resultTextArea().clear();
+        controls.resultTextArea().setVisible(false);
+        controls.resultTextArea().setManaged(false);
+        popupStage.sizeToScene();
+
+        Task<RemoteSyncExecutionResult> task = new Task<>() {
+            @Override
+            protected RemoteSyncExecutionResult call() throws Exception {
+                RemoteSyncOptions options = new RemoteSyncOptions(syncConfiguration, syncExternalPlayerPaths);
+                if (importMode) {
+                    return remoteSyncClientService.importFromRemote(
+                            normalizedHost,
+                            port,
+                            options,
+                            (step, detail) -> updateMessage(formatRemoteSyncProgressMessage(step, detail))
+                    );
+                }
+                return remoteSyncClientService.exportToRemote(
+                        normalizedHost,
+                        port,
+                        options,
+                        (step, detail) -> updateMessage(formatRemoteSyncProgressMessage(step, detail))
+                );
+            }
+        };
+
+        controls.progressLabel().textProperty().bind(task.messageProperty());
+        task.setOnSucceeded(event -> {
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            applyPostDatabaseImport(importMode, previousConfiguration, syncConfiguration);
+            refreshAppDataAfterDatabaseChange(importMode);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
+            controls.resultTextArea().setText(buildRemoteDatabaseSyncSummary(importMode, task.getValue()));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
+            popupStage.sizeToScene();
+            showMessageAlert(I18n.tr("remoteSyncRemoteCompletedMessage"));
+        });
+        task.setOnFailed(event -> {
+            controls.progressLabel().textProperty().unbind();
+            controls.syncRunning().set(false);
+            controls.progressBar().setProgress(1);
+            controls.progressLabel().setText(I18n.tr(importMode ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
+            controls.resultTextArea().setText(I18n.tr("configDatabaseSyncFailedWithReason",
+                    I18n.tr(databaseSyncActionKey(importMode)),
+                    summarizeExceptionMessage(task.getException())));
+            controls.resultTextArea().setVisible(true);
+            controls.resultTextArea().setManaged(true);
+            controls.cancelButton().setDisable(false);
+            popupStage.sizeToScene();
+            showErrorAlert(I18n.tr("remoteSyncRemoteFailedMessage"));
+        });
+
+        Thread worker = new Thread(task, importMode ? "remote-database-import-task" : "remote-database-export-task");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void setDatabaseSyncControlsDisabled(boolean disabled, DatabaseSyncDialogControls controls) {
+        controls.databasePathField().setDisable(disabled);
+        controls.remoteHostField().setDisable(disabled);
+        controls.remotePortField().setDisable(disabled);
+        controls.browseButton().setDisable(disabled);
+        controls.testConnectionButton().setDisable(disabled);
+        controls.syncConfigurationCheckBox().setDisable(disabled);
+        controls.runButton().setDisable(disabled);
+    }
+
+    private String normalizeSelectedPath(String selectedPath) {
+        return selectedPath == null ? "" : selectedPath.trim();
+    }
+
+    private boolean isMissingDatabasePath(String normalizedPath) {
+        return normalizedPath.isBlank();
+    }
+
+    private boolean isMissingImportSource(boolean importMode, String normalizedPath) {
+        return importMode && !new File(normalizedPath).exists();
+    }
+
+    private String resolveDatabaseSyncSourcePath(boolean importMode, String normalizedPath) {
+        return importMode ? normalizedPath : SQLConnection.getDatabasePath();
+    }
+
+    private String resolveDatabaseSyncTargetPath(boolean importMode, String normalizedPath) {
+        return importMode ? SQLConnection.getDatabasePath() : normalizedPath;
+    }
+
+    private void applyPostDatabaseImport(boolean importMode,
+                                         Configuration previousConfiguration,
+                                         boolean syncConfiguration) {
+        if (!importMode) {
+            return;
+        }
+        Configuration currentConfiguration = service.read();
+        I18n.setLocale(currentConfiguration.getLanguageLocale());
+        applyPostSaveEffects(previousConfiguration, currentConfiguration);
+        if (onSaveCallback != null) {
+            onSaveCallback.call(null);
+        }
+        if (syncConfiguration && restartRequired(previousConfiguration, currentConfiguration)) {
+            showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
+        }
+    }
+
+    private String formatDatabaseSyncProgressMessage(boolean importMode, String currentStep) {
+        if (currentStep == null || currentStep.isBlank()) {
+            return I18n.tr("configDatabaseSyncFinalizing");
+        }
+        return I18n.tr(importMode ? "configDatabaseImportingStep" : "configDatabaseExportingStep", currentStep);
+    }
+
+    private record DatabaseSyncDialogControls(TextField databasePathField,
+                                              TextField remoteHostField,
+                                              TextField remotePortField,
+                                              Button browseButton,
+                                              Button testConnectionButton,
+                                              CheckBox syncConfigurationCheckBox,
+                                              CheckBox syncExternalPlayerPathsCheckBox,
+                                              Button runButton,
+                                              Button cancelButton,
+                                              ProgressBar progressBar,
+                                              Label progressLabel,
+                                              TextArea resultTextArea,
+                                              AtomicBoolean syncRunning) {
+    }
+
+    private record DatabaseSyncRunRequest(Stage popupStage,
+                                          boolean importMode,
+                                          boolean fileMode,
+                                          String selectedPath,
+                                          String remoteHost,
+                                          String remotePort,
+                                          boolean syncConfiguration,
+                                          boolean syncExternalPlayerPaths,
+                                          DatabaseSyncDialogControls controls) {
+    }
+
+    private String buildDatabaseSyncSummary(boolean importMode, DatabaseSyncService.DatabaseSyncReport report) {
+        StringBuilder summary = new StringBuilder(I18n.tr(databaseSyncResultKey(importMode, "Success")));
+        summary.append("\n\n").append(I18n.tr("configDatabaseSyncSummaryRows", report.getTotalRowsSynced()));
+        List<DatabaseSyncService.TableSyncResult> tableResults = report.getTableResults();
+        for (DatabaseSyncService.TableSyncResult tableResult : tableResults) {
+            summary.append("\n")
+                    .append(I18n.tr("configDatabaseSyncSummaryTable", tableResult.getTableName(), tableResult.getRowCount()));
+        }
+        if (report.isConfigurationRequested()) {
+            String configurationLineKey = report.isConfigurationCopied()
+                    ? "configDatabaseSyncSummaryConfiguration"
+                    : "configDatabaseSyncSummaryConfigurationMissing";
+            String playerPathPolicyKey = report.isExternalPlayerPathsIncluded()
+                    ? "configDatabaseSyncSummaryExternalPlayerPathsIncluded"
+                    : "configDatabaseSyncSummaryExternalPlayerPathsKept";
+            summary.append("\n")
+                    .append(I18n.tr(configurationLineKey, I18n.tr(playerPathPolicyKey)));
+        }
+        return summary.toString();
+    }
+
+    private String buildRemoteDatabaseSyncSummary(boolean importMode, RemoteSyncExecutionResult result) {
+        if (result == null) {
+            return I18n.tr(databaseSyncResultKey(importMode, "Success"));
+        }
+        if (result.report() == null) {
+            return result.message();
+        }
+        String summary = buildDatabaseSyncSummary(importMode, result.report());
+        if (result.message() == null || result.message().isBlank()) {
+            return summary;
+        }
+        return summary + "\n\n" + result.message();
+    }
+
+    private void testRemoteDatabaseConnection(String host, String portText, Button testConnectionButton) {
+        String normalizedHost = normalizeSelectedPath(host);
+        String normalizedPort = normalizeSelectedPath(portText);
+        if (normalizedHost.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemoteHostRequired"));
+            return;
+        }
+        if (normalizedPort.isBlank()) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortRequired"));
+            return;
+        }
+        int port = parseRemotePort(normalizedPort);
+        if (port <= 0) {
+            showErrorAlert(I18n.tr("configDatabaseSyncRemotePortInvalid"));
+            return;
+        }
+        testConnectionButton.setDisable(true);
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                remoteSyncClientService.checkConnection(normalizedHost, port);
+                return null;
+            }
+        };
+        task.setOnSucceeded(event -> {
+            testConnectionButton.setDisable(false);
+            showMessageAlert(I18n.tr("configDatabaseSyncConnectionSuccess"));
+        });
+        task.setOnFailed(event -> {
+            testConnectionButton.setDisable(false);
+            showErrorAlert(I18n.tr("configDatabaseSyncConnectionFailed") + "\n" + summarizeExceptionMessage(task.getException()));
+        });
+        Thread worker = new Thread(task, "remote-database-connection-test");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private int parseRemotePort(String value) {
+        try {
+            int port = Integer.parseInt(value);
+            return port > 0 && port <= 65_535 ? port : -1;
+        } catch (NumberFormatException _) {
+            return -1;
+        }
+    }
+
+    private String formatRemoteSyncProgressMessage(RemoteSyncProgressStep step, String detail) {
+        if (step == null) {
+            return I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS);
+        }
+        return switch (step) {
+            case CONNECTING -> I18n.tr("remoteSyncConnecting");
+            case WAITING_FOR_APPROVAL -> I18n.tr("remoteSyncWaitingForApproval", detail == null ? "" : detail);
+            case CREATING_SNAPSHOT -> I18n.tr("remoteSyncCreatingSnapshot");
+            case UPLOADING -> I18n.tr("remoteSyncUploading");
+            case PREPARING_DOWNLOAD -> I18n.tr("remoteSyncPreparingDownload");
+            case DOWNLOADING -> I18n.tr("remoteSyncDownloading");
+            case APPLYING_SYNC -> I18n.tr("remoteSyncApplyingSync");
+            case COMPLETING_REMOTE -> I18n.tr("remoteSyncCompletingRemote");
+            case FINISHED -> I18n.tr("remoteSyncFinished");
+        };
+    }
+
+    private void bindManagedVisibility(Node node, javafx.beans.value.ObservableValue<Boolean> visibleProperty) {
+        node.visibleProperty().bind(visibleProperty);
+        node.managedProperty().bind(visibleProperty);
+    }
+
+    private void refreshAppDataAfterDatabaseChange(boolean importMode) {
+        if (!didLocalDatabaseChange(importMode)) {
+            return;
+        }
+        AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
+    }
+
+    private boolean didLocalDatabaseChange(boolean importMode) {
+        return importMode;
+    }
+
+    private String summarizeExceptionMessage(Throwable throwable) {
+        if (throwable == null || throwable.getMessage() == null || throwable.getMessage().isBlank()) {
+            return I18n.tr("commonError");
+        }
+        return throwable.getMessage();
+    }
+
+    private String databaseSyncActionKey(boolean importMode) {
+        return importMode ? CONFIG_IMPORT_DATABASE : CONFIG_EXPORT_DATABASE;
+    }
+
+    private String databaseSyncResultKey(boolean importMode, String suffix) {
+        return databaseSyncActionKey(importMode) + suffix;
     }
 
     static String resolveChainHelpText() {
@@ -980,50 +1917,116 @@ public class ConfigurationUI extends VBox {
         return I18n.tr("configEnableLitePlayerFfmpegHelpTitle");
     }
 
+    static String videoPlayersHelpText() {
+        return I18n.tr("configVideoPlayersHelp");
+    }
+
+    static String videoPlayersHelpTitle() {
+        return I18n.tr("configVideoPlayersHelpTitle");
+    }
+
+    static String themeHelpText() {
+        return I18n.tr("configThemeHelp");
+    }
+
+    static String themeHelpTitle() {
+        return I18n.tr("configThemeHelpTitle");
+    }
+
+    static String databaseSyncHelpText() {
+        return I18n.tr("configDatabaseSyncHelpText");
+    }
+
+    static String databaseSyncHelpTitle() {
+        return I18n.tr("configDatabaseSyncHelpTitle");
+    }
+
+    static String filtersHelpText() {
+        return I18n.tr("configFiltersHelpText");
+    }
+
+    static String filtersHelpTitle() {
+        return I18n.tr("configFiltersHelpTitle");
+    }
+
+    static String cacheFilteringHelpText() {
+        return I18n.tr("configCacheFilteringHelpText");
+    }
+
+    static String cacheFilteringHelpTitle() {
+        return I18n.tr("configCacheFilteringHelpTitle");
+    }
+
+    static String ffmpegAndWebServerHelpText() {
+        return I18n.tr("configFfmpegAndWebServerHelpText");
+    }
+
+    static String ffmpegAndWebServerHelpTitle() {
+        return I18n.tr("configFfmpegAndWebServerHelpTitle");
+    }
+
+    static String tmdbMetadataHelpText() {
+        return I18n.tr("configTmdbMetadataHelpText");
+    }
+
+    static String tmdbMetadataHelpTitle() {
+        return I18n.tr("configTmdbMetadataHelpTitle");
+    }
+
     private void showResolveChainHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(resolveChainHelpTitle());
-        alert.setContentText(resolveChainHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        showHelpDialog(resolveChainHelpTitle(), resolveChainHelpText());
     }
 
     private void showWideViewHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(wideViewHelpTitle());
-        alert.setContentText(wideViewHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        showHelpDialog(wideViewHelpTitle(), wideViewHelpText());
     }
 
     private void showFfmpegTranscodingHelp() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(ffmpegTranscodingHelpTitle());
-        alert.setContentText(ffmpegTranscodingHelpText());
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        showHelpDialog(ffmpegTranscodingHelpTitle(), ffmpegTranscodingHelpText());
     }
 
     private void showLitePlayerFfmpegHelp() {
+        showHelpDialog(litePlayerFfmpegHelpTitle(), litePlayerFfmpegHelpText());
+    }
+
+    private void showVideoPlayersHelp() {
+        showHelpDialog(videoPlayersHelpTitle(), videoPlayersHelpText());
+    }
+
+    private void showThemeHelp() {
+        showHelpDialog(themeHelpTitle(), themeHelpText());
+    }
+
+    private void showDatabaseSyncHelp() {
+        showHelpDialog(databaseSyncHelpTitle(), databaseSyncHelpText());
+    }
+
+    private void showFiltersHelp() {
+        showHelpDialog(filtersHelpTitle(), filtersHelpText());
+    }
+
+    private void showCacheFilteringHelp() {
+        showHelpDialog(cacheFilteringHelpTitle(), cacheFilteringHelpText());
+    }
+
+    private void showFfmpegAndWebServerHelp() {
+        showHelpDialog(ffmpegAndWebServerHelpTitle(), ffmpegAndWebServerHelpText());
+    }
+
+    private void showTmdbMetadataHelp() {
+        showHelpDialog(tmdbMetadataHelpTitle(), tmdbMetadataHelpText());
+    }
+
+    private void showHelpDialog(String title, String text) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(litePlayerFfmpegHelpTitle());
-        alert.setContentText(litePlayerFfmpegHelpText());
+        alert.setHeaderText(title);
+        alert.setContentText(text);
         alert.initOwner(getScene() == null ? null : getScene().getWindow());
         alert.initModality(javafx.stage.Modality.NONE);
         alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         alert.showAndWait();
     }
-
     static String stripTrailingHelp(String label) {
         if (label == null) {
             return "";

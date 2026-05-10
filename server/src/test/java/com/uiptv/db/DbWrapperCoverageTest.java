@@ -4,6 +4,7 @@ import com.uiptv.api.JsonCompliant;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
@@ -99,6 +100,30 @@ class DbWrapperCoverageTest extends DbBackedTest {
         SeriesWatchStateDb.get().upsert(state(account.getDbId(), "cat-c", "series-3", "ep-3"));
         SeriesWatchStateDb.get().deleteByAccount(account.getDbId());
         assertTrue(SeriesWatchStateDb.get().getByAccount(account.getDbId()).isEmpty());
+    }
+
+    @Test
+    void seriesWatchingNowSnapshotDb_clearHelpers_removeScopedRows() {
+        Account account = persistSeriesAccount("watching-now-snapshot-db");
+
+        SeriesWatchingNowSnapshot first = snapshot(account.getDbId(), "cat-a", "series-1", "Alpha");
+        SeriesWatchingNowSnapshot second = snapshot(account.getDbId(), "cat-b", "series-2", "Beta");
+        SeriesWatchingNowSnapshotDb.get().upsert(first);
+        SeriesWatchingNowSnapshotDb.get().upsert(second);
+
+        assertEquals(2, SeriesWatchingNowSnapshotDb.get().getByAccount(account.getDbId()).size());
+        assertEquals("Alpha", SeriesWatchingNowSnapshotDb.get().getBySeries(account.getDbId(), "cat-a", "series-1").getSeriesTitle());
+
+        SeriesWatchingNowSnapshotDb.get().clear(account.getDbId(), "cat-a", "series-1");
+        assertNull(SeriesWatchingNowSnapshotDb.get().getBySeries(account.getDbId(), "cat-a", "series-1"));
+        assertEquals(1, SeriesWatchingNowSnapshotDb.get().getBySeries(account.getDbId(), "series-2").size());
+
+        SeriesWatchingNowSnapshotDb.get().clearAll();
+        assertTrue(SeriesWatchingNowSnapshotDb.get().getByAccount(account.getDbId()).isEmpty());
+
+        SeriesWatchingNowSnapshotDb.get().upsert(snapshot(account.getDbId(), "cat-c", "series-3", "Gamma"));
+        SeriesWatchingNowSnapshotDb.get().deleteByAccount(account.getDbId());
+        assertTrue(SeriesWatchingNowSnapshotDb.get().getByAccount(account.getDbId()).isEmpty());
     }
 
     @Test
@@ -347,6 +372,19 @@ class DbWrapperCoverageTest extends DbBackedTest {
         state.setSeriesChannelSnapshot("{\"id\":\"" + seriesId + "\"}");
         state.setSeriesEpisodeSnapshot("{\"id\":\"" + episodeId + "\"}");
         return state;
+    }
+
+    private SeriesWatchingNowSnapshot snapshot(String accountId, String categoryId, String seriesId, String title) {
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(accountId);
+        snapshot.setCategoryId(categoryId);
+        snapshot.setSeriesId(seriesId);
+        snapshot.setCategoryDbId(categoryId + "-db");
+        snapshot.setSeriesTitle(title);
+        snapshot.setSeriesPoster("http://img/" + seriesId + ".png");
+        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-1\\\",\\\"name\\\":\\\"Episode 1\\\",\\\"cmd\\\":\\\"http://stream/ep-1\\\"}\"]");
+        snapshot.setUpdatedAt(4321L);
+        return snapshot;
     }
 
     private static final class TestBaseDb extends BaseDb {

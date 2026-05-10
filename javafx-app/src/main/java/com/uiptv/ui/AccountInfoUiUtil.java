@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
@@ -17,6 +18,10 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public final class AccountInfoUiUtil {
+    private static final DateTimeFormatter DISPLAY_DATE_TIME_FORMATTER =
+            new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMMM d, yyyy, h:mm a").toFormatter(Locale.ENGLISH);
+    private static final DateTimeFormatter DISPLAY_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
     private AccountInfoUiUtil() {
     }
 
@@ -65,6 +70,8 @@ public final class AccountInfoUiUtil {
                 DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"),
+                new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMMM d, yyyy, h:mm a").toFormatter(Locale.ENGLISH),
+                new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMM d, yyyy, h:mm a").toFormatter(Locale.ENGLISH),
                 DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss"),
                 DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
         );
@@ -98,7 +105,16 @@ public final class AccountInfoUiUtil {
     }
 
     public static String formatDate(String value) {
-        return parseDateValue(value).display();
+        ParsedDate parsed = parseDateValue(value);
+        if (isBlank(parsed.display()) || parsed.instant() == null) {
+            return parsed.display();
+        }
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.contains(":") || trimmed.matches(".*\\d{10,13}.*")) {
+            LocalDateTime dateTime = LocalDateTime.ofInstant(parsed.instant(), ZoneId.systemDefault());
+            return formatDisplayDateTime(dateTime);
+        }
+        return DISPLAY_DATE_FORMATTER.format(LocalDateTime.ofInstant(parsed.instant(), ZoneId.systemDefault()).toLocalDate());
     }
 
     public static ExpiryState resolveExpiryState(Instant instant) {
@@ -162,5 +178,10 @@ public final class AccountInfoUiUtil {
 
     public static boolean hasValue(String value) {
         return isNotBlank(value);
+    }
+
+    private static String formatDisplayDateTime(LocalDateTime dateTime) {
+        String formatted = DISPLAY_DATE_TIME_FORMATTER.format(dateTime);
+        return formatted.replace("AM", "am").replace("PM", "pm");
     }
 }

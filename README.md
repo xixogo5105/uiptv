@@ -15,7 +15,7 @@ UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Li
 
 Core principle: keep the app simple, plain, and practical so everyday playback and account management stay fast and predictable.
 
-Native installers and packages are currently published for Windows (x86_64), Linux (x86_64), and macOS (x86_64, aarch64). Linux builds are provided as `.deb`, optional `.rpm`, and a portable app bundle archive.
+Release assets are currently published for Windows (x86_64), Linux (x86_64 and aarch64 where available), and macOS (x86_64, aarch64). GitHub releases currently distribute platform builds as downloadable archives containing the packaged app or platform-specific package output.
 
 ## Documentation
 
@@ -26,11 +26,14 @@ Native installers and packages are currently published for Windows (x86_64), Lin
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
 
 ## What's New
+- **Parental lock**: Keyword filtering can now be password-protected, and Stalker censored categories/channels can require a local parental lock password before opening.
+- **Remote sync**: One-way database sync now supports approval-based remote execution, propagated configuration tables, and clearer completion feedback on both peers.
+- **Published playlist controls**: M3U publishing now supports account/category/channel hierarchy, category modes, and more precise exported playlist sets.
+- **HLS/VLC playback fixes**: Embedded VLC playback now handles redirects, cookies, SSL, and CloudFront-style HLS streams more reliably.
+- **Series binge-watch**: Series playback now supports binge-watch playlist/session handling for episode-to-episode viewing.
+- **Update experience**: The About/update flow now uses a custom GitHub Releases-backed update window.
 - **Localized UI**: Multiple bundled UI languages are available, including RTL support and localized season/episode/tab numbering for supported locales.
-- **Theme controls**: Built-in light/dark themes now support saved zoom scaling and live preview from Configuration -> Theme.
-- **Desktop + web parity**: Watching Now, series resume state, bookmarks, and published playlists are available across desktop and the local-network web app.
-- **Browser playback path**: A web-browser player route is available alongside embedded and external player options, including DRM-aware web playback fallback.
-- **Import tooling refresh**: Bulk Stalker, M3U, and Xtreme import flows have clearer guides, better parser behavior, and stronger account maintenance tools.
+- **Theme controls**: Built-in light/dark themes now support saved zoom scaling, zoom-fill playback mode, and live preview from Configuration -> Theme.
 - **CSS customization**: Theme overrides, exported baseline CSS templates, and a documented JavaFX styling contract are available for deeper customization.
 
 
@@ -42,7 +45,7 @@ Native installers and packages are currently published for Windows (x86_64), Lin
   - You can still configure an external player (like MPV, SMPlayer, etc.) for maximum control.
 - **Watching Now + Series Resume**: Track watched series/episodes and continue from where you left off on desktop and web.
 - **VOD/Series Metadata**: Enhanced details for movies/series including richer cards and IMDb-oriented metadata flows.
-- **Filter Categories/Channels**: Exclude or filter out categories and channels that are of no interest. This feature is also useful for censoring specific content (e.g., adult channels). Filtering can be paused or unpaused and also impacts the content available through the web server.
+- **Parental Lock & Filtering**: Protect blocked keywords and Stalker censored content with a local password, while still supporting category/channel filtering and pause/unpause controls. These restrictions also affect content exposed through the web server.
 - **Theme Modes & Styling**: Built-in light/dark themes are included, theme zoom can be saved from Settings, and users can override each theme with full CSS files. See [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 - **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.
   - **SPA Routes**: Main UI is served from `/` and `/index.html` with additional views (`/myflix.html`, `/player.html`).
@@ -55,11 +58,11 @@ Native installers and packages are currently published for Windows (x86_64), Lin
   - **M3U Playlists**: Supports local and remote M3U files (EPG is not yet supported).
   - **Xtreme Codes**: Live Channels, Video On Demand, and Series.
   - **RSS Feeds**: Add and watch content from RSS feeds. This includes support for YouTube channels by using their RSS feed URL (e.g., `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`). For YouTube videos to play, **yt-dlp** must be installed and accessible in the system's PATH.
-- **Bulk Account Import**: Add multiple accounts at once for Stalker, Xtreme, and M3U.
-- **Account Tools**: MAC verify/manage flows, account pinning, timezone and HTTP method support for Stalker, and account-level cache reload.
-- **Database Synchronization**: Synchronize your configuration and accounts between two database files, perfect for backups or multi-device setups.
+- **Bulk Account Import**: Add multiple accounts at once for Stalker, Xtreme, and M3U, with optional post-import verification.
+- **Account Tools**: MAC verify/manage flows, account pinning, timezone and HTTP method support for Stalker, browser-playback routing, and account-level cache reload.
+- **Database Synchronization**: Synchronize your configuration and accounts between two database files locally or through the approved remote sync flow.
 - **Tab-Based Interface**: The user interface has been updated from expandable panels to a more intuitive tab-based layout for managing accounts and settings.
-- **About Page & Update Checks**: An "About" page has been added, which includes a mechanism to check for new application updates.
+- **About Page & Update Checks**: The About page includes a GitHub Releases-backed update check with a custom release-notes dialog.
 - **Cache Management**: UIPTV uses an SQLite database cache with configurable expiry, global clear/reload flows, and account-level reload tools.
 - **Website**: A promotional website is now available at [https://xixogo5105.github.io/uiptv/](https://xixogo5105.github.io/uiptv/).
 

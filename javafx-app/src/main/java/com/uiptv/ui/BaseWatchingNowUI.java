@@ -72,8 +72,10 @@ public abstract class BaseWatchingNowUI extends VBox {
     private String selectedSeriesKey = "";
     private String renderedDetailKey = "";
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
+    private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
     private HBox selectedSeriesCard;
     private boolean watchStateListenerRegistered = false;
+    private boolean accountListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
         setPadding(new Insets(5));
@@ -87,8 +89,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (thumbnailsEnabled()) {
             ImageCacheManager.clearCache(WATCHING_NOW_CACHE);
         }
+        // Initialize with empty state instead of loading on startup
+        contentBox.getChildren().setAll(new Label("")); // Empty container
         registerListeners();
-        refreshIfNeeded();
+        // Mark as dirty to load data when visible
+        dirty = true;
     }
 
     protected abstract boolean thumbnailsEnabled();
@@ -156,12 +161,26 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (!cacheInfo.resolvedFromCache && isBlank(cacheInfo.seriesTitle) && scopedState.getSeriesId().matches("^\\d+$")) {
             return null;
         }
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
+        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
         if (list == null) {
             list = new EpisodeList();
         }
+        if (list.getSeasonInfo() == null) {
+            list.setSeasonInfo(new com.uiptv.shared.SeasonInfo());
+        }
         if (list.getSeasonInfo() != null && isBlank(list.getSeasonInfo().getName()) && !isBlank(cacheInfo.seriesTitle)) {
             list.getSeasonInfo().setName(cacheInfo.seriesTitle);
+        }
+        if (list.getEpisodes() != null && !list.getEpisodes().isEmpty()) {
+            SeriesWatchingNowSnapshotService.getInstance().save(
+                    account,
+                    scopedState.getCategoryId(),
+                    scopedState.getSeriesId(),
+                    row.getCategoryDbId(),
+                    cacheInfo.seriesTitle,
+                    cacheInfo.seriesPoster,
+                    list
+            );
         }
         List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, list);
         if (episodes.isEmpty()) {
@@ -1177,6 +1196,15 @@ public abstract class BaseWatchingNowUI extends VBox {
         new Thread(() -> {
             EpisodeList refreshed = SeriesEpisodeService.getInstance()
                     .reloadEpisodesFromPortal(data.account, data.state.getCategoryId(), data.state.getSeriesId(), () -> false);
+            SeriesWatchingNowSnapshotService.getInstance().save(
+                    data.account,
+                    data.state.getCategoryId(),
+                    data.state.getSeriesId(),
+                    "",
+                    data.seriesTitle,
+                    resolveSeriesPosterUrl(data),
+                    refreshed
+            );
             List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, refreshed);
             Platform.runLater(() -> {
                 // Always discard old episodes on reload and rebuild tabs from the latest response.
@@ -1204,24 +1232,22 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         EpisodeMetaIndex metaIndex = buildEpisodeMetaIndex(metaRows);
         for (WatchingEpisode episode : episodes) {
-            if (episode == null) {
-                continue;
-            }
-            JSONObject meta = findEpisodeMeta(metaIndex, episode);
-            if (meta == null) {
-                continue;
-            }
-            String metaLogo = normalizeImageUrl(meta.optString("logo", ""), episode.account);
-            episode.imageUrl = firstNonBlank(metaLogo, episode.imageUrl);
-            episode.plot = firstNonBlank(
-                    meta.optString("plot", ""),
-                    meta.optString("description", ""),
-                    meta.optString("overview", ""),
-                    episode.plot
-            );
-            episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
-            if (!isBlank(episode.imageUrl)) {
-                episode.channel.setLogo(episode.imageUrl);
+            if (episode != null) {
+                JSONObject meta = findEpisodeMeta(metaIndex, episode);
+                if (meta != null) {
+                    String metaLogo = normalizeImageUrl(meta.optString("logo", ""), episode.account);
+                    episode.imageUrl = firstNonBlank(metaLogo, episode.imageUrl);
+                    episode.plot = firstNonBlank(
+                            meta.optString("plot", ""),
+                            meta.optString("description", ""),
+                            meta.optString("overview", ""),
+                            episode.plot
+                    );
+                    episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
+                    if (!isBlank(episode.imageUrl)) {
+                        episode.channel.setLogo(episode.imageUrl);
+                    }
+                }
             }
         }
     }
@@ -1300,22 +1326,14 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void registerListeners() {
-        if (!watchStateListenerRegistered) {
-            SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
-            watchStateListenerRegistered = true;
-        }
+        ensureListenersRegistered();
+
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
-                if (watchStateListenerRegistered) {
-                    SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
-                    watchStateListenerRegistered = false;
-                }
+                unregisterListeners();
                 releaseUiState();
             } else {
-                if (!watchStateListenerRegistered) {
-                    SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
-                    watchStateListenerRegistered = true;
-                }
+                ensureListenersRegistered();
                 refreshIfNeeded();
             }
         });
@@ -1326,13 +1344,42 @@ public abstract class BaseWatchingNowUI extends VBox {
         });
     }
 
+    private void ensureListenersRegistered() {
+        if (!watchStateListenerRegistered) {
+            SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+            watchStateListenerRegistered = true;
+        }
+        if (!accountListenerRegistered) {
+            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountListenerRegistered = true;
+        }
+    }
+
+    private void unregisterListeners() {
+        if (watchStateListenerRegistered) {
+            SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
+            watchStateListenerRegistered = false;
+        }
+        if (accountListenerRegistered) {
+            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountListenerRegistered = false;
+        }
+    }
+
     private void onDataChanged(String accountId, String seriesId) {
-        if (isBlank(accountId) || isBlank(seriesId)) {
+        // If panelDataByKey is empty (UI not yet rendered), do a full refresh instead of delta
+        if (panelDataByKey.isEmpty() || isBlank(accountId) || isBlank(seriesId)) {
             dirty = true;
             Platform.runLater(this::refreshIfNeeded);
             return;
         }
         refreshSeriesEntryAsync(accountId, seriesId);
+    }
+
+    private void onAccountsChanged() {
+        // When accounts change (e.g., deleted), force full refresh
+        dirty = true;
+        Platform.runLater(this::refreshIfNeeded);
     }
 
     private void refreshSeriesEntryAsync(String accountId, String seriesId) {

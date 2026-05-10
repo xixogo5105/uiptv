@@ -197,7 +197,13 @@ public abstract class BaseMainApplicationUI {
             ManageAccountUI manageAccountUI = new ManageAccountUI();
             setMinWidthForPane(manageAccountUI);
             context.accountListUI().setManageAccountUI(manageAccountUI);
-            configureAccountListUI(context.accountListUI(), manageAccountUI, context.bookmarkChannelListUI(), watchingNowSupplier);
+            configureAccountListUI(
+                    context.accountListUI(),
+                    manageAccountUI,
+                    context.manageAccountTab(),
+                    context.bookmarkChannelListUI(),
+                    watchingNowSupplier
+            );
             configureManageAccountUI(manageAccountUI, context.accountListUI(), context.bookmarkChannelListUI(), watchingNowSupplier);
             if (!useEmbeddedAccountFlow()) {
                 context.manageAccountTab().setContent(manageAccountUI);
@@ -281,8 +287,23 @@ public abstract class BaseMainApplicationUI {
         return wrapper;
     }
 
-    private void configureAccountListUI(AccountListUI accountListUI, ManageAccountUI manageAccountUI, BookmarkChannelListUI bookmarkChannelListUI, Supplier<WatchingNowUI> watchingNowSupplier) {
+    private void configureAccountListUI(
+            AccountListUI accountListUI,
+            ManageAccountUI manageAccountUI,
+            Tab manageAccountTab,
+            BookmarkChannelListUI bookmarkChannelListUI,
+            Supplier<WatchingNowUI> watchingNowSupplier
+    ) {
         accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
+        accountListUI.addExplicitEditCallbackHandler(param -> {
+            manageAccountUI.editAccount((Account) param);
+            if (!useEmbeddedAccountFlow()) {
+                TabPane tabPane = manageAccountTab.getTabPane();
+                if (tabPane != null) {
+                    tabPane.getSelectionModel().select(manageAccountTab);
+                }
+            }
+        });
         accountListUI.addDeleteCallbackHandler(param -> {
             manageAccountUI.deleteAccount((Account) param);
             bookmarkChannelListUI.forceReload();

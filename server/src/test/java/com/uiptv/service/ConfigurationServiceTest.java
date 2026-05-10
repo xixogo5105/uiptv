@@ -1,5 +1,6 @@
 package com.uiptv.service;
 
+import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import org.junit.jupiter.api.Test;
 
@@ -54,6 +55,18 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void autoRunServerOnStartup_defaultsToFalse_andPersistsWhenEnabled() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertFalse(service.read().isAutoRunServerOnStartup());
+
+        Configuration configuration = service.read();
+        configuration.setAutoRunServerOnStartup(true);
+        service.save(configuration);
+
+        assertTrue(service.read().isAutoRunServerOnStartup());
+    }
+
+    @Test
     void vlcSettings_defaultToOneSecondCaching_andEnabledFlags() {
         Configuration configuration = ConfigurationService.getInstance().read();
 
@@ -83,15 +96,39 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
-    void resolveChainAndDeepRedirects_defaultsToEnabled_andPersistsWhenDisabled() {
+    void resolveChainAndDeepRedirects_defaultsToDisabled_andPersistsWhenEnabled() {
         ConfigurationService service = ConfigurationService.getInstance();
-        assertTrue(service.isResolveChainAndDeepRedirectsEnabled());
+        assertFalse(service.isResolveChainAndDeepRedirectsEnabled());
 
         Configuration configuration = service.read();
-        configuration.setResolveChainAndDeepRedirects(false);
+        configuration.setResolveChainAndDeepRedirects(true);
         service.save(configuration);
 
-        assertFalse(service.isResolveChainAndDeepRedirectsEnabled());
-        assertFalse(service.read().isResolveChainAndDeepRedirects());
+        assertTrue(service.isResolveChainAndDeepRedirectsEnabled());
+        assertTrue(service.read().isResolveChainAndDeepRedirects());
     }
+
+    @Test
+    void resolveChainAndDeepRedirects_accountOverrideEnablesFeatureWhenGlobalIsDisabled() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        Account account = new Account();
+        account.setResolveChainAndDeepRedirects(true);
+
+        assertTrue(service.isResolveChainAndDeepRedirectsEnabled(account));
+    }
+
+    @Test
+    void publishedM3uCategoryMode_defaultsToSourceDashCategory_andPersistsCustomValue() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY, service.getPublishedM3uCategoryMode());
+
+        Configuration configuration = service.read();
+        configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
+        service.save(configuration);
+
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP, service.getPublishedM3uCategoryMode());
+        assertEquals(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue(),
+                service.read().getPublishedM3uCategoryMode());
+    }
+
 }

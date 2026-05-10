@@ -2,6 +2,8 @@
 
 This guide describes how desktop JavaFX styles are resolved in UIPTV and how to safely customize them.
 
+This guide applies to the **desktop JavaFX application**. The local-network web app (`web/`) and project website (`website/`) use separate HTML/CSS stacks.
+
 ## 1. Theme Source Selection
 
 UIPTV resolves exactly one stylesheet source per theme:
@@ -79,7 +81,18 @@ Recommended production approach:
 1. Bundle fonts locally with the app (or host in trusted LAN path)
 2. Reference local URLs in CSS for deterministic rendering
 
-## 7. CSS Safety Checklist
+## 7. Recent Areas Worth Retesting
+
+Since `v0.1.10`, several desktop areas have changed enough that custom CSS should be rechecked against them:
+
+- parental lock controls and related filter-management prompts
+- published M3U selection views
+- remote database sync dialogs and progress feedback
+- player configuration/help-link layouts
+- binge-watch related player overlays and playlist controls
+- account reload/verification flows
+
+## 8. CSS Safety Checklist
 
 Before shipping custom CSS:
 
@@ -89,7 +102,7 @@ Before shipping custom CSS:
 4. Ensure no required selector was removed accidentally
 5. Keep comments for any non-obvious override blocks
 
-## 8. Complete Class Reference
+## 9. Complete Class Reference
 
 This section lists style classes used across the desktop app and widgets.
 
@@ -257,7 +270,24 @@ These classes are kept in CSS as compatibility hooks/placeholders:
 - `.custom-popup-title`
 - `.custom-popup-close`
 
-### 8.12 JavaFX structural selectors used by themes
+### 8.12 Update dialog classes
+
+These classes style the release-notification dialog shown by `UpdateChecker` and rendered by `UpdateAvailableDialog`:
+
+- `.update-dialog-stage-root`: Root container for the custom update window.
+- `.update-dialog-root`: Root container for update dialog content.
+- `.update-dialog-actions`: Footer action row for close/download buttons.
+- `.update-dialog-hero`: Highlighted banner area at the top of the update window.
+- `.update-dialog-icon-shell`: Framed hero container for the official app logo.
+- `.update-dialog-icon-image`: App logo image inside the hero container.
+- `.update-dialog-badge`: Small release-status badge, such as `NEW RELEASE`.
+- `.update-dialog-version-chip`: Version pill shown on the right side of the hero row.
+- `.update-dialog-title`: Main update headline.
+- `.update-dialog-notes-card`: Framed release-notes panel.
+- `.update-dialog-notes-title`: Release-notes heading.
+- `.update-dialog-notes-area`: Scrollable text area containing the release notes.
+
+### 8.13 JavaFX structural selectors used by themes
 
 These are framework selectors (not app-owned class names) and are intentionally themed:
 
@@ -278,7 +308,19 @@ These are framework selectors (not app-owned class names) and are intentionally 
 - `.dialog-pane`
 - `.dialog-pane > .header-panel`
 
-### 8.13 Notes for custom themes
+### 8.14 About window additions
+
+The About window also uses these themed hooks now:
+
+- `.about-hero`: Branded header panel for the About window.
+- `.about-hero-icon-shell`: Framed icon container in the hero panel.
+- `.about-hero-image`: App icon image inside the hero panel.
+- `.about-badge`: Small status/category badge in the hero row.
+- `.about-version-chip`: Version pill shown in the hero row.
+- `.about-card`: Framed body card for the descriptive content.
+- `.about-inline-row`: Inline metadata rows inside the About card.
+
+### 8.15 Notes for custom themes
 
 1. Keep both theme files in sync for selector availability.
 2. Prefer overriding existing hooks instead of introducing ad-hoc selectors.

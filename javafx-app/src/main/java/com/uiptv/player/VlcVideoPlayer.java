@@ -6,10 +6,12 @@ import com.uiptv.util.ResolutionDisplayUtil;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.util.Duration;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.media.Media;
 import uk.co.caprica.vlcj.media.MediaRef;
@@ -22,6 +24,7 @@ import uk.co.caprica.vlcj.player.base.TrackDescription;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
@@ -34,6 +37,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private int videoSourceWidth;
     private int videoSourceHeight;
     private String lastStreamInfoLabel = "";
+    private final AtomicLong audioStateRequestVersion = new AtomicLong();
 
     public VlcVideoPlayer() {
         super(); // Must be the first call
@@ -92,14 +96,53 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void configureEmbeddedPlayer() {
         mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
         mediaPlayer.controls().setRepeat(false);
-        mediaPlayer.audio().setMute(isMuted);
-        // Ensure initial volume reflects the UI slider (0-100) -> VLC expects 0-200
-        // Call through setVolume so subclasses' mapping is applied consistently.
-        try {
-            setVolume(volumeSlider != null ? volumeSlider.getValue() : 50);
-        } catch (Exception _) {
-            // Best-effort: ignore if player not yet ready or UI not constructed.
+        applyDesiredAudioState(mediaPlayer);
+    }
+
+    private void applyDesiredAudioState() {
+        EmbeddedMediaPlayer player;
+        synchronized (playerLock) {
+            player = mediaPlayer;
         }
+        applyDesiredAudioState(player);
+    }
+
+    private void applyDesiredAudioState(EmbeddedMediaPlayer player) {
+        if (player == null) {
+            return;
+        }
+        try {
+            player.audio().setMute(isMuted);
+            int vlcVolume = (int) Math.round((volumeSlider != null ? volumeSlider.getValue() : 50) * 2.0);
+            if (vlcVolume < 0) vlcVolume = 0;
+            if (vlcVolume > 200) vlcVolume = 200;
+            player.audio().setVolume(vlcVolume);
+        } catch (Exception _) {
+            // Best-effort: audio state can fail transiently while VLC is still starting.
+        }
+    }
+
+    private long markAudioStateSyncRequested() {
+        return audioStateRequestVersion.incrementAndGet();
+    }
+
+    private void scheduleAudioStateRetry(long requestVersion, int delayMs) {
+        Platform.runLater(() -> {
+            PauseTransition retry = new PauseTransition(Duration.millis(delayMs));
+            retry.setOnFinished(_ -> {
+                if (isDisposed.get() || requestVersion != audioStateRequestVersion.get()) {
+                    return;
+                }
+                applyDesiredAudioState();
+            });
+            retry.play();
+        });
+    }
+
+    private void scheduleAudioStateStartupSync(long requestVersion) {
+        scheduleAudioStateRetry(requestVersion, 150);
+        scheduleAudioStateRetry(requestVersion, 450);
+        scheduleAudioStateRetry(requestVersion, 1000);
     }
 
     private MediaPlayerEventAdapter createMediaPlayerEvents() {
@@ -169,8 +212,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handlePlaying() {
+        long requestVersion = audioStateRequestVersion.get();
         Platform.runLater(() -> {
             retryCount = 0;
+            applyDesiredAudioState();
+            scheduleAudioStateStartupSync(requestVersion);
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
             updateVideoSize();
@@ -237,7 +283,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handleElementaryStreamEvent(TrackType type) {
-        refreshTrackMenusIfAudio(type);
+        if (type == TrackType.AUDIO) {
+            long requestVersion = audioStateRequestVersion.get();
+            Platform.runLater(() -> {
+                refreshTrackMenus();
+                applyDesiredAudioState();
+                scheduleAudioStateRetry(requestVersion, 250);
+            });
+        }
     }
 
     private String extractMediaUri(MediaRef mediaRef) {
@@ -265,12 +318,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    private void refreshTrackMenusIfAudio(TrackType type) {
-        if (type == TrackType.AUDIO) {
-            Platform.runLater(this::refreshTrackMenus);
-        }
-    }
-
     @Override
     protected Node getVideoView() {
         if (videoImageView == null) {
@@ -294,11 +341,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoSourceWidth = 0;
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
-            // Resolve manifests outside the VLC lock so a slow request cannot block stop/dispose.
             String playUri = resolveHlsPlaylistChain(uri);
             if (isDisposed.get()) {
                 return;
             }
+            long requestVersion = markAudioStateSyncRequested();
             synchronized (playerLock) {
                 EmbeddedMediaPlayer player = mediaPlayer;
                 if (player != null && !isDisposed.get()) {
@@ -309,6 +356,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     } else {
                         player.media().play(playUri);
                     }
+                    scheduleAudioStateStartupSync(requestVersion);
                 }
             }
         }, "vlc-play-media");
@@ -374,6 +422,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void setVolume(double volume) {
         EmbeddedMediaPlayer player;
+        long requestVersion = markAudioStateSyncRequested();
         synchronized (playerLock) {
             player = mediaPlayer;
         }
@@ -384,17 +433,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (vlcVolume < 0) vlcVolume = 0;
             if (vlcVolume > 200) vlcVolume = 200;
             player.audio().setVolume(vlcVolume);
+            if (!player.status().isPlaying()) {
+                scheduleAudioStateStartupSync(requestVersion);
+            }
         }
     }
 
     @Override
     protected void setMute(boolean mute) {
         EmbeddedMediaPlayer player;
+        long requestVersion = markAudioStateSyncRequested();
         synchronized (playerLock) {
             player = mediaPlayer;
         }
         if (player != null) {
             player.audio().setMute(mute);
+            if (!player.status().isPlaying()) {
+                scheduleAudioStateStartupSync(requestVersion);
+            }
         }
     }
 

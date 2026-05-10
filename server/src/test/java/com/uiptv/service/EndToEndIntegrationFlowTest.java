@@ -146,9 +146,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *
      * 6.2) DB synchronize flow
      *    - Create two isolated sqlite databases.
-     *    - Seed syncable tables with different rows in each database.
-     *    - Execute DatabaseSyncService.syncDatabases (same logic as CLI sync mode).
-     *    - Assert both databases converge for all syncable tables.
+     *    - Seed source and target databases with different rows.
+     *    - Execute RootApplication.syncDatabases in one-way source -> target mode.
+     *    - Assert target gains source rows, keeps its existing rows, and optionally merges configuration.
      *
      * 7) Account-level cache clear and partial deletion
      *    - Select one account from each type bucket.
@@ -217,6 +217,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         updated.setTmdbReadAccessToken("tmdb-token-e2e");
         updated.setUiZoomPercent("133");
         updated.setEnableLitePlayerFfmpeg(true);
+        updated.setAutoRunServerOnStartup(true);
         configurationService.save(updated);
 
         ThemeCssOverride themeOverride = new ThemeCssOverride();
@@ -238,6 +239,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals("tmdb-token-e2e", persisted.getTmdbReadAccessToken());
         assertEquals("133", persisted.getUiZoomPercent());
         assertTrue(persisted.isEnableLitePlayerFfmpeg());
+        assertTrue(persisted.isAutoRunServerOnStartup());
 
         assertEquals(14, configurationService.getCacheExpiryDays());
         assertEquals(14L * 24L * 60L * 60L * 1000L, configurationService.getCacheExpiryMs());
@@ -832,25 +834,40 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     }
 
     private void runDbSyncFlow() throws Exception {
-        Path firstPath = tempDir.resolve("sync-first.db");
-        Path secondPath = tempDir.resolve("sync-second.db");
-        createSyncSchema(firstPath.toString());
-        createSyncSchema(secondPath.toString());
+        Path sourcePath = tempDir.resolve("sync-source.db");
+        Path targetPath = tempDir.resolve("sync-target.db");
+        createSyncSchema(sourcePath.toString());
+        createSyncSchema(targetPath.toString());
 
-        seedSyncDb(firstPath.toString(), "100", "sync-a", "101", "Sync One");
-        seedSyncDb(secondPath.toString(), "200", "sync-b", "202", "Sync Two");
+        seedSyncDb(sourcePath.toString(), "100", "sync-a", "101", "Sync One");
+        seedSyncDb(targetPath.toString(), "200", "sync-b", "202", "Sync Two");
+        seedAccountOnly(targetPath.toString(), "999", "sync-a");
+        seedConfigurationRow(sourcePath.toString(), "/source/player-1", "/source/player-2", "1");
+        seedConfigurationRow(targetPath.toString(), "/target/player-1", "/target/player-2", "0");
+        seedThemeCssOverrideRow(sourcePath.toString(), "source-light.css", "source-dark.css");
+        seedThemeCssOverrideRow(targetPath.toString(), "target-light.css", "target-dark.css");
+        seedPublishedM3uSelectionRow(sourcePath.toString(), "100");
+        seedPublishedM3uSelectionRow(targetPath.toString(), "200");
 
-        DatabaseSyncService.getInstance().syncDatabases(firstPath.toString(), secondPath.toString());
+        DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, false);
 
         for (DatabaseUtils.DbTable table : DatabaseUtils.Syncable) {
-            int c1 = countRowsInDatabase(firstPath.toString(), table.getTableName());
-            int c2 = countRowsInDatabase(secondPath.toString(), table.getTableName());
-            assertEquals(c1, c2, "Synced table row count mismatch for " + table.getTableName());
-            assertTrue(c1 >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
+            int sourceCount = countRowsInDatabase(sourcePath.toString(), table.getTableName());
+            int targetCount = countRowsInDatabase(targetPath.toString(), table.getTableName());
+            assertTrue(targetCount >= sourceCount, "Expected target row count to include source rows for " + table.getTableName());
+            assertTrue(targetCount >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
                     "Expected merged rows in " + table.getTableName());
         }
 
-        assertAccountInfoSynced(firstPath.toString());
+        assertAccountInfoSynced(targetPath.toString());
+        assertConfigurationSynced(targetPath.toString(), false);
+        assertThemeCssOverrideSynced(targetPath.toString());
+        assertPublishedM3uSelectionSynced(targetPath.toString());
+
+        DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
+        assertConfigurationSynced(targetPath.toString(), true);
+        assertThemeCssOverrideSynced(targetPath.toString());
+        assertPublishedM3uSelectionSynced(targetPath.toString());
     }
 
     private void createSyncSchema(String dbPath) throws SQLException {
@@ -864,28 +881,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
     private void seedSyncDb(String dbPath, String accountId, String accountName, String bookmarkId, String bookmarkName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
-                ps.setString(1, accountId);
-                ps.setString(2, accountName);
-                ps.setString(3, "u");
-                ps.setString(4, "p");
-                ps.setString(5, "http://sync.example");
-                ps.setString(6, null);
-                ps.setString(7, null);
-                ps.setString(8, null);
-                ps.setString(9, null);
-                ps.setString(10, null);
-                ps.setString(11, null);
-                ps.setString(12, null);
-                ps.setString(13, null);
-                ps.setString(14, AccountType.M3U8_URL.name());
-                ps.setString(15, "");
-                ps.setString(16, "0");
-                ps.setString(17, "GET");
-                ps.setString(18, "UTC");
-                ps.executeUpdate();
-            }
+            seedAccountRow(conn, accountId, accountName);
 
             try (PreparedStatement ps = conn.prepareStatement(
                     "INSERT OR REPLACE INTO AccountInfo (id, accountId, expireDate, accountStatus, accountBalance, tariffName, tariffPlan, defaultTimezone, profileJson, passHash, parentPasswordHash, passwordHash, settingsPasswordHash, accountPagePasswordHash, allowedStbTypesJson, allowedStbTypesForLocalRecordingJson, preferredStbType) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
@@ -949,6 +945,95 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
     }
 
+    private void seedAccountOnly(String dbPath, String accountId, String accountName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
+            seedAccountRow(conn, accountId, accountName);
+        }
+    }
+
+    private void seedAccountRow(Connection conn, String accountId, String accountName) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT OR REPLACE INTO Account (id, accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, resolveChainAndDeepRedirects, httpMethod, timezone) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, accountId);
+            ps.setString(2, accountName);
+            ps.setString(3, "u");
+            ps.setString(4, "p");
+            ps.setString(5, "http://sync.example");
+            ps.setString(6, null);
+            ps.setString(7, null);
+            ps.setString(8, null);
+            ps.setString(9, null);
+            ps.setString(10, null);
+            ps.setString(11, null);
+            ps.setString(12, null);
+            ps.setString(13, null);
+            ps.setString(14, AccountType.M3U8_URL.name());
+            ps.setString(15, "");
+            ps.setString(16, "0");
+            ps.setString(17, "0");
+            ps.setString(18, "GET");
+            ps.setString(19, "UTC");
+            ps.executeUpdate();
+        }
+    }
+
+    private void seedConfigurationRow(String dbPath, String playerPath1, String playerPath2, String resolveChainEnabled) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, enableLitePlayerFfmpeg, autoRunServerOnStartup, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
+                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setInt(1, 1);
+            ps.setString(2, playerPath1);
+            ps.setString(3, playerPath2);
+            ps.setString(4, "");
+            ps.setString(5, playerPath1);
+            ps.setString(6, "sports");
+            ps.setString(7, "news");
+            ps.setString(8, "0");
+            ps.setString(9, "1");
+            ps.setString(10, "8080");
+            ps.setString(11, "1");
+            ps.setString(12, "0");
+            ps.setString(13, "9");
+            ps.setString(14, "1");
+            ps.setString(15, "1");
+            ps.setString(16, "en-GB");
+            ps.setString(17, "tmdb-sync");
+            ps.setString(18, "133");
+            ps.setString(19, "1");
+            ps.setString(20, "1");
+            ps.setString(21, "3000");
+            ps.setString(22, "5000");
+            ps.setString(23, "1");
+            ps.setString(24, "0");
+            ps.setString(25, resolveChainEnabled);
+            ps.executeUpdate();
+        }
+    }
+
+    private void seedThemeCssOverrideRow(String dbPath, String lightThemeCssName, String darkThemeCssName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO ThemeCssOverride (id, lightThemeCssName, lightThemeCssContent, darkThemeCssName, darkThemeCssContent, updatedAt) VALUES (?,?,?,?,?,?)")) {
+            ps.setInt(1, 1);
+            ps.setString(2, lightThemeCssName);
+            ps.setString(3, ".root { -fx-base: #eeeeee; }");
+            ps.setString(4, darkThemeCssName);
+            ps.setString(5, ".root { -fx-base: #111111; }");
+            ps.setString(6, "1700000000000");
+            ps.executeUpdate();
+        }
+    }
+
+    private void seedPublishedM3uSelectionRow(String dbPath, String accountId) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO PublishedM3uSelection (accountId) VALUES (?)")) {
+            ps.setString(1, accountId);
+            ps.executeUpdate();
+        }
+    }
+
     private int countRowsInDatabase(String dbPath, String tableName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName);
@@ -977,6 +1062,48 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals("[\"mag250\",\"mag270\"]", accountInfo200.get("allowedStbTypesJson"));
         assertEquals("mag270", accountInfo100.get("preferredStbType"));
         assertEquals("mag270", accountInfo200.get("preferredStbType"));
+    }
+
+    private void assertConfigurationSynced(String dbPath, boolean externalPathsExpected) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT playerPath1, playerPath2, filterCategoriesList, filterChannelsList, languageLocale, autoRunServerOnStartup, resolveChainAndDeepRedirects FROM Configuration LIMIT 1");
+             ResultSet rs = statement.executeQuery()) {
+            assertTrue(rs.next(), "Expected configuration row in target sync database");
+            assertEquals(externalPathsExpected ? "/source/player-1" : "/target/player-1", rs.getString("playerPath1"));
+            assertEquals(externalPathsExpected ? "/source/player-2" : "/target/player-2", rs.getString("playerPath2"));
+            assertEquals("sports", rs.getString("filterCategoriesList"));
+            assertEquals("news", rs.getString("filterChannelsList"));
+            assertEquals("en-GB", rs.getString("languageLocale"));
+            assertEquals("1", rs.getString("autoRunServerOnStartup"));
+            assertEquals("1", rs.getString("resolveChainAndDeepRedirects"));
+        }
+    }
+
+    private void assertThemeCssOverrideSynced(String dbPath) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT lightThemeCssName, darkThemeCssName FROM ThemeCssOverride LIMIT 1");
+             ResultSet rs = statement.executeQuery()) {
+            assertTrue(rs.next(), "Expected theme css override row in target sync database");
+            assertEquals("source-light.css", rs.getString("lightThemeCssName"));
+            assertEquals("source-dark.css", rs.getString("darkThemeCssName"));
+        }
+    }
+
+    private void assertPublishedM3uSelectionSynced(String dbPath) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT accountId FROM PublishedM3uSelection ORDER BY accountId");
+             ResultSet rs = statement.executeQuery()) {
+            List<String> accountIds = new ArrayList<>();
+            while (rs.next()) {
+                accountIds.add(rs.getString("accountId"));
+            }
+            assertTrue(accountIds.contains("100"));
+            assertFalse(accountIds.contains("200"));
+            assertFalse(accountIds.contains("999"));
+        }
     }
 
     private Map<String, String> getAccountInfoRow(String dbPath, String accountId) throws SQLException {

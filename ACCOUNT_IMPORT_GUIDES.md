@@ -50,7 +50,8 @@ This collection contains comprehensive guides for importing all three account ty
 **Format:** URL + Username + Password  
 **Examples:** 7 detailed scenarios  
 **Key Features:**
-- Multiple accounts from same server (auto-numbered)
+- Multiple accounts from same server (auto-numbered when grouping is off)
+- Optional host grouping that stores multiple username/password pairs under one account
 - Various credential label formats
 - Mixed URL formats (HTTP/HTTPS, custom ports)
 - Practical real-world examples
@@ -100,29 +101,31 @@ URL: http://cdn.lorem.com:8080/get.php
 ### STALKER_IMPORT_GUIDE.md
 
 **Format:** Portal URL + MAC Address (+ optional device parameters + optional HTTP method + optional timezone)  
-**Examples:** 9 detailed scenarios  
+**Examples:** focused parser-accurate scenarios  
 **Key Features:**
 - Portal URL + MAC address authentication
 - Multiple MAC address formats supported
 - Optional device parameters (Serial, DeviceId1/2, Signature)
 - **NEW:** Optional HTTP method (GET/POST)
 - **NEW:** Optional timezone detection (case-insensitive contains matching)
-- Multiple accounts per portal (different MACs)
+- Multiple accounts per portal (different MACs and/or different device identities)
 - Mixed MAC formats in single import
 - HTTPS/custom port support
-- Group by MAC option
+- Group by MAC option with device-aware separation:
+  - MAC-only entries group together by portal URL
+  - entries carrying extra device parameters stay separate unless a later import has the same extra-parameter identity
 
 **Example:**
 ```
 http://lorem.example.com/stalker_portal/
 AA:BB:CC:DD:EE:01
-Serial: SN-LOREM-001
+Serial: AABBCCDDEE11
 POST
 Europe/London
 
 http://ipsum.example.com/stalker_portal/
 BBCC.DDEE.FFAA
-Serial: SN-IPSUM-002
+Serial: AABBCCDDEE22
 GET
 America/New_York
 ```
@@ -182,6 +185,7 @@ America/New_York
 - One portal, multiple devices
 - Different MAC address per device
 - Optional device identification parameters
+- MAC-only imports can still group together separately from device-bound imports on the same portal
 
 ### Scenario 4: Mix Playlists and IPTV
 → Use: **M3U_IMPORT_GUIDE.md** with mixed content

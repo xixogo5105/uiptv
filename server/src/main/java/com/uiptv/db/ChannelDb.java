@@ -10,7 +10,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.CATEGORY_TABLE;
 import static com.uiptv.db.DatabaseUtils.DbTable.CHANNEL_TABLE;
@@ -154,11 +157,12 @@ public class ChannelDb extends BaseDb {
     public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
         Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
         deleteAll(category.getDbId());
+        List<Channel> dedupedChannels = dedupeChannelsCaseInsensitive(channels);
         try (Connection conn = connect()) {
             conn.setAutoCommit(false);
             try (PreparedStatement statement = conn.prepareStatement(insertTableSql(CHANNEL_TABLE))) {
                 int count = 0;
-                for (Channel channel : channels) {
+                for (Channel channel : dedupedChannels) {
                     statement.setString(1, channel.getChannelId());
                     statement.setString(2, category.getDbId());
                     statement.setString(3, channel.getName());
@@ -192,6 +196,40 @@ public class ChannelDb extends BaseDb {
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to connect to database", e);
         }
+    }
+
+    private List<Channel> dedupeChannelsCaseInsensitive(List<Channel> channels) {
+        if (channels == null || channels.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
+        for (Channel channel : channels) {
+            if (channel == null) {
+                continue;
+            }
+            uniqueChannels.putIfAbsent(channelComparisonKey(channel), channel);
+        }
+        return new ArrayList<>(uniqueChannels.values());
+    }
+
+    private String channelComparisonKey(Channel channel) {
+        String channelId = normalize(channel.getChannelId());
+        if (!channelId.isEmpty()) {
+            return "id:" + channelId;
+        }
+        String name = normalize(channel.getName());
+        if (!name.isEmpty()) {
+            return "name:" + name;
+        }
+        String cmd = normalize(channel.getCmd());
+        if (!cmd.isEmpty()) {
+            return "cmd:" + cmd;
+        }
+        return "fallback:" + System.identityHashCode(channel);
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     public void deleteByAccount(String accountId) {

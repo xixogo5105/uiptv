@@ -11,7 +11,7 @@ import static com.uiptv.util.ServerUtils.generateM3u8Response;
 public class HttpIptvM3u8Server implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        String response = M3U8PublicationService.getInstance().getPublishedM3u8();
+        String response = M3U8PublicationService.getInstance().getPublishedM3u8(ex.getRequestHeaders().getFirst("Host"));
         String path = ex.getRequestURI().getPath();
         String filename = "iptv.m3u8";
         if (path.endsWith(".m3u")) {

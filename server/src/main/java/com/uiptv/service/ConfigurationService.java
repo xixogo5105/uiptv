@@ -5,6 +5,9 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ConfigurationService {
     public static final int DEFAULT_CACHE_EXPIRY_DAYS = 30;
@@ -15,6 +18,8 @@ public class ConfigurationService {
     public static final List<String> VLC_CACHING_OPTIONS_MS =
             List.of("", "1000", "2000", "3000", "4000", "5000", "10000", "15000", "20000", "25000", "30000", "60000");
     private static final long MILLIS_PER_DAY = 24L * 60L * 60L * 1000L;
+    private final AtomicLong changeRevision = new AtomicLong(1);
+    private final Set<ConfigurationChangeListener> changeListeners = new CopyOnWriteArraySet<>();
 
     private ConfigurationService() {
     }
@@ -35,10 +40,34 @@ public class ConfigurationService {
 
     public void save(Configuration configuration) {
         ConfigurationDb.get().save(configuration);
+        notifyConfigurationChanged();
     }
 
     public Configuration read() {
         return ConfigurationDb.get().getConfiguration();
+    }
+
+    public void addChangeListener(ConfigurationChangeListener listener) {
+        if (listener != null) {
+            changeListeners.add(listener);
+        }
+    }
+
+    public void removeChangeListener(ConfigurationChangeListener listener) {
+        if (listener != null) {
+            changeListeners.remove(listener);
+        }
+    }
+
+    public void notifyConfigurationChanged() {
+        long revision = changeRevision.incrementAndGet();
+        for (ConfigurationChangeListener listener : changeListeners) {
+            try {
+                listener.onConfigurationChanged(revision);
+            } catch (Exception _) {
+                // Listener failures must never break configuration updates.
+            }
+        }
     }
 
     public int getCacheExpiryDays() {
@@ -95,18 +124,27 @@ public class ConfigurationService {
         return configuration == null || configuration.isEnableVlcHttpUserAgent();
     }
 
-    public boolean isVlcHttpForwardCookiesEnabled() {
-        Configuration configuration = read();
-        return configuration == null || configuration.isEnableVlcHttpForwardCookies();
-    }
-
     public boolean isResolveChainAndDeepRedirectsEnabled() {
         try {
             Configuration configuration = read();
-            return configuration == null || configuration.isResolveChainAndDeepRedirects();
+            return configuration != null && configuration.isResolveChainAndDeepRedirects();
         } catch (RuntimeException _) {
-            // Fail open so transient DB issues do not break HTTP/proxy playback paths.
-            return true;
+            return false;
         }
     }
+
+    public boolean isResolveChainAndDeepRedirectsEnabled(Account account) {
+        if (isResolveChainAndDeepRedirectsEnabled()) {
+            return true;
+        }
+        return account != null && account.isResolveChainAndDeepRedirects();
+    }
+
+    public M3U8PublicationService.PublishedCategoryMode getPublishedM3uCategoryMode() {
+        Configuration configuration = read();
+        return M3U8PublicationService.PublishedCategoryMode.fromPersistedValue(
+                configuration != null ? configuration.getPublishedM3uCategoryMode() : null
+        );
+    }
+
 }

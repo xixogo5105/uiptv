@@ -1,7 +1,4 @@
 package com.uiptv.player;
-import com.uiptv.ui.util.*;
-
-import com.uiptv.util.I18n;
 
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
@@ -14,9 +11,13 @@ import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.ui.util.StyleClassDecorator;
+import com.uiptv.ui.util.UiI18n;
+import com.uiptv.util.I18n;
+import com.uiptv.util.HlsPlaylistResolver;
 import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.NodeOrientation;
 import javafx.geometry.Pos;
@@ -47,7 +48,6 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
-import javafx.event.EventHandler;
 
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -60,7 +60,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntConsumer;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
-
 import static com.uiptv.widget.UIptvAlert.showError;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
@@ -150,6 +149,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected String activeBingeWatchEpisodeId = "";
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
+    private double lastMouseEventScreenX = Double.NaN;
+    private double lastMouseEventScreenY = Double.NaN;
 
     // Resizing Logic
     protected boolean isResizing = false;
@@ -441,6 +442,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void handlePlayerMouseClick(MouseEvent event) {
+        rememberMouseEventPosition(event);
         onPlayerInteraction();
         if (event.getButton() == MouseButton.PRIMARY) {
             handlePrimaryPlayerClick(event);
@@ -473,10 +475,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     private void handlePlayerMouseDragged() {
         isPointerInsidePlayer = true;
+        lastMouseEventScreenX = Double.NaN;
+        lastMouseEventScreenY = Double.NaN;
         onPlayerInteraction();
     }
 
     private void handlePlayerScroll(ScrollEvent event) {
+        if (Math.abs(event.getDeltaY()) < 0.01) {
+            return;
+        }
         restoreVisibleCursor();
         double delta = event.getDeltaY();
         if (delta == 0) return;
@@ -522,10 +529,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         idleTimer.setOnFinished(e -> handleIdleTimeout());
 
         playerContainer.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
+            if (isRepeatedMousePosition(e)) {
+                return;
+            }
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
         playerContainer.addEventFilter(MouseEvent.MOUSE_ENTERED, e -> {
+            rememberMouseEventPosition(e);
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
@@ -540,6 +551,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         });
 
         controlsContainer.setOnMouseEntered(e -> {
+            rememberMouseEventPosition(e);
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
@@ -549,6 +561,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             }
         });
         controlsContainer.setOnMouseMoved(e -> {
+            if (isRepeatedMousePosition(e)) {
+                e.consume();
+                return;
+            }
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
             e.consume();
@@ -608,6 +624,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void handleSceneInputRecovery(InputEvent event) {
+        if (event instanceof MouseEvent mouseEvent) {
+            javafx.event.EventType<? extends MouseEvent> eventType = mouseEvent.getEventType();
+            if (eventType == MouseEvent.MOUSE_MOVED
+                    || eventType == MouseEvent.MOUSE_ENTERED
+                    || eventType == MouseEvent.MOUSE_ENTERED_TARGET
+                    || eventType == MouseEvent.MOUSE_EXITED
+                    || eventType == MouseEvent.MOUSE_EXITED_TARGET) {
+                return;
+            }
+        }
+        if (event instanceof ScrollEvent scrollEvent && Math.abs(scrollEvent.getDeltaY()) < 0.01) {
+            return;
+        }
         restoreVisibleCursor();
         Scene eventScene = event == null || !(event.getSource() instanceof Scene) ? null : (Scene) event.getSource();
         if (eventScene == null || eventScene != playerContainer.getScene() || !playerContainer.isVisible() || !playerContainer.isManaged()) {
@@ -654,6 +683,26 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         uninstallSceneInputRecovery(scene);
         scene.addEventFilter(InputEvent.ANY, sceneInputRecoveryHandler);
         pipInputRecoveryScene = scene;
+    }
+
+    private boolean isRepeatedMousePosition(MouseEvent event) {
+        if (event == null) {
+            return false;
+        }
+        double screenX = event.getScreenX();
+        double screenY = event.getScreenY();
+        boolean repeated = Math.abs(screenX - lastMouseEventScreenX) < 0.01
+                && Math.abs(screenY - lastMouseEventScreenY) < 0.01;
+        rememberMouseEventPosition(event);
+        return repeated;
+    }
+
+    private void rememberMouseEventPosition(MouseEvent event) {
+        if (event == null) {
+            return;
+        }
+        lastMouseEventScreenX = event.getScreenX();
+        lastMouseEventScreenY = event.getScreenY();
     }
 
     protected boolean supportsTrackSelection() {
@@ -1875,152 +1924,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         return "";
     }
 
-    // --- Protected Utility Methods ---
-    /**
-     * Resolve HLS playlist chain (Master -> Variant) to an absolute URL that embedded players can handle.
-     * Workaround for CDNs with relative paths or strict header requirements on manifest files.
-     * Returns a playable .m3u8 URL (Media Playlist).
-     */
     protected String resolveHlsPlaylistChain(String uri) {
-        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled()) {
+        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled(currentAccount)) {
             return uri;
         }
-        return resolveHlsPlaylistChain(uri, new java.util.LinkedHashSet<>(), 0);
+        return HlsPlaylistResolver.resolveHlsPlaylistChain(uri, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);
     }
 
-    private String resolveHlsPlaylistChain(String uri, java.util.Set<String> visited, int depth) {
-        if (uri == null) {
-            return null;
-        }
-
-        String normalizedUri = uri.trim();
-        if (normalizedUri.isEmpty()) {
-            return uri;
-        }
-        if (!visited.add(normalizedUri)) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
-                    "Stopping HLS resolution because a cycle was detected at: " + normalizedUri);
-            return normalizedUri;
-        }
-        if (depth >= MAX_HLS_RESOLUTION_DEPTH) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
-                    "Stopping HLS resolution because the maximum depth was reached for: " + normalizedUri);
-            return normalizedUri;
-        }
-
-        if (!isLikelyManifest(normalizedUri)) {
-            return normalizedUri;
-        }
-
-        try {
-            String variantUrl = resolveHlsVariantUrl(normalizedUri);
-            if (variantUrl == null || variantUrl.equals(normalizedUri)) {
-                return normalizedUri;
-            }
-            com.uiptv.util.AppLog.addInfoLog(BaseVideoPlayer.class,
-                    "Resolved HLS master manifest to variant: " + variantUrl);
-            return resolveHlsPlaylistChain(variantUrl, visited, depth + 1);
-        } catch (Exception e) {
-            com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
-                    "Optional HLS resolution failed for: " + normalizedUri + " (" + e.getMessage() + ")");
-        }
-        return normalizedUri;
-    }
-
-    private String resolveHlsVariantUrl(String normalizedUri) throws IOException {
-        java.util.Map<String, String> headers = createBrowserHeaders();
-        com.uiptv.util.HttpUtil.HttpResult result = com.uiptv.util.HttpUtil.sendRequest(normalizedUri, headers, "GET");
-        if (result == null || result.statusCode() != 200 || result.body() == null) {
-            return null;
-        }
-
-        String body = result.body();
-        if (!isMasterManifest(body)) {
-            return null;
-        }
-
-        String effectiveBaseUri = isNotBlank(result.requestUri()) ? result.requestUri() : normalizedUri;
-        return extractBestVariantUrl(effectiveBaseUri, body);
-    }
-
-    private boolean isMasterManifest(String body) {
-        return body.startsWith("#EXTM3U") && body.contains("#EXT-X-STREAM-INF");
-    }
-
-    private boolean isLikelyManifest(String uri) {
-        String path = uri.split("\\?")[0].toLowerCase();
-        if (path.endsWith(".m3u8") || path.endsWith(".m3u")) {
-            return true;
-        }
-        // If the URL has no extension in its last segment, it's likely a redirector or dynamic endpoint
-        // that we should probe to see if it returns a manifest.
-        int lastSlash = path.lastIndexOf('/');
-        String lastSegment = lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
-        return !lastSegment.contains(".");
-    }
-
-    private String extractBestVariantUrl(String baseUrl, String playlistContent) {
-        String bestUrl = null;
-        long maxBandwidth = -1;
-
-        String[] lines = playlistContent.split("\\r?\\n");
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.startsWith("#EXT-X-STREAM-INF:")) {
-                long bandwidth = parseBandwidth(line);
-                if (i + 1 < lines.length) {
-                    String urlLine = lines[i + 1].trim();
-                    if (!urlLine.isEmpty() && !urlLine.startsWith("#") && bandwidth > maxBandwidth) {
-                        maxBandwidth = bandwidth;
-                        bestUrl = urlLine;
-                    }
-                }
-            }
-        }
-
-        return bestUrl != null ? resolveVariantUrl(baseUrl, bestUrl) : null;
-    }
-
-    private String resolveVariantUrl(String baseUrl, String variantUrl) {
-        try {
-            java.net.URI base = java.net.URI.create(baseUrl);
-            // resolve() followed by normalize() ensures that any relative path segments (../) 
-            // are properly collapsed against the base path.
-            java.net.URI resolved = base.resolve(variantUrl).normalize();
-
-            // Propagate query parameters from base URL if variant doesn't have its own
-            if (baseUrl.contains("?") && !variantUrl.contains("?")) {
-                String query = baseUrl.substring(baseUrl.indexOf('?'));
-                String resolvedStr = resolved.toString();
-                // Ensure we don't accidentally double-append if the resolution already included a query
-                return resolvedStr.contains("?") ? resolvedStr : resolvedStr + query;
-            }
-            return resolved.toString();
-        } catch (Exception _) {
-            return null;
-        }
-    }
-
-    private long parseBandwidth(String line) {
-        try {
-            int index = line.toUpperCase().indexOf("BANDWIDTH=");
-            if (index != -1) {
-                String sub = line.substring(index + 10);
-                int commaIndex = sub.indexOf(',');
-                if (commaIndex != -1) {
-                    sub = sub.substring(0, commaIndex);
-                }
-                return Long.parseLong(sub.trim());
-            }
-        } catch (Exception _) {
-            // ignore
-        }
-        return 0;
-    }
-
-    private java.util.Map<String, String> createBrowserHeaders() {
+    protected java.util.Map<String, String> createBrowserHeaders() {
         java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
-        if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+        if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
             headers.put("User-Agent", CHROME_USER_AGENT);
         }
         headers.put("Accept", "application/vnd.apple.mpegurl, */*");

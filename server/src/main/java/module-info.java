@@ -20,6 +20,7 @@ module com.uiptv.server {
     exports com.uiptv.server.html;
     exports com.uiptv.service;
     exports com.uiptv.service.cache;
+    exports com.uiptv.service.remotesync;
     exports com.uiptv.model;
     exports com.uiptv.shared;
     exports com.uiptv.db;

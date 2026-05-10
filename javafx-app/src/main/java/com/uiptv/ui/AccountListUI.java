@@ -5,6 +5,7 @@ import com.uiptv.ui.util.*;
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
@@ -64,10 +65,12 @@ public class AccountListUI extends HBox {
     private ManageAccountUI manageAccountUI;
     private Node currentContent;
     private Callback<Object> onEditCallback;
+    private Callback<Object> onExplicitEditCallback;
     private Callback<Object> onDeleteCallback;
     private boolean isPromptShowing = false;
     private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
+    private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
 
     public AccountListUI() { // Removed MediaPlayer argument
         this(ConfigurationService.getInstance().read().isEmbeddedPlayer());
@@ -84,13 +87,26 @@ public class AccountListUI extends HBox {
         // Load data only when tab becomes visible
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
+                accountService.addChangeListener(accountChangeListener);
                 refresh();
+            } else {
+                accountService.removeChangeListener(accountChangeListener);
             }
         });
     }
 
+    private void refreshIfAttached() {
+        if (getScene() != null) {
+            refresh();
+        }
+    }
+
     public void addUpdateCallbackHandler(Callback<Object> onEditCallback) {
         this.onEditCallback = onEditCallback;
+    }
+
+    public void addExplicitEditCallbackHandler(Callback<Object> onExplicitEditCallback) {
+        this.onExplicitEditCallback = onExplicitEditCallback;
     }
 
     public void addDeleteCallbackHandler(Callback<Object> onDeleteCallback) {
@@ -128,7 +144,11 @@ public class AccountListUI extends HBox {
         accountName.setCellFactory(_ -> createAccountNameCell());
         installAccountHeaderSortHandler();
         HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
+        sceneBox.setAlignment(Pos.CENTER_LEFT);
         sceneBox.setMaxHeight(25);
+        HBox.setHgrow(table.getTextField(), Priority.ALWAYS);
+        table.getTextField().setMinWidth(120);
+        table.getTextField().setMaxWidth(Double.MAX_VALUE);
         newAccountButton.setManaged(embeddedMode);
         newAccountButton.setVisible(embeddedMode);
         AutoGrowPaneVBox contentBox = new AutoGrowPaneVBox(5, sceneBox, table);
@@ -157,10 +177,12 @@ public class AccountListUI extends HBox {
     }
 
     private void configureNewAccountButton() {
-        newAccountButton.setMinWidth(56);
+        newAccountButton.setMinWidth(64);
         newAccountButton.setPrefWidth(64);
-        newAccountButton.setMinHeight(26);
-        newAccountButton.setPrefHeight(26);
+        newAccountButton.setMaxWidth(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setMinHeight(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setPadding(new Insets(6, 12, 6, 12));
         newAccountButton.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
         newAccountButton.setOnAction(_ -> {
             if (!embeddedMode) {
@@ -453,7 +475,7 @@ public class AccountListUI extends HBox {
         rowMenu.setAutoHide(true);
 
         MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
-        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(row.getItem())));
+        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(row.getItem(), true)));
 
         MenuItem itv = new MenuItem(I18n.tr("autoTvChannels"));
         itv.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv)));
@@ -583,7 +605,12 @@ public class AccountListUI extends HBox {
 
         new Thread(() -> {
             try {
-                final List<Category> list = CategoryService.getInstance().get(account);
+                final List<Category> list = CategoryService.getInstance().get(account, true,
+                        message -> com.uiptv.util.AppLog.addInfoLog(AccountListUI.class,
+                                "[ParentalLock] account=" + account.getAccountName()
+                                        + " type=" + account.getType()
+                                        + " action=" + account.getAction()
+                                        + " categories: " + message));
 
                 Platform.runLater(() -> categoryListUI.setItems(list));
             } catch (Exception e) {
@@ -602,6 +629,10 @@ public class AccountListUI extends HBox {
     }
 
     private void openManageAccount(AccountItem item) {
+        openManageAccount(item, false);
+    }
+
+    private void openManageAccount(AccountItem item, boolean explicitManageAction) {
         if (item == null) {
             return;
         }
@@ -616,15 +647,21 @@ public class AccountListUI extends HBox {
             return;
         }
         if (!embeddedMode && manageAccountUI != null) {
-            if (onEditCallback != null) {
-                onEditCallback.call(account);
+            Callback<Object> callback = explicitManageAction && onExplicitEditCallback != null
+                    ? onExplicitEditCallback
+                    : onEditCallback;
+            if (callback != null) {
+                callback.call(account);
             } else {
                 manageAccountUI.editAccount(account);
             }
             return;
         }
-        if (onEditCallback != null) {
-            onEditCallback.call(account);
+        Callback<Object> callback = explicitManageAction && onExplicitEditCallback != null
+                ? onExplicitEditCallback
+                : onEditCallback;
+        if (callback != null) {
+            callback.call(account);
         }
     }
 

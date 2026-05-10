@@ -6,10 +6,12 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.SeriesWatchingNowSnapshotDb;
 import com.uiptv.db.SeriesWatchStateDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
@@ -80,11 +82,21 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
     }
 
     @Test
-    void handle_skipsNumericSeriesIdsWithoutCachedMetadata_butKeepsNonNumericFallbackRows() throws Exception {
+    void handle_usesWatchingNowSnapshotForNumericSeriesIdsWhenCacheMetadataIsMissing() throws Exception {
         Account account = createSeriesAccount("watching-now-fallback");
 
         SeriesWatchStateDb.get().upsert(state(account, "unknown-category", "12345", "ep-1", "Episode 1", "1", 1, 100L));
         SeriesWatchStateDb.get().upsert(state(account, "unknown-category", "series-slug", "ep-2", "Episode 2", "1", 2, 200L));
+        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
+        snapshot.setAccountId(account.getDbId());
+        snapshot.setCategoryId("unknown-category");
+        snapshot.setSeriesId("12345");
+        snapshot.setCategoryDbId("snapshot-db");
+        snapshot.setSeriesTitle("Snapshot Numeric Series");
+        snapshot.setSeriesPoster("https://img/numeric.png");
+        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-1\\\",\\\"name\\\":\\\"Episode 1\\\",\\\"cmd\\\":\\\"http://example.com/ep-1\\\"}\"]");
+        snapshot.setUpdatedAt(300L);
+        SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
 
         HttpWatchingNowJsonServer handler = new HttpWatchingNowJsonServer();
         StubHttpExchange exchange = new StubHttpExchange("/watching-now", "GET");
@@ -92,13 +104,22 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
 
         assertEquals(200, exchange.getResponseCode());
         JSONArray response = new JSONArray(exchange.getResponseBodyText());
-        assertEquals(1, response.length());
+        assertEquals(2, response.length());
 
-        JSONObject row = response.getJSONObject(0);
-        assertEquals("series-slug", row.getString("seriesId"));
-        assertEquals("series-slug", row.getString("seriesTitle"));
-        assertEquals("unknown-category", row.getString("categoryDbId"));
-        assertEquals("", row.getString("seriesPoster"));
+        JSONObject numericRow = response.getJSONObject(0).getString("seriesId").equals("12345")
+                ? response.getJSONObject(0)
+                : response.getJSONObject(1);
+        JSONObject slugRow = response.getJSONObject(0).getString("seriesId").equals("series-slug")
+                ? response.getJSONObject(0)
+                : response.getJSONObject(1);
+
+        assertEquals("12345", numericRow.getString("seriesId"));
+        assertEquals("Snapshot Numeric Series", numericRow.getString("seriesTitle"));
+        assertEquals("snapshot-db", numericRow.getString("categoryDbId"));
+        assertEquals("https://img/numeric.png", numericRow.getString("seriesPoster"));
+
+        assertEquals("series-slug", slugRow.getString("seriesId"));
+        assertEquals("series-slug", slugRow.getString("seriesTitle"));
     }
 
     @Test

@@ -36,15 +36,23 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT,
     tmdbReadAccessToken
     TEXT,
+    filterLockHash
+    TEXT,
     uiZoomPercent
     TEXT,
     enableLitePlayerFfmpeg
     TEXT
     default
     '0',
+    autoRunServerOnStartup
+    TEXT
+    default
+    '0',
     vlcNetworkCachingMs
     TEXT,
     vlcLiveCachingMs
+    TEXT,
+    publishedM3uCategoryMode
     TEXT,
     enableVlcHttpUserAgent
     TEXT
@@ -57,7 +65,11 @@ CREATE TABLE IF NOT EXISTS Configuration
     resolveChainAndDeepRedirects
     TEXT
     default
-    '1'
+       '0',
+    filterLockUnlockDurationMinutes
+    TEXT
+    default
+       '15'
 );
 
 CREATE TABLE IF NOT EXISTS ThemeCssOverride
@@ -119,6 +131,10 @@ CREATE TABLE IF NOT EXISTS Account
     TEXT,
     pinToTop
     TEXT,
+    resolveChainAndDeepRedirects
+    TEXT
+    default
+    '0',
     httpMethod
     TEXT,
     timezone
@@ -536,6 +552,30 @@ CREATE TABLE IF NOT EXISTS SeriesWatchState
     TEXT
 );
 
+CREATE TABLE IF NOT EXISTS SeriesWatchingNowSnapshot
+(
+    id
+    INTEGER
+    PRIMARY
+    KEY,
+    accountId
+    TEXT,
+    categoryId
+    TEXT,
+    seriesId
+    TEXT,
+    categoryDbId
+    TEXT,
+    seriesTitle
+    TEXT,
+    seriesPoster
+    TEXT,
+    episodesJson
+    TEXT,
+    updatedAt
+    INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS BookmarkCategory
 (
     id
@@ -575,6 +615,50 @@ CREATE TABLE IF NOT EXISTS PublishedM3uSelection
     NOT
     NULL
     UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS PublishedM3uCategorySelection
+(
+    id
+    INTEGER
+    PRIMARY
+    KEY,
+    accountId
+    TEXT
+    NOT
+    NULL,
+    categoryName
+    TEXT
+    NOT
+    NULL,
+    selected
+    TEXT
+    NOT
+    NULL
+);
+
+CREATE TABLE IF NOT EXISTS PublishedM3uChannelSelection
+(
+    id
+    INTEGER
+    PRIMARY
+    KEY,
+    accountId
+    TEXT
+    NOT
+    NULL,
+    categoryName
+    TEXT
+    NOT
+    NULL,
+    channelId
+    TEXT
+    NOT
+    NULL,
+    selected
+    TEXT
+    NOT
+    NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_series_watch_unique

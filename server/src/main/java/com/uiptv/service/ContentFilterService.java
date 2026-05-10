@@ -44,7 +44,7 @@ public class ContentFilterService {
             }
             String safeName = StringUtils.safeUtf(channel.getName()).toLowerCase();
             boolean containsBlockedWord = blockedWords.stream().anyMatch(word -> safeName.contains(word.toLowerCase()));
-            return !containsBlockedWord && channel.getCensored() != 1;
+            return !containsBlockedWord;
         };
 
         return channels.stream().filter(keepChannel).collect(Collectors.toList());
@@ -71,7 +71,7 @@ public class ContentFilterService {
             boolean hasBlockedWord = blockedWords.stream().anyMatch(word ->
                     category.getTitle() != null && category.getTitle().toLowerCase().contains(word.toLowerCase())
             );
-            return !hasBlockedWord && category.getCensored() != 1;
+            return !hasBlockedWord;
         };
 
         return categories.stream().filter(keepCategory).collect(Collectors.toList());
