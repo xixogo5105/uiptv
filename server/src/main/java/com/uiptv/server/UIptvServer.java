@@ -1,14 +1,13 @@
 package com.uiptv.server;
 
-import com.sun.net.httpserver.HttpServer;
 import com.uiptv.server.api.json.*;
 import com.uiptv.server.html.HttpSpaHtmlServer;
 import com.uiptv.service.ConfigurationService;
+import io.undertow.Undertow;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.handlers.PathHandler;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -17,8 +16,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 public class UIptvServer {
     private static final int MIN_HTTP_WORKERS = 20;
-    private static HttpServer httpServer;
-    private static ExecutorService httpExecutor;
+    private static Undertow httpServer;
 
     private UIptvServer() {
     }
@@ -26,72 +24,84 @@ public class UIptvServer {
     private static void initialiseServer() throws IOException {
         stop();
         String httpPort = getHttpPort();
-        InetSocketAddress httpAddress = new InetSocketAddress("0.0.0.0", Integer.parseInt(httpPort));
-
-        // Initialize HTTP server
-        httpServer = HttpServer.create(httpAddress, 0);
-        configureServer(httpServer);
-
-        // Ensure at least 20 concurrent worker threads for web/API traffic.
+        int port = Integer.parseInt(httpPort);
         int workerThreads = Math.max(MIN_HTTP_WORKERS, Runtime.getRuntime().availableProcessors() * 4);
-        httpExecutor = Executors.newFixedThreadPool(workerThreads, namedThreadFactory("uiptv-http-"));
-        httpServer.setExecutor(httpExecutor);
+        int ioThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
+
+        httpServer = Undertow.builder()
+                .addHttpListener(port, "0.0.0.0")
+                .setIoThreads(ioThreads)
+                .setWorkerThreads(workerThreads)
+                .setHandler(configureServer())
+                .build();
     }
 
-    private static void configureServer(HttpServer server) {
+    private static HttpHandler configureServer() {
+        PathHandler routes = new PathHandler();
+
         // SPA routes
-        server.createContext("/", new HttpSpaHtmlServer());
-        server.createContext("/index.html", new HttpSpaHtmlServer());
-        server.createContext("/myflix.html", new HttpSpaHtmlServer("myflix.html"));
-        server.createContext("/player.html", new HttpSpaHtmlServer("player.html"));
-        server.createContext("/drm.html", new HttpSpaHtmlServer("player.html"));
-        
+        routes.addExactPath("/", adapt(new HttpSpaHtmlServer()));
+        routes.addExactPath("/index.html", adapt(new HttpSpaHtmlServer()));
+        routes.addExactPath("/myflix.html", adapt(new HttpSpaHtmlServer("myflix.html")));
+        routes.addExactPath("/player.html", adapt(new HttpSpaHtmlServer("player.html")));
+        routes.addExactPath("/drm.html", adapt(new HttpSpaHtmlServer("player.html")));
+
         // PWA routes
-        server.createContext("/manifest.json", new HttpManifestServer());
-        server.createContext("/sw.js", new HttpJavascriptServer());
-        
+        routes.addExactPath("/manifest.json", adapt(new HttpManifestServer()));
+        routes.addExactPath("/sw.js", adapt(new HttpJavascriptServer()));
+
         // Assets
-        server.createContext("/icon.ico", new HttpIconServer());
+        routes.addExactPath("/icon.ico", adapt(new HttpIconServer()));
 
         // Static file servers
-        server.createContext("/javascript", new HttpJavascriptServer());
-        server.createContext("/js", new HttpJavascriptServer());
-        server.createContext("/css", new HttpCssServer());
-        
+        routes.addPrefixPath("/javascript", adapt(new HttpJavascriptServer()));
+        routes.addPrefixPath("/js", adapt(new HttpJavascriptServer()));
+        routes.addPrefixPath("/css", adapt(new HttpCssServer()));
+
         // HLS Stream Server (Memory-based)
-        server.createContext("/hls", new HttpHlsFileServer());
-        server.createContext("/hls-upload", new HttpHlsUploadServer());
-        server.createContext("/proxy-stream", new HttpProxyStreamServer());
-        server.createContext("/bingewatch.m3u8", new HttpBingeWatchPlaylistServer());
-        server.createContext("/bingwatch", new HttpBingeWatchEntryServer());
+        routes.addPrefixPath("/hls", adapt(new HttpHlsFileServer()));
+        routes.addPrefixPath("/hls-upload", adapt(new HttpHlsUploadServer()));
+        routes.addPrefixPath("/proxy-stream", adapt(new HttpProxyStreamServer()));
+        routes.addExactPath("/bingewatch.m3u8", adapt(new HttpBingeWatchPlaylistServer()));
+        routes.addPrefixPath("/bingwatch", adapt(new HttpBingeWatchEntryServer()));
 
         // API JSON servers
-        server.createContext("/accounts", new HttpAccountJsonServer());
-        server.createContext("/categories", new HttpCategoryJsonServer());
-        server.createContext("/channels", new HttpChannelJsonServer());
-        server.createContext("/seriesEpisodes", new HttpSeriesEpisodesJsonServer());
-        server.createContext("/seriesDetails", new HttpSeriesDetailsJsonServer());
-        server.createContext("/watchingNow", new HttpWatchingNowJsonServer());
-        server.createContext("/watchingNowSeriesEpisodes", new HttpWatchingNowSeriesEpisodesJsonServer());
-        server.createContext("/watchingNowSeriesAction", new HttpWatchingNowSeriesActionServer());
-        server.createContext("/watchingNowVod", new HttpWatchingNowVodJsonServer());
-        server.createContext("/watchingNowVodAction", new HttpWatchingNowVodActionServer());
-        server.createContext("/vodDetails", new HttpVodDetailsJsonServer());
+        routes.addExactPath("/accounts", adapt(new HttpAccountJsonServer()));
+        routes.addExactPath("/categories", adapt(new HttpCategoryJsonServer()));
+        routes.addExactPath("/channels", adapt(new HttpChannelJsonServer()));
+        routes.addExactPath("/seriesEpisodes", adapt(new HttpSeriesEpisodesJsonServer()));
+        routes.addExactPath("/seriesDetails", adapt(new HttpSeriesDetailsJsonServer()));
+        routes.addExactPath("/watchingNow", adapt(new HttpWatchingNowJsonServer()));
+        routes.addExactPath("/watchingNowSeriesEpisodes", adapt(new HttpWatchingNowSeriesEpisodesJsonServer()));
+        routes.addExactPath("/watchingNowSeriesAction", adapt(new HttpWatchingNowSeriesActionServer()));
+        routes.addExactPath("/watchingNowVod", adapt(new HttpWatchingNowVodJsonServer()));
+        routes.addExactPath("/watchingNowVodAction", adapt(new HttpWatchingNowVodActionServer()));
+        routes.addExactPath("/vodDetails", adapt(new HttpVodDetailsJsonServer()));
         // Single player gateway: /player is canonical, legacy /player/* paths are handled by prefix routing.
-        server.createContext("/player", new HttpPlayerGatewayServer());
-        server.createContext("/bookmarks", new HttpBookmarksJsonServer());
-        server.createContext("/config", new HttpConfigJsonServer());
-        server.createContext("/remote-sync/health", new HttpRemoteSyncHealthServer());
-        server.createContext("/remote-sync/request", new HttpRemoteSyncRequestServer());
-        server.createContext("/remote-sync/status", new HttpRemoteSyncStatusServer());
-        server.createContext("/remote-sync/upload", new HttpRemoteSyncUploadServer());
-        server.createContext("/remote-sync/download", new HttpRemoteSyncDownloadServer());
-        server.createContext("/remote-sync/complete", new HttpRemoteSyncCompleteServer());
-        server.createContext("/playlist.m3u8", new HttpM3u8PlayListServer());
-        server.createContext("/bookmarkEntry.ts", new HttpM3u8BookmarkEntry());
-        server.createContext("/bookmarks.m3u8", new HttpM3u8BookmarkPlayListServer());
-        server.createContext("/iptv.m3u8", new HttpIptvM3u8Server());
-        server.createContext("/iptv.m3u", new HttpIptvM3u8Server());
+        routes.addPrefixPath("/player", adapt(new HttpPlayerGatewayServer()));
+        routes.addExactPath("/bookmarks", adapt(new HttpBookmarksJsonServer()));
+        routes.addExactPath("/config", adapt(new HttpConfigJsonServer()));
+        routes.addExactPath("/remote-sync/health", adapt(new HttpRemoteSyncHealthServer()));
+        routes.addExactPath("/remote-sync/request", adapt(new HttpRemoteSyncRequestServer()));
+        routes.addExactPath("/remote-sync/status", adapt(new HttpRemoteSyncStatusServer()));
+        routes.addExactPath("/remote-sync/upload", adapt(new HttpRemoteSyncUploadServer()));
+        routes.addExactPath("/remote-sync/download", adapt(new HttpRemoteSyncDownloadServer()));
+        routes.addExactPath("/remote-sync/complete", adapt(new HttpRemoteSyncCompleteServer()));
+        routes.addExactPath("/playlist.m3u8", adapt(new HttpM3u8PlayListServer()));
+        routes.addExactPath("/bookmarkEntry.ts", adapt(new HttpM3u8BookmarkEntry()));
+        routes.addExactPath("/bookmarks.m3u8", adapt(new HttpM3u8BookmarkPlayListServer()));
+        routes.addExactPath("/iptv.m3u8", adapt(new HttpIptvM3u8Server()));
+        routes.addExactPath("/iptv.m3u", adapt(new HttpIptvM3u8Server()));
+
+        routes.addPrefixPath("/", adapt(new HttpSpaHtmlServer()));
+        return exchange -> {
+            exchange.putAttachment(UndertowAttachments.attributes(), UndertowAttachments.newAttributes());
+            routes.handleRequest(exchange);
+        };
+    }
+
+    private static HttpHandler adapt(com.sun.net.httpserver.HttpHandler handler) {
+        return new UndertowHttpHandlerAdapter(handler);
     }
 
     private static String getHttpPort() {
@@ -116,12 +126,8 @@ public class UIptvServer {
 
     public static synchronized void stop() {
         if (httpServer != null) {
-            httpServer.stop(1);
+            httpServer.stop();
             httpServer = null;
-        }
-        if (httpExecutor != null) {
-            httpExecutor.shutdownNow();
-            httpExecutor = null;
         }
         addInfoLog(UIptvServer.class, "Server Stopped");
     }

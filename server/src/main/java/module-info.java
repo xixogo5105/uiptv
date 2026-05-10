@@ -1,4 +1,5 @@
 module com.uiptv.server {
+    requires undertow.core;
     requires org.json;
     requires org.apache.commons.io;
     requires org.apache.httpcomponents.client5.httpclient5;
