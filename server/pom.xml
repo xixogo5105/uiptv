@@ -168,6 +168,13 @@
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-maven-serialization</artifactId>
+                        <version>${kotlin.version}</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <id>compile-kotlin</id>
@@ -177,6 +184,9 @@
                         </goals>
                         <configuration>
                             <jvmTarget>${kotlin.jvm.target}</jvmTarget>
+                            <compilerPlugins>
+                                <plugin>kotlinx-serialization</plugin>
+                            </compilerPlugins>
                             <sourceDirs>
                                 <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
                                 <sourceDir>${project.basedir}/src/main/java</sourceDir>
@@ -191,6 +201,9 @@
                         </goals>
                         <configuration>
                             <jvmTarget>${kotlin.jvm.target}</jvmTarget>
+                            <compilerPlugins>
+                                <plugin>kotlinx-serialization</plugin>
+                            </compilerPlugins>
                             <sourceDirs>
                                 <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
                                 <sourceDir>${project.basedir}/src/test/java</sourceDir>

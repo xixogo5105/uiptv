@@ -14,10 +14,14 @@ class StaticWebFileResolver private constructor() {
         @JvmStatic
         @Throws(IOException::class)
         fun resolve(exchange: HttpExchange?): Path {
-            if (exchange?.requestURI == null) {
+            return resolveRequestPath(exchange?.requestURI?.path)
+        }
+
+        @Throws(IOException::class)
+        fun resolveRequestPath(requestPath: String?): Path {
+            if (requestPath == null) {
                 throw IOException("Invalid request")
             }
-            val requestPath = exchange.requestURI.path
             if (isBlank(requestPath)) {
                 throw IOException("Invalid path")
             }

@@ -2,10 +2,14 @@ package com.uiptv.server.api.routes
 
 import com.uiptv.model.Account
 import com.uiptv.model.Bookmark
-import com.uiptv.model.BookmarkCategory
 import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.db.CategoryDb
+import com.uiptv.server.api.dto.BookmarkDeleteRequest
+import com.uiptv.server.api.dto.BookmarkOrderRequest
+import com.uiptv.server.api.dto.BookmarkUpsertRequest
+import com.uiptv.server.api.dto.ConfigResponse
+import com.uiptv.server.api.dto.StatusResponse
 import com.uiptv.service.AccountService
 import com.uiptv.service.BookmarkService
 import com.uiptv.service.CategoryResolver
@@ -14,16 +18,19 @@ import com.uiptv.service.ConfigurationService
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.response.respondText
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveText
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import org.json.JSONObject
-import org.json.JSONArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 fun Route.registerCoreApiRoutes(
     configurationService: ConfigurationService,
@@ -33,30 +40,25 @@ fun Route.registerCoreApiRoutes(
 ) {
     get("/config") {
         val configuration = configurationService.read()
-        call.respondText(
-            JSONObject()
-                .put("enableThumbnails", configuration.enableThumbnails)
-                .toString(),
-            ContentType.Application.Json
-        )
+        call.respond(ConfigResponse(enableThumbnails = configuration.enableThumbnails))
     }
 
     get("/accounts") {
-        val body = accountService.readToJson()
-        call.respondText(body, ContentType.Application.Json)
+        call.respondJsonString(accountService.readToJson())
     }
 
     get("/categories") {
         val account = accountService.getById(call.request.queryParameters["accountId"])
         if (account == null) {
-            call.respondText("[]", ContentType.Application.Json)
+            call.respond(emptyList<JsonElement>())
             return@get
         }
         applyMode(account, call.request.queryParameters["mode"])
-        val body = com.uiptv.util.ServerUtils.objectToJson(
-            CategoryResolver().resolveCategories(account, categoryService.get(account))
+        call.respondJsonString(
+            com.uiptv.util.ServerUtils.objectToJson(
+                CategoryResolver().resolveCategories(account, categoryService.get(account))
+            )
         )
-        call.respondText(body, ContentType.Application.Json)
     }
 
     options("/bookmarks") {
@@ -67,40 +69,40 @@ fun Route.registerCoreApiRoutes(
     get("/bookmarks") {
         call.bookmarkHeaders()
         if ("categories".equals(call.request.queryParameters["view"], true)) {
-            call.respondText(
-                com.uiptv.util.ServerUtils.objectToJson(bookmarkService.getAllCategories()),
-                ContentType.Application.Json
-            )
+            call.respondJsonString(com.uiptv.util.ServerUtils.objectToJson(bookmarkService.getAllCategories()))
             return@get
         }
         val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 0
         val body = if (limit > 0) bookmarkService.readToJson(offset, limit) else bookmarkService.readToJson()
-        call.respondText(body, ContentType.Application.Json)
+        call.respondJsonString(body)
     }
 
     post("/bookmarks") {
         call.bookmarkHeaders()
-        val body = parseJsonBody(call)
-        val accountId = opt(body, "accountId", call.request.queryParameters["accountId"])
-        val categoryId = opt(body, "categoryId", call.request.queryParameters["categoryId"])
-        val mode = opt(body, "mode", call.request.queryParameters["mode"])
-        var channelId = opt(body, "channelId", call.request.queryParameters["channelId"])
-        val channelName = opt(body, "name", call.request.queryParameters["name"])
-        val cmd = opt(body, "cmd", call.request.queryParameters["cmd"])
+        val body = call.receivePayloadOrDefault<BookmarkUpsertRequest>()
+        val accountId = body.accountId ?: call.request.queryParameters["accountId"]
+        val categoryId = body.categoryId ?: call.request.queryParameters["categoryId"]
+        val mode = body.mode ?: call.request.queryParameters["mode"]
+        var channelId = body.channelId ?: call.request.queryParameters["channelId"].orEmpty()
+        val channelName = body.name ?: call.request.queryParameters["name"].orEmpty()
+        val cmd = body.cmd ?: call.request.queryParameters["cmd"].orEmpty()
         if (channelId.isBlank()) {
-            channelId = opt(body, "id", "")
+            channelId = body.id.orEmpty()
         }
 
         val account = accountService.getById(accountId)
         if (account == null || channelId.isBlank() || channelName.isBlank()) {
-            call.respondText("""{"status":"error","message":"Missing account/channel details"}""", ContentType.Application.Json, HttpStatusCode.BadRequest)
+            call.respond(
+                HttpStatusCode.BadRequest,
+                StatusResponse(status = "error", message = "Missing account/channel details")
+            )
             return@post
         }
         applyMode(account, mode)
 
         var categoryTitle = ""
-        if (categoryId.isNotBlank()) {
+        if (!categoryId.isNullOrBlank()) {
             val category: Category? = CategoryDb.get().getCategoryByDbId(categoryId, account)
             if (category != null) {
                 categoryTitle = category.title ?: ""
@@ -111,12 +113,12 @@ fun Route.registerCoreApiRoutes(
             this.channelId = channelId
             name = channelName
             this.cmd = cmd
-            logo = opt(body, "logo", "")
-            drmType = opt(body, "drmType", "")
-            drmLicenseUrl = opt(body, "drmLicenseUrl", "")
-            clearKeysJson = opt(body, "clearKeysJson", "")
-            inputstreamaddon = opt(body, "inputstreamaddon", "")
-            manifestType = opt(body, "manifestType", "")
+            logo = body.logo.orEmpty()
+            drmType = body.drmType.orEmpty()
+            drmLicenseUrl = body.drmLicenseUrl.orEmpty()
+            clearKeysJson = body.clearKeysJson.orEmpty()
+            inputstreamaddon = body.inputstreamaddon.orEmpty()
+            manifestType = body.manifestType.orEmpty()
         }
 
         val portal = if (account.serverPortalUrl.isNullOrBlank()) account.url else account.serverPortalUrl
@@ -127,45 +129,57 @@ fun Route.registerCoreApiRoutes(
 
         val existing = bookmarkService.getBookmark(bookmark)
         if (existing != null) {
-            call.respondText(
-                """{"status":"ok","action":"exists","bookmarkId":"${escape(existing.dbId)}"}""",
-                ContentType.Application.Json
+            call.respond(
+                StatusResponse(
+                    status = "ok",
+                    action = "exists",
+                    bookmarkId = existing.dbId
+                )
             )
             return@post
         }
 
         bookmarkService.save(bookmark)
         val saved = bookmarkService.getBookmark(bookmark)
-        call.respondText(
-            """{"status":"ok","action":"saved","bookmarkId":"${escape(saved?.dbId ?: "")}"}""",
-            ContentType.Application.Json
+        call.respond(
+            StatusResponse(
+                status = "ok",
+                action = "saved",
+                bookmarkId = saved?.dbId.orEmpty()
+            )
         )
     }
 
     put("/bookmarks") {
         call.bookmarkHeaders()
-        val body = parseJsonBody(call)
+        val body = call.receivePayloadOrDefault<BookmarkOrderRequest>()
         val bookmarkOrders = extractBookmarkOrders(body)
         if (bookmarkOrders.isEmpty()) {
-            call.respondText("""{"status":"error","message":"bookmarkOrders is required"}""", ContentType.Application.Json, HttpStatusCode.BadRequest)
+            call.respond(
+                HttpStatusCode.BadRequest,
+                StatusResponse(status = "error", message = "bookmarkOrders is required")
+            )
             return@put
         }
         bookmarkService.saveBookmarkOrders(bookmarkOrders)
-        call.respondText("""{"status":"ok","action":"reordered"}""", ContentType.Application.Json)
+        call.respond(StatusResponse(status = "ok", action = "reordered"))
     }
 
     delete("/bookmarks") {
         call.bookmarkHeaders()
         var bookmarkId = call.request.queryParameters["bookmarkId"].orEmpty()
         if (bookmarkId.isBlank()) {
-            bookmarkId = opt(parseJsonBody(call), "bookmarkId", "")
+            bookmarkId = call.receivePayloadOrDefault<BookmarkDeleteRequest>().bookmarkId.orEmpty()
         }
         if (bookmarkId.isBlank()) {
-            call.respondText("""{"status":"error","message":"bookmarkId is required"}""", ContentType.Application.Json, HttpStatusCode.BadRequest)
+            call.respond(
+                HttpStatusCode.BadRequest,
+                StatusResponse(status = "error", message = "bookmarkId is required")
+            )
             return@delete
         }
         bookmarkService.remove(bookmarkId)
-        call.respondText("""{"status":"ok","action":"removed"}""", ContentType.Application.Json)
+        call.respond(StatusResponse(status = "ok", action = "removed"))
     }
 }
 
@@ -180,62 +194,48 @@ private fun applyMode(account: Account, mode: String?) {
     }
 }
 
-private suspend fun parseJsonBody(call: io.ktor.server.application.ApplicationCall): JSONObject =
-    try {
-        val text = call.receiveText()
-        if (text.isBlank()) JSONObject() else JSONObject(text)
-    } catch (_: Exception) {
-        JSONObject()
-    }
-
-private fun io.ktor.server.application.ApplicationCall.bookmarkHeaders() {
+private fun ApplicationCall.bookmarkHeaders() {
     response.headers.append("Access-Control-Allow-Origin", "*")
     response.headers.append("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
     response.headers.append("Access-Control-Allow-Headers", "Content-Type,*")
     response.headers.append(HttpHeaders.ContentType, ContentType.Application.Json.toString())
 }
 
-private fun opt(json: JSONObject?, key: String, fallback: String?): String {
-    if (json != null && json.has(key) && !json.isNull(key)) {
-        val value = json.optString(key, fallback)
-        if (!value.isNullOrBlank()) {
-            return value
-        }
+private suspend inline fun <reified T> ApplicationCall.receivePayloadOrDefault(): T {
+    val text = try {
+        receiveText()
+    } catch (_: Exception) {
+        ""
     }
-    return fallback ?: ""
+    return routeJson.decodeFromString(if (text.isBlank()) emptyJsonObject else text)
 }
 
-private fun extractBookmarkOrders(body: JSONObject?): MutableMap<String, Int> {
+private suspend fun ApplicationCall.respondJsonString(body: String) {
+    respond(routeJson.parseToJsonElement(body))
+}
+
+private fun extractBookmarkOrders(body: BookmarkOrderRequest): MutableMap<String, Int> {
     val bookmarkOrders = linkedMapOf<String, Int>()
-    if (body != null && body.has("bookmarkOrders") && !body.isNull("bookmarkOrders")) {
-        val ordersObject = body.optJSONObject("bookmarkOrders")
-        if (ordersObject != null) {
-            ordersObject.keySet().forEach { bookmarkId ->
-                if (bookmarkId.isNotBlank()) {
-                    val orderNumber = ordersObject.optInt(bookmarkId, -1)
-                    if (orderNumber > 0) {
-                        bookmarkOrders[bookmarkId] = orderNumber
-                    }
-                }
-            }
+    body.bookmarkOrders?.forEach { (bookmarkId, orderNumber) ->
+        if (bookmarkId.isNotBlank() && orderNumber > 0) {
+            bookmarkOrders[bookmarkId] = orderNumber
         }
     }
     if (bookmarkOrders.isNotEmpty()) {
         return bookmarkOrders
     }
-    val idsArray = when {
-        body?.has("orderedBookmarkDbIds") == true && !body.isNull("orderedBookmarkDbIds") -> body.optJSONArray("orderedBookmarkDbIds")
-        body?.has("bookmarkIds") == true && !body.isNull("bookmarkIds") -> body.optJSONArray("bookmarkIds")
-        else -> null
-    } ?: return bookmarkOrders
-    for (i in 0 until idsArray.length()) {
-        val id = idsArray.opt(i).toString()
-        if (id.isNotBlank() && !"null".equals(id, true)) {
-            bookmarkOrders[id] = i + 1
+    val orderedIds = body.orderedBookmarkDbIds ?: body.bookmarkIds ?: return bookmarkOrders
+    orderedIds.forEachIndexed { index, id ->
+        if (id.isNotBlank() && !id.equals("null", true)) {
+            bookmarkOrders[id] = index + 1
         }
     }
     return bookmarkOrders
 }
 
-private fun escape(value: String?): String =
-    value?.replace("\\", "\\\\")?.replace("\"", "\\\"") ?: ""
+private val routeJson = Json {
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}
+
+private const val emptyJsonObject = "{}"
