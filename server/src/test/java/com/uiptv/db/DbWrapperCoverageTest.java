@@ -10,7 +10,6 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
@@ -166,29 +165,13 @@ class DbWrapperCoverageTest extends DbBackedTest {
     }
 
     @Test
-    void sqlConnection_applySchemaPrefersMigrationsThenBaselineAndFailsWhenMissing() throws Exception {
-        Method applySchema = SQLConnection.class.getDeclaredMethod("applySchema", Connection.class);
-        applySchema.setAccessible(true);
-        Connection connection = Mockito.mock(Connection.class);
-
-        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
-            patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(true);
-            assertDoesNotThrow(() -> applySchema.invoke(null, connection));
-            patches.verify(() -> DatabasePatchesUtils.applyPatches(connection));
-        }
-
-        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
-            patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(false);
-            patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(true);
-            assertDoesNotThrow(() -> applySchema.invoke(null, connection));
-            patches.verify(() -> DatabasePatchesUtils.applyBaseline(connection));
-        }
-
-        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
-            patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(false);
-            patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(false);
-            Exception ex = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> applySchema.invoke(null, connection));
-            assertTrue(ex.getCause() instanceof IllegalStateException);
+    void sqlConnection_initUsesFlywayHistoryForRuntimeStartup() throws Exception {
+        SQLConnection.init();
+        try (Connection connection = SQLConnection.connect();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1")) {
+            assertTrue(resultSet.next());
+            assertTrue(resultSet.getInt(1) > 0);
         }
     }
 

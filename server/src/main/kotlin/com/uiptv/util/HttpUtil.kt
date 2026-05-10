@@ -1,23 +1,20 @@
 package com.uiptv.util
 
+import io.ktor.client.call.body
+import io.ktor.client.request.request
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.Headers
+import io.ktor.http.HttpMethod
+import kotlinx.coroutines.runBlocking
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase
-import org.apache.hc.client5.http.config.RequestConfig
-import org.apache.hc.client5.http.impl.LaxRedirectStrategy
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse
-import org.apache.hc.client5.http.impl.classic.HttpClients
 import org.apache.hc.client5.http.protocol.HttpClientContext
-import org.apache.hc.core5.http.Header
-import org.apache.hc.core5.http.HttpEntity
-import org.apache.hc.core5.http.io.entity.EntityUtils
-import org.apache.hc.core5.http.io.entity.StringEntity
-import org.apache.hc.core5.util.Timeout
 import java.io.IOException
 import java.io.InputStream
+import java.io.ByteArrayInputStream
 import java.net.URI
 import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.time.Duration
 import java.util.Locale
 import java.util.Objects
 import java.util.TreeMap
@@ -32,19 +29,6 @@ object HttpUtil {
     private val CONNECTION_REQUEST_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.connection.request.timeout.seconds", DEFAULT_TIMEOUT_SECONDS)
     private val RESPONSE_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.response.timeout.seconds", DEFAULT_TIMEOUT_SECONDS)
     private val MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 5)
-    private val HTTP_CLIENT: CloseableHttpClient = HttpClients.custom()
-        .setRedirectStrategy(LaxRedirectStrategy())
-        .setDefaultRequestConfig(
-            RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS.toLong()))
-                .setConnectionRequestTimeout(Timeout.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS.toLong()))
-                .setResponseTimeout(Timeout.ofSeconds(RESPONSE_TIMEOUT_SECONDS.toLong()))
-                .setRedirectsEnabled(true)
-                .setMaxRedirects(MAX_REDIRECTS)
-                .build()
-        )
-        .build()
-
     @JvmStatic
     @Throws(IOException::class)
     fun sendRequest(url: String, headers: Map<String, String>?, method: String): HttpResult =
@@ -58,44 +42,74 @@ object HttpUtil {
     @JvmStatic
     @Throws(IOException::class)
     fun sendRequest(url: String, headers: Map<String, String>?, method: String, body: String?, options: RequestOptions): HttpResult {
-        val request = buildRequest(url, headers, method, body, options)
-        val context = HttpClientContext.create()
-        return HTTP_CLIENT.execute(request, context) { response ->
-            val entity: HttpEntity? = response.entity
-            val responseBody = if (options.readBody) {
-                if (entity == null) "" else EntityUtils.toString(entity)
-            } else {
-                if (entity != null) EntityUtils.consumeQuietly(entity)
-                ""
+        val requestUrl = url
+        val requestMethod = method
+        try {
+            return runBlocking {
+                val client = HttpClientFactory.shared(options.followRedirects)
+                val response = client.request(toSafeUri(requestUrl).toString()) {
+                    this.method = toHttpMethod(requestMethod)
+                    headers?.forEach { (key, value) -> this.headers.append(key, value) }
+                    if (body != null) {
+                        if (headers == null || headers.keys.none { it.equals("Content-Type", true) }) {
+                            this.headers.append("Content-Type", "application/x-www-form-urlencoded")
+                        }
+                        setBody(body)
+                    }
+                }
+                val responseBody = if (options.readBody) response.bodyAsText() else ""
+                HttpResult(
+                    safeMethod(requestMethod),
+                    response.call.request.url.toString(),
+                    response.status.value,
+                    responseBody,
+                    headersToMap(headers),
+                    headersToMap(response.headers)
+                )
             }
-            HttpResult(
-                request.method,
-                getFinalUri(request, context),
-                response.code,
-                responseBody,
-                headersToMap(request.headers),
-                headersToMap(response.headers)
-            )
+        } catch (ex: Exception) {
+            if (ex is IOException) {
+                throw ex
+            }
+            throw IOException("Unable to execute HTTP request", ex)
         }
     }
 
     @JvmStatic
     @Throws(IOException::class)
     fun openStream(url: String, headers: Map<String, String>?, method: String, body: String?, options: RequestOptions): StreamResult {
-        val request = buildRequest(url, headers, method, body, options)
-        val context = HttpClientContext.create()
-        val response = HTTP_CLIENT.execute(request, context)
-        val entity = response.entity
-        val bodyStream = entity?.content ?: InputStream.nullInputStream()
-        return StreamResult(
-            request.method,
-            getFinalUri(request, context),
-            response.code,
-            headersToMap(request.headers),
-            headersToMap(response.headers),
-            bodyStream,
-            response
-        )
+        val requestUrl = url
+        val requestMethod = method
+        try {
+            return runBlocking {
+                val client = HttpClientFactory.shared(options.followRedirects)
+                val response = client.request(toSafeUri(requestUrl).toString()) {
+                    this.method = toHttpMethod(requestMethod)
+                    headers?.forEach { (key, value) -> this.headers.append(key, value) }
+                    if (body != null) {
+                        if (headers == null || headers.keys.none { it.equals("Content-Type", true) }) {
+                            this.headers.append("Content-Type", "application/x-www-form-urlencoded")
+                        }
+                        setBody(body)
+                    }
+                }
+                val bodyBytes = response.body<ByteArray>()
+                StreamResult(
+                    safeMethod(requestMethod),
+                    response.call.request.url.toString(),
+                    response.status.value,
+                    headersToMap(headers),
+                    headersToMap(response.headers),
+                    ByteArrayInputStream(bodyBytes),
+                    AutoCloseable { }
+                )
+            }
+        } catch (ex: Exception) {
+            if (ex is IOException) {
+                throw ex
+            }
+            throw IOException("Unable to open HTTP stream", ex)
+        }
     }
 
     @JvmStatic
@@ -180,19 +194,6 @@ object HttpUtil {
     private fun quote(value: String?): String = if (value == null) "\"\"" else "\"$value\""
     private fun nonBlank(value: String?, fallback: String): String = if (value.isNullOrBlank()) fallback else value
 
-    private fun buildRequest(url: String, headers: Map<String, String>?, method: String?, body: String?, options: RequestOptions?): HttpUriRequestBase {
-        val request = HttpUriRequestBase(safeMethod(method), toSafeUri(url))
-        request.config = buildRequestConfig(options)
-        headers?.forEach { (key, value) -> request.setHeader(key, value) }
-        if (body != null) {
-            if (headers == null || headers.keys.none { it.equals("Content-Type", true) }) {
-                request.setHeader("Content-Type", "application/x-www-form-urlencoded")
-            }
-            request.entity = StringEntity(body)
-        }
-        return request
-    }
-
     @JvmStatic
     private fun toSafeUri(url: String?): URI {
         val normalized = url?.trim().orEmpty()
@@ -216,6 +217,9 @@ object HttpUtil {
     private fun safeMethod(method: String?): String =
         if (method.isNullOrBlank()) "GET" else method.trim().uppercase()
 
+    private fun toHttpMethod(method: String?): HttpMethod =
+        HttpMethod.parse(safeMethod(method))
+
     @JvmStatic
     private fun getFinalUri(request: HttpUriRequestBase, context: HttpClientContext): String {
         return try {
@@ -237,28 +241,15 @@ object HttpUtil {
         }
     }
 
-    private fun buildRequestConfig(options: RequestOptions?): RequestConfig {
-        val effective = options ?: RequestOptions.defaults()
-        val connectTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(effective.connectTimeoutSeconds, CONNECT_TIMEOUT_SECONDS).toLong()))
-        val connectionRequestTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(effective.connectionRequestTimeoutSeconds, CONNECTION_REQUEST_TIMEOUT_SECONDS).toLong()))
-        val responseTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(effective.responseTimeoutSeconds, RESPONSE_TIMEOUT_SECONDS).toLong()))
-        return RequestConfig.custom()
-            .setConnectTimeout(connectTimeout)
-            .setConnectionRequestTimeout(connectionRequestTimeout)
-            .setResponseTimeout(responseTimeout)
-            .setRedirectsEnabled(effective.followRedirects)
-            .setMaxRedirects(if (effective.followRedirects) MAX_REDIRECTS else 0)
-            .build()
+    private fun headersToMap(headers: Headers): Map<String, List<String>> {
+        val headerMap = LinkedHashMap<String, MutableList<String>>()
+        headers.forEach { key, values -> headerMap.computeIfAbsent(key) { ArrayList() }.addAll(values) }
+        return headerMap
     }
 
-    private fun resolveTimeoutSeconds(override: Int?, defaultValue: Int): Int =
-        if (override != null && override > 0) override else defaultValue
-
-    private fun headersToMap(headers: Array<Header>): Map<String, List<String>> {
+    private fun headersToMap(headers: Map<String, String>?): Map<String, List<String>> {
         val headerMap = LinkedHashMap<String, MutableList<String>>()
-        for (header in headers) {
-            headerMap.computeIfAbsent(header.name) { ArrayList() }.add(header.value)
-        }
+        headers?.forEach { (key, value) -> headerMap.computeIfAbsent(key) { ArrayList() }.add(value) }
         return headerMap
     }
 
@@ -320,11 +311,11 @@ object HttpUtil {
         val requestHeaders: Map<String, List<String>>,
         val responseHeaders: Map<String, List<String>>,
         val bodyStream: InputStream,
-        private val response: CloseableHttpResponse
+        private val closeable: AutoCloseable
     ) : AutoCloseable {
         @Throws(IOException::class)
         override fun close() {
-            response.close()
+            closeable.close()
         }
     }
 }

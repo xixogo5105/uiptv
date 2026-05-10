@@ -11,9 +11,6 @@ import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.lang.reflect.InvocationTargetException
-import java.sql.Connection
-import java.sql.SQLException
 
 class SeriesCategoryDb {
     companion object {
@@ -39,65 +36,48 @@ class SeriesCategoryDb {
             return false
         }
         return try {
-            openConnection().use { connection ->
-                connection.prepareStatement(
-                    "SELECT MAX(cachedAt) FROM ${DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE.tableName} WHERE accountId=? AND accountType=?"
-                ).use { statement ->
-                    statement.setString(1, account.dbId)
-                    statement.setString(2, account.action.name)
-                    statement.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            val cachedAt = rs.getLong(1)
-                            cachedAt > 0 && (System.currentTimeMillis() - cachedAt) <= maxAgeMs
-                        } else {
-                            false
-                        }
+            val latestCachedAt = transaction(SqlConnectionRuntime.database()) {
+                SeriesCategoryTable.selectAll()
+                    .where {
+                        (SeriesCategoryTable.accountId eq account.dbId) and
+                            (SeriesCategoryTable.accountType eq account.action.name)
                     }
-                }
+                    .orderBy(SeriesCategoryTable.cachedAt to SortOrder.DESC)
+                    .limit(1)
+                    .firstOrNull()
+                    ?.get(SeriesCategoryTable.cachedAt)
+                    ?: 0L
             }
+            latestCachedAt > 0 && (System.currentTimeMillis() - latestCachedAt) <= maxAgeMs
         } catch (_: Exception) {
             false
         }
     }
 
     fun saveAll(categories: List<Category>, account: Account) {
-        try {
-            deleteByAccount(account.dbId.orEmpty())
+        transaction(SqlConnectionRuntime.database()) {
+            SeriesCategoryTable.deleteWhere { accountId eq account.dbId.orEmpty() }
             val cachedAt = System.currentTimeMillis()
             categories.forEach { category ->
-                openConnection().use { connection ->
-                    connection.prepareStatement(DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE)).use { statement ->
-                        statement.setString(1, category.categoryId)
-                        statement.setString(2, account.dbId)
-                        statement.setString(3, account.action.name)
-                        statement.setString(4, category.title)
-                        statement.setString(5, category.alias)
-                        statement.setString(6, null)
-                        statement.setInt(7, if (category.activeSub) 1 else 0)
-                        statement.setInt(8, category.censored)
-                        statement.setString(9, category.extraJson)
-                        statement.setLong(10, cachedAt)
-                        statement.execute()
-                    }
+                SeriesCategoryTable.insert { row ->
+                    row[categoryId] = category.categoryId
+                    row[accountId] = account.dbId
+                    row[accountType] = account.action.name
+                    row[title] = category.title
+                    row[alias] = category.alias
+                    row[url] = null
+                    row[activeSub] = if (category.activeSub) 1 else 0
+                    row[censored] = category.censored
+                    row[extraJson] = category.extraJson
+                    row[SeriesCategoryTable.cachedAt] = cachedAt
                 }
             }
-        } catch (ex: SQLException) {
-            throw DatabaseAccessException("Unable to execute insert query", ex)
         }
     }
 
     fun deleteByAccount(accountId: String) {
-        try {
-            openConnection().use { connection ->
-                connection.prepareStatement(
-                    "DELETE FROM ${DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE.tableName} WHERE accountId=?"
-                ).use { statement ->
-                    statement.setString(1, accountId)
-                    statement.execute()
-                }
-            }
-        } catch (ex: SQLException) {
-            throw DatabaseAccessException("Unable to execute delete query", ex)
+        transaction(SqlConnectionRuntime.database()) {
+            SeriesCategoryTable.deleteWhere { SeriesCategoryTable.accountId eq accountId }
         }
     }
 
@@ -122,17 +102,6 @@ class SeriesCategoryDb {
         }
         throw UnsupportedOperationException("Unsupported SeriesCategoryDb.getAll query: $extendedSql")
     }
-
-    private fun openConnection(): Connection =
-        try {
-            SQLConnection::class.java.getDeclaredMethod("connect").invoke(null) as Connection
-        } catch (ex: InvocationTargetException) {
-            val target = ex.targetException
-            if (target is SQLException) {
-                throw target
-            }
-            throw IllegalStateException(target)
-        }
 }
 
 private object SeriesCategoryTable : Table(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE.tableName) {

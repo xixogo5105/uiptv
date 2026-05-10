@@ -129,14 +129,14 @@ object HandshakeService {
         (UUID.randomUUID().toString() + UUID.randomUUID()).replace("-", "").substring(0, 39)
     fun connect(account: Account) {
         account.token = null
-        AccountService.getInstance().syncSessionToken(account)
-        if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
+        accountServiceProvider().syncSessionToken(account)
+        if (isBlank(accountServiceProvider().ensureServerPortalUrl(account))) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_RESOLVE_URL + account.accountName)
             return
         }
         var json = fetch(getHandshakeParams(), account)
         account.token = parseJasonToken(json)
-        AccountService.getInstance().syncSessionToken(account)
+        accountServiceProvider().syncSessionToken(account)
         if (account.isNotConnected()) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_TOKEN + json)
             return
@@ -153,7 +153,7 @@ object HandshakeService {
     fun fetchAccountInfo(account: Account?): AccountInfo? {
         if (account == null) return null
         account.token = null
-        if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
+        if (isBlank(accountServiceProvider().ensureServerPortalUrl(account))) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_RESOLVE_URL + account.accountName)
             return null
         }
@@ -174,14 +174,14 @@ object HandshakeService {
     }
     fun hardTokenRefresh(account: Account) {
         account.token = null
-        AccountService.getInstance().syncSessionToken(account)
-        if (isBlank(AccountService.getInstance().ensureServerPortalUrl(account))) {
+        accountServiceProvider().syncSessionToken(account)
+        if (isBlank(accountServiceProvider().ensureServerPortalUrl(account))) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_RESOLVE_URL + account.accountName)
             return
         }
         var json = fetch(getHandshakeParams(), account)
         account.token = parseJasonToken(json)
-        AccountService.getInstance().syncSessionToken(account)
+        accountServiceProvider().syncSessionToken(account)
         if (account.isNotConnected()) {
             com.uiptv.util.AppLog.addWarningLog(HandshakeService::class.java, MSG_UNABLE_TOKEN + json)
         }
@@ -414,7 +414,7 @@ object HandshakeService {
     }
     fun resolveStbType(account: Account?): String {
         if (account == null || isBlank(account.dbId)) return DEFAULT_STB_TYPE
-        val info = AccountInfoService.getInstance().getByAccountId(account.dbId)
+        val info = accountInfoServiceProvider().getByAccountId(account.dbId)
         if (info == null) return DEFAULT_STB_TYPE
         val preferred = info.preferredStbType
         if (isNotBlank(preferred)) return preferred!!
@@ -536,7 +536,7 @@ object HandshakeService {
 
     private fun resolveAccountInfo(account: Account?): AccountInfo? {
         if (account == null || isBlank(account.dbId)) return null
-        val existing = AccountInfoService.getInstance().getByAccountId(account.dbId)
+        val existing = accountInfoServiceProvider().getByAccountId(account.dbId)
         if (existing == null) {
             return AccountInfo(accountId = account.dbId)
         }
@@ -546,7 +546,7 @@ object HandshakeService {
 
     private fun persistAccountInfo(info: AccountInfo?) {
         if (info == null || isBlank(info.accountId)) return
-        AccountInfoService.getInstance().save(info)
+        accountInfoServiceProvider().save(info)
     }
 
     private fun createTransientAccountInfo(account: Account?): AccountInfo {
@@ -557,3 +557,5 @@ object HandshakeService {
         return info
     }
 }
+    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
+    private val accountInfoServiceProvider: () -> AccountInfoService = { AccountInfoService.getInstance() }

@@ -3,422 +3,352 @@ package com.uiptv.db
 import com.uiptv.model.Account
 import com.uiptv.model.Bookmark
 import com.uiptv.model.BookmarkCategory
-import com.uiptv.util.StringUtils.isNotBlank
-import java.sql.Connection
-import java.sql.ResultSet
-import java.sql.SQLException
-import java.sql.Statement
-import java.sql.Types
-import java.util.Comparator
+import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.insertReturning
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.statements.UpdateBuilder
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 
-class BookmarkDb : BaseDb<Bookmark>(DatabaseUtils.DbTable.BOOKMARK_TABLE) {
+class BookmarkDb private constructor() {
     companion object {
-        private const val DELETE_FROM = "DELETE FROM "
-        private const val WHERE_BOOKMARK_DB_ID = " WHERE bookmark_db_id = ?"
-        private const val AND_NULLABLE_CATEGORY_ID = " AND (category_id = ? OR (category_id IS NULL AND ? IS NULL))"
-        private const val WHERE_NULLABLE_CATEGORY_ID = " WHERE (category_id = ? OR (category_id IS NULL AND ? IS NULL))"
-
-        private var instance: BookmarkDb? = null
+        private val instance = BookmarkDb()
 
         @JvmStatic
-        @Synchronized
-        fun get(): BookmarkDb {
-            if (instance == null) {
-                instance = BookmarkDb()
-            }
-            return instance!!
-        }
+        fun get(): BookmarkDb = instance
     }
+
+    fun getById(id: String): Bookmark? = findById(id)
 
     fun getBookmarks(): List<Bookmark> = getBookmarksOrdered(null)
 
     fun getBookmarksPage(offset: Int, limit: Int): List<Bookmark> =
-        if (limit <= 0) getBookmarksOrdered(null) else getBookmarksOrdered(null, offset.coerceAtLeast(0), limit)
+        if (limit <= 0) {
+            getBookmarksOrdered(null)
+        } else {
+            getBookmarksOrdered(null, offset.coerceAtLeast(0), limit)
+        }
 
     fun getBookmarksByCategory(categoryId: String?): List<Bookmark> = getBookmarksOrdered(categoryId)
 
-    private fun getBookmarksOrdered(categoryId: String?): List<Bookmark> = getBookmarksOrdered(categoryId, -1, -1)
-
-    private fun getBookmarksOrdered(categoryId: String?, offset: Int, limit: Int): List<Bookmark> {
-        val bookmarks = ArrayList<Bookmark>()
-        val sql = StringBuilder("SELECT b.*, bo.display_order FROM ")
-            .append(DatabaseUtils.DbTable.BOOKMARK_TABLE.tableName).append(" b ")
-            .append("LEFT JOIN (SELECT bookmark_db_id, MIN(display_order) AS display_order FROM ")
-            .append(DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName)
-            .append(" GROUP BY bookmark_db_id) bo ON b.id = bo.bookmark_db_id ")
-            .apply {
-                if (categoryId != null) append("WHERE b.categoryId = ? ")
+    fun getBookmarkById(bookmark: Bookmark): Bookmark? = query {
+        BookmarkTable.selectAll()
+            .where {
+                (BookmarkTable.accountName eq bookmark.accountName.orEmpty()) and
+                    (BookmarkTable.categoryTitle eq bookmark.categoryTitle.orEmpty()) and
+                    (BookmarkTable.channelId eq bookmark.channelId.orEmpty()) and
+                    (BookmarkTable.channelName eq bookmark.channelName.orEmpty())
             }
-            .append("ORDER BY CASE WHEN bo.display_order IS NULL THEN 1 ELSE 0 END, bo.display_order ASC, b.id ASC")
-            .apply {
-                if (limit > 0) append(" LIMIT ? OFFSET ? ")
-            }
-            .toString()
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    var index = 1
-                    if (categoryId != null) {
-                        statement.setString(index++, categoryId)
-                    }
-                    if (limit > 0) {
-                        statement.setInt(index++, limit.coerceAtLeast(0))
-                        statement.setInt(index, offset.coerceAtLeast(0))
-                    }
-                    statement.executeQuery().use { resultSet ->
-                        while (resultSet.next()) {
-                            bookmarks += populate(resultSet)
-                        }
-                    }
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute query for ordered bookmarks", e)
-        }
-        return bookmarks
+            .limit(1)
+            .firstOrNull()
+            ?.toBookmark()
     }
 
-    fun getBookmarkById(b: Bookmark): Bookmark? =
-        getAll(
-            " where accountName=? AND categoryTitle=? AND channelId=? AND channelName=?",
-            arrayOf(b.accountName ?: "", b.categoryTitle ?: "", b.channelId ?: "", b.channelName ?: "")
-        ).firstOrNull()
-
-    fun save(bookmark: Bookmark): Boolean {
-        val existing = getBookmarkById(bookmark)
-        return if (existing != null) {
+    fun save(bookmark: Bookmark): Boolean = query {
+        val existing = findExisting(bookmark)
+        if (existing != null) {
             bookmark.dbId = existing.dbId
-            update(bookmark)
+            updateBookmark(bookmark)
             false
         } else {
-            insert(bookmark)
+            val insertedId = BookmarkTable.insertReturning(listOf(BookmarkTable.id)) { row -> row.write(bookmark) }
+                .single()[BookmarkTable.id]
+            bookmark.dbId = insertedId.toString()
             true
         }
     }
 
-    private fun insert(bookmark: Bookmark) {
-        val sql = DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.BOOKMARK_TABLE)
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { statement ->
-                    var i = 1
-                    statement.setString(i++, bookmark.accountName)
-                    statement.setString(i++, bookmark.categoryTitle)
-                    statement.setString(i++, bookmark.channelId)
-                    statement.setString(i++, bookmark.channelName)
-                    statement.setString(i++, bookmark.cmd)
-                    statement.setString(i++, bookmark.serverPortalUrl)
-                    statement.setString(i++, bookmark.categoryId)
-                    statement.setString(i++, bookmark.accountAction?.name)
-                    statement.setString(i++, bookmark.drmType)
-                    statement.setString(i++, bookmark.drmLicenseUrl)
-                    statement.setString(i++, bookmark.clearKeysJson)
-                    statement.setString(i++, bookmark.inputstreamaddon)
-                    statement.setString(i++, bookmark.manifestType)
-                    statement.setString(i++, bookmark.categoryJson)
-                    statement.setString(i++, bookmark.channelJson)
-                    statement.setString(i++, bookmark.vodJson)
-                    statement.setString(i, bookmark.seriesJson)
-                    statement.execute()
-                    statement.generatedKeys.use { rs ->
-                        if (rs.next()) {
-                            bookmark.dbId = rs.getString(1)
-                        }
-                    }
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute insert query for bookmark", e)
-        }
-    }
-
-    private fun update(bookmark: Bookmark) {
-        val sql = "UPDATE ${DatabaseUtils.DbTable.BOOKMARK_TABLE.tableName} " +
-            "SET accountName=?, categoryTitle=?, channelId=?, channelName=?, cmd=?, serverPortalUrl=?, categoryId=?, accountAction=?," +
-            " drmType=?, drmLicenseUrl=?, clearKeysJson=?, inputstreamaddon=?, manifestType=?, categoryJson=?, channelJson=?, vodJson=?, seriesJson=? WHERE id=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    var i = 1
-                    statement.setString(i++, bookmark.accountName)
-                    statement.setString(i++, bookmark.categoryTitle)
-                    statement.setString(i++, bookmark.channelId)
-                    statement.setString(i++, bookmark.channelName)
-                    statement.setString(i++, bookmark.cmd)
-                    statement.setString(i++, bookmark.serverPortalUrl)
-                    statement.setString(i++, bookmark.categoryId)
-                    statement.setString(i++, bookmark.accountAction?.name)
-                    statement.setString(i++, bookmark.drmType)
-                    statement.setString(i++, bookmark.drmLicenseUrl)
-                    statement.setString(i++, bookmark.clearKeysJson)
-                    statement.setString(i++, bookmark.inputstreamaddon)
-                    statement.setString(i++, bookmark.manifestType)
-                    statement.setString(i++, bookmark.categoryJson)
-                    statement.setString(i++, bookmark.channelJson)
-                    statement.setString(i++, bookmark.vodJson)
-                    statement.setString(i++, bookmark.seriesJson)
-                    statement.setString(i, bookmark.dbId)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute update query for bookmark", e)
+    fun delete(id: String) {
+        val dbId = id.toIntOrNull() ?: return
+        query {
+            BookmarkTable.deleteWhere { BookmarkTable.id eq dbId }
+            BookmarkOrderTable.deleteWhere { BookmarkOrderTable.bookmarkDbId eq id }
         }
     }
 
     fun delete(bookmark: Bookmark) {
-        if (isNotBlank(bookmark.dbId)) {
+        if (!bookmark.dbId.isNullOrBlank()) {
             delete(bookmark.dbId!!)
+            return
         }
-        deleteBookmark(bookmark)
-    }
-
-    override fun delete(id: String) {
-        super.delete(id)
-        deleteBookmarkOrders(id)
-    }
-
-    private fun deleteBookmark(b: Bookmark) {
-        val sql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_TABLE.tableName + " where accountName=? AND categoryTitle=? AND channelId=? AND channelName=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, b.accountName)
-                    statement.setString(2, b.categoryTitle)
-                    statement.setString(3, b.channelId)
-                    statement.setString(4, b.channelName)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute delete query", e)
-        }
+        deleteBookmarkByComposite(bookmark)
     }
 
     fun deleteByAccountName(accountName: String) {
-        val deleteOrderSql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName +
-            " WHERE bookmark_db_id IN (SELECT id FROM ${DatabaseUtils.DbTable.BOOKMARK_TABLE.tableName} WHERE accountName=?)"
-        val deleteBookmarkSql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_TABLE.tableName + " WHERE accountName=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.autoCommit = false
-                try {
-                    conn.prepareStatement(deleteOrderSql).use { stmt ->
-                        stmt.setString(1, accountName)
-                        stmt.executeUpdate()
-                    }
-                    conn.prepareStatement(deleteBookmarkSql).use { stmt ->
-                        stmt.setString(1, accountName)
-                        stmt.executeUpdate()
-                    }
-                    conn.commit()
-                } catch (e: SQLException) {
-                    conn.rollback()
-                    throw DatabaseAccessException("Unable to delete bookmarks by account name", e)
-                } finally {
-                    conn.autoCommit = true
-                }
+        if (accountName.isBlank()) {
+            return
+        }
+        query {
+            val bookmarkIds = BookmarkTable.selectAll()
+                .where { BookmarkTable.accountName eq accountName }
+                .map { it[BookmarkTable.id].toString() }
+            if (bookmarkIds.isNotEmpty()) {
+                BookmarkOrderTable.deleteWhere { BookmarkOrderTable.bookmarkDbId inList bookmarkIds }
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to delete bookmarks by account name", e)
+            BookmarkTable.deleteWhere { BookmarkTable.accountName eq accountName }
         }
-    }
-
-    override fun populate(resultSet: ResultSet): Bookmark {
-        val bookmark = Bookmark(
-            nullSafeString(resultSet, "accountName"),
-            nullSafeString(resultSet, "categoryTitle"),
-            nullSafeString(resultSet, "channelId"),
-            nullSafeString(resultSet, "channelName"),
-            nullSafeString(resultSet, "cmd"),
-            nullSafeString(resultSet, "serverPortalUrl"),
-            nullSafeString(resultSet, "categoryId")
-        )
-        bookmark.dbId = nullSafeString(resultSet, "id")
-        val accountActionStr = nullSafeString(resultSet, "accountAction")
-        if (isNotBlank(accountActionStr)) {
-            bookmark.accountAction = Account.AccountAction.valueOf(accountActionStr!!)
-        }
-        bookmark.drmType = nullSafeString(resultSet, "drmType")
-        bookmark.drmLicenseUrl = nullSafeString(resultSet, "drmLicenseUrl")
-        bookmark.clearKeysJson = nullSafeString(resultSet, "clearKeysJson")
-        bookmark.inputstreamaddon = nullSafeString(resultSet, "inputstreamaddon")
-        bookmark.manifestType = nullSafeString(resultSet, "manifestType")
-        bookmark.categoryJson = nullSafeString(resultSet, "categoryJson")
-        bookmark.channelJson = nullSafeString(resultSet, "channelJson")
-        bookmark.vodJson = nullSafeString(resultSet, "vodJson")
-        bookmark.seriesJson = nullSafeString(resultSet, "seriesJson")
-        return bookmark
     }
 
     fun saveBookmarkOrder(bookmarkDbId: String, displayOrder: Int) {
-        val deleteSql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName + WHERE_BOOKMARK_DB_ID
-        val insertSql = "INSERT INTO ${DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName} (bookmark_db_id, category_id, display_order) VALUES (?, NULL, ?)"
-        transaction { conn ->
-            conn.prepareStatement(deleteSql).use { deleteStmt ->
-                deleteStmt.setString(1, bookmarkDbId)
-                deleteStmt.executeUpdate()
-            }
-            conn.prepareStatement(insertSql).use { insertStmt ->
-                insertStmt.setString(1, bookmarkDbId)
-                insertStmt.setInt(2, displayOrder)
-                insertStmt.executeUpdate()
+        if (bookmarkDbId.isBlank()) {
+            return
+        }
+        query {
+            BookmarkOrderTable.deleteWhere { BookmarkOrderTable.bookmarkDbId eq bookmarkDbId }
+            BookmarkOrderTable.insert { row ->
+                row[BookmarkOrderTable.bookmarkDbId] = bookmarkDbId
+                row[BookmarkOrderTable.categoryId] = null
+                row[BookmarkOrderTable.displayOrder] = displayOrder
             }
         }
     }
 
     fun updateBookmarkOrders(bookmarkOrders: Map<String, Int>) {
-        val deleteSql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName
-        val insertSql = "INSERT INTO ${DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName} (bookmark_db_id, category_id, display_order) VALUES (?, NULL, ?)"
-        transaction { conn ->
-            conn.prepareStatement(deleteSql).use { it.executeUpdate() }
-            conn.prepareStatement(insertSql).use { insertStmt ->
-                bookmarkOrders.entries
-                    .filter { isNotBlank(it.key) && it.value != null }
-                    .sortedWith(Comparator.comparingInt(Map.Entry<String, Int>::value))
-                    .forEach { entry ->
-                        insertStmt.setString(1, entry.key)
-                        insertStmt.setInt(2, entry.value)
-                        insertStmt.addBatch()
+        query {
+            BookmarkOrderTable.deleteWhere { Op.TRUE }
+            bookmarkOrders.entries
+                .filter { it.key.isNotBlank() }
+                .sortedBy { it.value }
+                .forEach { entry ->
+                    BookmarkOrderTable.insert { row ->
+                        row[bookmarkDbId] = entry.key
+                        row[categoryId] = null
+                        row[displayOrder] = entry.value
                     }
-                insertStmt.executeBatch()
-            }
+                }
         }
     }
 
     fun deleteBookmarkOrder(bookmarkDbId: String, categoryId: String?) {
-        val sql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName + WHERE_BOOKMARK_DB_ID + AND_NULLABLE_CATEGORY_ID
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, bookmarkDbId)
-                    bindNullableCategoryId(statement, 2, categoryId)
-                    statement.execute()
-                }
+        if (bookmarkDbId.isBlank()) {
+            return
+        }
+        query {
+            BookmarkOrderTable.deleteWhere {
+                (BookmarkOrderTable.bookmarkDbId eq bookmarkDbId) and nullableCategoryMatch(BookmarkOrderTable.categoryId, categoryId)
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to delete bookmark order", e)
         }
     }
 
     fun deleteBookmarkOrders(bookmarkDbId: String) {
-        val sql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName + WHERE_BOOKMARK_DB_ID
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, bookmarkDbId)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to delete bookmark orders", e)
+        if (bookmarkDbId.isBlank()) {
+            return
+        }
+        query {
+            BookmarkOrderTable.deleteWhere { BookmarkOrderTable.bookmarkDbId eq bookmarkDbId }
         }
     }
 
-    fun getNextDisplayOrder(): Int {
-        val sql = "SELECT COALESCE(MAX(display_order), 0) + 1 FROM ${DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName}"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.executeQuery().use { resultSet ->
-                        if (resultSet.next()) {
-                            return resultSet.getInt(1)
-                        }
-                    }
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to read next bookmark display order", e)
-        }
-        return 1
+    fun getNextDisplayOrder(): Int = query {
+        val maxDisplayOrder = BookmarkOrderTable.selectAll()
+            .mapNotNull { it[BookmarkOrderTable.displayOrder] }
+            .maxOrNull()
+            ?: 0
+        maxDisplayOrder + 1
     }
 
     fun deleteBookmarkOrdersByCategory(categoryId: String?) {
-        val sql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName + WHERE_NULLABLE_CATEGORY_ID
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    bindNullableCategoryId(statement, 1, categoryId)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to delete bookmark orders by category", e)
+        query {
+            BookmarkOrderTable.deleteWhere { nullableCategoryMatch(BookmarkOrderTable.categoryId, categoryId) }
         }
     }
 
     fun saveCategory(category: BookmarkCategory) {
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.BOOKMARK_CATEGORY_TABLE)).use { statement ->
-                    statement.setString(1, category.name)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute query", e)
+        query {
+            val insertedId = BookmarkCategoryTable.insertReturning(listOf(BookmarkCategoryTable.id)) { row ->
+                row[BookmarkCategoryTable.name] = category.name.orEmpty()
+            }.single()[BookmarkCategoryTable.id]
+            category.id = insertedId.toString()
         }
     }
 
     fun deleteCategory(category: BookmarkCategory) {
-        val sql = DELETE_FROM + DatabaseUtils.DbTable.BOOKMARK_CATEGORY_TABLE.tableName + " where id=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, category.id)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute delete query", e)
+        val dbId = category.id?.toIntOrNull() ?: return
+        query {
+            BookmarkCategoryTable.deleteWhere { BookmarkCategoryTable.id eq dbId }
         }
     }
 
-    fun getAllCategories(): List<BookmarkCategory> {
-        val categories = ArrayList<BookmarkCategory>()
-        val sql = "SELECT * FROM ${DatabaseUtils.DbTable.BOOKMARK_CATEGORY_TABLE.tableName}"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.executeQuery().use { resultSet ->
-                        while (resultSet.next()) {
-                            categories += BookmarkCategory(resultSet.getString("id"), resultSet.getString("name"))
-                        }
-                    }
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute query", e)
+    fun getAllCategories(): List<BookmarkCategory> = query {
+        BookmarkCategoryTable.selectAll().map {
+            BookmarkCategory(
+                id = it[BookmarkCategoryTable.id].toString(),
+                name = it[BookmarkCategoryTable.name]
+            )
         }
-        return categories
     }
 
-    private fun bindNullableCategoryId(statement: java.sql.PreparedStatement, startIndex: Int, categoryId: String?) {
-        if (categoryId == null) {
-            statement.setNull(startIndex, Types.VARCHAR)
-            statement.setNull(startIndex + 1, Types.VARCHAR)
+    private fun findById(id: String): Bookmark? = query {
+        id.toIntOrNull()
+            ?.let { dbId -> BookmarkTable.selectAll().where { BookmarkTable.id eq dbId }.limit(1).firstOrNull() }
+            ?.toBookmark()
+    }
+
+    private fun getBookmarksOrdered(categoryId: String?, offset: Int = -1, limit: Int = -1): List<Bookmark> = query {
+        val bookmarkQuery = BookmarkTable.selectAll().let { query ->
+            if (categoryId == null) {
+                query
+            } else {
+                query.where { BookmarkTable.categoryId eq categoryId }
+            }
+        }
+        val orderByBookmarkId = BookmarkOrderTable.selectAll()
+            .mapNotNull { row ->
+                val bookmarkDbId = row[BookmarkOrderTable.bookmarkDbId]
+                val displayOrder = row[BookmarkOrderTable.displayOrder] ?: return@mapNotNull null
+                bookmarkDbId to displayOrder
+            }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, displayOrders) -> displayOrders.minOrNull() ?: Int.MAX_VALUE }
+
+        val ordered = bookmarkQuery
+            .map(ResultRow::toBookmark)
+            .sortedWith(
+                compareBy<Bookmark> { orderByBookmarkId[it.dbId] == null }
+                    .thenBy { orderByBookmarkId[it.dbId] ?: Int.MAX_VALUE }
+                    .thenBy { it.dbId?.toIntOrNull() ?: Int.MAX_VALUE }
+            )
+
+        if (limit <= 0) {
+            ordered
         } else {
-            statement.setString(startIndex, categoryId)
-            statement.setString(startIndex + 1, categoryId)
+            ordered.drop(offset.coerceAtLeast(0)).take(limit.coerceAtLeast(0))
         }
     }
 
-    private inline fun transaction(block: (Connection) -> Unit) {
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.autoCommit = false
-                try {
-                    block(conn)
-                    conn.commit()
-                } catch (e: SQLException) {
-                    conn.rollback()
-                    throw DatabaseAccessException("Failed to rollback transaction", e)
-                } finally {
-                    conn.autoCommit = true
-                }
+    private fun findExisting(bookmark: Bookmark): Bookmark? =
+        BookmarkTable.selectAll()
+            .where {
+                (BookmarkTable.accountName eq bookmark.accountName.orEmpty()) and
+                    (BookmarkTable.categoryTitle eq bookmark.categoryTitle.orEmpty()) and
+                    (BookmarkTable.channelId eq bookmark.channelId.orEmpty()) and
+                    (BookmarkTable.channelName eq bookmark.channelName.orEmpty())
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute bookmark transaction", e)
+            .limit(1)
+            .firstOrNull()
+            ?.toBookmark()
+
+    private fun updateBookmark(bookmark: Bookmark) {
+        val dbId = bookmark.dbId?.toIntOrNull() ?: return
+        BookmarkTable.update({ BookmarkTable.id eq dbId }) { row -> row.write(bookmark) }
+    }
+
+    private fun deleteBookmarkByComposite(bookmark: Bookmark) = query {
+        val bookmarkIds = BookmarkTable.selectAll()
+            .where {
+                (BookmarkTable.accountName eq bookmark.accountName.orEmpty()) and
+                    (BookmarkTable.categoryTitle eq bookmark.categoryTitle.orEmpty()) and
+                    (BookmarkTable.channelId eq bookmark.channelId.orEmpty()) and
+                    (BookmarkTable.channelName eq bookmark.channelName.orEmpty())
+            }
+            .map { it[BookmarkTable.id].toString() }
+        if (bookmarkIds.isNotEmpty()) {
+            BookmarkOrderTable.deleteWhere { BookmarkOrderTable.bookmarkDbId inList bookmarkIds }
+        }
+        BookmarkTable.deleteWhere {
+            (BookmarkTable.accountName eq bookmark.accountName.orEmpty()) and
+                (BookmarkTable.categoryTitle eq bookmark.categoryTitle.orEmpty()) and
+                (BookmarkTable.channelId eq bookmark.channelId.orEmpty()) and
+                (BookmarkTable.channelName eq bookmark.channelName.orEmpty())
         }
     }
+
+    private fun <R> query(block: () -> R): R = transaction(SqlConnectionRuntime.database()) { block() }
 }
+
+private object BookmarkTable : Table(DatabaseUtils.DbTable.BOOKMARK_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val accountName = text("accountName").nullable()
+    val categoryTitle = text("categoryTitle").nullable()
+    val channelId = text("channelId").nullable()
+    val channelName = text("channelName").nullable()
+    val cmd = text("cmd").nullable()
+    val serverPortalUrl = text("serverPortalUrl").nullable()
+    val categoryId = text("categoryId").nullable()
+    val accountAction = text("accountAction").nullable()
+    val drmType = text("drmType").nullable()
+    val drmLicenseUrl = text("drmLicenseUrl").nullable()
+    val clearKeysJson = text("clearKeysJson").nullable()
+    val inputstreamaddon = text("inputstreamaddon").nullable()
+    val manifestType = text("manifestType").nullable()
+    val categoryJson = text("categoryJson").nullable()
+    val channelJson = text("channelJson").nullable()
+    val vodJson = text("vodJson").nullable()
+    val seriesJson = text("seriesJson").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+private object BookmarkOrderTable : Table(DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val bookmarkDbId = text("bookmark_db_id")
+    val categoryId = text("category_id").nullable()
+    val displayOrder = integer("display_order").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+private object BookmarkCategoryTable : Table(DatabaseUtils.DbTable.BOOKMARK_CATEGORY_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val name = text("name")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+private fun ResultRow.toBookmark(): Bookmark =
+    Bookmark(
+        accountName = this[BookmarkTable.accountName],
+        categoryTitle = this[BookmarkTable.categoryTitle],
+        channelId = this[BookmarkTable.channelId],
+        channelName = this[BookmarkTable.channelName],
+        cmd = this[BookmarkTable.cmd],
+        serverPortalUrl = this[BookmarkTable.serverPortalUrl],
+        categoryId = this[BookmarkTable.categoryId]
+    ).apply {
+        dbId = this@toBookmark[BookmarkTable.id].toString()
+        accountAction = this@toBookmark[BookmarkTable.accountAction]?.takeIf(String::isNotBlank)?.let(Account.AccountAction::valueOf)
+        drmType = this@toBookmark[BookmarkTable.drmType]
+        drmLicenseUrl = this@toBookmark[BookmarkTable.drmLicenseUrl]
+        clearKeysJson = this@toBookmark[BookmarkTable.clearKeysJson]
+        inputstreamaddon = this@toBookmark[BookmarkTable.inputstreamaddon]
+        manifestType = this@toBookmark[BookmarkTable.manifestType]
+        categoryJson = this@toBookmark[BookmarkTable.categoryJson]
+        channelJson = this@toBookmark[BookmarkTable.channelJson]
+        vodJson = this@toBookmark[BookmarkTable.vodJson]
+        seriesJson = this@toBookmark[BookmarkTable.seriesJson]
+    }
+
+private fun <T : UpdateBuilder<*>> T.write(bookmark: Bookmark) {
+    this[BookmarkTable.accountName] = bookmark.accountName
+    this[BookmarkTable.categoryTitle] = bookmark.categoryTitle
+    this[BookmarkTable.channelId] = bookmark.channelId
+    this[BookmarkTable.channelName] = bookmark.channelName
+    this[BookmarkTable.cmd] = bookmark.cmd
+    this[BookmarkTable.serverPortalUrl] = bookmark.serverPortalUrl
+    this[BookmarkTable.categoryId] = bookmark.categoryId
+    this[BookmarkTable.accountAction] = bookmark.accountAction?.name
+    this[BookmarkTable.drmType] = bookmark.drmType
+    this[BookmarkTable.drmLicenseUrl] = bookmark.drmLicenseUrl
+    this[BookmarkTable.clearKeysJson] = bookmark.clearKeysJson
+    this[BookmarkTable.inputstreamaddon] = bookmark.inputstreamaddon
+    this[BookmarkTable.manifestType] = bookmark.manifestType
+    this[BookmarkTable.categoryJson] = bookmark.categoryJson
+    this[BookmarkTable.channelJson] = bookmark.channelJson
+    this[BookmarkTable.vodJson] = bookmark.vodJson
+    this[BookmarkTable.seriesJson] = bookmark.seriesJson
+}
+
+private fun nullableCategoryMatch(column: org.jetbrains.exposed.sql.Column<String?>, categoryId: String?) =
+    if (categoryId == null) {
+        column.isNull()
+    } else {
+        column eq categoryId
+    }

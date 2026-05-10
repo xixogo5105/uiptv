@@ -11,9 +11,6 @@ import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.lang.reflect.InvocationTargetException
-import java.sql.Connection
-import java.sql.SQLException
 
 class CategoryDb {
     companion object {
@@ -66,18 +63,11 @@ class CategoryDb {
     }
 
     fun deleteByAccount(account: Account) {
-        try {
-            openConnection().use { connection ->
-                connection.prepareStatement(
-                    "DELETE FROM ${DatabaseUtils.DbTable.CATEGORY_TABLE.tableName} WHERE accountId = ? AND accountType = ?"
-                ).use { statement ->
-                    statement.setString(1, account.dbId)
-                    statement.setString(2, account.action.name)
-                    statement.executeUpdate()
-                }
+        transaction(SqlConnectionRuntime.database()) {
+            CategoryTable.deleteWhere {
+                (accountId eq account.dbId) and
+                    (accountType eq account.action.name)
             }
-        } catch (ex: SQLException) {
-            throw DatabaseAccessException("Unable to delete categories for account: ${account.accountName}", ex)
         }
     }
 
@@ -99,20 +89,9 @@ class CategoryDb {
             row[url] = null
         }
     }
-
-    private fun openConnection(): Connection =
-        try {
-            SQLConnection::class.java.getDeclaredMethod("connect").invoke(null) as Connection
-        } catch (ex: InvocationTargetException) {
-            val target = ex.targetException
-            if (target is SQLException) {
-                throw target
-            }
-            throw IllegalStateException(target)
-        }
 }
 
-private object CategoryTable : Table(DatabaseUtils.DbTable.CATEGORY_TABLE.tableName) {
+internal object CategoryTable : Table(DatabaseUtils.DbTable.CATEGORY_TABLE.tableName) {
     val id = integer("id").autoIncrement()
     val categoryId = text("categoryId").nullable()
     val accountId = text("accountId").nullable()

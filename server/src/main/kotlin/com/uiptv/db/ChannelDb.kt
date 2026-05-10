@@ -3,106 +3,109 @@ package com.uiptv.db
 import com.uiptv.model.Account
 import com.uiptv.model.Category
 import com.uiptv.model.Channel
-import java.sql.ResultSet
-import java.sql.SQLException
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.batchInsert
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.statements.UpdateBuilder
 import java.util.LinkedHashMap
 import java.util.Locale
 
-object ChannelDb : BaseDb<Channel>(DatabaseUtils.DbTable.CHANNEL_TABLE) {
-    private const val BATCH_SIZE = 1000
-
+object ChannelDb : ExposedCrudRepository<String, Channel>() {
     @JvmStatic
     fun get(): ChannelDb = this
 
     @JvmStatic
     fun insert(channel: Channel, category: Category) {
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.CHANNEL_TABLE)).use { statement ->
-                    statement.setString(1, channel.channelId)
-                    statement.setString(2, category.dbId)
-                    statement.setString(3, channel.name)
-                    statement.setString(4, channel.number)
-                    statement.setString(5, channel.cmd)
-                    statement.setString(6, channel.cmd_1)
-                    statement.setString(7, channel.cmd_2)
-                    statement.setString(8, channel.cmd_3)
-                    statement.setString(9, channel.logo)
-                    statement.setInt(10, channel.censored)
-                    statement.setInt(11, channel.status)
-                    statement.setInt(12, channel.hd)
-                    statement.setString(13, channel.drmType)
-                    statement.setString(14, channel.drmLicenseUrl)
-                    statement.setString(15, channel.clearKeysJson)
-                    statement.setString(16, channel.inputstreamaddon)
-                    statement.setString(17, channel.manifestType)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute query", e)
+        val categoryDbId = category.dbId.orEmpty()
+        query {
+            ChannelTable.insert { row -> row.write(channel, categoryDbId) }
         }
     }
 
-    private fun deleteAll(categoryId: String) {
-        val sql = "DELETE FROM ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CHANNEL_TABLE)} WHERE categoryId=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, categoryId)
-                    statement.execute()
-                }
+    override fun findAll(): List<Channel> = query {
+        ChannelTable.selectAll()
+            .orderBy(ChannelTable.id to SortOrder.ASC)
+            .map(ResultRow::toChannel)
+    }
+
+    override fun findById(id: String): Channel? = query {
+        id.toIntOrNull()
+            ?.let { dbId -> ChannelTable.selectAll().where { ChannelTable.id eq dbId }.limit(1).firstOrNull() }
+            ?.toChannel()
+    }
+
+    override fun save(entity: Channel): Channel {
+        val dbId = entity.dbId?.toIntOrNull()
+        query {
+            if (dbId != null) {
+                ChannelTable.deleteWhere { ChannelTable.id eq dbId }
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute delete all query", e)
+            val insertedId = ChannelTable.insert { row ->
+                row.write(entity, entity.categoryId.orEmpty())
+            }[ChannelTable.id]
+            entity.dbId = insertedId.toString()
+        }
+        return entity
+    }
+
+    override fun deleteById(id: String) {
+        val dbId = id.toIntOrNull() ?: return
+        query {
+            ChannelTable.deleteWhere { ChannelTable.id eq dbId }
         }
     }
 
-    fun getChannels(dbId: String): List<Channel> = getAll(" WHERE categoryId=?", arrayOf(dbId))
-
-    fun getChannelCountForAccount(accountId: String): Int {
-        val sql = "SELECT COUNT(*) FROM ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CHANNEL_TABLE)} " +
-            "WHERE categoryId IN (SELECT id FROM ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CATEGORY_TABLE)} WHERE accountId = ?)"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, accountId)
-                    statement.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            return rs.getInt(1)
-                        }
-                    }
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute channel count for account query", e)
-        }
-        return 0
+    fun getChannels(dbId: String): List<Channel> = query {
+        ChannelTable.selectAll()
+            .where { ChannelTable.categoryId eq dbId }
+            .orderBy(ChannelTable.id to SortOrder.ASC)
+            .map(ResultRow::toChannel)
     }
 
-    fun getChannelById(dbId: String, categoryId: String): Channel? =
-        getAll(" WHERE id=? AND categoryId=?", arrayOf(dbId, categoryId)).firstOrNull()
-
-    fun getChannelByChannelIdAndAccount(channelId: String, accountId: String): Channel? {
-        val sql = "SELECT c.* FROM ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CHANNEL_TABLE)} c" +
-            " INNER JOIN ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CATEGORY_TABLE)} cat ON c.categoryId = cat.id" +
-            " WHERE c.channelId = ? AND cat.accountId = ?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, channelId)
-                    statement.setString(2, accountId)
-                    statement.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            return populate(rs)
-                        }
-                    }
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute getChannelByChannelIdAndAccount query", e)
+    fun getChannelCountForAccount(accountId: String): Int = query {
+        val categoryIds = CategoryTable.selectAll()
+            .where { CategoryTable.accountId eq accountId }
+            .map { it[CategoryTable.id].toString() }
+        if (categoryIds.isEmpty()) 0 else {
+            ChannelTable.selectAll()
+                .where { ChannelTable.categoryId inList categoryIds }
+                .count()
+                .toInt()
         }
-        return null
+    }
+
+    fun getChannelById(dbId: String, categoryId: String): Channel? = query {
+        val intId = dbId.toIntOrNull() ?: return@query null
+        ChannelTable.selectAll()
+            .where { (ChannelTable.id eq intId) and (ChannelTable.categoryId eq categoryId) }
+            .limit(1)
+            .firstOrNull()
+            ?.toChannel()
+    }
+
+    fun getChannelByChannelIdAndAccount(channelId: String, accountId: String): Channel? = query {
+        val categoryIds = CategoryTable.selectAll()
+            .where { CategoryTable.accountId eq accountId }
+            .map { it[CategoryTable.id].toString() }
+        if (categoryIds.isEmpty()) {
+            null
+        } else {
+            ChannelTable.selectAll()
+                .where {
+                    (ChannelTable.channelId eq channelId) and
+                        (ChannelTable.categoryId inList categoryIds)
+                }
+                .limit(1)
+                .firstOrNull()
+                ?.toChannel()
+        }
     }
 
     fun getChannelsByChannelIdsAndAccount(channelIds: Collection<String>?, accountId: String?): List<Channel> {
@@ -113,118 +116,48 @@ object ChannelDb : BaseDb<Channel>(DatabaseUtils.DbTable.CHANNEL_TABLE) {
         if (effectiveChannelIds.isEmpty()) {
             return emptyList()
         }
-        val placeholders = List(effectiveChannelIds.size) { "?" }.joinToString(",")
-        val sql = "SELECT c.* FROM ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CHANNEL_TABLE)} c" +
-            " INNER JOIN ${DatabaseUtils.validatedTableName(DatabaseUtils.DbTable.CATEGORY_TABLE)} cat ON c.categoryId = cat.id" +
-            " WHERE cat.accountId = ? AND c.channelId IN ($placeholders)"
-        val channels = ArrayList<Channel>()
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, accountId)
-                    effectiveChannelIds.forEachIndexed { index, id -> statement.setString(index + 2, id) }
-                    statement.executeQuery().use { rs ->
-                        while (rs.next()) {
-                            channels += populate(rs)
-                        }
+        return query {
+            val categoryIds = CategoryTable.selectAll()
+                .where { CategoryTable.accountId eq accountId }
+                .map { it[CategoryTable.id].toString() }
+            if (categoryIds.isEmpty()) {
+                emptyList()
+            } else {
+                ChannelTable.selectAll()
+                    .where {
+                        (ChannelTable.channelId inList effectiveChannelIds) and
+                            (ChannelTable.categoryId inList categoryIds)
                     }
-                }
+                    .map(ResultRow::toChannel)
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute getChannelsByChannelIdsAndAccount query", e)
         }
-        return channels
     }
 
     fun saveAll(channels: List<Channel>, dbCategoryId: String, account: Account) {
-        val category = requireNotNull(CategoryDb().getCategoryByDbId(dbCategoryId, account)) {
+        val category = requireNotNull(CategoryDb.get().getCategoryByDbId(dbCategoryId, account)) {
             "Category not found for dbCategoryId=$dbCategoryId"
         }
-        deleteAll(category.dbId ?: "")
+        val categoryDbId = category.dbId.orEmpty()
         val dedupedChannels = dedupeChannelsCaseInsensitive(channels)
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.autoCommit = false
-                try {
-                    conn.prepareStatement(DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.CHANNEL_TABLE)).use { statement ->
-                        var count = 0
-                        dedupedChannels.forEach { channel ->
-                            statement.setString(1, channel.channelId)
-                            statement.setString(2, category.dbId)
-                            statement.setString(3, channel.name)
-                            statement.setString(4, channel.number)
-                            statement.setString(5, channel.cmd)
-                            statement.setString(6, channel.cmd_1)
-                            statement.setString(7, channel.cmd_2)
-                            statement.setString(8, channel.cmd_3)
-                            statement.setString(9, channel.logo)
-                            statement.setInt(10, channel.censored)
-                            statement.setInt(11, channel.status)
-                            statement.setInt(12, channel.hd)
-                            statement.setString(13, channel.drmType)
-                            statement.setString(14, channel.drmLicenseUrl)
-                            statement.setString(15, channel.clearKeysJson)
-                            statement.setString(16, channel.inputstreamaddon)
-                            statement.setString(17, channel.manifestType)
-                            statement.addBatch()
-                            count++
-                            if (count % BATCH_SIZE == 0) {
-                                statement.executeBatch()
-                            }
-                        }
-                        statement.executeBatch()
-                    }
-                    conn.commit()
-                } catch (e: SQLException) {
-                    conn.rollback()
-                    throw DatabaseAccessException("Unable to execute saveAll query", e)
-                } finally {
-                    conn.autoCommit = true
+        query {
+            ChannelTable.deleteWhere { ChannelTable.categoryId eq categoryDbId }
+            if (dedupedChannels.isNotEmpty()) {
+                ChannelTable.batchInsert(dedupedChannels) { channel ->
+                    write(channel, categoryDbId)
                 }
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to connect to database", e)
         }
     }
 
     fun deleteByAccount(accountId: String) {
-        val sql = "DELETE FROM ${DatabaseUtils.DbTable.CHANNEL_TABLE.tableName} " +
-            "WHERE categoryId IN (SELECT id FROM ${DatabaseUtils.DbTable.CATEGORY_TABLE.tableName} WHERE accountId=?)"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, accountId)
-                    statement.execute()
-                }
+        query {
+            val categoryIds = CategoryTable.selectAll()
+                .where { CategoryTable.accountId eq accountId }
+                .map { it[CategoryTable.id].toString() }
+            if (categoryIds.isNotEmpty()) {
+                ChannelTable.deleteWhere { ChannelTable.categoryId inList categoryIds }
             }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute deleteByAccount query", e)
         }
-    }
-
-    override fun populate(resultSet: ResultSet): Channel {
-        val channel = Channel(
-            nullSafeString(resultSet, "channelId"),
-            nullSafeString(resultSet, "name"),
-            nullSafeString(resultSet, "number"),
-            nullSafeString(resultSet, "cmd"),
-            nullSafeString(resultSet, "cmd_1"),
-            nullSafeString(resultSet, "cmd_2"),
-            nullSafeString(resultSet, "cmd_3"),
-            nullSafeString(resultSet, "logo"),
-            safeInteger(resultSet, "censored"),
-            safeInteger(resultSet, "status"),
-            safeInteger(resultSet, "hd"),
-            nullSafeString(resultSet, "drmType"),
-            nullSafeString(resultSet, "drmLicenseUrl"),
-            null,
-            nullSafeString(resultSet, "inputstreamaddon"),
-            nullSafeString(resultSet, "manifestType")
-        )
-        channel.dbId = nullSafeString(resultSet, "id")
-        channel.categoryId = nullSafeString(resultSet, "categoryId")
-        channel.clearKeysJson = nullSafeString(resultSet, "clearKeysJson")
-        return channel
     }
 
     private fun dedupeChannelsCaseInsensitive(channels: List<Channel>?): List<Channel> {
@@ -249,4 +182,68 @@ object ChannelDb : BaseDb<Channel>(DatabaseUtils.DbTable.CHANNEL_TABLE) {
     }
 
     private fun normalize(value: String?): String = value?.trim()?.lowercase(Locale.ROOT).orEmpty()
+}
+
+private object ChannelTable : Table(DatabaseUtils.DbTable.CHANNEL_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val channelId = text("channelId")
+    val categoryId = text("categoryId").nullable()
+    val name = text("name").nullable()
+    val number = text("number").nullable()
+    val cmd = text("cmd").nullable()
+    val cmd1 = text("cmd_1").nullable()
+    val cmd2 = text("cmd_2").nullable()
+    val cmd3 = text("cmd_3").nullable()
+    val logo = text("logo").nullable()
+    val censored = integer("censored")
+    val status = integer("status")
+    val hd = integer("hd")
+    val drmType = text("drmType").nullable()
+    val drmLicenseUrl = text("drmLicenseUrl").nullable()
+    val clearKeysJson = text("clearKeysJson").nullable()
+    val inputstreamaddon = text("inputstreamaddon").nullable()
+    val manifestType = text("manifestType").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+private fun ResultRow.toChannel(): Channel = Channel(
+    dbId = this[ChannelTable.id].toString(),
+    channelId = this[ChannelTable.channelId],
+    categoryId = this[ChannelTable.categoryId],
+    name = this[ChannelTable.name],
+    number = this[ChannelTable.number],
+    cmd = this[ChannelTable.cmd],
+    cmd_1 = this[ChannelTable.cmd1],
+    cmd_2 = this[ChannelTable.cmd2],
+    cmd_3 = this[ChannelTable.cmd3],
+    logo = this[ChannelTable.logo],
+    censored = this[ChannelTable.censored],
+    status = this[ChannelTable.status],
+    hd = this[ChannelTable.hd],
+    drmType = this[ChannelTable.drmType],
+    drmLicenseUrl = this[ChannelTable.drmLicenseUrl],
+    clearKeysJson = this[ChannelTable.clearKeysJson],
+    inputstreamaddon = this[ChannelTable.inputstreamaddon],
+    manifestType = this[ChannelTable.manifestType]
+)
+
+private fun UpdateBuilder<*>.write(channel: Channel, categoryDbId: String) {
+    this[ChannelTable.channelId] = channel.channelId.orEmpty()
+    this[ChannelTable.categoryId] = categoryDbId
+    this[ChannelTable.name] = channel.name
+    this[ChannelTable.number] = channel.number
+    this[ChannelTable.cmd] = channel.cmd
+    this[ChannelTable.cmd1] = channel.cmd_1
+    this[ChannelTable.cmd2] = channel.cmd_2
+    this[ChannelTable.cmd3] = channel.cmd_3
+    this[ChannelTable.logo] = channel.logo
+    this[ChannelTable.censored] = channel.censored
+    this[ChannelTable.status] = channel.status
+    this[ChannelTable.hd] = channel.hd
+    this[ChannelTable.drmType] = channel.drmType
+    this[ChannelTable.drmLicenseUrl] = channel.drmLicenseUrl
+    this[ChannelTable.clearKeysJson] = channel.clearKeysJson
+    this[ChannelTable.inputstreamaddon] = channel.inputstreamaddon
+    this[ChannelTable.manifestType] = channel.manifestType
 }

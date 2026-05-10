@@ -5,30 +5,13 @@ import com.sun.net.httpserver.HttpContext
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpPrincipal
-import com.uiptv.server.api.json.HttpAccountJsonServer
-import com.uiptv.server.api.json.HttpBookmarksJsonServer
-import com.uiptv.server.api.json.HttpCategoryJsonServer
-import com.uiptv.server.api.json.HttpChannelJsonServer
-import com.uiptv.server.api.json.HttpConfigJsonServer
-import com.uiptv.server.api.json.HttpIptvM3u8Server
-import com.uiptv.server.api.json.HttpM3u8BookmarkEntry
-import com.uiptv.server.api.json.HttpM3u8BookmarkPlayListServer
-import com.uiptv.server.api.json.HttpM3u8PlayListServer
-import com.uiptv.server.api.json.HttpPlayerGatewayServer
-import com.uiptv.server.api.json.HttpRemoteSyncCompleteServer
-import com.uiptv.server.api.json.HttpRemoteSyncDownloadServer
-import com.uiptv.server.api.json.HttpRemoteSyncHealthServer
-import com.uiptv.server.api.json.HttpRemoteSyncRequestServer
-import com.uiptv.server.api.json.HttpRemoteSyncStatusServer
-import com.uiptv.server.api.json.HttpRemoteSyncUploadServer
-import com.uiptv.server.api.json.HttpSeriesDetailsJsonServer
-import com.uiptv.server.api.json.HttpSeriesEpisodesJsonServer
-import com.uiptv.server.api.json.HttpVodDetailsJsonServer
-import com.uiptv.server.api.json.HttpWatchingNowJsonServer
-import com.uiptv.server.api.json.HttpWatchingNowSeriesActionServer
-import com.uiptv.server.api.json.HttpWatchingNowSeriesEpisodesJsonServer
-import com.uiptv.server.api.json.HttpWatchingNowVodActionServer
-import com.uiptv.server.api.json.HttpWatchingNowVodJsonServer
+import com.uiptv.server.api.routes.registerChannelApiRoutes
+import com.uiptv.server.api.routes.registerCoreApiRoutes
+import com.uiptv.server.api.routes.registerPlayerPublicationApiRoutes
+import com.uiptv.server.api.routes.registerRemoteSyncApiRoutes
+import com.uiptv.server.api.routes.registerSeriesApiRoutes
+import com.uiptv.server.api.routes.registerVodApiRoutes
+import com.uiptv.server.bootstrap.configureBackendPlatform
 import com.uiptv.server.html.HttpSpaHtmlServer
 import com.uiptv.service.ConfigurationService
 import com.uiptv.util.AppLog.addInfoLog
@@ -52,6 +35,7 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
+import org.koin.ktor.ext.get
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -155,7 +139,40 @@ object KtorServerRuntime {
     }
 
     private fun Application.configureRoutes() {
+        configureBackendPlatform()
+        val configurationService = get<ConfigurationService>()
+        val accountService = get<com.uiptv.service.AccountService>()
+        val categoryService = get<com.uiptv.service.CategoryService>()
+        val bookmarkService = get<com.uiptv.service.BookmarkService>()
+        val channelService = get<com.uiptv.service.ChannelService>()
+        val seriesWatchStateService = get<com.uiptv.service.SeriesWatchStateService>()
+        val seriesEpisodeService = get<com.uiptv.service.SeriesEpisodeService>()
+        val seriesWatchingNowSnapshotService = get<com.uiptv.service.SeriesWatchingNowSnapshotService>()
+        val watchingNowSeriesResolver = get<com.uiptv.service.WatchingNowSeriesResolver>()
+        val handshakeService = get<com.uiptv.service.HandshakeService>()
+        val imdbMetadataService = get<com.uiptv.service.ImdbMetadataService>()
+        val vodWatchStateService = get<com.uiptv.service.VodWatchStateService>()
+        val watchingNowVodResolver = get<com.uiptv.service.WatchingNowVodResolver>()
+        val webPlayerApiService = get<com.uiptv.service.WebPlayerApiService>()
+        val playlistExportService = get<com.uiptv.service.PlaylistExportService>()
+        val remoteSyncSessionService = get<com.uiptv.service.remotesync.RemoteSyncSessionService>()
         routing {
+            registerCoreApiRoutes(configurationService, accountService, categoryService, bookmarkService)
+            registerChannelApiRoutes(accountService, channelService, configurationService, seriesWatchStateService)
+            registerSeriesApiRoutes(accountService, configurationService, seriesWatchStateService, handshakeService, imdbMetadataService)
+            registerVodApiRoutes(
+                accountService,
+                handshakeService,
+                imdbMetadataService,
+                seriesWatchStateService,
+                seriesEpisodeService,
+                seriesWatchingNowSnapshotService,
+                watchingNowSeriesResolver,
+                vodWatchStateService,
+                watchingNowVodResolver
+            )
+            registerRemoteSyncApiRoutes(remoteSyncSessionService)
+            registerPlayerPublicationApiRoutes(webPlayerApiService, playlistExportService)
             legacyAny("/", HttpSpaHtmlServer())
             legacyAny("/index.html", HttpSpaHtmlServer())
             legacyAny("/myflix.html", HttpSpaHtmlServer("myflix.html"))
@@ -172,32 +189,6 @@ object KtorServerRuntime {
             legacyAny("/proxy-stream/{...}", HttpProxyStreamServer())
             legacyAny("/bingewatch.m3u8", HttpBingeWatchPlaylistServer())
             legacyAny("/bingwatch/{...}", HttpBingeWatchEntryServer())
-            legacyAny("/accounts", HttpAccountJsonServer())
-            legacyAny("/categories", HttpCategoryJsonServer())
-            legacyAny("/channels", HttpChannelJsonServer())
-            legacyAny("/seriesEpisodes", HttpSeriesEpisodesJsonServer())
-            legacyAny("/seriesDetails", HttpSeriesDetailsJsonServer())
-            legacyAny("/watchingNow", HttpWatchingNowJsonServer())
-            legacyAny("/watchingNowSeriesEpisodes", HttpWatchingNowSeriesEpisodesJsonServer())
-            legacyAny("/watchingNowSeriesAction", HttpWatchingNowSeriesActionServer())
-            legacyAny("/watchingNowVod", HttpWatchingNowVodJsonServer())
-            legacyAny("/watchingNowVodAction", HttpWatchingNowVodActionServer())
-            legacyAny("/vodDetails", HttpVodDetailsJsonServer())
-            legacyAny("/player", HttpPlayerGatewayServer())
-            legacyAny("/player/{...}", HttpPlayerGatewayServer())
-            legacyAny("/bookmarks", HttpBookmarksJsonServer())
-            legacyAny("/config", HttpConfigJsonServer())
-            legacyAny("/remote-sync/health", HttpRemoteSyncHealthServer())
-            legacyAny("/remote-sync/request", HttpRemoteSyncRequestServer())
-            legacyAny("/remote-sync/status", HttpRemoteSyncStatusServer())
-            legacyAny("/remote-sync/upload", HttpRemoteSyncUploadServer())
-            legacyAny("/remote-sync/download", HttpRemoteSyncDownloadServer())
-            legacyAny("/remote-sync/complete", HttpRemoteSyncCompleteServer())
-            legacyAny("/playlist.m3u8", HttpM3u8PlayListServer())
-            legacyAny("/bookmarkEntry.ts", HttpM3u8BookmarkEntry())
-            legacyAny("/bookmarks.m3u8", HttpM3u8BookmarkPlayListServer())
-            legacyAny("/iptv.m3u8", HttpIptvM3u8Server())
-            legacyAny("/iptv.m3u", HttpIptvM3u8Server())
             legacyAny("/{...}", HttpSpaHtmlServer())
         }
     }

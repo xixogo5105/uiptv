@@ -2,137 +2,143 @@ package com.uiptv.db
 
 import com.uiptv.model.AccountInfo
 import com.uiptv.model.AccountStatus
-import com.uiptv.util.StringUtils.isBlank
-import java.sql.ResultSet
-import java.sql.SQLException
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.statements.UpdateBuilder
+import org.jetbrains.exposed.sql.update
 
-class AccountInfoDb : BaseDb<AccountInfo>(DatabaseUtils.DbTable.ACCOUNT_INFO_TABLE) {
+class AccountInfoDb private constructor() : ExposedCrudRepository<String, AccountInfo>() {
     companion object {
-        private var instance: AccountInfoDb? = null
+        private val instance = AccountInfoDb()
 
         @JvmStatic
-        @Synchronized
-        fun get(): AccountInfoDb {
-            if (instance == null) {
-                instance = AccountInfoDb()
+        fun get(): AccountInfoDb = instance
+    }
+
+    override fun findAll(): List<AccountInfo> = query {
+        AccountInfoTable.selectAll().map(ResultRow::toAccountInfo)
+    }
+
+    override fun findById(id: String): AccountInfo? = query {
+        id.toIntOrNull()
+            ?.let { dbId -> AccountInfoTable.selectAll().where { AccountInfoTable.id eq dbId }.limit(1).firstOrNull() }
+            ?.toAccountInfo()
+    }
+
+    override fun save(entity: AccountInfo): AccountInfo {
+        if (entity.accountId.isNullOrBlank()) {
+            return entity
+        }
+        query {
+            val existingId = entity.dbId?.toIntOrNull() ?: findExistingId(entity.accountId.orEmpty())
+            if (existingId == null) {
+                val insertedId = AccountInfoTable.insert { row -> row.write(entity) }[AccountInfoTable.id]
+                entity.dbId = insertedId.toString()
+            } else {
+                AccountInfoTable.update({ AccountInfoTable.id eq existingId }) { row -> row.write(entity) }
+                entity.dbId = existingId.toString()
             }
-            return instance!!
+        }
+        return entity
+    }
+
+    override fun deleteById(id: String) {
+        val dbId = id.toIntOrNull() ?: return
+        query {
+            AccountInfoTable.deleteWhere { AccountInfoTable.id eq dbId }
         }
     }
 
-    override fun populate(resultSet: ResultSet): AccountInfo {
-        val info = AccountInfo()
-        info.dbId = nullSafeString(resultSet, "id")
-        info.accountId = nullSafeString(resultSet, "accountId")
-        info.expireDate = nullSafeString(resultSet, "expireDate")
-        info.accountStatus = AccountStatus.fromValue(nullSafeString(resultSet, "accountStatus"))
-        info.accountBalance = nullSafeString(resultSet, "accountBalance")
-        info.tariffName = nullSafeString(resultSet, "tariffName")
-        info.tariffPlan = nullSafeString(resultSet, "tariffPlan")
-        info.defaultTimezone = nullSafeString(resultSet, "defaultTimezone")
-        info.profileJson = nullSafeString(resultSet, "profileJson")
-        info.passHash = nullSafeString(resultSet, "passHash")
-        info.parentPasswordHash = nullSafeString(resultSet, "parentPasswordHash")
-        info.passwordHash = nullSafeString(resultSet, "passwordHash")
-        info.settingsPasswordHash = nullSafeString(resultSet, "settingsPasswordHash")
-        info.accountPagePasswordHash = nullSafeString(resultSet, "accountPagePasswordHash")
-        info.allowedStbTypesJson = nullSafeString(resultSet, "allowedStbTypesJson")
-        info.allowedStbTypesForLocalRecordingJson = nullSafeString(resultSet, "allowedStbTypesForLocalRecordingJson")
-        info.preferredStbType = nullSafeString(resultSet, "preferredStbType")
-        return info
-    }
-
-    fun getByAccountId(accountId: String?): AccountInfo? {
-        if (isBlank(accountId)) {
-            return null
+    fun getByAccountId(accountId: String?): AccountInfo? = query {
+        if (accountId.isNullOrBlank()) {
+            null
+        } else {
+            AccountInfoTable.selectAll()
+                .where { AccountInfoTable.accountId eq accountId }
+                .limit(1)
+                .firstOrNull()
+                ?.toAccountInfo()
         }
-        return getAll(" WHERE accountId=?", arrayOf(accountId!!)).firstOrNull()
-    }
-
-    fun save(info: AccountInfo?) {
-        if (info == null || isBlank(info.accountId)) {
-            return
-        }
-        if (getByAccountId(info.accountId) == null) insert(info) else update(info)
     }
 
     fun deleteByAccountId(accountId: String?) {
-        if (isBlank(accountId)) {
+        if (accountId.isNullOrBlank()) {
             return
         }
-        val sql = "DELETE FROM ${DatabaseUtils.DbTable.ACCOUNT_INFO_TABLE.tableName} WHERE accountId=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, accountId)
-                    statement.executeUpdate()
-                }
-            }
-        } catch (sqlException: SQLException) {
-            throw IllegalStateException("Unable to execute delete query", sqlException)
+        query {
+            AccountInfoTable.deleteWhere { AccountInfoTable.accountId eq accountId }
         }
     }
 
-    private fun insert(info: AccountInfo) {
-        val insertQuery = DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.ACCOUNT_INFO_TABLE)
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(insertQuery).use { statement ->
-                    statement.setString(1, info.accountId)
-                    statement.setString(2, info.expireDate)
-                    statement.setString(3, statusToString(info.accountStatus))
-                    statement.setString(4, info.accountBalance)
-                    statement.setString(5, info.tariffName)
-                    statement.setString(6, info.tariffPlan)
-                    statement.setString(7, info.defaultTimezone)
-                    statement.setString(8, info.profileJson)
-                    statement.setString(9, info.passHash)
-                    statement.setString(10, info.parentPasswordHash)
-                    statement.setString(11, info.passwordHash)
-                    statement.setString(12, info.settingsPasswordHash)
-                    statement.setString(13, info.accountPagePasswordHash)
-                    statement.setString(14, info.allowedStbTypesJson)
-                    statement.setString(15, info.allowedStbTypesForLocalRecordingJson)
-                    statement.setString(16, info.preferredStbType)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to execute query", e)
-        }
-    }
+    private fun findExistingId(accountId: String): Int? =
+        AccountInfoTable.selectAll()
+            .where { AccountInfoTable.accountId eq accountId }
+            .limit(1)
+            .firstOrNull()
+            ?.get(AccountInfoTable.id)
+}
 
-    private fun update(info: AccountInfo) {
-        val sql = "UPDATE ${DatabaseUtils.DbTable.ACCOUNT_INFO_TABLE.tableName} " +
-            "SET expireDate=?, accountStatus=?, accountBalance=?, tariffName=?, tariffPlan=?, defaultTimezone=?, profileJson=?," +
-            " passHash=?, parentPasswordHash=?, passwordHash=?, settingsPasswordHash=?, accountPagePasswordHash=?," +
-            " allowedStbTypesJson=?, allowedStbTypesForLocalRecordingJson=?, preferredStbType=? WHERE accountId=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, info.expireDate)
-                    statement.setString(2, statusToString(info.accountStatus))
-                    statement.setString(3, info.accountBalance)
-                    statement.setString(4, info.tariffName)
-                    statement.setString(5, info.tariffPlan)
-                    statement.setString(6, info.defaultTimezone)
-                    statement.setString(7, info.profileJson)
-                    statement.setString(8, info.passHash)
-                    statement.setString(9, info.parentPasswordHash)
-                    statement.setString(10, info.passwordHash)
-                    statement.setString(11, info.settingsPasswordHash)
-                    statement.setString(12, info.accountPagePasswordHash)
-                    statement.setString(13, info.allowedStbTypesJson)
-                    statement.setString(14, info.allowedStbTypesForLocalRecordingJson)
-                    statement.setString(15, info.preferredStbType)
-                    statement.setString(16, info.accountId)
-                    statement.execute()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to update account info", e)
-        }
-    }
+private object AccountInfoTable : Table(DatabaseUtils.DbTable.ACCOUNT_INFO_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val accountId = text("accountId")
+    val expireDate = text("expireDate").nullable()
+    val accountStatus = text("accountStatus").nullable()
+    val accountBalance = text("accountBalance").nullable()
+    val tariffName = text("tariffName").nullable()
+    val tariffPlan = text("tariffPlan").nullable()
+    val defaultTimezone = text("defaultTimezone").nullable()
+    val profileJson = text("profileJson").nullable()
+    val passHash = text("passHash").nullable()
+    val parentPasswordHash = text("parentPasswordHash").nullable()
+    val passwordHash = text("passwordHash").nullable()
+    val settingsPasswordHash = text("settingsPasswordHash").nullable()
+    val accountPagePasswordHash = text("accountPagePasswordHash").nullable()
+    val allowedStbTypesJson = text("allowedStbTypesJson").nullable()
+    val allowedStbTypesForLocalRecordingJson = text("allowedStbTypesForLocalRecordingJson").nullable()
+    val preferredStbType = text("preferredStbType").nullable()
 
-    private fun statusToString(status: AccountStatus?): String? = status?.name
+    override val primaryKey = PrimaryKey(id)
+}
+
+private fun ResultRow.toAccountInfo(): AccountInfo = AccountInfo().apply {
+    dbId = this@toAccountInfo[AccountInfoTable.id].toString()
+    accountId = this@toAccountInfo[AccountInfoTable.accountId]
+    expireDate = this@toAccountInfo[AccountInfoTable.expireDate]
+    accountStatus = this@toAccountInfo[AccountInfoTable.accountStatus]?.let(AccountStatus::fromValue)
+    accountBalance = this@toAccountInfo[AccountInfoTable.accountBalance]
+    tariffName = this@toAccountInfo[AccountInfoTable.tariffName]
+    tariffPlan = this@toAccountInfo[AccountInfoTable.tariffPlan]
+    defaultTimezone = this@toAccountInfo[AccountInfoTable.defaultTimezone]
+    profileJson = this@toAccountInfo[AccountInfoTable.profileJson]
+    passHash = this@toAccountInfo[AccountInfoTable.passHash]
+    parentPasswordHash = this@toAccountInfo[AccountInfoTable.parentPasswordHash]
+    passwordHash = this@toAccountInfo[AccountInfoTable.passwordHash]
+    settingsPasswordHash = this@toAccountInfo[AccountInfoTable.settingsPasswordHash]
+    accountPagePasswordHash = this@toAccountInfo[AccountInfoTable.accountPagePasswordHash]
+    allowedStbTypesJson = this@toAccountInfo[AccountInfoTable.allowedStbTypesJson]
+    allowedStbTypesForLocalRecordingJson = this@toAccountInfo[AccountInfoTable.allowedStbTypesForLocalRecordingJson]
+    preferredStbType = this@toAccountInfo[AccountInfoTable.preferredStbType]
+}
+
+private fun <T : UpdateBuilder<*>> T.write(info: AccountInfo) {
+    this[AccountInfoTable.accountId] = info.accountId.orEmpty()
+    this[AccountInfoTable.expireDate] = info.expireDate
+    this[AccountInfoTable.accountStatus] = info.accountStatus?.name
+    this[AccountInfoTable.accountBalance] = info.accountBalance
+    this[AccountInfoTable.tariffName] = info.tariffName
+    this[AccountInfoTable.tariffPlan] = info.tariffPlan
+    this[AccountInfoTable.defaultTimezone] = info.defaultTimezone
+    this[AccountInfoTable.profileJson] = info.profileJson
+    this[AccountInfoTable.passHash] = info.passHash
+    this[AccountInfoTable.parentPasswordHash] = info.parentPasswordHash
+    this[AccountInfoTable.passwordHash] = info.passwordHash
+    this[AccountInfoTable.settingsPasswordHash] = info.settingsPasswordHash
+    this[AccountInfoTable.accountPagePasswordHash] = info.accountPagePasswordHash
+    this[AccountInfoTable.allowedStbTypesJson] = info.allowedStbTypesJson
+    this[AccountInfoTable.allowedStbTypesForLocalRecordingJson] = info.allowedStbTypesForLocalRecordingJson
+    this[AccountInfoTable.preferredStbType] = info.preferredStbType
 }

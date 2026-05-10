@@ -8,7 +8,6 @@ import com.uiptv.model.CategoryType
 import com.uiptv.model.PublishedM3uCategorySelection
 import com.uiptv.model.PublishedM3uChannelSelection
 import com.uiptv.model.PublishedM3uSelection
-import com.uiptv.server.api.json.HttpM3u8BookmarkPlayListServer
 import com.uiptv.util.AccountType
 import com.uiptv.util.AppLog
 import com.uiptv.util.M3uPlaylistUtils.escapeAttributeValue
@@ -25,16 +24,22 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
-import java.sql.Connection
-import java.sql.SQLException
 import java.util.Arrays
 import java.util.HexFormat
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.Locale
 import java.util.stream.Collectors
+import org.jetbrains.exposed.sql.transactions.transaction
 
 object M3U8PublicationService {
+    private val publishedSelectionDb = PublishedM3uSelectionDb.get()
+    private val publishedCategorySelectionDb = PublishedM3uCategorySelectionDb.get()
+    private val publishedChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
+    private val accountService = AccountService.getInstance()
+    private val bookmarkService = BookmarkService.getInstance()
+    private val configurationService = ConfigurationService.getInstance()
+
     private const val COMMENT_PREFIX = "#"
     private const val EXTM3U = "#EXTM3U"
     private const val EXTINF = "#EXTINF"
@@ -51,16 +56,16 @@ object M3U8PublicationService {
     }
     fun getSelections(): PublicationSelections {
         val accountIds = LinkedHashSet(
-            PublishedM3uSelectionDb.get().getAllSelections().mapNotNull(PublishedM3uSelection::accountId)
+            publishedSelectionDb.getAllSelections().mapNotNull(PublishedM3uSelection::accountId)
         )
 
         val categorySelections = LinkedHashMap<CategorySelectionKey, Boolean>()
-        PublishedM3uCategorySelectionDb.get().getAllSelections().forEach { selection ->
+        publishedCategorySelectionDb.getAllSelections().forEach { selection ->
             categorySelections[CategorySelectionKey(selection.accountId, selection.categoryName)] = selection.selected
         }
 
         val channelSelections = LinkedHashMap<ChannelSelectionKey, Boolean>()
-        PublishedM3uChannelSelectionDb.get().getAllSelections().forEach { selection ->
+        publishedChannelSelectionDb.getAllSelections().forEach { selection ->
             channelSelections[
                 ChannelSelectionKey(selection.accountId, selection.categoryName, selection.channelId)
             ] = selection.selected
@@ -71,10 +76,16 @@ object M3U8PublicationService {
     fun saveSelections(selections: PublicationSelections?) {
         val normalized = selections?.normalized() ?: PublicationSelections(emptySet(), emptyMap(), emptyMap())
         try {
-            com.uiptv.db.SQLConnection.connect().use { conn ->
-                saveSelectionsInTransaction(conn, normalized)
+            transaction(com.uiptv.db.SqlConnectionRuntime.database()) {
+                publishedSelectionDb.replaceSelectionsInTransaction(normalized.accountIds)
+                publishedCategorySelectionDb.replaceSelectionsInTransaction(
+                    toCategorySelections(normalized.categorySelections)
+                )
+                publishedChannelSelectionDb.replaceSelectionsInTransaction(
+                    toChannelSelections(normalized.channelSelections)
+                )
             }
-        } catch (e: SQLException) {
+        } catch (e: Exception) {
             throw PublicationPersistenceException("Unable to save published M3U selections", e)
         }
     }
@@ -93,7 +104,7 @@ object M3U8PublicationService {
         if (isBookmarksPlaylistAccountId(accountId)) {
             return PlaylistAccount(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME, emptyList())
         }
-        val account = AccountService.getInstance().getById(accountId)
+        val account = accountService.getById(accountId)
         if (!isPublishableAccount(account)) return null
         return try {
             toPlaylistAccount(account!!, parsePlaylistEntries(account))
@@ -107,7 +118,7 @@ object M3U8PublicationService {
     fun getPublishedM3u8(requestHost: String?): String {
         val selections = getSelections()
         if (selections.accountIds.isEmpty()) return ""
-        val categoryMode = ConfigurationService.getInstance().getPublishedM3uCategoryMode()
+        val categoryMode = configurationService.getPublishedM3uCategoryMode()
 
         val result = StringBuilder()
         result.append(EXTM3U).append("\n")
@@ -120,12 +131,12 @@ object M3U8PublicationService {
     fun isBookmarksPlaylistAccountId(accountId: String?): Boolean = BOOKMARKS_PLAYLIST_ACCOUNT_ID == accountId
 
     private fun getPublishableAccounts(): List<Account> =
-        AccountService.getInstance().getAll().values.filter { isPublishableAccount(it) }
+        accountService.getAll().values.filter { isPublishableAccount(it) }
 
     private fun getSelectedAccounts(accountIds: Set<String>): List<Account> =
         accountIds.asSequence()
             .filter { !isBookmarksPlaylistAccountId(it) }
-            .mapNotNull(AccountService.getInstance()::getById)
+            .mapNotNull(accountService::getById)
             .filter { isPublishableAccount(it) }
             .toList()
 
@@ -171,7 +182,7 @@ object M3U8PublicationService {
     ) {
         if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) return
         val host = resolveBookmarkPlaylistHost(requestHost)
-        val bookmarkPlaylist = HttpM3u8BookmarkPlayListServer.buildPlaylist(host)
+        val bookmarkPlaylist = buildBookmarkPlaylist(host)
         val bookmarkPlaylistLines = splitPlaylistLines(bookmarkPlaylist)
         val singleCategorySource = hasSingleEffectiveCategory(bookmarkPlaylistLines, null)
         appendPlaylistBlock(
@@ -187,6 +198,68 @@ object M3U8PublicationService {
 
     private fun resolveBookmarkPlaylistHost(requestHost: String): String =
         if (isNotBlank(requestHost)) requestHost.trim() else ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://".toRegex(), "")
+
+    fun buildBookmarkPlaylist(host: String): String {
+        val allTabName = com.uiptv.util.I18n.tr("commonAll")
+        val bookmarks = bookmarkService.read()
+        val categoryNameById = LinkedHashMap<String, String>()
+        bookmarkService.getAllCategories().forEach { category ->
+            val categoryId = category?.id
+            val categoryName = category?.name
+            if (isNotBlank(categoryId) && isNotBlank(categoryName)) {
+                categoryNameById[categoryId!!] = categoryName!!
+            }
+        }
+
+        val response = StringBuilder("#EXTM3U\n")
+        bookmarks.forEach { bookmark ->
+            if (isUncategorizedBookmark(bookmark, categoryNameById, allTabName)) {
+                appendBookmarkPlaylistEntry(response, bookmark, host, "Misc")
+            }
+        }
+        bookmarks.forEach { bookmark ->
+            if (!isUncategorizedBookmark(bookmark, categoryNameById, allTabName)) {
+                val categoryName = categoryNameById[bookmark.categoryId]
+                if (isNotBlank(categoryName)) {
+                    appendBookmarkPlaylistEntry(response, bookmark, host, categoryName!!)
+                }
+            }
+        }
+        return response.toString()
+    }
+
+    private fun isUncategorizedBookmark(
+        bookmark: com.uiptv.model.Bookmark?,
+        categoryNameById: Map<String, String>,
+        allTabName: String
+    ): Boolean {
+        if (bookmark == null) return true
+        val categoryId = bookmark.categoryId
+        if (!isNotBlank(categoryId)) return true
+        val categoryName = categoryNameById[categoryId]
+        return !isNotBlank(categoryName) || categoryName.equals(allTabName, ignoreCase = true)
+    }
+
+    private fun appendBookmarkPlaylistEntry(
+        response: StringBuilder,
+        bookmark: com.uiptv.model.Bookmark,
+        host: String,
+        groupTitle: String
+    ) {
+        val requestedUrl = "http://$host/bookmarkEntry.ts?bookmarkId=${bookmark.dbId}"
+        val channelName = com.uiptv.util.M3uPlaylistUtils.sanitizeTitle(bookmark.channelName)
+        response.append("#EXTINF:-1 tvg-id=\"")
+            .append(escapeAttributeValue(bookmark.dbId))
+            .append("\" tvg-name=\"")
+            .append(escapeAttributeValue(channelName))
+            .append("\" group-title=\"")
+            .append(escapeAttributeValue(groupTitle))
+            .append("\",")
+            .append(channelName)
+            .append("\n")
+            .append(requestedUrl)
+            .append("\n")
+    }
 
     private fun splitPlaylistLines(playlist: String): List<String> = playlist.split(Regex(PLAYLIST_LINE_SPLIT_REGEX))
 
@@ -336,23 +409,6 @@ object M3U8PublicationService {
 
     @Throws(IOException::class)
     private fun parsePlaylistEntries(account: Account): List<PlaylistChannelEntry> = parsePlaylistEntries(readPlaylistContent(account))
-
-    @Throws(SQLException::class)
-    private fun saveSelectionsInTransaction(conn: Connection, selections: PublicationSelections) {
-        val originalAutoCommit = conn.autoCommit
-        try {
-            conn.autoCommit = false
-            PublishedM3uSelectionDb.get().replaceSelections(conn, selections.accountIds)
-            PublishedM3uCategorySelectionDb.get().replaceSelections(conn, toCategorySelections(selections.categorySelections))
-            PublishedM3uChannelSelectionDb.get().replaceSelections(conn, toChannelSelections(selections.channelSelections))
-            conn.commit()
-        } catch (e: SQLException) {
-            conn.rollback()
-            throw e
-        } finally {
-            conn.autoCommit = originalAutoCommit
-        }
-    }
 
     fun parsePlaylistEntries(content: String): List<PlaylistChannelEntry> {
         val lines = Arrays.asList(*content.split(Regex(PLAYLIST_LINE_SPLIT_REGEX)).toTypedArray())

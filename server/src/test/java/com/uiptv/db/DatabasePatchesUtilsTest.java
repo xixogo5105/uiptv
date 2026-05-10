@@ -3,17 +3,9 @@ package com.uiptv.db;
 import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -26,20 +18,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
-    void initializesSchemaMigrationsFromFiles() throws Exception {
+    void initializesFlywaySchemaHistoryFromFiles() throws Exception {
         try (Connection conn = SQLConnection.connect()) {
-            assertTrue(tableExists(conn, "schema_migrations"));
-            int expected = expectedMigrationCount();
-            int success = countRows(conn, "schema_migrations", "status='success'");
-            int failed = countRows(conn, "schema_migrations", "status='failed'");
-            assertEquals(expected, countRows(conn, "schema_migrations", null));
-            assertEquals(expected, success + failed);
+            assertTrue(tableExists(conn, "flyway_schema_history"));
+            int expected = 1; // clean databases bootstrap from the current Flyway baseline snapshot
+            int success = countRows(conn, "flyway_schema_history", "success = 1");
+            assertEquals(expected, countRows(conn, "flyway_schema_history", null));
+            assertEquals(expected, success);
         }
     }
 
     @Test
     void rerunsMissingMigrationsAndRepairsDroppedSchemaPieces() throws Exception {
         try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+            DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("ALTER TABLE Configuration DROP COLUMN embeddedPlayer");
             st.executeUpdate("ALTER TABLE Account DROP COLUMN pinToTop");
             st.executeUpdate("DROP TABLE IF EXISTS BookmarkOrder");
@@ -63,6 +55,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     @Test
     void keepsGoingWhenOneMigrationFailsAndRunsLaterOnes() throws Exception {
         try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+            DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("DROP TABLE IF EXISTS Bookmark");
             st.executeUpdate("DELETE FROM schema_migrations WHERE name IN "
                     + "('0142_seed_bookmark_order_table.sql',"
@@ -101,6 +94,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     @Test
     void seedsBookmarkOrderForLegacyUsersWhoHaveBookmarksButNoOrderRows() throws Exception {
         try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+            DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("DROP TABLE IF EXISTS BookmarkOrder");
             st.executeUpdate("DROP TABLE IF EXISTS Bookmark");
             st.executeUpdate("CREATE TABLE Bookmark ("
@@ -133,6 +127,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     @Test
     void failedMigrationIsRetriedOnNextRunAndErrorMessageIsClearedAfterSuccess() throws Exception {
         try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+            DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("DROP TABLE IF EXISTS Bookmark");
             st.executeUpdate("DELETE FROM schema_migrations WHERE name='0142_seed_bookmark_order_table.sql'");
 
@@ -151,6 +146,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     @Test
     void successfulMigrationWithChecksumDriftIsReappliedAndRecordIsRepaired() throws Exception {
         try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+            DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("UPDATE schema_migrations "
                     + "SET checksum='tampered-checksum', status='success', applied_at=1, error_message='x' "
                     + "WHERE name='0115_add_configuration_embedded_player.sql'");
@@ -169,6 +165,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     @Test
     void reapplyingPatchesOnHealthyDatabaseIsIdempotent() throws Exception {
         try (Connection conn = SQLConnection.connect()) {
+            DatabasePatchesUtils.applyPatches(conn);
             long beforeAppliedAt = migrationAppliedAt(conn, "0159_add_configuration_cache_expiry_days.sql");
             int beforeCount = countRows(conn, "schema_migrations", "status='success'");
 
@@ -233,28 +230,6 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
         try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
             rs.next();
             return rs.getInt(1);
-        }
-    }
-
-    private static int expectedMigrationCount() throws Exception {
-        InputStream resource = DatabasePatchesUtilsTest.class.getClassLoader().getResourceAsStream("db/migrations/migrations.txt");
-        if (resource == null) {
-            Path fallback = Path.of("src", "main", "resources", "db", "migrations", "migrations.txt");
-            if (Files.exists(fallback)) {
-                resource = new FileInputStream(fallback.toFile());
-            }
-        }
-        try (InputStream in = resource) {
-            if (in == null) {
-                throw new IllegalStateException("Missing migrations list");
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                List<String> lines = reader.lines().map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .filter(s -> !s.startsWith("#"))
-                        .toList();
-                return lines.size();
-            }
         }
     }
 

@@ -3,10 +3,13 @@ package com.uiptv.db
 import com.uiptv.util.ConfigFileReader
 import com.uiptv.util.Platform
 import com.uiptv.util.StringUtils
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import org.apache.commons.io.FileUtils
 import org.flywaydb.core.Flyway
 import org.flywaydb.core.api.MigrationVersion
 import org.jetbrains.exposed.sql.Database
+import org.sqlite.SQLiteConfig
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -15,7 +18,6 @@ import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
-import java.lang.reflect.InvocationTargetException
 
 object SqlConnectionRuntime {
     private const val BUSY_TIMEOUT_MS = 10_000
@@ -32,6 +34,9 @@ object SqlConnectionRuntime {
     @Volatile
     private var exposedDatabase: Database? = null
 
+    @Volatile
+    private var hikariDataSource: HikariDataSource? = null
+
     init {
         init()
     }
@@ -41,10 +46,11 @@ object SqlConnectionRuntime {
     fun init() {
         try {
             FileUtils.touch(File(dbPath))
+            rebuildDataSource()
             for (attempt in 1..INIT_RETRY_ATTEMPTS) {
                 try {
                     migrate()
-                    exposedDatabase = Database.connect(::openConnection)
+                    exposedDatabase = Database.connect(dataSource())
                     return
                 } catch (ex: SQLException) {
                     if (isBusy(ex) && attempt < INIT_RETRY_ATTEMPTS) {
@@ -73,22 +79,36 @@ object SqlConnectionRuntime {
     @JvmStatic
     fun connect(): Connection =
         try {
-            openConnection()
+            dataSource().connection.also(::configurePragmas)
         } catch (e: SQLException) {
             throw DatabaseAccessException("Unable to open database connection", e)
         }
 
     @JvmStatic
     fun database(): Database = exposedDatabase ?: synchronized(this) {
-        exposedDatabase ?: Database.connect(::openConnection).also { exposedDatabase = it }
+        exposedDatabase ?: Database.connect(dataSource()).also { exposedDatabase = it }
+    }
+
+    @JvmStatic
+    @Synchronized
+    fun dataSource(): HikariDataSource {
+        val existing = hikariDataSource
+        if (existing != null && !existing.isClosed) {
+            return existing
+        }
+        rebuildDataSource()
+        return hikariDataSource ?: throw IllegalStateException("Data source not initialized")
     }
 
     private fun migrate() {
-        connect().use { connection ->
-            when {
-                DatabasePatchesUtils.hasMigrationsListResource() -> DatabasePatchesUtils.applyPatches(connection)
-                DatabasePatchesUtils.hasBaselineResource() -> DatabasePatchesUtils.applyBaseline(connection)
-                else -> throw IllegalStateException("No database schema resources found")
+        openConnection().use { connection ->
+            val plan = determineMigrationPlan(connection)
+            if (plan.baselineVersion != null) {
+                baselineExistingSchema(plan.baselineVersion, plan.baselineDescription)
+            }
+            if (plan.files.isNotEmpty()) {
+                val migrationDirectory = materializeMigrations(plan)
+                loadFlyway(migrationDirectory).migrate()
             }
         }
     }
@@ -186,6 +206,35 @@ object SqlConnectionRuntime {
         return knownTables.any { tableExists(connection, it) }
     }
 
+    private fun determineMigrationPlan(connection: Connection): MigrationPlan {
+        val legacyVersion = readLegacySuccessVersion(connection)
+        val flywayVersion = readFlywaySuccessVersion(connection)
+        return when {
+            flywayVersion != null -> MigrationPlan.incrementalFrom(flywayVersion)
+            legacyVersion != null -> MigrationPlan.incrementalFrom(legacyVersion).copy(
+                baselineVersion = legacyVersion,
+                baselineDescription = "legacy schema_migrations"
+            )
+            hasApplicationTables(connection) -> MigrationPlan.baselineOnly().copy(
+                baselineDescription = "existing application schema"
+            )
+            else -> MigrationPlan.bootstrapBaseline()
+        }
+    }
+
+    private fun readFlywaySuccessVersion(connection: Connection): String? {
+        if (!tableExists(connection, "flyway_schema_history")) {
+            return null
+        }
+        connection.prepareStatement(
+            "SELECT version FROM flyway_schema_history WHERE success = 1 AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1"
+        ).use { statement ->
+            statement.executeQuery().use { rs ->
+                return if (rs.next()) rs.getString(1) else null
+            }
+        }
+    }
+
     private fun tableExists(connection: Connection, tableName: String): Boolean =
         connection.prepareStatement(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
@@ -196,10 +245,37 @@ object SqlConnectionRuntime {
 
     @Throws(SQLException::class)
     private fun openConnection(): Connection {
-        val connection = DriverManager.getConnection("jdbc:sqlite:$dbPath")
+        val connection = DriverManager.getConnection(jdbcUrl(), sqliteProperties())
         configurePragmas(connection)
         return connection
     }
+
+    @Synchronized
+    private fun rebuildDataSource() {
+        hikariDataSource?.close()
+        hikariDataSource = HikariDataSource(HikariConfig().apply {
+            jdbcUrl = jdbcUrl()
+            driverClassName = "org.sqlite.JDBC"
+            maximumPoolSize = Integer.getInteger("uiptv.db.pool.maxSize", 8)
+            minimumIdle = Integer.getInteger("uiptv.db.pool.minIdle", 1)
+            connectionTimeout = Integer.getInteger("uiptv.db.pool.connectionTimeoutMs", 10_000).toLong()
+            idleTimeout = Integer.getInteger("uiptv.db.pool.idleTimeoutMs", 60_000).toLong()
+            maxLifetime = Integer.getInteger("uiptv.db.pool.maxLifetimeMs", 300_000).toLong()
+            validationTimeout = Integer.getInteger("uiptv.db.pool.validationTimeoutMs", 5_000).toLong()
+            initializationFailTimeout = -1
+            isAutoCommit = true
+            connectionTestQuery = "SELECT 1"
+            dataSourceProperties.putAll(sqliteProperties())
+        })
+    }
+
+    private fun jdbcUrl(): String = "jdbc:sqlite:$dbPath"
+
+    private fun sqliteProperties() = SQLiteConfig().apply {
+        busyTimeout = BUSY_TIMEOUT_MS
+        setJournalMode(SQLiteConfig.JournalMode.WAL)
+        setSynchronous(SQLiteConfig.SynchronousMode.NORMAL)
+    }.toProperties()
 
     @Throws(SQLException::class)
     private fun configurePragmas(connection: Connection) {
@@ -245,12 +321,23 @@ object SqlConnectionRuntime {
 
     private data class MigrationPlan(
         val files: List<String>,
-        val versionOverride: String? = null
+        val versionOverride: String? = null,
+        val baselineVersion: String? = null,
+        val baselineDescription: String = "baseline"
     ) {
         companion object {
             fun fullHistory(): MigrationPlan = MigrationPlan(readAllMigrationNames())
 
-            fun baselineOnly(): MigrationPlan = MigrationPlan(listOf(BASELINE_MIGRATION), CURRENT_SCHEMA_VERSION)
+            fun bootstrapBaseline(): MigrationPlan = MigrationPlan(
+                files = listOf(BASELINE_MIGRATION),
+                versionOverride = CURRENT_SCHEMA_VERSION
+            )
+
+            fun baselineOnly(): MigrationPlan = MigrationPlan(
+                files = emptyList(),
+                baselineVersion = CURRENT_SCHEMA_VERSION,
+                baselineDescription = "existing schema"
+            )
 
             fun incrementalFrom(version: String): MigrationPlan =
                 MigrationPlan(
@@ -294,41 +381,6 @@ class SQLConnection private constructor() {
 
         @JvmStatic
         fun database(): Database = SqlConnectionRuntime.database()
-
-        @Suppress("unused")
-        @JvmStatic
-        @Throws(SQLException::class)
-        private fun applySchema(connection: Connection) {
-            when {
-                invokeDatabasePatchesBoolean("hasMigrationsListResource") -> invokeDatabasePatchesVoid("applyPatches", connection)
-                invokeDatabasePatchesBoolean("hasBaselineResource") -> invokeDatabasePatchesVoid("applyBaseline", connection)
-                else -> throw IllegalStateException("No database schema resources found")
-            }
-        }
-
-        private fun invokeDatabasePatchesBoolean(methodName: String): Boolean =
-            try {
-                val method = DatabasePatchesUtils::class.java.getDeclaredMethod(methodName)
-                method.isAccessible = true
-                method.invoke(null) as Boolean
-            } catch (ex: InvocationTargetException) {
-                throw (ex.targetException as? RuntimeException) ?: IllegalStateException(ex.targetException)
-            }
-
-        @Throws(SQLException::class)
-        private fun invokeDatabasePatchesVoid(methodName: String, connection: Connection) {
-            try {
-                val method = DatabasePatchesUtils::class.java.getDeclaredMethod(methodName, Connection::class.java)
-                method.isAccessible = true
-                method.invoke(null, connection)
-            } catch (ex: InvocationTargetException) {
-                val target = ex.targetException
-                if (target is SQLException) {
-                    throw target
-                }
-                throw (target as? RuntimeException) ?: IllegalStateException(target)
-            }
-        }
 
         @Suppress("unused")
         @JvmStatic

@@ -1,96 +1,90 @@
 package com.uiptv.db
 
 import com.uiptv.model.PublishedM3uSelection
-import com.uiptv.util.StringUtils.isBlank
-import java.sql.Connection
-import java.sql.ResultSet
-import java.sql.SQLException
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.deleteAll
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.selectAll
 
-class PublishedM3uSelectionDb : BaseDb<PublishedM3uSelection>(DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE) {
+class PublishedM3uSelectionDb private constructor() : ExposedCrudRepository<String, PublishedM3uSelection>() {
     companion object {
-        private var instance: PublishedM3uSelectionDb? = null
+        private val instance = PublishedM3uSelectionDb()
 
         @JvmStatic
-        @Synchronized
-        fun get(): PublishedM3uSelectionDb {
-            if (instance == null) {
-                instance = PublishedM3uSelectionDb()
-            }
-            return instance!!
+        fun get(): PublishedM3uSelectionDb = instance
+    }
+
+    override fun findAll(): List<PublishedM3uSelection> = query {
+        PublishedM3uSelectionTable.selectAll()
+            .orderBy(PublishedM3uSelectionTable.id to SortOrder.ASC)
+            .map(ResultRow::toPublishedM3uSelection)
+    }
+
+    override fun findById(id: String): PublishedM3uSelection? = query {
+        id.toIntOrNull()
+            ?.let { dbId -> PublishedM3uSelectionTable.selectAll().where { PublishedM3uSelectionTable.id eq dbId }.firstOrNull() }
+            ?.toPublishedM3uSelection()
+    }
+
+    override fun save(entity: PublishedM3uSelection): PublishedM3uSelection {
+        query {
+            val insertedId = PublishedM3uSelectionTable.insert { row ->
+                row[accountId] = entity.accountId.orEmpty()
+            }[PublishedM3uSelectionTable.id]
+            entity.dbId = insertedId.toString()
+        }
+        return entity
+    }
+
+    override fun deleteById(id: String) {
+        val dbId = id.toIntOrNull() ?: return
+        query {
+            PublishedM3uSelectionTable.deleteWhere { PublishedM3uSelectionTable.id eq dbId }
         }
     }
 
-    override fun populate(resultSet: ResultSet): PublishedM3uSelection {
-        val selection = PublishedM3uSelection()
-        selection.dbId = nullSafeString(resultSet, "id")
-        selection.accountId = nullSafeString(resultSet, "accountId")
-        return selection
-    }
-
-    fun getAllSelections(): List<PublishedM3uSelection> = getAll(" ORDER BY id", emptyArray())
+    fun getAllSelections(): List<PublishedM3uSelection> = findAll()
 
     fun replaceSelections(accountIds: Set<String>?) {
-        try {
-            SQLConnection.connect().use { conn ->
-                replaceSelectionsInTransaction(conn, accountIds)
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to replace published M3U selections", e)
+        query {
+            replaceSelectionsInTransaction(accountIds)
         }
     }
 
-    @Throws(SQLException::class)
-    fun replaceSelections(conn: Connection, accountIds: Set<String>?) {
-        replaceSelectionsOnConnection(conn, accountIds)
-    }
-
-    @Throws(SQLException::class)
-    private fun replaceSelectionsOnConnection(conn: Connection, accountIds: Set<String>?) {
-        conn.prepareStatement("DELETE FROM ${DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.tableName}").use {
-            it.executeUpdate()
-        }
-        if (!accountIds.isNullOrEmpty()) {
-            conn.prepareStatement(DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE)).use { insert ->
-                accountIds.forEach { accountId ->
-                    if (!isBlank(accountId)) {
-                        insert.setString(1, accountId)
-                        insert.addBatch()
-                    }
+    internal fun replaceSelectionsInTransaction(accountIds: Set<String>?) {
+        PublishedM3uSelectionTable.deleteAll()
+        accountIds.orEmpty()
+            .filter(String::isNotBlank)
+            .forEach { accountId ->
+                PublishedM3uSelectionTable.insert { row ->
+                    row[PublishedM3uSelectionTable.accountId] = accountId
                 }
-                insert.executeBatch()
             }
-        }
-    }
-
-    @Throws(SQLException::class)
-    private fun replaceSelectionsInTransaction(conn: Connection, accountIds: Set<String>?) {
-        val originalAutoCommit = conn.autoCommit
-        try {
-            conn.autoCommit = false
-            replaceSelectionsOnConnection(conn, accountIds)
-            conn.commit()
-        } catch (e: SQLException) {
-            conn.rollback()
-            throw e
-        } finally {
-            conn.autoCommit = originalAutoCommit
-        }
     }
 
     fun deleteByAccountId(accountId: String?) {
-        if (isBlank(accountId)) {
+        if (accountId.isNullOrBlank()) {
             return
         }
-        val sql = "DELETE FROM ${DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.tableName} WHERE accountId=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, accountId)
-                    statement.executeUpdate()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to delete published M3U selection", e)
+        query {
+            PublishedM3uSelectionTable.deleteWhere { PublishedM3uSelectionTable.accountId eq accountId }
         }
     }
 }
+
+internal object PublishedM3uSelectionTable : Table(DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val accountId = text("accountId")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+private fun ResultRow.toPublishedM3uSelection(): PublishedM3uSelection =
+    PublishedM3uSelection().apply {
+        dbId = this@toPublishedM3uSelection[PublishedM3uSelectionTable.id].toString()
+        accountId = this@toPublishedM3uSelection[PublishedM3uSelectionTable.accountId]
+    }

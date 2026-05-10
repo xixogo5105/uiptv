@@ -1,77 +1,102 @@
 package com.uiptv.db
 
 import com.uiptv.model.PublishedM3uChannelSelection
-import com.uiptv.util.StringUtils.isBlank
-import java.sql.Connection
-import java.sql.ResultSet
-import java.sql.SQLException
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.deleteAll
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.selectAll
 
-class PublishedM3uChannelSelectionDb : BaseDb<PublishedM3uChannelSelection>(DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE) {
+class PublishedM3uChannelSelectionDb private constructor() : ExposedCrudRepository<String, PublishedM3uChannelSelection>() {
     companion object {
-        private var instance: PublishedM3uChannelSelectionDb? = null
+        private val instance = PublishedM3uChannelSelectionDb()
 
         @JvmStatic
-        @Synchronized
-        fun get(): PublishedM3uChannelSelectionDb {
-            if (instance == null) {
-                instance = PublishedM3uChannelSelectionDb()
-            }
-            return instance!!
+        fun get(): PublishedM3uChannelSelectionDb = instance
+    }
+
+    override fun findAll(): List<PublishedM3uChannelSelection> = query {
+        PublishedM3uChannelSelectionTable.selectAll()
+            .orderBy(PublishedM3uChannelSelectionTable.id to SortOrder.ASC)
+            .map(ResultRow::toPublishedM3uChannelSelection)
+    }
+
+    override fun findById(id: String): PublishedM3uChannelSelection? = query {
+        id.toIntOrNull()
+            ?.let { dbId -> PublishedM3uChannelSelectionTable.selectAll().where { PublishedM3uChannelSelectionTable.id eq dbId }.firstOrNull() }
+            ?.toPublishedM3uChannelSelection()
+    }
+
+    override fun save(entity: PublishedM3uChannelSelection): PublishedM3uChannelSelection {
+        query {
+            val insertedId = PublishedM3uChannelSelectionTable.insert { row ->
+                row[accountId] = entity.accountId.orEmpty()
+                row[categoryName] = entity.categoryName.orEmpty()
+                row[channelId] = entity.channelId.orEmpty()
+                row[selected] = entity.selected.asDbBoolean()
+            }[PublishedM3uChannelSelectionTable.id]
+            entity.dbId = insertedId.toString()
+        }
+        return entity
+    }
+
+    override fun deleteById(id: String) {
+        val dbId = id.toIntOrNull() ?: return
+        query {
+            PublishedM3uChannelSelectionTable.deleteWhere { PublishedM3uChannelSelectionTable.id eq dbId }
         }
     }
 
-    override fun populate(resultSet: ResultSet): PublishedM3uChannelSelection {
-        val selection = PublishedM3uChannelSelection()
-        selection.dbId = nullSafeString(resultSet, "id")
-        selection.accountId = nullSafeString(resultSet, "accountId")
-        selection.categoryName = nullSafeString(resultSet, "categoryName")
-        selection.channelId = nullSafeString(resultSet, "channelId")
-        selection.selected = safeBoolean(resultSet, "selected")
-        return selection
+    fun getAllSelections(): List<PublishedM3uChannelSelection> = findAll()
+
+    fun replaceSelections(selections: List<PublishedM3uChannelSelection>?) {
+        query {
+            replaceSelectionsInTransaction(selections)
+        }
     }
 
-    fun getAllSelections(): List<PublishedM3uChannelSelection> = getAll(" ORDER BY id", emptyArray())
-
-    @Throws(SQLException::class)
-    fun replaceSelections(conn: Connection, selections: List<PublishedM3uChannelSelection>?) {
-        conn.prepareStatement("DELETE FROM ${DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.tableName}").use {
-            it.executeUpdate()
-        }
-        if (selections.isNullOrEmpty()) {
-            return
-        }
-        conn.prepareStatement(DatabaseUtils.insertTableSql(DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE)).use { insert ->
-            selections.forEach { selection ->
-                if (selection != null &&
-                    !isBlank(selection.accountId) &&
-                    !isBlank(selection.categoryName) &&
-                    !isBlank(selection.channelId)
-                ) {
-                    insert.setString(1, selection.accountId)
-                    insert.setString(2, selection.categoryName)
-                    insert.setString(3, selection.channelId)
-                    insert.setString(4, if (selection.selected) "1" else "0")
-                    insert.addBatch()
+    internal fun replaceSelectionsInTransaction(selections: List<PublishedM3uChannelSelection>?) {
+        PublishedM3uChannelSelectionTable.deleteAll()
+        selections.orEmpty()
+            .filter { !it.accountId.isNullOrBlank() && !it.categoryName.isNullOrBlank() && !it.channelId.isNullOrBlank() }
+            .forEach { selection ->
+                PublishedM3uChannelSelectionTable.insert { row ->
+                    row[accountId] = selection.accountId.orEmpty()
+                    row[categoryName] = selection.categoryName.orEmpty()
+                    row[channelId] = selection.channelId.orEmpty()
+                    row[selected] = selection.selected.asDbBoolean()
                 }
             }
-            insert.executeBatch()
-        }
     }
 
     fun deleteByAccountId(accountId: String?) {
-        if (isBlank(accountId)) {
+        if (accountId.isNullOrBlank()) {
             return
         }
-        val sql = "DELETE FROM ${DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.tableName} WHERE accountId=?"
-        try {
-            SQLConnection.connect().use { conn ->
-                conn.prepareStatement(sql).use { statement ->
-                    statement.setString(1, accountId)
-                    statement.executeUpdate()
-                }
-            }
-        } catch (e: SQLException) {
-            throw DatabaseAccessException("Unable to delete published M3U channel selection", e)
+        query {
+            PublishedM3uChannelSelectionTable.deleteWhere { PublishedM3uChannelSelectionTable.accountId eq accountId }
         }
     }
 }
+
+internal object PublishedM3uChannelSelectionTable : Table(DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE.tableName) {
+    val id = integer("id").autoIncrement()
+    val accountId = text("accountId")
+    val categoryName = text("categoryName")
+    val channelId = text("channelId")
+    val selected = text("selected").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+private fun ResultRow.toPublishedM3uChannelSelection(): PublishedM3uChannelSelection =
+    PublishedM3uChannelSelection(
+        dbId = this[PublishedM3uChannelSelectionTable.id].toString(),
+        accountId = this[PublishedM3uChannelSelectionTable.accountId],
+        categoryName = this[PublishedM3uChannelSelectionTable.categoryName],
+        channelId = this[PublishedM3uChannelSelectionTable.channelId],
+        selected = this[PublishedM3uChannelSelectionTable.selected] == "1"
+    )

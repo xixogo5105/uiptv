@@ -10,6 +10,7 @@ import com.uiptv.service.BingeWatchService
 import com.uiptv.service.ConfigurationService
 import com.uiptv.service.FfmpegService
 import com.uiptv.service.PlayerRequestResolver
+import com.uiptv.service.WebPlayerApiService
 import com.uiptv.util.AppLog
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.ServerUtils.generateJsonResponse
@@ -24,7 +25,10 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 @Suppress("java:S1075")
-class HttpPlayerJsonServer : HttpHandler {
+class HttpPlayerJsonServer(
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
+    private val webPlayerApiService: WebPlayerApiService = WebPlayerApiService(playerRequestResolverProvider = { playerRequestResolver })
+) : HttpHandler {
     companion object {
         const val SEASON = "season"
         const val EPISODE_NUM = "episodeNum"
@@ -60,17 +64,10 @@ class HttpPlayerJsonServer : HttpHandler {
         private const val STRATEGY_HINT_NATIVE = "NATIVE"
         private const val WEB_VOD_STYLE_PLAYLIST = false
     }
-
-    private val playerRequestResolver = PlayerRequestResolver()
-
     @Throws(IOException::class)
     override fun handle(ex: HttpExchange) {
         try {
-            val mode = resolveRequestedMode(ex, getParam(ex, "mode"))
-            val hvec = getParam(ex, "hvec")
-            val resolved = resolvePlayback(ex, mode)
-            applyWebPlaybackProcessing(resolved.response, mode, hvec, isEnabledFlag(getParam(ex, QUERY_PARAM_PREFER_HLS)))
-            generateJsonResponse(ex, buildJsonResponse(resolved))
+            generateJsonResponse(ex, buildJsonPlaybackResponse(ex.requestURI.path, queryParams(ex)))
         } catch (e: Exception) {
             if (isClientDisconnect(e)) return
             AppLog.addErrorLog(HttpPlayerJsonServer::class.java, "HttpPlayerJsonServer failed: $e")
@@ -80,6 +77,18 @@ class HttpPlayerJsonServer : HttpHandler {
                 if (!isClientDisconnect(ioException)) throw ioException
             }
         }
+    }
+
+    fun buildJsonPlaybackResponse(requestPath: String?, params: Map<String, String?>): String =
+        webPlayerApiService.buildJsonPlaybackResponse(requestPath, params)
+
+    private fun queryParams(ex: HttpExchange): Map<String, String?> = linkedMapOf<String, String?>().apply {
+        listOf(
+            "mode", "hvec", QUERY_PARAM_PREFER_HLS, "bookmarkId", "accountId", "bingeWatchToken", "episodeId",
+            "categoryId", "channelId", "url", "seriesParentId", "seriesId", "name", "logo", "cmd", "cmd_1",
+            "cmd_2", "cmd_3", "drmType", DRM_LICENSE_URL, CLEAR_KEYS_JSON, INPUTSTREAMADDON, MANIFEST_TYPE,
+            SEASON, EPISODE_NUM
+        ).forEach { key -> put(key, getParam(ex, key)) }
     }
 
     private fun resolvePlayback(ex: HttpExchange, mode: String): ResolvedWebPlayback {
@@ -103,6 +112,40 @@ class HttpPlayerJsonServer : HttpHandler {
         return ResolvedWebPlayback(resolveDirectPlayback(ex, accountId, categoryId, channelId, mode, seriesParentId), "", "", emptyList())
     }
 
+    private fun resolvePlayback(params: Map<String, String?>, mode: String): ResolvedWebPlayback {
+        val bookmarkId = params["bookmarkId"]
+        val accountId = params["accountId"]
+        val bingeWatchToken = params["bingeWatchToken"]
+        val bingeWatchEpisodeId = params["episodeId"]
+        val categoryId = params["categoryId"]
+        val channelId = params["channelId"]
+        val directUrl = params["url"]
+        val seriesParentId = params["seriesParentId"]
+        if (isNotBlank(bingeWatchToken)) {
+            return resolveBingeWatchPlayback(buildRequestChannel(channelId, params), accountId, bingeWatchToken!!, bingeWatchEpisodeId)
+        }
+        if (isNotBlank(directUrl)) {
+            return resolveDirectUrlPlayback(accountId, directUrl!!, buildRequestChannel(channelId, params))
+        }
+        if (isNotBlank(bookmarkId)) {
+            return ResolvedWebPlayback(resolveBookmarkPlayback(bookmarkId!!, mode, seriesParentId), "", "", emptyList())
+        }
+        return ResolvedWebPlayback(
+            resolveDirectPlayback(
+                accountId,
+                categoryId,
+                channelId,
+                mode,
+                seriesParentId,
+                params["seriesId"],
+                buildRequestChannel(channelId, params)
+            ),
+            "",
+            "",
+            emptyList()
+        )
+    }
+
     private fun resolveRequestedMode(ex: HttpExchange?, requestedMode: String?): String {
         if (isNotBlank(requestedMode)) return requestedMode!!
         val path = if (ex?.requestURI == null) "" else safe(ex.requestURI.path).lowercase()
@@ -114,12 +157,31 @@ class HttpPlayerJsonServer : HttpHandler {
         }
     }
 
+    private fun resolveRequestedMode(requestPath: String?, requestedMode: String?): String {
+        if (isNotBlank(requestedMode)) return requestedMode!!
+        return when (safe(requestPath).lowercase()) {
+            PATH_PLAYER_BINGEWATCH, PATH_PLAYER_SERIES -> MODE_SERIES
+            PATH_PLAYER_VOD -> MODE_VOD
+            PATH_PLAYER_LIVE -> MODE_ITV
+            else -> ""
+        }
+    }
+
     private fun resolveDirectUrlPlayback(ex: HttpExchange, accountId: String?, channelId: String?, directUrl: String): ResolvedWebPlayback {
         val response = PlayerResponse(directUrl)
         val account = if (isBlank(accountId)) null else AccountService.getInstance().getById(accountId)
         val channel = buildRequestChannel(channelId, ex)
         if (hasChannelMetadata(channel)) {
             response.setFromChannel(channel, account)
+        }
+        return ResolvedWebPlayback(response, "", "", emptyList())
+    }
+
+    private fun resolveDirectUrlPlayback(accountId: String?, directUrl: String, requestChannel: Channel): ResolvedWebPlayback {
+        val response = PlayerResponse(directUrl)
+        val account = if (isBlank(accountId)) null else AccountService.getInstance().getById(accountId)
+        if (hasChannelMetadata(requestChannel)) {
+            response.setFromChannel(requestChannel, account)
         }
         return ResolvedWebPlayback(response, "", "", emptyList())
     }
@@ -137,6 +199,30 @@ class HttpPlayerJsonServer : HttpHandler {
         val response = PlayerResponse(resolvedEpisode.url)
         val account = if (isBlank(accountId)) null else AccountService.getInstance().getById(accountId)
         val channel = buildRequestChannel(currentEpisodeId, ex)
+        if (isBlank(channel.name)) {
+            channel.name = resolvedEpisode.episodeName
+        }
+        items.firstOrNull { currentEpisodeId == it.episodeId }?.let { item ->
+            if (isBlank(channel.season)) channel.season = item.season
+            if (isBlank(channel.episodeNum)) channel.episodeNum = item.episodeNumber
+        }
+        response.setFromChannel(channel, account)
+        return ResolvedWebPlayback(response, token, currentEpisodeId, items)
+    }
+
+    private fun resolveBingeWatchPlayback(requestChannel: Channel, accountId: String?, token: String, episodeId: String?): ResolvedWebPlayback {
+        val items = BingeWatchService.getInstance().getPlaylistItems(token)
+        if (items.isEmpty()) {
+            return ResolvedWebPlayback(PlayerResponse(""), token, "", emptyList())
+        }
+        val currentEpisodeId = if (isNotBlank(episodeId)) episodeId!! else items[0].episodeId
+        val resolvedEpisode = BingeWatchService.getInstance().resolveEpisode(token, currentEpisodeId)
+        if (resolvedEpisode == null || isBlank(resolvedEpisode.url)) {
+            return ResolvedWebPlayback(PlayerResponse(""), token, currentEpisodeId, items)
+        }
+        val response = PlayerResponse(resolvedEpisode.url)
+        val account = if (isBlank(accountId)) null else AccountService.getInstance().getById(accountId)
+        val channel = requestChannel
         if (isBlank(channel.name)) {
             channel.name = resolvedEpisode.episodeName
         }
@@ -262,6 +348,19 @@ class HttpPlayerJsonServer : HttpHandler {
         return playerRequestResolver.resolveDirectPlayback(account, categoryId, channelId, mode, seriesParentId, seriesId, requestChannel)
     }
 
+    private fun resolveDirectPlayback(
+        accountId: String?,
+        categoryId: String?,
+        channelId: String?,
+        mode: String,
+        seriesParentId: String?,
+        seriesId: String?,
+        requestChannel: Channel
+    ): PlayerResponse {
+        val account = AccountService.getInstance().getById(accountId)
+        return playerRequestResolver.resolveDirectPlayback(account, categoryId, channelId, mode, seriesParentId, seriesId, requestChannel)
+    }
+
     private fun buildRequestChannel(channelId: String?, ex: HttpExchange): Channel =
         Channel().apply {
             this.channelId = channelId
@@ -278,6 +377,24 @@ class HttpPlayerJsonServer : HttpHandler {
             manifestType = sanitizeParam(getParam(ex, MANIFEST_TYPE))
             season = sanitizeParam(getParam(ex, SEASON))
             episodeNum = sanitizeParam(getParam(ex, EPISODE_NUM))
+        }
+
+    private fun buildRequestChannel(channelId: String?, params: Map<String, String?>): Channel =
+        Channel().apply {
+            this.channelId = channelId
+            name = sanitizeParam(params["name"])
+            logo = sanitizeParam(params["logo"])
+            cmd = sanitizeParam(params["cmd"])
+            cmd_1 = sanitizeParam(params["cmd_1"])
+            cmd_2 = sanitizeParam(params["cmd_2"])
+            cmd_3 = sanitizeParam(params["cmd_3"])
+            drmType = sanitizeParam(params["drmType"])
+            drmLicenseUrl = sanitizeParam(params[DRM_LICENSE_URL])
+            clearKeysJson = sanitizeParam(params[CLEAR_KEYS_JSON])
+            inputstreamaddon = sanitizeParam(params[INPUTSTREAMADDON])
+            manifestType = sanitizeParam(params[MANIFEST_TYPE])
+            season = sanitizeParam(params[SEASON])
+            episodeNum = sanitizeParam(params[EPISODE_NUM])
         }
 
     private fun buildJsonResponse(resolved: ResolvedWebPlayback): String {

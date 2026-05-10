@@ -17,16 +17,23 @@ import java.nio.charset.StandardCharsets
 import java.util.function.Consumer
 import java.util.function.Supplier
 
-class PlayerRequestResolver {
+class PlayerRequestResolver(
+    private val bookmarkServiceProvider: () -> BookmarkService = { BookmarkService.getInstance() },
+    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() },
+    private val playerServiceProvider: () -> PlayerService = { PlayerService.getInstance() },
+    private val seriesCategoryDbProvider: () -> SeriesCategoryDb = { SeriesCategoryDb.get() },
+    private val vodChannelDbProvider: () -> VodChannelDb = { VodChannelDb.get() },
+    private val channelDbProvider: () -> ChannelDb = { ChannelDb.get() }
+) {
     @Throws(IOException::class)
     fun resolveBookmarkPlayback(bookmarkId: String, mode: String?, seriesParentId: String?): PlayerResponse {
-        val bookmark = BookmarkService.getInstance().getBookmark(bookmarkId) ?: throw IOException("Bookmark not found")
-        val account = AccountService.getInstance().getAll()[bookmark.accountName] ?: throw IOException("Account not found")
+        val bookmark = bookmarkServiceProvider().getBookmark(bookmarkId) ?: throw IOException("Bookmark not found")
+        val account = accountServiceProvider().getAll()[bookmark.accountName] ?: throw IOException("Account not found")
         applyMode(account, mode)
         bookmark.accountAction?.let { account.action = it }
         val channel = resolveBookmarkChannel(bookmark)
         val scopedCategoryId = resolveSeriesCategoryId(account, bookmark.categoryId)
-        return PlayerService.getInstance().get(account, channel, bookmark.channelId, seriesParentId, scopedCategoryId)
+        return playerServiceProvider().get(account, channel, bookmark.channelId, seriesParentId, scopedCategoryId)
     }
 
     @Throws(IOException::class)
@@ -37,7 +44,7 @@ class PlayerRequestResolver {
         applyMode(account, mode)
         val channel = mergeRequestChannel(resolveRequestedChannel(account, categoryId, channelId, mode), requestChannel)
         val scopedCategoryId = resolveSeriesCategoryId(account, categoryId)
-        return PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId)
+        return playerServiceProvider().get(account, channel, seriesId, seriesParentId, scopedCategoryId)
     }
 
     fun resolveBookmarkChannel(bookmark: Bookmark): Channel {
@@ -66,7 +73,7 @@ class PlayerRequestResolver {
     fun resolveSeriesCategoryId(account: Account?, rawCategoryId: String?): String {
         if (account == null || account.action != Account.AccountAction.series) return ""
         if (isBlank(rawCategoryId)) return ""
-        val category: Category? = SeriesCategoryDb.get().getById(rawCategoryId.orEmpty())
+        val category: Category? = seriesCategoryDbProvider().getById(rawCategoryId.orEmpty())
         if (category != null && isNotBlank(category.categoryId)) return category.categoryId.orEmpty()
         return rawCategoryId.orEmpty()
     }
@@ -114,11 +121,11 @@ class PlayerRequestResolver {
     private fun resolveRequestedChannel(account: Account?, categoryId: String?, channelId: String?, mode: String?): Channel? {
         val normalizedMode = if (isBlank(mode)) "" else mode!!.trim().lowercase()
         if (normalizedMode == "vod" && account != null) {
-            val vodChannel = VodChannelDb.get().getChannelByChannelId(channelId.orEmpty(), categoryId.orEmpty(), account.dbId.orEmpty())
+            val vodChannel = vodChannelDbProvider().getChannelByChannelId(channelId.orEmpty(), categoryId.orEmpty(), account.dbId.orEmpty())
             if (vodChannel != null) return vodChannel
-            return VodChannelDb.get().getChannelByChannelIdAndAccount(channelId.orEmpty(), account.dbId.orEmpty())
+            return vodChannelDbProvider().getChannelByChannelIdAndAccount(channelId.orEmpty(), account.dbId.orEmpty())
         }
-        return ChannelDb.get().getChannelById(channelId.orEmpty(), categoryId.orEmpty())
+        return channelDbProvider().getChannelById(channelId.orEmpty(), categoryId.orEmpty())
     }
 
     private fun applyMode(account: Account?, mode: String?) {
