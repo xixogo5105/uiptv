@@ -14,11 +14,11 @@ If `uiptv.ini` exists at `<user.home>/uiptv.ini` and contains `db.path=...`, tha
 
 ## 0.1.11
 
-Planned release date: 2026-05-10
+Release date: 2026-05-10
 
 ### Highlights
 
-This release includes 325 commits with 54,145 additions and 11,253 deletions across 453 files since `v0.1.10`, focusing on parental lock, remote database sync, published M3U controls, HLS/VLC playback fixes, and a broad round of maintenance work.
+This release includes 328 commits with 54,241 additions and 11,297 deletions across 453 files since `v0.1.10`, focusing on parental lock, remote database sync, published M3U controls, HLS/VLC playback fixes, series binge-watch support, and a broad round of maintenance work.
 
 ### Parental Lock & Remote Sync
 
@@ -43,12 +43,14 @@ This release includes 325 commits with 54,145 additions and 11,253 deletions acr
 
 ### HLS/Player Improvements
 
+- Add series binge-watch playback flow with local playlist/session handling and improved player support for episode-to-episode playback
 - Fix embedded VLC playback for HLS/M3U8 streams (Cloudfront and others)
 - Add SSL/cookie forwarding and redirect handling for VLC HLS/M3U8 playback
 - Improve HLS manifest resolution and handle redirects correctly
 - Refactor HLS resolver and align bookmark playlist grouping
 - Fix bookmark entry playback redirects
 - Add redirect-resolution toggle, safeguards, and contextual help links
+- Add zoom-fill mode and fix initial VLC volume mapping
 - Retry VLC audio state during startup and reapply when playback starts
 - Serialize VLC start and teardown to prevent race conditions
 - Fix CloudFront Lambda-protected HLS stream playback in VLC
@@ -101,5 +103,6 @@ This release includes 325 commits with 54,145 additions and 11,253 deletions acr
 - Bump commons-io:commons-io from 2.21.0 to 2.22.0
 - Bump org.apache.httpcomponents.client5:httpclient5 from 5.6 to 5.6.1
 - Run Linux CI builds under xvfb
+- Fix Windows remote-sync temp-file handling for release/test reliability
 - Add .mvn/wrapper/maven-wrapper.properties
 - Remove .idea folder from tracking
