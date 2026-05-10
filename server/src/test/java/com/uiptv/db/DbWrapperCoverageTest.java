@@ -393,7 +393,7 @@ class DbWrapperCoverageTest extends DbBackedTest {
         }
 
         @Override
-        JsonCompliant populate(ResultSet resultSet) {
+        public JsonCompliant populate(ResultSet resultSet) {
             return null;
         }
     }

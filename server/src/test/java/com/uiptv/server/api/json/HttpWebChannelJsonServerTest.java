@@ -27,8 +27,6 @@ class HttpWebChannelJsonServerTest extends DbBackedTest {
 
     @Test
     void privateHelpers_coverSeriesWatchState_categoryResolution_andPaging() throws Exception {
-        HttpWebChannelJsonServer handler = new HttpWebChannelJsonServer();
-
         Account account = new Account();
         account.setDbId("acc-1");
         account.setAction(Account.AccountAction.series);
@@ -63,64 +61,60 @@ class HttpWebChannelJsonServerTest extends DbBackedTest {
 
         SeriesWatchState seriesState = new SeriesWatchState();
 
-        try (MockedStatic<SeriesCategoryDb> seriesCategoryDbStatic = Mockito.mockStatic(SeriesCategoryDb.class);
-             MockedStatic<CategoryDb> categoryDbStatic = Mockito.mockStatic(CategoryDb.class);
-             MockedStatic<VodCategoryDb> vodCategoryDbStatic = Mockito.mockStatic(VodCategoryDb.class);
-             MockedStatic<ChannelService> channelServiceStatic = Mockito.mockStatic(ChannelService.class);
-             MockedStatic<SeriesWatchStateService> watchStateStatic = Mockito.mockStatic(SeriesWatchStateService.class)) {
-            seriesCategoryDbStatic.when(SeriesCategoryDb::get).thenReturn(seriesCategoryDb);
-            categoryDbStatic.when(CategoryDb::get).thenReturn(categoryDb);
-            vodCategoryDbStatic.when(VodCategoryDb::get).thenReturn(vodCategoryDb);
-            channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            watchStateStatic.when(SeriesWatchStateService::getInstance).thenReturn(watchStateService);
+        HttpWebChannelJsonServer handler = new HttpWebChannelJsonServer(
+                () -> seriesCategoryDb,
+                () -> categoryDb,
+                () -> vodCategoryDb,
+                () -> channelService,
+                () -> watchStateService
+        );
 
-            Mockito.when(seriesCategoryDb.getById("db-cat")).thenReturn(apiCategory);
-            Mockito.when(seriesCategoryDb.getById("api-cat")).thenReturn(apiCategory);
-            Mockito.when(seriesCategoryDb.getCategories(account)).thenReturn(List.of(apiCategory));
-            Mockito.when(categoryDb.getCategoryByDbId("db-cat", account)).thenReturn(apiCategory);
-            Mockito.when(vodCategoryDb.getById("vod-cat")).thenReturn(apiCategory);
-            Mockito.when(channelService.getSeries("api-cat", "movie-1", account, null, null)).thenReturn(List.of(ep1, ep2));
-            Mockito.when(watchStateService.getSeriesLastWatched("acc-1", "api-cat", "series-a")).thenReturn(seriesState);
-            Mockito.when(watchStateService.getSeriesLastWatched("acc-1", "api-cat", "series-b")).thenReturn(null);
-            Mockito.when(watchStateService.getSeriesLastWatched("acc-1", "api-cat", "movie-1")).thenReturn(seriesState);
-            Mockito.when(watchStateService.isMatchingEpisode(seriesState, "ep-1", "1", "1", "Episode 1")).thenReturn(false);
-            Mockito.when(watchStateService.isMatchingEpisode(seriesState, "ep-2", "1", "2", "Episode 2")).thenReturn(true);
+        Mockito.when(seriesCategoryDb.getById("db-cat")).thenReturn(apiCategory);
+        Mockito.when(seriesCategoryDb.getById("api-cat")).thenReturn(apiCategory);
+        Mockito.when(seriesCategoryDb.getCategories(account)).thenReturn(List.of(apiCategory));
+        Mockito.when(categoryDb.getCategoryByDbId("db-cat", account)).thenReturn(apiCategory);
+        Mockito.when(vodCategoryDb.getById("vod-cat")).thenReturn(apiCategory);
+        Mockito.when(channelService.getSeries("api-cat", "movie-1", account, null, null)).thenReturn(List.of(ep1, ep2));
+        Mockito.when(watchStateService.getSeriesLastWatched("acc-1", "api-cat", "series-a")).thenReturn(seriesState);
+        Mockito.when(watchStateService.getSeriesLastWatched("acc-1", "api-cat", "series-b")).thenReturn(null);
+        Mockito.when(watchStateService.getSeriesLastWatched("acc-1", "api-cat", "movie-1")).thenReturn(seriesState);
+        Mockito.when(watchStateService.isMatchingEpisode(seriesState, "ep-1", "1", "1", "Episode 1")).thenReturn(false);
+        Mockito.when(watchStateService.isMatchingEpisode(seriesState, "ep-2", "1", "2", "Episode 2")).thenReturn(true);
 
-            invoke(handler, "applySeriesRowsWatched",
-                    new Class[]{Account.class, String.class, List.class},
-                    account, "db-cat", List.of(rowA, rowB));
-            assertTrue(rowA.isWatched());
-            assertFalse(rowB.isWatched());
+        invoke(handler, "applySeriesRowsWatched",
+                new Class[]{Account.class, String.class, List.class},
+                account, "db-cat", List.of(rowA, rowB));
+        assertTrue(rowA.isWatched());
+        assertFalse(rowB.isWatched());
 
-            invoke(handler, "applySeriesEpisodesWatched",
-                    new Class[]{Account.class, String.class, String.class, List.class},
-                    account, "db-cat", "movie-1", List.of(ep1, ep2));
-            assertFalse(ep1.isWatched());
-            assertTrue(ep2.isWatched());
+        invoke(handler, "applySeriesEpisodesWatched",
+                new Class[]{Account.class, String.class, String.class, List.class},
+                account, "db-cat", "movie-1", List.of(ep1, ep2));
+        assertFalse(ep1.isWatched());
+        assertTrue(ep2.isWatched());
 
-            String episodesJson = invoke(handler, "resolveSeriesEpisodesJson",
-                    new Class[]{Account.class, String.class, String.class},
-                    account, "db-cat", "movie-1");
-            JSONArray episodes = new JSONArray(episodesJson);
-            assertEquals(2, episodes.length());
-            assertEquals("1", episodes.getJSONObject(1).optString("watched"));
+        String episodesJson = invoke(handler, "resolveSeriesEpisodesJson",
+                new Class[]{Account.class, String.class, String.class},
+                account, "db-cat", "movie-1");
+        JSONArray episodes = new JSONArray(episodesJson);
+        assertEquals(2, episodes.length());
+        assertEquals("1", episodes.getJSONObject(1).optString("watched"));
 
-            String enriched = invoke(handler, "enrichSeriesRowsWatchedJson",
-                    new Class[]{Account.class, String.class, String.class},
-                    account, "db-cat", "[{\"channelId\":\"series-a\"},{\"channelId\":\"series-b\",\"categoryId\":\"db-cat\"}]");
-            JSONArray rows = new JSONArray(enriched);
-            assertTrue(rows.getJSONObject(0).getBoolean("watched"));
-            assertFalse(rows.getJSONObject(1).getBoolean("watched"));
+        String enriched = invoke(handler, "enrichSeriesRowsWatchedJson",
+                new Class[]{Account.class, String.class, String.class},
+                account, "db-cat", "[{\"channelId\":\"series-a\"},{\"channelId\":\"series-b\",\"categoryId\":\"db-cat\"}]");
+        JSONArray rows = new JSONArray(enriched);
+        assertTrue(rows.getJSONObject(0).getBoolean("watched"));
+        assertFalse(rows.getJSONObject(1).getBoolean("watched"));
 
-            assertEquals(apiCategory, invoke(handler, "resolveCategoryByDbId",
-                    new Class[]{Account.class, String.class}, account, "db-cat"));
-            assertEquals(1, ((List<?>) invoke(handler, "resolveCategoriesForAccount",
-                    new Class[]{Account.class}, account)).size());
-            assertEquals("api-cat", invoke(handler, "normalizeSeriesCategoryId",
-                    new Class[]{String.class}, "db-cat"));
-            assertEquals("", invoke(handler, "normalizeSeriesCategoryId",
-                    new Class[]{String.class}, " "));
-        }
+        assertEquals(apiCategory, invoke(handler, "resolveCategoryByDbId",
+                new Class[]{Account.class, String.class}, account, "db-cat"));
+        assertEquals(1, ((List<?>) invoke(handler, "resolveCategoriesForAccount",
+                new Class[]{Account.class}, account)).size());
+        assertEquals("api-cat", invoke(handler, "normalizeSeriesCategoryId",
+                new Class[]{String.class}, "db-cat"));
+        assertEquals("", invoke(handler, "normalizeSeriesCategoryId",
+                new Class[]{String.class}, " "));
 
         assertEquals(20, (int) invoke(handler, "parseInt",
                 new Class[]{String.class, int.class, int.class, int.class}, "5", 10, 20, 50));

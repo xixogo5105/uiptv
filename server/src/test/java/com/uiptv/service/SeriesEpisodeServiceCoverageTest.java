@@ -73,8 +73,8 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         ChannelService channelService = Mockito.mock(ChannelService.class);
         List<Channel> remote = List.of(channel("stalker-1", "Season 4 Episode 2", "cmd://stalker"));
 
-        try (MockedStatic<ChannelService> channelServiceStatic = Mockito.mockStatic(ChannelService.class)) {
-            channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
+        try {
+            SeriesEpisodeService.setChannelServiceResolverForTests(() -> channelService);
             Mockito.when(channelService.getSeries(Mockito.eq("cat-s"), Mockito.eq("series-s"), Mockito.eq(account), Mockito.isNull(), Mockito.any()))
                     .thenReturn(remote);
 
@@ -83,6 +83,8 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
             assertEquals(1, list.getEpisodes().size());
             assertEquals("4", list.getEpisodes().get(0).getSeason());
             assertEquals(1, SeriesEpisodeDb.get().getEpisodes(account, "cat-s", "series-s").size());
+        } finally {
+            SeriesEpisodeService.setChannelServiceResolverForTests(null);
         }
     }
 

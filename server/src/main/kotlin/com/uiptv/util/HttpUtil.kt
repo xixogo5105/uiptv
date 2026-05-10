@@ -1,0 +1,330 @@
+package com.uiptv.util
+
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase
+import org.apache.hc.client5.http.config.RequestConfig
+import org.apache.hc.client5.http.impl.LaxRedirectStrategy
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse
+import org.apache.hc.client5.http.impl.classic.HttpClients
+import org.apache.hc.client5.http.protocol.HttpClientContext
+import org.apache.hc.core5.http.Header
+import org.apache.hc.core5.http.HttpEntity
+import org.apache.hc.core5.http.io.entity.EntityUtils
+import org.apache.hc.core5.http.io.entity.StringEntity
+import org.apache.hc.core5.util.Timeout
+import java.io.IOException
+import java.io.InputStream
+import java.net.URI
+import java.net.URL
+import java.nio.charset.StandardCharsets
+import java.time.Duration
+import java.util.Locale
+import java.util.Objects
+import java.util.TreeMap
+
+object HttpUtil {
+    private val MAX_LOG_BODY_CHARS = Integer.getInteger("uiptv.http.log.max.body.chars", 4000)
+    private val SENSITIVE_HEADERS = listOf("authorization", "cookie", "set-cookie", "proxy-authorization")
+    const val STATUS_OK = 200
+    const val STATUS_NOT_ACCEPTABLE = 406
+    private val DEFAULT_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.timeout.seconds", 30)
+    private val CONNECT_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.connect.timeout.seconds", DEFAULT_TIMEOUT_SECONDS)
+    private val CONNECTION_REQUEST_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.connection.request.timeout.seconds", DEFAULT_TIMEOUT_SECONDS)
+    private val RESPONSE_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.response.timeout.seconds", DEFAULT_TIMEOUT_SECONDS)
+    private val MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 5)
+    private val HTTP_CLIENT: CloseableHttpClient = HttpClients.custom()
+        .setRedirectStrategy(LaxRedirectStrategy())
+        .setDefaultRequestConfig(
+            RequestConfig.custom()
+                .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS.toLong()))
+                .setConnectionRequestTimeout(Timeout.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS.toLong()))
+                .setResponseTimeout(Timeout.ofSeconds(RESPONSE_TIMEOUT_SECONDS.toLong()))
+                .setRedirectsEnabled(true)
+                .setMaxRedirects(MAX_REDIRECTS)
+                .build()
+        )
+        .build()
+
+    @JvmStatic
+    @Throws(IOException::class)
+    fun sendRequest(url: String, headers: Map<String, String>?, method: String): HttpResult =
+        sendRequest(url, headers, method, null)
+
+    @JvmStatic
+    @Throws(IOException::class)
+    fun sendRequest(url: String, headers: Map<String, String>?, method: String, body: String?): HttpResult =
+        sendRequest(url, headers, method, body, RequestOptions.defaults())
+
+    @JvmStatic
+    @Throws(IOException::class)
+    fun sendRequest(url: String, headers: Map<String, String>?, method: String, body: String?, options: RequestOptions): HttpResult {
+        val request = buildRequest(url, headers, method, body, options)
+        val context = HttpClientContext.create()
+        return HTTP_CLIENT.execute(request, context) { response ->
+            val entity: HttpEntity? = response.entity
+            val responseBody = if (options.readBody) {
+                if (entity == null) "" else EntityUtils.toString(entity)
+            } else {
+                if (entity != null) EntityUtils.consumeQuietly(entity)
+                ""
+            }
+            HttpResult(
+                request.method,
+                getFinalUri(request, context),
+                response.code,
+                responseBody,
+                headersToMap(request.headers),
+                headersToMap(response.headers)
+            )
+        }
+    }
+
+    @JvmStatic
+    @Throws(IOException::class)
+    fun openStream(url: String, headers: Map<String, String>?, method: String, body: String?, options: RequestOptions): StreamResult {
+        val request = buildRequest(url, headers, method, body, options)
+        val context = HttpClientContext.create()
+        val response = HTTP_CLIENT.execute(request, context)
+        val entity = response.entity
+        val bodyStream = entity?.content ?: InputStream.nullInputStream()
+        return StreamResult(
+            request.method,
+            getFinalUri(request, context),
+            response.code,
+            headersToMap(request.headers),
+            headersToMap(response.headers),
+            bodyStream,
+            response
+        )
+    }
+
+    @JvmStatic
+    fun formatHttpLog(requestUrl: String?, response: HttpResult?, requestParams: Map<String, String>?): String {
+        if (response == null) {
+            return "HTTP request log unavailable: response was null"
+        }
+        val out = StringBuilder(1024)
+        out.append("HTTP ")
+            .append(nonBlank(response.requestMethod, "GET"))
+            .append(' ')
+            .append(nonBlank(response.requestUri, nonBlank(requestUrl, "<unknown>")))
+            .append(System.lineSeparator())
+        out.append("Status: ").append(response.statusCode).append(System.lineSeparator())
+        if (!requestParams.isNullOrEmpty()) {
+            appendSection(out, "Request Params", formatParams(requestParams))
+        }
+        appendSection(out, "Request Headers", formatHeaders(response.requestHeaders))
+        appendSection(out, "Response Headers", formatHeaders(response.responseHeaders))
+        appendSection(out, "Response Body", abbreviateBody(response.body))
+        return out.toString().trim()
+    }
+
+    private fun appendSection(out: StringBuilder, title: String, content: String) {
+        out.append(System.lineSeparator())
+            .append(title)
+            .append(':')
+            .append(System.lineSeparator())
+            .append(indent(nonBlank(content, "<none>")))
+            .append(System.lineSeparator())
+    }
+
+    private fun formatParams(params: Map<String, String>): String =
+        params.entries.sortedBy { it.key.lowercase() }.joinToString(System.lineSeparator()) { entry -> entry.key + "=" + quote(entry.value) }
+
+    private fun formatHeaders(headers: Map<String, List<String>>?): String {
+        if (headers.isNullOrEmpty()) {
+            return "<none>"
+        }
+        val sorted = TreeMap<String, List<String>>(String.CASE_INSENSITIVE_ORDER)
+        sorted.putAll(headers)
+        return sorted.entries.joinToString(System.lineSeparator()) { entry ->
+            entry.key + ": " + formatHeaderValues(entry.key, entry.value)
+        }
+    }
+
+    private fun formatHeaderValues(headerName: String?, values: List<String>?): String {
+        if (values.isNullOrEmpty()) {
+            return ""
+        }
+        if (isSensitiveHeader(headerName)) {
+            return "<redacted>"
+        }
+        return values.filter(Objects::nonNull).joinToString(", ") { quote(it) }
+    }
+
+    private fun isSensitiveHeader(headerName: String?): Boolean =
+        headerName != null && SENSITIVE_HEADERS.contains(headerName.lowercase(Locale.ROOT))
+
+    private fun abbreviateBody(body: String?): String {
+        if (body.isNullOrBlank()) {
+            return "<empty>"
+        }
+        val normalized = body.replace("\r\n", "\n").replace('\r', '\n').trim()
+        if (looksBinary(normalized)) {
+            return "<binary ${normalized.toByteArray(StandardCharsets.UTF_8).size} bytes>"
+        }
+        if (normalized.length <= MAX_LOG_BODY_CHARS) {
+            return normalized
+        }
+        return normalized.substring(0, MAX_LOG_BODY_CHARS) +
+            System.lineSeparator() +
+            "... [truncated ${normalized.length - MAX_LOG_BODY_CHARS} chars]"
+    }
+
+    private fun looksBinary(value: String): Boolean =
+        value.any { Character.isISOControl(it) && !Character.isWhitespace(it) }
+
+    private fun indent(value: String): String =
+        value.lines().joinToString(System.lineSeparator()) { line -> "  $line" }
+
+    private fun quote(value: String?): String = if (value == null) "\"\"" else "\"$value\""
+    private fun nonBlank(value: String?, fallback: String): String = if (value.isNullOrBlank()) fallback else value
+
+    private fun buildRequest(url: String, headers: Map<String, String>?, method: String?, body: String?, options: RequestOptions?): HttpUriRequestBase {
+        val request = HttpUriRequestBase(safeMethod(method), toSafeUri(url))
+        request.config = buildRequestConfig(options)
+        headers?.forEach { (key, value) -> request.setHeader(key, value) }
+        if (body != null) {
+            if (headers == null || headers.keys.none { it.equals("Content-Type", true) }) {
+                request.setHeader("Content-Type", "application/x-www-form-urlencoded")
+            }
+            request.entity = StringEntity(body)
+        }
+        return request
+    }
+
+    @JvmStatic
+    private fun toSafeUri(url: String?): URI {
+        val normalized = url?.trim().orEmpty()
+        if (normalized.isEmpty()) {
+            return URI.create("http://localhost/empty-url-fallback")
+        }
+        try {
+            return URI.create(normalized)
+        } catch (original: IllegalArgumentException) {
+            try {
+                val parsed = URL(normalized)
+                return URI(parsed.protocol, parsed.userInfo, parsed.host, parsed.port, parsed.path, parsed.query, parsed.ref)
+            } catch (e: Exception) {
+                AppLog.addErrorLog(HttpUtil::class.java, "Failed to create URI from URL: $normalized. Error: ${e.message}")
+                throw original
+            }
+        }
+    }
+
+    @JvmStatic
+    private fun safeMethod(method: String?): String =
+        if (method.isNullOrBlank()) "GET" else method.trim().uppercase()
+
+    @JvmStatic
+    private fun getFinalUri(request: HttpUriRequestBase, context: HttpClientContext): String {
+        return try {
+            val redirects = context.redirectLocations
+            if (redirects != null) {
+                val redirectCount = redirects.size()
+                if (redirectCount > 0 && redirectCount <= MAX_REDIRECTS + 1) {
+                    val finalRedirect = redirects[redirectCount - 1]
+                    return finalRedirect?.toString() ?: request.requestUri
+                }
+                if (redirectCount > MAX_REDIRECTS + 1) {
+                    return request.requestUri
+                }
+            }
+            request.uri?.toString().orEmpty()
+        } catch (e: Exception) {
+            AppLog.addWarningLog(HttpUtil::class.java, "Failed to get final URI: ${e.message}")
+            request.requestUri
+        }
+    }
+
+    private fun buildRequestConfig(options: RequestOptions?): RequestConfig {
+        val effective = options ?: RequestOptions.defaults()
+        val connectTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(effective.connectTimeoutSeconds, CONNECT_TIMEOUT_SECONDS).toLong()))
+        val connectionRequestTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(effective.connectionRequestTimeoutSeconds, CONNECTION_REQUEST_TIMEOUT_SECONDS).toLong()))
+        val responseTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(effective.responseTimeoutSeconds, RESPONSE_TIMEOUT_SECONDS).toLong()))
+        return RequestConfig.custom()
+            .setConnectTimeout(connectTimeout)
+            .setConnectionRequestTimeout(connectionRequestTimeout)
+            .setResponseTimeout(responseTimeout)
+            .setRedirectsEnabled(effective.followRedirects)
+            .setMaxRedirects(if (effective.followRedirects) MAX_REDIRECTS else 0)
+            .build()
+    }
+
+    private fun resolveTimeoutSeconds(override: Int?, defaultValue: Int): Int =
+        if (override != null && override > 0) override else defaultValue
+
+    private fun headersToMap(headers: Array<Header>): Map<String, List<String>> {
+        val headerMap = LinkedHashMap<String, MutableList<String>>()
+        for (header in headers) {
+            headerMap.computeIfAbsent(header.name) { ArrayList() }.add(header.value)
+        }
+        return headerMap
+    }
+
+    data class HttpResult(
+        val requestMethod: String,
+        val requestUri: String,
+        val statusCode: Int,
+        val body: String,
+        val requestHeaders: Map<String, List<String>>,
+        val responseHeaders: Map<String, List<String>>
+    ) {
+        fun requestMethod(): String = requestMethod
+
+        fun requestUri(): String = requestUri
+
+        fun statusCode(): Int = statusCode
+
+        fun body(): String = body
+
+        fun requestHeaders(): Map<String, List<String>> = requestHeaders
+
+        fun responseHeaders(): Map<String, List<String>> = responseHeaders
+
+        constructor(
+            statusCode: Int,
+            body: String,
+            requestHeaders: Map<String, List<String>>,
+            responseHeaders: Map<String, List<String>>
+        ) : this("", "", statusCode, body, requestHeaders, responseHeaders)
+    }
+
+    class RequestOptions(
+        val followRedirects: Boolean,
+        val readBody: Boolean,
+        val connectTimeoutSeconds: Int? = null,
+        val connectionRequestTimeoutSeconds: Int? = null,
+        val responseTimeoutSeconds: Int? = null
+    ) {
+        fun followRedirects(): Boolean = followRedirects
+
+        fun readBody(): Boolean = readBody
+
+        fun connectTimeoutSeconds(): Int? = connectTimeoutSeconds
+
+        fun connectionRequestTimeoutSeconds(): Int? = connectionRequestTimeoutSeconds
+
+        fun responseTimeoutSeconds(): Int? = responseTimeoutSeconds
+
+        companion object {
+            @JvmStatic
+            fun defaults(): RequestOptions = RequestOptions(true, true)
+        }
+    }
+
+    class StreamResult(
+        val requestMethod: String,
+        val requestUri: String,
+        val statusCode: Int,
+        val requestHeaders: Map<String, List<String>>,
+        val responseHeaders: Map<String, List<String>>,
+        val bodyStream: InputStream,
+        private val response: CloseableHttpResponse
+    ) : AutoCloseable {
+        @Throws(IOException::class)
+        override fun close() {
+            response.close()
+        }
+    }
+}
