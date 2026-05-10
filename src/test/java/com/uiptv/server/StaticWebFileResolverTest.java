@@ -15,7 +15,8 @@ class StaticWebFileResolverTest {
     void resolveAndReadUtf8_returnRealFile() throws Exception {
         TestHttpExchange exchange = new TestHttpExchange("/javascript/spa.js", "GET");
         Path resolved = StaticWebFileResolver.resolve(exchange);
-        assertTrue(resolved.toString().endsWith("web/javascript/spa.js"));
+        Path normalized = resolved.normalize();
+        assertEquals(Path.of("web", "javascript", "spa.js"), normalized.subpath(normalized.getNameCount() - 3, normalized.getNameCount()));
 
         String body = StaticWebFileResolver.readUtf8(resolved);
         assertNotNull(body);

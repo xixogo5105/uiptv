@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.DosFileAttributeView;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -64,13 +65,7 @@ final class SecureTempFileSupport {
         try {
             Files.setPosixFilePermissions(path, OWNER_ONLY_DIRECTORY_PERMISSIONS);
         } catch (UnsupportedOperationException _) {
-            File file = path.toFile();
-            requirePermissionChange(file.setReadable(false, false), READ_PERMISSION, path);
-            requirePermissionChange(file.setWritable(false, false), WRITE_PERMISSION, path);
-            requirePermissionChange(file.setExecutable(false, false), EXECUTE_PERMISSION, path);
-            requirePermissionChange(file.setReadable(true, true), READ_PERMISSION, path);
-            requirePermissionChange(file.setWritable(true, true), WRITE_PERMISSION, path);
-            requirePermissionChange(file.setExecutable(true, true), EXECUTE_PERMISSION, path);
+            ensureBestEffortOwnerOnlyDirectoryAccess(path);
         }
     }
 
@@ -78,18 +73,43 @@ final class SecureTempFileSupport {
         try {
             Files.setPosixFilePermissions(path, OWNER_ONLY_FILE_PERMISSIONS);
         } catch (UnsupportedOperationException _) {
-            File file = path.toFile();
-            requirePermissionChange(file.setReadable(false, false), READ_PERMISSION, path);
-            requirePermissionChange(file.setWritable(false, false), WRITE_PERMISSION, path);
-            requirePermissionChange(file.setExecutable(false, false), EXECUTE_PERMISSION, path);
-            requirePermissionChange(file.setReadable(true, true), READ_PERMISSION, path);
-            requirePermissionChange(file.setWritable(true, true), WRITE_PERMISSION, path);
+            ensureBestEffortOwnerOnlyFileAccess(path);
         }
     }
 
-    private static void requirePermissionChange(boolean changed, String permission, Path path) throws IOException {
-        if (!changed) {
-            throw new IOException("Unable to set " + permission + " permissions for " + path);
+    private static void ensureBestEffortOwnerOnlyDirectoryAccess(Path path) throws IOException {
+        File file = path.toFile();
+        applyBestEffortOwnerOnlyAccess(file, true);
+        if (!Files.isDirectory(path)) {
+            throw new IOException("Unable to prepare temp directory " + path);
+        }
+    }
+
+    private static void ensureBestEffortOwnerOnlyFileAccess(Path path) throws IOException {
+        File file = path.toFile();
+        applyBestEffortOwnerOnlyAccess(file, false);
+        if (!Files.isRegularFile(path)) {
+            throw new IOException("Unable to prepare temp file " + path);
+        }
+    }
+
+    private static void applyBestEffortOwnerOnlyAccess(File file, boolean executable) throws IOException {
+        file.setReadable(false, false);
+        file.setWritable(false, false);
+        file.setExecutable(false, false);
+
+        boolean ownerReadable = file.setReadable(true, true);
+        boolean ownerWritable = file.setWritable(true, true);
+        boolean ownerExecutable = !executable || file.setExecutable(true, true);
+
+        if (!ownerReadable || !ownerWritable || !ownerExecutable) {
+            DosFileAttributeView dosView = Files.getFileAttributeView(file.toPath(), DosFileAttributeView.class);
+            if (dosView != null) {
+                return;
+            }
+
+            String permission = !ownerReadable ? READ_PERMISSION : !ownerWritable ? WRITE_PERMISSION : EXECUTE_PERMISSION;
+            throw new IOException("Unable to set " + permission + " permissions for " + file.toPath());
         }
     }
 }
