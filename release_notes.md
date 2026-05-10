@@ -1,7 +1,7 @@
 # Release Notes
 
 > [!WARNING]
-> Before upgrading to 0.1.10, back up your database files first (at minimum `uiptv.db`, and preferably `uiptv.db`, `uiptv.db-wal`, and `uiptv.db-shm` while UIPTV is closed).
+> Before upgrading to 0.1.11, back up your database files first (at minimum `uiptv.db`, and preferably `uiptv.db`, `uiptv.db-wal`, and `uiptv.db-shm` while UIPTV is closed).
 
 > [!NOTE]
 > This release includes multi-language support. At this stage, non-English resources were generated with AI-assisted translation and may contain inaccuracies. Contributions and corrections are welcome: [TRANSLATIONS.md](TRANSLATIONS.md).
@@ -12,63 +12,94 @@ Default DB path:
 
 If `uiptv.ini` exists at `<user.home>/uiptv.ini` and contains `db.path=...`, that configured value is used instead of the default path.
 
-## Unreleased (post-`v0.1.10`)
+## 0.1.11
+
+Planned release date: 2026-05-10
 
 ### Highlights
 
-- Added parental lock password flows for protected filter management and Stalker censored content.
-- Added approval-based remote database sync alongside the existing local database sync workflow.
-- Expanded published M3U selection so exports can be narrowed by account/category/channel.
-- Improved M3U playback and reload behavior, including better HLS/redirect handling and remote-cache robustness.
-- Added Stalker diagnostics and refined browser/player help flows.
-- Refined Stalker bulk-import grouping semantics:
-  - MAC-only entries group together by portal URL
-  - extra-parameter entries stay separate unless the device identity matches exactly
+This release includes 325 commits with 54,145 additions and 11,253 deletions across 453 files since `v0.1.10`, focusing on parental lock, remote database sync, published M3U controls, HLS/VLC playback fixes, and a broad round of maintenance work.
+
+### Parental Lock & Remote Sync
+
+- Added parental lock password flows for protected filter management and Stalker censored content
+- Added approval-based remote database sync alongside existing local sync workflow
+- Restored one-way database sync and synchronized configuration tables during import/export
+- Show completion dialogs on both sync peers
+- Refresh app state after database sync completion
+- Improve configuration sync feedback and server startup option
+- Fix database sync popup progress flow
+
+### M3U Publishing & Cache
+
+- Expanded published M3U selection to account/category/channel hierarchy
+- Add published M3U category modes, request-host playlist URLs, and collapse single published M3U categories
+- Optimize remote M3U cache reloads and refactor M3U publication helpers
+- Fix M3U category parsing and reload behavior
+- Fix case-insensitive cache category matching
+- Remap published M3U selections to target accounts during sync
+- Add account-level redirect resolution and hierarchical M3U publish selection
+- Add unit tests for M3uCacheReloader edge cases
+
+### HLS/Player Improvements
+
+- Fix embedded VLC playback for HLS/M3U8 streams (Cloudfront and others)
+- Add SSL/cookie forwarding and redirect handling for VLC HLS/M3U8 playback
+- Improve HLS manifest resolution and handle redirects correctly
+- Refactor HLS resolver and align bookmark playlist grouping
+- Fix bookmark entry playback redirects
+- Add redirect-resolution toggle, safeguards, and contextual help links
+- Retry VLC audio state during startup and reapply when playback starts
+- Serialize VLC start and teardown to prevent race conditions
+- Fix CloudFront Lambda-protected HLS stream playback in VLC
+- Refactor video player lifecycle and resource disposal
+- Refine player configuration layout and shorten embedded player labels
+
+### Stalker & Import
+
+- Fix Stalker bulk-import grouping semantics:
+  - MAC-only entries group by portal URL
+  - entries with extra parameters stay distinct unless device identity matches
+- Apply `1/2` device IDs to both Stalker device slots and avoid duplicate account creation
+- Improve Stalker expiry handling and display
+- Add parental lock password flow and Stalker diagnostics
+- Resolve 'null' error when loading 'All' category for Stalker/Xtreme accounts
+
+### UI, Updates & Workflow
+
+- Add a custom update window backed by GitHub Releases
+- Refresh About and update dialog layouts so they scale better across resolutions
+- Add watching-now snapshot fallback and tab-scoped refresh controls
+- Add multi-select bookmark actions in channel lists
+- Refresh bookmarks after account removal and concurrent bookmark updates
+- Show account names in category lists where needed
 
 ### Documentation Notes
 
-- Import guides were refreshed to match current parser behavior.
-- Website and README copy were updated to reflect parental lock, remote sync, published playlist controls, and current Stalker grouping rules.
+- Refresh post-`v0.1.10` import and parental lock documentation
+- Update README and website copy for remote sync, published playlists, and current Stalker grouping rules
 
-## 0.1.10
+### Misc Bug Fixes & Refactoring
 
-### Highlights Since `v0.1.9`
+- Refactor M3uCacheReloader and HLS playlist resolution logic to reduce complexity
+- Clean up duplicated literals, switch logic, lambdas, and related helper code
+- Improve SQLite/database-related maintenance and internal consistency
+- Resolve smaller code smells, test smells, and unused imports/variables
 
-- Added localized UI improvements with RTL support and localized season/episode/tab numbering where supported.
-- Expanded theme customization with saved zoom scaling, live preview, and per-theme CSS override support (with template export flow).
-- Improved desktop + web parity for bookmarks, Watching Now data, and series resume continuity.
-- Added/expanded browser playback route support alongside embedded and external player flows, including DRM-aware payload fields when available.
-- Refined series/watch-state behavior for more reliable resume and cross-view consistency.
-- Refreshed Stalker, Xtreme, and M3U import flows/documentation to align with current parser behavior and account handling.
-- Improved account maintenance workflows (including MAC verification/management and account-level reload paths).
-- Continued web-server workflow improvements for local-network playback and playlist publishing use cases.
+### Internationalization
 
-### Packaging, Build, and Platform Notes
+- Translate player help text bundles
+- Restore bundle UTF-8 and fix Urdu episode matching
+- Escape single quotes in message properties for MessageFormat
+- Localize player help links
+- Fix i18n bundle UTF-8 issues
 
-- Continued publishing native targets for Windows (x86_64), Linux (x86_64), and macOS (x86_64/aarch64), with Linux `.deb`, optional `.rpm`, and portable app bundle outputs.
-- Clarified Windows installer build prerequisite: WiX Toolset must be installed and on `PATH` for `jpackage` `.exe`/`.msi` builds (`candle.exe`, `light.exe`).
-- Added explicit build note that Windows ARM64 (`win-aarch64`) packaging currently depends on unavailable JavaFX Maven artifacts.
+### Build & Dependencies
 
-## 0.1.9
-
-### Highlights Since `v0.1.8`
-
-- Added a full web app refresh (SPA + PWA style flow) and expanded web API endpoints.
-- Added in-memory HLS/TS streaming support and related FFmpeg-backed web playback paths.
-- Added DRM-related playback metadata handling for web playback flows.
-- Added M3U/M3U8 publication flow for combining local/remote playlists into downloadable output.
-- Expanded Stalker/Xtreme parsing with improved attribute detection (serial/device/signature), account isolation, and MAC management improvements.
-- Added VOD/Series data model and persistence layers (new DB tables/migrations, watch-state tracking, and richer category/channel structures).
-- Added wide/embedded player UX improvements, including placeholder state, overlay behavior tweaks, and restart-required prompts when needed.
-- Added keyboard/accessibility improvements (Enter-key reliability, tab focus in Watching Now/episodes, and better actions discoverability).
-- Improved bookmarks and watching-now flows (matching reliability, remove actions, reduced UI flicker on refresh, and state preservation).
-
-### Build, CI, and Maintenance
-
-- Updated GitHub Actions workflows and dependency update automation.
-- Continued dependency updates across Maven and GitHub Actions.
-- Added and updated tests.
-
-### Notes
-
-- This release includes a large internal refactor and database migration set since `v0.1.8`.
+- Bump javafx.version from 26 to 26.0.1
+- Bump org.projectlombok:lombok from 1.18.44 to 1.18.46
+- Bump commons-io:commons-io from 2.21.0 to 2.22.0
+- Bump org.apache.httpcomponents.client5:httpclient5 from 5.6 to 5.6.1
+- Run Linux CI builds under xvfb
+- Add .mvn/wrapper/maven-wrapper.properties
+- Remove .idea folder from tracking
