@@ -22,6 +22,18 @@ import org.json.JSONObject
 import java.io.IOException
 
 class HttpSeriesDetailsJsonServer : HttpHandler {
+    private val accountService: AccountService
+        get() = AccountService.getInstance()
+
+    private val configurationService: ConfigurationService
+        get() = ConfigurationService.getInstance()
+
+    private val handshakeService: HandshakeService
+        get() = HandshakeService.getInstance()
+
+    private val imdbMetadataService: ImdbMetadataService
+        get() = ImdbMetadataService.getInstance()
+
     companion object {
         private const val KEY_COVER = "cover"
         private const val KEY_DIRECTOR = "director"
@@ -35,13 +47,13 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
 
     @Throws(IOException::class)
     override fun handle(ex: HttpExchange) {
-        val account = AccountService.getInstance().getById(getParam(ex, "accountId"))
+        val account = accountService.getById(getParam(ex, "accountId"))
         if (account == null) {
             generateJsonResponse(ex, """{"seasonInfo":{},"$KEY_EPISODES":[]}""")
             return
         }
         if (account.isNotConnected()) {
-            HandshakeService.getInstance().connect(account)
+            handshakeService.connect(account)
         }
 
         val seriesId = getParam(ex, "seriesId")
@@ -65,9 +77,9 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
         response.put(KEY_EPISODES_META, JSONArray())
         if (isBlank(seriesId)) return response
         val resolvedCategoryId = categoryId ?: ""
-        val resolvedSeriesId = seriesId ?: return response
+        val resolvedSeriesId = seriesId.orEmpty()
         val cached = SeriesEpisodeDb.get().getEpisodes(account, resolvedCategoryId, resolvedSeriesId)
-        if (cached.isNotEmpty() && SeriesEpisodeDb.get().isFresh(account, resolvedCategoryId, resolvedSeriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        if (cached.isNotEmpty() && SeriesEpisodeDb.get().isFresh(account, resolvedCategoryId, resolvedSeriesId, configurationService.getCacheExpiryMs())) {
             response.put(KEY_EPISODES, JSONArray(com.uiptv.util.ServerUtils.objectToJson(cached)))
         }
         return response
@@ -76,7 +88,7 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
     private fun applyInitialImdbMetadata(seriesName: String?, response: JSONObject, seasonInfo: JSONObject): JSONObject {
         val resolvedSeriesName = seriesName ?: ""
         val fuzzyHints = buildFuzzyHints(resolvedSeriesName, seasonInfo, response.optJSONArray(KEY_EPISODES))
-        val imdbFirst = ImdbMetadataService.getInstance().findBestEffortDetails(resolvedSeriesName, "", fuzzyHints)
+        val imdbFirst = imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints)
         copyMetadata(seasonInfo, imdbFirst)
         imdbFirst.optJSONArray(KEY_EPISODES_META)?.let { response.put(KEY_EPISODES_META, it) }
         return imdbFirst
@@ -93,9 +105,9 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
         if (account.type != AccountType.XTREME_API || isBlank(seriesId)) {
             return
         }
-        val resolvedSeriesId = seriesId ?: return
+        val resolvedSeriesId = seriesId.orEmpty()
         val resolvedCategoryId = categoryId ?: ""
-        val details = XtremeApiParser.parseEpisodes(resolvedSeriesId, account) ?: return
+        val details = XtremeApiParser.parseEpisodes(resolvedSeriesId, account)
         mergeProviderSeasonInfo(seasonInfo, details.seasonInfo)
         val episodesJson = toEpisodesJson(details, indexEpisodesMeta(imdbFirst.optJSONArray(KEY_EPISODES_META)))
         response.put(KEY_EPISODES, episodesJson)
@@ -111,7 +123,7 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
 
     private fun toEpisodesJson(details: EpisodeList, episodesMeta: Map<String, JSONObject>): JSONArray {
         val episodesJson = JSONArray()
-        details.episodes?.forEach { episode ->
+        details.episodes.forEach { episode ->
             val channel = toEpisodeChannel(episode, episodesMeta)
             if (channel != null) {
                 episodesJson.put(JSONObject(channel.toJson()))
@@ -147,7 +159,7 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
     private fun applyFallbackImdbMetadata(seriesName: String?, response: JSONObject, seasonInfo: JSONObject) {
         val resolvedSeriesName = seriesName ?: ""
         val fuzzyHints = buildFuzzyHints(firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName), seasonInfo, response.optJSONArray(KEY_EPISODES))
-        val imdbFallback = ImdbMetadataService.getInstance().findBestEffortDetails(
+        val imdbFallback = imdbMetadataService.findBestEffortDetails(
             firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName),
             seasonInfo.optString("tmdb", ""),
             fuzzyHints
@@ -222,17 +234,17 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
     }
 
     private fun normalize(value: String?): String =
-        if (isBlank(value)) "" else value!!.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+        if (isBlank(value)) "" else value.orEmpty().lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
 
     private fun safeNumeric(value: String?): String {
         if (isBlank(value)) return ""
-        val normalized = value!!.replace(Regex("\\D"), "")
+        val normalized = value.orEmpty().replace(Regex("\\D"), "")
         return if (isBlank(normalized)) "" else normalized
     }
 
     private fun applyNameYearFallback(seasonInfo: JSONObject, rawSeriesName: String?) {
         if (isBlank(rawSeriesName)) return
-        val trimmed = rawSeriesName?.trim() ?: return
+        val trimmed = rawSeriesName.orEmpty().trim()
         val inferredName = trimmed.replace(Regex("\\s*\\((19|20)\\d{2}\\)\\s*$"), "").trim()
         var inferredYear = ""
         val matcher = Regex("\\((19|20)\\d{2}\\)\\s*$").find(trimmed)
@@ -278,7 +290,7 @@ class HttpSeriesDetailsJsonServer : HttpHandler {
 
     private fun addHint(hints: MutableList<String>, value: String?) {
         if (isBlank(value)) return
-        val cleaned = value!!
+        val cleaned = value.orEmpty()
             .replace(Regex("(?i)\\b(4k|8k|uhd|fhd|hd|sd|series|movie|complete)\\b"), " ")
             .replace(Regex("(?i)\\bs\\d{1,2}e\\d{1,3}\\b"), " ")
             .replace(Regex("[\\[\\]{}()]+"), " ")

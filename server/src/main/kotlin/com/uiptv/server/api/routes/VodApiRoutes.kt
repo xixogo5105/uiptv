@@ -104,6 +104,7 @@ fun Route.registerVodApiRoutes(
     }
 }
 
+@Suppress("USELESS_CAST")
 private fun buildVodDetailsResponse(
     account: Account?,
     categoryId: String?,
@@ -147,11 +148,11 @@ private fun buildVodDetailsResponse(
     }
 
     val queryTitle = if (StringUtils.isBlank(vodName)) vodInfo.optString("name", "") else vodName.orEmpty()
-    val imdb = imdbMetadataService.findBestEffortMovieDetails(
+    val imdb = (imdbMetadataService.findBestEffortMovieDetails(
         queryTitle,
         vodInfo.optString("tmdb", ""),
         buildVodFuzzyHints(queryTitle, providerChannel, vodInfo)
-    )
+    ) as? JSONObject) ?: JSONObject()
     mergeMissing(vodInfo, "name", imdb.optString("name", ""))
     mergeMissing(vodInfo, "cover", imdb.optString("cover", ""))
     mergeMissing(vodInfo, "plot", imdb.optString("plot", ""))

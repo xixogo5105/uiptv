@@ -13,7 +13,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.ByteArrayInputStream
 import java.net.URI
-import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.Objects
@@ -204,8 +203,7 @@ object HttpUtil {
             return URI.create(normalized)
         } catch (original: IllegalArgumentException) {
             try {
-                val parsed = URI(normalized.replace(" ", "%20")).toURL()
-                return URI(parsed.protocol, parsed.userInfo, parsed.host, parsed.port, parsed.path, parsed.query, parsed.ref)
+                return UiptUtils.parseUrlLikeUri(normalized)
             } catch (e: Exception) {
                 AppLog.addErrorLog(HttpUtil::class.java, "Failed to create URI from URL: $normalized. Error: ${e.message}")
                 throw original

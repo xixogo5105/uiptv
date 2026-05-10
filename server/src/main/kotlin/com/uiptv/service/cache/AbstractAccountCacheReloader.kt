@@ -15,8 +15,8 @@ import com.uiptv.util.AccountType
 import com.uiptv.util.M3U8Parser
 import com.uiptv.util.RssParser
 import com.uiptv.util.StringUtils
+import com.uiptv.util.UiptUtils
 import java.net.MalformedURLException
-import java.net.URL
 import java.util.Date
 import java.util.HashMap
 import java.util.LinkedHashMap
@@ -113,9 +113,6 @@ abstract class AbstractAccountCacheReloader : AccountCacheReloader {
         val canonicalByKey = LinkedHashMap<String, Category>()
         val canonicalCategoryIdByOriginalId = HashMap<String, String>()
         categories.forEach { category ->
-            if (category == null) {
-                return@forEach
-            }
             val categoryKey = categoryComparisonKey(category)
             val canonical = canonicalByKey.computeIfAbsent(categoryKey) { category }
             if (StringUtils.isNotBlank(category.categoryId) && StringUtils.isNotBlank(canonical.categoryId)) {
@@ -149,9 +146,7 @@ abstract class AbstractAccountCacheReloader : AccountCacheReloader {
 
     private fun addChannelsCaseInsensitive(uniqueChannels: MutableMap<String, Channel>, channels: List<Channel>?) {
         channels?.forEach { channel ->
-            if (channel != null) {
-                uniqueChannels.putIfAbsent(channelComparisonKey(channel), channel)
-            }
+            uniqueChannels.putIfAbsent(channelComparisonKey(channel), channel)
         }
     }
 
@@ -237,27 +232,27 @@ abstract class AbstractAccountCacheReloader : AccountCacheReloader {
 
     @Throws(MalformedURLException::class)
     protected fun loadM3uCategories(account: Account): Set<PlaylistEntry> {
-        val path = account.m3u8Path
+        val path = account.m3u8Path.orEmpty()
         if (StringUtils.isBlank(path)) {
             return LinkedHashSet()
         }
         return if (account.type == AccountType.M3U8_URL) {
-            M3U8Parser.parseUrlCategory(URL(path!!))
+            M3U8Parser.parseUrlCategory(UiptUtils.parseUrlLikeUri(path).toURL())
         } else {
-            M3U8Parser.parsePathCategory(path!!)
+            M3U8Parser.parsePathCategory(path)
         }
     }
 
     @Throws(MalformedURLException::class)
     protected fun loadM3uEntries(account: Account): List<PlaylistEntry> {
-        val path = account.m3u8Path
+        val path = account.m3u8Path.orEmpty()
         if (StringUtils.isBlank(path)) {
             return emptyList()
         }
         return if (account.type == AccountType.M3U8_URL) {
-            M3U8Parser.parseChannelUrlM3U8(URL(path!!))
+            M3U8Parser.parseChannelUrlM3U8(UiptUtils.parseUrlLikeUri(path).toURL())
         } else {
-            M3U8Parser.parseChannelPathM3U8(path!!)
+            M3U8Parser.parseChannelPathM3U8(path)
         }
     }
 

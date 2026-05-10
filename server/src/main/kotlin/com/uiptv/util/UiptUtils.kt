@@ -2,12 +2,23 @@ package com.uiptv.util
 
 import com.uiptv.service.AccountService
 import java.net.URI
-import java.net.URL
 import java.util.regex.Pattern
 
 object UiptUtils {
     private const val MAC_ADDRESS_REGEX = "^(?:([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}))$"
     const val SPACER = " "
+    private val ILLEGAL_URI_CHAR_REPLACEMENTS = mapOf(
+        " " to "%20",
+        "|" to "%7C",
+        "<" to "%3C",
+        ">" to "%3E",
+        "\"" to "%22",
+        "{" to "%7B",
+        "}" to "%7D",
+        "\\" to "%5C",
+        "^" to "%5E",
+        "`" to "%60"
+    )
 
     @JvmStatic
     fun replaceAllNonPrintableChars(line: String?): String? {
@@ -21,9 +32,8 @@ object UiptUtils {
     @JvmStatic
     fun isValidURL(urlString: String?): Boolean {
         return try {
-            val url = URL(urlString)
-            url.toURI()
-            true
+            val uri = parseUrlLikeUri(urlString)
+            !StringUtils.isBlank(uri.scheme) && !StringUtils.isBlank(uri.host)
         } catch (_: Exception) {
             false
         }
@@ -36,7 +46,7 @@ object UiptUtils {
     @JvmStatic
     fun getUniqueNameFromUrl(urlString: String?): String {
         return try {
-            val uri = URL(urlString).toURI()
+            val uri = parseUrlLikeUri(urlString)
             var index = 1
             var validName: String
             do {
@@ -51,7 +61,7 @@ object UiptUtils {
     @JvmStatic
     fun getNameFromUrl(urlString: String?): String {
         return try {
-            URL(urlString).toURI().host
+            parseUrlLikeUri(urlString).host
         } catch (_: Exception) {
             urlString.orEmpty()
         }
@@ -60,7 +70,7 @@ object UiptUtils {
     @JvmStatic
     fun isUrlValidXtremeLink(urlString: String?): Boolean {
         return try {
-            val queryString = URL(urlString).toURI().query
+            val queryString = parseUrlLikeUri(urlString).query
             !StringUtils.isBlank(queryString) &&
                 urlString!!.lowercase().contains("get.php?") &&
                 queryString.lowercase().contains("username") &&
@@ -82,7 +92,7 @@ object UiptUtils {
     @JvmStatic
     fun getUserNameFromUrl(urlString: String?): String {
         return try {
-            val queryString = URL(urlString).toURI().query
+            val queryString = parseUrlLikeUri(urlString).query
             getQueryMap(queryString)["username"].orEmpty()
         } catch (_: Exception) {
             urlString.orEmpty()
@@ -92,11 +102,30 @@ object UiptUtils {
     @JvmStatic
     fun getPasswordNameFromUrl(urlString: String?): String {
         return try {
-            val queryString = URL(urlString).toURI().query
+            val queryString = parseUrlLikeUri(urlString).query
             getQueryMap(queryString)["password"].orEmpty()
         } catch (_: Exception) {
             urlString.orEmpty()
         }
+    }
+
+    @JvmStatic
+    fun parseUrlLikeUri(urlString: String?): URI {
+        val normalized = urlString?.trim().orEmpty()
+        require(normalized.isNotEmpty()) { "urlString cannot be blank" }
+        return try {
+            URI(normalized)
+        } catch (_: Exception) {
+            URI(sanitizeIllegalUriChars(normalized))
+        }
+    }
+
+    private fun sanitizeIllegalUriChars(value: String): String {
+        var sanitized = value
+        ILLEGAL_URI_CHAR_REPLACEMENTS.forEach { (raw, escaped) ->
+            sanitized = sanitized.replace(raw, escaped)
+        }
+        return sanitized
     }
 
     private fun getQueryMap(query: String): Map<String, String> {

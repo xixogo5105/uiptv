@@ -30,6 +30,7 @@ public abstract class DbBackedTest {
     @AfterEach
     public void tearDownDatabase() {
         beforeDatabaseCleanup();
+        SQLConnection.close();
         if (testDbFile != null && testDbFile.exists()) {
             testDbFile.delete();
         }

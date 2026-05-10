@@ -37,7 +37,6 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
                 log(logger, "Found Categories ${categories.size}")
                 log(logger, "${categories.size} Categories & 0 Channels saved Successfully ✓")
             }
-            else -> {}
         }
     }
 
@@ -97,10 +96,10 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
     private fun fetchAllChannelsByCategoryLastResort(account: Account, categories: List<Category>, categoryNormalization: CategoryNormalization, logger: LoggerCallback?): List<Channel> {
         val uniqueChannels = LinkedHashMap<String, Channel>()
         categories.forEach { category ->
-            if (category == null || StringUtils.isBlank(category.categoryId)) return@forEach
+            if (StringUtils.isBlank(category.categoryId)) return@forEach
             val channelsForCategory = fetchStalkerCategoryChannelsLastResort(account, category.categoryId.orEmpty(), logger)
             channelsForCategory.forEach { channel ->
-                if (channel == null || StringUtils.isBlank(channel.channelId)) return@forEach
+                if (StringUtils.isBlank(channel.channelId)) return@forEach
                 val canonicalCategoryId = canonicalCategoryId(category.categoryId, categoryNormalization.canonicalCategoryIdByOriginalId()).orEmpty()
                 channel.categoryId = if (StringUtils.isBlank(channel.categoryId)) canonicalCategoryId else canonicalCategoryId(channel.categoryId, categoryNormalization.canonicalCategoryIdByOriginalId()).orEmpty()
                 uniqueChannels.putIfAbsent(normalizeCaseInsensitiveKey(channel.channelId), channel)
@@ -185,7 +184,7 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
     private fun dedupeChannels(aggregated: List<Channel>): List<Channel> {
         val uniqueChannels = LinkedHashMap<String, Channel>()
         aggregated.forEach { channel ->
-            if (channel != null && StringUtils.isNotBlank(channel.channelId)) {
+            if (StringUtils.isNotBlank(channel.channelId)) {
                 uniqueChannels.putIfAbsent(normalizeCaseInsensitiveKey(channel.channelId), channel)
             }
         }

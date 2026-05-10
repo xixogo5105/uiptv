@@ -5,7 +5,10 @@ import com.uiptv.service.ConfigurationService
 object EmbeddedPlayerWideViewUtil {
     @JvmStatic
     fun isWideViewEnabled(): Boolean {
-        val configuration = ConfigurationService.getInstance().read()
-        return configuration != null && configuration.embeddedPlayer && configuration.wideView
+        val configuration: com.uiptv.model.Configuration? = ConfigurationService.getInstance().read()
+        if (configuration == null) {
+            return false
+        }
+        return configuration.embeddedPlayer && configuration.wideView
     }
 }

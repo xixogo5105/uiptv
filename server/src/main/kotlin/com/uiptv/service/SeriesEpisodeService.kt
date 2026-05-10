@@ -145,9 +145,9 @@ object SeriesEpisodeService {
         if (account == null || isBlank(seriesId) || !hasEpisodes(episodes)) {
             return
         }
+        val episodeList = episodes ?: return
         val channels = ArrayList<Channel>()
-        episodes!!.episodes.forEach { episode ->
-            if (episode == null) return@forEach
+        episodeList.episodes.forEach { episode ->
             val channel = Channel()
             channel.channelId = episode.id
             channel.name = episode.title
@@ -175,9 +175,7 @@ object SeriesEpisodeService {
             return list
         }
         channels.forEach { channel ->
-            if (channel != null) {
-                list.episodes.add(toEpisode(channel))
-            }
+            list.episodes.add(toEpisode(channel))
         }
         return list
     }

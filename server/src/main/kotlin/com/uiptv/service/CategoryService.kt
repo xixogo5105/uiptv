@@ -175,9 +175,9 @@ object CategoryService {
     @Throws(MalformedURLException::class)
     private fun m3u8Categories(account: Account): List<Category> {
         val categories = LinkedHashSet<Category>()
-        val m3uEntries: Set<PlaylistEntry> =
+            val m3uEntries: Set<PlaylistEntry> =
             if (account.type == AccountType.M3U8_URL) {
-                com.uiptv.util.M3U8Parser.parseUrlCategory(URL(account.m3u8Path.orEmpty()))
+                com.uiptv.util.M3U8Parser.parseUrlCategory(com.uiptv.util.UiptUtils.parseUrlLikeUri(account.m3u8Path.orEmpty()).toURL())
             } else {
                 com.uiptv.util.M3U8Parser.parsePathCategory(account.m3u8Path.orEmpty())
             }

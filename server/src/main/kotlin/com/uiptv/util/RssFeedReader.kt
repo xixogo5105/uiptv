@@ -48,7 +48,7 @@ object RssFeedReader {
                 val feed: SyndFeed = input.build(xmlReader)
                 for (entry in feed.entries) {
                     var link = entry.link
-                    if (!entry.enclosures.isEmpty()) {
+                    if (entry.enclosures.isNotEmpty()) {
                         link = entry.enclosures[0].url
                     }
                     if (StringUtils.isBlank(link)) {
@@ -82,7 +82,7 @@ object RssFeedReader {
             return null
         }
         for ((key, values) in headers) {
-            if (key != null && key.equals(name, ignoreCase = true)) {
+            if (key.equals(name, ignoreCase = true)) {
                 if (values.isNullOrEmpty()) {
                     return null
                 }

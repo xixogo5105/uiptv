@@ -74,7 +74,7 @@ object SeriesWatchingNowSnapshotService {
             return
         }
         val episodesPayload = JSONArray()
-        episodeList!!.episodes.forEach { episode ->
+        episodeList.episodes.forEach { episode ->
             val channel = toChannel(episode)
             if (channel != null) {
                 episodesPayload.put(channel.toJson())
@@ -120,9 +120,7 @@ object SeriesWatchingNowSnapshotService {
         SeriesWatchingNowSnapshotDb.get().clear(normalizedAccountId, normalizedCategory, canonicalSeriesId)
         for (candidateId in buildSeriesIdCandidates(seriesId)) {
             for (candidate in SeriesWatchingNowSnapshotDb.get().getBySeries(normalizedAccountId, candidateId)) {
-                if (candidate != null) {
-                    SeriesWatchingNowSnapshotDb.get().clear(normalizedAccountId, normalize(candidate.categoryId), normalize(candidate.seriesId))
-                }
+                SeriesWatchingNowSnapshotDb.get().clear(normalizedAccountId, normalize(candidate.categoryId), normalize(candidate.seriesId))
             }
         }
     }
@@ -196,7 +194,7 @@ object SeriesWatchingNowSnapshotService {
     private fun newerSnapshot(current: SeriesWatchingNowSnapshot?, candidates: List<SeriesWatchingNowSnapshot>): SeriesWatchingNowSnapshot? {
         var latest = current
         candidates.forEach { candidate ->
-            if (candidate != null && (latest == null || candidate.updatedAt > latest!!.updatedAt)) {
+            if (latest == null || candidate.updatedAt > latest.updatedAt) {
                 latest = candidate
             }
         }
@@ -247,7 +245,7 @@ object SeriesWatchingNowSnapshotService {
         if (StringUtils.isBlank(raw) || !raw.contains(":")) {
             return raw
         }
-        val last = raw.split(":").asReversed().firstOrNull { StringUtils.isNotBlank(it?.trim()) }?.trim().orEmpty()
+        val last = raw.split(":").asReversed().firstOrNull { StringUtils.isNotBlank(it.trim()) }?.trim().orEmpty()
         return if (StringUtils.isBlank(last)) raw else last
     }
 

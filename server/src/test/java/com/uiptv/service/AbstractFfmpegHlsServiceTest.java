@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class AbstractFfmpegHlsServiceTest {
+class AbstractFfmpegHlsServiceTest extends DbBackedTest {
 
     @Test
     void privateCommandBuilders_coverLiveAndVodBranches() throws Exception {

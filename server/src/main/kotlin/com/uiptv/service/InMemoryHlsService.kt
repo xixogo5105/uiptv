@@ -82,7 +82,7 @@ object InMemoryHlsService {
                 }
             }
             if (oldestKey != null) {
-                removeNow(oldestKey!!)
+                removeNow(oldestKey)
                 AppLog.addWarningLog(InMemoryHlsService::class.java, "InMemoryHlsService: Evicted old segment $oldestKey to free memory.")
                 tsCount--
             } else {

@@ -65,7 +65,8 @@ object StringUtils {
     fun safeJson(`val`: String?): String {
         return try {
             if (!isBlank(`val`)) {
-                `val`!!.replace("\\p{C}".toRegex(), "").replace("\\", "\\\\").replace("\"", "\\\"")
+                val safeValue = `val` ?: return EMPTY
+                safeValue.replace("\\p{C}".toRegex(), "").replace("\\", "\\\\").replace("\"", "\\\"")
             } else {
                 EMPTY
             }
@@ -76,7 +77,7 @@ object StringUtils {
 
     @JvmStatic
     fun getXtremeStreamUrl(account: Account?, streamId: String?, extension: String?): String {
-        if (account == null || account.action == null) {
+        if (account == null) {
             return ""
         }
         return when (account.action) {

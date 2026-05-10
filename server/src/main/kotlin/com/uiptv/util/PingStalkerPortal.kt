@@ -32,8 +32,8 @@ object PingStalkerPortal {
     @JvmStatic
     fun ping(account: Account): String {
         val url = account.url.orEmpty()
-        val timezone = account.timezone ?: "Europe/London"
-        val httpMethod = account.httpMethod ?: "GET"
+        val timezone = account.timezone
+        val httpMethod = account.httpMethod
         AppLog.addInfoLog(PingStalkerPortal::class.java, "Attempting to download xpcom.common.js from portal base URL: $url")
         try {
             val pingUrl = if (!url.endsWith("/")) "$url/xpcom.common.js" else url + "xpcom.common.js"
@@ -352,19 +352,21 @@ object PingStalkerPortal {
     @JvmStatic
     private fun ensureAbsoluteUrl(url: String?): String {
         if (StringUtils.isBlank(url)) return "http://"
-        return if (url!!.contains("://")) {
-            if (url.endsWith("/")) url else "$url/"
+        val normalized = url.orEmpty()
+        return if (normalized.contains("://")) {
+            if (normalized.endsWith("/")) normalized else "$normalized/"
         } else {
-            "http://$url"
+            "http://$normalized"
         }
     }
 
     @JvmStatic
     private fun isValidUrl(url: String?): Boolean {
         if (StringUtils.isBlank(url)) return false
+        val normalized = url.orEmpty()
         return try {
-            URI.create(url)
-            url!!.contains("://")
+            URI.create(normalized)
+            normalized.contains("://")
         } catch (_: Exception) {
             false
         }

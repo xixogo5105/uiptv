@@ -1,6 +1,7 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
+import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Comprehensive test suite for M3U Playlist parsing and M3U to Xtreme conversion.
  * Tests various M3U URL formats with and without credentials.
  */
-class M3uParserTest {
+class M3uParserTest extends DbBackedTest {
 
     /**
      * Test parsing simple M3U playlist URLs (without credentials).
@@ -354,4 +355,3 @@ class M3uParserTest {
         return accounts;
     }
 }
-

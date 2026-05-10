@@ -24,7 +24,7 @@ object VodWatchStateService {
         }
         var latest: VodWatchState? = null
         for (candidate in VodWatchStateDb.get().getByVod(normalizedAccountId, canonicalVodId)) {
-            if (candidate != null && (latest == null || candidate.updatedAt > latest!!.updatedAt)) {
+            if (latest == null || candidate.updatedAt > latest.updatedAt) {
                 latest = candidate
             }
         }
@@ -66,14 +66,10 @@ object VodWatchStateService {
         notifyListeners("", "")
     }
     fun addChangeListener(listener: VodWatchStateChangeListener?) {
-        if (listener != null) {
-            listeners.add(listener)
-        }
+        listener?.let(listeners::add)
     }
     fun removeChangeListener(listener: VodWatchStateChangeListener?) {
-        if (listener != null) {
-            listeners.remove(listener)
-        }
+        listener?.let(listeners::remove)
     }
 
     private fun notifyListeners(accountId: String, vodId: String) {
@@ -87,7 +83,7 @@ object VodWatchStateService {
         if (StringUtils.isBlank(raw) || !raw.contains(":")) {
             return raw
         }
-        val last = raw.split(":").asReversed().firstOrNull { StringUtils.isNotBlank(it?.trim()) }?.trim().orEmpty()
+        val last = raw.split(":").asReversed().firstOrNull { StringUtils.isNotBlank(it.trim()) }?.trim().orEmpty()
         return if (StringUtils.isBlank(last)) raw else last
     }
 }

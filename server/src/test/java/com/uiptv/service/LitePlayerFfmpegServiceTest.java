@@ -6,7 +6,7 @@ import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.COPY;
 import static com.uiptv.service.LitePlayerFfmpegService.PlaybackStrategy.DIRECT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class LitePlayerFfmpegServiceTest {
+class LitePlayerFfmpegServiceTest extends DbBackedTest {
 
     @Test
     void chooseStrategy_prefersCopyForTransportStreams() {

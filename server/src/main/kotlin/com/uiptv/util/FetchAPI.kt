@@ -20,7 +20,7 @@ object FetchAPI {
                 throw IllegalArgumentException("Target host is not specified")
             }
             val payload = if (params.isEmpty()) "" else mapToString(params)
-            val httpMethod = account.httpMethod ?: "GET"
+            val httpMethod = account.httpMethod
             val isPost = httpMethod.equals("POST", ignoreCase = true)
 
             var requestUrl = baseUrl
@@ -52,7 +52,7 @@ object FetchAPI {
         if (StringUtils.isBlank(value)) {
             return ""
         }
-        var candidate = value!!.trim()
+        var candidate = value.orEmpty().trim()
         if (!candidate.contains("://")) {
             candidate = "http://$candidate"
         }
@@ -80,7 +80,7 @@ object FetchAPI {
         headers["Accept"] = "*/*"
         headers["Pragma"] = "no-cache"
         if (account.isConnected()) headers["Authorization"] = "Bearer ${account.token}"
-        val timezone = account.timezone ?: "Europe/London"
+        val timezone = account.timezone
         headers["Cookie"] = "mac=${account.macAddress}; stb_lang=en; timezone=$timezone;"
         if (isPost) {
             headers["Content-Type"] = "application/x-www-form-urlencoded"

@@ -229,6 +229,17 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <user.home>${java.io.tmpdir}</user.home>
+                        <uiptv.db.pool.maxSize>2</uiptv.db.pool.maxSize>
+                        <uiptv.db.pool.minIdle>0</uiptv.db.pool.minIdle>
+                        <uiptv.ffprobe.timeout.ms>200</uiptv.ffprobe.timeout.ms>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

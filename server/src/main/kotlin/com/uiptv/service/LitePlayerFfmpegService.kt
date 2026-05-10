@@ -234,12 +234,15 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
             ProcessBuilder("ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", sourceUrl)
 
         private fun awaitSuccessfulProbe(process: Process): Boolean {
-            if (!process.waitFor(4, TimeUnit.SECONDS)) {
+            if (!process.waitFor(probeTimeoutMillis(), TimeUnit.MILLISECONDS)) {
                 process.destroyForcibly()
                 return false
             }
             return process.exitValue() == 0
         }
+
+        private fun probeTimeoutMillis(): Long =
+            java.lang.Long.getLong("uiptv.ffprobe.timeout.ms", 4_000L)
 
         @JvmStatic
         private fun toProbeResult(root: JSONObject): ProbeResult {

@@ -18,7 +18,7 @@ import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 import java.io.BufferedReader
 import java.io.IOException
-import java.net.URL
+import java.net.URI
 import java.nio.file.Path
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -101,12 +101,12 @@ object M3U8PublicationService {
         if (isBookmarksPlaylistAccountId(accountId)) {
             return PlaylistAccount(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME, emptyList())
         }
-        val account = accountServiceProvider().getById(accountId)
+        val account = accountServiceProvider().getById(accountId) ?: return null
         if (!isPublishableAccount(account)) return null
         return try {
-            toPlaylistAccount(account!!, parsePlaylistEntries(account))
+            toPlaylistAccount(account, parsePlaylistEntries(account))
         } catch (e: IOException) {
-            AppLog.addErrorLog(M3U8PublicationService::class.java, "Failed to load playlist for account '${account!!.accountName}'")
+            AppLog.addErrorLog(M3U8PublicationService::class.java, "Failed to load playlist for account '${account.accountName}'")
             AppLog.addErrorLog(M3U8PublicationService::class.java, e.message)
             null
         }
@@ -202,13 +202,9 @@ object M3U8PublicationService {
         val bookmarks = bookmarkService.read()
         val categoryNameById = bookmarkService.getAllCategories()
             .mapNotNull { category ->
-                val categoryId = category?.id
-                val categoryName = category?.name
-                if (isNotBlank(categoryId) && isNotBlank(categoryName)) {
-                    categoryId!! to categoryName!!
-                } else {
-                    null
-                }
+                val categoryId = category.id?.takeIf(::isNotBlank)
+                val categoryName = category.name?.takeIf(::isNotBlank)
+                if (categoryId != null && categoryName != null) categoryId to categoryName else null
             }
             .toMap(LinkedHashMap())
 
@@ -300,7 +296,7 @@ object M3U8PublicationService {
         if (!line.startsWith(EXTINF)) return line
         if (categoryMode == PublishedCategoryMode.ORIGINAL_CATEGORY) {
             if (splitFromMultiCategory && isNotBlank(fallbackCategoryName)) {
-                return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, fallbackCategoryName!!.trim())
+                return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, fallbackCategoryName.orEmpty().trim())
             }
             return line
         }
@@ -330,8 +326,8 @@ object M3U8PublicationService {
     }
 
     private fun normalizePublishedCategory(categoryName: String?, fallbackCategoryName: String?): String {
-        if (!isBlank(categoryName)) return categoryName!!.trim()
-        if (!isBlank(fallbackCategoryName)) return fallbackCategoryName!!.trim()
+        if (!isBlank(categoryName)) return categoryName.orEmpty().trim()
+        if (!isBlank(fallbackCategoryName)) return fallbackCategoryName.orEmpty().trim()
         return CategoryType.UNCATEGORIZED.displayName()
     }
 
@@ -386,7 +382,7 @@ object M3U8PublicationService {
     }
 
     private fun normalizeCategoryKey(categoryName: String?): String =
-        if (isBlank(categoryName)) "" else categoryName!!.trim().lowercase(Locale.ROOT)
+        if (isBlank(categoryName)) "" else categoryName.orEmpty().trim().lowercase(Locale.ROOT)
 
     private fun toCategorySelections(selections: Map<CategorySelectionKey, Boolean>): List<PublishedM3uCategorySelection> {
         return selections.map { (key, value) ->
@@ -461,7 +457,7 @@ object M3U8PublicationService {
     }
 
     private fun normalizeCategoryName(categoryName: String?): String =
-        if (isBlank(categoryName)) CategoryType.UNCATEGORIZED.displayName() else categoryName!!.trim()
+        if (isBlank(categoryName)) CategoryType.UNCATEGORIZED.displayName() else categoryName.orEmpty().trim()
 
     private fun parseEffectiveCategoryNames(categoryName: String?): List<String> {
         val parsed = splitGroupTitles(categoryName)
@@ -509,7 +505,7 @@ object M3U8PublicationService {
 
     @Throws(IOException::class)
     private fun readUrl(urlString: String): String {
-        val url = URL(urlString)
+        val url = URI(urlString).toURL()
         return url.openStream().bufferedReader(StandardCharsets.UTF_8).use(BufferedReader::readText)
     }
 
@@ -616,7 +612,7 @@ object M3U8PublicationService {
         companion object {
             fun fromPersistedValue(raw: String?): PublishedCategoryMode {
                 if (isBlank(raw)) return SOURCE_DASH_CATEGORY
-                return entries.firstOrNull { it.persistedValue.equals(raw!!.trim(), true) } ?: SOURCE_DASH_CATEGORY
+                return entries.firstOrNull { it.persistedValue.equals(raw.orEmpty().trim(), true) } ?: SOURCE_DASH_CATEGORY
             }
         }
     }

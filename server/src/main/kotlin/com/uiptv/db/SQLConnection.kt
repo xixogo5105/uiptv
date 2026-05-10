@@ -45,7 +45,7 @@ object SqlConnectionRuntime {
     @Synchronized
     fun init() {
         try {
-            FileUtils.touch(File(dbPath))
+            ensureDatabasePathReady()
             rebuildDataSource()
             for (attempt in 1..INIT_RETRY_ATTEMPTS) {
                 try {
@@ -68,6 +68,7 @@ object SqlConnectionRuntime {
     @JvmStatic
     @Synchronized
     fun setDatabasePath(path: String) {
+        close()
         dbPath = path
         init()
     }
@@ -91,11 +92,20 @@ object SqlConnectionRuntime {
 
     @JvmStatic
     @Synchronized
+    fun close() {
+        exposedDatabase = null
+        hikariDataSource?.close()
+        hikariDataSource = null
+    }
+
+    @JvmStatic
+    @Synchronized
     fun dataSource(): HikariDataSource {
         val existing = hikariDataSource
         if (existing != null && !existing.isClosed) {
             return existing
         }
+        ensureDatabasePathReadyUnchecked()
         rebuildDataSource()
         return hikariDataSource ?: throw IllegalStateException("Data source not initialized")
     }
@@ -252,12 +262,13 @@ object SqlConnectionRuntime {
 
     @Synchronized
     private fun rebuildDataSource() {
+        ensureDatabasePathReadyUnchecked()
         hikariDataSource?.close()
         hikariDataSource = HikariDataSource(HikariConfig().apply {
             jdbcUrl = jdbcUrl()
             driverClassName = "org.sqlite.JDBC"
             maximumPoolSize = Integer.getInteger("uiptv.db.pool.maxSize", 8)
-            minimumIdle = Integer.getInteger("uiptv.db.pool.minIdle", 1)
+            minimumIdle = Integer.getInteger("uiptv.db.pool.minIdle", 0)
             connectionTimeout = Integer.getInteger("uiptv.db.pool.connectionTimeoutMs", 10_000).toLong()
             idleTimeout = Integer.getInteger("uiptv.db.pool.idleTimeoutMs", 60_000).toLong()
             maxLifetime = Integer.getInteger("uiptv.db.pool.maxLifetimeMs", 300_000).toLong()
@@ -267,6 +278,25 @@ object SqlConnectionRuntime {
             connectionTestQuery = "SELECT 1"
             dataSourceProperties.putAll(sqliteProperties())
         })
+    }
+
+    @Throws(IOException::class)
+    private fun ensureDatabasePathReady() {
+        val databaseFile = File(dbPath)
+        databaseFile.parentFile?.let { parent ->
+            if (!parent.exists() && !parent.mkdirs()) {
+                throw IOException("Unable to create database directory: ${parent.absolutePath}")
+            }
+        }
+        FileUtils.touch(databaseFile)
+    }
+
+    private fun ensureDatabasePathReadyUnchecked() {
+        try {
+            ensureDatabasePathReady()
+        } catch (e: IOException) {
+            throw DatabaseAccessException("Unable to create database file", e)
+        }
     }
 
     private fun jdbcUrl(): String = "jdbc:sqlite:$dbPath"
@@ -381,6 +411,12 @@ class SQLConnection private constructor() {
 
         @JvmStatic
         fun database(): Database = SqlConnectionRuntime.database()
+
+        @JvmStatic
+        @Synchronized
+        fun close() {
+            SqlConnectionRuntime.close()
+        }
 
         @Suppress("unused")
         @JvmStatic

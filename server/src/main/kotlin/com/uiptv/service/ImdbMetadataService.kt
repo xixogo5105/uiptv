@@ -1051,7 +1051,7 @@ object ImdbMetadataService {
 
     private fun resolveConfiguredTmdbBearerToken(): String =
         try {
-            val configuration = ConfigurationService.getInstance().read() ?: return ""
+            val configuration = ConfigurationService.getInstance().read()
             configuration.tmdbReadAccessToken?.trim().orEmpty()
         } catch (_: Exception) {
             ""

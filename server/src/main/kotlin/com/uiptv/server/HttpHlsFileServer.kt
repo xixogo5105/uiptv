@@ -58,7 +58,7 @@ class HttpHlsFileServer : HttpHandler {
             }
             data = InMemoryHlsService.getInstance().get(fileName)
             if (data != null) {
-                return data!!
+                return data
             }
         }
         return EMPTY_CONTENT

@@ -45,7 +45,7 @@ object PlayerService {
     fun get(account: Account, channel: Channel, series: String?, parentSeriesId: String?, categoryId: String?): PlayerResponse {
         val service = getPlayerService(account)
         val response = service.get(account, channel, series.orEmpty(), parentSeriesId.orEmpty(), categoryId.orEmpty())
-        if (response != null && response.url != null) {
+        if (response.url != null) {
             val originalUrl = response.url
             val sanitizedUrl = sanitizeAndEncodeUrl(originalUrl)
             if (originalUrl != sanitizedUrl) {

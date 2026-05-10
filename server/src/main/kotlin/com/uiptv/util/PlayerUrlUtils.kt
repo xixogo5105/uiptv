@@ -103,7 +103,7 @@ object PlayerUrlUtils {
         if (StringUtils.isBlank(normalized)) {
             return false
         }
-        val lower = normalized!!.trim().lowercase(Locale.ROOT)
+        val lower = normalized.trim().lowercase(Locale.ROOT)
         if (lower.contains("/play/movie.php")) {
             return lower.contains("type=movie") || lower.contains("type=series")
         }

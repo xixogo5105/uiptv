@@ -6,6 +6,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.server.TestHttpExchange;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.DbBackedTest;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.util.AccountType;
@@ -16,7 +17,7 @@ import org.mockito.Mockito;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class HttpM3u8PlayListServerTest {
+class HttpM3u8PlayListServerTest extends DbBackedTest {
 
     @Test
     void handle_buildsPlaylistAndRestoresCommand() throws Exception {

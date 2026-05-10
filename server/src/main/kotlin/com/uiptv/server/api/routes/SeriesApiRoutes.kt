@@ -220,6 +220,7 @@ private fun createSeriesDetailsBaseResponse(
     return response
 }
 
+@Suppress("USELESS_CAST")
 private fun applyInitialSeriesImdbMetadata(
     seriesName: String?,
     response: JSONObject,
@@ -228,7 +229,7 @@ private fun applyInitialSeriesImdbMetadata(
 ): JSONObject {
     val resolvedSeriesName = seriesName ?: ""
     val fuzzyHints = buildSeriesFuzzyHints(resolvedSeriesName, seasonInfo, response.optJSONArray("episodes"))
-    val imdbFirst = imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints) ?: JSONObject()
+    val imdbFirst = (imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints) as? JSONObject) ?: JSONObject()
     copySeriesMetadata(seasonInfo, imdbFirst)
     imdbFirst.optJSONArray("episodesMeta")?.let { response.put("episodesMeta", it) }
     return imdbFirst
@@ -245,7 +246,7 @@ private fun applyProviderSeriesDetails(
     if (account.type != AccountType.XTREME_API || StringUtils.isBlank(seriesId)) {
         return
     }
-    val resolvedSeriesId = seriesId ?: return
+    val resolvedSeriesId = seriesId.orEmpty()
     val resolvedCategoryId = categoryId.orEmpty()
     val details = XtremeApiParser.parseEpisodes(resolvedSeriesId, account)
     mergeProviderSeasonInfo(seasonInfo, details.seasonInfo)
@@ -300,6 +301,7 @@ private fun toSeriesDetailsEpisodeChannel(episode: Episode?, episodesMeta: Map<S
     return channel
 }
 
+@Suppress("USELESS_CAST")
 private fun applyFallbackSeriesImdbMetadata(
     seriesName: String?,
     response: JSONObject,
@@ -308,11 +310,11 @@ private fun applyFallbackSeriesImdbMetadata(
 ) {
     val resolvedSeriesName = seriesName ?: ""
     val fuzzyHints = buildSeriesFuzzyHints(firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName), seasonInfo, response.optJSONArray("episodes"))
-    val imdbFallback = imdbMetadataService.findBestEffortDetails(
+    val imdbFallback = (imdbMetadataService.findBestEffortDetails(
         firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName),
         seasonInfo.optString("tmdb", ""),
         fuzzyHints
-    )
+    ) as? JSONObject) ?: JSONObject()
     mergeSeriesMetadata(seasonInfo, imdbFallback)
     if ((response.optJSONArray("episodesMeta") == null || response.optJSONArray("episodesMeta").isEmpty) &&
         imdbFallback.optJSONArray("episodesMeta") != null) {
@@ -325,7 +327,8 @@ private fun copySeriesMetadata(target: JSONObject, source: JSONObject) {
         .forEach { copySeriesMetadataField(target, source, it) }
 }
 
-private fun mergeSeriesMetadata(target: JSONObject, source: JSONObject) {
+private fun mergeSeriesMetadata(target: JSONObject, source: JSONObject?) {
+    if (source == null) return
     listOf("name", "cover", "plot", "cast", "director", "genre", "releaseDate", "rating", "tmdb", "imdbUrl")
         .forEach { mergeSeriesMetadataField(target, source, it) }
 }

@@ -71,7 +71,7 @@ class HttpWatchingNowVodJsonServer : HttpHandler {
         constructor(account: Account, state: VodWatchState, playItem: Channel?, metadata: VodMetadata) : this(
             safeStatic(account.dbId),
             safeStatic(account.accountName),
-            safeStatic(account.type?.name ?: ""),
+            safeStatic(account.type.name),
             safeStatic(state.categoryId),
             safeStatic(state.vodId),
             safeStatic(metadata.title),

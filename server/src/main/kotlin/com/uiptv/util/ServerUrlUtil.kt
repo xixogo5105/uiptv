@@ -13,7 +13,7 @@ object ServerUrlUtil {
         try {
             val service = ConfigurationService.getInstance()
             val config = service.read()
-            val configured = config?.serverPort
+            val configured = config.serverPort
             if (!configured.isNullOrBlank()) {
                 port = configured.trim()
             }

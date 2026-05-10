@@ -44,7 +44,7 @@ object AppLog {
             try {
                 listener.accept(safeLog)
             } catch (e: Exception) {
-                LoggerFactory.getLogger(AppLog::class.java).error("Log listener failed", e)
+                LoggerFactory.getLogger(AppLog::class.java).error("Log listener failed: {}", e.toString())
             }
         }
     }

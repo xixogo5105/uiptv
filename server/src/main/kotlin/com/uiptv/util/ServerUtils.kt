@@ -36,7 +36,7 @@ object ServerUtils {
     }
 
     @JvmStatic
-    fun objectToJson(readCase: List<out JsonCompliant?>?): String {
+    fun objectToJson(readCase: List<JsonCompliant?>?): String {
         if (!readCase.isNullOrEmpty()) {
             val jsonArrayString = StringBuilder("[")
             readCase.filterNotNull().forEach { channel -> jsonArrayString.append(channel.toJson()).append(",") }

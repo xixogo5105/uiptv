@@ -96,7 +96,7 @@ private fun resolveSeriesEpisodesResponse(
         return cachedResponse
     }
     val episodes = fetchAndCacheSeriesEpisodes(account, categoryId, requestedMovieId, channelService)
-    val response = ServerUtils.objectToJson(episodes).toString()
+    val response = ServerUtils.objectToJson(episodes)
     return enrichSeriesEpisodesWatched(account, categoryApiId, requestedMovieId, response, seriesWatchStateService)
 }
 
@@ -114,7 +114,7 @@ private fun readFreshSeriesEpisodes(
     if (cached.isEmpty()) {
         return null
     }
-    val cachedJson = ServerUtils.objectToJson(cached).toString()
+    val cachedJson = ServerUtils.objectToJson(cached)
     return enrichSeriesEpisodesWatched(account, categoryApiId, movieId, cachedJson, seriesWatchStateService)
 }
 

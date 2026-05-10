@@ -29,8 +29,9 @@ class HttpIconServer : HttpHandler {
             ex.sendResponseHeaders(404, -1)
             return
         }
+        val body = bytes
         ex.responseHeaders.add("Content-Type", "image/x-icon")
-        ex.sendResponseHeaders(200, bytes!!.size.toLong())
-        ex.responseBody.use { os -> os.write(bytes) }
+        ex.sendResponseHeaders(200, body.size.toLong())
+        ex.responseBody.use { os -> os.write(body) }
     }
 }

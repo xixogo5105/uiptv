@@ -40,7 +40,7 @@ object SeriesWatchStateService {
         }
         var latest: SeriesWatchState? = null
         for (candidate in SeriesWatchStateDb.get().getBySeries(accountId.orEmpty(), canonicalSeriesId)) {
-            if (candidate != null && (latest == null || candidate.updatedAt > latest!!.updatedAt)) {
+            if (latest == null || candidate.updatedAt > latest.updatedAt) {
                 latest = candidate
             }
         }
@@ -67,7 +67,7 @@ object SeriesWatchStateService {
                 SeriesWatchStateDb.get().getByAccount(accountId.orEmpty(), normalizeCategoryId(accountId.orEmpty(), categoryId))
             }
         states.forEach { state ->
-            if (state != null && StringUtils.isNotBlank(state.seriesId)) {
+            if (StringUtils.isNotBlank(state.seriesId)) {
                 result[state.seriesId.orEmpty()] = state
             }
         }
@@ -158,10 +158,10 @@ object SeriesWatchStateService {
         }
     }
     fun addChangeListener(listener: SeriesWatchStateChangeListener?) {
-        if (listener != null) listeners.add(listener)
+        listener?.let(listeners::add)
     }
     fun removeChangeListener(listener: SeriesWatchStateChangeListener?) {
-        if (listener != null) listeners.remove(listener)
+        listener?.let(listeners::remove)
     }
 
     private fun upsertState(accountId: String, categoryId: String, seriesId: String, episodeId: String, episodeName: String?, season: String?, episodeNum: Int, source: String) {
@@ -255,7 +255,7 @@ object SeriesWatchStateService {
         if (StringUtils.isBlank(accountId) || StringUtils.isBlank(categoryId)) return null
         val target = safe(categoryId)
         for (category in SeriesCategoryDb.get().getAll(" WHERE accountId=?", arrayOf(accountId))) {
-            if (category != null && (target == safe(category.categoryId) || target == safe(category.dbId))) {
+            if (target == safe(category.categoryId) || target == safe(category.dbId)) {
                 return category
             }
         }
@@ -271,7 +271,7 @@ object SeriesWatchStateService {
         val categoryKeys = buildCategoryKeys(portalCategoryId, matchedCategory)
         for (key in categoryKeys) {
             for (channel in SeriesChannelDb.get().getChannels(account, key)) {
-                if (channel != null && candidateIds.contains(safe(channel.channelId))) return channel
+                if (candidateIds.contains(safe(channel.channelId))) return channel
             }
         }
         return null
@@ -285,7 +285,7 @@ object SeriesWatchStateService {
         for (key in categoryKeys) {
             for (candidate in seriesIdCandidates) {
                 for (channel in SeriesEpisodeDb.get().getEpisodes(account, key, candidate)) {
-                    if (channel != null && safe(episodeId) == safe(channel.channelId)) return channel
+                    if (safe(episodeId) == safe(channel.channelId)) return channel
                 }
             }
         }
@@ -322,7 +322,7 @@ object SeriesWatchStateService {
 
     private fun buildCategoryKeys(portalCategoryId: String?, matchedCategory: Category?): List<String> {
         val categoryKeys = ArrayList<String>()
-        if (StringUtils.isNotBlank(portalCategoryId)) categoryKeys.add(portalCategoryId!!.trim())
+        if (StringUtils.isNotBlank(portalCategoryId)) categoryKeys.add(portalCategoryId.orEmpty().trim())
         if (matchedCategory != null && StringUtils.isNotBlank(matchedCategory.dbId)) categoryKeys.add(matchedCategory.dbId.orEmpty())
         return categoryKeys
     }
@@ -340,7 +340,7 @@ object SeriesWatchStateService {
     }
     fun isMatchingEpisode(watchedState: SeriesWatchState?, episodeId: String?, season: String?, episodeNum: String?, episodeName: String?): Boolean {
         if (watchedState == null || StringUtils.isBlank(watchedState.episodeId) || StringUtils.isBlank(episodeId)) return false
-        if (watchedState.episodeId.orEmpty().trim() != episodeId!!.trim()) return false
+        if (watchedState.episodeId.orEmpty().trim() != episodeId.orEmpty().trim()) return false
         val watchedSeason = stripToDigits(watchedState.season)
         val candidateSeason = stripToDigits(normalizeSeason(season, episodeName))
         if (StringUtils.isNotBlank(watchedSeason) && (StringUtils.isBlank(candidateSeason) || watchedSeason != candidateSeason)) return false
@@ -349,17 +349,15 @@ object SeriesWatchStateService {
         return StringUtils.isBlank(watchedEpisodeNum) || (StringUtils.isNotBlank(candidateEpisodeNum) && watchedEpisodeNum == candidateEpisodeNum)
     }
 
-    private fun normalizeCategoryId(categoryId: String?): String = if (StringUtils.isBlank(categoryId)) "" else categoryId!!.trim()
+    private fun normalizeCategoryId(categoryId: String?): String = if (StringUtils.isBlank(categoryId)) "" else categoryId.orEmpty().trim()
 
     private fun normalizeCategoryId(accountId: String, categoryId: String?): String {
         val normalized = normalizeCategoryId(categoryId)
         if (StringUtils.isBlank(accountId) || StringUtils.isBlank(normalized)) return normalized
         for (category in SeriesCategoryDb.get().getAll(" WHERE accountId=?", arrayOf(accountId))) {
-            if (category != null) {
-                val dbId = safe(category.dbId)
-                val apiId = safe(category.categoryId)
-                if (normalized == dbId || normalized == apiId) return if (StringUtils.isBlank(apiId)) normalized else apiId
-            }
+            val dbId = safe(category.dbId)
+            val apiId = safe(category.categoryId)
+            if (normalized == dbId || normalized == apiId) return if (StringUtils.isBlank(apiId)) normalized else apiId
         }
         return normalized
     }
@@ -419,13 +417,13 @@ object SeriesWatchStateService {
 
     private fun stripToDigits(value: String?): String {
         if (StringUtils.isBlank(value)) return ""
-        val parsed = value!!.replace(Regex("\\D"), "")
+        val parsed = value.orEmpty().replace(Regex("\\D"), "")
         return if (StringUtils.isBlank(parsed)) "" else parsed
     }
 
     private fun firstNonBlank(vararg values: String?): String {
         values.forEach { value ->
-            if (StringUtils.isNotBlank(value)) return value!!.trim()
+            if (StringUtils.isNotBlank(value)) return value.orEmpty().trim()
         }
         return ""
     }

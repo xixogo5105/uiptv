@@ -5,7 +5,6 @@ import com.sun.net.httpserver.HttpHandler
 import com.uiptv.util.HttpUtil
 import com.uiptv.util.ServerUtils.getParam
 import com.uiptv.util.StringUtils.isBlank
-import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -108,7 +107,7 @@ class HttpProxyStreamServer : HttpHandler {
 
     private fun collectCookies(responseHeaders: Map<String, List<String>>?, cookies: MutableList<String>) {
         if (responseHeaders == null) return
-        val setCookie = responseHeaders.entries.firstOrNull { it.key != null && HEADER_SET_COOKIE.equals(it.key, true) }?.value ?: return
+        val setCookie = responseHeaders.entries.firstOrNull { HEADER_SET_COOKIE.equals(it.key, true) }?.value ?: return
         setCookie.forEach { row ->
             if (isBlank(row)) return@forEach
             val pair = row.split(";", limit = 2)[0].trim()
@@ -122,7 +121,7 @@ class HttpProxyStreamServer : HttpHandler {
 
     private fun firstHeader(headers: Map<String, List<String>>?, name: String): String {
         if (headers == null || isBlank(name)) return ""
-        headers.entries.firstOrNull { it.key != null && it.key.equals(name, true) }?.value?.firstOrNull()?.let {
+        headers.entries.firstOrNull { it.key.equals(name, true) }?.value?.firstOrNull()?.let {
             if (!isBlank(it)) return it
         }
         return ""
@@ -168,19 +167,21 @@ class HttpProxyStreamServer : HttpHandler {
     private fun resolveUpstreamOriginHeader(currentUrl: String, forwardedOrigin: String?): String {
         val sourceOrigin = originOf(currentUrl)
         if (isBlank(sourceOrigin)) return ""
-        if (isBlank(forwardedOrigin) || isLocalOrigin(forwardedOrigin ?: "") || !sameOrigin(sourceOrigin, forwardedOrigin ?: "")) {
+        val origin = forwardedOrigin ?: return if (shouldForcePortalHeaders(currentUrl)) sourceOrigin else ""
+        if (isLocalOrigin(origin) || !sameOrigin(sourceOrigin, origin)) {
             return if (shouldForcePortalHeaders(currentUrl)) sourceOrigin else ""
         }
-        return forwardedOrigin!!
+        return origin
     }
 
     private fun resolveUpstreamRefererHeader(currentUrl: String, forwardedReferer: String?): String {
         val sourceOrigin = originOf(currentUrl)
         if (isBlank(sourceOrigin)) return ""
-        if (isBlank(forwardedReferer) || isLocalOrigin(forwardedReferer ?: "") || !sameOrigin(sourceOrigin, forwardedReferer ?: "")) {
+        val referer = forwardedReferer ?: return if (shouldForcePortalHeaders(currentUrl)) "$sourceOrigin/" else ""
+        if (isLocalOrigin(referer) || !sameOrigin(sourceOrigin, referer)) {
             return if (shouldForcePortalHeaders(currentUrl)) "$sourceOrigin/" else ""
         }
-        return forwardedReferer!!
+        return referer
     }
 
     private fun shouldForcePortalHeaders(currentUrl: String): Boolean {
@@ -255,7 +256,7 @@ class HttpProxyStreamServer : HttpHandler {
     }
 
     private fun resolvedBodyStream(upstream: HttpUtil.StreamResult): InputStream =
-        upstream.bodyStream ?: ByteArrayInputStream(ByteArray(0))
+        upstream.bodyStream
 
     private fun writeResponseHeaders(ex: HttpExchange, upstreamHeaders: Map<String, List<String>>) {
         val contentType = firstHeader(upstreamHeaders, HEADER_CONTENT_TYPE)

@@ -34,7 +34,7 @@ class HttpWatchingNowJsonServer : HttpHandler {
             rows += PanelRow(
                 safe(account.dbId),
                 safe(account.accountName),
-                safe(account.type?.name ?: ""),
+                safe(account.type.name),
                 safe(state.categoryId),
                 safe(row.categoryDbId),
                 safe(state.seriesId),

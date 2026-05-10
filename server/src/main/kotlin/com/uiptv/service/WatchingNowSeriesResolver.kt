@@ -26,7 +26,7 @@ class WatchingNowSeriesResolver {
     private fun dedupeSeriesStates(accountId: String): Map<String, SeriesWatchState> {
         val deduped = LinkedHashMap<String, SeriesWatchState>()
         SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountId).forEach { state ->
-            if (state == null || isBlank(state.seriesId)) {
+            if (isBlank(state.seriesId)) {
                 return@forEach
             }
             val key = normalizeSeriesIdentity(state.seriesId)
@@ -132,7 +132,7 @@ class WatchingNowSeriesResolver {
                 return@forEach
             }
             channels.forEach { channel ->
-                if (channel != null && target == safe(channel.channelId)) {
+                if (target == safe(channel.channelId)) {
                     return channel
                 }
             }
