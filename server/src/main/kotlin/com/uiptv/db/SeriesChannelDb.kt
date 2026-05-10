@@ -59,11 +59,11 @@ class SeriesChannelDb private constructor() : ExposedCrudRepository<String, Chan
             .map(ResultRow::toSeriesChannel)
     }
 
-    fun getChannelsBySeriesIds(account: Account?, seriesIds: List<String>?): List<Channel> {
+    fun getChannelsBySeriesIds(account: Account?, seriesIds: List<String?>?): List<Channel> {
         if (account == null || seriesIds.isNullOrEmpty()) {
             return emptyList()
         }
-        val filtered = seriesIds.filter { it.isNotBlank() }.distinct()
+        val filtered = seriesIds.filterNotNull().filter(String::isNotBlank).distinct()
         if (filtered.isEmpty()) {
             return emptyList()
         }

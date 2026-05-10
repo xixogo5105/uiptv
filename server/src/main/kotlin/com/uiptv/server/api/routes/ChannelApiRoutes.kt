@@ -61,7 +61,7 @@ private fun resolveChannelsResponse(
         return readAllCategoryChannels(account, channelService)
     }
     val category = resolveCategoryByDbId(account, categoryId) ?: Category(categoryId, categoryId, categoryId, false, 0)
-    return channelService.readToJson(category, account).toString()
+    return channelService.readToJson(category, account)
 }
 
 private fun applyChannelMode(account: Account, mode: String?) {

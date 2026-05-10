@@ -162,7 +162,7 @@ class HttpWebChannelJsonServer(
         val categoryApiId = resolveCategoryApiId(account, categoryId)
         val episodes = channelServiceProvider().getSeries(categoryApiId, movieId, account, null, null)
         applySeriesEpisodesWatched(account, categoryApiId, movieId, episodes)
-        return com.uiptv.util.ServerUtils.objectToJson(episodes).toString()
+        return com.uiptv.util.ServerUtils.objectToJson(episodes)
     }
 
     private fun resolveAllCategoriesJson(account: Account): String {
@@ -200,7 +200,7 @@ class HttpWebChannelJsonServer(
 
     private fun resolveSingleCategoryJson(account: Account, categoryId: String): String {
         val category = resolveCategoryByDbId(account, categoryId) ?: Category(categoryId, categoryId, categoryId, false, 0)
-        var result = channelServiceProvider().readToJson(category, account).toString()
+        var result = channelServiceProvider().readToJson(category, account)
         if (account.action == Account.AccountAction.series) {
             result = enrichSeriesRowsWatchedJson(account, resolveCategoryApiId(account, categoryId), result)
         }
@@ -233,7 +233,7 @@ class HttpWebChannelJsonServer(
         } else {
             channelServiceProvider().parseVodChannels(account, json, true)
         }
-        return StalkerPageResult(parsed ?: emptyList(), pagination)
+        return StalkerPageResult(parsed, pagination)
     }
 
     private fun dedupeChannels(channels: List<Channel>): List<Channel> {

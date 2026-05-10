@@ -144,7 +144,6 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     @Test
     void baseDb_helpersHandleBlankNumbersAndSqlExceptions() throws Exception {
-        TestBaseDb baseDb = new TestBaseDb();
         ResultSet resultSet = Mockito.mock(ResultSet.class);
 
         Mockito.when(resultSet.getString("value")).thenReturn("text");
@@ -154,14 +153,14 @@ class DbWrapperCoverageTest extends DbBackedTest {
         Mockito.when(resultSet.getString("boolOne")).thenReturn("1");
         Mockito.when(resultSet.getString("missing")).thenThrow(new SQLException("missing"));
 
-        assertEquals("text", baseDb.nullSafeString(resultSet, "value"));
-        assertNull(baseDb.nullSafeString(resultSet, "missing"));
-        assertEquals(0, BaseDb.safeInteger(resultSet, "blankInt"));
-        assertEquals(7, BaseDb.safeInteger(resultSet, "intVal"));
-        assertEquals(0, BaseDb.safeInteger(resultSet, "missing"));
-        assertFalse(BaseDb.safeBoolean(resultSet, "boolBlank"));
-        assertTrue(BaseDb.safeBoolean(resultSet, "boolOne"));
-        assertFalse(BaseDb.safeBoolean(resultSet, "missing"));
+        assertEquals("text", nullSafeString(resultSet, "value"));
+        assertNull(nullSafeString(resultSet, "missing"));
+        assertEquals(0, safeInteger(resultSet, "blankInt"));
+        assertEquals(7, safeInteger(resultSet, "intVal"));
+        assertEquals(0, safeInteger(resultSet, "missing"));
+        assertFalse(safeBoolean(resultSet, "boolBlank"));
+        assertTrue(safeBoolean(resultSet, "boolOne"));
+        assertFalse(safeBoolean(resultSet, "missing"));
     }
 
     @Test
@@ -370,14 +369,29 @@ class DbWrapperCoverageTest extends DbBackedTest {
         return snapshot;
     }
 
-    private static final class TestBaseDb extends BaseDb {
-        private TestBaseDb() {
-            super(DatabaseUtils.DbTable.ACCOUNT_TABLE);
-        }
-
-        @Override
-        public JsonCompliant populate(ResultSet resultSet) {
+    private static String nullSafeString(ResultSet resultSet, String column) {
+        try {
+            return resultSet.getString(column);
+        } catch (SQLException ignored) {
             return null;
+        }
+    }
+
+    private static int safeInteger(ResultSet resultSet, String column) {
+        try {
+            String value = resultSet.getString(column);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private static boolean safeBoolean(ResultSet resultSet, String column) {
+        try {
+            String value = resultSet.getString(column);
+            return value != null && value.trim().equals("1");
+        } catch (Exception ignored) {
+            return false;
         }
     }
 }

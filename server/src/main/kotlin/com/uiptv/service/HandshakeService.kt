@@ -23,8 +23,6 @@ import java.util.Date
 import java.util.HashMap
 import java.util.Locale
 import java.util.UUID
-import java.util.function.Consumer
-import java.util.function.Supplier
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -74,6 +72,8 @@ object HandshakeService {
         DateTimeFormatter.ofPattern(DATE_US_FORMAT),
         DateTimeFormatter.ofPattern(DATE_EU_FORMAT)
     )
+    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
+    private val accountInfoServiceProvider: () -> AccountInfoService = { AccountInfoService.getInstance() }
 
     @JvmStatic
     fun getInstance(): HandshakeService = this
@@ -217,21 +217,21 @@ object HandshakeService {
         val js = parsePortalResponse(json) ?: return false
         if (info == null) return false
         var updated = false
-        updated = updateIfNotBlank(json, Supplier { info.profileJson }, Consumer { info.profileJson = it }) || updated
+        updated = updateIfNotBlank(json, { info.profileJson }, { info.profileJson = it }) || updated
         val expireDate = deriveExpiryDate(js)
-        updated = updateIfNotBlank(expireDate, Supplier { info.expireDate }, Consumer { info.expireDate = it }) || updated
+        updated = updateIfNotBlank(expireDate, { info.expireDate }, { info.expireDate = it }) || updated
         val derivedStatus = deriveAccountStatus(js)
-        updated = updateIfNotBlank(derivedStatus, Supplier { info.accountStatus }, Consumer { info.accountStatus = it }) || updated
+        updated = updateIfNotBlank(derivedStatus, { info.accountStatus }, { info.accountStatus = it }) || updated
         updated = updateIfNotBlank(
             firstNonBlank(nullSafeString(js, KEY_TARIFF_PLAN), nullSafeString(js, "tariff_plan_id")),
-            Supplier { info.tariffPlan },
-            Consumer { info.tariffPlan = it }
+            { info.tariffPlan },
+            { info.tariffPlan = it }
         ) || updated
-        updated = updateIfNotBlank(nullSafeString(js, KEY_TARIFF_NAME), Supplier { info.tariffName }, Consumer { info.tariffName = it }) || updated
+        updated = updateIfNotBlank(nullSafeString(js, KEY_TARIFF_NAME), { info.tariffName }, { info.tariffName = it }) || updated
         updated = updateIfNotBlank(
             firstNonBlank(nullSafeString(js, KEY_DEFAULT_TIMEZONE), nullSafeString(js, KEY_TIMEZONE)),
-            Supplier { info.defaultTimezone },
-            Consumer { info.defaultTimezone = it }
+            { info.defaultTimezone },
+            { info.defaultTimezone = it }
         ) || updated
         updated = applyAllowedStbTypes(info, js) || updated
         updated = applyPasswordHashes(info, js) || updated
@@ -251,16 +251,16 @@ object HandshakeService {
             nullSafeString(js, "account_balance"),
             nullSafeString(js, "balance")
         )
-        updated = updateIfNotBlank(balance, Supplier { info.accountBalance }, Consumer { info.accountBalance = it }) || updated
+        updated = updateIfNotBlank(balance, { info.accountBalance }, { info.accountBalance = it }) || updated
         updated = updateIfNotBlank(
             firstNonBlank(nullSafeString(accountInfoJson, KEY_TARIFF_NAME), nullSafeString(js, KEY_TARIFF_NAME)),
-            Supplier { info.tariffName },
-            Consumer { info.tariffName = it }
+            { info.tariffName },
+            { info.tariffName = it }
         ) || updated
         updated = updateIfNotBlank(
             firstNonBlank(nullSafeString(accountInfoJson, KEY_TARIFF_PLAN), nullSafeString(js, KEY_TARIFF_PLAN)),
-            Supplier { info.tariffPlan },
-            Consumer { info.tariffPlan = it }
+            { info.tariffPlan },
+            { info.tariffPlan = it }
         ) || updated
         updated = updateIfNotBlank(
             firstNonBlank(
@@ -269,13 +269,13 @@ object HandshakeService {
                 nullSafeString(accountInfoJson, KEY_TIMEZONE),
                 nullSafeString(js, KEY_TIMEZONE)
             ),
-            Supplier { info.defaultTimezone },
-            Consumer { info.defaultTimezone = it }
+            { info.defaultTimezone },
+            { info.defaultTimezone = it }
         ) || updated
         updated = updateIfNotBlank(
             firstAccountInfoExpiry(accountInfoJson, js, info.expireDate),
-            Supplier { info.expireDate },
-            Consumer { info.expireDate = it }
+            { info.expireDate },
+            { info.expireDate = it }
         ) || updated
         updated = applyAllowedStbTypes(info, accountInfoJson) || updated
         if (accountInfoJson !== js) updated = applyAllowedStbTypes(info, js) || updated
@@ -294,32 +294,32 @@ object HandshakeService {
         }
     }
 
-    private fun updateIfNotBlank(value: String?, currentValue: Supplier<String?>, setter: Consumer<String?>): Boolean {
+    private fun updateIfNotBlank(value: String?, currentValue: () -> String?, setter: (String?) -> Unit): Boolean {
         if (isBlank(value)) return false
-        val current = currentValue.get()
+        val current = currentValue()
         if (value == current) return false
-        setter.accept(value)
+        setter(value)
         return true
     }
 
     private fun applyPasswordHashes(info: AccountInfo?, json: JSONObject?): Boolean {
         if (info == null || json == null) return false
         var updated = false
-        updated = updatePasswordHash(nullSafeString(json, "pass"), Supplier { info.passHash }, Consumer { info.passHash = it }) || updated
-        updated = updatePasswordHash(nullSafeString(json, "parent_password"), Supplier { info.parentPasswordHash }, Consumer { info.parentPasswordHash = it }) || updated
-        updated = updatePasswordHash(nullSafeString(json, "password"), Supplier { info.passwordHash }, Consumer { info.passwordHash = it }) || updated
-        updated = updatePasswordHash(nullSafeString(json, "settings_password"), Supplier { info.settingsPasswordHash }, Consumer { info.settingsPasswordHash = it }) || updated
-        updated = updatePasswordHash(nullSafeString(json, "account_page_by_password"), Supplier { info.accountPagePasswordHash }, Consumer { info.accountPagePasswordHash = it }) || updated
+        updated = updatePasswordHash(nullSafeString(json, "pass"), { info.passHash }, { info.passHash = it }) || updated
+        updated = updatePasswordHash(nullSafeString(json, "parent_password"), { info.parentPasswordHash }, { info.parentPasswordHash = it }) || updated
+        updated = updatePasswordHash(nullSafeString(json, "password"), { info.passwordHash }, { info.passwordHash = it }) || updated
+        updated = updatePasswordHash(nullSafeString(json, "settings_password"), { info.settingsPasswordHash }, { info.settingsPasswordHash = it }) || updated
+        updated = updatePasswordHash(nullSafeString(json, "account_page_by_password"), { info.accountPagePasswordHash }, { info.accountPagePasswordHash = it }) || updated
         return updated
     }
 
-    private fun updatePasswordHash(rawValue: String?, currentValue: Supplier<String?>, setter: Consumer<String?>): Boolean {
+    private fun updatePasswordHash(rawValue: String?, currentValue: () -> String?, setter: (String?) -> Unit): Boolean {
         if (isBlank(rawValue)) return false
-        val existing = currentValue.get()
+        val existing = currentValue()
         if (isNotBlank(existing) && verifyPassword(rawValue, existing)) return false
         val hashed = hashPassword(rawValue)
         if (isBlank(hashed)) return false
-        setter.accept(hashed)
+        setter(hashed)
         return true
     }
 
@@ -397,19 +397,23 @@ object HandshakeService {
         var updated = false
         val allowed = normalizeArray(json.optJSONArray("allowed_stb_types"))
         val allowedRecording = normalizeArray(json.optJSONArray("allowed_stb_types_for_local_recording"))
-        updated = updateIfNotBlank(allowed, Supplier { info.allowedStbTypesJson }, Consumer { info.allowedStbTypesJson = it }) || updated
-        updated = updateIfNotBlank(allowedRecording, Supplier { info.allowedStbTypesForLocalRecordingJson }, Consumer { info.allowedStbTypesForLocalRecordingJson = it }) || updated
+        updated = updateIfNotBlank(allowed, { info.allowedStbTypesJson }, { info.allowedStbTypesJson = it }) || updated
+        updated = updateIfNotBlank(allowedRecording, { info.allowedStbTypesForLocalRecordingJson }, { info.allowedStbTypesForLocalRecordingJson = it }) || updated
         if (isNotBlank(allowed)) {
             val preferred = selectPreferredStbType(allowed)
-            updated = updatePreferredStbType(preferred, Supplier { info.preferredStbType }, Consumer { info.preferredStbType = it }) || updated
+            updated = updatePreferredStbType(preferred, { info.preferredStbType }, { info.preferredStbType = it }) || updated
         }
         return updated
     }
 
-    private fun updateIfNotBlank(value: AccountStatus?, currentValue: Supplier<AccountStatus?>, setter: Consumer<AccountStatus?>): Boolean {
+    private fun updateIfNotBlank(
+        value: AccountStatus?,
+        currentValue: () -> AccountStatus?,
+        setter: (AccountStatus?) -> Unit
+    ): Boolean {
         if (value == null) return false
-        if (value == currentValue.get()) return false
-        setter.accept(value)
+        if (value == currentValue()) return false
+        setter(value)
         return true
     }
     fun resolveStbType(account: Account?): String {
@@ -442,15 +446,15 @@ object HandshakeService {
         }
     }
 
-    private fun updatePreferredStbType(preferred: String?, currentValue: Supplier<String?>, setter: Consumer<String?>): Boolean {
-        val current = currentValue.get().orEmpty()
+    private fun updatePreferredStbType(preferred: String?, currentValue: () -> String?, setter: (String?) -> Unit): Boolean {
+        val current = currentValue().orEmpty()
         if (isBlank(preferred)) {
             if (isBlank(current)) return false
-            setter.accept("")
+            setter("")
             return true
         }
         if (preferred == current) return false
-        setter.accept(preferred)
+        setter(preferred)
         return true
     }
     fun allowedContainsMag250(allowedJson: String?): Boolean {
@@ -557,5 +561,3 @@ object HandshakeService {
         return info
     }
 }
-    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
-    private val accountInfoServiceProvider: () -> AccountInfoService = { AccountInfoService.getInstance() }

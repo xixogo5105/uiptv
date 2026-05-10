@@ -64,7 +64,7 @@ class PlaylistExportService(
     fun buildBookmarksPlaylist(host: String): String = M3U8PublicationService.buildBookmarkPlaylist(host)
 
     fun buildPublishedPlaylist(host: String?, requestPath: String?): PlaylistDocument {
-        val response = M3U8PublicationService.getInstance().getPublishedM3u8(host)
+        val response = M3U8PublicationService.getPublishedM3u8(host)
         val filename = if ((requestPath ?: "").endsWith(".m3u")) "iptv.m3u" else "iptv.m3u8"
         return PlaylistDocument(response, filename)
     }

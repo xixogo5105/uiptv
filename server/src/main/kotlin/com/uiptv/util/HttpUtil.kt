@@ -204,7 +204,7 @@ object HttpUtil {
             return URI.create(normalized)
         } catch (original: IllegalArgumentException) {
             try {
-                val parsed = URL(normalized)
+                val parsed = URI(normalized.replace(" ", "%20")).toURL()
                 return URI(parsed.protocol, parsed.userInfo, parsed.host, parsed.port, parsed.path, parsed.query, parsed.ref)
             } catch (e: Exception) {
                 AppLog.addErrorLog(HttpUtil::class.java, "Failed to create URI from URL: $normalized. Error: ${e.message}")

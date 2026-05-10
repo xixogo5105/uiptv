@@ -230,7 +230,7 @@ class WebPlayerApiService(
         json.put("bingeWatch", binge)
     }
 
-    private fun applyWebPlaybackProcessing(response: PlayerResponse?, mode: String, hvec: String?, preferHls: Boolean) {
+    fun applyWebPlaybackProcessing(response: PlayerResponse?, mode: String, hvec: String?, preferHls: Boolean) {
         if (response == null || isBlank(response.url)) {
             stopTransmuxingIfActive()
             return
@@ -338,7 +338,7 @@ class WebPlayerApiService(
         return normalizedMode == MODE_SERIES && shouldForceSeriesWebHls((response.url ?: "").lowercase())
     }
 
-    private fun normalizeWebPlaybackUrl(mode: String, url: String): String {
+    fun normalizeWebPlaybackUrl(mode: String, url: String): String {
         if (isBlank(url)) return url
         val normalizedMode = if (isBlank(mode)) "" else mode.trim().lowercase()
         if (MODE_VOD != normalizedMode && MODE_SERIES != normalizedMode) return url
@@ -350,7 +350,7 @@ class WebPlayerApiService(
         }
     }
 
-    private fun downgradeHttpsToHttp(url: String): String {
+    fun downgradeHttpsToHttp(url: String): String {
         if (isBlank(url)) return url
         val lower = url.lowercase()
         return if (lower.startsWith(HTTPS_PREFIX) && (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE))) {
@@ -374,7 +374,7 @@ class WebPlayerApiService(
         return lower.contains(PATH_LIVE_PLAY) || hasTrailingNumericPath(lower)
     }
 
-    private fun shouldForceWebHlsForUrl(mode: String, url: String): Boolean {
+    fun shouldForceWebHlsForUrl(mode: String, url: String): Boolean {
         if (isBlank(url)) return false
         val normalizedMode = if (isBlank(mode)) "" else mode.trim().lowercase()
         return normalizedMode == MODE_SERIES && shouldForceSeriesWebHls(url.lowercase())
@@ -451,8 +451,8 @@ class WebPlayerApiService(
         return if ("null".equals(normalized, true) || "undefined".equals(normalized, true)) "" else normalized
     }
 
-    private fun sanitizeParam(value: String?): String = safe(value)
-    private fun isHvecEnabled(value: String?): Boolean = isEnabledFlag(value)
+    fun sanitizeParam(value: String?): String = safe(value)
+    fun isHvecEnabled(value: String?): Boolean = isEnabledFlag(value)
 
     private fun isEnabledFlag(value: String?): Boolean =
         when (safe(value).lowercase()) {

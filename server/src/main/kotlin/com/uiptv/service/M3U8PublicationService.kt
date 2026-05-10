@@ -17,34 +17,33 @@ import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 import java.io.BufferedReader
-import java.io.FileReader
 import java.io.IOException
-import java.io.InputStreamReader
 import java.net.URL
+import java.nio.file.Path
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
-import java.util.Arrays
 import java.util.HexFormat
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.Locale
-import java.util.stream.Collectors
 import org.jetbrains.exposed.sql.transactions.transaction
+import kotlin.io.path.readText
 
 object M3U8PublicationService {
     private val publishedSelectionDb = PublishedM3uSelectionDb.get()
     private val publishedCategorySelectionDb = PublishedM3uCategorySelectionDb.get()
     private val publishedChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
-    private val accountService = AccountService.getInstance()
-    private val bookmarkService = BookmarkService.getInstance()
-    private val configurationService = ConfigurationService.getInstance()
+    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
+    private val bookmarkServiceProvider: () -> BookmarkService = { BookmarkService.getInstance() }
+    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
 
     private const val COMMENT_PREFIX = "#"
     private const val EXTM3U = "#EXTM3U"
     private const val EXTINF = "#EXTINF"
     const val BOOKMARKS_PLAYLIST_ACCOUNT_ID: String = "__bookmarks__"
     const val BOOKMARKS_PLAYLIST_NAME: String = "Bookmarks"
+    private const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
     private const val GROUP_TITLE_ATTR = "group-title"
     private const val PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n"
 
@@ -90,21 +89,19 @@ object M3U8PublicationService {
         }
     }
     fun getAvailableAccounts(): List<PlaylistAccountSummary> {
-        val availableAccounts = ArrayList<PlaylistAccountSummary>()
-        availableAccounts.add(PlaylistAccountSummary(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME))
-        availableAccounts.addAll(
-            getPublishableAccounts().map { account ->
+        return buildList {
+            add(PlaylistAccountSummary(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME))
+            addAll(getPublishableAccounts().map { account ->
                 PlaylistAccountSummary(account.dbId.orEmpty(), account.accountName.orEmpty())
-            }
-        )
-        return availableAccounts
+            })
+        }
     }
     fun getPlaylist(accountId: String?): PlaylistAccount? {
         if (isBlank(accountId)) return null
         if (isBookmarksPlaylistAccountId(accountId)) {
             return PlaylistAccount(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME, emptyList())
         }
-        val account = accountService.getById(accountId)
+        val account = accountServiceProvider().getById(accountId)
         if (!isPublishableAccount(account)) return null
         return try {
             toPlaylistAccount(account!!, parsePlaylistEntries(account))
@@ -118,7 +115,7 @@ object M3U8PublicationService {
     fun getPublishedM3u8(requestHost: String?): String {
         val selections = getSelections()
         if (selections.accountIds.isEmpty()) return ""
-        val categoryMode = configurationService.getPublishedM3uCategoryMode()
+        val categoryMode = configurationServiceProvider().getPublishedM3uCategoryMode()
 
         val result = StringBuilder()
         result.append(EXTM3U).append("\n")
@@ -131,12 +128,12 @@ object M3U8PublicationService {
     fun isBookmarksPlaylistAccountId(accountId: String?): Boolean = BOOKMARKS_PLAYLIST_ACCOUNT_ID == accountId
 
     private fun getPublishableAccounts(): List<Account> =
-        accountService.getAll().values.filter { isPublishableAccount(it) }
+        accountServiceProvider().getAll().values.filter { isPublishableAccount(it) }
 
     private fun getSelectedAccounts(accountIds: Set<String>): List<Account> =
         accountIds.asSequence()
             .filter { !isBookmarksPlaylistAccountId(it) }
-            .mapNotNull(accountService::getById)
+            .mapNotNull(accountServiceProvider()::getById)
             .filter { isPublishableAccount(it) }
             .toList()
 
@@ -201,29 +198,33 @@ object M3U8PublicationService {
 
     fun buildBookmarkPlaylist(host: String): String {
         val allTabName = com.uiptv.util.I18n.tr("commonAll")
+        val bookmarkService = bookmarkServiceProvider()
         val bookmarks = bookmarkService.read()
-        val categoryNameById = LinkedHashMap<String, String>()
-        bookmarkService.getAllCategories().forEach { category ->
-            val categoryId = category?.id
-            val categoryName = category?.name
-            if (isNotBlank(categoryId) && isNotBlank(categoryName)) {
-                categoryNameById[categoryId!!] = categoryName!!
+        val categoryNameById = bookmarkService.getAllCategories()
+            .mapNotNull { category ->
+                val categoryId = category?.id
+                val categoryName = category?.name
+                if (isNotBlank(categoryId) && isNotBlank(categoryName)) {
+                    categoryId!! to categoryName!!
+                } else {
+                    null
+                }
             }
-        }
+            .toMap(LinkedHashMap())
 
         val response = StringBuilder("#EXTM3U\n")
         bookmarks.forEach { bookmark ->
             if (isUncategorizedBookmark(bookmark, categoryNameById, allTabName)) {
-                appendBookmarkPlaylistEntry(response, bookmark, host, "Misc")
+                appendBookmarkPlaylistEntry(response, bookmark, host, BOOKMARK_MISC_GROUP_TITLE)
             }
         }
         bookmarks.forEach { bookmark ->
-            if (!isUncategorizedBookmark(bookmark, categoryNameById, allTabName)) {
-                val categoryName = categoryNameById[bookmark.categoryId]
-                if (isNotBlank(categoryName)) {
-                    appendBookmarkPlaylistEntry(response, bookmark, host, categoryName!!)
-                }
+            if (isUncategorizedBookmark(bookmark, categoryNameById, allTabName)) {
+                return@forEach
             }
+            categoryNameById[bookmark.categoryId]
+                ?.takeIf { isNotBlank(it) }
+                ?.let { appendBookmarkPlaylistEntry(response, bookmark, host, it) }
         }
         return response.toString()
     }
@@ -388,30 +389,22 @@ object M3U8PublicationService {
         if (isBlank(categoryName)) "" else categoryName!!.trim().lowercase(Locale.ROOT)
 
     private fun toCategorySelections(selections: Map<CategorySelectionKey, Boolean>): List<PublishedM3uCategorySelection> {
-        val models = ArrayList<PublishedM3uCategorySelection>()
-        selections.forEach { (key, value) ->
-            if (key != null) {
-                models.add(PublishedM3uCategorySelection(key.accountId, key.categoryName, value == true))
-            }
+        return selections.map { (key, value) ->
+            PublishedM3uCategorySelection(key.accountId, key.categoryName, value)
         }
-        return models
     }
 
     private fun toChannelSelections(selections: Map<ChannelSelectionKey, Boolean>): List<PublishedM3uChannelSelection> {
-        val models = ArrayList<PublishedM3uChannelSelection>()
-        selections.forEach { (key, value) ->
-            if (key != null) {
-                models.add(PublishedM3uChannelSelection(key.accountId, key.categoryName, key.channelId, value == true))
-            }
+        return selections.map { (key, value) ->
+            PublishedM3uChannelSelection(key.accountId, key.categoryName, key.channelId, value)
         }
-        return models
     }
 
     @Throws(IOException::class)
     private fun parsePlaylistEntries(account: Account): List<PlaylistChannelEntry> = parsePlaylistEntries(readPlaylistContent(account))
 
     fun parsePlaylistEntries(content: String): List<PlaylistChannelEntry> {
-        val lines = Arrays.asList(*content.split(Regex(PLAYLIST_LINE_SPLIT_REGEX)).toTypedArray())
+        val lines = splitPlaylistLines(content)
         val entries = ArrayList<PlaylistChannelEntry>()
         var index = 0
         while (index < lines.size) {
@@ -512,16 +505,12 @@ object M3U8PublicationService {
 
     @Throws(IOException::class)
     private fun readFile(path: String): String =
-        BufferedReader(FileReader(path, StandardCharsets.UTF_8)).use { reader ->
-            reader.lines().collect(Collectors.joining("\n"))
-        }
+        Path.of(path).readText(StandardCharsets.UTF_8)
 
     @Throws(IOException::class)
     private fun readUrl(urlString: String): String {
         val url = URL(urlString)
-        return BufferedReader(InputStreamReader(url.openStream(), StandardCharsets.UTF_8)).use { reader ->
-            reader.lines().collect(Collectors.joining("\n"))
-        }
+        return url.openStream().bufferedReader(StandardCharsets.UTF_8).use(BufferedReader::readText)
     }
 
     data class PublicationSelections(

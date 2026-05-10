@@ -78,7 +78,7 @@ private fun buildSeriesEpisodesResponse(
     }
     if (isSeriesEpisodeCacheFresh(account, categoryId, seriesId, cachedEpisodes, configurationService)) {
         applySeriesEpisodeWatchedFlag(cachedEpisodes, account, categoryId, seriesId, seriesWatchStateService)
-        return ServerUtils.objectToJson(cachedEpisodes).toString()
+        return ServerUtils.objectToJson(cachedEpisodes)
     }
 
     var episodesAsChannels = loadSeriesEpisodes(account, seriesId)
@@ -88,7 +88,7 @@ private fun buildSeriesEpisodesResponse(
         episodesAsChannels = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId)
     }
     applySeriesEpisodeWatchedFlag(episodesAsChannels, account, categoryId, seriesId, seriesWatchStateService)
-    return ServerUtils.objectToJson(episodesAsChannels).toString()
+    return ServerUtils.objectToJson(episodesAsChannels)
 }
 
 private fun isSeriesEpisodeCacheFresh(
@@ -246,8 +246,8 @@ private fun applyProviderSeriesDetails(
         return
     }
     val resolvedSeriesId = seriesId ?: return
-    val resolvedCategoryId = categoryId ?: ""
-    val details = XtremeApiParser.parseEpisodes(resolvedSeriesId, account) ?: return
+    val resolvedCategoryId = categoryId.orEmpty()
+    val details = XtremeApiParser.parseEpisodes(resolvedSeriesId, account)
     mergeProviderSeasonInfo(seasonInfo, details.seasonInfo)
     val episodesJson = toSeriesDetailsEpisodesJson(details, indexSeriesEpisodesMeta(imdbFirst.optJSONArray("episodesMeta")))
     response.put("episodes", episodesJson)
@@ -265,7 +265,7 @@ private fun mergeProviderSeasonInfo(seasonInfo: JSONObject, info: SeasonInfo?) {
 
 private fun toSeriesDetailsEpisodesJson(details: EpisodeList, episodesMeta: Map<String, JSONObject>): JSONArray {
     val episodesJson = JSONArray()
-    details.episodes?.forEach { episode ->
+    details.episodes.forEach { episode ->
         val channel = toSeriesDetailsEpisodeChannel(episode, episodesMeta)
         if (channel != null) {
             episodesJson.put(JSONObject(channel.toJson()))
@@ -312,7 +312,7 @@ private fun applyFallbackSeriesImdbMetadata(
         firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName),
         seasonInfo.optString("tmdb", ""),
         fuzzyHints
-    ) ?: JSONObject()
+    )
     mergeSeriesMetadata(seasonInfo, imdbFallback)
     if ((response.optJSONArray("episodesMeta") == null || response.optJSONArray("episodesMeta").isEmpty) &&
         imdbFallback.optJSONArray("episodesMeta") != null) {

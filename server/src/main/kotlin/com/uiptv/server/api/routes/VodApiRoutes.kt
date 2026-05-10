@@ -151,7 +151,7 @@ private fun buildVodDetailsResponse(
         queryTitle,
         vodInfo.optString("tmdb", ""),
         buildVodFuzzyHints(queryTitle, providerChannel, vodInfo)
-    ) ?: JSONObject()
+    )
     mergeMissing(vodInfo, "name", imdb.optString("name", ""))
     mergeMissing(vodInfo, "cover", imdb.optString("cover", ""))
     mergeMissing(vodInfo, "plot", imdb.optString("plot", ""))
@@ -174,7 +174,7 @@ private fun buildWatchingNowSeriesResponse(resolver: WatchingNowSeriesResolver):
                 .put("key", "${safeRoute(row.account.dbId)}|${safeRoute(row.state.seriesId)}")
                 .put("accountId", safeRoute(row.account.dbId))
                 .put("accountName", safeRoute(row.account.accountName))
-                .put("accountType", safeRoute(row.account.type?.name ?: ""))
+                .put("accountType", safeRoute(row.account.type.name))
                 .put("categoryId", safeRoute(row.state.categoryId))
                 .put("categoryDbId", safeRoute(row.categoryDbId))
                 .put("seriesId", safeRoute(row.state.seriesId))
@@ -288,7 +288,7 @@ private fun buildWatchingNowVodResponse(vodResolver: WatchingNowVodResolver): St
             val item = JSONObject()
                 .put("accountId", safeRoute(row.account.dbId))
                 .put("accountName", safeRoute(row.account.accountName))
-                .put("accountType", safeRoute(row.account.type?.name ?: ""))
+                .put("accountType", safeRoute(row.account.type.name))
                 .put("categoryId", safeRoute(row.state.categoryId))
                 .put("vodId", safeRoute(row.state.vodId))
                 .put("vodName", safeRoute(row.displayTitle))
@@ -375,24 +375,22 @@ private fun routeChannels(payload: JSONArray?): List<Channel> {
 private fun toWatchingNowEpisodeChannels(episodes: EpisodeList?): List<Channel> {
     val channels = ArrayList<Channel>()
     episodes?.episodes?.forEach { episode ->
-        if (episode != null) {
-            val channel = Channel().apply {
-                channelId = episode.id
-                name = episode.title
-                cmd = episode.cmd
-                extraJson = episode.toJson()
-                season = episode.season
-                episodeNum = episode.episodeNum
-                episode.info?.let { info ->
-                    logo = info.movieImage
-                    description = info.plot
-                    releaseDate = info.releaseDate
-                    rating = info.rating
-                    duration = info.duration
-                }
+        val channel = Channel().apply {
+            channelId = episode.id
+            name = episode.title
+            cmd = episode.cmd
+            extraJson = episode.toJson()
+            season = episode.season
+            episodeNum = episode.episodeNum
+            episode.info?.let { info ->
+                logo = info.movieImage
+                description = info.plot
+                releaseDate = info.releaseDate
+                rating = info.rating
+                duration = info.duration
             }
-            channels += channel
         }
+        channels += channel
     }
     return channels
 }

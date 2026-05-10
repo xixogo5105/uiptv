@@ -40,8 +40,10 @@ import java.util.function.Supplier
 
 class ChannelService private constructor() {
     private val cacheService: CacheService = CacheServiceImpl()
-    private val contentFilterService: ContentFilterService = ContentFilterService.getInstance()
-    private val logoResolverService: LogoResolverService = LogoResolverService.getInstance()
+    private val contentFilterServiceProvider: () -> ContentFilterService = { ContentFilterService.getInstance() }
+    private val logoResolverServiceProvider: () -> LogoResolverService = { LogoResolverService.getInstance() }
+    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() }
 
     @Throws(IOException::class)
     fun get(categoryId: String, account: Account, dbId: String): List<Channel> =
@@ -220,7 +222,7 @@ class ChannelService private constructor() {
         if (directAll.isNotEmpty()) return directAll
         val merged = ArrayList<Channel>()
         for (category in CategoryDb.get().getCategories(account)) {
-            if (category == null || isBlank(category.dbId)) continue
+            if (isBlank(category.dbId)) continue
             merged.addAll(ChannelDb.get().getChannels(category.dbId.orEmpty()))
         }
         return dedupeChannels(merged)
@@ -263,7 +265,7 @@ class ChannelService private constructor() {
     }
 
     private fun isVodSeriesChannelsFresh(account: Account, dbCategoryId: String): Boolean {
-        val cacheTtlMs = ConfigurationService.getInstance().getCacheExpiryMs()
+        val cacheTtlMs = configurationServiceProvider().getCacheExpiryMs()
         return when (account.action) {
             Account.AccountAction.vod -> VodChannelDb.get().isFresh(account, dbCategoryId, cacheTtlMs)
             Account.AccountAction.series -> SeriesChannelDb.get().isFresh(account, dbCategoryId, cacheTtlMs)
@@ -372,7 +374,7 @@ class ChannelService private constructor() {
         if (isBlank(channelName)) return null
         val targetName = channelName!!.trim()
         for (category in CategoryDb.get().getCategories(account)) {
-            if (category == null || isBlank(category.dbId)) continue
+            if (isBlank(category.dbId)) continue
             val byName = ChannelDb.get().getChannels(category.dbId.orEmpty()).firstOrNull { c ->
                 isNotBlank(c.name) && targetName.equals(c.name!!.trim(), true)
             }
@@ -653,7 +655,7 @@ class ChannelService private constructor() {
     ): PageFetchResult {
         if (!isEmptyChannelPage(firstPage) || request.account.type != AccountType.STALKER_PORTAL) return firstPage
         log(logger, "No channels returned. Refreshing Stalker session and retrying page $startPage once...")
-        HandshakeService.getInstance().hardTokenRefresh(request.account)
+        handshakeServiceProvider().hardTokenRefresh(request.account)
         throttle?.awaitPermit()
         return try {
             val page = fetchStalkerPage(request.category, request.account, request.movieId, request.seriesId, request.censor, startPage, logger)
@@ -684,11 +686,11 @@ class ChannelService private constructor() {
     ): PageFetchResult {
         log(logger, "Fetching page $pageNumber for category $category...")
         val json = FetchAPI.fetch(getChannelOrSeriesParams(category, pageNumber, account.action, movieId, seriesId), account)
-        val pagination = getInstance().parsePagination(json, null)
+        val pagination = parsePagination(json, null)
         val channels = if (account.action == Account.AccountAction.itv) {
-            getInstance().parseItvChannels(json, censor)
+            parseItvChannels(json, censor)
         } else {
-            getInstance().parseVodChannels(account, json, censor)
+            parseVodChannels(account, json, censor)
         }
         return PageFetchResult(channels, pagination)
     }
@@ -720,7 +722,7 @@ class ChannelService private constructor() {
         if (account == null || account.type != AccountType.STALKER_PORTAL) return
         if (account.isConnected() && isNotBlank(account.serverPortalUrl)) return
         log(logger, "Ensuring Stalker session...")
-        HandshakeService.getInstance().connect(account)
+        handshakeServiceProvider().connect(account)
     }
 
     private fun log(logger: LoggerCallback?, message: String) {
@@ -889,7 +891,7 @@ class ChannelService private constructor() {
             if (isBlank(logo)) logo = nullSafeString(json, "stream_icon")
             if (isBlank(logo)) logo = nullSafeString(json, "cover")
             if (isBlank(logo)) logo = nullSafeString(json, "movie_image")
-            logo ?: ""
+            logo
         } catch (_: Exception) {
             ""
         }
@@ -931,10 +933,10 @@ class ChannelService private constructor() {
         return PortalAddress(scheme, host, port)
     }
 
-    fun censor(channelList: List<Channel>): List<Channel> = contentFilterService.filterChannels(channelList) ?: channelList
+    fun censor(channelList: List<Channel>): List<Channel> = contentFilterServiceProvider().filterChannels(channelList) ?: channelList
 
     private fun maybeFilterChannels(channels: List<Channel>, applyFilter: Boolean): List<Channel> =
-        if (applyFilter) contentFilterService.filterChannels(channels) ?: channels else channels
+        if (applyFilter) contentFilterServiceProvider().filterChannels(channels) ?: channels else channels
 
     private fun dedupeChannels(channels: List<Channel>?): List<Channel> {
         if (channels.isNullOrEmpty()) return channels ?: emptyList()
@@ -955,7 +957,7 @@ class ChannelService private constructor() {
         val currentLogo = channel.logo
         val hasAbsoluteLogo = isNotBlank(currentLogo) && (currentLogo!!.startsWith("http://") || currentLogo.startsWith("https://"))
         if (hasAbsoluteLogo) return
-        val resolved = logoResolverService.resolve(channel.name, currentLogo)
+        val resolved = logoResolverServiceProvider().resolve(channel.name, currentLogo)
         if (isNotBlank(resolved)) channel.logo = resolved
     }
 

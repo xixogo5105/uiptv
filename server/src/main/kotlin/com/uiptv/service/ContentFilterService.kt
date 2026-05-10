@@ -7,46 +7,42 @@ import com.uiptv.util.StringUtils
 object ContentFilterService {
     @JvmStatic
     fun getInstance(): ContentFilterService = this
+
     fun filterChannels(channels: List<Channel>?): List<Channel>? {
         if (channels.isNullOrEmpty()) {
             return channels
         }
         val configuration = ConfigurationService.getInstance().read()
-        val filterList = configuration?.filterChannelsList
-        if (StringUtils.isBlank(filterList) || (configuration != null && configuration.pauseFiltering)) {
+        val filterList = configuration.filterChannelsList.orEmpty()
+        if (configuration.pauseFiltering || StringUtils.isBlank(filterList)) {
             return channels
         }
-        val blockedWords = parseCsv(filterList!!)
+        val blockedWords = parseCsv(filterList)
         return channels.filter { channel ->
-            if (channel == null) {
-                false
-            } else {
-                val safeName = StringUtils.safeUtf(channel.name).lowercase()
-                blockedWords.none { word -> safeName.contains(word.lowercase()) }
-            }
+            val safeName = StringUtils.safeUtf(channel.name).lowercase()
+            blockedWords.none { word -> safeName.contains(word) }
         }
     }
+
     fun filterCategories(categories: List<Category>?): List<Category>? {
         if (categories.isNullOrEmpty()) {
             return categories
         }
         val configuration = ConfigurationService.getInstance().read()
-        val filterList = configuration?.filterCategoriesList
-        if (StringUtils.isBlank(filterList) || (configuration != null && configuration.pauseFiltering)) {
+        val filterList = configuration.filterCategoriesList.orEmpty()
+        if (configuration.pauseFiltering || StringUtils.isBlank(filterList)) {
             return categories
         }
-        val blockedWords = parseCsv(filterList!!)
+        val blockedWords = parseCsv(filterList)
         return categories.filter { category ->
-            if (category == null) {
-                false
-            } else {
-                val title = category.title
-                blockedWords.none { word ->
-                    title != null && title.lowercase().contains(word.lowercase())
-                }
-            }
+            val title = category.title.orEmpty().lowercase()
+            blockedWords.none(title::contains)
         }
     }
 
-    private fun parseCsv(csv: String): List<String> = csv.split(",").map(String::trim)
+    private fun parseCsv(csv: String): List<String> =
+        csv.split(",")
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .map(String::lowercase)
 }
