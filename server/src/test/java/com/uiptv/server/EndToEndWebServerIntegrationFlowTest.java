@@ -13,7 +13,6 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
-import com.uiptv.server.api.json.HttpWebChannelJsonServer;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.CacheService;
@@ -26,6 +25,8 @@ import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.remotesync.DefaultRemoteSyncUiBridge;
+import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.LogUtil;
 import com.uiptv.util.XtremeCredentialsJson;
@@ -117,6 +118,10 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
     @AfterEach
     void tearDownServers() {
+        RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
+        remoteSyncSessionService.clearSessions();
+        remoteSyncSessionService.setApprovalPrompt(new DefaultRemoteSyncUiBridge());
+        remoteSyncSessionService.setNotifier(new DefaultRemoteSyncUiBridge());
         try {
             UIptvServer.stop();
         } catch (Exception _) {
@@ -146,17 +151,24 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
      *    - /bookmarks.m3u8
      *    - /bookmarkEntry.ts
      *    - /iptv.m3u8 and /iptv.m3u
+     *    - /remote-sync/health
+     *    - /remote-sync/request
+     *    - /remote-sync/status
+     *    - /remote-sync/download
+     *    - /remote-sync/complete
      * 4) Verifies SPA pages wired in UIptvServer:
      *    - /
      *    - /index.html
      *    - /myflix.html
      *    - /player.html
      *    - /drm.html
-     * 5) Covers HttpWebChannelJsonServer via dedicated temporary HTTP context:
-     *    - Stalker paged response shape
-     *    - Non-stalker fallback slicing response shape
      */
     void endToEndWebPortal_backendApisAndAllJsonHandlers() throws Exception {
+        RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
+        remoteSyncSessionService.clearSessions();
+        remoteSyncSessionService.setApprovalPrompt((request, decisionConsumer) -> decisionConsumer.accept(true));
+        remoteSyncSessionService.setNotifier(new DefaultRemoteSyncUiBridge());
+
         Configuration cfg = new Configuration(
                 "player-a", "player-b", "player-c", "player-a",
                 "", "", false,
@@ -200,8 +212,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertBookmarksApis();
             assertPlayerApis();
             assertPlaylistApis();
+            assertRemoteSyncApis();
             assertHlsAndProxyApis();
-            assertWebChannelJsonServerApi();
         }
     }
 
@@ -857,6 +869,50 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(iptvM3u.body().contains("#EXTM3U"));
     }
 
+    private void assertRemoteSyncApis() throws Exception {
+        JSONObject health = jsonObjectBody(get("/remote-sync/health"));
+        assertEquals("ok", health.optString("status"));
+
+        JSONObject importRequest = jsonObjectBody(postJson(
+                "/remote-sync/request",
+                """
+                {
+                  "direction":"IMPORT_FROM_REMOTE",
+                  "verificationCode":"1234",
+                  "requesterName":"Web E2E Import",
+                  "syncConfiguration":true,
+                  "syncExternalPlayerPaths":false
+                }
+                """
+        ));
+        assertFalse(importRequest.optString("sessionId").isBlank());
+        assertEquals("READY_FOR_DOWNLOAD", importRequest.optString("status"));
+
+        String importSessionId = importRequest.optString("sessionId");
+        JSONObject importStatus = jsonObjectBody(get("/remote-sync/status?sessionId=" + URLEncoder.encode(importSessionId, StandardCharsets.UTF_8)));
+        assertEquals("READY_FOR_DOWNLOAD", importStatus.optString("status"));
+
+        HttpTextResponse download = get("/remote-sync/download?sessionId=" + URLEncoder.encode(importSessionId, StandardCharsets.UTF_8));
+        assertEquals(200, download.statusCode());
+        assertFalse(download.body().isBlank());
+
+        JSONObject importComplete = jsonObjectBody(postJson(
+                "/remote-sync/complete",
+                """
+                {
+                  "sessionId":"%s",
+                  "success":true,
+                  "message":"Import completed"
+                }
+                """.formatted(importSessionId)
+        ));
+        assertEquals("ok", importComplete.optString("status"));
+
+        JSONObject importFinalStatus = jsonObjectBody(get("/remote-sync/status?sessionId=" + URLEncoder.encode(importSessionId, StandardCharsets.UTF_8)));
+        assertEquals("COMPLETED", importFinalStatus.optString("status"));
+
+    }
+
     private void assertHlsAndProxyApis() throws Exception {
         System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
         String playlistBody = """
@@ -901,78 +957,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
         assertEquals(200, proxyStream.statusCode());
         assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
-    }
-
-    private void assertWebChannelJsonServerApi() throws Exception {
-        HttpServer tempServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        try {
-            tempServer.createContext("/webchannels", new HttpWebChannelJsonServer());
-            tempServer.start();
-            int port = tempServer.getAddress().getPort();
-
-            Account stalker = AccountService.getInstance().getByName("web-stalker");
-            Category stalkerCategory = CategoryDb.get().getCategories(stalker).stream()
-                    .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
-                    .findFirst()
-                    .orElseThrow();
-            String stalkerUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + stalker.getDbId()
-                    + "&mode=itv&categoryId=" + stalkerCategory.getDbId() + "&page=0&pageSize=2&prefetchPages=1";
-            JSONObject stalkerJson = jsonObjectBody(getAbsolute(stalkerUrl));
-            assertTrue(stalkerJson.has("items"));
-            assertTrue(stalkerJson.has("nextPage"));
-            assertTrue(stalkerJson.has("hasMore"));
-            assertTrue(stalkerJson.has("apiOffset"));
-
-            Account xtreme = AccountService.getInstance().getByName("web-xtreme");
-            Category xtremeCategory = CategoryDb.get().getCategories(xtreme).stream()
-                    .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
-                    .findFirst()
-                    .orElseThrow();
-            String xtremeUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
-                    + "&mode=itv&categoryId=" + xtremeCategory.getDbId() + "&page=0&pageSize=10&prefetchPages=1";
-            JSONObject xtremeJson = jsonObjectBody(getAbsolute(xtremeUrl));
-            assertFalse(xtremeJson.getJSONArray("items").isEmpty());
-
-            JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
-            assertFalse(xtremeSeriesCategories.isEmpty());
-            String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
-            String xtremeSeriesRowsUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
-                    + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
-                    + "&page=0&pageSize=50&prefetchPages=1";
-            JSONObject xtremeSeriesRows = jsonObjectBody(getAbsolute(xtremeSeriesRowsUrl));
-            JSONArray xtremeSeriesItems = xtremeSeriesRows.getJSONArray("items");
-            assertFalse(xtremeSeriesItems.isEmpty());
-            boolean hasWatchedSeries = false;
-            String wsIdentity = "";
-            for (int i = 0; i < xtremeSeriesItems.length(); i++) {
-                JSONObject row = xtremeSeriesItems.getJSONObject(i);
-                if (isWatchedFlag(row)) {
-                    hasWatchedSeries = true;
-                    wsIdentity = row.optString("channelId");
-                    break;
-                }
-            }
-            assertTrue(hasWatchedSeries);
-            assertFalse(wsIdentity.isBlank());
-
-            String xtremeSeriesEpisodesUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
-                    + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
-                    + "&movieId=" + URLEncoder.encode(wsIdentity, StandardCharsets.UTF_8)
-                    + "&page=0&pageSize=50&prefetchPages=1";
-            JSONObject xtremeSeriesEpisodes = jsonObjectBody(getAbsolute(xtremeSeriesEpisodesUrl));
-            assertFalse(watchedEpisodeId(xtremeSeriesEpisodes.getJSONArray("items")).isBlank());
-
-            Account uncategorizedOnlyM3u = AccountService.getInstance().getByName(WEB_M3U_UNCATEGORIZED_ONLY);
-            String uncategorizedOnlyUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + uncategorizedOnlyM3u.getDbId()
-                    + "&mode=itv&categoryId=All&page=0&pageSize=10&prefetchPages=1";
-            JSONObject uncategorizedOnlyJson = jsonObjectBody(getAbsolute(uncategorizedOnlyUrl));
-            assertEquals(UNCATEGORIZED_ONLY_CHANNEL_COUNT, uncategorizedOnlyJson.getJSONArray("items").length());
-            assertFalse(uncategorizedOnlyJson.getBoolean("hasMore"));
-            assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
-                    jsonFieldSet(uncategorizedOnlyJson.getJSONArray("items"), "name"));
-        } finally {
-            tempServer.stop(0);
-        }
     }
 
     private HttpTextResponse get(String path) throws Exception {

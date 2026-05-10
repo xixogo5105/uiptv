@@ -307,5 +307,61 @@ data class WatchingNowVodRowDto(
 data class SeriesDetailsResponseDto(
     val seasonInfo: JsonObject,
     val episodes: List<ChannelRouteDto>,
-    val episodesMeta: List<JsonObject> = emptyList()
+    val episodesMeta: List<JsonObject>
+)
+
+@Serializable
+data class AccountRowDto(
+    val accountName: String? = null,
+    val dbId: String? = null,
+    val type: String? = null,
+    val pinToTop: Boolean = false,
+    val pinSvgStemPath: String? = null,
+    val pinSvgHeadPath: String? = null,
+    val pinSvgStemFill: String? = null,
+    val pinSvgHeadFill: String? = null,
+    val pinSvgViewBox: String? = null,
+    val pinSvgScale: Double = 0.0
+)
+
+@Serializable
+data class CategoryDto(
+    val dbId: String? = null,
+    val accountId: String? = null,
+    val accountType: String? = null,
+    val categoryId: String? = null,
+    val title: String? = null,
+    val alias: String? = null,
+    val extraJson: String? = null,
+    val activeSub: Boolean = false,
+    val censored: Int = 0
+)
+
+@Serializable
+data class BookmarkCategoryDto(
+    val id: String? = null,
+    val name: String? = null
+)
+
+@Serializable
+data class BookmarkDto(
+    val dbId: String? = null,
+    val accountName: String? = null,
+    val categoryTitle: String? = null,
+    val channelId: String? = null,
+    val channelName: String? = null,
+    val logo: String? = null,
+    val cmd: String? = null,
+    val serverPortalUrl: String? = null,
+    val categoryId: String? = null,
+    val accountAction: String? = null,
+    val drmType: String? = null,
+    val drmLicenseUrl: String? = null,
+    val clearKeysJson: String? = null,
+    val inputstreamaddon: String? = null,
+    val manifestType: String? = null,
+    val categoryJson: String? = null,
+    val channelJson: String? = null,
+    val vodJson: String? = null,
+    val seriesJson: String? = null
 )

@@ -3,14 +3,20 @@ package com.uiptv.server.api.routes
 import com.uiptv.model.Account
 import com.uiptv.model.Bookmark
 import com.uiptv.model.Category
+import com.uiptv.model.BookmarkCategory
 import com.uiptv.model.Channel
 import com.uiptv.db.CategoryDb
+import com.uiptv.server.api.dto.AccountRowDto
 import com.uiptv.server.api.dto.BookmarkDeleteRequest
+import com.uiptv.server.api.dto.BookmarkCategoryDto
+import com.uiptv.server.api.dto.BookmarkDto
 import com.uiptv.server.api.dto.BookmarkOrderRequest
 import com.uiptv.server.api.dto.BookmarkUpsertRequest
+import com.uiptv.server.api.dto.CategoryDto
 import com.uiptv.server.api.dto.ConfigResponse
 import com.uiptv.server.api.dto.StatusResponse
 import com.uiptv.service.AccountService
+import com.uiptv.service.AccountResolver
 import com.uiptv.service.BookmarkService
 import com.uiptv.service.CategoryResolver
 import com.uiptv.service.CategoryService
@@ -28,7 +34,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
@@ -44,21 +49,17 @@ fun Route.registerCoreApiRoutes(
     }
 
     get("/accounts") {
-        call.respondJsonString(accountService.readToJson())
+        call.respond(AccountResolver().resolveAccounts().map(::toAccountRowDto))
     }
 
     get("/categories") {
         val account = accountService.getById(call.request.queryParameters["accountId"])
         if (account == null) {
-            call.respond(emptyList<JsonElement>())
+            call.respond(emptyList<CategoryDto>())
             return@get
         }
         applyMode(account, call.request.queryParameters["mode"])
-        call.respondJsonString(
-            com.uiptv.util.ServerUtils.objectToJson(
-                CategoryResolver().resolveCategories(account, categoryService.get(account))
-            )
-        )
+        call.respond(CategoryResolver().resolveCategories(account, categoryService.get(account)).map(::toCategoryDto))
     }
 
     options("/bookmarks") {
@@ -69,13 +70,14 @@ fun Route.registerCoreApiRoutes(
     get("/bookmarks") {
         call.bookmarkHeaders()
         if ("categories".equals(call.request.queryParameters["view"], true)) {
-            call.respondJsonString(com.uiptv.util.ServerUtils.objectToJson(bookmarkService.getAllCategories()))
+            call.respond(bookmarkService.getAllCategories().map(::toBookmarkCategoryDto))
             return@get
         }
         val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 0
-        val body = if (limit > 0) bookmarkService.readToJson(offset, limit) else bookmarkService.readToJson()
-        call.respondJsonString(body)
+        val bookmarks = if (limit > 0) bookmarkService.read(offset, limit) else bookmarkService.read()
+        val resolved = com.uiptv.service.BookmarkResolver().resolveBookmarks(bookmarks)
+        call.respond(resolved.mapNotNull { it.bookmark }.map(::toBookmarkDto))
     }
 
     post("/bookmarks") {
@@ -210,10 +212,6 @@ private suspend inline fun <reified T> ApplicationCall.receivePayloadOrDefault()
     return routeJson.decodeFromString(if (text.isBlank()) emptyJsonObject else text)
 }
 
-private suspend fun ApplicationCall.respondJsonString(body: String) {
-    respond(routeJson.parseToJsonElement(body))
-}
-
 private fun extractBookmarkOrders(body: BookmarkOrderRequest): MutableMap<String, Int> {
     val bookmarkOrders = linkedMapOf<String, Int>()
     body.bookmarkOrders?.forEach { (bookmarkId, orderNumber) ->
@@ -239,3 +237,59 @@ private val routeJson = Json {
 }
 
 private const val emptyJsonObject = "{}"
+
+private fun toAccountRowDto(row: AccountResolver.AccountRow): AccountRowDto =
+    AccountRowDto(
+        accountName = row.accountName,
+        dbId = row.dbId,
+        type = row.type,
+        pinToTop = row.pinToTop,
+        pinSvgStemPath = row.pinSvgStemPath,
+        pinSvgHeadPath = row.pinSvgHeadPath,
+        pinSvgStemFill = row.pinSvgStemFill,
+        pinSvgHeadFill = row.pinSvgHeadFill,
+        pinSvgViewBox = row.pinSvgViewBox,
+        pinSvgScale = row.pinSvgScale
+    )
+
+private fun toCategoryDto(category: Category): CategoryDto =
+    CategoryDto(
+        dbId = category.dbId,
+        accountId = category.accountId,
+        accountType = category.accountType,
+        categoryId = category.categoryId,
+        title = category.title,
+        alias = category.alias,
+        extraJson = category.extraJson,
+        activeSub = category.activeSub,
+        censored = category.censored
+    )
+
+private fun toBookmarkCategoryDto(category: BookmarkCategory): BookmarkCategoryDto =
+    BookmarkCategoryDto(
+        id = category.id,
+        name = category.name
+    )
+
+private fun toBookmarkDto(bookmark: Bookmark): BookmarkDto =
+    BookmarkDto(
+        dbId = bookmark.dbId,
+        accountName = bookmark.accountName,
+        categoryTitle = bookmark.categoryTitle,
+        channelId = bookmark.channelId,
+        channelName = bookmark.channelName,
+        logo = bookmark.logo,
+        cmd = bookmark.cmd,
+        serverPortalUrl = bookmark.serverPortalUrl,
+        categoryId = bookmark.categoryId,
+        accountAction = bookmark.accountAction?.name,
+        drmType = bookmark.drmType,
+        drmLicenseUrl = bookmark.drmLicenseUrl,
+        clearKeysJson = bookmark.clearKeysJson,
+        inputstreamaddon = bookmark.inputstreamaddon,
+        manifestType = bookmark.manifestType,
+        categoryJson = bookmark.categoryJson,
+        channelJson = bookmark.channelJson,
+        vodJson = bookmark.vodJson,
+        seriesJson = bookmark.seriesJson
+    )

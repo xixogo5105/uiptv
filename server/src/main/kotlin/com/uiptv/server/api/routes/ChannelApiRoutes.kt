@@ -18,7 +18,6 @@ import com.uiptv.util.StringUtils
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
-import org.json.JSONArray
 import java.util.LinkedHashSet
 
 fun Route.registerChannelApiRoutes(
@@ -60,7 +59,7 @@ private fun resolveChannelsResponse(
         return readAllCategoryChannels(account, channelService)
     }
     val category = resolveCategoryByDbId(account, categoryId) ?: Category(categoryId, categoryId, categoryId, false, 0)
-    return parseChannelsJson(channelService.readToJson(category, account))
+    return channelService.read(category, account)
 }
 
 private fun applyChannelMode(account: Account, mode: String?) {
@@ -132,7 +131,7 @@ private fun fetchAndCacheSeriesEpisodes(
 private fun readAllCategoryChannels(account: Account, channelService: ChannelService): List<Channel> {
     val allChannels = ArrayList<Channel>()
     resolveRequestedCategories(resolveCategoriesForAccount(account)).forEach { category ->
-        allChannels += parseChannelsJson(channelService.readToJson(category, account))
+        allChannels += channelService.read(category, account)
     }
     return allChannels
 }
@@ -143,22 +142,6 @@ private fun resolveRequestedCategories(categories: List<Category>): List<Categor
         return nonAllCategories
     }
     return categories.firstOrNull { CategoryType.isAll(it.title) }?.let(::listOf) ?: emptyList()
-}
-
-private fun parseChannelsJson(channelsJson: String?): List<Channel> {
-    if (channelsJson.isNullOrBlank()) {
-        return emptyList()
-    }
-    return try {
-        val channels = ArrayList<Channel>()
-        val channelsArray = JSONArray(channelsJson)
-        for (index in 0 until channelsArray.length()) {
-            Channel.fromJson(channelsArray.getJSONObject(index).toString())?.let(channels::add)
-        }
-        channels
-    } catch (_: Exception) {
-        emptyList()
-    }
 }
 
 private fun dedupeChannels(channels: List<Channel>): List<Channel> {

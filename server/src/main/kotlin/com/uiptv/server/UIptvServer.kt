@@ -16,6 +16,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.routing.routing
+import org.koin.core.module.Module
 import org.koin.ktor.ext.get
 import java.io.IOException
 import java.util.concurrent.ThreadFactory
@@ -109,46 +110,46 @@ object KtorServerRuntime {
         stop()
         val port = getHttpPort().toInt()
         applicationEngine = embeddedServer(Netty, host = "0.0.0.0", port = port) {
-            configureRoutes()
+            configureServerApplication()
         }
     }
+}
 
-    private fun Application.configureRoutes() {
-        configureBackendPlatform()
-        val configurationService = get<ConfigurationService>()
-        val accountService = get<com.uiptv.service.AccountService>()
-        val categoryService = get<com.uiptv.service.CategoryService>()
-        val bookmarkService = get<com.uiptv.service.BookmarkService>()
-        val channelService = get<com.uiptv.service.ChannelService>()
-        val seriesWatchStateService = get<com.uiptv.service.SeriesWatchStateService>()
-        val seriesEpisodeService = get<com.uiptv.service.SeriesEpisodeService>()
-        val seriesWatchingNowSnapshotService = get<com.uiptv.service.SeriesWatchingNowSnapshotService>()
-        val watchingNowSeriesResolver = get<com.uiptv.service.WatchingNowSeriesResolver>()
-        val handshakeService = get<com.uiptv.service.HandshakeService>()
-        val imdbMetadataService = get<com.uiptv.service.ImdbMetadataService>()
-        val vodWatchStateService = get<com.uiptv.service.VodWatchStateService>()
-        val watchingNowVodResolver = get<com.uiptv.service.WatchingNowVodResolver>()
-        val webPlayerApiService = get<com.uiptv.service.WebPlayerApiService>()
-        val playlistExportService = get<com.uiptv.service.PlaylistExportService>()
-        val remoteSyncSessionService = get<com.uiptv.service.remotesync.RemoteSyncSessionService>()
-        routing {
-            registerCoreApiRoutes(configurationService, accountService, categoryService, bookmarkService)
-            registerChannelApiRoutes(accountService, channelService, configurationService, seriesWatchStateService)
-            registerSeriesApiRoutes(accountService, configurationService, seriesWatchStateService, handshakeService, imdbMetadataService)
-            registerVodApiRoutes(
-                accountService,
-                handshakeService,
-                imdbMetadataService,
-                seriesWatchStateService,
-                seriesEpisodeService,
-                seriesWatchingNowSnapshotService,
-                watchingNowSeriesResolver,
-                vodWatchStateService,
-                watchingNowVodResolver
-            )
-            registerRemoteSyncApiRoutes(remoteSyncSessionService)
-            registerPlayerPublicationApiRoutes(webPlayerApiService, playlistExportService)
-            registerLegacyWebRoutes()
-        }
+fun Application.configureServerApplication(extraModules: List<Module> = emptyList()) {
+    configureBackendPlatform(extraModules)
+    val configurationService = get<ConfigurationService>()
+    val accountService = get<com.uiptv.service.AccountService>()
+    val categoryService = get<com.uiptv.service.CategoryService>()
+    val bookmarkService = get<com.uiptv.service.BookmarkService>()
+    val channelService = get<com.uiptv.service.ChannelService>()
+    val seriesWatchStateService = get<com.uiptv.service.SeriesWatchStateService>()
+    val seriesEpisodeService = get<com.uiptv.service.SeriesEpisodeService>()
+    val seriesWatchingNowSnapshotService = get<com.uiptv.service.SeriesWatchingNowSnapshotService>()
+    val watchingNowSeriesResolver = get<com.uiptv.service.WatchingNowSeriesResolver>()
+    val handshakeService = get<com.uiptv.service.HandshakeService>()
+    val imdbMetadataService = get<com.uiptv.service.ImdbMetadataService>()
+    val vodWatchStateService = get<com.uiptv.service.VodWatchStateService>()
+    val watchingNowVodResolver = get<com.uiptv.service.WatchingNowVodResolver>()
+    val webPlayerApiService = get<com.uiptv.service.WebPlayerApiService>()
+    val playlistExportService = get<com.uiptv.service.PlaylistExportService>()
+    val remoteSyncSessionService = get<com.uiptv.service.remotesync.RemoteSyncSessionService>()
+    routing {
+        registerCoreApiRoutes(configurationService, accountService, categoryService, bookmarkService)
+        registerChannelApiRoutes(accountService, channelService, configurationService, seriesWatchStateService)
+        registerSeriesApiRoutes(accountService, configurationService, seriesWatchStateService, handshakeService, imdbMetadataService)
+        registerVodApiRoutes(
+            accountService,
+            handshakeService,
+            imdbMetadataService,
+            seriesWatchStateService,
+            seriesEpisodeService,
+            seriesWatchingNowSnapshotService,
+            watchingNowSeriesResolver,
+            vodWatchStateService,
+            watchingNowVodResolver
+        )
+        registerRemoteSyncApiRoutes(remoteSyncSessionService)
+        registerPlayerPublicationApiRoutes(webPlayerApiService, playlistExportService)
+        registerLegacyWebRoutes()
     }
 }

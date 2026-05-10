@@ -37,6 +37,14 @@ object BookmarkService {
         touchChange()
     }
     fun read(): List<Bookmark> = BookmarkDb.get().getBookmarks()
+    fun read(offset: Int, limit: Int): List<Bookmark> {
+        if (limit <= 0) {
+            return read()
+        }
+        val safeOffset = maxOf(0, offset)
+        val safeLimit = maxOf(0, limit)
+        return BookmarkDb.get().getBookmarksPage(safeOffset, safeLimit)
+    }
     fun getBookmarksByCategory(categoryId: String?): List<Bookmark> = BookmarkDb.get().getBookmarksByCategory(categoryId)
     fun remove(id: String?) {
         try {

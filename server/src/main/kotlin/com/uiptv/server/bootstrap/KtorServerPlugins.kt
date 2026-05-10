@@ -11,11 +11,13 @@ import io.ktor.server.response.respond
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import org.koin.core.module.Module
 import org.koin.ktor.plugin.Koin
 
-fun Application.configureBackendPlatform() {
+fun Application.configureBackendPlatform(extraModules: List<Module> = emptyList()) {
     install(Koin) {
-        modules(serverInfrastructureModule, serverServiceModule)
+        allowOverride(true)
+        modules(listOf(serverInfrastructureModule, serverServiceModule) + extraModules)
     }
     install(ContentNegotiation) {
         json(

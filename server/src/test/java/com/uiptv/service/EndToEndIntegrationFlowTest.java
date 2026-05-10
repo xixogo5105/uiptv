@@ -178,6 +178,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class)) {
             logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(invocation -> null);
+            assertFlywayManagedDatabaseRuntime();
             assertConfigurationLifecycle(configurationService);
             seedAndImportAccounts();
             updateAccountsAndAssert(accountService);
@@ -186,6 +187,26 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             runDbSyncFlow();
             clearCacheAndDeleteOnePerType(cacheService, accountService);
             clearAllCacheAndDeleteRemaining(cacheService, accountService);
+        }
+    }
+
+    private void assertFlywayManagedDatabaseRuntime() throws SQLException {
+        try (Connection connection = SQLConnection.connect();
+             PreparedStatement existsStatement = connection.prepareStatement(
+                     "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='flyway_schema_history'"
+             );
+             ResultSet existsResult = existsStatement.executeQuery()) {
+            assertTrue(existsResult.next());
+            assertEquals(1, existsResult.getInt(1));
+        }
+
+        try (Connection connection = SQLConnection.connect();
+             PreparedStatement successStatement = connection.prepareStatement(
+                     "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"
+             );
+             ResultSet successResult = successStatement.executeQuery()) {
+            assertTrue(successResult.next());
+            assertTrue(successResult.getInt(1) >= 1);
         }
     }
 

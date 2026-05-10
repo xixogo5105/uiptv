@@ -6,6 +6,8 @@ import com.uiptv.model.Account
 import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.model.SeriesWatchState
+import com.uiptv.server.api.dto.ChannelRouteDto
+import com.uiptv.server.api.dto.SeriesDetailsResponseDto
 import com.uiptv.service.AccountService
 import com.uiptv.service.ConfigurationService
 import com.uiptv.service.HandshakeService
@@ -20,10 +22,14 @@ import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
 import com.uiptv.util.XtremeApiParser
 import io.ktor.server.response.respond
-import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -36,30 +42,27 @@ fun Route.registerSeriesApiRoutes(
 ) {
     get("/seriesEpisodes") {
         call.respond(
-            seriesRouteJson.parseToJsonElement(
-                buildSeriesEpisodesResponse(
-                    accountService.getById(call.request.queryParameters["accountId"]),
-                    call.request.queryParameters["seriesId"],
-                    call.request.queryParameters["categoryId"],
-                    configurationService,
-                    seriesWatchStateService
-                )
+            buildSeriesEpisodesResponse(
+                accountService.getById(call.request.queryParameters["accountId"]),
+                call.request.queryParameters["seriesId"],
+                call.request.queryParameters["categoryId"],
+                configurationService,
+                seriesWatchStateService
             )
+                .map(::toChannelRouteDto)
         )
     }
 
     get("/seriesDetails") {
         call.respond(
-            seriesRouteJson.parseToJsonElement(
-                buildSeriesDetailsResponse(
-                    accountService.getById(call.request.queryParameters["accountId"]),
-                    call.request.queryParameters["seriesId"],
-                    call.request.queryParameters["categoryId"],
-                    call.request.queryParameters["seriesName"],
-                    configurationService,
-                    handshakeService,
-                    imdbMetadataService
-                )
+            buildSeriesDetailsResponse(
+                accountService.getById(call.request.queryParameters["accountId"]),
+                call.request.queryParameters["seriesId"],
+                call.request.queryParameters["categoryId"],
+                call.request.queryParameters["seriesName"],
+                configurationService,
+                handshakeService,
+                imdbMetadataService
             )
         )
     }
@@ -71,12 +74,11 @@ private fun buildSeriesEpisodesResponse(
     rawCategoryId: String?,
     configurationService: ConfigurationService,
     seriesWatchStateService: SeriesWatchStateService
-): String {
-    val emptyJson = "[]"
+): List<Channel> {
     if (account == null) {
-        return emptyJson
+        return emptyList()
     }
-    val seriesId = rawSeriesId?.takeIf(StringUtils::isNotBlank) ?: return emptyJson
+    val seriesId = rawSeriesId?.takeIf(StringUtils::isNotBlank) ?: return emptyList()
     val categoryId = resolveSeriesCategoryId(rawCategoryId)
 
     var cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId)
@@ -85,7 +87,7 @@ private fun buildSeriesEpisodesResponse(
     }
     if (isSeriesEpisodeCacheFresh(account, categoryId, seriesId, cachedEpisodes, configurationService)) {
         applySeriesEpisodeWatchedFlag(cachedEpisodes, account, categoryId, seriesId, seriesWatchStateService)
-        return ServerUtils.objectToJson(cachedEpisodes)
+        return cachedEpisodes
     }
 
     var episodesAsChannels = loadSeriesEpisodes(account, seriesId)
@@ -95,7 +97,7 @@ private fun buildSeriesEpisodesResponse(
         episodesAsChannels = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId)
     }
     applySeriesEpisodeWatchedFlag(episodesAsChannels, account, categoryId, seriesId, seriesWatchStateService)
-    return ServerUtils.objectToJson(episodesAsChannels)
+    return episodesAsChannels
 }
 
 private fun isSeriesEpisodeCacheFresh(
@@ -184,9 +186,9 @@ private fun buildSeriesDetailsResponse(
     configurationService: ConfigurationService,
     handshakeService: HandshakeService,
     imdbMetadataService: ImdbMetadataService
-): String {
+): SeriesDetailsResponseDto {
     if (account == null) {
-        return """{"seasonInfo":{},"episodes":[]}"""
+        return SeriesDetailsResponseDto(seasonInfo = buildJsonObject { }, episodes = emptyList(), episodesMeta = emptyList())
     }
     if (account.isNotConnected()) {
         handshakeService.connect(account)
@@ -202,7 +204,7 @@ private fun buildSeriesDetailsResponse(
     enrichEpisodesInSeriesDetails(response)
     response.put("seasonInfo", seasonInfo)
     applySeriesNameYearFallback(seasonInfo, seriesName)
-    return response.toString()
+    return toSeriesDetailsResponseDto(response)
 }
 
 private fun createSeriesDetailsBaseResponse(
@@ -509,6 +511,59 @@ private fun resolveSeriesCategoryId(rawCategoryId: String?): String {
     val category: Category? = SeriesCategoryDb.get().getById(categoryId)
     return if (category != null && StringUtils.isNotBlank(category.categoryId)) category.categoryId ?: categoryId else categoryId
 }
+
+private fun toSeriesDetailsResponseDto(response: JSONObject): SeriesDetailsResponseDto {
+    val seasonInfo = parseJsonObject(response.optJSONObject("seasonInfo")?.toString() ?: "{}")
+    val episodes = parseChannelsJson(response.optJSONArray("episodes")).map(::toChannelRouteDto)
+    val episodesMeta = parseJsonArray(response.optJSONArray("episodesMeta")).mapNotNull { it as? JsonObject }
+    return SeriesDetailsResponseDto(seasonInfo = seasonInfo, episodes = episodes, episodesMeta = episodesMeta)
+}
+
+private fun parseChannelsJson(array: JSONArray?): List<Channel> {
+    if (array == null || array.isEmpty) {
+        return emptyList()
+    }
+    val channels = ArrayList<Channel>()
+    for (index in 0 until array.length()) {
+        Channel.fromJson(array.getJSONObject(index).toString())?.let(channels::add)
+    }
+    return channels
+}
+
+private fun parseJsonObject(json: String): JsonObject = seriesRouteJson.parseToJsonElement(json).jsonObject
+
+private fun parseJsonArray(array: JSONArray?): JsonArray =
+    seriesRouteJson.parseToJsonElement(array?.toString() ?: "[]").jsonArray
+
+private fun toChannelRouteDto(channel: Channel): ChannelRouteDto =
+    ChannelRouteDto(
+        dbId = channel.dbId,
+        channelId = channel.channelId,
+        categoryId = channel.categoryId,
+        name = channel.name,
+        number = channel.number,
+        cmd = channel.cmd,
+        cmd_1 = channel.cmd_1,
+        cmd_2 = channel.cmd_2,
+        cmd_3 = channel.cmd_3,
+        logo = channel.logo,
+        description = channel.description,
+        season = channel.season,
+        episodeNum = channel.episodeNum,
+        releaseDate = channel.releaseDate,
+        rating = channel.rating,
+        duration = channel.duration,
+        extraJson = channel.extraJson,
+        censored = channel.censored,
+        status = channel.status,
+        hd = channel.hd,
+        watched = channel.watched,
+        drmType = channel.drmType,
+        drmLicenseUrl = channel.drmLicenseUrl,
+        clearKeysJson = channel.clearKeysJson,
+        inputstreamaddon = channel.inputstreamaddon,
+        manifestType = channel.manifestType
+    )
 
 private val seriesRouteJson = Json {
     ignoreUnknownKeys = true

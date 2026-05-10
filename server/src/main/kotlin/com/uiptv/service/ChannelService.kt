@@ -746,13 +746,18 @@ class ChannelService private constructor() {
         maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled), true)
 
     @Throws(IOException::class)
-    fun readToJson(category: Category, account: Account): String {
+    fun read(category: Category, account: Account): List<Channel> {
         val categoryIdToUse = if (account.type == AccountType.STALKER_PORTAL || account.type == AccountType.XTREME_API) {
             category.categoryId
         } else {
             category.title
         }
-        return ServerUtils.objectToJson(get(categoryIdToUse.orEmpty(), account, category.dbId.orEmpty()))
+        return get(categoryIdToUse.orEmpty(), account, category.dbId.orEmpty())
+    }
+
+    @Throws(IOException::class)
+    fun readToJson(category: Category, account: Account): String {
+        return ServerUtils.objectToJson(read(category, account))
     }
 
     fun parsePagination(json: String, logger: LoggerCallback?): Pagination? {
