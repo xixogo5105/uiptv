@@ -89,6 +89,7 @@ Since `v0.1.10`, several desktop areas have changed enough that custom CSS shoul
 - published M3U selection views
 - remote database sync dialogs and progress feedback
 - player configuration/help-link layouts
+- binge-watch related player overlays and playlist controls
 - account reload/verification flows
 
 ## 8. CSS Safety Checklist

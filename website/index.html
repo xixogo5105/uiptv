@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta content="UIPTV is an open-source IPTV player for Windows, Linux, and macOS with desktop + web SPA support, Live/VOD/Series playback, localized UI, parental lock controls, remote database sync, playlist publishing, and bulk account import tooling."
+    <meta content="UIPTV is an open-source IPTV player for Windows, Linux, and macOS with desktop + web SPA support, Live/VOD/Series playback, parental lock controls, approval-based remote sync, playlist publishing, binge-watch playback, and bulk account import tooling."
           name="description">
     <meta content="UIPTV, IPTV Player, Stalker Portal, Xtreme Codes, M3U, HLS, FFmpeg, VLC, JavaFX, Open Source"
           name="keywords">
@@ -12,14 +12,14 @@
     <meta content="website" property="og:type">
     <meta content="https://xixogo5105.github.io/uiptv/" property="og:url">
     <meta content="UIPTV | Desktop + Web IPTV, Reimagined" property="og:title">
-    <meta content="Live TV, VOD, and Series in one place with desktop + web parity, localized UI, parental lock, playlist publishing, remote sync, and robust account import tooling."
+    <meta content="Live TV, VOD, and Series in one place with desktop + web parity, parental lock, playlist publishing, approval-based remote sync, binge-watch playback, and robust account import tooling."
           property="og:description">
     <meta content="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" property="og:image">
 
     <meta content="summary_large_image" property="twitter:card">
     <meta content="https://xixogo5105.github.io/uiptv/" property="twitter:url">
     <meta content="UIPTV | Desktop + Web IPTV, Reimagined" property="twitter:title">
-    <meta content="Live TV, VOD, and Series in one place with modern web access, localized UI, parental lock, remote sync, and import tools."
+    <meta content="Live TV, VOD, and Series in one place with modern web access, parental lock, approval-based remote sync, binge-watch playback, and import tools."
           property="twitter:description">
     <meta content="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37"
           property="twitter:image">
@@ -114,38 +114,38 @@
             <h3>Simple and Plain UX</h3>
             <p>The core product direction remains unchanged: practical layout, low-noise controls, and fast access to
                 channels, playlists, and account actions.</p></article>
-        <article class="release-card"><i class="fas fa-language"></i>
-            <h3>Localized UI + RTL</h3>
-            <p>Multiple language bundles, right-to-left layout handling, and localized season/episode/tab numbering are
-                now integrated for supported locales.</p></article>
-        <article class="release-card"><i class="fas fa-palette"></i>
-            <h3>Theme Zoom + CSS Overrides</h3>
-            <p>Light/dark themes now include saved zoom scaling, live preview from Configuration, and per-theme CSS
-                override files with baseline templates.</p></article>
-        <article class="release-card"><i class="fas fa-window-maximize"></i>
-            <h3>Desktop and Web Parity</h3>
-            <p>Bookmarks, Watching Now data, series resume state, and published playlists are available across desktop
-                and local-network web flows.</p></article>
-        <article class="release-card"><i class="fas fa-globe"></i>
-            <h3>Browser Player Route</h3>
-            <p>Playback can be routed through embedded players, external players, or the browser player path, with
-                DRM-aware payload fields where providers expose them.</p></article>
-        <article class="release-card"><i class="fas fa-clock-rotate-left"></i>
-            <h3>Watch-State Improvements</h3>
-            <p>Series progress tracking and resume behavior are more consistent across tabs, account reloads, and
-                desktop-to-web usage patterns.</p></article>
-        <article class="release-card"><i class="fas fa-file-import"></i>
-            <h3>Import + Account Tooling Refresh</h3>
-            <p>Stalker, Xtreme, and M3U flows now align with current parsers, with stronger bulk import guidance,
-                account maintenance, and cache reload controls.</p></article>
         <article class="release-card"><i class="fas fa-shield-halved"></i>
             <h3>Parental Lock</h3>
             <p>Blocked keywords and Stalker censored content can now be protected with a local password, including
                 unlock, relock, change, and disable flows.</p></article>
         <article class="release-card"><i class="fas fa-right-left"></i>
             <h3>Remote Database Sync</h3>
-            <p>One-way database sync can now be approved and applied between running UIPTV instances, with clearer
-                progress and completion feedback.</p></article>
+            <p>One-way database sync can now be approved and applied between running UIPTV instances, with synchronized
+                configuration tables and clearer progress/completion feedback.</p></article>
+        <article class="release-card"><i class="fas fa-list-check"></i>
+            <h3>Published Playlist Controls</h3>
+            <p>M3U publishing now supports account/category/channel hierarchy, category modes, request-host URLs, and
+                narrower exported playlist sets.</p></article>
+        <article class="release-card"><i class="fas fa-film"></i>
+            <h3>HLS + VLC Reliability</h3>
+            <p>Embedded VLC playback now handles redirects, cookies, SSL, and CloudFront-style HLS streams more
+                reliably.</p></article>
+        <article class="release-card"><i class="fas fa-forward"></i>
+            <h3>Series Binge-Watch</h3>
+            <p>Series playback now supports binge-watch playlist/session handling so the next episode is ready without
+                rebuilding the flow manually.</p></article>
+        <article class="release-card"><i class="fas fa-arrow-up-right-dots"></i>
+            <h3>Custom Update Window</h3>
+            <p>The About/update flow now uses a GitHub Releases-backed update window with richer release-note
+                presentation.</p></article>
+        <article class="release-card"><i class="fas fa-language"></i>
+            <h3>Localized UI + RTL</h3>
+            <p>Multiple language bundles, right-to-left layout handling, and localized season/episode/tab numbering are
+                available for supported locales.</p></article>
+        <article class="release-card"><i class="fas fa-palette"></i>
+            <h3>Theme Zoom + CSS Overrides</h3>
+            <p>Light/dark themes now include saved zoom scaling, zoom-fill playback mode, live preview, and per-theme
+                CSS override files with baseline templates.</p></article>
     </div>
 </section>
 
@@ -232,13 +232,14 @@
         <h2>System requirements</h2>
     </div>
     <div class="req-panel">
-        <p class="req-intro">Current published targets: Windows <strong>x86_64</strong>, Linux <strong>x86_64</strong>,
-            macOS <strong>x86_64 + aarch64</strong>. Linux releases are distributed as <strong>.deb</strong>, optional
-            <strong>.rpm</strong>, and a portable app bundle archive.</p>
+        <p class="req-intro">Current published targets: Windows <strong>x86_64</strong>, Linux <strong>x86_64</strong>
+            plus <strong>aarch64</strong> where available, and macOS <strong>x86_64 + aarch64</strong>. GitHub release
+            assets are currently distributed as downloadable archives containing the packaged app or platform-specific
+            package output.</p>
         <p class="req-intro"><strong>Install note:</strong> before upgrading on Windows or Linux DEB installs, uninstall
             the previous UIPTV version first.</p>
         <ul>
-            <li><i class="fab fa-java"></i><span><strong>Java 25</strong> bundled in installers</span></li>
+            <li><i class="fab fa-java"></i><span><strong>Java 25</strong> bundled in packaged release builds</span></li>
             <li>
                 <i class="fas fa-file-video"></i><span><strong>VLC</strong> recommended for best embedded playback</span>
             </li>

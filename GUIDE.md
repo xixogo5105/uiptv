@@ -57,13 +57,17 @@ Key highlights include:
 
 ### What's New
 
+- **Parental lock**: Filter management and Stalker censored content can now be protected with a local password.
+- **Remote sync**: One-way database sync can now be approved and executed against another running UIPTV instance, with synchronized configuration tables and clearer completion feedback.
+- **Published playlists**: M3U publishing now supports account/category/channel hierarchy and narrower export selection flows.
+- **HLS/VLC playback fixes**: Embedded VLC playback handles redirects, cookies, SSL, and CloudFront-style HLS streams more reliably.
+- **Series binge-watch**: Series playback can now follow a binge-watch playlist/session flow for episode-to-episode viewing.
+- **Update window**: The About page now opens a custom GitHub Releases-backed update dialog.
 - **Localized UI**: UIPTV now ships with multiple language bundles, RTL layout support, and localized season/episode numbering where supported.
-- **Theme zoom + overrides**: The Theme section supports saved zoom, live preview, and light/dark CSS overrides.
+- **Theme zoom + overrides**: The Theme section supports saved zoom, live preview, light/dark CSS overrides, and zoom-fill playback mode.
 - **Browser player path**: Desktop context menus and default playback settings can route playback through the local web player when needed.
 - **Watching Now improvements**: Series watch-state and resume flows are available in both desktop and web experiences.
 - **Import tooling refresh**: The Stalker, M3U, and Xtreme import guides have been aligned with current parser behavior.
-- **Parental lock**: Filter management and Stalker censored content can now be protected with a local password.
-- **Remote sync**: One-way database sync can now be approved and executed against another running UIPTV instance.
 
 For advanced desktop theming, see [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 
@@ -81,9 +85,9 @@ To ensure a smooth experience, please verify your system meets the following req
 ### Installing on Windows
 **Important:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV. The installer does not automatically remove older versions, and failure to do so may result in the upgrade not being applied correctly.
 
-1. Download the latest `.msi` installer from the [Releases Page](https://github.com/xixogo5105/uiptv/releases/latest).
-2. Double-click the installer and follow the on-screen prompts.
-3. Once installed, launch UIPTV from the Start Menu.
+1. Download the latest Windows release archive from the [Releases Page](https://github.com/xixogo5105/uiptv/releases/latest).
+2. Extract the archive.
+3. Open the extracted folder and launch UIPTV using the packaged Windows executable.
 
 #### Installing Dependencies (FFmpeg & yt-dlp)
 To enable YouTube support and web streaming of TS files, you need to install these tools and ensure they are in your system PATH.
@@ -133,9 +137,10 @@ If you build Windows `.exe`/`.msi` installers locally with `jpackage`, install W
   ```
 
 ### Installing on macOS
-1. Download the `.dmg` file.
-2. Open the disk image and drag the UIPTV application to your **Applications** folder.
-3. You may need to allow the application to run in **System Settings > Privacy & Security** if it's not signed by an identified developer.
+1. Download the macOS release archive.
+2. Extract the archive.
+3. Move the bundled UIPTV application to your **Applications** folder if desired.
+4. You may need to allow the application to run in **System Settings > Privacy & Security** if it's not signed by an identified developer.
 
 #### Installing Dependencies
 The easiest way to install the required dependencies on macOS is using **Homebrew**. Open your terminal and run:
@@ -158,6 +163,7 @@ UIPTV offers flexibility in how you watch your content:
   1. Click **Browse...** to locate the executable of your preferred player (e.g., `mpv.exe`, `smplayer`).
   2. Use the **Radio Button** next to a player path to set it as the default player when you double-click a channel.
 - **Wide View**: Enables a wider embedded player layout.
+- **Redirect Resolution**: A toggle is available for workflows where playlist/stream redirects need to be resolved before playback.
 - **Restart Requirement**: Changing embedded player mode or wide view requires app restart for full effect.
 
 ### Parental Lock
@@ -193,7 +199,7 @@ UIPTV uses a local SQLite database to cache account, category, channel, bookmark
 
 ### Updates & About
 - **About Page**: Provides version information and credits.
-- **Check for Updates**: You can manually check for new versions of UIPTV from the About page. The application will notify you if a newer release is available on GitHub.
+- **Check for Updates**: You can manually check for new versions of UIPTV from the About page. The application will notify you if a newer release is available on GitHub and show release notes in the custom update dialog.
 
 ---
 
@@ -299,6 +305,7 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
 ### Watching Now
 - **Resume Flow**: Continue watching series from recently watched entries.
 - **Episode Actions**: Open episodes from cards and reload episodes from server.
+- **Binge-Watch Flow**: Series playback can open a binge-watch sequence so the next episode is ready without rebuilding the flow manually.
 - **Watched Markers**: Series and episode rows show watched/in-progress states.
 
 ### Embedded Players Explained
@@ -309,7 +316,7 @@ This is the primary and most powerful player. It leverages the **VLC Media Playe
 - **Features**:
   - **Broad Format Support**: Plays almost any video or audio format supported by VLC.
   - **Hardware Acceleration**: Utilizes system hardware for smooth playback.
-  - **Advanced Controls**: Includes Play/Pause, Stop, Repeat, Reload, Fullscreen, Picture-in-Picture (PiP), Mute, Volume, and Aspect Ratio toggle (Fit/Stretch).
+  - **Advanced Controls**: Includes Play/Pause, Stop, Repeat, Reload, Fullscreen, Picture-in-Picture (PiP), Mute, Volume, and aspect/zoom controls such as Fit/Stretch and zoom-fill.
   - **Overlay Controls**: Controls appear on mouse hover and fade out when idle.
   - **PiP Mode**: Allows you to detach the video into a floating, resizable window that stays on top of other applications.
 
