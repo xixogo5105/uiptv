@@ -34,11 +34,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
-        this(JavaFxServices.current());
-    }
-
-    LiteVideoPlayer(JavaFxServices services) {
-        super(services); // Calls buildUI -> getVideoView
+        super(); // Calls buildUI -> getVideoView
 
         setMute(isMuted);
         compatibilityFallbackTimer.setOnFinished(e -> triggerCompatibilityFallbackIfNeeded());

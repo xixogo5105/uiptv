@@ -91,15 +91,12 @@ public abstract class BaseEpisodesListUI extends HBox {
     private final SeriesWatchStateChangeListener watchStateChangeListener;
 
     protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
-    }
-
-    protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
         this.channelList = new EpisodeList();
         this.account = account;
         this.categoryTitle = categoryTitle;
         this.seriesId = isBlank(seriesId) ? "" : seriesId.trim();
         this.seriesCategoryId = isBlank(seriesCategoryId) ? "" : seriesCategoryId.trim();
+        JavaFxServices services = JavaFxServices.current();
         this.bookmarkService = services.bookmarkService();
         this.seriesWatchStateService = services.seriesWatchStateService();
         this.bingeWatchService = services.bingeWatchService();

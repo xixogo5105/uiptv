@@ -25,19 +25,11 @@ public class EpisodesListUI extends HBox {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(channelList, account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
-    }
-
-    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
-        this(account, categoryTitle, seriesId, seriesCategoryId, services);
+        this(account, categoryTitle, seriesId, seriesCategoryId);
         setItems(channelList);
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
-    }
-
-    public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
         this.account = account;
         this.categoryTitle = categoryTitle;
         this.seriesId = seriesId;

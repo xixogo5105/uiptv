@@ -146,7 +146,6 @@ public class ConfigurationUI extends VBox {
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
-    private final JavaFxServices services;
     private final ConfigurationService service;
     private final ThemeCssOverrideService themeCssOverrideService;
     private final SeriesWatchStateService seriesWatchStateService;
@@ -173,12 +172,8 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationChangeListener configurationChangeListener = revision -> javafx.application.Platform.runLater(this::refreshConfigurationForm);
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {
-        this(onSaveCallback, JavaFxServices.defaults());
-    }
-
-    public ConfigurationUI(Callback<Object> onSaveCallback, JavaFxServices services) {
         this.onSaveCallback = onSaveCallback;
-        this.services = services;
+        JavaFxServices services = JavaFxServices.current();
         this.service = services.configurationService();
         this.themeCssOverrideService = services.themeCssOverrideService();
         this.seriesWatchStateService = services.seriesWatchStateService();
@@ -714,7 +709,7 @@ public class ConfigurationUI extends VBox {
                 return;
             }
             Stage popupStage = new Stage();
-            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage, services);
+            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
             Scene scene = new Scene(popup, 680, 560);
             UiI18n.applySceneOrientation(scene);
             scene.getStylesheets().add(RootApplication.getCurrentTheme());

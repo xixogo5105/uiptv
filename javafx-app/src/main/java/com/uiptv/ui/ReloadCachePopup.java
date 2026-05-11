@@ -112,24 +112,20 @@ public class ReloadCachePopup extends VBox {
     private ColumnConstraints logsColumn;
 
     public static void showPopup(Stage owner) {
-        showPopup(owner, null, null, JavaFxServices.current());
+        showPopup(owner, null, null);
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts) {
-        showPopup(owner, preselectedAccounts, null, JavaFxServices.current());
+        showPopup(owner, preselectedAccounts, null);
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        showPopup(owner, preselectedAccounts, onAccountsDeleted, JavaFxServices.current());
-    }
-
-    public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted, JavaFxServices services) {
         Stage popupStage = new Stage();
         if (owner != null) {
             popupStage.initOwner(owner);
             popupStage.initModality(Modality.WINDOW_MODAL);
         }
-        ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts, onAccountsDeleted, services);
+        ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts, onAccountsDeleted);
         Scene scene = new Scene(popup, 1368, 720);
         UiI18n.applySceneOrientation(scene);
         popupStage.setTitle(I18n.tr("autoReloadAccountsCache"));
@@ -138,18 +134,15 @@ public class ReloadCachePopup extends VBox {
     }
 
     public ReloadCachePopup(Stage stage) {
-        this(stage, null, null, JavaFxServices.current());
+        this(stage, null, null);
     }
 
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts) {
-        this(stage, preselectedAccounts, null, JavaFxServices.current());
+        this(stage, preselectedAccounts, null);
     }
 
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        this(stage, preselectedAccounts, onAccountsDeleted, JavaFxServices.current());
-    }
-
-    public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted, JavaFxServices services) {
+        JavaFxServices services = JavaFxServices.current();
         this.stage = stage;
         this.onAccountsDeleted = onAccountsDeleted;
         this.cacheService = services.cacheService();

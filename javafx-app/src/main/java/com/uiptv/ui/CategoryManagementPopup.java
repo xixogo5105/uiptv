@@ -23,10 +23,7 @@ public class CategoryManagementPopup extends VBox {
     private BookmarkChannelListUI parent;
 
     public CategoryManagementPopup(BookmarkChannelListUI parent) {
-        this(parent, JavaFxServices.current());
-    }
-
-    public CategoryManagementPopup(BookmarkChannelListUI parent, JavaFxServices services) {
+        JavaFxServices services = JavaFxServices.current();
         this.bookmarkService = services.bookmarkService();
         this.parent = parent;
         setPadding(new Insets(10));

@@ -41,11 +41,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private final AtomicLong audioStateRequestVersion = new AtomicLong();
 
     public VlcVideoPlayer() {
-        this(JavaFxServices.current());
-    }
-
-    VlcVideoPlayer(JavaFxServices services) {
-        super(services); // Must be the first call
+        super(); // Must be the first call
 
         if (videoImageView == null) {
             videoImageView = new ImageView();

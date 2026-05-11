@@ -148,7 +148,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isLiveLikeContent = true;
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
-    protected final JavaFxServices services;
     protected final PlayerService playerService;
     protected final BingeWatchService bingeWatchService;
     protected final SeriesWatchStateService seriesWatchStateService;
@@ -183,11 +182,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public static final String CHROME_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";
 
     protected BaseVideoPlayer() {
-        this(JavaFxServices.current());
-    }
-
-    protected BaseVideoPlayer(JavaFxServices services) {
-        this.services = services;
+        JavaFxServices services = JavaFxServices.current();
         this.playerService = services.playerService();
         this.bingeWatchService = services.bingeWatchService();
         this.seriesWatchStateService = services.seriesWatchStateService();
@@ -1955,7 +1950,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected ConfigurationService configurationService() {
-        return services.configurationService();
+        return JavaFxServices.current().configurationService();
     }
 
     private static void markHiddenBarMessageShown() {

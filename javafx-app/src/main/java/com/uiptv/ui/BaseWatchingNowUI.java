@@ -84,10 +84,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private boolean accountListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
-        this(JavaFxServices.defaults());
-    }
-
-    protected BaseWatchingNowUI(JavaFxServices services) {
+        JavaFxServices services = JavaFxServices.current();
         this.accountService = services.accountService();
         this.seriesEpisodeService = services.seriesEpisodeService();
         this.seriesWatchingNowSnapshotService = services.seriesWatchingNowSnapshotService();

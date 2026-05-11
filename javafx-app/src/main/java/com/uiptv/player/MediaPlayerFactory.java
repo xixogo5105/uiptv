@@ -39,12 +39,12 @@ public class MediaPlayerFactory {
         Configuration config = configurationService().read();
         if (config != null && config.isEmbeddedPlayer()) {
             try {
-                instance = new VlcVideoPlayer(JavaFxServices.current());
+                instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
             } catch (Exception e) {
                 AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos. Error: " + e.getMessage());
-                instance = new LiteVideoPlayer(JavaFxServices.current());
+                instance = new LiteVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.LITE;
             }
             if (instance.getPlayerContainer() instanceof Region playerContainer) {

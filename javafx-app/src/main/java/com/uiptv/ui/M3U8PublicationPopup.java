@@ -40,10 +40,7 @@ public class M3U8PublicationPopup extends VBox {
     private final ComboBox<M3U8PublicationService.PublishedCategoryMode> categoryModeComboBox = new ComboBox<>();
 
     public M3U8PublicationPopup(Stage stage) {
-        this(stage, JavaFxServices.defaults());
-    }
-
-    public M3U8PublicationPopup(Stage stage, JavaFxServices services) {
+        JavaFxServices services = JavaFxServices.current();
         this.configurationService = services.configurationService();
         this.service = services.m3u8PublicationService();
         this.savedSelections = service.getSelections();

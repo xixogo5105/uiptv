@@ -52,7 +52,6 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
-    private final JavaFxServices services;
     private final ConfigurationService configurationService;
     private final CategoryService categoryService;
     private final VBox listView = new VBox(5);
@@ -77,23 +76,18 @@ public class AccountListUI extends HBox {
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
 
-    public AccountListUI() { // Removed MediaPlayer argument
-        this(STATIC_CONFIGURATION_SERVICE.read().isEmbeddedPlayer(), DEFAULT_SERVICES);
-    }
-
     public AccountListUI(boolean embeddedMode) {
-        this(embeddedMode, DEFAULT_SERVICES);
-    }
-
-    public AccountListUI(boolean embeddedMode, JavaFxServices services) {
         this.embeddedMode = embeddedMode;
-        this.services = services;
+        JavaFxServices services = JavaFxServices.current();
         this.configurationService = services.configurationService();
         this.categoryService = services.categoryService();
         this.accountService = services.accountService();
         initWidgets();
-        // Don't load accounts on startup - load lazily when visible
         registerVisibilityListener();
+    }
+
+    public AccountListUI() { // Removed MediaPlayer argument
+        this(STATIC_CONFIGURATION_SERVICE.read().isEmbeddedPlayer());
     }
 
     private void registerVisibilityListener() {
@@ -607,7 +601,7 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode, services);
+        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
         if (embeddedMode) {
             showDetailView(categoryListUI);
         } else {

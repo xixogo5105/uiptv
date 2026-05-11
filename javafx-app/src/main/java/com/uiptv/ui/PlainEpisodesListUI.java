@@ -26,21 +26,13 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final TableView<EpisodeItem> tableView = new TableView<>();
 
     public PlainEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(channelList, account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
-    }
-
-    public PlainEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
-        super(account, categoryTitle, seriesId, seriesCategoryId, services);
+        super(account, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
         setItems(channelList);
     }
 
     public PlainEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
-    }
-
-    public PlainEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
-        super(account, categoryTitle, seriesId, seriesCategoryId, services);
+        super(account, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
     }
 

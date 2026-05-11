@@ -57,10 +57,7 @@ public class MacAddressManagementPopup extends VBox {
     private final BiConsumer<List<String>, String> onSave;
 
     public MacAddressManagementPopup(Stage owner, Account baseAccount, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
-        this(owner, baseAccount, initialMacs, currentDefaultMac, onSave, JavaFxServices.current());
-    }
-
-    public MacAddressManagementPopup(Stage owner, Account baseAccount, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave, JavaFxServices services) {
+        JavaFxServices services = JavaFxServices.current();
         this.handshakeService = services.handshakeService();
         this.defaultMac = currentDefaultMac;
         this.baseAccount = baseAccount;

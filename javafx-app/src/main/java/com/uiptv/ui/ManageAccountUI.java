@@ -122,10 +122,7 @@ public class ManageAccountUI extends VBox {
     private String xtremeDefaultUsername;
 
     public ManageAccountUI() {
-        this(JavaFxServices.defaults());
-    }
-
-    public ManageAccountUI(JavaFxServices services) {
+        JavaFxServices services = JavaFxServices.current();
         this.cacheService = services.cacheService();
         this.accountInfoService = services.accountInfoService();
         this.service = services.accountService();

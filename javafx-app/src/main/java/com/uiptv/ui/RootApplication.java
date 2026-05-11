@@ -232,7 +232,6 @@ public class RootApplication extends Application {
             return new WideMainApplicationUI(
                     primaryStage,
                     getHostServices(),
-                    services,
                     configurationService,
                     this::configureFontStyles,
                     GUIDED_MAX_WIDTH_PIXELS,
@@ -243,7 +242,6 @@ public class RootApplication extends Application {
         return new MainApplicationUI(
                 primaryStage,
                 getHostServices(),
-                services,
                 configurationService,
                 this::configureFontStyles,
                 GUIDED_MAX_WIDTH_PIXELS,
