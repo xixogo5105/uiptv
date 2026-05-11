@@ -1,5 +1,6 @@
 package com.uiptv.db
 
+import com.uiptv.util.Platform
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.io.TempDir
@@ -60,7 +61,7 @@ class DatabasePathResolverTest {
         val resolution = DatabasePathResolver.resolvePath()
 
         assertEquals(DatabasePathSource.DEFAULT_HOME, resolution.source)
-        assertEquals(tempDir.resolve("uiptv").resolve("uiptv.db").toString(), resolution.path)
+        assertEquals(Platform.getUserHomeDirPath() + java.io.File.separator + "uiptv.db", resolution.path)
     }
 
     @Test
@@ -71,6 +72,6 @@ class DatabasePathResolverTest {
         val resolution = DatabasePathResolver.resolvePath()
 
         assertEquals(DatabasePathSource.DEFAULT_HOME, resolution.source)
-        assertEquals(tempDir.resolve("uiptv").resolve("uiptv.db").toString(), resolution.path)
+        assertEquals(Platform.getUserHomeDirPath() + java.io.File.separator + "uiptv.db", resolution.path)
     }
 }
