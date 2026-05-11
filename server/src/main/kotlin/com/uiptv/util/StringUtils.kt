@@ -2,7 +2,7 @@ package com.uiptv.util
 
 import com.uiptv.api.JsonCompliant
 import com.uiptv.model.Account
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import java.net.URLEncoder.encode
 import java.nio.charset.StandardCharsets.UTF_8
 import java.text.Normalizer
@@ -38,7 +38,7 @@ object StringUtils {
     fun nullSafeEncode(s: String?): String = encode(if (isNotBlank(s)) s else EMPTY, UTF_8)
 
     @JvmStatic
-    fun safeGetString(jsonCategory: JSONObject?, key: String?): String? {
+    fun safeGetString(jsonCategory: KJsonObject?, key: String?): String? {
         if (jsonCategory == null || key == null) {
             return null
         }

@@ -66,11 +66,8 @@ private fun applyChannelMode(account: Account, mode: String?) {
     if (mode.isNullOrBlank()) {
         return
     }
-    account.action = try {
-        Account.AccountAction.valueOf(mode.lowercase())
-    } catch (_: Exception) {
-        Account.AccountAction.itv
-    }
+    account.action = Account.AccountAction.entries.firstOrNull { it.name.equals(mode, ignoreCase = true) }
+        ?: Account.AccountAction.itv
 }
 
 private fun shouldServeSeriesEpisodes(account: Account, categoryId: String?, movieId: String?): Boolean =

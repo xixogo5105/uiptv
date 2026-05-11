@@ -6,11 +6,11 @@ import java.io.IOException
 
 interface CacheService {
     fun clearAllCache() {
-        ConfigurationService.getInstance().clearAllCache()
+        ConfigurationService.clearAllCache()
     }
 
     fun clearCache(account: Account) {
-        ConfigurationService.getInstance().clearCache(account)
+        ConfigurationService.clearCache(account)
     }
 
     @Throws(IOException::class)

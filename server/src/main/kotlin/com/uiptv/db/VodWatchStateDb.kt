@@ -13,13 +13,9 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 
-class VodWatchStateDb private constructor() {
-    companion object {
-        private val instance = VodWatchStateDb()
-
-        @JvmStatic
-        fun get(): VodWatchStateDb = instance
-    }
+object VodWatchStateDb {
+    @JvmStatic
+    fun get(): VodWatchStateDb = this
 
     fun getByVod(accountId: String, categoryId: String, vodId: String): VodWatchState? =
         transaction(SqlConnectionRuntime.database()) {

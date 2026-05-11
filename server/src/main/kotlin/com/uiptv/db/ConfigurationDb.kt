@@ -13,13 +13,9 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.statements.UpdateBuilder
 import org.jetbrains.exposed.sql.update
 
-class ConfigurationDb private constructor() : ExposedCrudRepository<String, Configuration>() {
-    companion object {
-        private val instance = ConfigurationDb()
-
-        @JvmStatic
-        fun get(): ConfigurationDb = instance
-    }
+object ConfigurationDb : ExposedCrudRepository<String, Configuration>() {
+    @JvmStatic
+    fun get(): ConfigurationDb = this
 
     override fun findAll(): List<Configuration> = query {
         ConfigurationTable.selectAll()

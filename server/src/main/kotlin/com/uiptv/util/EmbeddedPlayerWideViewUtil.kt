@@ -3,11 +3,16 @@ package com.uiptv.util
 import com.uiptv.service.ConfigurationService
 
 object EmbeddedPlayerWideViewUtil {
-    private var configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+    private var configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 
     @JvmStatic
     fun configureDependencies(configurationService: ConfigurationService) {
         this.configurationServiceProvider = { configurationService }
+    }
+
+    @JvmStatic
+    fun resetDependencies() {
+        configurationServiceProvider = { ConfigurationService }
     }
 
     @JvmStatic

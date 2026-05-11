@@ -1,7 +1,7 @@
 package com.uiptv.service;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.uiptv.util.json.KJsonArray;
+import com.uiptv.util.json.KJsonObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -68,14 +68,14 @@ class LitePlayerFfmpegServiceCoverageTest extends DbBackedTest {
 
     @Test
     void probeJsonConversion_helpers_extractCodecsAndMapProbeResult() throws Exception {
-        JSONArray streams = new JSONArray()
-                .put(new JSONObject().put("codec_type", "video").put("codec_name", "h264"))
-                .put(new JSONObject().put("codec_type", "audio").put("codec_name", "aac"));
-        JSONObject root = new JSONObject()
-                .put("format", new JSONObject().put("format_name", "mp4"))
+        KJsonArray streams = new KJsonArray()
+                .put(new KJsonObject().put("codec_type", "video").put("codec_name", "h264"))
+                .put(new KJsonObject().put("codec_type", "audio").put("codec_name", "aac"));
+        KJsonObject root = new KJsonObject()
+                .put("format", new KJsonObject().put("format_name", "mp4"))
                 .put("streams", streams);
 
-        Object probe = invoke("toProbeResult", new Class[]{JSONObject.class}, root);
+        Object probe = invoke("toProbeResult", new Class[]{KJsonObject.class}, root);
         Method hasVideo = probe.getClass().getDeclaredMethod("hasVideo");
         Method hasAudio = probe.getClass().getDeclaredMethod("hasAudio");
         hasVideo.setAccessible(true);

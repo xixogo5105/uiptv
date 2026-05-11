@@ -6,7 +6,7 @@ import com.uiptv.service.AccountService
 import java.util.function.Consumer
 
 class M3uParser(
-    private val accountSaver: Consumer<Account> = Consumer { AccountService.getInstance().save(it) }
+    private val accountSaver: Consumer<Account> = Consumer { AccountService.save(it) }
 ) : AccountParser {
     override fun parseAndSave(text: String, groupAccountsByMac: Boolean, convertM3uToXtreme: Boolean): List<Account> {
         val createdAccounts = ArrayList<Account>()

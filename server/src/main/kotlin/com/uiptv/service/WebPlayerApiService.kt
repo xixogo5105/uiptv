@@ -8,6 +8,7 @@ import com.uiptv.server.api.dto.PlayerPlaybackBingeWatchItemDto
 import com.uiptv.server.api.dto.PlayerPlaybackChannelDto
 import com.uiptv.server.api.dto.PlayerPlaybackDrmDto
 import com.uiptv.server.api.dto.PlayerPlaybackResponseDto
+import com.uiptv.util.koinOrNull
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
@@ -19,12 +20,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 @Suppress("java:S1075")
-class WebPlayerApiService(
+class WebPlayerApiService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val configurationService: ConfigurationService = ConfigurationService,
     private val ffmpegService: FfmpegService = FfmpegService,
-    private val bingeWatchService: BingeWatchService = BingeWatchService,
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver()
+    private val bingeWatchService: BingeWatchService = koinOrNull<BingeWatchService>() ?: BingeWatchService.getInstance(),
+    private val playerRequestResolver: PlayerRequestResolver = koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver()
 ) {
     private val json = Json {
         explicitNulls = false
@@ -149,7 +150,7 @@ class WebPlayerApiService(
         val account = if (isBlank(accountId)) null else accountService.getById(accountId)
         val channel = requestChannel
         if (isBlank(channel.name)) {
-            channel.name = resolvedEpisode.episodeName
+            channel.name = resolvedEpisode.title
         }
         items.firstOrNull { currentEpisodeId == it.episodeId }?.let { item ->
             if (isBlank(channel.season)) channel.season = item.season

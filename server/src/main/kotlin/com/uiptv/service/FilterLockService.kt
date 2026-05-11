@@ -95,7 +95,7 @@ object FilterLockService {
         }
     }
 
-    private fun currentHash(): String = safe(ConfigurationService.getInstance().read().filterLockHash)
+    private fun currentHash(): String = safe(ConfigurationService.read().filterLockHash)
 
     private fun hashPassword(password: String): String {
         val salt = ByteArray(SALT_BYTES)

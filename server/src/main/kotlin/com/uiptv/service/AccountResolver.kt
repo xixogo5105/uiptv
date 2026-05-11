@@ -4,7 +4,7 @@ import com.uiptv.model.Account
 import com.uiptv.shared.BaseJson
 
 class AccountResolver(
-    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
+    private val accountServiceProvider: () -> AccountService = { AccountService }
 ) {
     fun resolveAccounts(): List<AccountRow> =
         accountServiceProvider.invoke().getAll().values.map { fromAccount(it) }

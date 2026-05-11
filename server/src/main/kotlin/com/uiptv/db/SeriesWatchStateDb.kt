@@ -12,14 +12,11 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 
-class SeriesWatchStateDb private constructor() {
-    companion object {
-        private val instance = SeriesWatchStateDb()
-        private const val MODE_SERIES = "series"
+object SeriesWatchStateDb {
+    private const val MODE_SERIES = "series"
 
-        @JvmStatic
-        fun get(): SeriesWatchStateDb = instance
-    }
+    @JvmStatic
+    fun get(): SeriesWatchStateDb = this
 
     fun getBySeries(accountId: String, categoryId: String, seriesId: String): SeriesWatchState? =
         transaction(SqlConnectionRuntime.database()) {

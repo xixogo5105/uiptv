@@ -32,9 +32,9 @@ import org.koin.core.context.GlobalContext
 import kotlin.io.path.readText
 
 class M3U8PublicationService(
-    private val accountService: AccountService = AccountService.getInstance(),
-    private val bookmarkService: BookmarkService = BookmarkService.getInstance(),
-    private val configurationService: ConfigurationService = ConfigurationService.getInstance(),
+    private val accountService: AccountService = AccountService,
+    private val bookmarkService: BookmarkService = BookmarkService,
+    private val configurationService: ConfigurationService = ConfigurationService,
     private val publishedSelectionDb: PublishedM3uSelectionDb = PublishedM3uSelectionDb.get(),
     private val publishedCategorySelectionDb: PublishedM3uCategorySelectionDb = PublishedM3uCategorySelectionDb.get(),
     private val publishedChannelSelectionDb: PublishedM3uChannelSelectionDb = PublishedM3uChannelSelectionDb.get()

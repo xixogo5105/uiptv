@@ -1103,11 +1103,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         int attempts = Math.max(1, maxAttempts);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                JSONObject imdb = ImdbMetadataService.getInstance().findBestEffortDetails(
+                JSONObject imdb = new JSONObject(ImdbMetadataService.getInstance().findBestEffortDetails(
                         firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
                         data.seasonInfo.optString("tmdb", ""),
                         hints
-                );
+                ).toString());
                 if (imdb != null) {
                     return imdb;
                 }

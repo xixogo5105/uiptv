@@ -319,7 +319,7 @@ public class VodWatchingNowUI extends VBox {
         data.imdbLoading = true;
         new Thread(() -> {
             try {
-                JSONObject imdb = ImdbMetadataService.getInstance().findBestEffortMovieDetails(data.displayTitle, "");
+                JSONObject imdb = new JSONObject(ImdbMetadataService.getInstance().findBestEffortMovieDetails(data.displayTitle, "").toString());
                 if (imdb != null) {
                     mergeImdb(data, imdb);
                 }

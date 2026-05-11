@@ -6,6 +6,7 @@ import com.uiptv.model.Category
 import com.uiptv.model.BookmarkCategory
 import com.uiptv.model.Channel
 import com.uiptv.db.CategoryDb
+import com.uiptv.server.api.ApiNotFoundException
 import com.uiptv.server.api.dto.AccountRowDto
 import com.uiptv.server.api.dto.BookmarkDeleteRequest
 import com.uiptv.server.api.dto.BookmarkCategoryDto
@@ -93,14 +94,11 @@ fun Route.registerCoreApiRoutes(
             channelId = body.id.orEmpty()
         }
 
-        val account = accountService.getById(accountId)
-        if (account == null || channelId.isBlank() || channelName.isBlank()) {
-            call.respond(
-                HttpStatusCode.BadRequest,
-                StatusResponse(status = "error", message = "Missing account/channel details")
-            )
-            return@post
+        if (accountId.isNullOrBlank() || channelId.isBlank() || channelName.isBlank()) {
+            throw IllegalArgumentException("accountId, channelId and name are required")
         }
+        val account = accountService.getById(accountId)
+            ?: throw ApiNotFoundException("account not found")
         applyMode(account, mode)
 
         var categoryTitle = ""
@@ -157,11 +155,7 @@ fun Route.registerCoreApiRoutes(
         val body = call.receivePayloadOrDefault<BookmarkOrderRequest>()
         val bookmarkOrders = extractBookmarkOrders(body)
         if (bookmarkOrders.isEmpty()) {
-            call.respond(
-                HttpStatusCode.BadRequest,
-                StatusResponse(status = "error", message = "bookmarkOrders is required")
-            )
-            return@put
+            throw IllegalArgumentException("bookmarkOrders is required")
         }
         bookmarkService.saveBookmarkOrders(bookmarkOrders)
         call.respond(StatusResponse(status = "ok", action = "reordered"))
@@ -174,11 +168,7 @@ fun Route.registerCoreApiRoutes(
             bookmarkId = call.receivePayloadOrDefault<BookmarkDeleteRequest>().bookmarkId.orEmpty()
         }
         if (bookmarkId.isBlank()) {
-            call.respond(
-                HttpStatusCode.BadRequest,
-                StatusResponse(status = "error", message = "bookmarkId is required")
-            )
-            return@delete
+            throw IllegalArgumentException("bookmarkId is required")
         }
         bookmarkService.remove(bookmarkId)
         call.respond(StatusResponse(status = "ok", action = "removed"))
@@ -189,11 +179,8 @@ private fun applyMode(account: Account, mode: String?) {
     if (mode.isNullOrBlank()) {
         return
     }
-    account.action = try {
-        Account.AccountAction.valueOf(mode.lowercase())
-    } catch (_: Exception) {
-        Account.AccountAction.itv
-    }
+    account.action = Account.AccountAction.entries.firstOrNull { it.name.equals(mode, ignoreCase = true) }
+        ?: Account.AccountAction.itv
 }
 
 private fun ApplicationCall.bookmarkHeaders() {

@@ -1,7 +1,7 @@
 package com.uiptv.shared
 
 import com.uiptv.api.JsonCompliant
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import java.io.Serializable
 import java.lang.reflect.Modifier
 
@@ -23,7 +23,7 @@ open class BaseJson : Serializable, JsonCompliant {
             } catch (_: IllegalAccessException) {
             }
         }
-        return JSONObject(map as Map<*, *>).toString()
+        return KJsonObject(map).toString()
     }
 
     override fun toString(): String = toJson()

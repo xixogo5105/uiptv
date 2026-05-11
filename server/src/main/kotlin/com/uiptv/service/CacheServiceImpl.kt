@@ -6,17 +6,22 @@ import com.uiptv.model.Account
 import com.uiptv.service.cache.AccountCacheReloaderFactory
 import com.uiptv.util.AccountType
 import com.uiptv.util.FetchAPI
+import com.uiptv.util.koinOrNull
 import java.util.Date
 import java.util.HashMap
 
-class CacheServiceImpl(
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() },
-    private val categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() }
+class CacheServiceImpl @JvmOverloads constructor(
+    private val handshakeServiceProvider: () -> HandshakeService = { koinOrNull<HandshakeService>() ?: HandshakeService() },
+    private val categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
+    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
+    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() }
 ) : CacheService {
     private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {
         AccountCacheReloaderFactory(
             categoryServiceProvider = categoryServiceProvider,
-            handshakeServiceProvider = handshakeServiceProvider
+            configurationServiceProvider = configurationServiceProvider,
+            handshakeServiceProvider = handshakeServiceProvider,
+            channelServiceProvider = channelServiceProvider
         )
     }
 

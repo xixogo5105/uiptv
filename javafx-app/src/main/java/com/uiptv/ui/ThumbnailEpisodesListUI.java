@@ -917,7 +917,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         int attempts = Math.max(1, maxAttempts);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                JSONObject imdb = ImdbMetadataService.getInstance().findBestEffortDetails(title, tmdb, hints);
+                JSONObject imdb = new JSONObject(ImdbMetadataService.getInstance().findBestEffortDetails(title, tmdb, hints).toString());
                 if (imdb != null) {
                     return imdb;
                 }

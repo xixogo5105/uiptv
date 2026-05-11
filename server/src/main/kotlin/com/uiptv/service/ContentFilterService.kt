@@ -12,7 +12,7 @@ object ContentFilterService {
         if (channels.isNullOrEmpty()) {
             return channels
         }
-        val configuration = ConfigurationService.getInstance().read()
+        val configuration = ConfigurationService.read()
         val filterList = configuration.filterChannelsList.orEmpty()
         if (configuration.pauseFiltering || StringUtils.isBlank(filterList)) {
             return channels
@@ -28,7 +28,7 @@ object ContentFilterService {
         if (categories.isNullOrEmpty()) {
             return categories
         }
-        val configuration = ConfigurationService.getInstance().read()
+        val configuration = ConfigurationService.read()
         val filterList = configuration.filterCategoriesList.orEmpty()
         if (configuration.pauseFiltering || StringUtils.isBlank(filterList)) {
             return categories

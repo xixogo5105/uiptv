@@ -7,11 +7,16 @@ import java.io.IOException
 import java.io.UncheckedIOException
 
 object ServerUrlUtil {
-    private var configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+    private var configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 
     @JvmStatic
     fun configureDependencies(configurationServiceProvider: () -> ConfigurationService) {
         this.configurationServiceProvider = configurationServiceProvider
+    }
+
+    @JvmStatic
+    fun resetDependencies() {
+        configurationServiceProvider = { ConfigurationService }
     }
 
     @JvmStatic

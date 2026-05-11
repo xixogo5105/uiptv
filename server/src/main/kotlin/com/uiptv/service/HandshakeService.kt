@@ -8,8 +8,8 @@ import com.uiptv.util.FetchAPI.nullSafeString
 import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 import java.security.SecureRandom
 import java.time.Instant
 import java.time.LocalDate
@@ -28,8 +28,8 @@ import javax.crypto.spec.PBEKeySpec
 import org.koin.core.context.GlobalContext
 
 class HandshakeService(
-    private val accountService: AccountService = AccountService.getInstance(),
-    private val accountInfoService: AccountInfoService = AccountInfoService.getInstance()
+    private val accountService: AccountService = AccountService,
+    private val accountInfoService: AccountInfoService = AccountInfoService
 ) {
     private val PASS_RANDOM = SecureRandom()
 
@@ -172,7 +172,7 @@ class HandshakeService(
             return StringUtils.EMPTY
         }
         return try {
-            val token = JSONObject(json).getJSONObject("js").getString(PARAM_TOKEN)
+            val token = KJsonObject(json.orEmpty()).getJSONObject("js").getString(PARAM_TOKEN)
             if (isBlank(token)) {
                 com.uiptv.util.AppLog.addErrorLog(HandshakeService::class.java, "Error while establishing connection to server")
                 StringUtils.EMPTY
@@ -256,10 +256,10 @@ class HandshakeService(
         return updated
     }
 
-    private fun parsePortalResponse(json: String?): JSONObject? {
+    private fun parsePortalResponse(json: String?): KJsonObject? {
         if (isBlank(json)) return null
         return try {
-            val root = JSONObject(json)
+            val root = KJsonObject(json!!)
             root.optJSONObject("js") ?: root
         } catch (_: Exception) {
             null
@@ -274,7 +274,7 @@ class HandshakeService(
         return true
     }
 
-    private fun applyPasswordHashes(info: AccountInfo?, json: JSONObject?): Boolean {
+    private fun applyPasswordHashes(info: AccountInfo?, json: KJsonObject?): Boolean {
         if (info == null || json == null) return false
         var updated = false
         updated = updatePasswordHash(nullSafeString(json, "pass"), { info.passHash }, { info.passHash = it }) || updated
@@ -295,7 +295,7 @@ class HandshakeService(
         return true
     }
 
-    private fun deriveAccountStatus(js: JSONObject): AccountStatus =
+    private fun deriveAccountStatus(js: KJsonObject): AccountStatus =
         if (isTruthy(nullSafeString(js, "blocked"))) AccountStatus.SUSPENDED else AccountStatus.ACTIVE
 
     private fun isTruthy(value: String?): Boolean {
@@ -306,7 +306,7 @@ class HandshakeService(
         }
     }
 
-    private fun deriveExpiryDate(js: JSONObject): String {
+    private fun deriveExpiryDate(js: KJsonObject): String {
         val tariffExpired = normalizeExpiry(nullSafeString(js, "tariff_expired_date"))
         if (isNotBlank(tariffExpired)) return tariffExpired
         val expireBilling = normalizeExpiry(nullSafeString(js, "expire_billing_date"))
@@ -316,7 +316,7 @@ class HandshakeService(
         return ""
     }
 
-    private fun firstAccountInfoExpiry(accountInfoJson: JSONObject, rootJson: JSONObject, existingExpiry: String?): String {
+    private fun firstAccountInfoExpiry(accountInfoJson: KJsonObject, rootJson: KJsonObject, existingExpiry: String?): String {
         if (isNotBlank(normalizeExpiry(existingExpiry))) return ""
         val candidates = arrayOf(
             normalizeAccountInfoExpiry(nullSafeString(accountInfoJson, "end_date")),
@@ -364,7 +364,7 @@ class HandshakeService(
         }
     }
 
-    private fun applyAllowedStbTypes(info: AccountInfo?, json: JSONObject?): Boolean {
+    private fun applyAllowedStbTypes(info: AccountInfo?, json: KJsonObject?): Boolean {
         if (info == null || json == null) return false
         var updated = false
         val allowed = normalizeArray(json.optJSONArray("allowed_stb_types"))
@@ -403,7 +403,7 @@ class HandshakeService(
     fun selectPreferredStbType(allowedJson: String?): String {
         if (isBlank(allowedJson)) return ""
         return try {
-            val array = JSONArray(allowedJson)
+            val array = KJsonArray(allowedJson.orEmpty())
             if (array.length() == 0) return ""
             var hasMag = false
             for (i in 0 until array.length()) {
@@ -432,7 +432,7 @@ class HandshakeService(
     fun allowedContainsMag250(allowedJson: String?): Boolean {
         if (isBlank(allowedJson)) return false
         return try {
-            val array = JSONArray(allowedJson)
+            val array = KJsonArray(allowedJson.orEmpty())
             for (i in 0 until array.length()) {
                 if (array.optString(i, "").equals("mag250", true)) return true
             }
@@ -444,14 +444,14 @@ class HandshakeService(
     fun firstAllowedStbType(allowedJson: String?, fallback: String): String {
         if (isBlank(allowedJson)) return fallback
         return try {
-            val array = JSONArray(allowedJson)
+            val array = KJsonArray(allowedJson.orEmpty())
             array.optString(0, "").takeIf { isNotBlank(it) } ?: fallback
         } catch (_: Exception) {
             fallback
         }
     }
 
-    private fun normalizeArray(array: JSONArray?): String =
+    private fun normalizeArray(array: KJsonArray?): String =
         if (array == null || array.length() == 0) "" else array.toString()
 
     private fun hashPassword(rawValue: String?): String {

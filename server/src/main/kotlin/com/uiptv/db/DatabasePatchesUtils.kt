@@ -17,35 +17,34 @@ import java.sql.Statement
 import java.time.Instant
 import java.util.HexFormat
 
-class DatabasePatchesUtils private constructor() {
-    companion object {
-        private const val MIGRATIONS_LIST_RESOURCE = "db/migrations/migrations.txt"
-        private const val BASELINE_RESOURCE = "db/migrations/0000_baseline.sql"
-        private const val MIGRATIONS_DIR_RESOURCE = "db/migrations/"
+object DatabasePatchesUtils {
+    private const val MIGRATIONS_LIST_RESOURCE = "db/migrations/migrations.txt"
+    private const val BASELINE_RESOURCE = "db/migrations/0000_baseline.sql"
+    private const val MIGRATIONS_DIR_RESOURCE = "db/migrations/"
 
-        @JvmStatic
-        @Throws(SQLException::class)
-        fun applyPatches(conn: Connection) {
+    @JvmStatic
+    @Throws(SQLException::class)
+    fun applyPatches(conn: Connection) {
             createSchemaMigrationsTable(conn)
             for (migrationName in readMigrationNames(MIGRATIONS_LIST_RESOURCE)) {
                 applyMigration(conn, migrationName)
             }
         }
 
-        @JvmStatic
-        @Throws(SQLException::class)
-        fun applyBaseline(conn: Connection) {
+    @JvmStatic
+    @Throws(SQLException::class)
+    fun applyBaseline(conn: Connection) {
             executeMigrationContent(conn, readResource(BASELINE_RESOURCE))
         }
 
-        @JvmStatic
-        fun hasMigrationsListResource(): Boolean = resourceExists(MIGRATIONS_LIST_RESOURCE)
+    @JvmStatic
+    fun hasMigrationsListResource(): Boolean = resourceExists(MIGRATIONS_LIST_RESOURCE)
 
-        @JvmStatic
-        fun hasBaselineResource(): Boolean = resourceExists(BASELINE_RESOURCE)
+    @JvmStatic
+    fun hasBaselineResource(): Boolean = resourceExists(BASELINE_RESOURCE)
 
-        @Throws(SQLException::class)
-        private fun applyMigration(conn: Connection, migrationName: String) {
+    @Throws(SQLException::class)
+    private fun applyMigration(conn: Connection, migrationName: String) {
             val resourcePath = MIGRATIONS_DIR_RESOURCE + migrationName
             val migrationSql = readResource(resourcePath)
             val checksum = checksum(migrationSql)
@@ -69,9 +68,9 @@ class DatabasePatchesUtils private constructor() {
             }
         }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun executeMigrationContent(conn: Connection, migrationSql: String) {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun executeMigrationContent(conn: Connection, migrationSql: String) {
             val directive = findDirectiveLine(migrationSql)
             if (directive != null) {
                 executeDirective(conn, directive)
@@ -80,9 +79,9 @@ class DatabasePatchesUtils private constructor() {
             }
         }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun executeDirective(conn: Connection, directiveLine: String) {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun executeDirective(conn: Connection, directiveLine: String) {
             val parts = directiveLine.trim().split(Regex("\\s+"), limit = 4)
             if (parts.size < 3) {
                 throw SQLException("Invalid migration directive: $directiveLine")
@@ -117,9 +116,9 @@ class DatabasePatchesUtils private constructor() {
             throw SQLException("Unsupported migration directive: $directiveLine")
         }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun executeSqlStatements(conn: Connection, migrationSql: String) {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun executeSqlStatements(conn: Connection, migrationSql: String) {
             val sqlBlob = buildString {
                 migrationSql.split(Regex("\\R")).forEach { line ->
                     if (!line.trim().startsWith("--")) {
@@ -132,9 +131,9 @@ class DatabasePatchesUtils private constructor() {
             }
         }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun columnExists(conn: Connection, tableName: String, columnName: String): Boolean {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun columnExists(conn: Connection, tableName: String, columnName: String): Boolean {
             conn.createStatement().use { stmt ->
                 stmt.executeQuery("PRAGMA table_info($tableName)").use { rs ->
                     while (rs.next()) {
@@ -147,21 +146,21 @@ class DatabasePatchesUtils private constructor() {
             return false
         }
 
-        @JvmStatic
-        private fun findDirectiveLine(migrationSql: String): String? =
+    @JvmStatic
+    private fun findDirectiveLine(migrationSql: String): String? =
             migrationSql.split(Regex("\\R"))
                 .map(String::trim)
                 .firstOrNull { it.startsWith("--@") }
 
-        @JvmStatic
-        private fun readMigrationNames(resourcePath: String): List<String> =
+    @JvmStatic
+    private fun readMigrationNames(resourcePath: String): List<String> =
             readResource(resourcePath)
                 .split(Regex("\\R"))
                 .map(String::trim)
                 .filter { it.isNotEmpty() && !it.startsWith("#") }
 
-        @JvmStatic
-        private fun readResource(path: String): String {
+    @JvmStatic
+    private fun readResource(path: String): String {
             try {
                 openResource(path)?.use { input ->
                     BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8)).use { reader ->
@@ -179,16 +178,16 @@ class DatabasePatchesUtils private constructor() {
             throw IllegalStateException("Migration resource not found: $path")
         }
 
-        @JvmStatic
-        private fun resourceExists(path: String): Boolean =
+    @JvmStatic
+    private fun resourceExists(path: String): Boolean =
             try {
                 openResource(path)?.use { true } ?: false
             } catch (_: Exception) {
                 false
             }
 
-        @JvmStatic
-        private fun openResource(path: String): InputStream? {
+    @JvmStatic
+    private fun openResource(path: String): InputStream? {
             val normalized = if (path.startsWith("/")) path.substring(1) else path
             val absolute = "/$normalized"
 
@@ -203,8 +202,8 @@ class DatabasePatchesUtils private constructor() {
             return if (Files.isRegularFile(localPath)) FileInputStream(localPath.toFile()) else null
         }
 
-        @JvmStatic
-        private fun checksum(text: String): String =
+    @JvmStatic
+    private fun checksum(text: String): String =
             try {
                 val digest = MessageDigest.getInstance("SHA-256")
                 HexFormat.of().formatHex(digest.digest(text.toByteArray(StandardCharsets.UTF_8)))
@@ -212,9 +211,9 @@ class DatabasePatchesUtils private constructor() {
                 throw IllegalStateException("Unable to compute migration checksum", ex)
             }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun createSchemaMigrationsTable(conn: Connection) {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun createSchemaMigrationsTable(conn: Connection) {
             conn.createStatement().use { stmt ->
                 stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS schema_migrations (" +
@@ -228,9 +227,9 @@ class DatabasePatchesUtils private constructor() {
             }
         }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun findMigrationRecord(conn: Connection, name: String): MigrationRecord? {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun findMigrationRecord(conn: Connection, name: String): MigrationRecord? {
             conn.prepareStatement("SELECT checksum, status FROM schema_migrations WHERE name = ?").use { ps ->
                 ps.setString(1, name)
                 ps.executeQuery().use { rs ->
@@ -242,9 +241,9 @@ class DatabasePatchesUtils private constructor() {
             }
         }
 
-        @Throws(SQLException::class)
-        @JvmStatic
-        private fun upsertMigrationRecord(conn: Connection, name: String, checksum: String, status: String, errorMessage: String?) {
+    @Throws(SQLException::class)
+    @JvmStatic
+    private fun upsertMigrationRecord(conn: Connection, name: String, checksum: String, status: String, errorMessage: String?) {
             val sql = "INSERT INTO schema_migrations(name, checksum, status, applied_at, error_message) VALUES(?,?,?,?,?) " +
                 "ON CONFLICT(name) DO UPDATE SET " +
                 "checksum=excluded.checksum," +
@@ -261,14 +260,13 @@ class DatabasePatchesUtils private constructor() {
             }
         }
 
-        @JvmStatic
-        private fun safeError(ex: Exception?): String {
+    @JvmStatic
+    private fun safeError(ex: Exception?): String {
             val message = ex?.message.orEmpty()
             if (message.isBlank()) {
                 return ex?.javaClass?.simpleName.orEmpty()
             }
             return if (message.length > 1000) message.substring(0, 1000) else message
-        }
     }
 
     private data class MigrationRecord(val checksum: String, val status: String)

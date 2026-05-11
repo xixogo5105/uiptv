@@ -4,7 +4,7 @@ import java.util.Collections
 import java.util.EnumSet
 import java.util.LinkedHashMap
 
-class DatabaseUtils private constructor() {
+object DatabaseUtils {
     enum class DbTable(val tableName: String) {
         CONFIGURATION_TABLE("Configuration"),
         THEME_CSS_OVERRIDE_TABLE("ThemeCssOverride"),
@@ -28,64 +28,63 @@ class DatabaseUtils private constructor() {
         BOOKMARK_ORDER_TABLE("BookmarkOrder")
     }
 
-    companion object {
-        @JvmField
-        val Cacheable = Collections.unmodifiableSet(
-            EnumSet.of(
-                DbTable.CATEGORY_TABLE,
-                DbTable.CHANNEL_TABLE,
-                DbTable.VOD_CATEGORY_TABLE,
-                DbTable.VOD_CHANNEL_TABLE,
-                DbTable.SERIES_CATEGORY_TABLE,
-                DbTable.SERIES_CHANNEL_TABLE,
-                DbTable.SERIES_EPISODE_TABLE
-            )
+    @JvmField
+    val Cacheable = Collections.unmodifiableSet(
+        EnumSet.of(
+            DbTable.CATEGORY_TABLE,
+            DbTable.CHANNEL_TABLE,
+            DbTable.VOD_CATEGORY_TABLE,
+            DbTable.VOD_CHANNEL_TABLE,
+            DbTable.SERIES_CATEGORY_TABLE,
+            DbTable.SERIES_CHANNEL_TABLE,
+            DbTable.SERIES_EPISODE_TABLE
         )
+    )
 
-        @JvmField
-        val Syncable = Collections.unmodifiableSet(
-            EnumSet.of(
-                DbTable.ACCOUNT_TABLE,
-                DbTable.ACCOUNT_INFO_TABLE,
-                DbTable.BOOKMARK_TABLE,
-                DbTable.BOOKMARK_CATEGORY_TABLE,
-                DbTable.BOOKMARK_ORDER_TABLE
-            )
+    @JvmField
+    val Syncable = Collections.unmodifiableSet(
+        EnumSet.of(
+            DbTable.ACCOUNT_TABLE,
+            DbTable.ACCOUNT_INFO_TABLE,
+            DbTable.BOOKMARK_TABLE,
+            DbTable.BOOKMARK_CATEGORY_TABLE,
+            DbTable.BOOKMARK_ORDER_TABLE
         )
+    )
 
-        private const val INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY"
-        private const val INTEGER_TYPE = "INTEGER"
-        private const val TEXT_NOT_NULL = "TEXT NOT NULL"
-        private const val TEXT_NOT_NULL_UNIQUE = "TEXT NOT NULL UNIQUE"
-        private const val WHERE_ID_EQUALS = " where id=?"
-        private const val COLUMN_ACCOUNT_ID = "accountId"
-        private const val COLUMN_ACCOUNT_TYPE = "accountType"
-        private const val COLUMN_ACTIVE_SUB = "activeSub"
-        private const val COLUMN_ALIAS = "alias"
-        private const val COLUMN_CACHED_AT = "cachedAt"
-        private const val COLUMN_CATEGORY_ID = "categoryId"
-        private const val COLUMN_CHANNEL_ID = "channelId"
-        private const val COLUMN_CLEAR_KEYS_JSON = "clearKeysJson"
-        private const val COLUMN_CENSORED = "censored"
-        private const val COLUMN_CMD_1 = "cmd_1"
-        private const val COLUMN_CMD_2 = "cmd_2"
-        private const val COLUMN_CMD_3 = "cmd_3"
-        private const val COLUMN_DRM_LICENSE_URL = "drmLicenseUrl"
-        private const val COLUMN_DRM_TYPE = "drmType"
-        private const val COLUMN_EXTRA_JSON = "extraJson"
-        private const val COLUMN_INPUTSTREAM_ADDON = "inputstreamaddon"
-        private const val COLUMN_MANIFEST_TYPE = "manifestType"
-        private const val COLUMN_NUMBER = "number"
-        private const val COLUMN_SERIES_ID = "seriesId"
-        private const val COLUMN_STATUS = "status"
-        private const val COLUMN_TITLE = "title"
-        private const val COLUMN_UPDATED_AT = "updatedAt"
+    private const val INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY"
+    private const val INTEGER_TYPE = "INTEGER"
+    private const val TEXT_NOT_NULL = "TEXT NOT NULL"
+    private const val TEXT_NOT_NULL_UNIQUE = "TEXT NOT NULL UNIQUE"
+    private const val WHERE_ID_EQUALS = " where id=?"
+    private const val COLUMN_ACCOUNT_ID = "accountId"
+    private const val COLUMN_ACCOUNT_TYPE = "accountType"
+    private const val COLUMN_ACTIVE_SUB = "activeSub"
+    private const val COLUMN_ALIAS = "alias"
+    private const val COLUMN_CACHED_AT = "cachedAt"
+    private const val COLUMN_CATEGORY_ID = "categoryId"
+    private const val COLUMN_CHANNEL_ID = "channelId"
+    private const val COLUMN_CLEAR_KEYS_JSON = "clearKeysJson"
+    private const val COLUMN_CENSORED = "censored"
+    private const val COLUMN_CMD_1 = "cmd_1"
+    private const val COLUMN_CMD_2 = "cmd_2"
+    private const val COLUMN_CMD_3 = "cmd_3"
+    private const val COLUMN_DRM_LICENSE_URL = "drmLicenseUrl"
+    private const val COLUMN_DRM_TYPE = "drmType"
+    private const val COLUMN_EXTRA_JSON = "extraJson"
+    private const val COLUMN_INPUTSTREAM_ADDON = "inputstreamaddon"
+    private const val COLUMN_MANIFEST_TYPE = "manifestType"
+    private const val COLUMN_NUMBER = "number"
+    private const val COLUMN_SERIES_ID = "seriesId"
+    private const val COLUMN_STATUS = "status"
+    private const val COLUMN_TITLE = "title"
+    private const val COLUMN_UPDATED_AT = "updatedAt"
 
-        private val knownTableNames = linkedSetOf<String>()
-        private val dbStructure = LinkedHashMap<String, MutableList<DataColumn>>()
+    private val knownTableNames = linkedSetOf<String>()
+    private val dbStructure = LinkedHashMap<String, MutableList<DataColumn>>()
 
-        init {
-            dbStructure[DbTable.CONFIGURATION_TABLE.tableName] = mutableListOf(
+    init {
+        dbStructure[DbTable.CONFIGURATION_TABLE.tableName] = mutableListOf(
                 DataColumn("id", INTEGER_PRIMARY_KEY),
                 DataColumn("playerPath1", "TEXT"),
                 DataColumn("playerPath2", "TEXT"),
@@ -115,7 +114,7 @@ class DatabaseUtils private constructor() {
                 DataColumn("resolveChainAndDeepRedirects", "TEXT"),
                 DataColumn("filterLockUnlockDurationMinutes", "TEXT")
             )
-            dbStructure[DbTable.THEME_CSS_OVERRIDE_TABLE.tableName] = mutableListOf(
+        dbStructure[DbTable.THEME_CSS_OVERRIDE_TABLE.tableName] = mutableListOf(
                 DataColumn("id", INTEGER_PRIMARY_KEY),
                 DataColumn("lightThemeCssName", "TEXT"),
                 DataColumn("lightThemeCssContent", "TEXT"),
@@ -123,7 +122,7 @@ class DatabaseUtils private constructor() {
                 DataColumn("darkThemeCssContent", "TEXT"),
                 DataColumn(COLUMN_UPDATED_AT, "TEXT")
             )
-            dbStructure[DbTable.ACCOUNT_TABLE.tableName] = mutableListOf(
+        dbStructure[DbTable.ACCOUNT_TABLE.tableName] = mutableListOf(
                 DataColumn("id", INTEGER_PRIMARY_KEY),
                 DataColumn("accountName", TEXT_NOT_NULL_UNIQUE),
                 DataColumn("username", "TEXT"),
@@ -420,5 +419,4 @@ class DatabaseUtils private constructor() {
             require(!(tableName == null || !knownTableNames.contains(tableName))) { "Unknown table name: $tableName" }
             return tableName
         }
-    }
 }

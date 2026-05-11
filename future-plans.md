@@ -247,39 +247,33 @@ Either is better than combining Ktor with ad hoc persistence sprawl.
 
 ### Remaining TODO
 
-The current backend has completed the Kotlin migration and has Ktor, Exposed, Flyway, and HikariCP in place, but Phase 2 is not finished yet. The remaining work should be handled in the following slices:
+The backend migration is now structurally complete: Ktor is active, the legacy HTTP bridge is gone, Exposed/Flyway/HikariCP are in place, and the live API/runtime surface is covered by tests. Phase 2 still has cleanup work left before the backend should be treated as fully modernized:
 
-1. **Remove the legacy HTTP bridge**
-   - retire `HttpExchange` / `HttpHandler` adapters from `UIptvServer`
-   - replace `legacyAny(...)` route bridging with native Ktor handlers
-   - move static asset, HLS, proxy-stream, and binge-watch endpoints onto direct Ktor routing
+1. **Finish replacing singleton-driven service wiring**
+   - continue pushing constructor-owned instances through the remaining service graph
+   - reduce `getInstance()` usage to JavaFX compatibility edges only
+   - stop relying on global singletons as the default runtime path inside `server`
 
-2. **Replace string/JSONObject APIs with typed DTOs**
-   - introduce structured request/response DTOs
-   - move route and service responses to `kotlinx.serialization`
-   - stop hand-building JSON strings in routes and services
+2. **Reduce custom JSON wrapper usage in runtime internals**
+   - the route surface is typed, but parser/metadata internals still lean on `KJsonObject` / `KJsonArray`
+   - replace those with typed Kotlin models where the shape is stable and reused
+   - keep raw JSON handling limited to true boundary code
 
-3. **Finish centralizing Ktor error handling and serialization**
-   - standardize API error payloads
-   - remove route-local ad hoc JSON error handling where possible
-   - make content negotiation the default response path
+3. **Normalize the Exposed persistence layer further**
+   - continue simplifying repositories that still read like hand-written table wrappers
+   - keep CRUD/query patterns consistent across `db/*`
+   - treat `SQLConnection` as a compatibility facade for JavaFX/tests, not the internal runtime path
 
-4. **Remove singleton-driven service wiring**
-   - replace `getInstance()` and static singleton access patterns with constructor-injected services
-   - stop registering existing global singletons through Koin as the long-term design
-   - make the backend runtime boot cleanly as a true DI-managed module
+4. **Isolate legacy migration/config compatibility**
+   - keep `uiptv.ini` and existing SQLite installations working
+   - continue shrinking legacy startup/migration compatibility code into isolated helper boundaries
+   - keep the runtime configuration path explicit and predictable for desktop-hosted backend use
 
-5. **Normalize the Exposed persistence layer**
-   - simplify repositories that still look like manual DB wrappers
-   - standardize CRUD/query patterns across `db/*`
-   - reduce transitional persistence code that still feels like Java-era plumbing expressed in Kotlin
+5. **Reassess Kotlin-first contracts before Phase 3**
+   - verify which service/parser responses should become shared DTOs
+   - keep the backend contracts stable enough for CMP/Android work in the next phase
 
-6. **Tighten runtime/config compatibility boundaries**
-   - keep `uiptv.ini` compatibility where needed, but make runtime configuration more explicit
-   - reduce leftover legacy migration/config compatibility paths once startup behavior is stable
-   - keep SQLite support explicit and predictable for desktop-hosted backend use
-
-These remaining slices are still part of Phase 2 and should be completed before treating the backend platform modernization as finished.
+These remaining slices are still part of Phase 2 and should be completed before treating the backend platform modernization as fully finished.
 
 ---
 

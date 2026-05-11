@@ -1,6 +1,7 @@
 package com.uiptv.service.remotesync
 
 import com.uiptv.db.SQLConnection
+import com.uiptv.db.SqlConnectionRuntime
 import com.uiptv.service.AppDataRefreshService
 import com.uiptv.service.DatabaseSyncService
 import java.io.IOException
@@ -18,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class RemoteSyncSessionService internal constructor(
     private val snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
-    private val databaseSyncService: DatabaseSyncService = DatabaseSyncService.getInstance(),
+    private val databaseSyncService: DatabaseSyncService = DatabaseSyncService,
     private val clock: Clock = Clock.systemDefaultZone(),
     approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
     notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()
@@ -34,8 +35,17 @@ class RemoteSyncSessionService internal constructor(
         private val instanceRef = AtomicReference<RemoteSyncSessionService?>()
 
         @JvmStatic
-        fun getInstance(): RemoteSyncSessionService =
-            instanceRef.updateAndGet { it ?: RemoteSyncSessionService() }!!
+        @JvmOverloads
+        fun getInstance(
+            snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
+            databaseSyncService: DatabaseSyncService = DatabaseSyncService,
+            clock: Clock = Clock.systemDefaultZone(),
+            approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
+            notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()
+        ): RemoteSyncSessionService =
+            instanceRef.updateAndGet { current ->
+                current ?: RemoteSyncSessionService(snapshotService, databaseSyncService, clock, approvalPrompt, notifier)
+            }!!
     }
 
     fun createSession(request: RemoteSyncRequest, requesterAddress: String?): RemoteSyncSessionState {
@@ -75,12 +85,12 @@ class RemoteSyncSessionService internal constructor(
         try {
             val report = databaseSyncService.syncDatabasesWithReport(
                 uploadedSnapshot.toAbsolutePath().toString(),
-                SQLConnection.getDatabasePath(),
+                SqlConnectionRuntime.getDatabasePath(),
                 session.options.syncConfiguration,
                 session.options.syncExternalPlayerPaths,
                 null
             )
-            AppDataRefreshService.getInstance().refreshAfterDatabaseChange()
+            AppDataRefreshService.refreshAfterDatabaseChange()
             synchronized(session) { session.complete(REMOTE_SYNC_COMPLETED_MESSAGE) }
             notifier.get().showInfo("remoteSyncRemoteCompletedMessage")
             return RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE)
@@ -107,7 +117,7 @@ class RemoteSyncSessionService internal constructor(
         synchronized(session) {
             expireIfNeeded(session)
             if (success) {
-                AppDataRefreshService.getInstance().refreshAfterDatabaseChange()
+                AppDataRefreshService.refreshAfterDatabaseChange()
                 session.complete(blankToFallback(message, REMOTE_SYNC_COMPLETED_MESSAGE))
                 notifier.get().showInfo("remoteSyncRemoteCompletedMessage")
             } else {
@@ -144,7 +154,7 @@ class RemoteSyncSessionService internal constructor(
             }
             try {
                 if (session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE) {
-                    session.snapshotPath = snapshotService.createSnapshot(SQLConnection.getDatabasePath())
+                    session.snapshotPath = snapshotService.createSnapshot(SqlConnectionRuntime.getDatabasePath())
                     session.status = RemoteSyncStatus.READY_FOR_DOWNLOAD
                     session.message = "Approved. Snapshot ready."
                 } else {

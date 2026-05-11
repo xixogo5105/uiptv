@@ -1,7 +1,7 @@
 package com.uiptv.util
 
 import com.uiptv.model.Account
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -94,23 +94,23 @@ object FetchAPI {
         }
 
     @JvmStatic
-    fun nullSafeBoolean(jsonCategory: JSONObject, key: String): Boolean =
+    fun nullSafeBoolean(jsonCategory: KJsonObject, key: String): Boolean =
         try {
-            jsonCategory.getBoolean(key)
+            jsonCategory.get(key).toString().toBoolean()
         } catch (_: Exception) {
             false
         }
 
     @JvmStatic
-    fun nullSafeInteger(jsonCategory: JSONObject, key: String): Int =
+    fun nullSafeInteger(jsonCategory: KJsonObject, key: String): Int =
         try {
-            jsonCategory.getInt(key)
+            jsonCategory.get(key).toString().toInt()
         } catch (_: Exception) {
             -1
         }
 
     @JvmStatic
-    fun nullSafeString(jsonCategory: JSONObject, key: String): String =
+    fun nullSafeString(jsonCategory: KJsonObject, key: String): String =
         try {
             jsonCategory.getString(key)
         } catch (_: Exception) {

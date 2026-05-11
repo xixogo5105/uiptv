@@ -8,7 +8,7 @@ import java.util.regex.Pattern
 object UiptUtils {
     private const val MAC_ADDRESS_REGEX = "^(?:([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}))$"
     const val SPACER = " "
-    private var accountLookup: (String) -> Account? = { AccountService.getInstance().getByName(it) }
+    private var accountLookup: (String) -> Account? = { AccountService.getByName(it) }
     private val ILLEGAL_URI_CHAR_REPLACEMENTS = mapOf(
         " " to "%20",
         "|" to "%7C",

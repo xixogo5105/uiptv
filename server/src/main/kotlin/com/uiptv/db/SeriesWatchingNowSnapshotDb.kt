@@ -13,13 +13,9 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 
-class SeriesWatchingNowSnapshotDb private constructor() {
-    companion object {
-        private val instance = SeriesWatchingNowSnapshotDb()
-
-        @JvmStatic
-        fun get(): SeriesWatchingNowSnapshotDb = instance
-    }
+object SeriesWatchingNowSnapshotDb {
+    @JvmStatic
+    fun get(): SeriesWatchingNowSnapshotDb = this
 
     fun getBySeries(accountId: String, categoryId: String, seriesId: String): SeriesWatchingNowSnapshot? =
         transaction(SqlConnectionRuntime.database()) {

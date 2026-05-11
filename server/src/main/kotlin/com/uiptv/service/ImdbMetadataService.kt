@@ -5,8 +5,8 @@ import com.uiptv.util.HttpUtil
 import com.uiptv.util.I18n
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.ArrayList
@@ -40,45 +40,45 @@ object ImdbMetadataService {
     private const val USER_AGENT_BROWSER = "Mozilla/5.0"
 
     private class CandidateMatch(
-        val candidate: JSONObject,
+        val candidate: KJsonObject,
         val score: Int
     )
 
     private class TvMazeEpisodeIndex {
-        val bySeasonEpisode: MutableMap<String, JSONObject> = HashMap()
-        val byTitle: MutableMap<String, JSONObject> = HashMap()
+        val bySeasonEpisode: MutableMap<String, KJsonObject> = HashMap()
+        val byTitle: MutableMap<String, KJsonObject> = HashMap()
     }
 
     @JvmStatic
     fun getInstance(): ImdbMetadataService = this
-    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?): JSONObject {
+    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?): KJsonObject {
         if (!areThumbnailsEnabled()) {
-            return JSONObject()
+            return KJsonObject()
         }
         return findBestEffortInternal(rawTitle, preferredImdbId, false, emptyList())
     }
-    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): JSONObject {
+    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): KJsonObject {
         if (!areThumbnailsEnabled()) {
-            return JSONObject()
+            return KJsonObject()
         }
         return findBestEffortInternal(rawTitle, preferredImdbId, false, fuzzyHints ?: emptyList())
     }
-    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?): JSONObject {
+    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?): KJsonObject {
         if (!areThumbnailsEnabled()) {
-            return JSONObject()
+            return KJsonObject()
         }
         return findBestEffortInternal(rawTitle, preferredImdbId, true, emptyList())
     }
-    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): JSONObject {
+    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): KJsonObject {
         if (!areThumbnailsEnabled()) {
-            return JSONObject()
+            return KJsonObject()
         }
         return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints ?: emptyList())
     }
 
     private fun areThumbnailsEnabled(): Boolean =
         try {
-            val configuration: Configuration? = ConfigurationService.getInstance().read()
+            val configuration: Configuration? = ConfigurationService.read()
             configuration != null && configuration.enableThumbnails
         } catch (_: Exception) {
             false
@@ -89,8 +89,8 @@ object ImdbMetadataService {
         preferredImdbId: String?,
         moviePreferred: Boolean,
         fuzzyHints: List<String>
-    ): JSONObject {
-        val details = JSONObject()
+    ): KJsonObject {
+        val details = KJsonObject()
         if (isBlank(rawTitle) && isBlank(preferredImdbId)) {
             return details
         }
@@ -113,12 +113,12 @@ object ImdbMetadataService {
         return details
     }
 
-    private fun initializeImdbDetails(details: JSONObject, imdbId: String) {
+    private fun initializeImdbDetails(details: KJsonObject, imdbId: String) {
         details.put("tmdb", imdbId)
         details.put(KEY_IMDB_URL, "$IMDB_TITLE_URL_PREFIX$imdbId/")
     }
 
-    private fun mergeSuggestedMetadata(details: JSONObject, candidate: JSONObject) {
+    private fun mergeSuggestedMetadata(details: KJsonObject, candidate: KJsonObject) {
         mergeIfPresent(details, candidate, KEY_NAME)
         mergeIfPresent(details, candidate, KEY_COVER)
         mergeIfPresent(details, candidate, KEY_CAST)
@@ -126,7 +126,7 @@ object ImdbMetadataService {
         mergeIfPresent(details, candidate, KEY_RELEASE_DATE)
     }
 
-    private fun mergePageMetadata(details: JSONObject, imdbId: String) {
+    private fun mergePageMetadata(details: KJsonObject, imdbId: String) {
         val pageDetails = fetchImdbTitleDetails(imdbId)
         mergeIfPresent(details, pageDetails, KEY_NAME)
         mergeIfPresent(details, pageDetails, KEY_COVER)
@@ -138,7 +138,7 @@ object ImdbMetadataService {
         mergeIfPresent(details, pageDetails, KEY_RATING)
     }
 
-    private fun mergeCinemetaMetadata(details: JSONObject, meta: JSONObject, copyEpisodes: Boolean) {
+    private fun mergeCinemetaMetadata(details: KJsonObject, meta: KJsonObject, copyEpisodes: Boolean) {
         mergeMissing(details, meta, KEY_NAME)
         mergeMissing(details, meta, KEY_COVER)
         mergeMissing(details, meta, KEY_PLOT)
@@ -153,7 +153,7 @@ object ImdbMetadataService {
         }
     }
 
-    private fun resolvePreferredImdbId(preferredImdbId: String?, candidate: JSONObject, searchQueries: List<String>): String {
+    private fun resolvePreferredImdbId(preferredImdbId: String?, candidate: KJsonObject, searchQueries: List<String>): String {
         if (isLikelyImdbId(preferredImdbId) && isPreferredIdConsistent(preferredImdbId.orEmpty(), searchQueries)) {
             return preferredImdbId.orEmpty()
         }
@@ -166,8 +166,8 @@ object ImdbMetadataService {
 
     private fun isLikelyImdbId(id: String?): Boolean = !isBlank(id) && Regex("tt\\d+").matches(id.orEmpty())
 
-    private fun searchBestCandidate(queryTitles: List<String>?): JSONObject {
-        val best = JSONObject()
+    private fun searchBestCandidate(queryTitles: List<String>?): KJsonObject {
+        val best = KJsonObject()
         return try {
             if (queryTitles.isNullOrEmpty()) return best
             val primary = normalizeTitle(queryTitles.first())
@@ -206,7 +206,7 @@ object ImdbMetadataService {
         return CandidateMatch(found, score)
     }
 
-    private fun querySuggestions(queryTitle: String?): JSONArray? =
+    private fun querySuggestions(queryTitle: String?): KJsonArray? =
         try {
             if (isBlank(queryTitle)) return null
             var first = queryTitle.orEmpty().first().lowercaseChar().toString()
@@ -217,13 +217,13 @@ object ImdbMetadataService {
                 URLEncoder.encode(queryTitle, StandardCharsets.UTF_8) + JSON_SUFFIX
             val body = httpGet(url)
             if (isBlank(body)) return null
-            JSONObject(body).optJSONArray("d")
+            KJsonObject(body).optJSONArray("d")
         } catch (_: Exception) {
             null
         }
 
-    private fun findBestInSuggestions(d: JSONArray?, desiredTitle: String): JSONObject {
-        var best = JSONObject()
+    private fun findBestInSuggestions(d: KJsonArray?, desiredTitle: String): KJsonObject {
+        var best = KJsonObject()
         if (d == null || d.isEmpty) {
             return best
         }
@@ -246,8 +246,8 @@ object ImdbMetadataService {
         return best
     }
 
-    private fun mapSuggestionCandidate(candidate: JSONObject): JSONObject {
-        val mapped = JSONObject()
+    private fun mapSuggestionCandidate(candidate: KJsonObject): KJsonObject {
+        val mapped = KJsonObject()
         mapped.put("tmdb", candidate.optString("id", ""))
         mapped.put("name", candidate.optString("l", ""))
         mapped.put(KEY_GENRE, candidate.optString("q", ""))
@@ -260,8 +260,8 @@ object ImdbMetadataService {
         return mapped
     }
 
-    private fun fetchImdbTitleDetails(imdbId: String): JSONObject {
-        val result = JSONObject()
+    private fun fetchImdbTitleDetails(imdbId: String): KJsonObject {
+        val result = KJsonObject()
         try {
             val html = httpGet(withLanguageQuery("$IMDB_TITLE_URL_PREFIX$imdbId/"))
             if (isBlank(html)) return result
@@ -269,7 +269,7 @@ object ImdbMetadataService {
             val jsonLd = extractJsonLd(html)
             if (isBlank(jsonLd)) return result
 
-            val data = JSONObject(jsonLd)
+            val data = KJsonObject(jsonLd)
             result.put(KEY_NAME, data.optString(KEY_NAME, ""))
             result.put(KEY_COVER, data.optString("image", ""))
             result.put(KEY_PLOT, data.optString("description", ""))
@@ -288,23 +288,23 @@ object ImdbMetadataService {
         return result
     }
 
-    private fun fetchCinemetaSeriesDetails(imdbId: String): JSONObject {
-        val result = JSONObject()
+    private fun fetchCinemetaSeriesDetails(imdbId: String): KJsonObject {
+        val result = KJsonObject()
         try {
             val json = httpGet("https://v3-cinemeta.strem.io/meta/series/$imdbId$JSON_SUFFIX")
             if (isBlank(json)) {
                 return result
             }
-            val meta = JSONObject(json).optJSONObject("meta") ?: return result
+            val meta = KJsonObject(json).optJSONObject("meta") ?: return result
 
             applyCinemetaMeta(result, meta)
 
             val videos = meta.optJSONArray("videos")
             if (videos != null && !videos.isEmpty) {
-                val episodesMeta = JSONArray()
+                val episodesMeta = KJsonArray()
                 for (index in 0 until videos.length()) {
                     val video = videos.optJSONObject(index) ?: continue
-                    val episode = JSONObject()
+                    val episode = KJsonObject()
                     episode.put(KEY_TITLE, sanitizeEpisodeTitle(video.optString(KEY_TITLE, "")))
                     episode.put(KEY_PLOT, video.optString(KEY_OVERVIEW, ""))
                     episode.put(KEY_LOGO, video.optString("thumbnail", ""))
@@ -321,7 +321,7 @@ object ImdbMetadataService {
         return result
     }
 
-    private fun enrichEpisodeMetaWithTvMaze(episodesMeta: JSONArray?, imdbId: String, seriesName: String) {
+    private fun enrichEpisodeMetaWithTvMaze(episodesMeta: KJsonArray?, imdbId: String, seriesName: String) {
         if (episodesMeta == null || episodesMeta.isEmpty || isBlank(imdbId)) {
             return
         }
@@ -347,7 +347,7 @@ object ImdbMetadataService {
         }
     }
 
-    private fun hasAnyEpisodePlot(episodesMeta: JSONArray?): Boolean {
+    private fun hasAnyEpisodePlot(episodesMeta: KJsonArray?): Boolean {
         if (episodesMeta == null || episodesMeta.isEmpty) {
             return false
         }
@@ -360,19 +360,19 @@ object ImdbMetadataService {
         return false
     }
 
-    private fun fetchTvMazeEpisodes(imdbId: String, seriesName: String): JSONArray =
+    private fun fetchTvMazeEpisodes(imdbId: String, seriesName: String): KJsonArray =
         try {
             val showId = resolveTvMazeShowId(imdbId, seriesName)
             if (showId <= 0) {
-                return JSONArray()
+                return KJsonArray()
             }
             val body = httpGet("https://api.tvmaze.com/shows/$showId/episodes")
             if (isBlank(body)) {
-                return JSONArray()
+                return KJsonArray()
             }
-            JSONArray(body)
+            KJsonArray(body)
         } catch (_: Exception) {
-            JSONArray()
+            KJsonArray()
         }
 
     private fun resolveTvMazeShowId(imdbId: String, seriesName: String): Int {
@@ -384,7 +384,7 @@ object ImdbMetadataService {
             if (isBlank(body)) {
                 return -1
             }
-            val rows = JSONArray(body)
+            val rows = KJsonArray(body)
             if (rows.isEmpty) {
                 return -1
             }
@@ -420,21 +420,21 @@ object ImdbMetadataService {
             .trim()
     }
 
-    private fun fetchCinemetaMovieDetails(imdbId: String): JSONObject {
-        val result = JSONObject()
+    private fun fetchCinemetaMovieDetails(imdbId: String): KJsonObject {
+        val result = KJsonObject()
         try {
             val json = httpGet("https://v3-cinemeta.strem.io/meta/movie/$imdbId$JSON_SUFFIX")
             if (isBlank(json)) {
                 return result
             }
-            val meta = JSONObject(json).optJSONObject("meta") ?: return result
+            val meta = KJsonObject(json).optJSONObject("meta") ?: return result
             applyCinemetaMeta(result, meta)
         } catch (_: Exception) {
         }
         return result
     }
 
-    private fun applyCinemetaMeta(result: JSONObject, meta: JSONObject) {
+    private fun applyCinemetaMeta(result: KJsonObject, meta: KJsonObject) {
         result.put(KEY_NAME, meta.optString(KEY_NAME, ""))
         result.put(KEY_COVER, meta.optString("poster", ""))
         result.put(KEY_PLOT, meta.optString("description", ""))
@@ -477,7 +477,7 @@ object ImdbMetadataService {
         result.put(KEY_RATING, meta.optString("imdbRating", ""))
     }
 
-    private fun applyTmdbLocalization(details: JSONObject, primaryMeta: JSONObject, secondaryMeta: JSONObject, moviePreferred: Boolean) {
+    private fun applyTmdbLocalization(details: KJsonObject, primaryMeta: KJsonObject, secondaryMeta: KJsonObject, moviePreferred: Boolean) {
         val localeTag = I18n.getCurrentLanguageTag()
         if (isBlank(localeTag) || localeTag.lowercase(Locale.ROOT).startsWith("en")) {
             return
@@ -501,7 +501,7 @@ object ImdbMetadataService {
         }
     }
 
-    private fun buildTvMazeEpisodeIndex(tvMazeEpisodes: JSONArray): TvMazeEpisodeIndex {
+    private fun buildTvMazeEpisodeIndex(tvMazeEpisodes: KJsonArray): TvMazeEpisodeIndex {
         val index = TvMazeEpisodeIndex()
         for (rowIndex in 0 until tvMazeEpisodes.length()) {
             val row = tvMazeEpisodes.optJSONObject(rowIndex) ?: continue
@@ -511,7 +511,7 @@ object ImdbMetadataService {
         return index
     }
 
-    private fun indexSeasonEpisode(index: TvMazeEpisodeIndex, row: JSONObject) {
+    private fun indexSeasonEpisode(index: TvMazeEpisodeIndex, row: KJsonObject) {
         val season = safeNumeric(row.optInt(KEY_SEASON, 0).toString())
         val episode = safeNumeric(row.optInt("number", 0).toString())
         if (isNotBlank(season) && isNotBlank(episode)) {
@@ -519,13 +519,13 @@ object ImdbMetadataService {
         }
     }
 
-    private fun indexTitle(byTitle: MutableMap<String, JSONObject>, title: String, row: JSONObject) {
+    private fun indexTitle(byTitle: MutableMap<String, KJsonObject>, title: String, row: KJsonObject) {
         if (isNotBlank(title)) {
             byTitle[title] = row
         }
     }
 
-    private fun matchTvMazeEpisode(index: TvMazeEpisodeIndex, row: JSONObject): JSONObject? {
+    private fun matchTvMazeEpisode(index: TvMazeEpisodeIndex, row: KJsonObject): KJsonObject? {
         val season = safeNumeric(row.optString(KEY_SEASON, ""))
         val episode = safeNumeric(row.optString(KEY_EPISODE_NUMBER, ""))
         if (isNotBlank(season) && isNotBlank(episode)) {
@@ -537,7 +537,7 @@ object ImdbMetadataService {
         return index.byTitle[normalizeTitle(row.optString(KEY_TITLE, ""))]
     }
 
-    private fun applyTvMazeEpisodeMeta(row: JSONObject, match: JSONObject) {
+    private fun applyTvMazeEpisodeMeta(row: KJsonObject, match: KJsonObject) {
         val summary = stripHtml(match.optString("summary", ""))
         if (isNotBlank(summary)) {
             row.put(KEY_PLOT, summary)
@@ -547,7 +547,7 @@ object ImdbMetadataService {
         }
     }
 
-    private fun findTvMazeShowIdByImdb(rows: JSONArray, imdbId: String): Int {
+    private fun findTvMazeShowIdByImdb(rows: KJsonArray, imdbId: String): Int {
         for (index in 0 until rows.length()) {
             val show = extractTvMazeShow(rows.optJSONObject(index))
             val externals = show?.optJSONObject("externals")
@@ -558,7 +558,7 @@ object ImdbMetadataService {
         return -1
     }
 
-    private fun findBestTvMazeShowId(rows: JSONArray, seriesName: String): Int {
+    private fun findBestTvMazeShowId(rows: KJsonArray, seriesName: String): Int {
         val normalizedSeries = normalizeTitle(seriesName)
         var bestId = -1
         var bestScore = Int.MIN_VALUE
@@ -573,21 +573,21 @@ object ImdbMetadataService {
         return bestId
     }
 
-    private fun extractTvMazeShow(wrapper: JSONObject?): JSONObject? = wrapper?.optJSONObject("show")
+    private fun extractTvMazeShow(wrapper: KJsonObject?): KJsonObject? = wrapper?.optJSONObject("show")
 
-    private fun resolveTmdbMediaId(primaryMeta: JSONObject, secondaryMeta: JSONObject): String =
+    private fun resolveTmdbMediaId(primaryMeta: KJsonObject, secondaryMeta: KJsonObject): String =
         firstNonBlank(
             primaryMeta.optString(KEY_TMDB_MEDIA_ID, ""),
             secondaryMeta.optString(KEY_TMDB_MEDIA_ID, "")
         )
 
-    private fun fetchPrimaryLocalizedTmdbDetails(tmdbId: String, localeTag: String, moviePreferred: Boolean): JSONObject =
+    private fun fetchPrimaryLocalizedTmdbDetails(tmdbId: String, localeTag: String, moviePreferred: Boolean): KJsonObject =
         fetchTmdbLocalizedDetails(tmdbId, if (moviePreferred) "movie" else "tv", localeTag)
 
-    private fun fetchSecondaryLocalizedTmdbDetails(tmdbId: String, localeTag: String, moviePreferred: Boolean): JSONObject =
+    private fun fetchSecondaryLocalizedTmdbDetails(tmdbId: String, localeTag: String, moviePreferred: Boolean): KJsonObject =
         fetchTmdbLocalizedDetails(tmdbId, if (moviePreferred) "tv" else "movie", localeTag)
 
-    private fun applyLocalizedTmdbFields(details: JSONObject, localized: JSONObject) {
+    private fun applyLocalizedTmdbFields(details: KJsonObject, localized: KJsonObject) {
         replaceIfPresent(details, localized, KEY_NAME)
         replaceIfPresent(details, localized, KEY_PLOT)
         replaceIfPresent(details, localized, KEY_GENRE)
@@ -596,8 +596,8 @@ object ImdbMetadataService {
         mergeMissing(details, localized, KEY_RATING)
     }
 
-    private fun fetchTmdbLocalizedDetails(tmdbId: String, mediaType: String, localeTag: String): JSONObject {
-        val result = JSONObject()
+    private fun fetchTmdbLocalizedDetails(tmdbId: String, mediaType: String, localeTag: String): KJsonObject {
+        val result = KJsonObject()
         if (!canFetchTmdbLocalizedDetails(tmdbId, mediaType)) {
             return result
         }
@@ -616,13 +616,13 @@ object ImdbMetadataService {
                 return result
             }
 
-            populateTmdbLocalizedDetails(result, JSONObject(response.body))
+            populateTmdbLocalizedDetails(result, KJsonObject(response.body))
         } catch (_: Exception) {
         }
         return result
     }
 
-    private fun enrichEpisodesMetaWithTmdb(episodesMeta: JSONArray?, tmdbId: String, localeTag: String) {
+    private fun enrichEpisodesMetaWithTmdb(episodesMeta: KJsonArray?, tmdbId: String, localeTag: String) {
         if (episodesMeta == null || episodesMeta.isEmpty || isBlank(tmdbId) || isBlank(localeTag)) {
             return
         }
@@ -636,14 +636,14 @@ object ImdbMetadataService {
         }
     }
 
-    private fun applyImdbGenre(result: JSONObject, genreValue: Any?) {
+    private fun applyImdbGenre(result: KJsonObject, genreValue: Any?) {
         when (genreValue) {
-            is JSONArray -> result.put(KEY_GENRE, joinNonBlankArray(genreValue))
+            is KJsonArray -> result.put(KEY_GENRE, joinNonBlankArray(genreValue))
             is String -> result.put(KEY_GENRE, genreValue)
         }
     }
 
-    private fun joinNonBlankArray(values: JSONArray): String {
+    private fun joinNonBlankArray(values: KJsonArray): String {
         val resolved = ArrayList<String>()
         for (index in 0 until values.length()) {
             val value = values.optString(index, "")
@@ -670,7 +670,7 @@ object ImdbMetadataService {
     private fun isSuccessfulTmdbResponse(response: HttpUtil.HttpResult): Boolean =
         response.statusCode == HttpUtil.STATUS_OK && isNotBlank(response.body)
 
-    private fun populateTmdbLocalizedDetails(result: JSONObject, payload: JSONObject) {
+    private fun populateTmdbLocalizedDetails(result: KJsonObject, payload: KJsonObject) {
         result.put(KEY_NAME, firstNonBlank(payload.optString(KEY_NAME, ""), payload.optString(KEY_TITLE, "")))
         result.put(KEY_PLOT, payload.optString(KEY_OVERVIEW, ""))
         result.put(KEY_RATING, payload.optDouble("vote_average", 0.0).toString())
@@ -679,14 +679,14 @@ object ImdbMetadataService {
         putTmdbPoster(result, payload.optString("poster_path", ""))
     }
 
-    private fun putTmdbGenres(result: JSONObject, genres: JSONArray?) {
+    private fun putTmdbGenres(result: KJsonObject, genres: KJsonArray?) {
         val names = extractTmdbGenreNames(genres)
         if (names.isNotEmpty()) {
             result.put(KEY_GENRE, names.joinToString(", "))
         }
     }
 
-    private fun extractTmdbGenreNames(genres: JSONArray?): List<String> {
+    private fun extractTmdbGenreNames(genres: KJsonArray?): List<String> {
         val names = ArrayList<String>()
         if (genres == null || genres.isEmpty) {
             return names
@@ -704,14 +704,14 @@ object ImdbMetadataService {
         return names
     }
 
-    private fun putTmdbPoster(result: JSONObject, posterPath: String) {
+    private fun putTmdbPoster(result: KJsonObject, posterPath: String) {
         if (isNotBlank(posterPath)) {
             result.put(KEY_COVER, "https://image.tmdb.org/t/p/w500$posterPath")
         }
     }
 
-    private fun indexEpisodesBySeasonEpisode(episodesMeta: JSONArray): Map<String, JSONObject> {
-        val bySeasonEpisode = HashMap<String, JSONObject>()
+    private fun indexEpisodesBySeasonEpisode(episodesMeta: KJsonArray): Map<String, KJsonObject> {
+        val bySeasonEpisode = HashMap<String, KJsonObject>()
         for (index in 0 until episodesMeta.length()) {
             val row = episodesMeta.optJSONObject(index)
             val episodeKey = seasonEpisodeKey(
@@ -725,7 +725,7 @@ object ImdbMetadataService {
         return bySeasonEpisode
     }
 
-    private fun collectTmdbSeasons(bySeasonEpisode: Map<String, JSONObject>): Set<String> {
+    private fun collectTmdbSeasons(bySeasonEpisode: Map<String, KJsonObject>): Set<String> {
         val seasons = LinkedHashSet<String>()
         for (key in bySeasonEpisode.keys) {
             val separatorIndex = key.indexOf(':')
@@ -736,7 +736,7 @@ object ImdbMetadataService {
         return seasons
     }
 
-    private fun mergeLocalizedTmdbEpisode(bySeasonEpisode: Map<String, JSONObject>, season: String, episode: JSONObject?) {
+    private fun mergeLocalizedTmdbEpisode(bySeasonEpisode: Map<String, KJsonObject>, season: String, episode: KJsonObject?) {
         if (episode == null) {
             return
         }
@@ -758,13 +758,13 @@ object ImdbMetadataService {
         return "$season:$episode"
     }
 
-    private fun fetchTmdbSeasonEpisodes(tmdbId: String, season: String, localeTag: String): JSONArray {
+    private fun fetchTmdbSeasonEpisodes(tmdbId: String, season: String, localeTag: String): KJsonArray {
         if (isBlank(tmdbId) || isBlank(season)) {
-            return JSONArray()
+            return KJsonArray()
         }
         val bearerToken = resolveConfiguredTmdbBearerToken()
         if (isBlank(bearerToken)) {
-            return JSONArray()
+            return KJsonArray()
         }
 
         return try {
@@ -777,18 +777,18 @@ object ImdbMetadataService {
 
             val response = HttpUtil.sendRequest(url, buildTmdbHeaders(bearerToken), "GET")
             if (response.statusCode != HttpUtil.STATUS_OK || isBlank(response.body)) {
-                return JSONArray()
+                return KJsonArray()
             }
 
-            val episodes = JSONObject(response.body).optJSONArray("episodes")
-            episodes ?: JSONArray()
+            val episodes = KJsonObject(response.body).optJSONArray("episodes")
+            episodes ?: KJsonArray()
         } catch (_: Exception) {
-            JSONArray()
+            KJsonArray()
         }
     }
 
-    private fun mapTmdbEpisodeMeta(episode: JSONObject?): JSONObject {
-        val mapped = JSONObject()
+    private fun mapTmdbEpisodeMeta(episode: KJsonObject?): KJsonObject {
+        val mapped = KJsonObject()
         if (episode == null) {
             return mapped
         }
@@ -810,7 +810,7 @@ object ImdbMetadataService {
         return headers
     }
 
-    private fun joinPersonNames(people: JSONArray?): String {
+    private fun joinPersonNames(people: KJsonArray?): String {
         if (people == null) return ""
         val names = ArrayList<String>()
         for (index in 0 until people.length()) {
@@ -826,7 +826,7 @@ object ImdbMetadataService {
         return names.joinToString(", ")
     }
 
-    private fun joinStringArray(values: JSONArray?, max: Int): String {
+    private fun joinStringArray(values: KJsonArray?, max: Int): String {
         if (values == null) return ""
         val output = ArrayList<String>()
         for (index in 0 until values.length()) {
@@ -996,14 +996,14 @@ object ImdbMetadataService {
             ""
         }
 
-    private fun mergeIfPresent(target: JSONObject, source: JSONObject, key: String) {
+    private fun mergeIfPresent(target: KJsonObject, source: KJsonObject, key: String) {
         val value = source.optString(key, "")
         if (isNotBlank(value)) {
             target.put(key, value)
         }
     }
 
-    private fun mergeMissing(target: JSONObject, source: JSONObject, key: String) {
+    private fun mergeMissing(target: KJsonObject, source: KJsonObject, key: String) {
         if (isNotBlank(target.optString(key, ""))) {
             return
         }
@@ -1013,11 +1013,11 @@ object ImdbMetadataService {
         }
     }
 
-    private fun replaceIfPresent(target: JSONObject, source: JSONObject, key: String) {
+    private fun replaceIfPresent(target: KJsonObject, source: KJsonObject, key: String) {
         replaceValue(target, source.optString(key, ""), key)
     }
 
-    private fun replaceValue(target: JSONObject, value: String, key: String) {
+    private fun replaceValue(target: KJsonObject, value: String, key: String) {
         if (isNotBlank(value)) {
             target.put(key, value)
         }
@@ -1051,7 +1051,7 @@ object ImdbMetadataService {
 
     private fun resolveConfiguredTmdbBearerToken(): String =
         try {
-            val configuration = ConfigurationService.getInstance().read()
+            val configuration = ConfigurationService.read()
             configuration.tmdbReadAccessToken?.trim().orEmpty()
         } catch (_: Exception) {
             ""

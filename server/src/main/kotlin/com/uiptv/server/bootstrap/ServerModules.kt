@@ -8,6 +8,8 @@ import com.uiptv.service.BookmarkService
 import com.uiptv.service.CategoryService
 import com.uiptv.service.ChannelService
 import com.uiptv.service.ConfigurationService
+import com.uiptv.service.CacheService
+import com.uiptv.service.CacheServiceImpl
 import com.uiptv.service.ContentFilterService
 import com.uiptv.service.DatabaseSyncService
 import com.uiptv.service.FfmpegService
@@ -39,6 +41,7 @@ val serverInfrastructureModule = module {
 }
 
 val serverServiceModule = module {
+    single { DatabaseSnapshotService() }
     single { AccountInfoService }
     single { ConfigurationService }
     single { AccountService }
@@ -49,12 +52,13 @@ val serverServiceModule = module {
     single { ContentFilterService }
     single { LogoResolverService }
     single { DatabaseSyncService }
+    single<CacheService> { CacheServiceImpl({ get() }, { get() }, { get() }, { get() }) }
     single { HandshakeService(get(), get()) }
     single { ImdbMetadataService }
     single { CategoryService(get(), get(), get()) }
-    single { ChannelService(contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
+    single { ChannelService(cacheService = get(), contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
     single { PlayerService(get()) }
-    single { BingeWatchService.configureDependencies(get(), get(), get()) }
+    single { BingeWatchService.getInstance(get(), get(), get()) }
     single { M3U8PublicationService(get(), get(), get()) }
     single { SeriesEpisodeService }
     single { PlayerRequestResolver(get(), get(), get()) }
@@ -62,6 +66,6 @@ val serverServiceModule = module {
     single { PlaylistExportService(get(), get(), get(), get(), get(), get()) }
     single { WatchingNowSeriesResolver(get(), get(), get()) }
     single { WatchingNowVodResolver(get(), get()) }
-    single { RemoteSyncSessionService.getInstance() }
+    single { RemoteSyncSessionService.getInstance(get(), get()) }
     single { RemoteSyncClientService(databaseSyncService = get()) }
 }

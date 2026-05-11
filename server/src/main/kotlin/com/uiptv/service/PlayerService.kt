@@ -3,10 +3,10 @@ package com.uiptv.service
 import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.PlayerResponse
+import com.uiptv.util.json.KJsonObject
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
-import org.json.JSONObject
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
@@ -134,13 +134,13 @@ class PlayerService(
             !isBlank(channel.inputstreamaddon) ||
             !isBlank(channel.manifestType))
     fun buildDrmBrowserPlaybackUrl(account: Account?, channel: Channel?, categoryId: String?, mode: String?, seriesParentId: String?, seriesCategoryId: String?): String {
-        val payload = JSONObject()
-        payload.put("mode", normalizeMode(mode, account))
-        payload.put("accountId", if (account == null) "" else safe(account.dbId))
-        payload.put("categoryId", safe(categoryId))
-        payload.put("seriesParentId", safe(seriesParentId))
-        payload.put("seriesCategoryId", safe(seriesCategoryId))
-        payload.put("channel", buildChannelPayload(channel))
+        val payload = KJsonObject()
+            .put("mode", normalizeMode(mode, account))
+            .put("accountId", if (account == null) "" else safe(account.dbId))
+            .put("categoryId", safe(categoryId))
+            .put("seriesParentId", safe(seriesParentId))
+            .put("seriesCategoryId", safe(seriesCategoryId))
+            .put("channel", buildChannelPayload(channel))
         val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.toString().toByteArray(StandardCharsets.UTF_8))
         return localServerOrigin() + "/player.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260301f"
     }
@@ -149,25 +149,23 @@ class PlayerService(
 
     private fun localServerOrigin(): String = ServerUrlUtil.getLocalServerUrl()
 
-    private fun buildChannelPayload(channel: Channel?): JSONObject {
-        val channelJson = JSONObject()
-        channelJson.put("dbId", safeChannelValue(channel) { it.dbId })
-        channelJson.put("channelId", safeChannelValue(channel) { it.channelId })
-        channelJson.put("name", safeChannelValue(channel) { it.name })
-        channelJson.put("logo", safeChannelValue(channel) { it.logo })
-        channelJson.put("cmd", safeChannelValue(channel) { it.cmd })
-        channelJson.put("cmd_1", safeChannelValue(channel) { it.cmd_1 })
-        channelJson.put("cmd_2", safeChannelValue(channel) { it.cmd_2 })
-        channelJson.put("cmd_3", safeChannelValue(channel) { it.cmd_3 })
-        channelJson.put("drmType", safeChannelValue(channel) { it.drmType })
-        channelJson.put("drmLicenseUrl", safeChannelValue(channel) { it.drmLicenseUrl })
-        channelJson.put("clearKeysJson", safeChannelValue(channel) { it.clearKeysJson })
-        channelJson.put("inputstreamaddon", safeChannelValue(channel) { it.inputstreamaddon })
-        channelJson.put("manifestType", safeChannelValue(channel) { it.manifestType })
-        channelJson.put("season", safeChannelValue(channel) { it.season })
-        channelJson.put("episodeNum", safeChannelValue(channel) { it.episodeNum })
-        return channelJson
-    }
+    private fun buildChannelPayload(channel: Channel?): KJsonObject =
+        KJsonObject()
+            .put("dbId", safeChannelValue(channel) { it.dbId })
+            .put("channelId", safeChannelValue(channel) { it.channelId })
+            .put("name", safeChannelValue(channel) { it.name })
+            .put("logo", safeChannelValue(channel) { it.logo })
+            .put("cmd", safeChannelValue(channel) { it.cmd })
+            .put("cmd_1", safeChannelValue(channel) { it.cmd_1 })
+            .put("cmd_2", safeChannelValue(channel) { it.cmd_2 })
+            .put("cmd_3", safeChannelValue(channel) { it.cmd_3 })
+            .put("drmType", safeChannelValue(channel) { it.drmType })
+            .put("drmLicenseUrl", safeChannelValue(channel) { it.drmLicenseUrl })
+            .put("clearKeysJson", safeChannelValue(channel) { it.clearKeysJson })
+            .put("inputstreamaddon", safeChannelValue(channel) { it.inputstreamaddon })
+            .put("manifestType", safeChannelValue(channel) { it.manifestType })
+            .put("season", safeChannelValue(channel) { it.season })
+            .put("episodeNum", safeChannelValue(channel) { it.episodeNum })
 
     private fun safeChannelValue(channel: Channel?, getter: (Channel) -> String?): String = if (channel == null) "" else safe(getter(channel))
 

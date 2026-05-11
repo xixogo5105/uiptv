@@ -10,6 +10,7 @@ import com.uiptv.util.AccountType.STALKER_PORTAL
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.XtremeApiParser
+import com.uiptv.util.koinOrNull
 import java.util.ArrayList
 import java.util.function.Supplier
 import java.util.regex.Pattern
@@ -54,7 +55,7 @@ object SeriesEpisodeService {
         if (hasEpisodes(cached)) {
             return cached ?: EpisodeList()
         }
-        val snapshot = SeriesWatchingNowSnapshotService.getInstance().loadEpisodeList(account.dbId.orEmpty(), categoryId.orEmpty(), seriesId.orEmpty())
+        val snapshot = SeriesWatchingNowSnapshotService.loadEpisodeList(account.dbId.orEmpty(), categoryId.orEmpty(), seriesId.orEmpty())
         if (hasEpisodes(snapshot)) {
             return snapshot
         }
@@ -100,14 +101,15 @@ object SeriesEpisodeService {
         return EpisodeList()
     }
 
-    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: ChannelService.getInstance()
+    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: (koinOrNull<ChannelService>() ?: ChannelService())
 
     private fun loadFromDbCache(account: Account, categoryId: String, seriesId: String): EpisodeList? {
         val cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId)
         if (cachedChannels.isNullOrEmpty()) {
             return loadFromAnyCategoryCache(account, seriesId)
         }
-        if (!SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        val configurationService = koinOrNull<ConfigurationService>() ?: ConfigurationService
+        if (!SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, configurationService.getCacheExpiryMs())) {
             return loadFromAnyCategoryCache(account, seriesId)
         }
         return toEpisodeList(cachedChannels)
@@ -121,7 +123,7 @@ object SeriesEpisodeService {
         if (cachedChannels.isNullOrEmpty()) {
             return null
         }
-        if (!SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        if (!SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getCacheExpiryMs())) {
             return null
         }
         return toEpisodeList(cachedChannels)

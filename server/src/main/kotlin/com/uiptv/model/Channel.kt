@@ -1,10 +1,10 @@
 package com.uiptv.model
 
 import com.uiptv.shared.BaseJson
-import org.json.JSONObject
 import java.util.stream.Collectors
 
 import com.uiptv.util.StringUtils.safeGetString
+import com.uiptv.util.json.KJsonObject
 
 private const val KEY_SEASON = "season"
 
@@ -120,7 +120,7 @@ data class Channel @JvmOverloads constructor(
         @JvmStatic
         fun fromJson(json: String): Channel? {
             return try {
-                val jsonObj = JSONObject(json)
+                val jsonObj = KJsonObject(json)
                 val channel = Channel(
                     dbId = safeGetString(jsonObj, "dbId"),
                     channelId = safeGetString(jsonObj, "channelId"),

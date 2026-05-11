@@ -12,7 +12,7 @@ import org.apache.hc.core5.http.ParseException
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity
 import org.apache.hc.core5.http.io.entity.EntityUtils
 import org.apache.hc.core5.http.io.entity.FileEntity
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
@@ -68,7 +68,7 @@ open class RemoteSyncHttpClient {
     open fun completeSession(baseUrl: String, sessionId: String, success: Boolean, message: String?) {
         val post = HttpPost("$baseUrl/remote-sync/complete")
         post.setHeader("Content-Type", "application/json")
-        val json = JSONObject()
+        val json = KJsonObject()
             .put("sessionId", sessionId)
             .put("success", success)
             .put("message", message ?: "")
@@ -77,14 +77,14 @@ open class RemoteSyncHttpClient {
     }
 
     @Throws(IOException::class)
-    private fun executeJson(request: HttpUriRequestBase): JSONObject {
+    private fun executeJson(request: HttpUriRequestBase): KJsonObject {
         HttpClients.createDefault().use { client ->
             return client.execute(request) { response ->
                 val body = readEntityText(response)
                 if (response.code >= 300) {
                     throw IOException(if (body.isBlank()) "Remote sync request failed with status ${response.code}" else body)
                 }
-                if (body.isBlank()) JSONObject() else JSONObject(body)
+                if (body.isBlank()) KJsonObject() else KJsonObject(body)
             }
         }
     }

@@ -19,7 +19,7 @@ abstract class AbstractFfmpegHlsService {
             val currentInputNormalized = normalizeInputForReuse(currentInput)
             val sameInputExact = requestedInput.isNotEmpty() && requestedInput == currentInput
             val sameInputNormalized = requestedInputNormalized.isNotEmpty() && requestedInputNormalized == currentInputNormalized
-            val currentReady = InMemoryHlsService.getInstance().exists(STREAM_FILENAME)
+            val currentReady = InMemoryHlsService.exists(STREAM_FILENAME)
             if ((sameInputExact || sameInputNormalized) && currentProcess != null && currentProcess!!.isAlive && currentReady) {
                 if (!sameInputExact) {
                     currentCommand = ArrayList(command)
@@ -27,7 +27,7 @@ abstract class AbstractFfmpegHlsService {
                 return true
             }
             stopManagedHlsStreamLocked()
-            InMemoryHlsService.getInstance().clear()
+            InMemoryHlsService.clear()
 
             val pb = ProcessBuilder(command)
             pb.redirectErrorStream(true)
@@ -41,7 +41,7 @@ abstract class AbstractFfmpegHlsService {
         }
 
         var attempts = 0
-        while (!InMemoryHlsService.getInstance().exists(STREAM_FILENAME) && attempts < HLS_START_MAX_ATTEMPTS) {
+        while (!InMemoryHlsService.exists(STREAM_FILENAME) && attempts < HLS_START_MAX_ATTEMPTS) {
             if (currentProcess !== process || !process.isAlive) {
                 break
             }
@@ -53,7 +53,7 @@ abstract class AbstractFfmpegHlsService {
             }
             attempts++
         }
-        return InMemoryHlsService.getInstance().exists(STREAM_FILENAME)
+        return InMemoryHlsService.exists(STREAM_FILENAME)
     }
 
     protected fun stopManagedHlsStream() {
@@ -246,8 +246,8 @@ abstract class AbstractFfmpegHlsService {
                 if (now - lastWatchdogRestartAt < STALL_WATCHDOG_RESTART_COOLDOWN_MILLIS) return
 
                 val processDead = currentProcess == null || !currentProcess!!.isAlive
-                val lastTsPutAt = InMemoryHlsService.getInstance().getLastTsPutAt()
-                val lastClientAccessAt = InMemoryHlsService.getInstance().getLastClientAccessAt()
+                val lastTsPutAt = InMemoryHlsService.getLastTsPutAt()
+                val lastClientAccessAt = InMemoryHlsService.getLastClientAccessAt()
                 val idleAge = calculateViewerIdleAgeMillis(now, currentProcessStartedAt, lastClientAccessAt)
                 val idleExpired = shouldStopForViewerIdle(idleAge, HLS_IDLE_STOP_MILLIS)
                 val stalled = lastTsPutAt > 0 && now - lastTsPutAt > STALL_WATCHDOG_THRESHOLD_MILLIS
@@ -384,7 +384,7 @@ abstract class AbstractFfmpegHlsService {
             currentCommand = null
             currentProcessStartedAt = 0L
             stalledConsecutiveCount = 0
-            InMemoryHlsService.getInstance().clear()
+            InMemoryHlsService.clear()
         }
     }
 }

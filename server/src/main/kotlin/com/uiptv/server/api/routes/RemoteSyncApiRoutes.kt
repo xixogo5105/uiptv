@@ -1,6 +1,5 @@
 package com.uiptv.server.api.routes
 
-import com.uiptv.server.api.dto.ErrorResponse
 import com.uiptv.server.api.dto.RemoteSyncCompleteRequest
 import com.uiptv.server.api.dto.RemoteSyncExecutionResultDto
 import com.uiptv.server.api.dto.RemoteSyncHealthResponse
@@ -23,7 +22,6 @@ import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
-import java.sql.SQLException
 
 fun Route.registerRemoteSyncApiRoutes(
     remoteSyncSessionService: RemoteSyncSessionService
@@ -51,18 +49,11 @@ fun Route.registerRemoteSyncApiRoutes(
     }
 
     put("/remote-sync/upload") {
-        try {
-            val result = remoteSyncSessionService.acceptUpload(
-                call.request.queryParameters["sessionId"],
-                call.receiveChannel().toInputStream()
-            )
-            call.respond(RemoteSyncExecutionResultDto.fromDomain(result))
-        } catch (ex: SQLException) {
-            call.respond(
-                HttpStatusCode.InternalServerError,
-                ErrorResponse("database_error", ex.message ?: "Database sync failed")
-            )
-        }
+        val result = remoteSyncSessionService.acceptUpload(
+            call.request.queryParameters["sessionId"],
+            call.receiveChannel().toInputStream()
+        )
+        call.respond(RemoteSyncExecutionResultDto.fromDomain(result))
     }
 
     get("/remote-sync/download") {

@@ -11,12 +11,12 @@ import com.uiptv.shared.PlaylistEntry
 import com.uiptv.util.AccountType
 import com.uiptv.util.AppLog
 import com.uiptv.util.FetchAPI
+import com.uiptv.util.koinOrNull
 import com.uiptv.util.RssParser
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.XtremeApiParser
+import com.uiptv.util.json.KJsonObject
 import org.koin.core.context.GlobalContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.MalformedURLException
 import java.net.URL
 import java.util.Date
@@ -25,10 +25,10 @@ import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-class CategoryService(
-    private val contentFilterService: ContentFilterService = ContentFilterService.getInstance(),
-    private val configurationService: ConfigurationService = ConfigurationService.getInstance(),
-    private val handshakeService: HandshakeService = HandshakeService.getInstance()
+class CategoryService @JvmOverloads constructor(
+    private val contentFilterService: ContentFilterService = ContentFilterService,
+    private val configurationService: ConfigurationService = ConfigurationService,
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
 ) {
 
     fun get(account: Account): List<Category> = get(account, true)
@@ -211,7 +211,7 @@ class CategoryService(
     fun parseCategories(json: String?, censor: Boolean): List<Category> {
         val categoryList = ArrayList<Category>()
         try {
-            val list = JSONObject(json).getJSONArray("js")
+            val list = KJsonObject(json.orEmpty()).getJSONArray("js")
             for (index in 0 until list.length()) {
                 val jsonCategory = list.getJSONObject(index)
                 val category = Category(

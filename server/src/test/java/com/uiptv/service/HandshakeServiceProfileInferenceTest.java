@@ -2,7 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.model.AccountInfo;
 import com.uiptv.model.AccountStatus;
-import org.json.JSONObject;
+import com.uiptv.util.json.KJsonObject;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -21,12 +21,12 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveAccountStatus_activeWhenStatusZeroAndNotBlocked() throws Exception {
-        JSONObject json = new JSONObject()
+        KJsonObject json = new KJsonObject()
                 .put("status", 0)
                 .put("blocked", "0");
 
         AccountStatus status = invokePrivate("deriveAccountStatus",
-                new Class[]{JSONObject.class},
+                new Class[]{KJsonObject.class},
                 json);
 
         assertEquals(AccountStatus.ACTIVE, status);
@@ -34,12 +34,12 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveAccountStatus_suspendedWhenBlocked() throws Exception {
-        JSONObject json = new JSONObject()
+        KJsonObject json = new KJsonObject()
                 .put("status", 0)
                 .put("blocked", "1");
 
         AccountStatus status = invokePrivate("deriveAccountStatus",
-                new Class[]{JSONObject.class},
+                new Class[]{KJsonObject.class},
                 json);
 
         assertEquals(AccountStatus.SUSPENDED, status);
@@ -47,12 +47,12 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveAccountStatus_activeWhenNotBlockedEvenIfStatusNonZero() throws Exception {
-        JSONObject json = new JSONObject()
+        KJsonObject json = new KJsonObject()
                 .put("status", 2)
                 .put("blocked", "0");
 
         AccountStatus status = invokePrivate("deriveAccountStatus",
-                new Class[]{JSONObject.class},
+                new Class[]{KJsonObject.class},
                 json);
 
         assertEquals(AccountStatus.ACTIVE, status);
@@ -60,13 +60,13 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveExpiryDate_prefersTariffExpiredDate() throws Exception {
-        JSONObject json = new JSONObject()
+        KJsonObject json = new KJsonObject()
                 .put("tariff_expired_date", "2027-02-16 00:00:00")
                 .put("expire_billing_date", "0000-00-00 00:00:00")
                 .put("extend_at", "1773074900");
 
         String result = invokePrivate("deriveExpiryDate",
-                new Class[]{JSONObject.class},
+                new Class[]{KJsonObject.class},
                 json);
 
         assertEquals("2027-02-16 00:00:00", result);
@@ -75,13 +75,13 @@ class HandshakeServiceProfileInferenceTest {
     @Test
     void deriveExpiryDate_fallsBackToExtendAt() throws Exception {
         long epoch = 1_700_000_000L;
-        JSONObject json = new JSONObject()
-                .put("tariff_expired_date", JSONObject.NULL)
+        KJsonObject json = new KJsonObject()
+                .put("tariff_expired_date", KJsonObject.NULL)
                 .put("expire_billing_date", "0000-00-00 00:00:00")
                 .put("extend_at", String.valueOf(epoch));
 
         String result = invokePrivate("deriveExpiryDate",
-                new Class[]{JSONObject.class},
+                new Class[]{KJsonObject.class},
                 json);
 
         String expected = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -93,22 +93,22 @@ class HandshakeServiceProfileInferenceTest {
     @Test
     void applyAllowedStbTypes_setsPreferredWhenMag250MissingAndClearsWhenPresent() throws Exception {
         AccountInfo info = new AccountInfo();
-        JSONObject withoutMag = new JSONObject()
-                .put("allowed_stb_types", new org.json.JSONArray().put("mag270").put("mag275"));
+        KJsonObject withoutMag = new KJsonObject()
+                .put("allowed_stb_types", new com.uiptv.util.json.KJsonArray().put("mag270").put("mag275"));
 
         boolean updated = invokePrivate("applyAllowedStbTypes",
-                new Class[]{AccountInfo.class, JSONObject.class},
+                new Class[]{AccountInfo.class, KJsonObject.class},
                 info, withoutMag);
 
         assertTrue(updated);
         assertEquals("mag270", info.getPreferredStbType());
         assertNotNull(info.getAllowedStbTypesJson());
 
-        JSONObject withMag = new JSONObject()
-                .put("allowed_stb_types", new org.json.JSONArray().put("mag250").put("mag275"));
+        KJsonObject withMag = new KJsonObject()
+                .put("allowed_stb_types", new com.uiptv.util.json.KJsonArray().put("mag250").put("mag275"));
 
         updated = invokePrivate("applyAllowedStbTypes",
-                new Class[]{AccountInfo.class, JSONObject.class},
+                new Class[]{AccountInfo.class, KJsonObject.class},
                 info, withMag);
 
         assertTrue(updated);
@@ -118,7 +118,7 @@ class HandshakeServiceProfileInferenceTest {
     @Test
     void applyPasswordHashes_hashesAndVerifies() throws Exception {
         AccountInfo info = new AccountInfo();
-        JSONObject json = new JSONObject()
+        KJsonObject json = new KJsonObject()
                 .put("pass", "pass1")
                 .put("parent_password", "parent1")
                 .put("password", "login1")
@@ -126,7 +126,7 @@ class HandshakeServiceProfileInferenceTest {
                 .put("account_page_by_password", "page1");
 
         boolean updated = invokePrivate("applyPasswordHashes",
-                new Class[]{AccountInfo.class, JSONObject.class},
+                new Class[]{AccountInfo.class, KJsonObject.class},
                 info, json);
 
         assertTrue(updated);

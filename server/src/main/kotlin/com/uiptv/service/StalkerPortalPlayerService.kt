@@ -6,7 +6,8 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.util.FetchAPI
 import com.uiptv.util.PlayerUrlUtils
 import com.uiptv.util.StringUtils.isBlank
-import org.json.JSONObject
+import com.uiptv.util.koinOrNull
+import com.uiptv.util.json.KJsonObject
 import java.io.IOException
 import java.net.URI
 import java.net.URLDecoder
@@ -17,7 +18,10 @@ import java.util.LinkedHashMap
 import java.util.function.Supplier
 import java.util.stream.Collectors
 
-class StalkerPortalPlayerService : AccountPlayerService {
+class StalkerPortalPlayerService @JvmOverloads constructor(
+    private val accountService: AccountService = AccountService,
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
+) : AccountPlayerService {
     companion object {
         private const val CREATE_LINK_TIMEOUT_SECONDS = 8
         private const val FFMPEG_PREFIX = "ffmpeg "
@@ -161,8 +165,8 @@ class StalkerPortalPlayerService : AccountPlayerService {
 
     private fun ensureStalkerSession(account: Account?) {
         if (account == null || account.type != com.uiptv.util.AccountType.STALKER_PORTAL) return
-        if (isBlank(account.serverPortalUrl)) AccountService.getInstance().ensureServerPortalUrl(account)
-        if (account.isNotConnected()) HandshakeService.getInstance().connect(account)
+        if (isBlank(account.serverPortalUrl)) accountService.ensureServerPortalUrl(account)
+        if (account.isNotConnected()) handshakeService.connect(account)
     }
 
     private fun shouldTryLiveCmdFallback(account: Account?, channel: Channel?): Boolean =
@@ -195,7 +199,7 @@ class StalkerPortalPlayerService : AccountPlayerService {
         var resolvedCmd = resolveCreateLink(account, series, originalCmd.orEmpty())
         if (isBlank(resolvedCmd)) {
             com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService::class.java, "create_link returned empty cmd. Refreshing token and retrying once.")
-            HandshakeService.getInstance().hardTokenRefresh(account)
+            handshakeService.hardTokenRefresh(account)
             resolvedCmd = resolveCreateLink(account, series, originalCmd.orEmpty())
         }
         if (isBlank(resolvedCmd)) {
@@ -235,15 +239,15 @@ class StalkerPortalPlayerService : AccountPlayerService {
 
     private fun parseUrl(json: String?): String? {
         return try {
-            val root = JSONObject(json)
+            val root = KJsonObject(json.orEmpty())
             val js = root.optJSONObject("js")
             if (js != null) {
-                val cmd = js.optString("cmd", null)
+                val cmd = js.optString("cmd")
                 if (!isBlank(cmd)) return cmd
-                val url = js.optString("url", null)
+                val url = js.optString("url")
                 if (!isBlank(url)) return url
             }
-            root.optString("cmd", null).takeUnless { isBlank(it) }
+            root.optString("cmd").takeUnless { isBlank(it) }
         } catch (_: Exception) {
             null
         }

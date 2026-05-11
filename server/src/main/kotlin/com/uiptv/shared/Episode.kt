@@ -1,10 +1,9 @@
 package com.uiptv.shared
 
 import com.uiptv.model.Account
-import org.json.JSONObject
-
 import com.uiptv.util.StringUtils.getXtremeStreamUrl
 import com.uiptv.util.StringUtils.safeGetString
+import com.uiptv.util.json.KJsonObject
 
 data class Episode @JvmOverloads constructor(
     var id: String? = null,
@@ -44,7 +43,7 @@ data class Episode @JvmOverloads constructor(
                 return null
             }
             return try {
-                val jsonObj = JSONObject(json)
+                val jsonObj = KJsonObject(json)
                 val episode = Episode(
                     id = safeGetString(jsonObj, "id"),
                     episodeNum = safeGetString(jsonObj, "episodeNum"),
@@ -56,8 +55,9 @@ data class Episode @JvmOverloads constructor(
                     direct_source = safeGetString(jsonObj, "direct_source"),
                     cmd = safeGetString(jsonObj, "cmd")
                 )
-                if (jsonObj.has("info")) {
-                    episode.info = EpisodeInfo(jsonObj.getJSONObject("info").toMap())
+                val infoObject = jsonObj.optJSONObject("info")
+                if (infoObject != null) {
+                    episode.info = EpisodeInfo(infoObject.toMap())
                 }
                 episode.mergeEpisodeLevelArtwork(jsonObj.toMap())
                 episode

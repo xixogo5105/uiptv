@@ -1,9 +1,8 @@
 package com.uiptv.service;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.uiptv.util.json.KJsonArray;
+import com.uiptv.util.json.KJsonObject;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
@@ -16,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ImdbMetadataServiceTest {
+class ImdbMetadataServiceTest extends DbBackedTest {
 
     private final ImdbMetadataService service = ImdbMetadataService.getInstance();
 
@@ -38,60 +37,60 @@ class ImdbMetadataServiceTest {
 
     @Test
     void jsonMappers_coverGenresEpisodesAndLocalizedReplacement() throws Exception {
-        JSONObject result = new JSONObject();
-        JSONObject localized = new JSONObject()
+        KJsonObject result = new KJsonObject();
+        KJsonObject localized = new KJsonObject()
                 .put("name", "Localized Name")
                 .put("plot", "Localized Plot")
                 .put("genre", "Drama")
                 .put("releaseDate", "2025-01-01")
                 .put("cover", "https://img/cover.jpg")
                 .put("rating", "7.5");
-        invoke("applyLocalizedTmdbFields", new Class[]{JSONObject.class, JSONObject.class}, result, localized);
+        invoke("applyLocalizedTmdbFields", new Class[]{KJsonObject.class, KJsonObject.class}, result, localized);
         assertEquals("Localized Name", result.getString("name"));
         assertEquals("Drama", result.getString("genre"));
 
-        JSONObject tmdbEpisode = new JSONObject()
+        KJsonObject tmdbEpisode = new KJsonObject()
                 .put("name", "Episode 7")
                 .put("overview", "Episode plot")
                 .put("air_date", "2024-02-03")
                 .put("still_path", "/still.png");
-        JSONObject mappedEpisode = (JSONObject) invoke("mapTmdbEpisodeMeta", new Class[]{JSONObject.class}, tmdbEpisode);
+        KJsonObject mappedEpisode = (KJsonObject) invoke("mapTmdbEpisodeMeta", new Class[]{KJsonObject.class}, tmdbEpisode);
         assertEquals("", mappedEpisode.getString("title"));
         assertEquals("Episode plot", mappedEpisode.getString("plot"));
         assertTrue(mappedEpisode.getString("logo").contains("/still.png"));
 
-        JSONArray genres = new JSONArray()
-                .put(new JSONObject().put("name", "Drama"))
-                .put(new JSONObject().put("name", "Comedy"));
+        KJsonArray genres = new KJsonArray()
+                .put(new KJsonObject().put("name", "Drama"))
+                .put(new KJsonObject().put("name", "Comedy"));
         @SuppressWarnings("unchecked")
-        List<String> genreNames = (List<String>) invoke("extractTmdbGenreNames", new Class[]{JSONArray.class}, genres);
+        List<String> genreNames = (List<String>) invoke("extractTmdbGenreNames", new Class[]{KJsonArray.class}, genres);
         assertEquals(List.of("Drama", "Comedy"), genreNames);
 
-        JSONArray values = new JSONArray().put("A").put("").put("B");
+        KJsonArray values = new KJsonArray().put("A").put("").put("B");
         assertEquals("A, B", invokeString("joinNonBlankArray", values));
-        assertEquals("A, B", invoke("joinStringArray", new Class[]{JSONArray.class, int.class}, values, 3).toString());
+        assertEquals("A, B", invoke("joinStringArray", new Class[]{KJsonArray.class, int.class}, values, 3).toString());
     }
 
     @Test
     void tmdbAndTvMazeHelpers_coverIndexingAndMatchingLogic() throws Exception {
-        JSONArray tvMazeEpisodes = new JSONArray()
-                .put(new JSONObject().put("season", 1).put("number", 2).put("name", "Pilot").put("summary", "<p>Summary</p>").put("airdate", "2024-01-10"))
-                .put(new JSONObject().put("season", 2).put("number", 1).put("name", "Return"));
-        Object index = invoke("buildTvMazeEpisodeIndex", new Class[]{JSONArray.class}, tvMazeEpisodes);
-        JSONObject seasonEpisodeRow = new JSONObject().put("season", "1").put("episodeNum", "2").put("title", "Other");
-        JSONObject titleRow = new JSONObject().put("season", "").put("episodeNum", "").put("title", "Return");
+        KJsonArray tvMazeEpisodes = new KJsonArray()
+                .put(new KJsonObject().put("season", 1).put("number", 2).put("name", "Pilot").put("summary", "<p>Summary</p>").put("airdate", "2024-01-10"))
+                .put(new KJsonObject().put("season", 2).put("number", 1).put("name", "Return"));
+        Object index = invoke("buildTvMazeEpisodeIndex", new Class[]{KJsonArray.class}, tvMazeEpisodes);
+        KJsonObject seasonEpisodeRow = new KJsonObject().put("season", "1").put("episodeNum", "2").put("title", "Other");
+        KJsonObject titleRow = new KJsonObject().put("season", "").put("episodeNum", "").put("title", "Return");
 
-        JSONObject matchedBySeasonEpisode = (JSONObject) invoke("matchTvMazeEpisode", new Class[]{index.getClass(), JSONObject.class}, index, seasonEpisodeRow);
-        JSONObject matchedByTitle = (JSONObject) invoke("matchTvMazeEpisode", new Class[]{index.getClass(), JSONObject.class}, index, titleRow);
+        KJsonObject matchedBySeasonEpisode = (KJsonObject) invoke("matchTvMazeEpisode", new Class[]{index.getClass(), KJsonObject.class}, index, seasonEpisodeRow);
+        KJsonObject matchedByTitle = (KJsonObject) invoke("matchTvMazeEpisode", new Class[]{index.getClass(), KJsonObject.class}, index, titleRow);
         assertEquals("Pilot", matchedBySeasonEpisode.getString("name"));
         assertEquals("Return", matchedByTitle.getString("name"));
 
-        invoke("applyTvMazeEpisodeMeta", new Class[]{JSONObject.class, JSONObject.class}, seasonEpisodeRow, matchedBySeasonEpisode);
+        invoke("applyTvMazeEpisodeMeta", new Class[]{KJsonObject.class, KJsonObject.class}, seasonEpisodeRow, matchedBySeasonEpisode);
         assertEquals("Summary", seasonEpisodeRow.getString("plot"));
         assertEquals("2024-01-10", seasonEpisodeRow.getString("releaseDate"));
 
         @SuppressWarnings("unchecked")
-        Map<String, JSONObject> bySeasonEpisode = (Map<String, JSONObject>) invoke("indexEpisodesBySeasonEpisode", new Class[]{JSONArray.class}, new JSONArray().put(seasonEpisodeRow));
+        Map<String, KJsonObject> bySeasonEpisode = (Map<String, KJsonObject>) invoke("indexEpisodesBySeasonEpisode", new Class[]{KJsonArray.class}, new KJsonArray().put(seasonEpisodeRow));
         @SuppressWarnings("unchecked")
         Set<String> seasons = (Set<String>) invoke("collectTmdbSeasons", new Class[]{Map.class}, bySeasonEpisode);
         assertEquals(Set.of("1"), seasons);
@@ -105,34 +104,34 @@ class ImdbMetadataServiceTest {
         assertTrue((Integer) invoke("scoreCandidate", new Class[]{String.class, String.class, String.class}, "office", "The Office", "TV Series") >
                 (Integer) invoke("scoreCandidate", new Class[]{String.class, String.class, String.class}, "office", "Random Movie", "movie"));
 
-        JSONObject result = new JSONObject();
-        invoke("applyImdbGenre", new Class[]{JSONObject.class, Object.class}, result, new JSONArray().put("Drama").put("Comedy"));
+        KJsonObject result = new KJsonObject();
+        invoke("applyImdbGenre", new Class[]{KJsonObject.class, Object.class}, result, new KJsonArray().put("Drama").put("Comedy"));
         assertEquals("Drama, Comedy", result.getString("genre"));
 
-        JSONArray people = new JSONArray().put(new JSONObject().put("name", "A")).put(new JSONObject().put("name", "B"));
-        assertEquals("A, B", invoke("joinPersonNames", new Class[]{JSONArray.class}, people).toString());
+        KJsonArray people = new KJsonArray().put(new KJsonObject().put("name", "A")).put(new KJsonObject().put("name", "B"));
+        assertEquals("A, B", invoke("joinPersonNames", new Class[]{KJsonArray.class}, people).toString());
 
-        JSONObject target = new JSONObject().put("name", "Existing");
-        JSONObject source = new JSONObject().put("name", "Replacement").put("plot", "Plot");
-        invoke("mergeIfPresent", new Class[]{JSONObject.class, JSONObject.class, String.class}, target, source, "plot");
-        invoke("mergeMissing", new Class[]{JSONObject.class, JSONObject.class, String.class}, target, source, "name");
-        invoke("replaceIfPresent", new Class[]{JSONObject.class, JSONObject.class, String.class}, target, source, "name");
+        KJsonObject target = new KJsonObject().put("name", "Existing");
+        KJsonObject source = new KJsonObject().put("name", "Replacement").put("plot", "Plot");
+        invoke("mergeIfPresent", new Class[]{KJsonObject.class, KJsonObject.class, String.class}, target, source, "plot");
+        invoke("mergeMissing", new Class[]{KJsonObject.class, KJsonObject.class, String.class}, target, source, "name");
+        invoke("replaceIfPresent", new Class[]{KJsonObject.class, KJsonObject.class, String.class}, target, source, "name");
         assertEquals("Replacement", target.getString("name"));
         assertEquals("Plot", target.getString("plot"));
 
-        assertTrue((Boolean) invoke("hasAnyEpisodePlot", new Class[]{JSONArray.class}, new JSONArray().put(new JSONObject().put("plot", "filled"))));
-        assertFalse((Boolean) invoke("hasAnyEpisodePlot", new Class[]{JSONArray.class}, new JSONArray().put(new JSONObject().put("plot", ""))));
+        assertTrue((Boolean) invoke("hasAnyEpisodePlot", new Class[]{KJsonArray.class}, new KJsonArray().put(new KJsonObject().put("plot", "filled"))));
+        assertFalse((Boolean) invoke("hasAnyEpisodePlot", new Class[]{KJsonArray.class}, new KJsonArray().put(new KJsonObject().put("plot", ""))));
         assertTrue(invoke("extractJsonLd", new Class[]{String.class}, "<script type=\"application/ld+json\">{}</script>").toString().contains("{}"));
 
-        JSONObject localized = new JSONObject();
-        invoke("populateTmdbLocalizedDetails", new Class[]{JSONObject.class, JSONObject.class}, localized,
-                new JSONObject()
+        KJsonObject localized = new KJsonObject();
+        invoke("populateTmdbLocalizedDetails", new Class[]{KJsonObject.class, KJsonObject.class}, localized,
+                new KJsonObject()
                         .put("name", "Localized")
                         .put("overview", "Plot")
                         .put("vote_average", 8.5)
                         .put("release_date", "2024-01-01")
                         .put("poster_path", "/poster.png")
-                        .put("genres", new JSONArray().put(new JSONObject().put("name", "Drama"))));
+                        .put("genres", new KJsonArray().put(new KJsonObject().put("name", "Drama"))));
         assertEquals("Localized", localized.getString("name"));
         assertEquals("Drama", localized.getString("genre"));
         assertTrue(localized.getString("cover").contains("poster.png"));
@@ -155,15 +154,11 @@ class ImdbMetadataServiceTest {
 
     @Test
     void tmdbFetchHelpers_coverBearerTokenLocalizedFetchAndEpisodeMerge() throws Exception {
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setTmdbReadAccessToken(" bearer-token ");
+        ConfigurationService.getInstance().save(configuration);
 
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
-            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
-
+        try (org.mockito.MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
             httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
                     Mockito.contains("/movie/123?language=fr-FR"),
                     Mockito.anyMap(),
@@ -190,22 +185,22 @@ class ImdbMetadataServiceTest {
                     Map.of(), Map.of()
             ));
 
-            JSONObject localized = (JSONObject) invoke("fetchTmdbLocalizedDetails",
+            KJsonObject localized = (KJsonObject) invoke("fetchTmdbLocalizedDetails",
                     new Class[]{String.class, String.class, String.class}, "123", "movie", "fr-FR");
             assertEquals("Nom Localise", localized.getString("name"));
             assertEquals("Drama", localized.getString("genre"));
 
             assertEquals("123", invoke("resolveTmdbMediaId",
-                    new Class[]{JSONObject.class, JSONObject.class},
-                    new JSONObject().put("tmdbMediaId", "123"), new JSONObject()));
+                    new Class[]{KJsonObject.class, KJsonObject.class},
+                    new KJsonObject().put("tmdbMediaId", "123"), new KJsonObject()));
             assertTrue((Boolean) invoke("isSuccessfulTmdbResponse",
                     new Class[]{com.uiptv.util.HttpUtil.HttpResult.class},
                     new com.uiptv.util.HttpUtil.HttpResult(200, "{}", Map.of(), Map.of())));
 
-            JSONArray episodesMeta = new JSONArray()
-                    .put(new JSONObject().put("season", "1").put("episodeNum", "2").put("title", "Episode 2"));
-            invoke("enrichEpisodesMetaWithTmdb", new Class[]{JSONArray.class, String.class, String.class}, episodesMeta, "321", "fr-FR");
-            JSONObject merged = episodesMeta.getJSONObject(0);
+            KJsonArray episodesMeta = new KJsonArray()
+                    .put(new KJsonObject().put("season", "1").put("episodeNum", "2").put("title", "Episode 2"));
+            invoke("enrichEpisodesMetaWithTmdb", new Class[]{KJsonArray.class, String.class, String.class}, episodesMeta, "321", "fr-FR");
+            KJsonObject merged = episodesMeta.getJSONObject(0);
             assertEquals("Localized plot", merged.getString("plot"));
             assertEquals("2024-02-02", merged.getString("releaseDate"));
             assertTrue(merged.getString("logo").contains("still2.jpg"));
@@ -213,8 +208,8 @@ class ImdbMetadataServiceTest {
     }
 
     private String extractPosterCover() throws Exception {
-        JSONObject result = new JSONObject();
-        invoke("putTmdbPoster", new Class[]{JSONObject.class, String.class}, result, "/poster.png");
+        KJsonObject result = new KJsonObject();
+        invoke("putTmdbPoster", new Class[]{KJsonObject.class, String.class}, result, "/poster.png");
         return result.getString("cover");
     }
 

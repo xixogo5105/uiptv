@@ -3,9 +3,8 @@ package com.uiptv.service
 import com.uiptv.model.Account
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
-import org.json.JSONArray
-import org.json.JSONException
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -218,14 +217,14 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
                     null
                 } else {
                     val json = String(process.inputStream.readAllBytes(), StandardCharsets.UTF_8)
-                    if (json.isBlank()) null else toProbeResult(JSONObject(json))
+                    if (json.isBlank()) null else toProbeResult(KJsonObject(json))
                 }
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
                 null
             } catch (_: IOException) {
                 null
-            } catch (_: JSONException) {
+            } catch (_: IllegalArgumentException) {
                 null
             }
         }
@@ -245,7 +244,7 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
             java.lang.Long.getLong("uiptv.ffprobe.timeout.ms", 4_000L)
 
         @JvmStatic
-        private fun toProbeResult(root: JSONObject): ProbeResult {
+        private fun toProbeResult(root: KJsonObject): ProbeResult {
             val format = root.optJSONObject("format")
             val formatName = format?.optString("format_name", "").orEmpty()
             val durationMs = parseDurationMs(format?.opt("duration"))
@@ -265,7 +264,7 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
 
         private fun estimateDurationMs(probe: ProbeResult?): Long = probe?.durationMs ?: 0L
 
-        private fun extractCodecs(streams: JSONArray?): CodecPair {
+        private fun extractCodecs(streams: KJsonArray?): CodecPair {
             var videoCodec = ""
             var audioCodec = ""
             if (streams == null) return CodecPair(videoCodec, audioCodec)

@@ -11,8 +11,8 @@ import java.util.function.Consumer
 import java.util.function.Function
 
 class StalkerPortalParser(
-    private val accountProvider: Function<String, Account?> = Function { AccountService.getInstance().getByName(it) },
-    private val accountSaver: Consumer<Account> = Consumer { AccountService.getInstance().save(it) }
+    private val accountProvider: Function<String, Account?> = Function { AccountService.getByName(it) },
+    private val accountSaver: Consumer<Account> = Consumer { AccountService.save(it) }
 ) : AccountParser {
     override fun parseAndSave(text: String, groupAccountsByMac: Boolean, convertM3uToXtreme: Boolean): List<Account> {
         val sanitizedText = sanitizeInput(text)

@@ -1,8 +1,8 @@
 package com.uiptv.service.remotesync
 
 import com.uiptv.service.DatabaseSyncService
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 
 object RemoteSyncJson {
     private const val DIRECTION = "direction"
@@ -13,8 +13,8 @@ object RemoteSyncJson {
     private const val MESSAGE = "message"
 
     @JvmStatic
-    fun toJson(request: RemoteSyncRequest): JSONObject =
-        JSONObject()
+    fun toJson(request: RemoteSyncRequest): KJsonObject =
+        KJsonObject()
             .put(DIRECTION, request.direction.name)
             .put(VERIFICATION_CODE, request.verificationCode)
             .put(REQUESTER_NAME, request.requesterName)
@@ -22,7 +22,7 @@ object RemoteSyncJson {
             .put(SYNC_EXTERNAL_PLAYER_PATHS, request.options.syncExternalPlayerPaths)
 
     @JvmStatic
-    fun toRequest(json: JSONObject): RemoteSyncRequest =
+    fun toRequest(json: KJsonObject): RemoteSyncRequest =
         RemoteSyncRequest(
             RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name)),
             json.optString(VERIFICATION_CODE, ""),
@@ -34,8 +34,8 @@ object RemoteSyncJson {
         )
 
     @JvmStatic
-    fun toJson(state: RemoteSyncSessionState): JSONObject =
-        JSONObject()
+    fun toJson(state: RemoteSyncSessionState): KJsonObject =
+        KJsonObject()
             .put("sessionId", state.sessionId)
             .put(DIRECTION, state.direction.name)
             .put("status", state.status.name)
@@ -47,7 +47,7 @@ object RemoteSyncJson {
             .put(MESSAGE, state.message)
 
     @JvmStatic
-    fun toSessionState(json: JSONObject): RemoteSyncSessionState =
+    fun toSessionState(json: KJsonObject): RemoteSyncSessionState =
         RemoteSyncSessionState(
             json.optString("sessionId", ""),
             RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name)),
@@ -63,20 +63,20 @@ object RemoteSyncJson {
         )
 
     @JvmStatic
-    fun toJson(result: RemoteSyncExecutionResult): JSONObject {
-        val json = JSONObject().put(MESSAGE, result.message)
+    fun toJson(result: RemoteSyncExecutionResult): KJsonObject {
+        val json = KJsonObject().put(MESSAGE, result.message)
         val report = result.report ?: return json
-        val tables = JSONArray()
+        val tables = KJsonArray()
         for (table in report.tableResults) {
             tables.put(
-                JSONObject()
+                KJsonObject()
                     .put("tableName", table.tableName)
                     .put("rowCount", table.rowCount)
             )
         }
         json.put(
             "report",
-            JSONObject()
+            KJsonObject()
                 .put("configurationRequested", report.configurationRequested)
                 .put("configurationCopied", report.configurationCopied)
                 .put("externalPlayerPathsIncluded", report.externalPlayerPathsIncluded)
@@ -86,7 +86,7 @@ object RemoteSyncJson {
     }
 
     @JvmStatic
-    fun toExecutionResult(json: JSONObject): RemoteSyncExecutionResult {
+    fun toExecutionResult(json: KJsonObject): RemoteSyncExecutionResult {
         val reportJson = json.optJSONObject("report")
         if (reportJson == null) {
             return RemoteSyncExecutionResult(null, json.optString(MESSAGE, ""))

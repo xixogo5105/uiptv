@@ -1,7 +1,7 @@
 package com.uiptv.util
 
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 
 object XtremeCredentialsJson {
     const val KEY_USERNAME = "username"
@@ -20,7 +20,7 @@ object XtremeCredentialsJson {
             return ArrayList()
         }
         return try {
-            val array = JSONArray(rawJson!!.trim())
+            val array = KJsonArray(rawJson!!.trim())
             val entries = ArrayList<Entry>()
             for (index in 0 until array.length()) {
                 val obj = array.optJSONObject(index) ?: continue
@@ -66,9 +66,9 @@ object XtremeCredentialsJson {
             return ""
         }
         val normalized = normalize(entries, null)
-        val array = JSONArray()
+        val array = KJsonArray()
         for (entry in normalized) {
-            val obj = JSONObject()
+            val obj = KJsonObject()
             obj.put(KEY_USERNAME, entry.username)
             obj.put(KEY_PASSWORD, entry.password)
             if (entry.isDefault) {

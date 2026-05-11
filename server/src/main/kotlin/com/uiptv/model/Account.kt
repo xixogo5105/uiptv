@@ -3,7 +3,6 @@ package com.uiptv.model
 import com.uiptv.shared.BaseJson
 import com.uiptv.util.AccountType
 import com.uiptv.util.StringUtils
-import org.json.JSONPropertyIgnore
 import java.util.Arrays
 import java.util.Collections
 import java.util.EnumSet
@@ -88,7 +87,6 @@ data class Account @JvmOverloads constructor(
         this.macAddressList = macMap.values.joinToString(",")
     }
 
-    @JSONPropertyIgnore
     fun isConnected(): Boolean {
         if (type != STALKER_PORTAL) {
             return true
@@ -96,7 +94,6 @@ data class Account @JvmOverloads constructor(
         return isNotBlank(token)
     }
 
-    @JSONPropertyIgnore
     fun isNotConnected(): Boolean = !isConnected()
 
     enum class AccountAction {

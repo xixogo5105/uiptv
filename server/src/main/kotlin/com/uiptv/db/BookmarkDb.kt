@@ -18,13 +18,9 @@ import org.jetbrains.exposed.sql.statements.UpdateBuilder
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 
-class BookmarkDb private constructor() {
-    companion object {
-        private val instance = BookmarkDb()
-
-        @JvmStatic
-        fun get(): BookmarkDb = instance
-    }
+object BookmarkDb {
+    @JvmStatic
+    fun get(): BookmarkDb = this
 
     fun getById(id: String): Bookmark? = findById(id)
 

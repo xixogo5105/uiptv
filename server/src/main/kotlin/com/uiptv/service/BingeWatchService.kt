@@ -6,34 +6,21 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.model.SeriesWatchState
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
+import com.uiptv.util.koinOrNull
 import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
-object BingeWatchService {
-    private const val DEFAULT_SEASON = "1"
-    private const val PLAYLIST_PATH = "/bingewatch.m3u8?token="
-    private const val ENTRY_PATH = "/bingwatch?token="
-    private const val EPISODE_ID_QUERY = "&episodeId="
-
+class BingeWatchService @JvmOverloads constructor(
+    private val accountService: AccountService = AccountService,
+    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
+    private val playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService()
+) {
     private val sessions = ConcurrentHashMap<String, Session>()
-    private var accountServiceOverride: AccountService? = null
-    private var seriesWatchStateServiceOverride: SeriesWatchStateService? = null
-    private var playerServiceOverride: PlayerService? = null
 
-    @JvmStatic
-    fun getInstance(): BingeWatchService = this
-    fun configureDependencies(
-        accountService: AccountService,
-        seriesWatchStateService: SeriesWatchStateService,
-        playerService: PlayerService
-    ): BingeWatchService = apply {
-        this.accountServiceOverride = accountService
-        this.seriesWatchStateServiceOverride = seriesWatchStateService
-        this.playerServiceOverride = playerService
-    }
     fun createSession(
         account: Account?,
         seriesId: String?,
@@ -61,12 +48,14 @@ object BingeWatchService {
         )
         return token
     }
+
     fun buildPlaylistUrl(token: String?): String {
         if (isBlank(token)) {
             return ""
         }
         return ServerUrlUtil.getLocalServerUrl() + PLAYLIST_PATH + urlEncode(token)
     }
+
     fun buildPlaylistUrl(token: String?, startEpisodeId: String?): String {
         if (isBlank(token)) {
             return ""
@@ -96,6 +85,7 @@ object BingeWatchService {
         )
         return buildPlaylistUrl(newToken)
     }
+
     fun getPlaylistItems(token: String?): List<PlaylistItem> {
         val session = sessions[token]
         if (session == null || session.episodes.isEmpty()) {
@@ -110,6 +100,7 @@ object BingeWatchService {
             )
         }
     }
+
     fun renderPlaylist(token: String?): String {
         val session = sessions[token] ?: return ""
         val playlist = StringBuilder("#EXTM3U\n")
@@ -123,7 +114,6 @@ object BingeWatchService {
         return playlist.toString()
     }
 
-    @JvmStatic
     @Throws(IOException::class)
     fun resolveEpisode(token: String?, episodeId: String?): ResolvedEpisode? {
         val session = sessions[token]
@@ -132,12 +122,12 @@ object BingeWatchService {
         }
         val episode = session.findEpisode(episodeId.orEmpty()) ?: return null
 
-        val account = accountService().getById(session.accountId) ?: return null
+        val account = accountService.getById(session.accountId) ?: return null
         account.action = Account.AccountAction.series
 
         val channel = Channel.fromJson(episode.channelJson) ?: return null
 
-        seriesWatchStateService().markSeriesEpisodeManualIfNewer(
+        seriesWatchStateService.markSeriesEpisodeManualIfNewer(
             account,
             session.seriesCategoryId,
             session.seriesId,
@@ -147,7 +137,7 @@ object BingeWatchService {
             episode.episodeNumber
         )
 
-        val response: PlayerResponse = playerService().get(
+        val response: PlayerResponse = playerService.get(
             account,
             channel,
             episode.episodeId,
@@ -253,12 +243,28 @@ object BingeWatchService {
 
     private fun safe(value: String?): String = value?.trim().orEmpty()
 
-    private fun accountService(): AccountService = accountServiceOverride ?: AccountService.getInstance()
+    @JvmRecord
+    data class PlaylistItem(
+        val episodeId: String,
+        val episodeName: String,
+        val season: String,
+        val episodeNumber: String
+    )
 
-    private fun seriesWatchStateService(): SeriesWatchStateService =
-        seriesWatchStateServiceOverride ?: SeriesWatchStateService.getInstance()
+    @JvmRecord
+    data class ResolvedEpisode(
+        val url: String,
+        val title: String
+    )
 
-    private fun playerService(): PlayerService = playerServiceOverride ?: PlayerService.getInstance()
+    @JvmRecord
+    data class SessionEpisode(
+        val episodeId: String,
+        val episodeName: String,
+        val season: String,
+        val episodeNumber: String,
+        val channelJson: String
+    )
 
     private data class Session(
         val accountId: String,
@@ -267,48 +273,26 @@ object BingeWatchService {
         val season: String,
         val episodes: List<SessionEpisode>
     ) {
-        fun findEpisode(episodeId: String): SessionEpisode? = episodes.firstOrNull { it.episodeId == episodeId }
+        fun findEpisode(episodeId: String): SessionEpisode? =
+            episodes.firstOrNull { it.episodeId == episodeId }
     }
 
-    data class SessionEpisode(
-        val episodeId: String,
-        val episodeName: String,
-        val season: String,
-        val episodeNumber: String,
-        val channelJson: String
-    ) {
-        fun episodeId(): String = episodeId
+    companion object {
+        private const val DEFAULT_SEASON = "1"
+        private const val PLAYLIST_PATH = "/bingewatch.m3u8?token="
+        private const val ENTRY_PATH = "/bingwatch?token="
+        private const val EPISODE_ID_QUERY = "&episodeId="
+        private val instanceRef = AtomicReference<BingeWatchService?>()
 
-        fun episodeName(): String = episodeName
-
-        fun season(): String = season
-
-        fun episodeNumber(): String = episodeNumber
-
-        fun channelJson(): String = channelJson
-    }
-
-    data class PlaylistItem(
-        val episodeId: String,
-        val episodeName: String,
-        val season: String,
-        val episodeNumber: String
-    ) {
-        fun episodeId(): String = episodeId
-
-        fun episodeName(): String = episodeName
-
-        fun season(): String = season
-
-        fun episodeNumber(): String = episodeNumber
-    }
-
-    data class ResolvedEpisode(
-        val url: String,
-        val episodeName: String
-    ) {
-        fun url(): String = url
-
-        fun episodeName(): String = episodeName
+        @JvmStatic
+        @JvmOverloads
+        fun getInstance(
+            accountService: AccountService = AccountService,
+            seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
+            playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService()
+        ): BingeWatchService =
+            instanceRef.updateAndGet { current ->
+                current ?: BingeWatchService(accountService, seriesWatchStateService, playerService)
+            }!!
     }
 }

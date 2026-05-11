@@ -1,7 +1,7 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
-import org.json.JSONObject;
+import com.uiptv.util.json.KJsonObject;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.protocol.RedirectLocations;
@@ -31,7 +31,7 @@ class UtilityEdgeCaseTest {
         assertThrows(IllegalArgumentException.class, () -> AccountType.getAccountTypeByDisplay(" "));
         assertThrows(IllegalArgumentException.class, () -> AccountType.getAccountTypeByDisplay("unknown"));
 
-        JSONObject json = new JSONObject().put("value", "x");
+        KJsonObject json = new KJsonObject().put("value", "x");
         assertEquals("x", StringUtils.safeGetString(json, "value"));
         assertEquals("1", StringUtils.safeGetString(Map.of("value", 1), "value"));
         assertEquals("", StringUtils.safeJson(null));
@@ -123,12 +123,12 @@ class UtilityEdgeCaseTest {
             assertEquals("ok", body);
         }
 
-        assertTrue(FetchAPI.nullSafeBoolean(new JSONObject().put("active", true), "active"));
-        assertFalse(FetchAPI.nullSafeBoolean(new JSONObject(), "missing"));
-        assertEquals(7, FetchAPI.nullSafeInteger(new JSONObject().put("count", 7), "count"));
-        assertEquals(-1, FetchAPI.nullSafeInteger(new JSONObject(), "missing"));
-        assertEquals("value", FetchAPI.nullSafeString(new JSONObject().put("key", "value"), "key"));
-        assertEquals("", FetchAPI.nullSafeString(new JSONObject(), "missing"));
+        assertTrue(FetchAPI.nullSafeBoolean(new KJsonObject().put("active", true), "active"));
+        assertFalse(FetchAPI.nullSafeBoolean(new KJsonObject(), "missing"));
+        assertEquals(7, FetchAPI.nullSafeInteger(new KJsonObject().put("count", 7), "count"));
+        assertEquals(-1, FetchAPI.nullSafeInteger(new KJsonObject(), "missing"));
+        assertEquals("value", FetchAPI.nullSafeString(new KJsonObject().put("key", "value"), "key"));
+        assertEquals("", FetchAPI.nullSafeString(new KJsonObject(), "missing"));
         assertEquals("portal.php", FetchAPI.ServerType.PORTAL.getLoader());
 
         Method toSafeUri = HttpUtil.class.getDeclaredMethod("toSafeUri", String.class);

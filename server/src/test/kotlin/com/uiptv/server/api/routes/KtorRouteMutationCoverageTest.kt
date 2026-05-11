@@ -171,6 +171,48 @@ class KtorRouteMutationCoverageTest : DbBackedTest() {
         assertTrue(JSONArray(client.get("/watchingNowVod").bodyAsText()).isEmpty)
     }
 
+    @Test
+    fun `mutation validation and not found errors are centralized through ktor status pages`() = testApplication {
+        application { configureServerApplication() }
+
+        val bookmarkValidation = client.post("/bookmarks") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"channelId":"chan-1","name":"Missing Account"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, bookmarkValidation.status)
+        val bookmarkValidationJson = JSONObject(bookmarkValidation.bodyAsText())
+        assertEquals("bad_request", bookmarkValidationJson.getString("error"))
+        assertTrue(bookmarkValidationJson.getString("message").contains("accountId"))
+
+        val bookmarkDeleteValidation = client.delete("/bookmarks") {
+            contentType(ContentType.Application.Json)
+            setBody("""{}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, bookmarkDeleteValidation.status)
+        assertEquals("bad_request", JSONObject(bookmarkDeleteValidation.bodyAsText()).getString("error"))
+
+        val seriesValidation = client.post("/watchingNowSeriesAction") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"accountId":"missing"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, seriesValidation.status)
+        assertEquals("bad_request", JSONObject(seriesValidation.bodyAsText()).getString("error"))
+
+        val seriesNotFound = client.post("/watchingNowSeriesAction") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"accountId":"missing","seriesId":"series-1","episodeId":"ep-1"}""")
+        }
+        assertEquals(HttpStatusCode.NotFound, seriesNotFound.status)
+        assertEquals("not_found", JSONObject(seriesNotFound.bodyAsText()).getString("error"))
+
+        val vodValidation = client.post("/watchingNowVodAction") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"accountId":"missing"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, vodValidation.status)
+        assertEquals("bad_request", JSONObject(vodValidation.bodyAsText()).getString("error"))
+    }
+
     private fun saveAccount(name: String, type: AccountType, action: Account.AccountAction): Account {
         val account = Account(
             name,

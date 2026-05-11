@@ -6,8 +6,8 @@ import com.uiptv.model.Channel
 import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeList
 import com.uiptv.shared.SeasonInfo
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.KJsonArray
 import java.io.IOException
 import java.io.UncheckedIOException
 import java.util.LinkedHashSet
@@ -56,7 +56,7 @@ object XtremeApiParser {
     private fun doParseCategories(json: String): List<Category> {
         val categoryList = ArrayList<Category>()
         try {
-            val list = JSONArray(json)
+            val list = KJsonArray(json)
             for (i in 0 until list.length()) {
                 val jsonCategory = list.getJSONObject(i)
                 val category = Category(
@@ -78,7 +78,7 @@ object XtremeApiParser {
     private fun doParseChannels(json: String, account: Account): List<Channel> {
         val categoryList = ArrayList<Channel>()
         try {
-            val list = JSONArray(json)
+            val list = KJsonArray(json)
             for (i in 0 until list.length()) {
                 val jsonCategory = list.getJSONObject(i)
                 val channel = Channel(
@@ -112,12 +112,12 @@ object XtremeApiParser {
     private fun doParseEpisodes(json: String, account: Account): EpisodeList {
         val episodeList = EpisodeList()
         try {
-            val data = JSONObject(json)
+            val data = KJsonObject(json)
             episodeList.seasonInfo = SeasonInfo(data.getJSONObject("info"))
             for (entry in data.getJSONObject("episodes").toMap().entries) {
                 val seasonEpisodes = entry.value as? List<*> ?: continue
                 if (seasonEpisodes.isNotEmpty()) {
-                    seasonEpisodes.forEach { episode -> episodeList.episodes.add(Episode(account, episode as Map<*, *>)) }
+                    seasonEpisodes.forEach { episode -> episodeList.episodes.add(Episode(account, episode as? Map<*, *>)) }
                 }
             }
         } catch (e: Exception) {

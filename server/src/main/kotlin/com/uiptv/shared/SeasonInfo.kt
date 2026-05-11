@@ -1,8 +1,7 @@
 package com.uiptv.shared
 
-import org.json.JSONObject
-
 import com.uiptv.util.StringUtils.safeGetString
+import com.uiptv.util.json.KJsonObject
 
 data class SeasonInfo @JvmOverloads constructor(
     var name: String? = null,
@@ -21,7 +20,7 @@ data class SeasonInfo @JvmOverloads constructor(
     var episodeRunTime: String? = null,
     var categoryId: String? = null
 ) : BaseJson() {
-    constructor(info: JSONObject) : this(
+    constructor(info: KJsonObject) : this(
         name = safeGetString(info, "name"),
         cover = safeGetString(info, "cover"),
         plot = safeGetString(info, "plot"),

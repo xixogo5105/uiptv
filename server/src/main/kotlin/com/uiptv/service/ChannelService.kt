@@ -16,14 +16,14 @@ import com.uiptv.util.AppLog
 import com.uiptv.util.FetchAPI
 import com.uiptv.util.FetchAPI.nullSafeInteger
 import com.uiptv.util.FetchAPI.nullSafeString
+import com.uiptv.util.koinOrNull
 import com.uiptv.util.RssParser
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 import com.uiptv.util.XtremeApiParser
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
@@ -39,12 +39,12 @@ import java.util.function.BooleanSupplier
 import java.util.function.Consumer
 import java.util.function.Supplier
 
-class ChannelService(
-    private val cacheService: CacheService = CacheServiceImpl(),
-    private val contentFilterService: ContentFilterService = ContentFilterService.getInstance(),
-    private val logoResolverService: LogoResolverService = LogoResolverService.getInstance(),
-    private val configurationService: ConfigurationService = ConfigurationService.getInstance(),
-    private val handshakeService: HandshakeService = HandshakeService.getInstance()
+class ChannelService @JvmOverloads constructor(
+    private val cacheService: CacheService = koinOrNull<CacheService>() ?: CacheServiceImpl(),
+    private val contentFilterService: ContentFilterService = ContentFilterService,
+    private val logoResolverService: LogoResolverService = LogoResolverService,
+    private val configurationService: ConfigurationService = ConfigurationService,
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
 ) {
 
     @Throws(IOException::class)
@@ -752,7 +752,7 @@ class ChannelService(
 
     fun parsePagination(json: String, logger: LoggerCallback?): Pagination? {
         return try {
-            val js = JSONObject(json)
+            val js = KJsonObject(json)
             var pagination = js.optJSONObject("pagination")
             if (pagination == null) pagination = js.optJSONObject("js")
             if (pagination != null) {
@@ -770,7 +770,7 @@ class ChannelService(
 
     fun parseItvChannels(json: String, censor: Boolean): List<Channel> {
         return try {
-            val root = JSONObject(json)
+            val root = KJsonObject(json)
             val js = root.optJSONObject("js") ?: root
             val list = js.getJSONArray("data")
             val channelList = ArrayList<Channel>()
@@ -808,7 +808,7 @@ class ChannelService(
 
     fun parseVodChannels(account: Account, json: String, censor: Boolean): List<Channel> {
         return try {
-            val root = JSONObject(json)
+            val root = KJsonObject(json)
             val js = root.optJSONObject("js") ?: root
             val list = js.getJSONArray("data")
             val channelList = ArrayList<Channel>()
@@ -881,7 +881,7 @@ class ChannelService(
         }
     }
 
-    private fun preferredVodLogo(jsonChannel: JSONObject?): String {
+    private fun preferredVodLogo(jsonChannel: KJsonObject?): String {
         if (jsonChannel == null) return ""
         var logo = nullSafeString(jsonChannel, "screenshot_uri")
         if (isBlank(logo)) logo = nullSafeString(jsonChannel, "stream_icon")
@@ -893,7 +893,7 @@ class ChannelService(
     private fun extractLogoFromExtraJson(extraJson: String?): String {
         if (isBlank(extraJson)) return ""
         return try {
-            val json = JSONObject(extraJson)
+            val json = KJsonObject(extraJson.orEmpty())
             var logo = nullSafeString(json, "screenshot_uri")
             if (isBlank(logo)) logo = nullSafeString(json, "stream_icon")
             if (isBlank(logo)) logo = nullSafeString(json, "cover")

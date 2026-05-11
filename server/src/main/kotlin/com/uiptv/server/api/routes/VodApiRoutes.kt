@@ -6,8 +6,8 @@ import com.uiptv.db.VodChannelDb
 import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.SeriesWatchState
+import com.uiptv.server.api.ApiNotFoundException
 import com.uiptv.server.api.dto.ChannelRouteDto
-import com.uiptv.server.api.dto.ErrorResponse
 import com.uiptv.server.api.dto.StatusResponse
 import com.uiptv.server.api.dto.VodDetailsResponseDto
 import com.uiptv.server.api.dto.VodInfoDto
@@ -27,7 +27,6 @@ import com.uiptv.service.WatchingNowVodResolver
 import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeList
 import com.uiptv.util.StringUtils
-import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.respond
@@ -84,18 +83,18 @@ fun Route.registerVodApiRoutes(
     }
 
     post("/watchingNowSeriesAction") {
-        val result = upsertWatchingNowSeries(
+        call.respond(
+            upsertWatchingNowSeries(
             call.receivePayload<WatchingNowSeriesActionRequest>(),
             accountService,
             seriesWatchStateService,
             seriesWatchingNowSnapshotService
         )
-        call.respond(result.status, result.payload)
+        )
     }
 
     delete("/watchingNowSeriesAction") {
-        val result = deleteWatchingNowSeries(call.receivePayload<WatchingNowSeriesActionRequest>(), seriesWatchStateService)
-        call.respond(result.status, result.payload)
+        call.respond(deleteWatchingNowSeries(call.receivePayload<WatchingNowSeriesActionRequest>(), seriesWatchStateService))
     }
 
     get("/watchingNowVod") {
@@ -103,13 +102,11 @@ fun Route.registerVodApiRoutes(
     }
 
     post("/watchingNowVodAction") {
-        val result = upsertWatchingNowVod(call.receivePayload<WatchingNowVodActionRequest>(), accountService, vodWatchStateService)
-        call.respond(result.status, result.payload)
+        call.respond(upsertWatchingNowVod(call.receivePayload<WatchingNowVodActionRequest>(), accountService, vodWatchStateService))
     }
 
     delete("/watchingNowVodAction") {
-        val result = deleteWatchingNowVod(call.receivePayload<WatchingNowVodActionRequest>(), vodWatchStateService)
-        call.respond(result.status, result.payload)
+        call.respond(deleteWatchingNowVod(call.receivePayload<WatchingNowVodActionRequest>(), vodWatchStateService))
     }
 }
 
@@ -233,7 +230,7 @@ private fun upsertWatchingNowSeries(
     accountService: AccountService,
     seriesWatchStateService: SeriesWatchStateService,
     snapshotService: SeriesWatchingNowSnapshotService
-): RouteMutationResult {
+): StatusResponse {
     val accountId = body.accountId.orEmpty()
     val categoryId = body.categoryId.orEmpty()
     val seriesId = body.seriesId.orEmpty()
@@ -245,16 +242,10 @@ private fun upsertWatchingNowSeries(
     val seriesTitle = body.seriesTitle.orEmpty()
     val seriesPoster = body.seriesPoster.orEmpty()
     if (accountId.isBlank() || seriesId.isBlank() || episodeId.isBlank()) {
-        return RouteMutationResult(
-            HttpStatusCode.BadRequest,
-            StatusResponse(status = "error", message = "accountId, seriesId, episodeId are required")
-        )
+        throw IllegalArgumentException("accountId, seriesId and episodeId are required")
     }
     val account = accountService.getById(accountId)
-        ?: return RouteMutationResult(
-            HttpStatusCode.NotFound,
-            ErrorResponse("not_found", "account not found")
-        )
+        ?: throw ApiNotFoundException("account not found")
 
     seriesWatchStateService.markSeriesEpisodeManual(account, categoryId, seriesId, episodeId, episodeName, season, episodeNum)
     snapshotService.saveChannels(
@@ -266,24 +257,21 @@ private fun upsertWatchingNowSeries(
         seriesPoster,
         routeChannels(body.episodes)
     )
-    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
+    return StatusResponse(status = "ok")
 }
 
 private fun deleteWatchingNowSeries(
     body: WatchingNowSeriesActionRequest,
     seriesWatchStateService: SeriesWatchStateService
-): RouteMutationResult {
+): StatusResponse {
     val accountId = body.accountId.orEmpty()
     val categoryId = body.categoryId.orEmpty()
     val seriesId = body.seriesId.orEmpty()
     if (accountId.isBlank() || seriesId.isBlank()) {
-        return RouteMutationResult(
-            HttpStatusCode.BadRequest,
-            StatusResponse(status = "error", message = "accountId and seriesId are required")
-        )
+        throw IllegalArgumentException("accountId and seriesId are required")
     }
     seriesWatchStateService.clearSeriesLastWatched(accountId, categoryId, seriesId)
-    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
+    return StatusResponse(status = "ok")
 }
 
 private fun buildWatchingNowVodResponse(vodResolver: WatchingNowVodResolver): List<WatchingNowVodRowDto> =
@@ -315,7 +303,7 @@ private fun upsertWatchingNowVod(
     body: WatchingNowVodActionRequest,
     accountService: AccountService,
     vodWatchStateService: VodWatchStateService
-): RouteMutationResult {
+): StatusResponse {
     val accountId = body.accountId.orEmpty()
     val categoryId = body.categoryId.orEmpty()
     val vodId = body.vodId.orEmpty()
@@ -323,16 +311,10 @@ private fun upsertWatchingNowVod(
     val vodCmd = body.vodCmd.orEmpty()
     val vodLogo = body.vodLogo.orEmpty()
     if (accountId.isBlank() || vodId.isBlank()) {
-        return RouteMutationResult(
-            HttpStatusCode.BadRequest,
-            StatusResponse(status = "error", message = "accountId and vodId are required")
-        )
+        throw IllegalArgumentException("accountId and vodId are required")
     }
     val account = accountService.getById(accountId)
-        ?: return RouteMutationResult(
-            HttpStatusCode.NotFound,
-            ErrorResponse("not_found", "account not found")
-        )
+        ?: throw ApiNotFoundException("account not found")
     val channel = Channel().apply {
         channelId = vodId
         this.categoryId = categoryId
@@ -341,24 +323,21 @@ private fun upsertWatchingNowVod(
         logo = vodLogo
     }
     vodWatchStateService.save(account, categoryId, channel)
-    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
+    return StatusResponse(status = "ok")
 }
 
 private fun deleteWatchingNowVod(
     body: WatchingNowVodActionRequest,
     vodWatchStateService: VodWatchStateService
-): RouteMutationResult {
+): StatusResponse {
     val accountId = body.accountId.orEmpty()
     val categoryId = body.categoryId.orEmpty()
     val vodId = body.vodId.orEmpty()
     if (accountId.isBlank() || vodId.isBlank()) {
-        return RouteMutationResult(
-            HttpStatusCode.BadRequest,
-            StatusResponse(status = "error", message = "accountId and vodId are required")
-        )
+        throw IllegalArgumentException("accountId and vodId are required")
     }
     vodWatchStateService.remove(accountId, categoryId, vodId)
-    return RouteMutationResult(HttpStatusCode.OK, StatusResponse(status = "ok"))
+    return StatusResponse(status = "ok")
 }
 
 private fun routeChannels(payload: JsonArray?): List<Channel> {
@@ -491,11 +470,6 @@ private fun toChannelRouteDto(channel: Channel): ChannelRouteDto =
         inputstreamaddon = channel.inputstreamaddon,
         manifestType = channel.manifestType
     )
-
-private data class RouteMutationResult(
-    val status: HttpStatusCode,
-    val payload: Any
-)
 
 private data class WatchingNowSeriesMetadata(
     val categoryDbId: String,

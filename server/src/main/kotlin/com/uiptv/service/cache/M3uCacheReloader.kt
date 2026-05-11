@@ -9,6 +9,7 @@ import com.uiptv.model.CategoryType
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
 import com.uiptv.service.ConfigurationService
+import com.uiptv.util.koinOrNull
 import com.uiptv.shared.PlaylistEntry
 import com.uiptv.util.AccountType
 import com.uiptv.util.StringUtils
@@ -21,9 +22,9 @@ import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import com.uiptv.model.CategoryType.ALL
 
-open class M3uCacheReloader(
-    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
-    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+open class M3uCacheReloader @JvmOverloads constructor(
+    categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         val categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories()

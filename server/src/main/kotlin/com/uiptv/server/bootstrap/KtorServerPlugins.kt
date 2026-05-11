@@ -1,5 +1,6 @@
 package com.uiptv.server.bootstrap
 
+import com.uiptv.server.api.ApiNotFoundException
 import com.uiptv.server.api.dto.ErrorResponse
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -13,6 +14,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.koin.core.module.Module
 import org.koin.ktor.plugin.Koin
+import java.sql.SQLException
 
 fun Application.configureBackendPlatform(extraModules: List<Module> = emptyList()) {
     install(Koin) {
@@ -46,6 +48,18 @@ fun Application.configureBackendPlatform(extraModules: List<Module> = emptyList(
             call.respond(
                 status = HttpStatusCode.BadRequest,
                 message = ErrorResponse("malformed_json", cause.message ?: "Malformed request body")
+            )
+        }
+        exception<ApiNotFoundException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.NotFound,
+                message = ErrorResponse("not_found", cause.message ?: "Resource not found")
+            )
+        }
+        exception<SQLException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.InternalServerError,
+                message = ErrorResponse("database_error", cause.message ?: "Database operation failed")
             )
         }
         exception<Throwable> { call, cause ->

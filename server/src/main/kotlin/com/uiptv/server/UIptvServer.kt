@@ -94,7 +94,7 @@ object KtorServerRuntime {
 
     @JvmStatic
     fun getHttpPort(): String {
-        val port = ConfigurationService.getInstance().read().serverPort
+        val port = ConfigurationService.read().serverPort
         return if (port.isNullOrBlank()) "8888" else port
     }
 

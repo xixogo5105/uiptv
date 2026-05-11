@@ -9,8 +9,10 @@ import com.uiptv.util.AccountType.STALKER_PORTAL
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.I18n
 
+import com.uiptv.util.koinOrNull
+
 class CategoryResolver(
-    private val channelServiceProvider: () -> ChannelService = { ChannelService.getInstance() }
+    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() }
 ) {
     fun resolveCategories(account: Account?, categories: List<Category>?): List<Category> {
         var processed = ArrayList(categories ?: emptyList())

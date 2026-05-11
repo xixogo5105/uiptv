@@ -1,6 +1,5 @@
 package com.uiptv.db
 
-import com.uiptv.util.ConfigFileReader
 import com.uiptv.util.Platform
 import com.uiptv.util.StringUtils
 import com.zaxxer.hikari.HikariConfig
@@ -25,11 +24,10 @@ object SqlConnectionRuntime {
     private const val INIT_RETRY_DELAY_MS = 250L
     private const val MIGRATIONS_LIST_RESOURCE = "db/migrations/migrations.txt"
     private const val BASELINE_MIGRATION = "0000_baseline.sql"
-    private const val LEGACY_HISTORY_TABLE = "schema_migrations"
     private const val CURRENT_SCHEMA_VERSION = "0197"
 
     @Volatile
-    private var dbPath: String = resolveConfiguredDatabasePath()
+    private var dbPath: String = DatabasePathResolver.resolve()
 
     @Volatile
     private var exposedDatabase: Database? = null
@@ -112,7 +110,12 @@ object SqlConnectionRuntime {
 
     private fun migrate() {
         openConnection().use { connection ->
-            val plan = determineMigrationPlan(connection)
+            val plan = DatabaseMigrationCompatibility.determineMigrationPlan(
+                connection = connection,
+                currentSchemaVersion = CURRENT_SCHEMA_VERSION,
+                baselineMigration = BASELINE_MIGRATION,
+                readAllMigrationNames = ::readMigrationNames
+            )
             if (plan.baselineVersion != null) {
                 baselineExistingSchema(plan.baselineVersion, plan.baselineDescription)
             }
@@ -193,65 +196,6 @@ object SqlConnectionRuntime {
     private fun openResource(path: String) =
         SqlConnectionRuntime::class.java.classLoader.getResourceAsStream(path)
             ?: throw IllegalStateException("Migration resource not found: $path")
-
-    private fun readLegacySuccessVersion(connection: Connection): String? {
-        if (!tableExists(connection, LEGACY_HISTORY_TABLE)) {
-            return null
-        }
-        connection.prepareStatement(
-            "SELECT name FROM $LEGACY_HISTORY_TABLE WHERE status='success' ORDER BY name DESC LIMIT 1"
-        ).use { statement ->
-            statement.executeQuery().use { rs ->
-                if (!rs.next()) {
-                    return null
-                }
-                val fileName = rs.getString(1) ?: return null
-                return Regex("""^(\d+)_""").find(fileName)?.groupValues?.get(1)
-            }
-        }
-    }
-
-    private fun hasApplicationTables(connection: Connection): Boolean {
-        val knownTables = listOf("Configuration", "Account", "Bookmark", "Category", "Channel")
-        return knownTables.any { tableExists(connection, it) }
-    }
-
-    private fun determineMigrationPlan(connection: Connection): MigrationPlan {
-        val legacyVersion = readLegacySuccessVersion(connection)
-        val flywayVersion = readFlywaySuccessVersion(connection)
-        return when {
-            flywayVersion != null -> MigrationPlan.incrementalFrom(flywayVersion)
-            legacyVersion != null -> MigrationPlan.incrementalFrom(legacyVersion).copy(
-                baselineVersion = legacyVersion,
-                baselineDescription = "legacy schema_migrations"
-            )
-            hasApplicationTables(connection) -> MigrationPlan.baselineOnly().copy(
-                baselineDescription = "existing application schema"
-            )
-            else -> MigrationPlan.bootstrapBaseline()
-        }
-    }
-
-    private fun readFlywaySuccessVersion(connection: Connection): String? {
-        if (!tableExists(connection, "flyway_schema_history")) {
-            return null
-        }
-        connection.prepareStatement(
-            "SELECT version FROM flyway_schema_history WHERE success = 1 AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1"
-        ).use { statement ->
-            statement.executeQuery().use { rs ->
-                return if (rs.next()) rs.getString(1) else null
-            }
-        }
-    }
-
-    private fun tableExists(connection: Connection, tableName: String): Boolean =
-        connection.prepareStatement(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
-        ).use { statement ->
-            statement.setString(1, tableName)
-            statement.executeQuery().use { rs -> rs.next() }
-        }
 
     @Throws(SQLException::class)
     private fun openConnection(): Connection {
@@ -340,110 +284,64 @@ object SqlConnectionRuntime {
         }
     }
 
-    private fun resolveConfiguredDatabasePath(): String {
-        val configured = ConfigFileReader.getDbPathFromConfigFile()
-        return if (StringUtils.isNotBlank(configured)) {
-            configured!!
-        } else {
-            Platform.getUserHomeDirPath() + File.separator + "uiptv.db"
-        }
-    }
-
-    private data class MigrationPlan(
-        val files: List<String>,
-        val versionOverride: String? = null,
-        val baselineVersion: String? = null,
-        val baselineDescription: String = "baseline"
-    ) {
-        companion object {
-            fun fullHistory(): MigrationPlan = MigrationPlan(readAllMigrationNames())
-
-            fun bootstrapBaseline(): MigrationPlan = MigrationPlan(
-                files = listOf(BASELINE_MIGRATION),
-                versionOverride = CURRENT_SCHEMA_VERSION
-            )
-
-            fun baselineOnly(): MigrationPlan = MigrationPlan(
-                files = emptyList(),
-                baselineVersion = CURRENT_SCHEMA_VERSION,
-                baselineDescription = "existing schema"
-            )
-
-            fun incrementalFrom(version: String): MigrationPlan =
-                MigrationPlan(
-                    readAllMigrationNames().filter { migration ->
-                        migration != BASELINE_MIGRATION && migrationVersion(migration) > version.toInt()
-                    }
-                )
-
-            private fun readAllMigrationNames(): List<String> =
-                SqlConnectionRuntime.readMigrationNames()
-
-            private fun migrationVersion(fileName: String): Int =
-                Regex("""^(\d+)_""").find(fileName)?.groupValues?.get(1)?.toInt()
-                    ?: throw IllegalStateException("Unsupported migration file name: $fileName")
-        }
-    }
 }
 
-class SQLConnection private constructor() {
-    companion object {
-        private const val INIT_RETRY_DELAY_MS = 250L
+object SQLConnection {
+    private const val INIT_RETRY_DELAY_MS = 250L
 
-        @JvmStatic
-        @Synchronized
-        fun init() {
-            SqlConnectionRuntime.init()
-        }
+    @JvmStatic
+    @Synchronized
+    fun init() {
+        SqlConnectionRuntime.init()
+    }
 
-        @JvmStatic
-        @Synchronized
-        fun setDatabasePath(path: String) {
-            SqlConnectionRuntime.setDatabasePath(path)
-        }
+    @JvmStatic
+    @Synchronized
+    fun setDatabasePath(path: String) {
+        SqlConnectionRuntime.setDatabasePath(path)
+    }
 
-        @JvmStatic
-        @Synchronized
-        fun getDatabasePath(): String = SqlConnectionRuntime.getDatabasePath()
+    @JvmStatic
+    @Synchronized
+    fun getDatabasePath(): String = SqlConnectionRuntime.getDatabasePath()
 
-        @JvmStatic
-        fun connect(): Connection = SqlConnectionRuntime.connect()
+    @JvmStatic
+    fun connect(): Connection = SqlConnectionRuntime.connect()
 
-        @JvmStatic
-        fun database(): Database = SqlConnectionRuntime.database()
+    @JvmStatic
+    fun database(): Database = SqlConnectionRuntime.database()
 
-        @JvmStatic
-        @Synchronized
-        fun close() {
-            SqlConnectionRuntime.close()
-        }
+    @JvmStatic
+    @Synchronized
+    fun close() {
+        SqlConnectionRuntime.close()
+    }
 
-        @Suppress("unused")
-        @JvmStatic
-        private fun isBusy(exception: SQLException): Boolean {
-            var current: SQLException? = exception
-            while (current != null) {
-                val message = current.message
-                if (current.errorCode == 5 || (message != null && message.contains("SQLITE_BUSY"))) {
-                    return true
-                }
-                current = current.nextException
+    @Suppress("unused")
+    @JvmStatic
+    private fun isBusy(exception: SQLException): Boolean {
+        var current: SQLException? = exception
+        while (current != null) {
+            val message = current.message
+            if (current.errorCode == 5 || (message != null && message.contains("SQLITE_BUSY"))) {
+                return true
             }
-            return false
+            current = current.nextException
         }
+        return false
+    }
 
-        @Suppress("unused")
-        @JvmStatic
-        private fun sleepBeforeRetry() {
-            try {
-                Thread.sleep(INIT_RETRY_DELAY_MS)
-            } catch (interruptedException: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw DatabaseAccessException(
-                    "Interrupted while waiting to retry database initialization",
-                    interruptedException
-                )
-            }
+    @Suppress("unused")
+    @JvmStatic
+    private fun sleepBeforeRetry() {
+        try {
+            Thread.sleep(INIT_RETRY_DELAY_MS)
+        } catch (interruptedException: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw DatabaseAccessException(
+                "Interrupted while waiting to retry database initialization",
+                interruptedException
+            )
         }
     }
 }

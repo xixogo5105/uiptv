@@ -7,19 +7,20 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.util.HlsPlaylistResolver
 import com.uiptv.util.M3uPlaylistUtils.escapeAttributeValue
 import com.uiptv.util.M3uPlaylistUtils.sanitizeTitle
+import com.uiptv.util.koinOrNull
 import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.LinkedHashMap
 
-class PlaylistExportService(
+class PlaylistExportService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val bookmarkService: BookmarkService = BookmarkService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService.getInstance(),
-    private val playerService: PlayerService = PlayerService.getInstance(),
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService(),
+    private val playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService(),
+    private val playerRequestResolver: PlayerRequestResolver = koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver(),
     private val channelDb: ChannelDb = ChannelDb.get()
 ) {
     companion object {
@@ -61,10 +62,10 @@ class PlaylistExportService(
         return PlaylistDocument(response, "${accountId}-${categoryId}-${channelId}.m3u8")
     }
 
-    fun buildBookmarksPlaylist(host: String): String = M3U8PublicationService.getInstance().buildBookmarkPlaylist(host)
+    fun buildBookmarksPlaylist(host: String): String = (koinOrNull<M3U8PublicationService>() ?: M3U8PublicationService()).buildBookmarkPlaylist(host)
 
     fun buildPublishedPlaylist(host: String?, requestPath: String?): PlaylistDocument {
-        val response = M3U8PublicationService.getInstance().getPublishedM3u8(host)
+        val response = (koinOrNull<M3U8PublicationService>() ?: M3U8PublicationService()).getPublishedM3u8(host)
         val filename = if ((requestPath ?: "").endsWith(".m3u")) "iptv.m3u" else "iptv.m3u8"
         return PlaylistDocument(response, filename)
     }
