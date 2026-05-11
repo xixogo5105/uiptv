@@ -4,7 +4,7 @@ import com.uiptv.ui.util.*;
 
 public class ThumbnailWatchingNowUI extends BaseWatchingNowUI {
     public ThumbnailWatchingNowUI() {
-        this(JavaFxServices.current());
+        this(JavaFxServices.defaults());
     }
 
     public ThumbnailWatchingNowUI(JavaFxServices services) {

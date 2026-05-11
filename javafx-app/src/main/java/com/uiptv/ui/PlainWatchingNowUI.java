@@ -4,7 +4,7 @@ import com.uiptv.ui.util.*;
 
 public class PlainWatchingNowUI extends BaseWatchingNowUI {
     public PlainWatchingNowUI() {
-        this(JavaFxServices.current());
+        this(JavaFxServices.defaults());
     }
 
     public PlainWatchingNowUI(JavaFxServices services) {

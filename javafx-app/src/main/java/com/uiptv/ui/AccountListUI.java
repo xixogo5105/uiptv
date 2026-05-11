@@ -43,7 +43,7 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
-    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.current();
+    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.defaults();
     private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = DEFAULT_SERVICES.configurationService();
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
@@ -52,6 +52,7 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
+    private final JavaFxServices services;
     private final ConfigurationService configurationService;
     private final CategoryService categoryService;
     private final VBox listView = new VBox(5);
@@ -86,6 +87,7 @@ public class AccountListUI extends HBox {
 
     public AccountListUI(boolean embeddedMode, JavaFxServices services) {
         this.embeddedMode = embeddedMode;
+        this.services = services;
         this.configurationService = services.configurationService();
         this.categoryService = services.categoryService();
         this.accountService = services.accountService();
@@ -605,7 +607,7 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
+        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode, services);
         if (embeddedMode) {
             showDetailView(categoryListUI);
         } else {

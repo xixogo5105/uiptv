@@ -84,7 +84,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private boolean accountListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
-        this(JavaFxServices.current());
+        this(JavaFxServices.defaults());
     }
 
     protected BaseWatchingNowUI(JavaFxServices services) {

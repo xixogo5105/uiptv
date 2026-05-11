@@ -111,7 +111,7 @@ public class ChannelListUI extends HBox {
     private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
-        this(channelList, account, categoryTitle, categoryId, JavaFxServices.current());
+        this(channelList, account, categoryTitle, categoryId, JavaFxServices.defaults());
     }
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId, JavaFxServices services) {
@@ -120,7 +120,7 @@ public class ChannelListUI extends HBox {
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId) {
-        this(account, categoryTitle, categoryId, JavaFxServices.current());
+        this(account, categoryTitle, categoryId, JavaFxServices.defaults());
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId, JavaFxServices services) {

@@ -47,6 +47,7 @@ public class BookmarkChannelListUI extends HBox {
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
     private final AtomicLong reloadGeneration = new AtomicLong(0);
     private final AtomicLong bookmarkOrderSaveGeneration = new AtomicLong(0);
+    private final JavaFxServices services;
     private final ExecutorService bookmarkOrderSaveExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "bookmark-order-save");
         thread.setDaemon(true);
@@ -83,10 +84,11 @@ public class BookmarkChannelListUI extends HBox {
     });
 
     public BookmarkChannelListUI() {
-        this(JavaFxServices.current());
+        this(JavaFxServices.defaults());
     }
 
     public BookmarkChannelListUI(JavaFxServices services) {
+        this.services = services;
         this.bookmarkService = services.bookmarkService();
         this.accountService = services.accountService();
         this.channelService = services.channelService();
@@ -621,7 +623,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void openCategoryManagementPopup() {
         Stage popupStage = new Stage();
-        CategoryManagementPopup popup = new CategoryManagementPopup(this);
+        CategoryManagementPopup popup = new CategoryManagementPopup(this, services);
         Scene scene = new Scene(popup, 300, 400);
         UiI18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());

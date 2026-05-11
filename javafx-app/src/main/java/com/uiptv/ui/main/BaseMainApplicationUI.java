@@ -51,8 +51,8 @@ public abstract class BaseMainApplicationUI {
     }
 
     public Scene buildScene() {
-        AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow());
-        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
+        AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow(), services);
+        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(services);
         AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
         setMinWidthForPane(bookmarkChannelListUI);
         setMinWidthForPane(accountListUI);
@@ -177,7 +177,7 @@ public abstract class BaseMainApplicationUI {
     private void initializeDeferredTabs(DeferredTabsContext context) {
         Supplier<WatchingNowUI> watchingNowSupplier = context.watchingNowRef()::get;
         Runnable loadWatchingNow = () -> {
-            WatchingNowUI watchingNowUI = new WatchingNowUI();
+            WatchingNowUI watchingNowUI = new WatchingNowUI(services);
             setMinWidthForPane(watchingNowUI);
             context.watchingNowRef().set(watchingNowUI);
             context.watchingNowTab().setContent(watchingNowUI);
@@ -197,7 +197,7 @@ public abstract class BaseMainApplicationUI {
         };
 
         Runnable loadManageAccount = () -> {
-            ManageAccountUI manageAccountUI = new ManageAccountUI();
+            ManageAccountUI manageAccountUI = new ManageAccountUI(services);
             setMinWidthForPane(manageAccountUI);
             context.accountListUI().setManageAccountUI(manageAccountUI);
             configureAccountListUI(
@@ -225,7 +225,7 @@ public abstract class BaseMainApplicationUI {
                 if (watchingNowUI != null) {
                     watchingNowUI.forceReload();
                 }
-            });
+            }, services);
             setMinWidthForPane(configurationUI);
             context.configurationTab().setContent(configurationUI);
         };

@@ -51,6 +51,7 @@ public class CategoryListUI extends HBox {
     private final CategoryService categoryService;
     private final ChannelService channelService;
     private final com.uiptv.service.FilterLockService filterLockService;
+    private final JavaFxServices services;
     private final Account account;
     private final boolean embeddedMode;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
@@ -70,19 +71,20 @@ public class CategoryListUI extends HBox {
     private Account.AccountAction activeMode;
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
-        this(account, false, JavaFxServices.current());
+        this(account, false, JavaFxServices.defaults());
         setItems(list);
     }
 
     public CategoryListUI(Account account) {
-        this(account, false, JavaFxServices.current());
+        this(account, false, JavaFxServices.defaults());
     }
 
     public CategoryListUI(Account account, boolean embeddedMode) {
-        this(account, embeddedMode, JavaFxServices.current());
+        this(account, embeddedMode, JavaFxServices.defaults());
     }
 
     public CategoryListUI(Account account, boolean embeddedMode, JavaFxServices services) {
+        this.services = services;
         this.categoryService = services.categoryService();
         this.channelService = services.channelService();
         this.filterLockService = services.filterLockService();
@@ -460,7 +462,7 @@ public class CategoryListUI extends HBox {
     private void initializeChannelListView(CategoryItem item, String selectedCategoryKey, ModeState state,
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems, CountDownLatch latch) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
-        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey);
+        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey, services);
         if (embeddedMode) {
             ui.setEmbeddedMode(true);
         } else {
