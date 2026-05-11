@@ -16,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class SeriesEpisodeServiceReloadTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void reloadEpisodesFromPortal_bypassesCacheAndPersistsFreshEpisodes() {
@@ -43,7 +44,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParserMock = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParserMock.when(() -> XtremeApiParser.parseEpisodes(seriesId, account)).thenReturn(portalResponse);
 
-            EpisodeList reloaded = SeriesEpisodeService.INSTANCE
+            EpisodeList reloaded = services.seriesEpisodeService()
                     .reloadEpisodesFromPortal(account, categoryId, seriesId, () -> false);
 
             assertEquals(1, reloaded.getEpisodes().size());

@@ -26,8 +26,6 @@ class WebPlayerApiService(
     private val bingeWatchService: BingeWatchService,
     private val playerRequestResolver: PlayerRequestResolver
 ) {
-    constructor() : this(AccountService, ConfigurationService, FfmpegService, BingeWatchService.INSTANCE, PlayerRequestResolver.INSTANCE)
-
     private val json = Json {
         explicitNulls = false
     }

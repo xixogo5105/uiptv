@@ -21,11 +21,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void getEpisodes_returnsEmptyForMissingInputs() {
-        assertTrue(SeriesEpisodeService.INSTANCE.getEpisodes(null, "cat", "series", () -> false).getEpisodes().isEmpty());
-        assertTrue(SeriesEpisodeService.INSTANCE.getEpisodes(createSeriesAccount("blank-series"), "cat", " ", () -> false).getEpisodes().isEmpty());
+        assertTrue(services.seriesEpisodeService().getEpisodes(null, "cat", "series", () -> false).getEpisodes().isEmpty());
+        assertTrue(services.seriesEpisodeService().getEpisodes(createSeriesAccount("blank-series"), "cat", " ", () -> false).getEpisodes().isEmpty());
     }
 
     @Test
@@ -33,7 +34,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         Account account = createSeriesAccount("fresh-specific-cache");
         SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-1", List.of(channel("ep-1", "Season 2 Episode 7", "cmd://1")));
 
-        EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodes(account, "cat-a", "series-1", () -> false);
+        EpisodeList list = services.seriesEpisodeService().getEpisodes(account, "cat-a", "series-1", () -> false);
 
         assertEquals(1, list.getEpisodes().size());
         assertEquals("2", list.getEpisodes().get(0).getSeason());
@@ -45,7 +46,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         Account account = createSeriesAccount("fresh-any-category-cache");
         SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-2", List.of(channel("ep-2", "Season 03 Episode 04", "cmd://2")));
 
-        EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodes(account, "cat-b", "series-2", () -> false);
+        EpisodeList list = services.seriesEpisodeService().getEpisodes(account, "cat-b", "series-2", () -> false);
 
         assertEquals(1, list.getEpisodes().size());
         assertEquals("03", list.getEpisodes().get(0).getSeason());
@@ -60,7 +61,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-3", account)).thenThrow(new RuntimeException("boom"));
 
-            EpisodeList list = SeriesEpisodeService.INSTANCE.reloadEpisodesFromPortal(account, "cat-b", "series-3", () -> false);
+            EpisodeList list = services.seriesEpisodeService().reloadEpisodesFromPortal(account, "cat-b", "series-3", () -> false);
 
             assertEquals(1, list.getEpisodes().size());
             assertEquals("9", list.getEpisodes().get(0).getEpisodeNum());
@@ -98,7 +99,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         snapshot.setUpdatedAt(77L);
         com.uiptv.db.SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
 
-        EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodesForWatchingNow(account, "cat-s", "series-s", () -> false);
+        EpisodeList list = services.seriesEpisodeService().getEpisodesForWatchingNow(account, "cat-s", "series-s", () -> false);
 
         assertEquals(1, list.getEpisodes().size());
         assertEquals("ep-s1", list.getEpisodes().getFirst().getId());
@@ -108,7 +109,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
 
     @Test
     void privateHelpers_restoreAndMergeEpisodeMetadata() throws Exception {
-        SeriesEpisodeService service = SeriesEpisodeService.INSTANCE;
+        SeriesEpisodeService service = services.seriesEpisodeService();
         Channel channel = channel("ep-json", "Season 5 Episode 11", "cmd://json");
         channel.setLogo("logo.png");
         channel.setDescription("plot");
@@ -152,7 +153,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-4", account)).thenThrow(new RuntimeException("boom"));
 
-            EpisodeList list = SeriesEpisodeService.INSTANCE.reloadEpisodesFromPortal(account, "cat-a", "series-4", () -> false);
+            EpisodeList list = services.seriesEpisodeService().reloadEpisodesFromPortal(account, "cat-a", "series-4", () -> false);
 
             assertEquals(1, list.getEpisodes().size());
             assertEquals("8", list.getEpisodes().get(0).getEpisodeNum());
@@ -161,7 +162,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
 
     @Test
     void privateHelpers_coverFallbackCompatibilityAndNullLoads() throws Exception {
-        SeriesEpisodeService service = SeriesEpisodeService.INSTANCE;
+        SeriesEpisodeService service = services.seriesEpisodeService();
         Method isCompatible = SeriesEpisodeService.class.getDeclaredMethod("isParsedEpisodeCompatible", Episode.class, Channel.class);
         isCompatible.setAccessible(true);
         Method loadFromDbAnyAge = SeriesEpisodeService.class.getDeclaredMethod("loadFromDbAnyAge", Account.class, String.class, String.class);

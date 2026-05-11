@@ -275,10 +275,7 @@ class BingeWatchService(
         fun findEpisode(episodeId: String): SessionEpisode? =
             episodes.firstOrNull { it.episodeId == episodeId }
     }
-
     companion object {
-        @JvmField
-        val INSTANCE: BingeWatchService = BingeWatchService(AccountService, SeriesWatchStateService, PlayerService.INSTANCE)
         private const val DEFAULT_SEASON = "1"
         private const val PLAYLIST_PATH = "/bingewatch.m3u8?token="
         private const val ENTRY_PATH = "/bingwatch?token="

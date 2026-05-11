@@ -25,8 +25,6 @@ class PlayerRequestResolver(
     private val vodChannelDb: VodChannelDb,
     private val channelDb: ChannelDb
 ) {
-    constructor() : this(BookmarkService, AccountService, PlayerService.INSTANCE, SeriesCategoryDb.get(), VodChannelDb.get(), ChannelDb.get())
-
     @Throws(IOException::class)
     fun resolveBookmarkPlayback(bookmarkId: String, mode: String?, seriesParentId: String?): PlayerResponse {
         val bookmark = bookmarkService.getBookmark(bookmarkId) ?: throw IOException("Bookmark not found")
@@ -141,17 +139,5 @@ class PlayerRequestResolver(
 
     private fun fillIfBlank(getter: Supplier<String?>, setter: Consumer<String?>, value: String?) {
         if (isBlank(getter.get()) && isNotBlank(value)) setter.accept(value)
-    }
-
-    companion object {
-        @JvmField
-        val INSTANCE: PlayerRequestResolver = PlayerRequestResolver(
-            bookmarkService = BookmarkService,
-            accountService = AccountService,
-            playerService = PlayerService.INSTANCE,
-            seriesCategoryDb = SeriesCategoryDb.get(),
-            vodChannelDb = VodChannelDb.get(),
-            channelDb = ChannelDb.get()
-        )
     }
 }

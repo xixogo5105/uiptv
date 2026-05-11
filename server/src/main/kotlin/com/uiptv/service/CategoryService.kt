@@ -288,9 +288,4 @@ class CategoryService(
         params["action"] = if (accountAction == itv) "get_genres" else "get_categories"
         return params
     }
-
-    companion object {
-        @JvmField
-        val INSTANCE: CategoryService = CategoryService(ContentFilterService, ConfigurationService, HandshakeService.INSTANCE)
-    }
 }

@@ -4,9 +4,9 @@ import com.uiptv.db.CategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountService;
-import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DbBackedTest;
+import com.uiptv.service.TestServiceFactory;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class M3uCacheReloaderPlaylistSwitchTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void reloadCache_replacesOldCategoriesWhenPlaylistGroupingChanges() throws Exception {
@@ -36,7 +37,7 @@ class M3uCacheReloaderPlaylistSwitchTest extends DbBackedTest {
         AccountService.INSTANCE.save(account);
         Account savedAccount = AccountService.INSTANCE.getByName("Switch Groups");
 
-        M3uCacheReloader reloader = new M3uCacheReloader(() -> CategoryService.INSTANCE, () -> ConfigurationService.INSTANCE);
+        M3uCacheReloader reloader = new M3uCacheReloader(services::categoryService, () -> ConfigurationService.INSTANCE);
         reloader.reloadCache(savedAccount, null);
 
         Set<String> firstTitles = CategoryDb.get().getCategories(savedAccount).stream()

@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BookmarkResolverTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void resolveBookmark_usesSnapshotData_andDefaultsAccountAction() {
@@ -33,7 +34,7 @@ class BookmarkResolverTest extends DbBackedTest {
         Bookmark bookmark = new Bookmark("bookmark-acc", "Sports", "ch-1", "Channel One", "cmd", "http://portal", "cat-1");
         bookmark.setChannelJson(snapshot.toJson());
 
-        BookmarkResolver resolver = new BookmarkResolver(() -> AccountService.INSTANCE, () -> ChannelService.INSTANCE);
+        BookmarkResolver resolver = new BookmarkResolver(() -> AccountService.INSTANCE, services::channelService);
         BookmarkResolver.ResolvedBookmark resolved = resolver.resolveBookmark(bookmark, resolver.prepare(List.of(bookmark)));
 
         assertEquals("http://img/logo.png", resolved.getLogo());
@@ -69,7 +70,7 @@ class BookmarkResolverTest extends DbBackedTest {
 
         Bookmark bookmark = new Bookmark("bookmark-cache", "News", "ch-9", "News One", "cmd", "http://portal", stored.getDbId());
 
-        BookmarkResolver resolver = new BookmarkResolver(() -> AccountService.INSTANCE, () -> ChannelService.INSTANCE);
+        BookmarkResolver resolver = new BookmarkResolver(() -> AccountService.INSTANCE, services::channelService);
         BookmarkResolver.ResolvedBookmark resolved = resolver.resolveBookmark(bookmark, resolver.prepare(List.of(bookmark)));
 
         assertEquals("http://img/news.png", resolved.getLogo());

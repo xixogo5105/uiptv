@@ -11,6 +11,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class CategoryResolverTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void resolveCategories_addsAllForNonStalker() {
@@ -19,7 +20,7 @@ class CategoryResolverTest extends DbBackedTest {
         Category sports = new Category("10", "Sports", "sports", false, 0);
         sports.setDbId("10");
 
-        CategoryResolver resolver = new CategoryResolver(() -> ChannelService.INSTANCE);
+        CategoryResolver resolver = new CategoryResolver(services::channelService);
         List<Category> resolved = resolver.resolveCategories(account, List.of(sports));
 
         assertEquals(2, resolved.size());
@@ -36,7 +37,7 @@ class CategoryResolverTest extends DbBackedTest {
         Category news = new Category("11", "News", "news", false, 0);
         news.setDbId("11");
 
-        CategoryResolver resolver = new CategoryResolver(() -> ChannelService.INSTANCE);
+        CategoryResolver resolver = new CategoryResolver(services::channelService);
         List<Category> resolved = resolver.resolveCategories(account, List.of(uncategorized, news));
 
         assertEquals(2, resolved.size());

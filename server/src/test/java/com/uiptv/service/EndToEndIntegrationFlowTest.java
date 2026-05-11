@@ -438,7 +438,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         playBookmark.setChannelJson(stalkerLiveChannel.toJson());
         bookmarkService.save(playBookmark);
         assertTrue(bookmarkService.isChannelBookmarked(playBookmark));
-        assertTrue(bookmarkService.readToJson().contains(stalkerLiveChannel.getName()));
+        assertTrue(bookmarkService.readToJson(services.channelService()).contains(stalkerLiveChannel.getName()));
 
         assertBookmarkLogoEnrichment(stalkerPlayAccount, stalkerLiveChannel);
 
@@ -478,11 +478,11 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertBookmarkPagination(BookmarkService bookmarkService) {
-        JSONArray full = new JSONArray(bookmarkService.readToJson());
+        JSONArray full = new JSONArray(bookmarkService.readToJson(services.channelService()));
         assertTrue(full.length() >= 2);
 
-        JSONArray page1 = new JSONArray(bookmarkService.readToJson(0, 1));
-        JSONArray page2 = new JSONArray(bookmarkService.readToJson(1, 1));
+        JSONArray page1 = new JSONArray(bookmarkService.readToJson(services.channelService(), 0, 1));
+        JSONArray page2 = new JSONArray(bookmarkService.readToJson(services.channelService(), 1, 1));
         assertEquals(1, page1.length());
         assertEquals(1, page2.length());
 
@@ -492,7 +492,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertFalse(secondId.isBlank());
         assertNotEquals(firstId, secondId);
 
-        JSONArray twoItems = new JSONArray(bookmarkService.readToJson(0, 2));
+        JSONArray twoItems = new JSONArray(bookmarkService.readToJson(services.channelService(), 0, 2));
         assertEquals(2, twoItems.length());
         assertEquals(firstId, twoItems.getJSONObject(0).optString("dbId"));
     }
@@ -691,7 +691,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         logoBookmark.setChannelJson(logoMissingChannelJson.toJson());
         BookmarkService.INSTANCE.save(logoBookmark);
 
-        JSONArray bookmarks = new JSONArray(BookmarkService.INSTANCE.readToJson());
+        JSONArray bookmarks = new JSONArray(BookmarkService.INSTANCE.readToJson(services.channelService()));
         JSONObject enriched = null;
         for (int i = 0; i < bookmarks.length(); i++) {
             JSONObject row = bookmarks.getJSONObject(i);

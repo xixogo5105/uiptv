@@ -60,19 +60,19 @@ object BookmarkService {
             AppLog.addErrorLog(BookmarkService::class.java, "Error while removing bookmarks for account")
         }
     }
-    fun readToJson(): String {
+    fun readToJson(channelService: ChannelService): String {
         val bookmarks = ArrayList(BookmarkDb.get().getBookmarks())
-        val resolved = BookmarkResolver(channelServiceProvider = { ChannelService.INSTANCE }).resolveBookmarks(bookmarks)
+        val resolved = BookmarkResolver(channelServiceProvider = { channelService }).resolveBookmarks(bookmarks)
         return ServerUtils.objectToJson(resolved.map { it.bookmark })
     }
-    fun readToJson(offset: Int, limit: Int): String {
+    fun readToJson(channelService: ChannelService, offset: Int, limit: Int): String {
         if (limit <= 0) {
-            return readToJson()
+            return readToJson(channelService)
         }
         val safeOffset = maxOf(0, offset)
         val safeLimit = maxOf(0, limit)
         val bookmarks = ArrayList(BookmarkDb.get().getBookmarksPage(safeOffset, safeLimit))
-        val resolved = BookmarkResolver(channelServiceProvider = { ChannelService.INSTANCE }).resolveBookmarks(bookmarks)
+        val resolved = BookmarkResolver(channelServiceProvider = { channelService }).resolveBookmarks(bookmarks)
         return ServerUtils.objectToJson(resolved.map { it.bookmark })
     }
     fun getAllCategories(): List<BookmarkCategory> = BookmarkDb.get().getAllCategories()

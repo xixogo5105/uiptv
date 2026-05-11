@@ -6,6 +6,7 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.TestServiceFactory;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -17,9 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class M3uCacheReloaderUnitTest {
+    private static final TestServiceFactory SERVICES = TestServiceFactory.create();
 
     private static M3uCacheReloader reloader() {
-        return new M3uCacheReloader(() -> CategoryService.INSTANCE, () -> ConfigurationService.INSTANCE);
+        return new M3uCacheReloader(SERVICES::categoryService, () -> ConfigurationService.INSTANCE);
     }
 
     @Test

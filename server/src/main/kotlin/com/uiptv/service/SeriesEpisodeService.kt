@@ -264,11 +264,7 @@ class SeriesEpisodeService(
         }
         return ""
     }
-
     companion object {
-        @JvmField
-        val INSTANCE: SeriesEpisodeService = SeriesEpisodeService(ChannelService.INSTANCE, ConfigurationService)
-
         private val SEASON_WORD_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b")
         private val SEASON_SHORT_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})(?=\\b|E\\d+)")
         private val SEASON_X_PATTERN = Pattern.compile("(?i)\\b(\\d{1,2})x\\d{1,3}\\b")

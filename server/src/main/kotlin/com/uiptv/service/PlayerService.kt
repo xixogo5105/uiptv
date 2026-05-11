@@ -213,16 +213,6 @@ class PlayerService(
         fun onPlaybackResolved(account: Account, channel: Channel, seriesId: String, parentSeriesId: String, categoryId: String)
     }
 
-    companion object {
-        @JvmField
-        val INSTANCE: PlayerService = PlayerService(
-            seriesWatchStateService = SeriesWatchStateService,
-            xtremePlayerService = XtremePlayerService.INSTANCE,
-            stalkerPortalPlayerService = StalkerPortalPlayerService.INSTANCE,
-            predefinedPlayerService = PredefinedPlayerService.INSTANCE
-        )
-    }
-
     @Serializable
     private data class DrmBrowserLaunchPayload(
         val mode: String,

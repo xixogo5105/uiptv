@@ -6,6 +6,7 @@ import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Channel;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.DbBackedTest;
+import com.uiptv.service.TestServiceFactory;
 import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
 
@@ -24,13 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BookmarkCrudFlowTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void testBookmarkServiceCrudAndJsonFlow() {
         BookmarkService bookmarkService = BookmarkService.INSTANCE;
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
-        assertEquals("[]", bookmarkService.readToJson());
+        assertEquals("[]", bookmarkService.readToJson(services.channelService()));
 
         Bookmark bookmark = new Bookmark("acc-flow", "Sports", "ch-1", "Sports One", "ffmpeg http://stream/1.ts", "http://portal", "cat-1");
         bookmark.setAccountAction(Account.AccountAction.itv);
@@ -56,13 +58,13 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         assertNotNull(fetchedById);
         assertEquals("Sports One", fetchedById.getChannelName());
 
-        String json = bookmarkService.readToJson();
+        String json = bookmarkService.readToJson(services.channelService());
         assertTrue(json.startsWith("["));
         assertTrue(json.contains("Sports One"));
 
         bookmarkService.toggleBookmark(bookmark);
         assertFalse(bookmarkService.isChannelBookmarked(bookmark));
-        assertEquals("[]", bookmarkService.readToJson());
+        assertEquals("[]", bookmarkService.readToJson(services.channelService()));
 
         bookmarkService.toggleBookmark(bookmark);
         assertTrue(bookmarkService.isChannelBookmarked(bookmark));
@@ -189,13 +191,13 @@ class BookmarkCrudFlowTest extends DbBackedTest {
             bookmarkService.save(bookmark);
         }
 
-        JSONArray full = new JSONArray(bookmarkService.readToJson());
+        JSONArray full = new JSONArray(bookmarkService.readToJson(services.channelService()));
         assertEquals(60, full.length());
 
-        JSONArray page1 = new JSONArray(bookmarkService.readToJson(0, 25));
-        JSONArray page2 = new JSONArray(bookmarkService.readToJson(25, 25));
-        JSONArray page3 = new JSONArray(bookmarkService.readToJson(50, 25));
-        JSONArray page4 = new JSONArray(bookmarkService.readToJson(75, 25));
+        JSONArray page1 = new JSONArray(bookmarkService.readToJson(services.channelService(), 0, 25));
+        JSONArray page2 = new JSONArray(bookmarkService.readToJson(services.channelService(), 25, 25));
+        JSONArray page3 = new JSONArray(bookmarkService.readToJson(services.channelService(), 50, 25));
+        JSONArray page4 = new JSONArray(bookmarkService.readToJson(services.channelService(), 75, 25));
 
         assertEquals(25, page1.length());
         assertEquals(25, page2.length());

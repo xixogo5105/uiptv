@@ -10,6 +10,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PlayerRequestResolverTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
+
+    private PlayerRequestResolver resolver() {
+        return new PlayerRequestResolver(
+                BookmarkService.INSTANCE,
+                AccountService.INSTANCE,
+                services.playerService(),
+                com.uiptv.db.SeriesCategoryDb.get(),
+                com.uiptv.db.VodChannelDb.get(),
+                com.uiptv.db.ChannelDb.get()
+        );
+    }
 
     @Test
     void resolveBookmarkChannel_prefersSeriesSnapshot() {
@@ -24,7 +36,7 @@ class PlayerRequestResolverTest {
         Bookmark bookmark = new Bookmark("acc", "Series", "series-1", "Series One", "cmd", "http://portal", "cat-1");
         bookmark.setSeriesJson(episode.toJson());
 
-        PlayerRequestResolver resolver = new PlayerRequestResolver();
+        PlayerRequestResolver resolver = resolver();
         Channel channel = resolver.resolveBookmarkChannel(bookmark);
 
         assertNotNull(channel);
@@ -47,7 +59,7 @@ class PlayerRequestResolverTest {
         request.setDrmLicenseUrl("http://license");
         request.setManifestType("hls");
 
-        PlayerRequestResolver resolver = new PlayerRequestResolver();
+        PlayerRequestResolver resolver = resolver();
         Channel merged = resolver.mergeRequestChannel(base, request);
 
         assertEquals("Channel One", merged.getName());

@@ -23,17 +23,6 @@ class PlaylistExportService(
     private val channelDb: ChannelDb,
     private val publicationService: M3U8PublicationService
 ) {
-    constructor() : this(
-        accountService = AccountService,
-        bookmarkService = BookmarkService,
-        configurationService = ConfigurationService,
-        handshakeService = HandshakeService.INSTANCE,
-        playerService = PlayerService.INSTANCE,
-        playerRequestResolver = PlayerRequestResolver.INSTANCE,
-        channelDb = ChannelDb.get(),
-        publicationService = M3U8PublicationService.INSTANCE
-    )
-
     companion object {
         const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
         private const val MAX_HLS_RESOLUTION_DEPTH = 8

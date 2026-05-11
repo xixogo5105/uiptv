@@ -59,27 +59,4 @@ class CacheServiceImpl(
         params["action"] = if (accountAction == Account.AccountAction.itv) "get_genres" else "get_categories"
         return params
     }
-
-    companion object {
-        @JvmField
-        val INSTANCE: CacheService = run {
-            val cacheRef = arrayOfNulls<CacheService>(1)
-            val channelRef = arrayOfNulls<ChannelService>(1)
-            cacheRef[0] = CacheServiceImpl(
-                handshakeServiceProvider = { HandshakeService.INSTANCE },
-                categoryServiceProvider = { CategoryService.INSTANCE },
-                configurationServiceProvider = { ConfigurationService },
-                channelServiceProvider = { channelRef[0]!! },
-                fetchProvider = com.uiptv.util.FetchAPI::fetch
-            )
-            channelRef[0] = ChannelService(
-                cacheServiceProvider = { cacheRef[0]!! },
-                contentFilterService = ContentFilterService,
-                logoResolverService = LogoResolverService,
-                configurationService = ConfigurationService,
-                handshakeService = HandshakeService.INSTANCE
-            )
-            cacheRef[0]!!
-        }
-    }
 }
