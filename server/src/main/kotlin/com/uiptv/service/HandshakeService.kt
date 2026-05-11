@@ -25,35 +25,13 @@ import java.util.Locale
 import java.util.UUID
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
+import org.koin.core.context.GlobalContext
 
-object HandshakeService {
-    private const val PARAM_ACTION = "action"
-    private const val PARAM_JS_HTTP_REQUEST = "JsHttpRequest"
-    private const val PARAM_TOKEN = "token"
-    private const val PASS_HASH_PREFIX = "pbkdf2_sha256"
-    private const val PASS_HASH_ITERATIONS = 120_000
-    private const val PASS_SALT_BYTES = 16
-    private const val PASS_HASH_BYTES = 32
+class HandshakeService(
+    private val accountService: AccountService = AccountService.getInstance(),
+    private val accountInfoService: AccountInfoService = AccountInfoService.getInstance()
+) {
     private val PASS_RANDOM = SecureRandom()
-    private const val DEFAULT_STB_TYPE = "MAG250"
-    private const val DATE_ZERO = "0000-00-00 00:00:00"
-    private const val MSG_UNABLE_RESOLVE_URL = "Unable to resolve server portal URL for account: "
-    private const val MSG_UNABLE_TOKEN = "Unable to retrieve a token:\n\n"
-    private const val KEY_ACCOUNT_INFO = "account_info"
-    private const val KEY_TARIFF_NAME = "tariff_name"
-    private const val KEY_TARIFF_PLAN = "tariff_plan"
-    private const val KEY_DEFAULT_TIMEZONE = "default_timezone"
-    private const val KEY_TIMEZONE = "timezone"
-    private const val DATE_TIME_DASH_FORMAT = "yyyy-MM-dd HH:mm:ss"
-    private const val DATE_TIME_SLASH_FORMAT = "yyyy/MM/dd HH:mm:ss"
-    private const val DATE_TIME_US_FORMAT = "MM/dd/yyyy HH:mm:ss"
-    private const val DATE_TIME_EU_FORMAT = "dd/MM/yyyy HH:mm:ss"
-    private const val DATE_DASH_FORMAT = "yyyy-MM-dd"
-    private const val DATE_SLASH_FORMAT = "yyyy/MM/dd"
-    private const val DATE_US_FORMAT = "MM/dd/yyyy"
-    private const val DATE_EU_FORMAT = "dd/MM/yyyy"
-    private const val DATE_TIME_FULL_PATTERN = "MMMM d, yyyy, h:mm a"
-    private const val DATE_TIME_ABBR_PATTERN = "MMM d, yyyy, h:mm a"
 
     private val EXTEND_AT_FORMATTER: DateTimeFormatter =
         DateTimeFormatter.ofPattern(DATE_TIME_DASH_FORMAT).withZone(ZoneOffset.UTC)
@@ -72,20 +50,6 @@ object HandshakeService {
         DateTimeFormatter.ofPattern(DATE_US_FORMAT),
         DateTimeFormatter.ofPattern(DATE_EU_FORMAT)
     )
-    private var accountService: AccountService = AccountService.getInstance()
-    private var accountInfoService: AccountInfoService = AccountInfoService.getInstance()
-
-    @JvmStatic
-    fun getInstance(): HandshakeService = this
-
-    fun configureDependencies(
-        accountService: AccountService,
-        accountInfoService: AccountInfoService
-    ): HandshakeService = apply {
-        this.accountService = accountService
-        this.accountInfoService = accountInfoService
-    }
-
     private fun getHandshakeParams(): Map<String, String> {
         val params = HashMap<String, String>()
         params["type"] = "stb"
@@ -567,5 +531,39 @@ object HandshakeService {
             info.accountId = account.dbId
         }
         return info
+    }
+
+    companion object {
+        private val defaultInstance by lazy { HandshakeService() }
+        private const val PARAM_ACTION = "action"
+        private const val PARAM_JS_HTTP_REQUEST = "JsHttpRequest"
+        private const val PARAM_TOKEN = "token"
+        private const val PASS_HASH_PREFIX = "pbkdf2_sha256"
+        private const val PASS_HASH_ITERATIONS = 120_000
+        private const val PASS_SALT_BYTES = 16
+        private const val PASS_HASH_BYTES = 32
+        private const val DEFAULT_STB_TYPE = "MAG250"
+        private const val DATE_ZERO = "0000-00-00 00:00:00"
+        private const val MSG_UNABLE_RESOLVE_URL = "Unable to resolve server portal URL for account: "
+        private const val MSG_UNABLE_TOKEN = "Unable to retrieve a token:\n\n"
+        private const val KEY_ACCOUNT_INFO = "account_info"
+        private const val KEY_TARIFF_NAME = "tariff_name"
+        private const val KEY_TARIFF_PLAN = "tariff_plan"
+        private const val KEY_DEFAULT_TIMEZONE = "default_timezone"
+        private const val KEY_TIMEZONE = "timezone"
+        private const val DATE_TIME_DASH_FORMAT = "yyyy-MM-dd HH:mm:ss"
+        private const val DATE_TIME_SLASH_FORMAT = "yyyy/MM/dd HH:mm:ss"
+        private const val DATE_TIME_US_FORMAT = "MM/dd/yyyy HH:mm:ss"
+        private const val DATE_TIME_EU_FORMAT = "dd/MM/yyyy HH:mm:ss"
+        private const val DATE_DASH_FORMAT = "yyyy-MM-dd"
+        private const val DATE_SLASH_FORMAT = "yyyy/MM/dd"
+        private const val DATE_US_FORMAT = "MM/dd/yyyy"
+        private const val DATE_EU_FORMAT = "dd/MM/yyyy"
+        private const val DATE_TIME_FULL_PATTERN = "MMMM d, yyyy, h:mm a"
+        private const val DATE_TIME_ABBR_PATTERN = "MMM d, yyyy, h:mm a"
+
+        @JvmStatic
+        fun getInstance(): HandshakeService =
+            runCatching { GlobalContext.get().get<HandshakeService>() }.getOrDefault(defaultInstance)
     }
 }

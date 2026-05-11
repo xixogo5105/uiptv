@@ -8,13 +8,17 @@ import com.uiptv.model.Category
 import com.uiptv.model.CategoryType
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
+import com.uiptv.service.ConfigurationService
 import com.uiptv.util.StringUtils
 import com.uiptv.util.XtremeApiParser
 import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-class XtremeApiCacheReloader : AbstractAccountCacheReloader() {
+class XtremeApiCacheReloader(
+    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         if (isVodOrSeriesAction(account)) {
             reloadVodOrSeriesCategories(account, logger)
@@ -89,14 +93,14 @@ class XtremeApiCacheReloader : AbstractAccountCacheReloader() {
     private fun isVodOrSeriesAction(account: Account): Boolean = account.action == vod || account.action == series
 
     private fun reloadVodOrSeriesCategories(account: Account, logger: LoggerCallback?) {
-        val categories = CategoryService.getInstance().get(account, false, logger)
+        val categories = categoryService().get(account, false, logger)
         saveVodOrSeriesCategories(account, categories)
         log(logger, "Found Categories ${categories.size}")
         log(logger, "${categories.size} Categories saved Successfully ✓")
     }
 
     private fun loadLiveCategories(account: Account, logger: LoggerCallback?): List<Category> =
-        CategoryService.getInstance().get(account, false, logger)
+        categoryService().get(account, false, logger)
             .filterNot { CategoryType.ALL.displayName().equals(it.title, true) }
 
     private fun fetchChannelsByCategory(account: Account, rawCategories: List<Category>, categoryNormalization: CategoryNormalization, logger: LoggerCallback?): CategoryFetchResult {

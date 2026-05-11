@@ -9,8 +9,16 @@ import com.uiptv.util.FetchAPI
 import java.util.Date
 import java.util.HashMap
 
-class CacheServiceImpl : CacheService {
-    private val reloaderFactory = AccountCacheReloaderFactory()
+class CacheServiceImpl(
+    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() },
+    private val categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() }
+) : CacheService {
+    private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {
+        AccountCacheReloaderFactory(
+            categoryServiceProvider = categoryServiceProvider,
+            handshakeServiceProvider = handshakeServiceProvider
+        )
+    }
 
     override fun reloadCache(account: Account, logger: LoggerCallback) {
         reloaderFactory.get(account.type).reloadCache(account, logger)
@@ -23,12 +31,12 @@ class CacheServiceImpl : CacheService {
         val originalMac = account.macAddress
         return try {
             account.macAddress = macAddress
-            HandshakeService.getInstance().connect(account)
+            handshakeServiceProvider.invoke().connect(account)
             if (account.isNotConnected()) {
                 false
             } else {
                 val jsonCategories = FetchAPI.fetch(getCategoryParams(account.action), account)
-                CategoryService.getInstance().parseCategories(jsonCategories, false).isNotEmpty()
+                categoryServiceProvider.invoke().parseCategories(jsonCategories, false).isNotEmpty()
             }
         } catch (_: Exception) {
             false

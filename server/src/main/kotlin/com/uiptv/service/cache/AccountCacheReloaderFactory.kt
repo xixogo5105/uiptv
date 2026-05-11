@@ -1,12 +1,25 @@
 package com.uiptv.service.cache
 
+import com.uiptv.service.CategoryService
+import com.uiptv.service.ChannelService
+import com.uiptv.service.ConfigurationService
+import com.uiptv.service.HandshakeService
 import com.uiptv.util.AccountType
 
-class AccountCacheReloaderFactory {
-    private val stalkerReloader: AccountCacheReloader = StalkerPortalCacheReloader()
-    private val xtremeReloader: AccountCacheReloader = XtremeApiCacheReloader()
-    private val m3uReloader: AccountCacheReloader = M3uCacheReloader()
-    private val rssReloader: AccountCacheReloader = RssCacheReloader()
+class AccountCacheReloaderFactory(
+    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() },
+    handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() },
+    channelServiceProvider: () -> ChannelService = { ChannelService.getInstance() }
+) {
+    private val stalkerReloader: AccountCacheReloader =
+        StalkerPortalCacheReloader(handshakeServiceProvider, channelServiceProvider, categoryServiceProvider, configurationServiceProvider)
+    private val xtremeReloader: AccountCacheReloader =
+        XtremeApiCacheReloader(categoryServiceProvider, configurationServiceProvider)
+    private val m3uReloader: AccountCacheReloader =
+        M3uCacheReloader(categoryServiceProvider, configurationServiceProvider)
+    private val rssReloader: AccountCacheReloader =
+        RssCacheReloader(categoryServiceProvider, configurationServiceProvider)
 
     fun get(accountType: AccountType?): AccountCacheReloader {
         require(accountType != null) { "Account type is required for cache reload." }

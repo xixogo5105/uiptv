@@ -31,10 +31,11 @@ class RemoteSyncSessionService internal constructor(
         private val APPROVAL_TTL: Duration = Duration.ofMinutes(2)
         private val TRANSFER_TTL: Duration = Duration.ofMinutes(10)
         private const val REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed."
-        private val instance = RemoteSyncSessionService()
+        private val instanceRef = AtomicReference<RemoteSyncSessionService?>()
 
         @JvmStatic
-        fun getInstance(): RemoteSyncSessionService = instance
+        fun getInstance(): RemoteSyncSessionService =
+            instanceRef.updateAndGet { it ?: RemoteSyncSessionService() }!!
     }
 
     fun createSession(request: RemoteSyncRequest, requesterAddress: String?): RemoteSyncSessionState {

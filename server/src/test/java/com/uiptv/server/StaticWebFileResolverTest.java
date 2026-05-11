@@ -1,9 +1,5 @@
 package com.uiptv.server;
-
-import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -13,8 +9,7 @@ class StaticWebFileResolverTest {
 
     @Test
     void resolveAndReadUtf8_returnRealFile() throws Exception {
-        TestHttpExchange exchange = new TestHttpExchange("/javascript/spa.js", "GET");
-        Path resolved = StaticWebFileResolver.resolve(exchange);
+        Path resolved = StaticWebFileResolver.resolveRequestPath("/javascript/spa.js");
         Path normalized = resolved.normalize();
         assertEquals(Path.of("web", "javascript", "spa.js"), normalized.subpath(normalized.getNameCount() - 3, normalized.getNameCount()));
 
@@ -25,23 +20,14 @@ class StaticWebFileResolverTest {
 
     @Test
     void resolve_rejectsInvalidRequestsAndPaths() {
-        assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(null));
-
-        HttpExchange exchange = Mockito.mock(HttpExchange.class);
-        Mockito.when(exchange.getRequestURI()).thenReturn(null);
-        assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(exchange));
-
-        TestHttpExchange blankPath = new TestHttpExchange("/", "GET");
-        assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(blankPath));
-
-        TestHttpExchange traversal = new TestHttpExchange("/../pom.xml", "GET");
-        assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(traversal));
+        assertThrows(IOException.class, () -> StaticWebFileResolver.resolveRequestPath(null));
+        assertThrows(IOException.class, () -> StaticWebFileResolver.resolveRequestPath("/"));
+        assertThrows(IOException.class, () -> StaticWebFileResolver.resolveRequestPath("/../pom.xml"));
     }
 
     @Test
     void resolve_rejectsMissingFile() {
-        TestHttpExchange missing = new TestHttpExchange("/css/does-not-exist.css", "GET");
-        IOException ex = assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(missing));
+        IOException ex = assertThrows(IOException.class, () -> StaticWebFileResolver.resolveRequestPath("/css/does-not-exist.css"));
         assertTrue(ex.getMessage().contains("File not found"));
     }
 }

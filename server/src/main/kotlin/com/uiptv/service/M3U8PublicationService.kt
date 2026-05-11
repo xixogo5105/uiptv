@@ -28,42 +28,17 @@ import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.Locale
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.core.context.GlobalContext
 import kotlin.io.path.readText
 
-object M3U8PublicationService {
-    private var publishedSelectionDb: PublishedM3uSelectionDb = PublishedM3uSelectionDb.get()
-    private var publishedCategorySelectionDb: PublishedM3uCategorySelectionDb = PublishedM3uCategorySelectionDb.get()
-    private var publishedChannelSelectionDb: PublishedM3uChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
-    private var accountService: AccountService = AccountService.getInstance()
-    private var bookmarkService: BookmarkService = BookmarkService.getInstance()
-    private var configurationService: ConfigurationService = ConfigurationService.getInstance()
-
-    private const val COMMENT_PREFIX = "#"
-    private const val EXTM3U = "#EXTM3U"
-    private const val EXTINF = "#EXTINF"
-    const val BOOKMARKS_PLAYLIST_ACCOUNT_ID: String = "__bookmarks__"
-    const val BOOKMARKS_PLAYLIST_NAME: String = "Bookmarks"
-    private const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
-    private const val GROUP_TITLE_ATTR = "group-title"
-    private const val PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n"
-
-    @JvmStatic
-    fun getInstance(): M3U8PublicationService = this
-    fun configureDependencies(
-        accountService: AccountService,
-        bookmarkService: BookmarkService,
-        configurationService: ConfigurationService,
-        publishedSelectionDb: PublishedM3uSelectionDb = PublishedM3uSelectionDb.get(),
-        publishedCategorySelectionDb: PublishedM3uCategorySelectionDb = PublishedM3uCategorySelectionDb.get(),
-        publishedChannelSelectionDb: PublishedM3uChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
-    ): M3U8PublicationService = apply {
-        this.accountService = accountService
-        this.bookmarkService = bookmarkService
-        this.configurationService = configurationService
-        this.publishedSelectionDb = publishedSelectionDb
-        this.publishedCategorySelectionDb = publishedCategorySelectionDb
-        this.publishedChannelSelectionDb = publishedChannelSelectionDb
-    }
+class M3U8PublicationService(
+    private val accountService: AccountService = AccountService.getInstance(),
+    private val bookmarkService: BookmarkService = BookmarkService.getInstance(),
+    private val configurationService: ConfigurationService = ConfigurationService.getInstance(),
+    private val publishedSelectionDb: PublishedM3uSelectionDb = PublishedM3uSelectionDb.get(),
+    private val publishedCategorySelectionDb: PublishedM3uCategorySelectionDb = PublishedM3uCategorySelectionDb.get(),
+    private val publishedChannelSelectionDb: PublishedM3uChannelSelectionDb = PublishedM3uChannelSelectionDb.get()
+) {
     fun getSelectedAccountIds(): Set<String> = getSelections().accountIds
     fun setSelectedAccountIds(accountIds: Set<String>?) {
         saveSelections(PublicationSelections(accountIds ?: emptySet(), emptyMap(), emptyMap()))
@@ -629,5 +604,21 @@ object M3U8PublicationService {
                 return entries.firstOrNull { it.persistedValue.equals(raw.orEmpty().trim(), true) } ?: SOURCE_DASH_CATEGORY
             }
         }
+    }
+
+    companion object {
+        private val defaultInstance by lazy { M3U8PublicationService() }
+        private const val COMMENT_PREFIX = "#"
+        private const val EXTM3U = "#EXTM3U"
+        private const val EXTINF = "#EXTINF"
+        const val BOOKMARKS_PLAYLIST_ACCOUNT_ID: String = "__bookmarks__"
+        const val BOOKMARKS_PLAYLIST_NAME: String = "Bookmarks"
+        private const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
+        private const val GROUP_TITLE_ATTR = "group-title"
+        private const val PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n"
+
+        @JvmStatic
+        fun getInstance(): M3U8PublicationService =
+            runCatching { GlobalContext.get().get<M3U8PublicationService>() }.getOrDefault(defaultInstance)
     }
 }

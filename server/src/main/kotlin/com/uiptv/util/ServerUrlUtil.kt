@@ -7,11 +7,18 @@ import java.io.IOException
 import java.io.UncheckedIOException
 
 object ServerUrlUtil {
+    private var configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+
+    @JvmStatic
+    fun configureDependencies(configurationServiceProvider: () -> ConfigurationService) {
+        this.configurationServiceProvider = configurationServiceProvider
+    }
+
     @JvmStatic
     fun getLocalServerUrl(): String {
         var port = "8888"
         try {
-            val service = ConfigurationService.getInstance()
+            val service = configurationServiceProvider()
             val config = service.read()
             val configured = config.serverPort
             if (!configured.isNullOrBlank()) {

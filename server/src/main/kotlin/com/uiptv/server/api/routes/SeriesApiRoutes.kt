@@ -18,20 +18,18 @@ import com.uiptv.shared.EpisodeInfo
 import com.uiptv.shared.EpisodeList
 import com.uiptv.shared.SeasonInfo
 import com.uiptv.util.AccountType
-import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
 import com.uiptv.util.XtremeApiParser
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.json.jsonPrimitive
 
 fun Route.registerSeriesApiRoutes(
     accountService: AccountService,
@@ -188,7 +186,7 @@ private fun buildSeriesDetailsResponse(
     imdbMetadataService: ImdbMetadataService
 ): SeriesDetailsResponseDto {
     if (account == null) {
-        return SeriesDetailsResponseDto(seasonInfo = buildJsonObject { }, episodes = emptyList(), episodesMeta = emptyList())
+        return SeriesDetailsResponseDto(seasonInfo = JsonObject(emptyMap()), episodes = emptyList(), episodesMeta = emptyList())
     }
     if (account.isNotConnected()) {
         handshakeService.connect(account)
@@ -197,14 +195,12 @@ private fun buildSeriesDetailsResponse(
     val categoryId = rawCategoryId
     val seriesName = rawSeriesName
     val response = createSeriesDetailsBaseResponse(account, categoryId, seriesId, configurationService)
-    val seasonInfo = JSONObject()
-    val imdbFirst = applyInitialSeriesImdbMetadata(seriesName, response, seasonInfo, imdbMetadataService)
-    applyProviderSeriesDetails(account, categoryId, seriesId, response, seasonInfo, imdbFirst)
-    applyFallbackSeriesImdbMetadata(seriesName, response, seasonInfo, imdbMetadataService)
+    val imdbFirst = applyInitialSeriesImdbMetadata(seriesName, response, imdbMetadataService)
+    applyProviderSeriesDetails(account, categoryId, seriesId, response, imdbFirst)
+    applyFallbackSeriesImdbMetadata(seriesName, response, imdbMetadataService)
     enrichEpisodesInSeriesDetails(response)
-    response.put("seasonInfo", seasonInfo)
-    applySeriesNameYearFallback(seasonInfo, seriesName)
-    return toSeriesDetailsResponseDto(response)
+    applySeriesNameYearFallback(response.seasonInfo, seriesName)
+    return response.toDto()
 }
 
 private fun createSeriesDetailsBaseResponse(
@@ -212,11 +208,8 @@ private fun createSeriesDetailsBaseResponse(
     categoryId: String?,
     seriesId: String?,
     configurationService: ConfigurationService
-): JSONObject {
-    val response = JSONObject()
-    response.put("seasonInfo", JSONObject())
-    response.put("episodes", JSONArray())
-    response.put("episodesMeta", JSONArray())
+): SeriesDetailsState {
+    val response = SeriesDetailsState()
     if (StringUtils.isBlank(seriesId)) {
         return response
     }
@@ -224,23 +217,21 @@ private fun createSeriesDetailsBaseResponse(
     val resolvedSeriesId = seriesId ?: return response
     val cached = SeriesEpisodeDb.get().getEpisodes(account, resolvedCategoryId, resolvedSeriesId)
     if (cached.isNotEmpty() && SeriesEpisodeDb.get().isFresh(account, resolvedCategoryId, resolvedSeriesId, configurationService.getCacheExpiryMs())) {
-        response.put("episodes", JSONArray(ServerUtils.objectToJson(cached)))
+        response.episodes += cached
     }
     return response
 }
 
-@Suppress("USELESS_CAST")
 private fun applyInitialSeriesImdbMetadata(
     seriesName: String?,
-    response: JSONObject,
-    seasonInfo: JSONObject,
+    response: SeriesDetailsState,
     imdbMetadataService: ImdbMetadataService
-): JSONObject {
+): JsonObject {
     val resolvedSeriesName = seriesName ?: ""
-    val fuzzyHints = buildSeriesFuzzyHints(resolvedSeriesName, seasonInfo, response.optJSONArray("episodes"))
-    val imdbFirst = (imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints) as? JSONObject) ?: JSONObject()
-    copySeriesMetadata(seasonInfo, imdbFirst)
-    imdbFirst.optJSONArray("episodesMeta")?.let { response.put("episodesMeta", it) }
+    val fuzzyHints = buildSeriesFuzzyHints(resolvedSeriesName, response.seasonInfo, response.episodes)
+    val imdbFirst = imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints).toJsonObject()
+    copySeriesMetadata(response.seasonInfo, imdbFirst)
+    response.episodesMeta += imdbFirst.jsonArrayField("episodesMeta")
     return imdbFirst
 }
 
@@ -248,9 +239,8 @@ private fun applyProviderSeriesDetails(
     account: Account,
     categoryId: String?,
     seriesId: String?,
-    response: JSONObject,
-    seasonInfo: JSONObject,
-    imdbFirst: JSONObject
+    response: SeriesDetailsState,
+    imdbFirst: JsonObject
 ) {
     if (account.type != AccountType.XTREME_API || StringUtils.isBlank(seriesId)) {
         return
@@ -258,33 +248,26 @@ private fun applyProviderSeriesDetails(
     val resolvedSeriesId = seriesId.orEmpty()
     val resolvedCategoryId = categoryId.orEmpty()
     val details = XtremeApiParser.parseEpisodes(resolvedSeriesId, account)
-    mergeProviderSeasonInfo(seasonInfo, details.seasonInfo)
-    val episodesJson = toSeriesDetailsEpisodesJson(details, indexSeriesEpisodesMeta(imdbFirst.optJSONArray("episodesMeta")))
-    response.put("episodes", episodesJson)
-    if (episodesJson.length() > 0) {
-        SeriesEpisodeDb.get().saveAll(account, resolvedCategoryId, resolvedSeriesId, seriesDetailsChannels(episodesJson))
+    mergeProviderSeasonInfo(response.seasonInfo, details.seasonInfo)
+    val episodes = toSeriesDetailsEpisodes(details, indexSeriesEpisodesMeta(imdbFirst.jsonArrayField("episodesMeta")))
+    response.episodes.clear()
+    response.episodes += episodes
+    if (episodes.isNotEmpty()) {
+        SeriesEpisodeDb.get().saveAll(account, resolvedCategoryId, resolvedSeriesId, episodes)
     }
 }
 
-private fun mergeProviderSeasonInfo(seasonInfo: JSONObject, info: SeasonInfo?) {
+private fun mergeProviderSeasonInfo(seasonInfo: MutableMap<String, String>, info: SeasonInfo?) {
     if (info == null) {
         return
     }
-    mergeSeriesMetadata(seasonInfo, JSONObject(info.toJson()))
+    mergeSeriesMetadata(seasonInfo, info.toJson().toJsonObject())
 }
 
-private fun toSeriesDetailsEpisodesJson(details: EpisodeList, episodesMeta: Map<String, JSONObject>): JSONArray {
-    val episodesJson = JSONArray()
-    details.episodes.forEach { episode ->
-        val channel = toSeriesDetailsEpisodeChannel(episode, episodesMeta)
-        if (channel != null) {
-            episodesJson.put(JSONObject(channel.toJson()))
-        }
-    }
-    return episodesJson
-}
+private fun toSeriesDetailsEpisodes(details: EpisodeList, episodesMeta: Map<String, JsonObject>): List<Channel> =
+    details.episodes.mapNotNull { episode -> toSeriesDetailsEpisodeChannel(episode, episodesMeta) }
 
-private fun toSeriesDetailsEpisodeChannel(episode: Episode?, episodesMeta: Map<String, JSONObject>): Channel? {
+private fun toSeriesDetailsEpisodeChannel(episode: Episode?, episodesMeta: Map<String, JsonObject>): Channel? {
     if (episode == null) {
         return null
     }
@@ -313,75 +296,64 @@ private fun toSeriesDetailsEpisodeChannel(episode: Episode?, episodesMeta: Map<S
 @Suppress("USELESS_CAST")
 private fun applyFallbackSeriesImdbMetadata(
     seriesName: String?,
-    response: JSONObject,
-    seasonInfo: JSONObject,
+    response: SeriesDetailsState,
     imdbMetadataService: ImdbMetadataService
 ) {
     val resolvedSeriesName = seriesName ?: ""
-    val fuzzyHints = buildSeriesFuzzyHints(firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName), seasonInfo, response.optJSONArray("episodes"))
-    val imdbFallback = (imdbMetadataService.findBestEffortDetails(
-        firstNonBlank(seasonInfo.optString("name", ""), resolvedSeriesName),
-        seasonInfo.optString("tmdb", ""),
+    val displayName = firstNonBlank(response.seasonInfo["name"], resolvedSeriesName)
+    val fuzzyHints = buildSeriesFuzzyHints(displayName, response.seasonInfo, response.episodes)
+    val imdbFallback = imdbMetadataService.findBestEffortDetails(
+        displayName,
+        response.seasonInfo["tmdb"].orEmpty(),
         fuzzyHints
-    ) as? JSONObject) ?: JSONObject()
-    mergeSeriesMetadata(seasonInfo, imdbFallback)
-    if ((response.optJSONArray("episodesMeta") == null || response.optJSONArray("episodesMeta").isEmpty) &&
-        imdbFallback.optJSONArray("episodesMeta") != null) {
-        response.put("episodesMeta", imdbFallback.optJSONArray("episodesMeta"))
+    ).toJsonObject()
+    mergeSeriesMetadata(response.seasonInfo, imdbFallback)
+    if (response.episodesMeta.isEmpty()) {
+        response.episodesMeta += imdbFallback.jsonArrayField("episodesMeta")
     }
 }
 
-private fun copySeriesMetadata(target: JSONObject, source: JSONObject) {
+private fun copySeriesMetadata(target: MutableMap<String, String>, source: JsonObject) {
     listOf("name", "cover", "plot", "cast", "director", "genre", "releaseDate", "rating", "tmdb", "imdbUrl")
         .forEach { copySeriesMetadataField(target, source, it) }
 }
 
-private fun mergeSeriesMetadata(target: JSONObject, source: JSONObject?) {
+private fun mergeSeriesMetadata(target: MutableMap<String, String>, source: JsonObject?) {
     if (source == null) return
     listOf("name", "cover", "plot", "cast", "director", "genre", "releaseDate", "rating", "tmdb", "imdbUrl")
         .forEach { mergeSeriesMetadataField(target, source, it) }
 }
 
-private fun seriesDetailsChannels(episodesJson: JSONArray): List<Channel> {
-    val channels = ArrayList<Channel>()
-    for (index in 0 until episodesJson.length()) {
-        val obj = episodesJson.optJSONObject(index) ?: continue
-        Channel.fromJson(obj.toString())?.let(channels::add)
-    }
-    return channels
-}
-
-private fun mergeSeriesMetadataField(target: JSONObject, source: JSONObject, key: String) {
-    val existing = target.optString(key, "")
+private fun mergeSeriesMetadataField(target: MutableMap<String, String>, source: JsonObject, key: String) {
+    val existing = target[key].orEmpty()
     if (StringUtils.isNotBlank(existing)) {
         return
     }
-    val incoming = source.optString(key, "")
+    val incoming = source.stringField(key)
     if (StringUtils.isNotBlank(incoming)) {
-        target.put(key, incoming)
+        target[key] = incoming
     }
 }
 
-private fun copySeriesMetadataField(target: JSONObject, source: JSONObject, key: String) {
-    val incoming = source.optString(key, "")
+private fun copySeriesMetadataField(target: MutableMap<String, String>, source: JsonObject, key: String) {
+    val incoming = source.stringField(key)
     if (StringUtils.isNotBlank(incoming)) {
-        target.put(key, incoming)
+        target[key] = incoming
     }
 }
 
-private fun indexSeriesEpisodesMeta(episodesMeta: JSONArray?): Map<String, JSONObject> {
-    val indexed = HashMap<String, JSONObject>()
-    if (episodesMeta == null) {
+private fun indexSeriesEpisodesMeta(episodesMeta: List<JsonObject>): Map<String, JsonObject> {
+    val indexed = HashMap<String, JsonObject>()
+    if (episodesMeta.isEmpty()) {
         return indexed
     }
-    for (index in 0 until episodesMeta.length()) {
-        val row = episodesMeta.optJSONObject(index) ?: continue
-        val season = safeSeriesNumeric(row.optString("season", ""))
-        val episode = safeSeriesNumeric(row.optString("episodeNum", ""))
+    episodesMeta.forEach { row ->
+        val season = safeSeriesNumeric(row.stringField("season"))
+        val episode = safeSeriesNumeric(row.stringField("episodeNum"))
         if (StringUtils.isNotBlank(season) && StringUtils.isNotBlank(episode)) {
             indexed["$season:$episode"] = row
         }
-        val title = normalizeSeriesText(row.optString("title", ""))
+        val title = normalizeSeriesText(row.stringField("title"))
         if (StringUtils.isNotBlank(title)) {
             indexed["title:$title"] = row
         }
@@ -389,13 +361,13 @@ private fun indexSeriesEpisodesMeta(episodesMeta: JSONArray?): Map<String, JSONO
     return indexed
 }
 
-private fun enrichSeriesDetailsEpisode(channel: Channel?, episodesMeta: Map<String, JSONObject>?) {
+private fun enrichSeriesDetailsEpisode(channel: Channel?, episodesMeta: Map<String, JsonObject>?) {
     if (episodesMeta.isNullOrEmpty() || channel == null) {
         return
     }
     val season = safeSeriesNumeric(channel.season)
     val episode = safeSeriesNumeric(channel.episodeNum)
-    var meta: JSONObject? = null
+    var meta: JsonObject? = null
     if (StringUtils.isNotBlank(season) && StringUtils.isNotBlank(episode)) {
         meta = episodesMeta["$season:$episode"]
     }
@@ -406,13 +378,14 @@ private fun enrichSeriesDetailsEpisode(channel: Channel?, episodesMeta: Map<Stri
         return
     }
     if (StringUtils.isBlank(channel.description)) {
-        channel.description = meta.optString("plot", "")
+        channel.description = meta.stringField("plot")
     }
     if (StringUtils.isBlank(channel.releaseDate)) {
-        channel.releaseDate = meta.optString("releaseDate", "")
+        channel.releaseDate = meta.stringField("releaseDate")
     }
-    if (StringUtils.isNotBlank(meta.optString("logo", ""))) {
-        channel.logo = meta.optString("logo", "")
+    val logo = meta.stringField("logo")
+    if (StringUtils.isNotBlank(logo)) {
+        channel.logo = logo
     }
 }
 
@@ -427,7 +400,7 @@ private fun safeSeriesNumeric(value: String?): String {
     return if (StringUtils.isBlank(normalized)) "" else normalized
 }
 
-private fun applySeriesNameYearFallback(seasonInfo: JSONObject, rawSeriesName: String?) {
+private fun applySeriesNameYearFallback(seasonInfo: MutableMap<String, String>, rawSeriesName: String?) {
     if (StringUtils.isBlank(rawSeriesName)) {
         return
     }
@@ -438,48 +411,39 @@ private fun applySeriesNameYearFallback(seasonInfo: JSONObject, rawSeriesName: S
     if (matcher != null) {
         inferredYear = matcher.value.replace(Regex("\\D"), "")
     }
-    if (StringUtils.isBlank(seasonInfo.optString("name", "")) && StringUtils.isNotBlank(inferredName)) {
-        seasonInfo.put("name", inferredName)
+    if (StringUtils.isBlank(seasonInfo["name"]) && StringUtils.isNotBlank(inferredName)) {
+        seasonInfo["name"] = inferredName
     }
-    if (StringUtils.isBlank(seasonInfo.optString("releaseDate", "")) && StringUtils.isNotBlank(inferredYear)) {
-        seasonInfo.put("releaseDate", inferredYear)
+    if (StringUtils.isBlank(seasonInfo["releaseDate"]) && StringUtils.isNotBlank(inferredYear)) {
+        seasonInfo["releaseDate"] = inferredYear
     }
 }
 
-private fun enrichEpisodesInSeriesDetails(response: JSONObject?) {
-    if (response == null) {
+private fun enrichEpisodesInSeriesDetails(response: SeriesDetailsState) {
+    if (response.episodes.isEmpty() || response.episodesMeta.isEmpty()) {
         return
     }
-    val episodes = response.optJSONArray("episodes")
-    val episodesMeta = response.optJSONArray("episodesMeta")
-    if (episodes == null || episodes.isEmpty || episodesMeta == null || episodesMeta.isEmpty) {
-        return
-    }
-    val indexed = indexSeriesEpisodesMeta(episodesMeta)
+    val indexed = indexSeriesEpisodesMeta(response.episodesMeta)
     if (indexed.isEmpty()) {
         return
     }
-    for (index in 0 until episodes.length()) {
-        val row = episodes.optJSONObject(index) ?: continue
-        val channel = Channel.fromJson(row.toString()) ?: continue
+    response.episodes.forEach { channel ->
         enrichSeriesDetailsEpisode(channel, indexed)
-        episodes.put(index, JSONObject(channel.toJson()))
     }
 }
 
-private fun buildSeriesFuzzyHints(baseTitle: String?, seasonInfo: JSONObject?, episodes: JSONArray?): List<String> {
+private fun buildSeriesFuzzyHints(baseTitle: String?, seasonInfo: Map<String, String>?, episodes: List<Channel>?): List<String> {
     val hints = ArrayList<String>()
     addSeriesHint(hints, baseTitle)
     if (seasonInfo != null) {
-        addSeriesHint(hints, seasonInfo.optString("name", ""))
-        addSeriesHint(hints, seasonInfo.optString("plot", ""))
-        addSeriesHint(hints, seasonInfo.optString("releaseDate", ""))
+        addSeriesHint(hints, seasonInfo["name"])
+        addSeriesHint(hints, seasonInfo["plot"])
+        addSeriesHint(hints, seasonInfo["releaseDate"])
     }
     if (episodes != null) {
-        for (index in 0 until minOf(8, episodes.length())) {
-            val row = episodes.optJSONObject(index) ?: continue
-            addSeriesHint(hints, row.optString("name", ""))
-            addSeriesHint(hints, row.optString("releaseDate", ""))
+        episodes.take(8).forEach { row ->
+            addSeriesHint(hints, row.name)
+            addSeriesHint(hints, row.releaseDate)
         }
     }
     return hints
@@ -511,29 +475,6 @@ private fun resolveSeriesCategoryId(rawCategoryId: String?): String {
     val category: Category? = SeriesCategoryDb.get().getById(categoryId)
     return if (category != null && StringUtils.isNotBlank(category.categoryId)) category.categoryId ?: categoryId else categoryId
 }
-
-private fun toSeriesDetailsResponseDto(response: JSONObject): SeriesDetailsResponseDto {
-    val seasonInfo = parseJsonObject(response.optJSONObject("seasonInfo")?.toString() ?: "{}")
-    val episodes = parseChannelsJson(response.optJSONArray("episodes")).map(::toChannelRouteDto)
-    val episodesMeta = parseJsonArray(response.optJSONArray("episodesMeta")).mapNotNull { it as? JsonObject }
-    return SeriesDetailsResponseDto(seasonInfo = seasonInfo, episodes = episodes, episodesMeta = episodesMeta)
-}
-
-private fun parseChannelsJson(array: JSONArray?): List<Channel> {
-    if (array == null || array.isEmpty) {
-        return emptyList()
-    }
-    val channels = ArrayList<Channel>()
-    for (index in 0 until array.length()) {
-        Channel.fromJson(array.getJSONObject(index).toString())?.let(channels::add)
-    }
-    return channels
-}
-
-private fun parseJsonObject(json: String): JsonObject = seriesRouteJson.parseToJsonElement(json).jsonObject
-
-private fun parseJsonArray(array: JSONArray?): JsonArray =
-    seriesRouteJson.parseToJsonElement(array?.toString() ?: "[]").jsonArray
 
 private fun toChannelRouteDto(channel: Channel): ChannelRouteDto =
     ChannelRouteDto(
@@ -569,3 +510,39 @@ private val seriesRouteJson = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
 }
+
+private data class SeriesDetailsState(
+    val seasonInfo: MutableMap<String, String> = linkedMapOf(),
+    val episodes: MutableList<Channel> = mutableListOf(),
+    val episodesMeta: MutableList<JsonObject> = mutableListOf()
+) {
+    fun toDto(): SeriesDetailsResponseDto =
+        SeriesDetailsResponseDto(
+            seasonInfo = seasonInfo.toJsonObject(),
+            episodes = episodes.map(::toChannelRouteDto),
+            episodesMeta = episodesMeta.toList()
+        )
+}
+
+private fun Any?.toJsonObject(): JsonObject =
+    when (this) {
+        is JsonObject -> this
+        null -> JsonObject(emptyMap())
+        else -> seriesRouteJson.parseToJsonElement(toString()).jsonObject
+    }
+
+private fun JsonObject.stringField(key: String): String =
+    this[key]?.jsonPrimitive?.content ?: ""
+
+private fun JsonObject.jsonArrayField(key: String): List<JsonObject> =
+    this[key]
+        ?.jsonArray
+        ?.mapNotNull { it as? JsonObject }
+        .orEmpty()
+
+private fun Map<String, String>.toJsonObject(): JsonObject =
+    buildJsonObject {
+        this@toJsonObject.forEach { (key, value) ->
+            put(key, JsonPrimitive(value))
+        }
+    }

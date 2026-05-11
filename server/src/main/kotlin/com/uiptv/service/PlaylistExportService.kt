@@ -17,8 +17,8 @@ class PlaylistExportService(
     private val accountService: AccountService = AccountService,
     private val bookmarkService: BookmarkService = BookmarkService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService,
-    private val playerService: PlayerService = PlayerService,
+    private val handshakeService: HandshakeService = HandshakeService.getInstance(),
+    private val playerService: PlayerService = PlayerService.getInstance(),
     private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
     private val channelDb: ChannelDb = ChannelDb.get()
 ) {
@@ -61,10 +61,10 @@ class PlaylistExportService(
         return PlaylistDocument(response, "${accountId}-${categoryId}-${channelId}.m3u8")
     }
 
-    fun buildBookmarksPlaylist(host: String): String = M3U8PublicationService.buildBookmarkPlaylist(host)
+    fun buildBookmarksPlaylist(host: String): String = M3U8PublicationService.getInstance().buildBookmarkPlaylist(host)
 
     fun buildPublishedPlaylist(host: String?, requestPath: String?): PlaylistDocument {
-        val response = M3U8PublicationService.getPublishedM3u8(host)
+        val response = M3U8PublicationService.getInstance().getPublishedM3u8(host)
         val filename = if ((requestPath ?: "").endsWith(".m3u")) "iptv.m3u" else "iptv.m3u8"
         return PlaylistDocument(response, filename)
     }

@@ -3,9 +3,11 @@ package com.uiptv.service
 import com.uiptv.model.Account
 import com.uiptv.shared.BaseJson
 
-class AccountResolver {
+class AccountResolver(
+    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() }
+) {
     fun resolveAccounts(): List<AccountRow> =
-        AccountService.getInstance().getAll().values.map { fromAccount(it) }
+        accountServiceProvider.invoke().getAll().values.map { fromAccount(it) }
 
     fun fromAccount(account: Account?): AccountRow {
         val row = AccountRow()

@@ -14,6 +14,7 @@ import com.uiptv.util.FetchAPI
 import com.uiptv.util.RssParser
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.XtremeApiParser
+import org.koin.core.context.GlobalContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.MalformedURLException
@@ -24,11 +25,12 @@ import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-object CategoryService {
-    private val contentFilterService = ContentFilterService.getInstance()
+class CategoryService(
+    private val contentFilterService: ContentFilterService = ContentFilterService.getInstance(),
+    private val configurationService: ConfigurationService = ConfigurationService.getInstance(),
+    private val handshakeService: HandshakeService = HandshakeService.getInstance()
+) {
 
-    @JvmStatic
-    fun getInstance(): CategoryService = this
     fun get(account: Account): List<Category> = get(account, true)
     fun getCached(account: Account?): List<Category> {
         if (account == null) {
@@ -125,7 +127,7 @@ object CategoryService {
         }
 
     private fun isVodSeriesCategoriesFresh(account: Account): Boolean {
-        val cacheTtlMs = ConfigurationService.getInstance().getCacheExpiryMs()
+        val cacheTtlMs = configurationService.getCacheExpiryMs()
         return when (account.action) {
             vod -> VodCategoryDb.get().isFresh(account, cacheTtlMs)
             series -> SeriesCategoryDb.get().isFresh(account, cacheTtlMs)
@@ -197,7 +199,7 @@ object CategoryService {
 
     private fun stalkerPortalCategories(account: Account, logger: LoggerCallback?): List<Category> {
         log(logger, "Performing portal handshake...")
-        HandshakeService.getInstance().connect(account)
+        handshakeService.connect(account)
         if (account.isNotConnected()) {
             log(logger, "Handshake failed.")
             return emptyList()
@@ -263,5 +265,13 @@ object CategoryService {
         params["type"] = accountAction.name
         params["action"] = if (accountAction == itv) "get_genres" else "get_categories"
         return params
+    }
+
+    companion object {
+        private val defaultInstance by lazy { CategoryService() }
+
+        @JvmStatic
+        fun getInstance(): CategoryService =
+            runCatching { GlobalContext.get().get<CategoryService>() }.getOrDefault(defaultInstance)
     }
 }

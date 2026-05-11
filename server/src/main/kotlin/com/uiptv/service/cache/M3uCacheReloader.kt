@@ -8,6 +8,7 @@ import com.uiptv.model.Category
 import com.uiptv.model.CategoryType
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
+import com.uiptv.service.ConfigurationService
 import com.uiptv.shared.PlaylistEntry
 import com.uiptv.util.AccountType
 import com.uiptv.util.StringUtils
@@ -20,7 +21,10 @@ import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import com.uiptv.model.CategoryType.ALL
 
-open class M3uCacheReloader : AbstractAccountCacheReloader() {
+open class M3uCacheReloader(
+    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         val categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories()
         if (categories.isEmpty()) {
@@ -50,7 +54,7 @@ open class M3uCacheReloader : AbstractAccountCacheReloader() {
 
     private fun loadFreshCategories(account: Account, logger: LoggerCallback?): List<Category> {
         if (!canReadFreshCategoriesFromSource(account)) {
-            return CategoryService.getInstance().get(account, false, logger)
+            return categoryService().get(account, false, logger)
         }
         return try {
             val categories = LinkedHashSet<Category>()
@@ -60,7 +64,7 @@ open class M3uCacheReloader : AbstractAccountCacheReloader() {
             ArrayList(categories)
         } catch (e: MalformedURLException) {
             log(logger, "Failed to load fresh M3U categories: ${e.message}")
-            CategoryService.getInstance().get(account, false, logger)
+            categoryService().get(account, false, logger)
         }
     }
 

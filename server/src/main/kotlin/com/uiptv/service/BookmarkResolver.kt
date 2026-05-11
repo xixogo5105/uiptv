@@ -7,9 +7,12 @@ import com.uiptv.shared.Episode
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 
-class BookmarkResolver {
+class BookmarkResolver(
+    private val accountServiceProvider: () -> AccountService = { AccountService.getInstance() },
+    private val channelServiceProvider: () -> ChannelService = { ChannelService.getInstance() }
+) {
     fun prepare(bookmarks: List<Bookmark>?): ResolutionContext {
-        val accountByName = AccountService.getInstance().getAll()
+        val accountByName = accountServiceProvider.invoke().getAll()
         val renderDataByBookmarkId = preloadRenderData(bookmarks)
         val channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName, renderDataByBookmarkId)
         return ResolutionContext(accountByName, channelByAccountAndChannel, renderDataByBookmarkId)
@@ -147,7 +150,7 @@ class BookmarkResolver {
         channelByAccountAndChannel: MutableMap<String, Channel>
     ) {
         requestedChannelIdsByAccountId.forEach { (accountId, channelIds) ->
-            val channels = ChannelService.getInstance().getChannelsByChannelIdsAndAccount(channelIds, accountId, false)
+            val channels = channelServiceProvider.invoke().getChannelsByChannelIdsAndAccount(channelIds, accountId, false)
             cacheChannelsByAccountAndId(accountId, channels, channelByAccountAndChannel)
         }
     }
@@ -170,7 +173,7 @@ class BookmarkResolver {
             return channelByAccountAndChannel[key]
         }
         val channel = try {
-            ChannelService.getInstance().getChannelByChannelIdAndAccount(channelId.orEmpty(), account.dbId.orEmpty(), false)
+            channelServiceProvider.invoke().getChannelByChannelIdAndAccount(channelId.orEmpty(), account.dbId.orEmpty(), false)
         } catch (_: Exception) {
             null
         }

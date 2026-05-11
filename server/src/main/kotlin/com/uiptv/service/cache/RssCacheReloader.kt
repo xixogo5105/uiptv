@@ -7,10 +7,14 @@ import com.uiptv.model.Account
 import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
+import com.uiptv.service.ConfigurationService
 
-open class RssCacheReloader : AbstractAccountCacheReloader() {
+open class RssCacheReloader(
+    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
-        val categories = CategoryService.getInstance().get(account, false, logger)
+        val categories = categoryService().get(account, false, logger)
         if (categories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.")
             return

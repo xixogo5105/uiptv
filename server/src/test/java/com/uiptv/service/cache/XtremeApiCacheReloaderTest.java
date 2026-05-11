@@ -10,14 +10,15 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.XtremeApiParser;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,12 +31,9 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
         CategoryService categoryService = Mockito.mock(CategoryService.class);
         List<Category> vodCategories = List.of(new Category("vod-1", "Movies", "movies", false, 0));
 
-        try (MockedStatic<CategoryService> categoriesStatic = Mockito.mockStatic(CategoryService.class)) {
-            categoriesStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(vodCategories);
+        Mockito.when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(vodCategories);
 
-            new XtremeApiCacheReloader().reloadCache(account, null);
-        }
+        new XtremeApiCacheReloader(categoryServiceProvider(categoryService), configurationServiceProvider()).reloadCache(account, null);
 
         assertEquals(1, VodCategoryDb.get().getCategories(account).size());
         assertTrue(CategoryDb.get().getCategories(account).isEmpty());
@@ -57,9 +55,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
                 channel("c3", "999", "Orphan")
         );
 
-        try (MockedStatic<CategoryService> categoriesStatic = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<XtremeApiParser> xtremeStatic = Mockito.mockStatic(XtremeApiParser.class)) {
-            categoriesStatic.when(CategoryService::getInstance).thenReturn(categoryService);
+        try (var xtremeStatic = Mockito.mockStatic(XtremeApiParser.class)) {
             Mockito.when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(liveCategories);
             Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.vod), Mockito.eq(false), Mockito.isNull()))
                     .thenReturn(vodCategories);
@@ -67,7 +63,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
                     .thenReturn(seriesCategories);
             xtremeStatic.when(() -> XtremeApiParser.parseAllChannels(account)).thenReturn(allChannels);
 
-            new XtremeApiCacheReloader().reloadCache(account, null);
+            new XtremeApiCacheReloader(categoryServiceProvider(categoryService), configurationServiceProvider()).reloadCache(account, null);
         }
 
         List<Category> savedLiveCategories = CategoryDb.get().getCategories(account);
@@ -89,9 +85,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
                 new Category("20", "Sports", "sports", false, 0)
         );
 
-        try (MockedStatic<CategoryService> categoriesStatic = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<XtremeApiParser> xtremeStatic = Mockito.mockStatic(XtremeApiParser.class)) {
-            categoriesStatic.when(CategoryService::getInstance).thenReturn(categoryService);
+        try (var xtremeStatic = Mockito.mockStatic(XtremeApiParser.class)) {
             Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.itv), Mockito.eq(false), Mockito.isNull()))
                     .thenReturn(liveCategories);
             Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.vod), Mockito.eq(false), Mockito.isNull()))
@@ -102,7 +96,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
             xtremeStatic.when(() -> XtremeApiParser.parseChannels("10", account)).thenReturn(List.of(channel("news-1", "10", "News A")));
             xtremeStatic.when(() -> XtremeApiParser.parseChannels("20", account)).thenReturn(List.of(channel("sports-1", "20", "Sports A")));
 
-            new XtremeApiCacheReloader().reloadCache(account, null);
+            new XtremeApiCacheReloader(categoryServiceProvider(categoryService), configurationServiceProvider()).reloadCache(account, null);
         }
 
         assertEquals(2, CategoryDb.get().getCategories(account).size());
@@ -125,5 +119,13 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
         channel.setName(name);
         channel.setCmd("http://example.test/" + id + ".m3u8");
         return channel;
+    }
+
+    private static kotlin.jvm.functions.Function0<CategoryService> categoryServiceProvider(CategoryService categoryService) {
+        return () -> categoryService;
+    }
+
+    private static kotlin.jvm.functions.Function0<ConfigurationService> configurationServiceProvider() {
+        return ConfigurationService::getInstance;
     }
 }

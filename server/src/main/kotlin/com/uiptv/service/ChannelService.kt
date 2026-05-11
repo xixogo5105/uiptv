@@ -24,6 +24,7 @@ import com.uiptv.util.StringUtils.isNotBlank
 import com.uiptv.util.XtremeApiParser
 import org.json.JSONArray
 import org.json.JSONObject
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.net.URI
@@ -38,24 +39,13 @@ import java.util.function.BooleanSupplier
 import java.util.function.Consumer
 import java.util.function.Supplier
 
-class ChannelService private constructor() {
-    private val cacheService: CacheService = CacheServiceImpl()
-    private var contentFilterService: ContentFilterService = ContentFilterService.getInstance()
-    private var logoResolverService: LogoResolverService = LogoResolverService.getInstance()
-    private var configurationService: ConfigurationService = ConfigurationService.getInstance()
-    private var handshakeService: HandshakeService = HandshakeService.getInstance()
-
-    fun configureDependencies(
-        contentFilterService: ContentFilterService = ContentFilterService.getInstance(),
-        logoResolverService: LogoResolverService = LogoResolverService.getInstance(),
-        configurationService: ConfigurationService = ConfigurationService.getInstance(),
-        handshakeService: HandshakeService = HandshakeService.getInstance()
-    ): ChannelService = apply {
-        this.contentFilterService = contentFilterService
-        this.logoResolverService = logoResolverService
-        this.configurationService = configurationService
-        this.handshakeService = handshakeService
-    }
+class ChannelService(
+    private val cacheService: CacheService = CacheServiceImpl(),
+    private val contentFilterService: ContentFilterService = ContentFilterService.getInstance(),
+    private val logoResolverService: LogoResolverService = LogoResolverService.getInstance(),
+    private val configurationService: ConfigurationService = ConfigurationService.getInstance(),
+    private val handshakeService: HandshakeService = HandshakeService.getInstance()
+) {
 
     @Throws(IOException::class)
     fun get(categoryId: String, account: Account, dbId: String): List<Channel> =
@@ -1081,10 +1071,11 @@ class ChannelService private constructor() {
         private val STALKER_JITTER_MS: Long = java.lang.Long.getLong("uiptv.stalker.page.jitter.ms", 200L)
         private val STALKER_MAX_RETRIES_PER_PAGE: Int = Integer.getInteger("uiptv.stalker.page.maxRetries", 2)
         private val STALKER_THROTTLES = ConcurrentHashMap<String, RequestThrottle>()
-        private val INSTANCE = ChannelService()
-
         @JvmStatic
-        fun getInstance(): ChannelService = INSTANCE
+        fun getInstance(): ChannelService =
+            runCatching { GlobalContext.get().get<ChannelService>() }.getOrDefault(defaultInstance)
+
+        private val defaultInstance by lazy { ChannelService() }
 
         @JvmStatic
         fun getChannelOrSeriesParams(

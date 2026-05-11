@@ -9,6 +9,7 @@ import com.uiptv.model.CategoryType
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
 import com.uiptv.service.ChannelService
+import com.uiptv.service.ConfigurationService
 import com.uiptv.service.HandshakeService
 import com.uiptv.shared.Pagination
 import com.uiptv.util.FetchAPI
@@ -19,9 +20,14 @@ import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
+class StalkerPortalCacheReloader(
+    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() },
+    private val channelServiceProvider: () -> ChannelService = { ChannelService.getInstance() },
+    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
-        HandshakeService.getInstance().connect(account)
+        handshakeService().connect(account)
         if (account.isNotConnected()) {
             log(logger, "Handshake failed for: ${account.accountName}")
             return
@@ -32,7 +38,7 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
                 cacheVodAndSeriesCategoriesOnly(account, logger)
             }
             vod, series -> {
-                val categories = CategoryService.getInstance().get(account, false, logger)
+                val categories = categoryService().get(account, false, logger)
                 saveVodOrSeriesCategories(account, categories)
                 log(logger, "Found Categories ${categories.size}")
                 log(logger, "${categories.size} Categories & 0 Channels saved Successfully ✓")
@@ -86,7 +92,7 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
             val json = FetchAPI.fetch(params, account)
             if (StringUtils.isBlank(json)) continue
             try {
-                if (ChannelService.getInstance().parseItvChannels(json, false).isNotEmpty()) return json
+                if (channelService().parseItvChannels(json, false).isNotEmpty()) return json
             } catch (_: Exception) {
             }
         }
@@ -121,7 +127,7 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
             if (StringUtils.isBlank(json)) break
             try {
                 if (page == startPage) maxAdditionalPages = resolveMaxAdditionalPages(json, maxAdditionalPages)
-                val pageChannels = ChannelService.getInstance().parseItvChannels(json, false)
+                val pageChannels = channelService().parseItvChannels(json, false)
                 if (pageChannels.isEmpty()) break
                 aggregated.addAll(pageChannels)
             } catch (e: Exception) {
@@ -133,14 +139,14 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
     }
 
     private fun loadOfficialLiveCategories(account: Account): List<Category> =
-        CategoryService.getInstance().parseCategories(FetchAPI.fetch(getCategoryParams(account.action), account), false)
+        categoryService().parseCategories(FetchAPI.fetch(getCategoryParams(account.action), account), false)
             .filterNot { CategoryType.ALL.displayName().equals(it.title, true) }
 
     private fun parseGlobalLiveChannels(account: Account, logger: LoggerCallback?): List<Channel> {
         val jsonChannels = fetchAllStalkerChannelsJson(account)
         if (StringUtils.isBlank(jsonChannels)) return Collections.emptyList()
         return try {
-            ChannelService.getInstance().parseItvChannels(jsonChannels, false)
+            channelService().parseItvChannels(jsonChannels, false)
         } catch (e: Exception) {
             log(logger, "Failed to parse channels from get_all_channels: ${e.message}")
             Collections.emptyList()
@@ -177,9 +183,13 @@ class StalkerPortalCacheReloader : AbstractAccountCacheReloader() {
         savedCategoryMap.values.firstOrNull(this::isUncategorizedCategory)
 
     private fun resolveMaxAdditionalPages(json: String, defaultValue: Int): Int {
-        val pagination: Pagination? = ChannelService.getInstance().parsePagination(json, null)
+        val pagination: Pagination? = channelService().parsePagination(json, null)
         return if (pagination == null) defaultValue else maxOf(pagination.pageCount + 1, 2)
     }
+
+    private fun handshakeService(): HandshakeService = handshakeServiceProvider.invoke()
+
+    private fun channelService(): ChannelService = channelServiceProvider.invoke()
 
     private fun dedupeChannels(aggregated: List<Channel>): List<Channel> {
         val uniqueChannels = LinkedHashMap<String, Channel>()

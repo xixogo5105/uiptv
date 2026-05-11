@@ -19,13 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpProxyStreamServerTest {
     private HttpServer upstreamServer;
-    private HttpServer proxyServer;
 
     @AfterEach
     void tearDown() {
-        if (proxyServer != null) {
-            proxyServer.stop(0);
-        }
         if (upstreamServer != null) {
             upstreamServer.stop(0);
         }
@@ -53,17 +49,10 @@ class HttpProxyStreamServerTest {
         });
         upstreamServer.start();
 
-        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer());
-        proxyServer.start();
-
         String upstreamUrl = "http://127.0.0.1:" + upstreamServer.getAddress().getPort() + "/stream.ts";
-        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
-                + URLEncoder.encode(upstreamUrl, StandardCharsets.UTF_8);
-
-        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
-        connection.setRequestMethod("HEAD");
-        assertEquals(200, connection.getResponseCode());
+        try (var upstream = ProxyStreamSupport.INSTANCE.openResolvedStream(upstreamUrl, java.util.Map.of(), "HEAD")) {
+            assertEquals(200, upstream.getStatusCode());
+        }
         assertEquals("HEAD", upstreamMethod.get());
         assertEquals(1, requestCount.get());
     }
@@ -99,21 +88,18 @@ class HttpProxyStreamServerTest {
         });
         upstreamServer.start();
 
-        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer());
-        proxyServer.start();
-
         String upstreamUrl = "http://127.0.0.1:" + upstreamServer.getAddress().getPort()
                 + "/play/movie.php?mac=00%3A1A%3A79%3AA1%3A32%3AEB&stream=246761.mkv&play_token=pt246761&type=movie";
-        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
-                + URLEncoder.encode(upstreamUrl, StandardCharsets.UTF_8);
-
-        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
-        connection.setRequestMethod("GET");
-        connection.setRequestProperty("Origin", "http://127.0.0.1:8080");
-        connection.setRequestProperty("Referer", "http://127.0.0.1:8080/player");
-
-        assertEquals(200, connection.getResponseCode());
+        try (var upstream = ProxyStreamSupport.INSTANCE.openResolvedStream(
+                upstreamUrl,
+                java.util.Map.of(
+                        "Origin", "http://127.0.0.1:8080",
+                        "Referer", "http://127.0.0.1:8080/player"
+                ),
+                "GET"
+        )) {
+            assertEquals(200, upstream.getStatusCode());
+        }
         assertEquals("http://127.0.0.1:" + upstreamServer.getAddress().getPort(), upstreamOrigin.get());
         assertTrue(upstreamReferer.get().startsWith("http://127.0.0.1:" + upstreamServer.getAddress().getPort() + "/"));
         assertFalse(upstreamReferer.get().contains(":8080"));

@@ -24,7 +24,10 @@ import java.util.LinkedHashSet
 import java.util.Locale
 import java.util.UUID
 
-abstract class AbstractAccountCacheReloader : AccountCacheReloader {
+abstract class AbstractAccountCacheReloader(
+    private val categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService.getInstance() }
+) : AccountCacheReloader {
     companion object {
         private const val ALL_CATEGORY = "All"
         const val UNCATEGORIZED_ID: String = "uncategorized"
@@ -33,7 +36,7 @@ abstract class AbstractAccountCacheReloader : AccountCacheReloader {
 
     protected fun clearCache(account: Account?) {
         val existingPortalUrl = account?.serverPortalUrl ?: ""
-        ConfigurationService.getInstance().clearCache(account)
+        configurationService().clearCache(account)
         if (account != null &&
             account.type == AccountType.STALKER_PORTAL &&
             StringUtils.isNotBlank(existingPortalUrl)
@@ -78,7 +81,7 @@ abstract class AbstractAccountCacheReloader : AccountCacheReloader {
             listOf(Account.AccountAction.vod, Account.AccountAction.series).forEach { mode ->
                 account.action = mode
                 try {
-                    val categories = CategoryService.getInstance().get(account, false, logger)
+                    val categories = categoryService().get(account, false, logger)
                     saveVodOrSeriesCategories(account, categories)
                 } catch (e: Exception) {
                     log(logger, "Global ${mode.name.uppercase()} category list failed: ${shortReason(e)}")
@@ -140,6 +143,10 @@ abstract class AbstractAccountCacheReloader : AccountCacheReloader {
     }
 
     protected fun categoryLookupKey(categoryTitle: String?): String = normalizeCaseInsensitiveKey(categoryTitle)
+
+    protected fun categoryService(): CategoryService = categoryServiceProvider.invoke()
+
+    protected fun configurationService(): ConfigurationService = configurationServiceProvider.invoke()
 
     protected fun normalizeCaseInsensitiveKey(value: String?): String =
         if (StringUtils.isBlank(value)) "" else value!!.trim().lowercase(Locale.ROOT)

@@ -7,6 +7,7 @@ import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
 import org.json.JSONObject
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.net.URLDecoder
@@ -15,10 +16,11 @@ import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArraySet
 
-object PlayerService {
+class PlayerService(
+    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService
+) {
     private val log = LoggerFactory.getLogger(PlayerService::class.java)
     private val playbackResolvedListeners = CopyOnWriteArraySet<PlaybackResolvedListener>()
-    private var seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService
     private val xtremePlayerService = XtremePlayerService()
     private val stalkerPortalPlayerService = StalkerPortalPlayerService()
     private val predefinedPlayerService = PredefinedPlayerService()
@@ -28,13 +30,6 @@ object PlayerService {
             seriesWatchStateService.onPlaybackResolved(account, channel, seriesId, parentSeriesId, categoryId)
         }
     }
-
-    fun configureDependencies(seriesWatchStateService: SeriesWatchStateService): PlayerService = apply {
-        this.seriesWatchStateService = seriesWatchStateService
-    }
-
-    @JvmStatic
-    fun getInstance(): PlayerService = this
 
     @Throws(IOException::class)
     fun get(account: Account, channel: Channel): PlayerResponse = get(account, channel, "", "", "")
@@ -212,5 +207,13 @@ object PlayerService {
 
     fun interface PlaybackResolvedListener {
         fun onPlaybackResolved(account: Account, channel: Channel, seriesId: String, parentSeriesId: String, categoryId: String)
+    }
+
+    companion object {
+        private val defaultInstance by lazy { PlayerService() }
+
+        @JvmStatic
+        fun getInstance(): PlayerService =
+            runCatching { GlobalContext.get().get<PlayerService>() }.getOrDefault(defaultInstance)
     }
 }

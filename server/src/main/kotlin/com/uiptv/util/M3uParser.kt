@@ -3,8 +3,11 @@ package com.uiptv.util
 import com.uiptv.api.AccountParser
 import com.uiptv.model.Account
 import com.uiptv.service.AccountService
+import java.util.function.Consumer
 
-class M3uParser : AccountParser {
+class M3uParser(
+    private val accountSaver: Consumer<Account> = Consumer { AccountService.getInstance().save(it) }
+) : AccountParser {
     override fun parseAndSave(text: String, groupAccountsByMac: Boolean, convertM3uToXtreme: Boolean): List<Account> {
         val createdAccounts = ArrayList<Account>()
         for (line in text.split(Regex("\\R"))) {
@@ -47,7 +50,7 @@ class M3uParser : AccountParser {
                         listOf(XtremeCredentialsJson.Entry(username!!, password!!, true))
                     )
                 }
-                AccountService.getInstance().save(account)
+                accountSaver.accept(account)
                 createdAccounts += account
             }
         }

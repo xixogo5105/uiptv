@@ -1,9 +1,6 @@
 package com.uiptv.server
 
-import com.sun.net.httpserver.HttpExchange
-import com.sun.net.httpserver.HttpHandler
 import com.uiptv.util.HttpUtil
-import com.uiptv.util.ServerUtils.getParam
 import com.uiptv.util.StringUtils.isBlank
 import java.io.IOException
 import java.io.InputStream
@@ -12,60 +9,56 @@ import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-@Suppress("java:S1075", "java:S135")
-class HttpProxyStreamServer : HttpHandler {
-    companion object {
-        private const val PATH_LIVE_PLAY = "/live/play/"
-        private const val PATH_PLAY_MOVIE = "/play/movie.php"
-        private const val HEADER_ACCEPT = "Accept"
-        private const val HEADER_ACCEPT_RANGES = "Accept-Ranges"
-        private const val HEADER_ACCESS_CONTROL_ALLOW_ORIGIN = "Access-Control-Allow-Origin"
-        private const val HEADER_CACHE_CONTROL = "Cache-Control"
-        private const val HEADER_CONTENT_DISPOSITION = "Content-Disposition"
-        private const val HEADER_CONTENT_LENGTH = "Content-Length"
-        private const val HEADER_CONTENT_RANGE = "Content-Range"
-        private const val HEADER_CONTENT_TYPE = "Content-Type"
-        private const val HEADER_COOKIE = "Cookie"
-        private const val HEADER_LOCATION = "Location"
-        private const val HEADER_ORIGIN = "Origin"
-        private const val HEADER_PRAGMA = "Pragma"
-        private const val HEADER_RANGE = "Range"
-        private const val HEADER_REFERER = "Referer"
-        private const val HEADER_SET_COOKIE = "Set-Cookie"
-        private const val HEADER_X_USER_AGENT = "X-User-Agent"
-        private const val MAG_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
-        private const val UNKNOWN_CONTENT_LENGTH = 0L
+object ProxyStreamSupport {
+    private const val PATH_LIVE_PLAY = "/live/play/"
+    private const val PATH_PLAY_MOVIE = "/play/movie.php"
+    const val HEADER_ACCEPT = "Accept"
+    const val HEADER_ACCEPT_RANGES = "Accept-Ranges"
+    const val HEADER_CONTENT_DISPOSITION = "Content-Disposition"
+    const val HEADER_CONTENT_LENGTH = "Content-Length"
+    const val HEADER_CONTENT_RANGE = "Content-Range"
+    const val HEADER_CONTENT_TYPE = "Content-Type"
+    private const val HEADER_COOKIE = "Cookie"
+    private const val HEADER_LOCATION = "Location"
+    const val HEADER_ORIGIN = "Origin"
+    private const val HEADER_PRAGMA = "Pragma"
+    const val HEADER_RANGE = "Range"
+    const val HEADER_REFERER = "Referer"
+    private const val HEADER_SET_COOKIE = "Set-Cookie"
+    private const val HEADER_X_USER_AGENT = "X-User-Agent"
+    private const val MAG_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+    private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+
+    fun openResolvedStream(
+        initialUrl: String,
+        forwardHeaders: Map<String, String>,
+        requestMethod: String
+    ): HttpUtil.StreamResult? = openResolvedStream(initialUrl, arrayListOf(), forwardHeaders, requestMethod)
+
+    fun copyStream(inputStream: InputStream, outputStream: OutputStream) {
+        val buffer = ByteArray(8192)
+        while (true) {
+            val read = inputStream.read(buffer)
+            if (read == -1) break
+            outputStream.write(buffer, 0, read)
+        }
     }
 
-    @Throws(IOException::class)
-    override fun handle(ex: HttpExchange) {
-        val source = getParam(ex, "src")
-        if (isBlank(source)) {
-            ex.sendResponseHeaders(400, -1)
-            return
+    fun firstHeader(headers: Map<String, List<String>>?, name: String): String {
+        if (headers == null || isBlank(name)) return ""
+        headers.entries.firstOrNull { it.key.equals(name, true) }?.value?.firstOrNull()?.let {
+            if (!isBlank(it)) return it
         }
-        val current = source!!.trim()
-        val cookies = ArrayList<String>()
-        val requestMethod = ex.requestMethod
-        try {
-            openResolvedStream(current, cookies, readForwardHeaders(ex), requestMethod).use { upstream ->
-                if (upstream == null) {
-                    sendBadGateway(ex)
-                    return
-                }
-                writeResponseHeaders(ex, upstream.responseHeaders)
-                ex.sendResponseHeaders(upstream.statusCode, resolveContentLength(firstHeader(upstream.responseHeaders, HEADER_CONTENT_LENGTH)))
-                if (!"HEAD".equals(requestMethod, true)) {
-                    resolvedBodyStream(upstream).use { input ->
-                        ex.responseBody.use { output -> copyStream(input, output) }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            sendBadGateway(ex)
-        }
+        return ""
     }
+
+    fun resolveContentLength(contentLengthHeader: String): Long =
+        try {
+            val contentLength = if (isBlank(contentLengthHeader)) 0L else contentLengthHeader.toLong()
+            if (contentLength > 0) contentLength else 0L
+        } catch (_: Exception) {
+            0L
+        }
 
     private fun openResolvedStream(
         initialUrl: String,
@@ -119,21 +112,6 @@ class HttpProxyStreamServer : HttpHandler {
         }
     }
 
-    private fun firstHeader(headers: Map<String, List<String>>?, name: String): String {
-        if (headers == null || isBlank(name)) return ""
-        headers.entries.firstOrNull { it.key.equals(name, true) }?.value?.firstOrNull()?.let {
-            if (!isBlank(it)) return it
-        }
-        return ""
-    }
-
-    private fun readForwardHeaders(ex: HttpExchange): Map<String, String> = linkedMapOf(
-        HEADER_ACCEPT to ex.requestHeaders.getFirst(HEADER_ACCEPT),
-        HEADER_RANGE to ex.requestHeaders.getFirst(HEADER_RANGE),
-        HEADER_REFERER to ex.requestHeaders.getFirst(HEADER_REFERER),
-        HEADER_ORIGIN to ex.requestHeaders.getFirst(HEADER_ORIGIN)
-    )
-
     private fun buildUpstreamHeaders(currentUrl: String, cookies: MutableList<String>, forwardedHeaders: Map<String, String>): MutableMap<String, String> {
         val upstreamHeaders = linkedMapOf<String, String>()
         val stalkerStyle = isStalkerPortalStream(currentUrl)
@@ -145,10 +123,8 @@ class HttpProxyStreamServer : HttpHandler {
             upstreamHeaders[HEADER_PRAGMA] = "no-cache"
         }
         addHeaderIfPresent(upstreamHeaders, HEADER_RANGE, forwardedHeaders[HEADER_RANGE])
-        val origin = resolveUpstreamOriginHeader(currentUrl, forwardedHeaders[HEADER_ORIGIN])
-        val referer = resolveUpstreamRefererHeader(currentUrl, forwardedHeaders[HEADER_REFERER])
-        addHeaderIfPresent(upstreamHeaders, HEADER_ORIGIN, origin)
-        addHeaderIfPresent(upstreamHeaders, HEADER_REFERER, referer)
+        addHeaderIfPresent(upstreamHeaders, HEADER_ORIGIN, resolveUpstreamOriginHeader(currentUrl, forwardedHeaders[HEADER_ORIGIN]))
+        addHeaderIfPresent(upstreamHeaders, HEADER_REFERER, resolveUpstreamRefererHeader(currentUrl, forwardedHeaders[HEADER_REFERER]))
         addStalkerCookieFromUrl(upstreamHeaders, currentUrl, cookies)
         if (cookies.isNotEmpty()) {
             upstreamHeaders.putIfAbsent(HEADER_COOKIE, cookies.joinToString("; "))
@@ -207,8 +183,7 @@ class HttpProxyStreamServer : HttpHandler {
         val origin = originOf(url)
         if (isBlank(origin)) return false
         return try {
-            val host = URI.create(origin).host
-            if (isBlank(host)) false else when (host.trim().lowercase()) {
+            when (URI.create(origin).host?.trim()?.lowercase()) {
                 "127.0.0.1", "localhost", "::1" -> true
                 else -> false
             }
@@ -253,47 +228,6 @@ class HttpProxyStreamServer : HttpHandler {
 
     private fun addHeaderIfPresent(headers: MutableMap<String, String>, name: String, value: String?) {
         if (!isBlank(value)) headers[name] = value!!
-    }
-
-    private fun resolvedBodyStream(upstream: HttpUtil.StreamResult): InputStream =
-        upstream.bodyStream
-
-    private fun writeResponseHeaders(ex: HttpExchange, upstreamHeaders: Map<String, List<String>>) {
-        val contentType = firstHeader(upstreamHeaders, HEADER_CONTENT_TYPE)
-        ex.responseHeaders.add(HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-        ex.responseHeaders.add(HEADER_CACHE_CONTROL, "no-store")
-        ex.responseHeaders.add(HEADER_CONTENT_TYPE, if (isBlank(contentType)) "application/octet-stream" else contentType)
-        copyHeaderIfPresent(ex, upstreamHeaders, HEADER_ACCEPT_RANGES)
-        copyHeaderIfPresent(ex, upstreamHeaders, HEADER_CONTENT_RANGE)
-        copyHeaderIfPresent(ex, upstreamHeaders, HEADER_CONTENT_DISPOSITION)
-    }
-
-    private fun copyHeaderIfPresent(ex: HttpExchange, upstreamHeaders: Map<String, List<String>>, headerName: String) {
-        val value = firstHeader(upstreamHeaders, headerName)
-        if (!isBlank(value)) ex.responseHeaders.add(headerName, value)
-    }
-
-    private fun resolveContentLength(contentLengthHeader: String): Long =
-        try {
-            val contentLength = if (isBlank(contentLengthHeader)) UNKNOWN_CONTENT_LENGTH else contentLengthHeader.toLong()
-            if (contentLength > 0) contentLength else UNKNOWN_CONTENT_LENGTH
-        } catch (_: Exception) {
-            UNKNOWN_CONTENT_LENGTH
-        }
-
-    @Throws(IOException::class)
-    private fun copyStream(inputStream: InputStream, outputStream: OutputStream) {
-        val buffer = ByteArray(8192)
-        while (true) {
-            val read = inputStream.read(buffer)
-            if (read == -1) break
-            outputStream.write(buffer, 0, read)
-        }
-    }
-
-    @Throws(IOException::class)
-    private fun sendBadGateway(ex: HttpExchange) {
-        ex.sendResponseHeaders(502, -1)
     }
 
     private fun downgradeHttpsToHttp(url: String): String {

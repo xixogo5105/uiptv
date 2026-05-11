@@ -1,5 +1,6 @@
 package com.uiptv.util
 
+import com.uiptv.model.Account
 import com.uiptv.service.AccountService
 import java.net.URI
 import java.util.regex.Pattern
@@ -7,6 +8,7 @@ import java.util.regex.Pattern
 object UiptUtils {
     private const val MAC_ADDRESS_REGEX = "^(?:([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}))$"
     const val SPACER = " "
+    private var accountLookup: (String) -> Account? = { AccountService.getInstance().getByName(it) }
     private val ILLEGAL_URI_CHAR_REPLACEMENTS = mapOf(
         " " to "%20",
         "|" to "%7C",
@@ -51,7 +53,7 @@ object UiptUtils {
             var validName: String
             do {
                 validName = uri.host + " (" + index++ + ")"
-            } while (AccountService.getInstance().getByName(validName) != null)
+            } while (accountLookup(validName) != null)
             validName
         } catch (_: Exception) {
             urlString.orEmpty()
@@ -181,5 +183,10 @@ object UiptUtils {
             0x2620, 0x2605, 0x2606, 0x1F5A5 -> ' '.code
             else -> c
         }
+    }
+
+    @JvmStatic
+    fun configureDependencies(accountLookup: (String) -> Account?) {
+        this.accountLookup = accountLookup
     }
 }

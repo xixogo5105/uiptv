@@ -9,7 +9,9 @@ import com.uiptv.util.AccountType.STALKER_PORTAL
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.I18n
 
-class CategoryResolver {
+class CategoryResolver(
+    private val channelServiceProvider: () -> ChannelService = { ChannelService.getInstance() }
+) {
     fun resolveCategories(account: Account?, categories: List<Category>?): List<Category> {
         var processed = ArrayList(categories ?: emptyList())
 
@@ -19,7 +21,7 @@ class CategoryResolver {
                     if (category == null) {
                         false
                     } else if (isUncategorized(category)) {
-                        ChannelService.getInstance().hasCachedLiveChannelsByDbCategoryId(category.dbId.orEmpty())
+                        channelServiceProvider.invoke().hasCachedLiveChannelsByDbCategoryId(category.dbId.orEmpty())
                     } else {
                         true
                     }

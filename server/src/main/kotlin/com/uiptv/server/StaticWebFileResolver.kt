@@ -1,6 +1,4 @@
 package com.uiptv.server
-
-import com.sun.net.httpserver.HttpExchange
 import com.uiptv.util.Platform.getWebServerRootPath
 import com.uiptv.util.StringUtils.isBlank
 import java.io.IOException
@@ -12,11 +10,6 @@ import java.nio.file.Paths
 class StaticWebFileResolver private constructor() {
     companion object {
         @JvmStatic
-        @Throws(IOException::class)
-        fun resolve(exchange: HttpExchange?): Path {
-            return resolveRequestPath(exchange?.requestURI?.path)
-        }
-
         @Throws(IOException::class)
         fun resolveRequestPath(requestPath: String?): Path {
             if (requestPath == null) {

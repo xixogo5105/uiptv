@@ -69,14 +69,13 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-stalker-getall");
         List<String> logs = new ArrayList<>();
         AtomicInteger orderedListCalls = new AtomicInteger();
+        HandshakeService handshakeService = successfulHandshake(null);
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
-            mockSuccessfulHandshake(handshakeMock);
+        try (MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
             fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
                     .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
 
-            new CacheServiceImpl().reloadCache(account, logs::add);
+            new CacheServiceImpl(() -> handshakeService, CategoryService::getInstance).reloadCache(account, logs::add);
         }
 
         assertEquals(0, orderedListCalls.get(), "Fallback API should not be called when get_all_channels has data");
@@ -137,14 +136,13 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-stalker-fallback");
         List<String> logs = new ArrayList<>();
         AtomicInteger orderedListCalls = new AtomicInteger();
+        HandshakeService handshakeService = successfulHandshake(null);
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
-            mockSuccessfulHandshake(handshakeMock);
+        try (MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
             fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
                     .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), true, orderedListCalls));
 
-            new CacheServiceImpl().reloadCache(account, logs::add);
+            new CacheServiceImpl(() -> handshakeService, CategoryService::getInstance).reloadCache(account, logs::add);
         }
 
         assertTrue(orderedListCalls.get() > 0, "Fallback API should be used when get_all_channels is blank");
@@ -159,16 +157,15 @@ class CacheServiceImplTest extends DbBackedTest {
         List<String> logs = new ArrayList<>();
         AtomicInteger orderedListCalls = new AtomicInteger();
         String resolvedPortalUrl = "http://resolved.stalker.example/portal.php";
+        HandshakeService handshakeService = successfulHandshake(resolvedPortalUrl);
 
         assertTrue(account.getServerPortalUrl() == null || account.getServerPortalUrl().isBlank());
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
-            mockSuccessfulHandshake(handshakeMock, resolvedPortalUrl);
+        try (MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
             fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
                     .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
 
-            new CacheServiceImpl().reloadCache(account, logs::add);
+            new CacheServiceImpl(() -> handshakeService, CategoryService::getInstance).reloadCache(account, logs::add);
         }
 
         Account persisted = AccountDb.get().getAccountById(account.getDbId());
@@ -188,23 +185,13 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-verify-ok");
         account.setAction(Account.AccountAction.itv);
         String originalMac = account.getMacAddress();
-        CacheService cacheService = new CacheServiceImpl();
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<CategoryService> categoryMock = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
-            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
-            Mockito.doAnswer(invocation -> {
-                Account a = invocation.getArgument(0);
-                a.setToken("valid-token");
-                return null;
-            }).when(handshakeService).connect(Mockito.any(Account.class));
-
+        try (MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            HandshakeService handshakeService = successfulHandshake(null);
             CategoryService categoryService = Mockito.mock(CategoryService.class);
-            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
             Mockito.when(categoryService.parseCategories(Mockito.anyString(), Mockito.eq(false)))
                     .thenReturn(List.of(new Category("10", "News", "news", false, 0)));
+            CacheService cacheService = new CacheServiceImpl(() -> handshakeService, () -> categoryService);
 
             fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account))).thenReturn("{\"js\":[]}");
 
@@ -218,42 +205,28 @@ class CacheServiceImplTest extends DbBackedTest {
     void verifyMacAddress_returnsFalse_whenHandshakeDoesNotConnect_andRestoresMac() {
         Account account = createStalkerAccount("acc-verify-handshake-fail");
         String originalMac = account.getMacAddress();
-        CacheService cacheService = new CacheServiceImpl();
+        HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
+        CacheService cacheService = new CacheServiceImpl(() -> handshakeService, CategoryService::getInstance);
+        Mockito.doAnswer(invocation -> {
+            Account a = invocation.getArgument(0);
+            a.setToken(null);
+            return null;
+        }).when(handshakeService).connect(Mockito.any(Account.class));
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class)) {
-            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
-            Mockito.doAnswer(invocation -> {
-                Account a = invocation.getArgument(0);
-                a.setToken(null);
-                return null;
-            }).when(handshakeService).connect(Mockito.any(Account.class));
-
-            boolean verified = cacheService.verifyMacAddress(account, "00:11:22:33:44:aa");
-            assertFalse(verified);
-            assertEquals(originalMac, account.getMacAddress(), "MAC must be restored after failed handshake");
-        }
+        boolean verified = cacheService.verifyMacAddress(account, "00:11:22:33:44:aa");
+        assertFalse(verified);
+        assertEquals(originalMac, account.getMacAddress(), "MAC must be restored after failed handshake");
     }
 
     @Test
     void verifyMacAddress_returnsFalse_whenCategoriesEmpty() {
         Account account = createStalkerAccount("acc-verify-empty-cats");
-        CacheService cacheService = new CacheServiceImpl();
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<CategoryService> categoryMock = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
-            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
-            Mockito.doAnswer(invocation -> {
-                Account a = invocation.getArgument(0);
-                a.setToken("valid-token");
-                return null;
-            }).when(handshakeService).connect(Mockito.any(Account.class));
-
+        try (MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            HandshakeService handshakeService = successfulHandshake(null);
             CategoryService categoryService = Mockito.mock(CategoryService.class);
-            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
             Mockito.when(categoryService.parseCategories(Mockito.anyString(), Mockito.eq(false))).thenReturn(List.of());
+            CacheService cacheService = new CacheServiceImpl(() -> handshakeService, () -> categoryService);
 
             fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account))).thenReturn("{\"js\":[]}");
             assertFalse(cacheService.verifyMacAddress(account, "00:11:22:33:44:ab"));
@@ -265,23 +238,13 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-verify-fetch-throws");
         account.setAction(Account.AccountAction.vod);
         String originalMac = account.getMacAddress();
-        CacheService cacheService = new CacheServiceImpl();
         AtomicInteger fetchCalls = new AtomicInteger();
         List<String> actions = new ArrayList<>();
 
-        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<CategoryService> categoryMock = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
-            HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-            handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
-            Mockito.doAnswer(invocation -> {
-                Account a = invocation.getArgument(0);
-                a.setToken("valid-token");
-                return null;
-            }).when(handshakeService).connect(Mockito.any(Account.class));
-
+        try (MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            HandshakeService handshakeService = successfulHandshake(null);
             CategoryService categoryService = Mockito.mock(CategoryService.class);
-            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
+            CacheService cacheService = new CacheServiceImpl(() -> handshakeService, () -> categoryService);
 
             fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
                     .thenAnswer(invocation -> {
@@ -381,13 +344,8 @@ class CacheServiceImplTest extends DbBackedTest {
         return persisted;
     }
 
-    private void mockSuccessfulHandshake(MockedStatic<HandshakeService> handshakeMock) {
-        mockSuccessfulHandshake(handshakeMock, null);
-    }
-
-    private void mockSuccessfulHandshake(MockedStatic<HandshakeService> handshakeMock, String resolvedPortalUrl) {
+    private HandshakeService successfulHandshake(String resolvedPortalUrl) {
         HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-        handshakeMock.when(HandshakeService::getInstance).thenReturn(handshakeService);
         Mockito.doAnswer(invocation -> {
             Account handshakeAccount = invocation.getArgument(0);
             handshakeAccount.setToken("mock-token");
@@ -396,6 +354,7 @@ class CacheServiceImplTest extends DbBackedTest {
             }
             return null;
         }).when(handshakeService).connect(Mockito.any(Account.class));
+        return handshakeService;
     }
 
     @SuppressWarnings("unchecked")

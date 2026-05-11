@@ -38,7 +38,9 @@ import io.ktor.server.routing.post
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import org.json.JSONObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 fun Route.registerVodApiRoutes(
     accountService: AccountService,
@@ -111,7 +113,6 @@ fun Route.registerVodApiRoutes(
     }
 }
 
-@Suppress("USELESS_CAST")
 private fun buildVodDetailsResponse(
     account: Account?,
     categoryId: String?,
@@ -120,18 +121,7 @@ private fun buildVodDetailsResponse(
     handshakeService: HandshakeService,
     imdbMetadataService: ImdbMetadataService
 ): VodDetailsResponseDto {
-    val vodInfo = JSONObject()
-    vodInfo.put("name", if (StringUtils.isBlank(vodName)) "VOD" else vodName)
-    vodInfo.put("cover", "")
-    vodInfo.put("plot", "")
-    vodInfo.put("cast", "")
-    vodInfo.put("director", "")
-    vodInfo.put("genre", "")
-    vodInfo.put("releaseDate", "")
-    vodInfo.put("rating", "")
-    vodInfo.put("tmdb", "")
-    vodInfo.put("imdbUrl", "")
-    vodInfo.put("duration", "")
+    val vodInfo = MutableVodInfo(name = if (StringUtils.isBlank(vodName)) "VOD" else vodName.orEmpty())
 
     if (account != null && account.isNotConnected()) {
         handshakeService.connect(account)
@@ -146,46 +136,32 @@ private fun buildVodDetailsResponse(
     }
 
     if (providerChannel != null) {
-        mergeMissing(vodInfo, "name", providerChannel.name)
-        mergeMissing(vodInfo, "cover", providerChannel.logo)
-        mergeMissing(vodInfo, "plot", providerChannel.description)
-        mergeMissing(vodInfo, "releaseDate", providerChannel.releaseDate)
-        mergeMissing(vodInfo, "rating", providerChannel.rating)
-        mergeMissing(vodInfo, "duration", providerChannel.duration)
+        vodInfo.mergeMissing("name", providerChannel.name)
+        vodInfo.mergeMissing("cover", providerChannel.logo)
+        vodInfo.mergeMissing("plot", providerChannel.description)
+        vodInfo.mergeMissing("releaseDate", providerChannel.releaseDate)
+        vodInfo.mergeMissing("rating", providerChannel.rating)
+        vodInfo.mergeMissing("duration", providerChannel.duration)
     }
 
-    val queryTitle = if (StringUtils.isBlank(vodName)) vodInfo.optString("name", "") else vodName.orEmpty()
-    val imdb = (imdbMetadataService.findBestEffortMovieDetails(
+    val queryTitle = if (StringUtils.isBlank(vodName)) vodInfo.name else vodName.orEmpty()
+    val imdb = imdbMetadataService.findBestEffortMovieDetails(
         queryTitle,
-        vodInfo.optString("tmdb", ""),
+        vodInfo.tmdb,
         buildVodFuzzyHints(queryTitle, providerChannel, vodInfo)
-    ) as? JSONObject) ?: JSONObject()
-    mergeMissing(vodInfo, "name", imdb.optString("name", ""))
-    mergeMissing(vodInfo, "cover", imdb.optString("cover", ""))
-    mergeMissing(vodInfo, "plot", imdb.optString("plot", ""))
-    mergeMissing(vodInfo, "cast", imdb.optString("cast", ""))
-    mergeMissing(vodInfo, "director", imdb.optString("director", ""))
-    mergeMissing(vodInfo, "genre", imdb.optString("genre", ""))
-    mergeMissing(vodInfo, "releaseDate", imdb.optString("releaseDate", ""))
-    mergeMissing(vodInfo, "rating", imdb.optString("rating", ""))
-    mergeMissing(vodInfo, "tmdb", imdb.optString("tmdb", ""))
-    mergeMissing(vodInfo, "imdbUrl", imdb.optString("imdbUrl", ""))
+    ).toJsonObject()
+    vodInfo.mergeMissing("name", imdb.stringField("name"))
+    vodInfo.mergeMissing("cover", imdb.stringField("cover"))
+    vodInfo.mergeMissing("plot", imdb.stringField("plot"))
+    vodInfo.mergeMissing("cast", imdb.stringField("cast"))
+    vodInfo.mergeMissing("director", imdb.stringField("director"))
+    vodInfo.mergeMissing("genre", imdb.stringField("genre"))
+    vodInfo.mergeMissing("releaseDate", imdb.stringField("releaseDate"))
+    vodInfo.mergeMissing("rating", imdb.stringField("rating"))
+    vodInfo.mergeMissing("tmdb", imdb.stringField("tmdb"))
+    vodInfo.mergeMissing("imdbUrl", imdb.stringField("imdbUrl"))
 
-    return VodDetailsResponseDto(
-        vodInfo = VodInfoDto(
-            name = vodInfo.optString("name", ""),
-            cover = vodInfo.optString("cover", ""),
-            plot = vodInfo.optString("plot", ""),
-            cast = vodInfo.optString("cast", ""),
-            director = vodInfo.optString("director", ""),
-            genre = vodInfo.optString("genre", ""),
-            releaseDate = vodInfo.optString("releaseDate", ""),
-            rating = vodInfo.optString("rating", ""),
-            tmdb = vodInfo.optString("tmdb", ""),
-            imdbUrl = vodInfo.optString("imdbUrl", ""),
-            duration = vodInfo.optString("duration", "")
-        )
-    )
+    return VodDetailsResponseDto(vodInfo = vodInfo.toDto())
 }
 
 private fun buildWatchingNowSeriesResponse(resolver: WatchingNowSeriesResolver): List<WatchingNowSeriesRowDto> =
@@ -455,7 +431,7 @@ private fun resolveWatchingNowSeriesMetadata(
     return WatchingNowSeriesMetadata("", "", "")
 }
 
-private fun buildVodFuzzyHints(queryTitle: String, providerChannel: Channel?, vodInfo: JSONObject): List<String> {
+private fun buildVodFuzzyHints(queryTitle: String, providerChannel: Channel?, vodInfo: MutableVodInfo): List<String> {
     val hints = ArrayList<String>()
     addVodHint(hints, queryTitle)
     providerChannel?.let {
@@ -463,9 +439,9 @@ private fun buildVodFuzzyHints(queryTitle: String, providerChannel: Channel?, vo
         addVodHint(hints, it.description)
         addVodHint(hints, it.releaseDate)
     }
-    addVodHint(hints, vodInfo.optString("name", ""))
-    addVodHint(hints, vodInfo.optString("plot", ""))
-    addVodHint(hints, vodInfo.optString("releaseDate", ""))
+    addVodHint(hints, vodInfo.name)
+    addVodHint(hints, vodInfo.plot)
+    addVodHint(hints, vodInfo.releaseDate)
     return hints
 }
 
@@ -482,12 +458,6 @@ private fun addVodHint(hints: MutableList<String>, value: String?) {
         return
     }
     hints += cleaned
-}
-
-private fun mergeMissing(target: JSONObject, key: String, incoming: String?) {
-    if (StringUtils.isBlank(target.optString(key, "")) && !StringUtils.isBlank(incoming)) {
-        target.put(key, incoming)
-    }
 }
 
 private fun safeRoute(value: String?): String = value?.trim().orEmpty()
@@ -545,3 +515,61 @@ private val vodRouteJson = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
 }
+
+private data class MutableVodInfo(
+    var name: String = "",
+    var cover: String = "",
+    var plot: String = "",
+    var cast: String = "",
+    var director: String = "",
+    var genre: String = "",
+    var releaseDate: String = "",
+    var rating: String = "",
+    var tmdb: String = "",
+    var imdbUrl: String = "",
+    var duration: String = ""
+) {
+    fun mergeMissing(key: String, incoming: String?) {
+        if (StringUtils.isBlank(incoming)) {
+            return
+        }
+        when (key) {
+            "name" -> if (StringUtils.isBlank(name)) name = incoming.orEmpty()
+            "cover" -> if (StringUtils.isBlank(cover)) cover = incoming.orEmpty()
+            "plot" -> if (StringUtils.isBlank(plot)) plot = incoming.orEmpty()
+            "cast" -> if (StringUtils.isBlank(cast)) cast = incoming.orEmpty()
+            "director" -> if (StringUtils.isBlank(director)) director = incoming.orEmpty()
+            "genre" -> if (StringUtils.isBlank(genre)) genre = incoming.orEmpty()
+            "releaseDate" -> if (StringUtils.isBlank(releaseDate)) releaseDate = incoming.orEmpty()
+            "rating" -> if (StringUtils.isBlank(rating)) rating = incoming.orEmpty()
+            "tmdb" -> if (StringUtils.isBlank(tmdb)) tmdb = incoming.orEmpty()
+            "imdbUrl" -> if (StringUtils.isBlank(imdbUrl)) imdbUrl = incoming.orEmpty()
+            "duration" -> if (StringUtils.isBlank(duration)) duration = incoming.orEmpty()
+        }
+    }
+
+    fun toDto(): VodInfoDto =
+        VodInfoDto(
+            name = name,
+            cover = cover,
+            plot = plot,
+            cast = cast,
+            director = director,
+            genre = genre,
+            releaseDate = releaseDate,
+            rating = rating,
+            tmdb = tmdb,
+            imdbUrl = imdbUrl,
+            duration = duration
+        )
+}
+
+private fun Any?.toJsonObject(): JsonObject =
+    when (this) {
+        is JsonObject -> this
+        null -> JsonObject(emptyMap())
+        else -> vodRouteJson.parseToJsonElement(toString()).jsonObject
+    }
+
+private fun JsonObject.stringField(key: String): String =
+    this[key]?.jsonPrimitive?.content ?: ""

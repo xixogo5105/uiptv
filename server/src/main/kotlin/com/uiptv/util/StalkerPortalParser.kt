@@ -73,7 +73,7 @@ class StalkerPortalParser(
                 if (hasExtraParams(currentAccount)) {
                     saveGroupedExtraParamAccount(currentAccount, groupedExtraAccounts, individualAccounts, createdAccounts, processedNames)
                 } else {
-                    saveGroupedAccount(currentAccount, groupedAccounts, createdAccounts, processedNames)
+            saveGroupedAccount(currentAccount, groupedAccounts, createdAccounts, processedNames)
                 }
             } else {
                 saveIndividualAccount(currentAccount, individualAccounts, createdAccounts, processedNames)
