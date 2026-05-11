@@ -5,8 +5,8 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
-import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.DbBackedTest;
+import com.uiptv.service.TestServiceFactory;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigurationDbCacheClearTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void clearCache_clearsOnlyTargetAccount_forAllCacheTablesIncludingVodAndSeries() throws Exception {
@@ -32,7 +33,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         seedAllCacheTables(first, "a");
         seedAllCacheTables(second, "b");
 
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         cacheService.clearCache(first);
 
         assertEquals(0, countRowsForAccount(DatabaseUtils.DbTable.CATEGORY_TABLE, first.getDbId()));
@@ -62,7 +63,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         seedAllCacheTables(first, "a");
         seedAllCacheTables(second, "b");
 
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         cacheService.clearAllCache();
 
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.CATEGORY_TABLE));
@@ -90,7 +91,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
                 account
         );
 
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         cacheService.clearCache(account);
 
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.CATEGORY_TABLE));

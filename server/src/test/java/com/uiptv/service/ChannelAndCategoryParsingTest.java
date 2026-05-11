@@ -14,6 +14,7 @@ import static com.uiptv.model.Account.AccountAction.series;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ChannelAndCategoryParsingTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void getChannelOrSeriesParams_forSeries_setsSeriesSpecificFields() {
@@ -43,7 +44,7 @@ class ChannelAndCategoryParsingTest {
                 }
                 """;
 
-        Pagination pagination = new ChannelService().parsePagination(json, null);
+        Pagination pagination = services.channelService().parsePagination(json, null);
 
         assertNotNull(pagination);
         assertEquals(120, pagination.getMaxPageItems());
@@ -62,7 +63,7 @@ class ChannelAndCategoryParsingTest {
                 }
                 """;
 
-        Pagination pagination = new ChannelService().parsePagination(json, null);
+        Pagination pagination = services.channelService().parsePagination(json, null);
 
         assertNotNull(pagination);
         assertEquals(10, pagination.getMaxPageItems());
@@ -95,7 +96,7 @@ class ChannelAndCategoryParsingTest {
                 }
                 """;
 
-        List<Channel> channels = new ChannelService().parseItvChannels(json, false);
+        List<Channel> channels = services.channelService().parseItvChannels(json, false);
 
         assertEquals(1, channels.size());
         Channel channel = channels.get(0);
@@ -128,7 +129,7 @@ class ChannelAndCategoryParsingTest {
                 }
                 """;
 
-        List<Channel> channels = new ChannelService().parseVodChannels(account, json, false);
+        List<Channel> channels = services.channelService().parseVodChannels(account, json, false);
 
         assertEquals(2, channels.size());
         assertEquals("My Show - Episode 1", channels.get(0).getName());
@@ -160,7 +161,7 @@ class ChannelAndCategoryParsingTest {
                 }
                 """;
 
-        List<Category> categories = new CategoryService().parseCategories(json, false);
+        List<Category> categories = services.categoryService().parseCategories(json, false);
 
         assertEquals(2, categories.size());
         assertEquals("1", categories.get(0).getCategoryId());

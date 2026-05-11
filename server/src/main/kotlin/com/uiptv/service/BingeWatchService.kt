@@ -18,8 +18,6 @@ class BingeWatchService(
     private val seriesWatchStateService: SeriesWatchStateService,
     private val playerService: PlayerService
 ) {
-    constructor() : this(AccountService, SeriesWatchStateService, PlayerService.INSTANCE)
-
     private val sessions = ConcurrentHashMap<String, Session>()
 
     fun createSession(

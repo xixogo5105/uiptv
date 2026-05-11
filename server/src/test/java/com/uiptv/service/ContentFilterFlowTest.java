@@ -13,13 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ContentFilterFlowTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void parseItvChannels_fromJsonFile_censorTrue_keepsCensoredItemsForParentalLockGate() throws IOException {
         saveConfiguration("", "premium", false);
         String json = readResource("json/itv_channels_filter_case.json");
 
-        List<Channel> channels = new ChannelService().parseItvChannels(json, true);
+        List<Channel> channels = services.channelService().parseItvChannels(json, true);
 
         assertEquals(2, channels.size());
         assertEquals(List.of("Sports Live", "Kids Plus"),
@@ -31,7 +32,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("", "premium", false);
         String json = readResource("json/itv_channels_filter_case.json");
 
-        List<Channel> channels = new ChannelService().parseItvChannels(json, false);
+        List<Channel> channels = services.channelService().parseItvChannels(json, false);
 
         assertEquals(3, channels.size());
     }
@@ -41,7 +42,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("premium", "", false);
         String json = readResource("json/categories_filter_case.json");
 
-        List<Category> categories = new CategoryService().parseCategories(json, true);
+        List<Category> categories = services.categoryService().parseCategories(json, true);
 
         assertEquals(2, categories.size());
         assertEquals(List.of("Sports", "Documentary"),
@@ -53,7 +54,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("premium", "", true);
         String json = readResource("json/categories_filter_case.json");
 
-        List<Category> categories = new CategoryService().parseCategories(json, true);
+        List<Category> categories = services.categoryService().parseCategories(json, true);
 
         assertEquals(3, categories.size());
     }

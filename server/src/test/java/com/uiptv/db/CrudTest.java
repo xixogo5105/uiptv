@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CrudTest extends DbBackedTest {
     private static final Logger log = LoggerFactory.getLogger(CrudTest.class);
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void testAccountCrud() {
@@ -135,7 +136,7 @@ class CrudTest extends DbBackedTest {
         assertEquals("Player Test Channel", savedChannel.getName());
 
         // 5. Test PlayerService with the data from the database
-        PlayerService playerService = new PlayerService();
+        PlayerService playerService = services.playerService();
         PlayerResponse response = playerService.get(savedAccount, savedChannel);
 
         // 6. Assert the URL is processed correctly
@@ -151,7 +152,7 @@ class CrudTest extends DbBackedTest {
     void testGlobalCacheClear() {
         log.info("Testing Global Cache Clear...");
         AccountService accountService = AccountService.INSTANCE;
-        CacheServiceImpl cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
 
         // 1. Create Account
         Account account = new Account("FlowAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);

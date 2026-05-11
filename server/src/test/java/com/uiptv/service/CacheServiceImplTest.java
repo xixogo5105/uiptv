@@ -25,13 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CacheServiceImplTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void reloadCache_m3u8Local_ignoresFiltering_whenPauseFilteringFalse() throws IOException {
         saveConfiguration("live", "premium", false);
         Account account = createM3uAccount("acc-cache-1", writePlaylist("cache-playlist-1.m3u"));
 
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         cacheService.reloadCache(account, m -> {
         });
 
@@ -49,7 +50,7 @@ class CacheServiceImplTest extends DbBackedTest {
         saveConfiguration("live", "premium", true);
         Account account = createM3uAccount("acc-cache-2", writePlaylist("cache-playlist-2.m3u"));
 
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         cacheService.reloadCache(account, m -> {
         });
 
@@ -90,7 +91,7 @@ class CacheServiceImplTest extends DbBackedTest {
     void reloadCache_m3u8Local_uncategorizedOnly_savesOnlyAllCategory_andKeepsAllChannels() throws IOException {
         Account account = createM3uAccount("acc-uncategorized-only", writeUncategorizedOnlyPlaylist("cache-playlist-uncategorized-only.m3u"));
 
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         cacheService.reloadCache(account, m -> {
         });
 
@@ -101,7 +102,7 @@ class CacheServiceImplTest extends DbBackedTest {
         int channelCount = ChannelDb.get().getChannelCountForAccount(account.getDbId());
         assertEquals(3, channelCount);
 
-        List<Channel> allChannels = new ChannelService().get("All", account, categories.get(0).getDbId());
+        List<Channel> allChannels = services.channelService().get("All", account, categories.get(0).getDbId());
         assertEquals(3, allChannels.size(), "All category should still expose every playlist item");
     }
 
@@ -127,7 +128,7 @@ class CacheServiceImplTest extends DbBackedTest {
                 account
         );
 
-        List<Channel> channels = new ChannelService().get(CategoryType.ALL.displayName(), account, allCategory.getDbId());
+        List<Channel> channels = services.channelService().get(CategoryType.ALL.displayName(), account, allCategory.getDbId());
         assertEquals(1, channels.size(), "All category should include channels stored under legacy Uncategorized rows");
         assertEquals("Legacy Channel", channels.get(0).getName());
     }
@@ -183,7 +184,7 @@ class CacheServiceImplTest extends DbBackedTest {
 
     @Test
     void verifyMacAddress_returnsFalse_whenAccountIsNull() {
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         assertFalse(cacheService.verifyMacAddress(null, "00:11:22:33:44:99"));
     }
 

@@ -18,8 +18,6 @@ class SeriesEpisodeService(
     private val channelService: ChannelService,
     private val configurationService: ConfigurationService
 ) {
-    constructor() : this(ChannelService.INSTANCE, ConfigurationService)
-
     fun getEpisodes(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {
             return EpisodeList()

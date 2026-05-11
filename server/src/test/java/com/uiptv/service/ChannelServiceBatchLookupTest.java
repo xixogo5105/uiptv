@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChannelServiceBatchLookupTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @Test
     void getChannelsByChannelIdsAndAccount_returnsOnlyRequestedChannelsForAccount() {
@@ -46,7 +47,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
 
         ChannelDb.get().saveAll(List.of(first, second, third), storedCategory.getDbId(), saved);
 
-        List<Channel> channels = new ChannelService().getChannelsByChannelIdsAndAccount(List.of("one", "three", "missing"), saved.getDbId());
+        List<Channel> channels = services.channelService().getChannelsByChannelIdsAndAccount(List.of("one", "three", "missing"), saved.getDbId());
 
         assertEquals(2, channels.size());
         assertTrue(channels.stream().anyMatch(channel -> "one".equals(channel.getChannelId())));
@@ -77,7 +78,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
 
         ChannelDb.get().saveAll(List.of(first, second), storedCategory.getDbId(), saved);
 
-        List<Channel> channels = new ChannelService()
+        List<Channel> channels = services.channelService()
                 .getChannelsByChannelIdsAndAccount(List.of("dup", "dup", "other", "dup"), saved.getDbId());
 
         assertEquals(2, channels.size());
@@ -87,11 +88,11 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
 
     @Test
     void getChannelsByChannelIdsAndAccount_returnsEmptyForNullBlankOrMissingInput() {
-        assertNotNull(new ChannelService().getChannelsByChannelIdsAndAccount(null, "account-id"));
-        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(null, "account-id").isEmpty());
-        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(List.of(), "account-id").isEmpty());
-        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(Arrays.asList(" ", "", null), "account-id").isEmpty());
-        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(List.of("one"), "").isEmpty());
-        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(List.of("one"), null).isEmpty());
+        assertNotNull(services.channelService().getChannelsByChannelIdsAndAccount(null, "account-id"));
+        assertTrue(services.channelService().getChannelsByChannelIdsAndAccount(null, "account-id").isEmpty());
+        assertTrue(services.channelService().getChannelsByChannelIdsAndAccount(List.of(), "account-id").isEmpty());
+        assertTrue(services.channelService().getChannelsByChannelIdsAndAccount(Arrays.asList(" ", "", null), "account-id").isEmpty());
+        assertTrue(services.channelService().getChannelsByChannelIdsAndAccount(List.of("one"), "").isEmpty());
+        assertTrue(services.channelService().getChannelsByChannelIdsAndAccount(List.of("one"), null).isEmpty());
     }
 }

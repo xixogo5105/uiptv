@@ -53,6 +53,7 @@ import static com.uiptv.model.Account.AccountAction.vod;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EndToEndIntegrationFlowTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     private HttpServer mockServer;
     private String baseUrl;
@@ -173,7 +174,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     void endToEnd_allAccountTypes_configurationParseCachePlayAndClear() throws Exception {
         ConfigurationService configurationService = ConfigurationService.INSTANCE;
         AccountService accountService = AccountService.INSTANCE;
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class)) {
@@ -395,26 +396,26 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         Account drmAccount = accountService.getByName("m3u-seed-1");
         drmAccount.setAction(itv);
         List<Channel> m3uChannels = allLiveChannels(drmAccount);
-        Channel drmChannel = m3uChannels.stream().filter(ch -> new PlayerService().isDrmProtected(ch)).findFirst().orElse(null);
+        Channel drmChannel = m3uChannels.stream().filter(ch -> services.playerService().isDrmProtected(ch)).findFirst().orElse(null);
         assertNotNull(drmChannel, "Expected at least one DRM-protected M3U channel");
         assertEquals("org.w3.clearkey", drmChannel.getDrmType());
         assertNotNull(drmChannel.getClearKeysJson());
 
-        PlayerResponse drmPlay = new PlayerService().get(drmAccount, drmChannel);
+        PlayerResponse drmPlay = services.playerService().get(drmAccount, drmChannel);
         assertNotNull(drmPlay.getUrl());
-        assertTrue(new PlayerService().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("launch="));
+        assertTrue(services.playerService().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("launch="));
 
         Account stalkerPlayAccount = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalkerPlayAccount.setAction(itv);
         Channel stalkerLiveChannel = allLiveChannels(stalkerPlayAccount).get(0);
-        PlayerResponse stalkerPlay = new PlayerService().get(stalkerPlayAccount, stalkerLiveChannel);
+        PlayerResponse stalkerPlay = services.playerService().get(stalkerPlayAccount, stalkerLiveChannel);
         assertTrue(stalkerPlay.getUrl().contains("stream=1001") || stalkerPlay.getUrl().contains("stream=2001"));
         assertTrue(stalkerPlay.getUrl().contains("play_token="));
 
         Account xtremePlayAccount = getAccountsByType(AccountType.XTREME_API).get(0);
         xtremePlayAccount.setAction(itv);
         Channel xtremeChannel = allLiveChannels(xtremePlayAccount).get(0);
-        PlayerResponse xtremePlay = new PlayerService().get(xtremePlayAccount, xtremeChannel);
+        PlayerResponse xtremePlay = services.playerService().get(xtremePlayAccount, xtremeChannel);
         assertTrue(xtremePlay.getUrl().contains("/xtreme/"));
 
         bookmarkService.addCategory(new BookmarkCategory(null, "E2E Favorites"));
@@ -443,7 +444,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         Bookmark persistedBookmark = bookmarkService.getBookmark(playBookmark);
         assertNotNull(persistedBookmark);
-        PlayerResponse bookmarkPlay = new PlayerService().get(
+        PlayerResponse bookmarkPlay = services.playerService().get(
                 stalkerPlayAccount,
                 Channel.fromJson(persistedBookmark.getChannelJson()),
                 persistedBookmark.getChannelId()
@@ -565,12 +566,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         account.setAction(vod);
         AccountService.INSTANCE.save(account);
 
-        List<Category> vodCategories = new CategoryService().get(account, false);
+        List<Category> vodCategories = services.categoryService().get(account, false);
         assertTrue(vodCategories.size() >= 2, "Expected at least 2 VOD categories for " + account.getAccountName());
 
         int totalVodChannels = 0;
         for (Category category : vodCategories) {
-            List<Channel> channels = new ChannelService().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
+            List<Channel> channels = services.channelService().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
             assertTrue(channels.size() >= 2, "Expected at least 2 VOD channels in category " + category.getTitle());
             totalVodChannels += channels.size();
         }
@@ -586,12 +587,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         account.setAction(series);
         AccountService.INSTANCE.save(account);
 
-        List<Category> seriesCategories = new CategoryService().get(account, false);
+        List<Category> seriesCategories = services.categoryService().get(account, false);
         assertTrue(seriesCategories.size() >= 2, "Expected at least 2 series categories for " + account.getAccountName());
 
         int totalSeriesChannels = 0;
         for (Category category : seriesCategories) {
-            List<Channel> channels = new ChannelService().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
+            List<Channel> channels = services.channelService().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
             assertTrue(channels.size() >= 1, "Expected series entries in category " + category.getTitle());
             totalSeriesChannels += channels.size();
 
@@ -611,18 +612,18 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         AccountService.INSTANCE.save(stalker);
 
         List<String> categoryLogs = new ArrayList<>();
-        List<Category> vodCategories = new CategoryService().get(stalker, false, categoryLogs::add);
+        List<Category> vodCategories = services.categoryService().get(stalker, false, categoryLogs::add);
         assertFalse(vodCategories.isEmpty());
 
         List<String> categoryLogsSecondCall = new ArrayList<>();
-        List<Category> cachedVodCategories = new CategoryService().get(stalker, false, categoryLogsSecondCall::add);
+        List<Category> cachedVodCategories = services.categoryService().get(stalker, false, categoryLogsSecondCall::add);
         assertEquals(vodCategories.size(), cachedVodCategories.size());
         assertTrue(categoryLogsSecondCall.stream().anyMatch(m -> m.contains("Loaded categories from local cache.")),
                 "Expected VOD category cache-hit log on second call");
 
         Category firstVodCategory = cachedVodCategories.get(0);
         List<String> channelLogsSecondCall = new ArrayList<>();
-        List<Channel> cachedVodChannels = new ChannelService().get(
+        List<Channel> cachedVodChannels = services.channelService().get(
                 firstVodCategory.getCategoryId(),
                 stalker,
                 firstVodCategory.getDbId(),
@@ -638,7 +639,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         stalker.setAction(itv);
         AccountService.INSTANCE.save(stalker);
         List<String> logs = new ArrayList<>();
-        List<Channel> channels = new ChannelService().getStalkerPortalChOrSeries(
+        List<Channel> channels = services.channelService().getStalkerPortalChOrSeries(
                 "99",
                 stalker,
                 null,
@@ -660,7 +661,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         AtomicInteger callbackHits = new AtomicInteger();
         List<String> logs = new ArrayList<>();
-        List<Channel> channels = new ChannelService().get(
+        List<Channel> channels = services.channelService().get(
                 "777",
                 stalker,
                 "cancel-test-category",
@@ -718,7 +719,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         Category allCategory = categories.get(0);
         assertEquals(CategoryType.ALL.displayName(), allCategory.getTitle());
 
-        List<Channel> channels = new ChannelService().get(CategoryType.ALL.displayName(), uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
+        List<Channel> channels = services.channelService().get(CategoryType.ALL.displayName(), uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
         assertEquals(3, channels.size(), "All category should preserve all channels from uncategorized-only playlist");
         assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
                 channels.stream().map(Channel::getName).collect(Collectors.toSet()));
@@ -762,7 +763,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         playbackChannel.setCmd(restored.getCmd());
         playbackChannel.setName(restored.getTitle());
 
-        PlayerResponse response = new PlayerService().get(stalker, playbackChannel, persisted.getChannelId());
+        PlayerResponse response = services.playerService().get(stalker, playbackChannel, persisted.getChannelId());
         assertNotNull(response.getUrl());
         assertTrue(response.getUrl().contains("stream="));
     }
@@ -777,19 +778,19 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         String seriesId = "series-e2e-pointer";
         SeriesWatchStateService.INSTANCE.clearSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
 
-        new PlayerService().get(localPlaybackAccount, buildPlayableEpisode("ep-2", "Episode 2", "1", "2"), "ep-2", seriesId);
+        services.playerService().get(localPlaybackAccount, buildPlayableEpisode("ep-2", "Episode 2", "1", "2"), "ep-2", seriesId);
         SeriesWatchState afterEpisode2 = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
         assertNotNull(afterEpisode2);
         assertEquals("ep-2", afterEpisode2.getEpisodeId());
         assertEquals(2, afterEpisode2.getEpisodeNum());
 
-        new PlayerService().get(localPlaybackAccount, buildPlayableEpisode("ep-1", "Episode 1", "1", "1"), "ep-1", seriesId);
+        services.playerService().get(localPlaybackAccount, buildPlayableEpisode("ep-1", "Episode 1", "1", "1"), "ep-1", seriesId);
         SeriesWatchState afterEpisode1 = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
         assertNotNull(afterEpisode1);
         assertEquals("ep-2", afterEpisode1.getEpisodeId());
         assertEquals(2, afterEpisode1.getEpisodeNum());
 
-        new PlayerService().get(localPlaybackAccount, buildPlayableEpisode("ep-3", "Episode 3", "1", "3"), "ep-3", seriesId);
+        services.playerService().get(localPlaybackAccount, buildPlayableEpisode("ep-3", "Episode 3", "1", "3"), "ep-3", seriesId);
         SeriesWatchState afterEpisode3 = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
         assertNotNull(afterEpisode3);
         assertEquals("ep-3", afterEpisode3.getEpisodeId());

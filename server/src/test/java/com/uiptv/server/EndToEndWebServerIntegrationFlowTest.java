@@ -25,6 +25,7 @@ import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.service.TestServiceFactory;
 import com.uiptv.service.remotesync.DefaultRemoteSyncUiBridge;
 import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.util.AccountType;
@@ -70,6 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
     private static final String WEB_M3U_UNCATEGORIZED_ONLY = "web-m3u-uncat-url";
     private static final int UNCATEGORIZED_ONLY_CHANNEL_COUNT = 3;
 
@@ -293,7 +295,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void warmUpCacheAndData() throws IOException {
-        CacheService cacheService = new CacheServiceImpl();
+        CacheService cacheService = services.cacheService();
         AccountService accountService = AccountService.INSTANCE;
 
         Account stalker = accountService.getByName("web-stalker");
@@ -303,18 +305,18 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         stalker.setAction(vod);
         accountService.save(stalker);
-        new CategoryService().get(stalker, false);
+        services.categoryService().get(stalker, false);
         List<Category> stalkerVodCats = VodCategoryDb.get().getCategories(stalker);
         for (Category c : stalkerVodCats) {
-            new ChannelService().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
+            services.channelService().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
         }
 
         stalker.setAction(series);
         accountService.save(stalker);
-        new CategoryService().get(stalker, false);
+        services.categoryService().get(stalker, false);
         List<Category> stalkerSeriesCats = SeriesCategoryDb.get().getCategories(stalker);
         for (Category c : stalkerSeriesCats) {
-            new ChannelService().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
+            services.channelService().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
         }
 
         Account xtreme = accountService.getByName("web-xtreme");
@@ -324,18 +326,18 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         xtreme.setAction(vod);
         accountService.save(xtreme);
-        new CategoryService().get(xtreme, false);
+        services.categoryService().get(xtreme, false);
         List<Category> xtremeVodCats = VodCategoryDb.get().getCategories(xtreme);
         for (Category c : xtremeVodCats) {
-            new ChannelService().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
+            services.channelService().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
         }
 
         xtreme.setAction(series);
         accountService.save(xtreme);
-        new CategoryService().get(xtreme, false);
+        services.categoryService().get(xtreme, false);
         List<Category> xtremeSeriesCats = SeriesCategoryDb.get().getCategories(xtreme);
         for (Category c : xtremeSeriesCats) {
-            new ChannelService().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
+            services.channelService().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
         }
 
         for (String name : List.of("web-m3u-local", "web-m3u-url", WEB_M3U_UNCATEGORIZED_ONLY, "web-rss")) {
@@ -827,7 +829,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         for (Category c : m3uCats) {
             List<Channel> channels = ChannelDb.get().getChannels(c.getDbId());
             for (Channel ch : channels) {
-                if (new PlayerService().isDrmProtected(ch)) {
+                if (services.playerService().isDrmProtected(ch)) {
                     drmChannel = ch;
                     break;
                 }

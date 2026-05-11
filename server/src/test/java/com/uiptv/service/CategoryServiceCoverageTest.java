@@ -21,25 +21,26 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CategoryServiceCoverageTest extends DbBackedTest {
+    private final TestServiceFactory services = TestServiceFactory.create();
 
     @TempDir
     Path tempPath;
 
     @Test
     void getCached_readsAppropriateBackingStore() {
-        assertTrue(new CategoryService().getCached(null).isEmpty());
+        assertTrue(services.categoryService().getCached(null).isEmpty());
 
         Account itv = persistAccount("cached-itv", Account.AccountAction.itv, AccountType.XTREME_API, null);
         CategoryDb.get().saveAll(List.of(new Category("1", "News", "news", false, 0)), itv);
-        assertEquals(1, new CategoryService().getCached(itv).size());
+        assertEquals(1, services.categoryService().getCached(itv).size());
 
         Account vod = persistAccount("cached-vod", Account.AccountAction.vod, AccountType.XTREME_API, null);
         VodCategoryDb.get().saveAll(List.of(new Category("2", "Movies", "movies", false, 0)), vod);
-        assertEquals(1, new CategoryService().getCached(vod).size());
+        assertEquals(1, services.categoryService().getCached(vod).size());
 
         Account series = persistAccount("cached-series", Account.AccountAction.series, AccountType.XTREME_API, null);
         SeriesCategoryDb.get().saveAll(List.of(new Category("3", "Shows", "shows", false, 0)), series);
-        assertEquals(1, new CategoryService().getCached(series).size());
+        assertEquals(1, services.categoryService().getCached(series).size());
     }
 
     @Test
@@ -47,7 +48,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         Account account = persistAccount("fresh-vod-cache", Account.AccountAction.vod, AccountType.XTREME_API, null);
         VodCategoryDb.get().saveAll(List.of(new Category("vod-1", "Movies", "movies", false, 0)), account);
 
-        List<Category> categories = new CategoryService().get(account, false, null);
+        List<Category> categories = services.categoryService().get(account, false, null);
 
         assertEquals(1, categories.size());
         assertEquals("Movies", categories.get(0).getTitle());
@@ -61,7 +62,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseCategories(account)).thenReturn(remote);
 
-            List<Category> categories = new CategoryService().get(account, false, null);
+            List<Category> categories = services.categoryService().get(account, false, null);
 
             assertEquals(1, categories.size());
             assertEquals("Cinema", categories.get(0).getTitle());
@@ -75,8 +76,8 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         Account account = persistAccount("series-category-cache", Account.AccountAction.series, AccountType.XTREME_API, null);
         SeriesCategoryDb.get().saveAll(List.of(new Category("series-1", "Shows", "shows", false, 0)), account);
 
-        List<Category> categories = new CategoryService().get(account, false, null);
-        String json = new CategoryService().readToJson(account);
+        List<Category> categories = services.categoryService().get(account, false, null);
+        String json = services.categoryService().readToJson(account);
 
         assertEquals(1, categories.size());
         assertTrue(json.contains("Shows"));
@@ -95,7 +96,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
 
         Account account = persistAccount("m3u-local", Account.AccountAction.itv, AccountType.M3U8_LOCAL, playlist.toString());
 
-        List<Category> categories = new CategoryService().get(account, false, null);
+        List<Category> categories = services.categoryService().get(account, false, null);
 
         assertTrue(categories.size() >= 2);
         assertFalse(CategoryDb.get().getCategories(account).isEmpty());
