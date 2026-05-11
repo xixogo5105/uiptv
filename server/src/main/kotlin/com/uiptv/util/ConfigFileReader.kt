@@ -10,11 +10,6 @@ object ConfigFileReader {
     private const val CONFIG_PATH_ENV = "UIPTV_CONFIG_PATH"
 
     @JvmStatic
-    fun getDbPathFromConfigFile(): String? {
-        return readProperty("db.path")
-    }
-
-    @JvmStatic
     fun readProperty(key: String): String? {
         val properties = Properties()
         return try {

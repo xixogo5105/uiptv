@@ -6,17 +6,19 @@ import java.nio.file.Path
 import java.sql.Connection
 
 internal object DatabaseMigrationRunner {
+    private const val BASELINE_MIGRATION = "0000_baseline.sql"
+    private const val CURRENT_SCHEMA_VERSION = "0197"
+    private const val FLYWAY_HISTORY_TABLE = "flyway_schema_history"
+
     fun migrate(
         dbPath: String,
-        currentSchemaVersion: String,
-        baselineMigration: String,
         openConnection: () -> Connection
     ) {
         openConnection().use { connection ->
             val plan = DatabaseMigrationCompatibility.determineMigrationPlan(
                 connection = connection,
-                currentSchemaVersion = currentSchemaVersion,
-                baselineMigration = baselineMigration,
+                currentSchemaVersion = CURRENT_SCHEMA_VERSION,
+                baselineMigration = BASELINE_MIGRATION,
                 readAllMigrationNames = DatabaseMigrationResources::readMigrationNames
             )
             if (plan.baselineVersion != null) {
@@ -32,7 +34,7 @@ internal object DatabaseMigrationRunner {
     private fun loadFlyway(dbPath: String, migrationDirectory: Path): Flyway =
         Flyway.configure()
             .dataSource("jdbc:sqlite:$dbPath", null, null)
-            .table("flyway_schema_history")
+            .table(FLYWAY_HISTORY_TABLE)
             .locations("filesystem:${migrationDirectory.toAbsolutePath()}")
             .cleanDisabled(true)
             .baselineOnMigrate(false)
@@ -41,7 +43,7 @@ internal object DatabaseMigrationRunner {
     private fun baselineExistingSchema(dbPath: String, version: String, description: String) {
         Flyway.configure()
             .dataSource("jdbc:sqlite:$dbPath", null, null)
-            .table("flyway_schema_history")
+            .table(FLYWAY_HISTORY_TABLE)
             .baselineVersion(MigrationVersion.fromVersion(version))
             .baselineDescription(description)
             .load()
