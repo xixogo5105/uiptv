@@ -11,7 +11,6 @@ import com.uiptv.shared.PlaylistEntry
 import com.uiptv.util.AccountType
 import com.uiptv.util.AppLog
 import com.uiptv.util.FetchAPI
-import com.uiptv.util.koinOrNull
 import com.uiptv.util.RssParser
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.XtremeApiParser
@@ -30,7 +29,7 @@ import com.uiptv.model.Account.AccountAction.vod
 class CategoryService @JvmOverloads constructor(
     private val contentFilterService: ContentFilterService = ContentFilterService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
+    private val handshakeService: HandshakeService = HandshakeService()
 ) {
 
     fun get(account: Account): List<Category> = get(account, true)

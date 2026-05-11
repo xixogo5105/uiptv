@@ -14,7 +14,6 @@ import com.uiptv.service.HandshakeService
 import com.uiptv.shared.Pagination
 import com.uiptv.util.FetchAPI
 import com.uiptv.util.StringUtils
-import com.uiptv.util.koinOrNull
 import java.util.Collections
 import java.util.LinkedHashMap
 import com.uiptv.model.Account.AccountAction.itv
@@ -22,9 +21,9 @@ import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
 class StalkerPortalCacheReloader @JvmOverloads constructor(
-    private val handshakeServiceProvider: () -> HandshakeService = { koinOrNull<HandshakeService>() ?: HandshakeService() },
-    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() },
-    categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
+    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService() },
+    private val channelServiceProvider: () -> ChannelService = { ChannelService() },
+    categoryServiceProvider: () -> CategoryService = { CategoryService() },
     configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
     private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {

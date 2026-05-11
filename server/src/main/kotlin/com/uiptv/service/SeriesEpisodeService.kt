@@ -10,7 +10,6 @@ import com.uiptv.util.AccountType.STALKER_PORTAL
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.XtremeApiParser
-import com.uiptv.util.koinOrNull
 import java.util.ArrayList
 import java.util.function.Supplier
 import java.util.regex.Pattern
@@ -99,14 +98,14 @@ object SeriesEpisodeService {
         return EpisodeList()
     }
 
-    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: (koinOrNull<ChannelService>() ?: ChannelService())
+    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: ChannelService()
 
     private fun loadFromDbCache(account: Account, categoryId: String, seriesId: String): EpisodeList? {
         val cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId)
         if (cachedChannels.isNullOrEmpty()) {
             return loadFromAnyCategoryCache(account, seriesId)
         }
-        val configurationService = koinOrNull<ConfigurationService>() ?: ConfigurationService
+        val configurationService = ConfigurationService
         if (!SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, configurationService.getCacheExpiryMs())) {
             return loadFromAnyCategoryCache(account, seriesId)
         }

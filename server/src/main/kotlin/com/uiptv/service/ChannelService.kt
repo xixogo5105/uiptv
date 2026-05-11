@@ -16,7 +16,6 @@ import com.uiptv.util.AppLog
 import com.uiptv.util.FetchAPI
 import com.uiptv.util.FetchAPI.nullSafeInteger
 import com.uiptv.util.FetchAPI.nullSafeString
-import com.uiptv.util.koinOrNull
 import com.uiptv.util.RssParser
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.StringUtils
@@ -42,11 +41,11 @@ import java.util.function.Consumer
 import java.util.function.Supplier
 
 class ChannelService @JvmOverloads constructor(
-    private val cacheService: CacheService = koinOrNull<CacheService>() ?: CacheServiceImpl(),
+    private val cacheService: CacheService = CacheServiceImpl(),
     private val contentFilterService: ContentFilterService = ContentFilterService,
     private val logoResolverService: LogoResolverService = LogoResolverService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
+    private val handshakeService: HandshakeService = HandshakeService()
 ) {
 
     @Throws(IOException::class)

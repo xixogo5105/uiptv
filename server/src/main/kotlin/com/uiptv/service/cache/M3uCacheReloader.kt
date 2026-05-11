@@ -12,7 +12,6 @@ import com.uiptv.service.ConfigurationService
 import com.uiptv.shared.PlaylistEntry
 import com.uiptv.util.AccountType
 import com.uiptv.util.StringUtils
-import com.uiptv.util.koinOrNull
 import java.net.MalformedURLException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -23,7 +22,7 @@ import java.util.LinkedHashSet
 import com.uiptv.model.CategoryType.ALL
 
 open class M3uCacheReloader @JvmOverloads constructor(
-    categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
+    categoryServiceProvider: () -> CategoryService = { CategoryService() },
     configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {

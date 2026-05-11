@@ -6,11 +6,10 @@ import com.uiptv.model.Channel
 import com.uiptv.shared.Episode
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import com.uiptv.util.koinOrNull
 
 class BookmarkResolver(
     private val accountServiceProvider: () -> AccountService = { AccountService },
-    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() }
+    private val channelServiceProvider: () -> ChannelService = { ChannelService() }
 ) {
     fun prepare(bookmarks: List<Bookmark>?): ResolutionContext {
         val accountByName = accountServiceProvider.invoke().getAll()
