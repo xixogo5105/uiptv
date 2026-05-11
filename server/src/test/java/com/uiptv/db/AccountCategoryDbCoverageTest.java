@@ -58,7 +58,7 @@ class AccountCategoryDbCoverageTest extends DbBackedTest {
         accountDb.saveServerPortalUrl(unsaved);
         assertNull(accountDb.getAccountByName("unsaved"));
 
-        try (Connection conn = SQLConnection.connect();
+        try (Connection conn = SqlConnectionRuntime.connect();
              PreparedStatement ps = conn.prepareStatement(
                      "INSERT INTO Account (accountName, username, password, url, macAddress, macAddressList, serialNumber, deviceId1, "
                              + "deviceId2, signature, epg, m3u8Path, type, serverPortalUrl, pinToTop, resolveChainAndDeepRedirects, httpMethod, timezone) "

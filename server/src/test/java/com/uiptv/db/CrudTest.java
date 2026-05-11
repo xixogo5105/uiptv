@@ -20,7 +20,7 @@ class CrudTest extends DbBackedTest {
     @Test
     void testAccountCrud() {
         log.info("Testing Account CRUD...");
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
 
         // Create
         Account account = new Account("TestAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
@@ -53,7 +53,7 @@ class CrudTest extends DbBackedTest {
     @Test
     void testAccountDefaultValues() {
         log.info("Testing Account Default Values...");
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
 
         // Create account without setting httpMethod and timezone
         Account account = new Account("DefaultValueAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.STALKER_PORTAL, null, null, false);
@@ -72,7 +72,7 @@ class CrudTest extends DbBackedTest {
     @Test
     void testCategoryCrud() {
         log.info("Testing Category CRUD...");
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         
         // Setup Account
         Account account = new Account("CatTestAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
@@ -104,7 +104,7 @@ class CrudTest extends DbBackedTest {
     @Test
     void testChannelCrudAndPlayerService() throws IOException {
         log.info("Testing Channel CRUD and PlayerService...");
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         
         // 1. Setup Account
         Account account = new Account("PlayerTestAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
@@ -135,7 +135,7 @@ class CrudTest extends DbBackedTest {
         assertEquals("Player Test Channel", savedChannel.getName());
 
         // 5. Test PlayerService with the data from the database
-        PlayerService playerService = PlayerService.getInstance();
+        PlayerService playerService = new PlayerService();
         PlayerResponse response = playerService.get(savedAccount, savedChannel);
 
         // 6. Assert the URL is processed correctly
@@ -150,7 +150,7 @@ class CrudTest extends DbBackedTest {
     @Test
     void testGlobalCacheClear() {
         log.info("Testing Global Cache Clear...");
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         CacheServiceImpl cacheService = new CacheServiceImpl();
 
         // 1. Create Account
@@ -193,8 +193,8 @@ class CrudTest extends DbBackedTest {
     @Test
     void testBookmarkCrud() {
         log.info("Testing Bookmark CRUD...");
-        BookmarkService bookmarkService = BookmarkService.getInstance();
-        AccountService accountService = AccountService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
+        AccountService accountService = AccountService.INSTANCE;
 
         // 1. Setup Account
         Account account = new Account("BookmarkAccount", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
@@ -250,7 +250,7 @@ class CrudTest extends DbBackedTest {
     @Test
     void testConfigurationCrud() {
         log.info("Testing Configuration CRUD...");
-        ConfigurationService configService = ConfigurationService.getInstance();
+        ConfigurationService configService = ConfigurationService.INSTANCE;
 
         // 1. Create/Update Configuration
         Configuration config = new Configuration("path1", "path2", "path3", "default", "catFilter", "chanFilter", true, true, "8080", false, false);

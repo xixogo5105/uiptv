@@ -66,13 +66,13 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final String seriesId;
     protected final String seriesCategoryId;
     protected final EpisodeList channelList;
-    protected final BookmarkService bookmarkService = BookmarkService.getInstance();
-    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
-    protected final BingeWatchService bingeWatchService = BingeWatchService.getInstance();
-    protected final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.getInstance();
-    protected final ConfigurationService configurationService = ConfigurationService.getInstance();
-    protected final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.getInstance();
-    protected final ImdbMetadataService imdbMetadataService = ImdbMetadataService.getInstance();
+    protected final BookmarkService bookmarkService = BookmarkService.INSTANCE;
+    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
+    protected final BingeWatchService bingeWatchService = new BingeWatchService();
+    protected final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
+    protected final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    protected final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;
+    protected final ImdbMetadataService imdbMetadataService = ImdbMetadataService.INSTANCE;
 
     protected final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     protected final StackPane contentStack = new StackPane();

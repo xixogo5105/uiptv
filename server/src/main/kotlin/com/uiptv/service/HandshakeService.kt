@@ -568,8 +568,5 @@ class HandshakeService(
         private const val DATE_TIME_FULL_PATTERN = "MMMM d, yyyy, h:mm a"
         private const val DATE_TIME_ABBR_PATTERN = "MMM d, yyyy, h:mm a"
 
-        @JvmStatic
-        fun getInstance(): HandshakeService =
-            koinOrNull<HandshakeService>() ?: defaultInstance
     }
 }

@@ -35,7 +35,7 @@ class LitePlayerFfmpegServiceCoverageTest extends DbBackedTest {
     @Test
     void prepareDirectPlayback_normalizesExistingFilesAndManagedUrls() throws Exception {
         Path media = Files.writeString(tempDir.resolve("episode.ts"), "demo");
-        LitePlayerFfmpegService service = LitePlayerFfmpegService.getInstance();
+        LitePlayerFfmpegService service = new LitePlayerFfmpegService();
 
         LitePlayerFfmpegService.PreparedPlayback playback = service.prepareDirectPlayback(media.toString());
 
@@ -90,8 +90,8 @@ class LitePlayerFfmpegServiceCoverageTest extends DbBackedTest {
         List<String> liveCopy = FfmpegService.buildHlsCommand("http://example.test/live.ts", "http://127.0.0.1:8888/hls-upload/stream.m3u8", false);
         List<String> vodCopy = FfmpegService.buildHlsCommand("http://example.test/vod.ts", "http://127.0.0.1:8888/hls-upload/stream.m3u8", true);
 
-        assertTrue(FfmpegService.getInstance().isTransmuxingNeeded("http://example.test/live?extension=ts"));
-        assertFalse(FfmpegService.getInstance().isTransmuxingNeeded("http://example.test/live.m3u8"));
+        assertTrue(FfmpegService.INSTANCE.isTransmuxingNeeded("http://example.test/live?extension=ts"));
+        assertFalse(FfmpegService.INSTANCE.isTransmuxingNeeded("http://example.test/live.m3u8"));
         assertTrue(liveCopy.contains("delete_segments"));
         assertTrue(vodCopy.contains("event"));
         assertTrue(vodCopy.contains("+genpts"));

@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.uiptv.db.SQLConnection.connect;
+import static com.uiptv.db.SqlConnectionRuntime.connect;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -27,7 +27,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBookmarkServiceCrudAndJsonFlow() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
         assertEquals("[]", bookmarkService.readToJson());
@@ -75,7 +75,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBookmarkCategoryAndOrderingFlow() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
         BookmarkCategory newCategory = new BookmarkCategory(null, "My Favorites");
@@ -124,7 +124,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBookmarkChangeRevisionIncrementsOnMutations() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         long revisionStart = bookmarkService.getChangeRevision();
 
@@ -159,7 +159,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testUpdatingBookmarkDoesNotChangeGlobalOrder() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         Bookmark first = new Bookmark("acc-update", "Fav", "ch-1", "One", "cmd://1", "http://portal", "cat-a");
         Bookmark second = new Bookmark("acc-update", "Fav", "ch-2", "Two", "cmd://2", "http://portal", "cat-b");
@@ -181,7 +181,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBookmarkPaginationJsonAndDbPages() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
         BookmarkDb bookmarkDb = BookmarkDb.get();
 
         for (int i = 1; i <= 60; i++) {
@@ -216,7 +216,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testDeletingBookmarkRemovesItsOrderRows() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         Bookmark bookmark = new Bookmark("acc-delete-order", "Fav", "ch-1", "One", "cmd://1", "http://portal", "cat-a");
         bookmarkService.save(bookmark);
@@ -231,7 +231,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testGlobalOrderRemainsConsistentWhenCategoryViewsFilterIt() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         Bookmark a1 = new Bookmark("acc-global", "Fav", "ch-1", "A One", "cmd://1", "http://portal", "cat-a");
         Bookmark b1 = new Bookmark("acc-global", "Fav", "ch-2", "B One", "cmd://2", "http://portal", "cat-b");
@@ -361,7 +361,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBookmarkIdentityLookupSupportsAllCategoryViews() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         Bookmark sportsBookmark = new Bookmark("acc-all", "Sports", "ch-42", "The Channel", "cmd://42", "http://portal", "cat-sports");
         bookmarkService.save(sportsBookmark);
@@ -377,7 +377,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBatchSaveForSelectedChannelsAddsNewBookmarksAndUpdatesExistingCategoryInPlace() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         Channel firstChannel = channel("ch-1", "News One", "cmd://news-1");
         Channel secondChannel = channel("ch-2", "News Two", "cmd://news-2");
@@ -426,7 +426,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
 
     @Test
     void testBatchRemoveForSelectedChannelsDeletesOnlyExistingBookmarksFromSelection() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         String accountName = "acc-batch-remove";
         String sourceCategoryTitle = "Sports";

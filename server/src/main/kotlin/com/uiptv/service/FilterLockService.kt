@@ -23,8 +23,6 @@ object FilterLockService {
     private val unlockedUntilEpochMs = AtomicLong(0)
     private val unlockedHashSnapshot = AtomicReference("")
 
-    @JvmStatic
-    fun getInstance(): FilterLockService = this
     fun hasPasswordConfigured(): Boolean = !blank(currentHash())
     fun isUnlocked(): Boolean {
         val currentHash = currentHash()

@@ -2,7 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
 import com.uiptv.player.api.VideoPlayerInterface;
-import com.uiptv.db.SQLConnection;
+import com.uiptv.db.SqlConnectionRuntime;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
@@ -69,10 +69,10 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
-    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.getInstance();
-    private static final SeriesWatchStateService STATIC_SERIES_WATCH_STATE_SERVICE = SeriesWatchStateService.getInstance();
-    private static final SeriesWatchingNowSnapshotService STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE = SeriesWatchingNowSnapshotService.getInstance();
-    private static final VodWatchStateService STATIC_VOD_WATCH_STATE_SERVICE = VodWatchStateService.getInstance();
+    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.INSTANCE;
+    private static final SeriesWatchStateService STATIC_SERIES_WATCH_STATE_SERVICE = SeriesWatchStateService.INSTANCE;
+    private static final SeriesWatchingNowSnapshotService STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE = SeriesWatchingNowSnapshotService.INSTANCE;
+    private static final VodWatchStateService STATIC_VOD_WATCH_STATE_SERVICE = VodWatchStateService.INSTANCE;
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
@@ -145,13 +145,13 @@ public class ConfigurationUI extends VBox {
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
-    private final ConfigurationService service = ConfigurationService.getInstance();
-    private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
-    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
-    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.getInstance();
-    private final VodWatchStateService vodWatchStateService = VodWatchStateService.getInstance();
-    private final FilterLockService filterLockService = FilterLockService.getInstance();
-    private final AppDataRefreshService appDataRefreshService = AppDataRefreshService.getInstance();
+    private final ConfigurationService service = ConfigurationService.INSTANCE;
+    private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.INSTANCE;
+    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
+    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
+    private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
+    private final FilterLockService filterLockService = FilterLockService.INSTANCE;
+    private final AppDataRefreshService appDataRefreshService = AppDataRefreshService.INSTANCE;
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private String dbId;
@@ -1704,11 +1704,11 @@ public class ConfigurationUI extends VBox {
     }
 
     private String resolveDatabaseSyncSourcePath(boolean importMode, String normalizedPath) {
-        return importMode ? normalizedPath : SQLConnection.getDatabasePath();
+        return importMode ? normalizedPath : SqlConnectionRuntime.getDatabasePath();
     }
 
     private String resolveDatabaseSyncTargetPath(boolean importMode, String normalizedPath) {
-        return importMode ? SQLConnection.getDatabasePath() : normalizedPath;
+        return importMode ? SqlConnectionRuntime.getDatabasePath() : normalizedPath;
     }
 
     private void applyPostDatabaseImport(boolean importMode,

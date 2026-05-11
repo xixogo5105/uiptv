@@ -35,6 +35,13 @@ import com.zaxxer.hikari.HikariDataSource
 import io.ktor.client.HttpClient
 import org.koin.dsl.module
 
+@Volatile
+private var imdbMetadataServiceOverride: ImdbMetadataService? = null
+
+fun setImdbMetadataServiceOverrideForTests(service: ImdbMetadataService?) {
+    imdbMetadataServiceOverride = service
+}
+
 val serverInfrastructureModule = module {
     single<HikariDataSource> { SqlConnectionRuntime.dataSource() }
     single<HttpClient> { HttpClientFactory.shared() }
@@ -54,7 +61,7 @@ val serverServiceModule = module {
     single { DatabaseSyncService }
     single<CacheService> { CacheServiceImpl({ get() }, { get() }, { get() }, { get() }) }
     single { HandshakeService(get(), get()) }
-    single { ImdbMetadataService }
+    single { imdbMetadataServiceOverride ?: ImdbMetadataService }
     single { CategoryService(get(), get(), get()) }
     single { ChannelService(cacheService = get(), contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
     single { PlayerService(get()) }

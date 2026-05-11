@@ -86,7 +86,7 @@ public class ManageAccountUI extends VBox {
     private final Button clearButton = new Button(I18n.tr("autoClearData"));
     private final Button refreshChannelsButton = new Button(I18n.tr("autoReloadCache"));
     private final CacheService cacheService = new CacheServiceImpl();
-    private final AccountInfoService accountInfoService = AccountInfoService.getInstance();
+    private final AccountInfoService accountInfoService = AccountInfoService.INSTANCE;
     private final VBox formContainer = new VBox();
     private HBox macAddressContainer;
     private VBox actionSection;
@@ -114,7 +114,7 @@ public class ManageAccountUI extends VBox {
     private AccountInfoRow accountInfoTariffPlanRow;
     private AccountInfoRow accountInfoDefaultTimezoneRow;
     private BorderPane accountInfoPane;
-    private final AccountService service = AccountService.getInstance();
+    private final AccountService service = AccountService.INSTANCE;
     private String accountId;
     private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;

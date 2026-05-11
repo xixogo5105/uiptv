@@ -42,9 +42,9 @@ class AbstractFfmpegHlsServiceTest extends DbBackedTest {
     void managedPlaybackUrl_usesExpectedPath() throws Exception {
         Method method = AbstractFfmpegHlsService.class.getDeclaredMethod("getLocalHlsPlaybackUrl");
         method.setAccessible(true);
-        String url = (String) method.invoke(FfmpegService.getInstance());
+        String url = (String) method.invoke(FfmpegService.INSTANCE);
         assertTrue(url.endsWith("/hls/stream.m3u8"));
-        assertEquals(url, method.invoke(LitePlayerFfmpegService.getInstance()));
+        assertEquals(url, method.invoke(new LitePlayerFfmpegService()));
     }
 
     @Test

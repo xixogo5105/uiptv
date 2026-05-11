@@ -5,8 +5,6 @@ import com.uiptv.model.Channel
 import com.uiptv.util.StringUtils
 
 object ContentFilterService {
-    @JvmStatic
-    fun getInstance(): ContentFilterService = this
 
     fun filterChannels(channels: List<Channel>?): List<Channel>? {
         if (channels.isNullOrEmpty()) {

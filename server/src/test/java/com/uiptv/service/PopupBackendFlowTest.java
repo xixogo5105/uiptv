@@ -17,7 +17,7 @@ class PopupBackendFlowTest extends DbBackedTest {
 
     @Test
     void accountSave_persistsDefaultMacAndNormalizedMacList() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
 
         Account account = new Account(
                 "mac-flow-account",
@@ -48,7 +48,7 @@ class PopupBackendFlowTest extends DbBackedTest {
 
     @Test
     void accountUpdate_replacesDefaultMacAndMacList() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
 
         Account initial = new Account(
                 "mac-update-account",
@@ -97,7 +97,7 @@ class PopupBackendFlowTest extends DbBackedTest {
 
     @Test
     void bookmarkCategoryRemove_deletesOnlySelectedCategoryById() {
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         bookmarkService.addCategory(new BookmarkCategory(null, "Sports"));
         bookmarkService.addCategory(new BookmarkCategory(null, "Sports"));

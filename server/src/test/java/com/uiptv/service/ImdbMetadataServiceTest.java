@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ImdbMetadataServiceTest extends DbBackedTest {
 
-    private final ImdbMetadataService service = ImdbMetadataService.getInstance();
+    private final ImdbMetadataService service = ImdbMetadataService.INSTANCE;
 
     @Test
     void titleAndQueryHelpers_normalizeEpisodeAndSearchInputs() throws Exception {
@@ -156,7 +156,7 @@ class ImdbMetadataServiceTest extends DbBackedTest {
     void tmdbFetchHelpers_coverBearerTokenLocalizedFetchAndEpisodeMerge() throws Exception {
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setTmdbReadAccessToken(" bearer-token ");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
         try (org.mockito.MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
             httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(

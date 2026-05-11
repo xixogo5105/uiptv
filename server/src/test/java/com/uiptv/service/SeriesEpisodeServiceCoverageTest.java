@@ -24,8 +24,8 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
 
     @Test
     void getEpisodes_returnsEmptyForMissingInputs() {
-        assertTrue(SeriesEpisodeService.getInstance().getEpisodes(null, "cat", "series", () -> false).getEpisodes().isEmpty());
-        assertTrue(SeriesEpisodeService.getInstance().getEpisodes(createSeriesAccount("blank-series"), "cat", " ", () -> false).getEpisodes().isEmpty());
+        assertTrue(SeriesEpisodeService.INSTANCE.getEpisodes(null, "cat", "series", () -> false).getEpisodes().isEmpty());
+        assertTrue(SeriesEpisodeService.INSTANCE.getEpisodes(createSeriesAccount("blank-series"), "cat", " ", () -> false).getEpisodes().isEmpty());
     }
 
     @Test
@@ -33,7 +33,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         Account account = createSeriesAccount("fresh-specific-cache");
         SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-1", List.of(channel("ep-1", "Season 2 Episode 7", "cmd://1")));
 
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, "cat-a", "series-1", () -> false);
+        EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodes(account, "cat-a", "series-1", () -> false);
 
         assertEquals(1, list.getEpisodes().size());
         assertEquals("2", list.getEpisodes().get(0).getSeason());
@@ -45,7 +45,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         Account account = createSeriesAccount("fresh-any-category-cache");
         SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-2", List.of(channel("ep-2", "Season 03 Episode 04", "cmd://2")));
 
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, "cat-b", "series-2", () -> false);
+        EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodes(account, "cat-b", "series-2", () -> false);
 
         assertEquals(1, list.getEpisodes().size());
         assertEquals("03", list.getEpisodes().get(0).getSeason());
@@ -60,7 +60,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-3", account)).thenThrow(new RuntimeException("boom"));
 
-            EpisodeList list = SeriesEpisodeService.getInstance().reloadEpisodesFromPortal(account, "cat-b", "series-3", () -> false);
+            EpisodeList list = SeriesEpisodeService.INSTANCE.reloadEpisodesFromPortal(account, "cat-b", "series-3", () -> false);
 
             assertEquals(1, list.getEpisodes().size());
             assertEquals("9", list.getEpisodes().get(0).getEpisodeNum());
@@ -78,7 +78,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
             Mockito.when(channelService.getSeries(Mockito.eq("cat-s"), Mockito.eq("series-s"), Mockito.eq(account), Mockito.isNull(), Mockito.any()))
                     .thenReturn(remote);
 
-            EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, "cat-s", "series-s", () -> false);
+            EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodes(account, "cat-s", "series-s", () -> false);
 
             assertEquals(1, list.getEpisodes().size());
             assertEquals("4", list.getEpisodes().get(0).getSeason());
@@ -102,7 +102,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         snapshot.setUpdatedAt(77L);
         com.uiptv.db.SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
 
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, "cat-s", "series-s", () -> false);
+        EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodesForWatchingNow(account, "cat-s", "series-s", () -> false);
 
         assertEquals(1, list.getEpisodes().size());
         assertEquals("ep-s1", list.getEpisodes().getFirst().getId());
@@ -112,7 +112,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
 
     @Test
     void privateHelpers_restoreAndMergeEpisodeMetadata() throws Exception {
-        SeriesEpisodeService service = SeriesEpisodeService.getInstance();
+        SeriesEpisodeService service = SeriesEpisodeService.INSTANCE;
         Channel channel = channel("ep-json", "Season 5 Episode 11", "cmd://json");
         channel.setLogo("logo.png");
         channel.setDescription("plot");
@@ -156,7 +156,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-4", account)).thenThrow(new RuntimeException("boom"));
 
-            EpisodeList list = SeriesEpisodeService.getInstance().reloadEpisodesFromPortal(account, "cat-a", "series-4", () -> false);
+            EpisodeList list = SeriesEpisodeService.INSTANCE.reloadEpisodesFromPortal(account, "cat-a", "series-4", () -> false);
 
             assertEquals(1, list.getEpisodes().size());
             assertEquals("8", list.getEpisodes().get(0).getEpisodeNum());
@@ -165,7 +165,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
 
     @Test
     void privateHelpers_coverFallbackCompatibilityAndNullLoads() throws Exception {
-        SeriesEpisodeService service = SeriesEpisodeService.getInstance();
+        SeriesEpisodeService service = SeriesEpisodeService.INSTANCE;
         Method isCompatible = SeriesEpisodeService.class.getDeclaredMethod("isParsedEpisodeCompatible", Episode.class, Channel.class);
         isCompatible.setAccessible(true);
         Method loadFromDbAnyAge = SeriesEpisodeService.class.getDeclaredMethod("loadFromDbAnyAge", Account.class, String.class, String.class);
@@ -208,8 +208,8 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
     }
 
     private Account persist(Account account) {
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(account.getAccountName());
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(account.getAccountName());
         saved.setAction(account.getAction());
         saved.setMacAddress(account.getMacAddress());
         return saved;

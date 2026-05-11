@@ -218,9 +218,6 @@ class PlayerService(
     companion object {
         private val defaultInstance by lazy { PlayerService() }
 
-        @JvmStatic
-        fun getInstance(): PlayerService =
-            koinOrNull<PlayerService>() ?: defaultInstance
     }
 
     @Serializable

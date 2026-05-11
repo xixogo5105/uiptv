@@ -52,7 +52,7 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
 
         assertTrue(db.isFresh(account, 60_000));
 
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             st.executeUpdate("UPDATE VodCategory SET cachedAt=0 WHERE accountId='" + account.getDbId() + "'");
         }
         assertFalse(db.isFresh(account, 1));
@@ -88,7 +88,7 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         assertNull(db.getChannelByChannelId("missing", categoryId, account.getDbId()));
 
         assertTrue(db.isFresh(account, categoryId, 60_000));
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             st.executeUpdate("UPDATE VodChannel SET cachedAt=0 WHERE accountId='" + account.getDbId() + "'");
         }
         assertFalse(db.isFresh(account, categoryId, 1));
@@ -118,7 +118,7 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         assertEquals("{\"s\":1}", stored.getExtraJson());
 
         assertTrue(categoryDb.isFresh(account, 60_000));
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             st.executeUpdate("UPDATE SeriesCategory SET cachedAt=0 WHERE accountId='" + account.getDbId() + "'");
         }
         assertFalse(categoryDb.isFresh(account, 1));
@@ -149,7 +149,7 @@ class VodSeriesDbCoverageTest extends DbBackedTest {
         assertEquals("{\"extra\":false}", storedChannel.getExtraJson());
 
         assertTrue(channelDb.isFresh(account, categoryId, 60_000));
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             st.executeUpdate("UPDATE SeriesChannel SET cachedAt=0 WHERE accountId='" + account.getDbId() + "'");
         }
         assertFalse(channelDb.isFresh(account, categoryId, 1));

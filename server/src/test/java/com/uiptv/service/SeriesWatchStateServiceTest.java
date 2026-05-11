@@ -24,7 +24,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void playbackResolved_progressesForwardOnlyForSeries() {
         Account account = createSeriesAccount("watch-series-auto");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.onPlaybackResolved(account, episode("ep-2", "Episode 2", "2"), "ep-2", "series-1");
         SeriesWatchState afterEp2 = service.getSeriesLastWatched(account.getDbId(), "series-1");
@@ -48,7 +48,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void manualMark_canMovePointerAndClearState() {
         Account account = createSeriesAccount("watch-series-manual");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.onPlaybackResolved(account, episode("ep-3", "Episode 3", "3"), "ep-3", "series-2");
         service.markSeriesEpisodeManual(account, "series-2", "ep-1", "Episode 1", "1", "1");
@@ -66,7 +66,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void sameSeriesId_isScopedByCategoryId() {
         Account account = createSeriesAccount("watch-series-category-scope");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.onPlaybackResolved(account, episode("ep-a2", "Episode 2", "2"), "ep-a2", "series-dup", "cat-a");
         service.onPlaybackResolved(account, episode("ep-b3", "Episode 3", "3"), "ep-b3", "series-dup", "cat-b");
@@ -82,7 +82,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void getSeriesLastWatched_fallsBackWhenCategoryDiffers() {
         Account account = createSeriesAccount("watch-series-category-fallback");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.onPlaybackResolved(account, episode("ep-4", "Episode 4", "4"), "ep-4", "series-fallback", "portal-cat-201");
         SeriesWatchState state = service.getSeriesLastWatched(account.getDbId(), "db-cat-999", "series-fallback");
@@ -94,7 +94,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void matching_isSeasonAware_whenEpisodeIdsRepeatAcrossSeasons() {
         Account account = createSeriesAccount("watch-series-season-aware");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.markSeriesEpisodeManual(account, "cat-1", "series-1", "episode-10", "Season 2 Episode 10", "2", "10");
         SeriesWatchState watched = service.getSeriesLastWatched(account.getDbId(), "cat-1", "series-1");
@@ -107,7 +107,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void playbackResolved_infersSeasonFromTitle_whenSeasonMissing() {
         Account account = createSeriesAccount("watch-series-infer-season");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         Channel channel = new Channel();
         channel.setChannelId("episode-15");
@@ -127,7 +127,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void playbackResolved_advancesAcrossSeasons_evenWhenEpisodeNumberResets() {
         Account account = createSeriesAccount("watch-series-season-progress");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.onPlaybackResolved(account, episode("ep-s1e10", "Episode 10", "10"), "ep-s1e10", "series-4", "cat-1");
         SeriesWatchState afterS1 = service.getSeriesLastWatched(account.getDbId(), "cat-1", "series-4");
@@ -149,7 +149,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void manualUpdate_preservesExistingSnapshots_whenCacheLookupsFail() {
         Account account = createSeriesAccount("watch-series-snapshot-preserve");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         Channel snapshotChannel = new Channel();
         snapshotChannel.setChannelId("12345");
@@ -190,7 +190,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void manualUpdate_resolvesColonSeriesIdFromCache() {
         Account account = createSeriesAccount("watch-series-colon-cache");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         SeriesCategoryDb.get().saveAll(
                 java.util.List.of(new Category("1714", "Drama", "drama", false, 0)),
@@ -222,7 +222,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     @Test
     void manualUpdate_normalizesColonDelimitedSeriesIds() {
         Account account = createSeriesAccount("watch-series-normalize");
-        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+        SeriesWatchStateService service = SeriesWatchStateService.INSTANCE;
 
         service.markSeriesEpisodeManual(account, "cat-1", "37177:37177", "ep-8", "Episode 8", "1", "8");
 
@@ -249,8 +249,8 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
                 false
         );
         account.setAction(series);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(series);
         return saved;
     }

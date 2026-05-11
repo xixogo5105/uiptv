@@ -1073,10 +1073,6 @@ class ChannelService @JvmOverloads constructor(
         private val STALKER_JITTER_MS: Long = java.lang.Long.getLong("uiptv.stalker.page.jitter.ms", 200L)
         private val STALKER_MAX_RETRIES_PER_PAGE: Int = Integer.getInteger("uiptv.stalker.page.maxRetries", 2)
         private val STALKER_THROTTLES = ConcurrentHashMap<String, RequestThrottle>()
-        @JvmStatic
-        fun getInstance(): ChannelService =
-            koinOrNull<ChannelService>() ?: defaultInstance
-
         private val defaultInstance by lazy { ChannelService() }
 
         @JvmStatic

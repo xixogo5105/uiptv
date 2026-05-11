@@ -40,7 +40,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         RecordingNotifier notifier = new RecordingNotifier();
         RemoteSyncSessionService service = new RemoteSyncSessionService(
                 snapshotService,
-                DatabaseSyncService.getInstance(),
+                DatabaseSyncService.INSTANCE,
                 Clock.systemUTC(),
                 (request, decisionConsumer) -> decisionConsumer.accept(true),
                 notifier
@@ -76,9 +76,9 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         }
 
         withDatabase(remoteDb, () -> {
-            Account imported = AccountService.getInstance().getByName("source-account");
+            Account imported = AccountService.INSTANCE.getByName("source-account");
             assertNotNull(imported);
-            Configuration configuration = ConfigurationService.getInstance().read();
+            Configuration configuration = ConfigurationService.INSTANCE.read();
             assertTrue(configuration.isDarkTheme());
             assertEquals("keep-local-player", configuration.getPlayerPath1());
         });
@@ -103,7 +103,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         RecordingNotifier notifier = new RecordingNotifier();
         RemoteSyncSessionService service = new RemoteSyncSessionService(
                 snapshotService,
-                DatabaseSyncService.getInstance(),
+                DatabaseSyncService.INSTANCE,
                 Clock.systemUTC(),
                 (request, decisionConsumer) -> decisionConsumer.accept(true),
                 notifier
@@ -127,7 +127,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
 
         withDatabase(targetDb, () -> {
             try {
-                DatabaseSyncService.getInstance().syncDatabasesWithReport(
+                DatabaseSyncService.INSTANCE.syncDatabasesWithReport(
                         downloadSnapshot.toString(),
                         targetDb.toString(),
                         true,
@@ -140,8 +140,8 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         });
 
         withDatabase(targetDb, () -> {
-            assertNotNull(AccountService.getInstance().getByName("remote-account"));
-            Configuration configuration = ConfigurationService.getInstance().read();
+            assertNotNull(AccountService.INSTANCE.getByName("remote-account"));
+            Configuration configuration = ConfigurationService.INSTANCE.read();
             assertTrue(configuration.isDarkTheme());
             assertEquals("copy-me", configuration.getPlayerPath1());
         });
@@ -157,7 +157,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-01T10:00:00Z"));
         RemoteSyncSessionService service = new RemoteSyncSessionService(
                 snapshotService,
-                DatabaseSyncService.getInstance(),
+                DatabaseSyncService.INSTANCE,
                 clock,
                 (request, decisionConsumer) -> {
                 },
@@ -190,11 +190,11 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     }
 
     private void initializeDatabase(Path path) throws Exception {
-        withDatabase(path, () -> ConfigurationService.getInstance().read());
+        withDatabase(path, () -> ConfigurationService.INSTANCE.read());
     }
 
     private void saveAccount(String accountName) {
-        AccountService.getInstance().save(new Account(
+        AccountService.INSTANCE.save(new Account(
                 accountName,
                 "user",
                 "pass",
@@ -213,20 +213,20 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     }
 
     private void saveConfiguration(boolean darkTheme, String playerPath1) {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setDarkTheme(darkTheme);
         configuration.setPlayerPath1(playerPath1);
         configuration.setServerPort("8888");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
     }
 
     private <T> T withDatabase(Path databasePath, ThrowingSupplier<T> supplier) throws Exception {
-        String originalPath = com.uiptv.db.SQLConnection.getDatabasePath();
-        com.uiptv.db.SQLConnection.setDatabasePath(databasePath.toString());
+        String originalPath = com.uiptv.db.SqlConnectionRuntime.getDatabasePath();
+        com.uiptv.db.SqlConnectionRuntime.setDatabasePath(databasePath.toString());
         try {
             return supplier.get();
         } finally {
-            com.uiptv.db.SQLConnection.setDatabasePath(originalPath);
+            com.uiptv.db.SqlConnectionRuntime.setDatabasePath(originalPath);
         }
     }
 

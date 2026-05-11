@@ -59,12 +59,12 @@ public abstract class BaseWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final AccountService accountService = AccountService.getInstance();
-    private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.getInstance();
-    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.getInstance();
-    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
-    private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.getInstance();
+    private final AccountService accountService = AccountService.INSTANCE;
+    private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;
+    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
+    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
+    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.INSTANCE;
     private final WatchingNowSeriesResolver seriesResolver = new WatchingNowSeriesResolver();
     private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {

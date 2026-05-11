@@ -31,9 +31,9 @@ class AccountServiceCredentialsGuardTest extends DbBackedTest {
                 "http://xtreme.test",
                 false
         );
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        Account reloaded = AccountService.getInstance().getByName("xtreme-guard-1");
+        Account reloaded = AccountService.INSTANCE.getByName("xtreme-guard-1");
         List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(reloaded.getXtremeCredentialsJson());
         assertEquals(1, entries.size());
         XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
@@ -64,9 +64,9 @@ class AccountServiceCredentialsGuardTest extends DbBackedTest {
                 new XtremeCredentialsJson.Entry("alpha", "passA", false),
                 new XtremeCredentialsJson.Entry("beta", "passB", false)
         )));
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        Account reloaded = AccountService.getInstance().getByName("xtreme-guard-2");
+        Account reloaded = AccountService.INSTANCE.getByName("xtreme-guard-2");
         List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(reloaded.getXtremeCredentialsJson());
         XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
         assertNotNull(defaultEntry);
@@ -92,9 +92,9 @@ class AccountServiceCredentialsGuardTest extends DbBackedTest {
                 null,
                 false
         );
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        Account reloaded = AccountService.getInstance().getByName("stalker-guard-1");
+        Account reloaded = AccountService.INSTANCE.getByName("stalker-guard-1");
         assertEquals("00:11:22:33:44:55", reloaded.getMacAddress());
         assertEquals("00:11:22:33:44:55", reloaded.getMacAddressList());
     }
@@ -117,9 +117,9 @@ class AccountServiceCredentialsGuardTest extends DbBackedTest {
                 null,
                 false
         );
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        Account reloaded = AccountService.getInstance().getByName("stalker-guard-2");
+        Account reloaded = AccountService.INSTANCE.getByName("stalker-guard-2");
         assertNotNull(reloaded.getMacAddress());
         assertFalse(reloaded.getMacAddress().isBlank());
         assertFalse(reloaded.getMacAddressList().isBlank());

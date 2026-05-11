@@ -48,9 +48,9 @@ public class CategoryListUI extends HBox {
     private static final String LOG_CATEGORY_ID = " categoryId=";
     private static final String LOG_TITLE = " title=";
     private static final String LOG_CHANNELS = " channels: ";
-    private final CategoryService categoryService = CategoryService.getInstance();
-    private final ChannelService channelService = ChannelService.getInstance();
-    private final com.uiptv.service.FilterLockService filterLockService = com.uiptv.service.FilterLockService.getInstance();
+    private final CategoryService categoryService = new CategoryService();
+    private final ChannelService channelService = new ChannelService();
+    private final com.uiptv.service.FilterLockService filterLockService = com.uiptv.service.FilterLockService.INSTANCE;
     private final Account account;
     private final boolean embeddedMode;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();

@@ -106,8 +106,8 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
     private Account persistAccount(String name, Account.AccountAction action) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, null, false);
         account.setAction(action);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(action);
         return saved;
     }
@@ -126,6 +126,6 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
     }
 
     private static kotlin.jvm.functions.Function0<ConfigurationService> configurationServiceProvider() {
-        return ConfigurationService::getInstance;
+        return () -> ConfigurationService.INSTANCE;
     }
 }

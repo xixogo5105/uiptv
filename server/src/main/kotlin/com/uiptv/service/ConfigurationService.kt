@@ -21,9 +21,6 @@ object ConfigurationService {
     @JvmField
     val VLC_CACHING_OPTIONS_MS = listOf("", "1000", "2000", "3000", "4000", "5000", "10000", "15000", "20000", "25000", "30000", "60000")
 
-    @JvmStatic
-    fun getInstance(): ConfigurationService = this
-
     fun clearCache(account: Account?) {
         ConfigurationDb.get().clearCache(account)
     }

@@ -29,7 +29,7 @@ class RemoteSyncSessionService internal constructor(
     private val notifier = AtomicReference(notifier)
 
     init {
-        instanceRef.compareAndSet(null, this)
+        instanceRef.set(this)
     }
 
     companion object {
@@ -51,17 +51,6 @@ class RemoteSyncSessionService internal constructor(
                 current ?: RemoteSyncSessionService(snapshotService, databaseSyncService, clock, approvalPrompt, notifier)
             }!!
 
-        @JvmStatic
-        @JvmOverloads
-        fun getInstance(
-            snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
-            databaseSyncService: DatabaseSyncService = DatabaseSyncService,
-            clock: Clock = Clock.systemDefaultZone(),
-            approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
-            notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()
-        ): RemoteSyncSessionService =
-            koinOrNull<RemoteSyncSessionService>()
-                ?: runtimeInstance(snapshotService, databaseSyncService, clock, approvalPrompt, notifier)
     }
 
     fun createSession(request: RemoteSyncRequest, requesterAddress: String?): RemoteSyncSessionState {

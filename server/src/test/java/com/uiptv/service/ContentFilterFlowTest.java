@@ -19,7 +19,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("", "premium", false);
         String json = readResource("json/itv_channels_filter_case.json");
 
-        List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, true);
+        List<Channel> channels = new ChannelService().parseItvChannels(json, true);
 
         assertEquals(2, channels.size());
         assertEquals(List.of("Sports Live", "Kids Plus"),
@@ -31,7 +31,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("", "premium", false);
         String json = readResource("json/itv_channels_filter_case.json");
 
-        List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, false);
+        List<Channel> channels = new ChannelService().parseItvChannels(json, false);
 
         assertEquals(3, channels.size());
     }
@@ -41,7 +41,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("premium", "", false);
         String json = readResource("json/categories_filter_case.json");
 
-        List<Category> categories = CategoryService.getInstance().parseCategories(json, true);
+        List<Category> categories = new CategoryService().parseCategories(json, true);
 
         assertEquals(2, categories.size());
         assertEquals(List.of("Sports", "Documentary"),
@@ -53,7 +53,7 @@ class ContentFilterFlowTest extends DbBackedTest {
         saveConfiguration("premium", "", true);
         String json = readResource("json/categories_filter_case.json");
 
-        List<Category> categories = CategoryService.getInstance().parseCategories(json, true);
+        List<Category> categories = new CategoryService().parseCategories(json, true);
 
         assertEquals(3, categories.size());
     }
@@ -72,7 +72,7 @@ class ContentFilterFlowTest extends DbBackedTest {
                 false,
                 false
         );
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
     }
 
     private String readResource(String path) throws IOException {

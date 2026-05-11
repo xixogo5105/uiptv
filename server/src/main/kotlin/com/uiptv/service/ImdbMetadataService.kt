@@ -60,8 +60,6 @@ object ImdbMetadataService {
         val byTitle: MutableMap<String, KJsonObject> = HashMap()
     }
 
-    @JvmStatic
-    fun getInstance(): ImdbMetadataService = this
     fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?): JsonObject {
         if (!areThumbnailsEnabled()) {
             return buildJsonObject { }

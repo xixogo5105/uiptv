@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService() {
+class LitePlayerFfmpegService : AbstractFfmpegHlsService() {
     enum class PlaybackStrategy {
         DIRECT,
         COPY,
@@ -122,11 +122,6 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
     }
 
     companion object {
-        private val INSTANCE = LitePlayerFfmpegService()
-
-        @JvmStatic
-        fun getInstance(): LitePlayerFfmpegService = INSTANCE
-
         @JvmStatic
         fun chooseStrategy(sourceUrl: String?, forceCompatibilityFallback: Boolean, allowTranscoding: Boolean): PlaybackStrategy {
             if (isBlank(sourceUrl)) return PlaybackStrategy.DIRECT

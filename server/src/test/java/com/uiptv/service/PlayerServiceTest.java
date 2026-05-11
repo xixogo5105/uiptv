@@ -38,7 +38,7 @@ class PlayerServiceTest {
 
     @Test
     void sanitizeAndEncodeUrl_encodesInvalidCharacters() {
-        PlayerService service = PlayerService.getInstance();
+        PlayerService service = new PlayerService();
 
         // Case 1: URL with unencoded brackets
         String urlWithBrackets = "http://host/path?ads.deviceid=[DEVICE_ID]&coppa=0";

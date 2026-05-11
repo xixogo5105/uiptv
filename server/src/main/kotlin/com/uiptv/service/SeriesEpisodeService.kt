@@ -26,8 +26,6 @@ object SeriesEpisodeService {
     @Volatile
     private var channelServiceResolver: (() -> ChannelService)? = null
 
-    @JvmStatic
-    fun getInstance(): SeriesEpisodeService = this
 
     @JvmStatic
     fun setChannelServiceResolverForTests(resolver: (() -> ChannelService)?) {

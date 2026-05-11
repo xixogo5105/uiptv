@@ -11,8 +11,6 @@ import com.uiptv.util.StringUtils
 import com.uiptv.util.json.KJsonArray
 
 object SeriesWatchingNowSnapshotService {
-    @JvmStatic
-    fun getInstance(): SeriesWatchingNowSnapshotService = this
     fun getSnapshot(accountId: String?, categoryId: String?, seriesId: String?): SeriesWatchingNowSnapshot? {
         if (StringUtils.isBlank(accountId) || StringUtils.isBlank(seriesId)) {
             return null

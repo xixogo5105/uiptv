@@ -39,7 +39,8 @@ class BaseVideoPlayerHlsResolutionTest {
 
     @Test
     void resolveHlsPlaylistChainStopsWhenPlaylistCycleIsDetected() throws Exception {
-        TestPlayer player = runOnFxThread(TestPlayer::new);
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        TestPlayer player = runOnFxThread(() -> new TestPlayer(configurationService));
         String masterUrl = "http://example.com/master.m3u8";
         String variantUrl = "http://example.com/variant.m3u8";
 
@@ -52,10 +53,7 @@ class BaseVideoPlayerHlsResolutionTest {
                 Map.of(),
                 Map.of());
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
-            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(true);
             Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
             httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")))
@@ -73,13 +71,11 @@ class BaseVideoPlayerHlsResolutionTest {
 
     @Test
     void resolveHlsPlaylistChainSkipsResolutionWhenFeatureIsDisabled() throws Exception {
-        TestPlayer player = runOnFxThread(TestPlayer::new);
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        TestPlayer player = runOnFxThread(() -> new TestPlayer(configurationService));
         String uri = "http://example.com/master.m3u8";
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
-            configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
             Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(false);
 
             String resolved = player.resolve(uri);
@@ -124,6 +120,12 @@ class BaseVideoPlayerHlsResolutionTest {
     }
 
     private static final class TestPlayer extends BaseVideoPlayer {
+        private final ConfigurationService configurationService;
+
+        private TestPlayer(ConfigurationService configurationService) {
+            this.configurationService = configurationService;
+        }
+
         @Override protected javafx.scene.Node getVideoView() { return null; }
         @Override protected void playMedia(String uri) { /* Test stub: playback is not exercised here. */ }
         @Override protected void stopMedia() { /* Test stub: playback is not exercised here. */ }
@@ -137,6 +139,7 @@ class BaseVideoPlayerHlsResolutionTest {
         @Override protected void resumeMedia() { /* Test stub: playback is not exercised here. */ }
         @Override protected boolean isPlaying() { return false; }
         @Override public com.uiptv.player.api.VideoPlayerInterface.PlayerType getType() { return com.uiptv.player.api.VideoPlayerInterface.PlayerType.DUMMY; }
+        @Override protected ConfigurationService configurationService() { return configurationService; }
 
         String resolve(String uri) {
             return resolveHlsPlaylistChain(uri);

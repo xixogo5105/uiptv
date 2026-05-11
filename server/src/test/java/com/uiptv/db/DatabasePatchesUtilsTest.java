@@ -19,7 +19,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void initializesFlywaySchemaHistoryFromFiles() throws Exception {
-        try (Connection conn = SQLConnection.connect()) {
+        try (Connection conn = SqlConnectionRuntime.connect()) {
             assertTrue(tableExists(conn, "flyway_schema_history"));
             int expected = 1; // clean databases bootstrap from the current Flyway baseline snapshot
             int success = countRows(conn, "flyway_schema_history", "success = 1");
@@ -30,7 +30,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void rerunsMissingMigrationsAndRepairsDroppedSchemaPieces() throws Exception {
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("ALTER TABLE Configuration DROP COLUMN embeddedPlayer");
             st.executeUpdate("ALTER TABLE Account DROP COLUMN pinToTop");
@@ -54,7 +54,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void keepsGoingWhenOneMigrationFailsAndRunsLaterOnes() throws Exception {
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("DROP TABLE IF EXISTS Bookmark");
             st.executeUpdate("DELETE FROM schema_migrations WHERE name IN "
@@ -72,12 +72,12 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
     void initRetriesWhenDatabaseIsTemporarilyLocked() throws Exception {
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Thread initThread;
-        try (Connection locker = SQLConnection.connect(); Statement st = locker.createStatement()) {
+        try (Connection locker = SqlConnectionRuntime.connect(); Statement st = locker.createStatement()) {
             st.execute("BEGIN EXCLUSIVE");
 
             initThread = new Thread(() -> {
                 try {
-                    SQLConnection.init();
+                    SqlConnectionRuntime.init();
                 } catch (Throwable throwable) {
                     failure.set(throwable);
                 }
@@ -93,7 +93,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void seedsBookmarkOrderForLegacyUsersWhoHaveBookmarksButNoOrderRows() throws Exception {
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("DROP TABLE IF EXISTS BookmarkOrder");
             st.executeUpdate("DROP TABLE IF EXISTS Bookmark");
@@ -126,7 +126,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void failedMigrationIsRetriedOnNextRunAndErrorMessageIsClearedAfterSuccess() throws Exception {
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("DROP TABLE IF EXISTS Bookmark");
             st.executeUpdate("DELETE FROM schema_migrations WHERE name='0142_seed_bookmark_order_table.sql'");
@@ -145,7 +145,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void successfulMigrationWithChecksumDriftIsReappliedAndRecordIsRepaired() throws Exception {
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             DatabasePatchesUtils.applyPatches(conn);
             st.executeUpdate("UPDATE schema_migrations "
                     + "SET checksum='tampered-checksum', status='success', applied_at=1, error_message='x' "
@@ -164,7 +164,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
     @Test
     void reapplyingPatchesOnHealthyDatabaseIsIdempotent() throws Exception {
-        try (Connection conn = SQLConnection.connect()) {
+        try (Connection conn = SqlConnectionRuntime.connect()) {
             DatabasePatchesUtils.applyPatches(conn);
             long beforeAppliedAt = migrationAppliedAt(conn, "0159_add_configuration_cache_expiry_days.sql");
             int beforeCount = countRows(conn, "schema_migrations", "status='success'");

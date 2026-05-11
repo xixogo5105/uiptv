@@ -52,11 +52,11 @@ public class BookmarkChannelListUI extends HBox {
         thread.setDaemon(true);
         return thread;
     });
-    private final BookmarkService bookmarkService = BookmarkService.getInstance();
-    private final AccountService accountService = AccountService.getInstance();
-    private final ChannelService channelService = ChannelService.getInstance();
-    private final CategoryService categoryService = CategoryService.getInstance();
-    private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
+    private final AccountService accountService = AccountService.INSTANCE;
+    private final ChannelService channelService = new ChannelService();
+    private final CategoryService categoryService = new CategoryService();
+    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean isPromptShowing = false;

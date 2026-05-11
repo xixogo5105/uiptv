@@ -123,8 +123,8 @@ class WatchingNowSeriesResolverTest extends DbBackedTest {
     private Account createSeriesAccount(String name) {
         Account account = new Account(name, "user", "pass", "http://test.com/xtreme/", null, null, null, null, null, null, AccountType.XTREME_API, null, "http://test.com/xtreme/", false);
         account.setAction(Account.AccountAction.series);
-        AccountService.getInstance().save(account);
-        Account persisted = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account persisted = AccountService.INSTANCE.getByName(name);
         persisted.setAction(Account.AccountAction.series);
         return persisted;
     }

@@ -27,19 +27,19 @@ class CategoryServiceCoverageTest extends DbBackedTest {
 
     @Test
     void getCached_readsAppropriateBackingStore() {
-        assertTrue(CategoryService.getInstance().getCached(null).isEmpty());
+        assertTrue(new CategoryService().getCached(null).isEmpty());
 
         Account itv = persistAccount("cached-itv", Account.AccountAction.itv, AccountType.XTREME_API, null);
         CategoryDb.get().saveAll(List.of(new Category("1", "News", "news", false, 0)), itv);
-        assertEquals(1, CategoryService.getInstance().getCached(itv).size());
+        assertEquals(1, new CategoryService().getCached(itv).size());
 
         Account vod = persistAccount("cached-vod", Account.AccountAction.vod, AccountType.XTREME_API, null);
         VodCategoryDb.get().saveAll(List.of(new Category("2", "Movies", "movies", false, 0)), vod);
-        assertEquals(1, CategoryService.getInstance().getCached(vod).size());
+        assertEquals(1, new CategoryService().getCached(vod).size());
 
         Account series = persistAccount("cached-series", Account.AccountAction.series, AccountType.XTREME_API, null);
         SeriesCategoryDb.get().saveAll(List.of(new Category("3", "Shows", "shows", false, 0)), series);
-        assertEquals(1, CategoryService.getInstance().getCached(series).size());
+        assertEquals(1, new CategoryService().getCached(series).size());
     }
 
     @Test
@@ -47,7 +47,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         Account account = persistAccount("fresh-vod-cache", Account.AccountAction.vod, AccountType.XTREME_API, null);
         VodCategoryDb.get().saveAll(List.of(new Category("vod-1", "Movies", "movies", false, 0)), account);
 
-        List<Category> categories = CategoryService.getInstance().get(account, false, null);
+        List<Category> categories = new CategoryService().get(account, false, null);
 
         assertEquals(1, categories.size());
         assertEquals("Movies", categories.get(0).getTitle());
@@ -61,7 +61,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseCategories(account)).thenReturn(remote);
 
-            List<Category> categories = CategoryService.getInstance().get(account, false, null);
+            List<Category> categories = new CategoryService().get(account, false, null);
 
             assertEquals(1, categories.size());
             assertEquals("Cinema", categories.get(0).getTitle());
@@ -75,8 +75,8 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         Account account = persistAccount("series-category-cache", Account.AccountAction.series, AccountType.XTREME_API, null);
         SeriesCategoryDb.get().saveAll(List.of(new Category("series-1", "Shows", "shows", false, 0)), account);
 
-        List<Category> categories = CategoryService.getInstance().get(account, false, null);
-        String json = CategoryService.getInstance().readToJson(account);
+        List<Category> categories = new CategoryService().get(account, false, null);
+        String json = new CategoryService().readToJson(account);
 
         assertEquals(1, categories.size());
         assertTrue(json.contains("Shows"));
@@ -95,7 +95,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
 
         Account account = persistAccount("m3u-local", Account.AccountAction.itv, AccountType.M3U8_LOCAL, playlist.toString());
 
-        List<Category> categories = CategoryService.getInstance().get(account, false, null);
+        List<Category> categories = new CategoryService().get(account, false, null);
 
         assertTrue(categories.size() >= 2);
         assertFalse(CategoryDb.get().getCategories(account).isEmpty());
@@ -104,8 +104,8 @@ class CategoryServiceCoverageTest extends DbBackedTest {
     private Account persistAccount(String name, Account.AccountAction action, AccountType type, String m3uPath) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, type, null, m3uPath, false);
         account.setAction(action);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(action);
         saved.setM3u8Path(m3uPath);
         return saved;

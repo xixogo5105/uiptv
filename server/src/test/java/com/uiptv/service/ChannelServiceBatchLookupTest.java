@@ -21,8 +21,8 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
     void getChannelsByChannelIdsAndAccount_returnsOnlyRequestedChannelsForAccount() {
         Account account = new Account("batch-account", "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, null, false);
         account.setAction(Account.AccountAction.itv);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName("batch-account");
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName("batch-account");
         saved.setAction(Account.AccountAction.itv);
 
         Category category = new Category("cat-1", "News", "news", false, 0);
@@ -46,7 +46,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
 
         ChannelDb.get().saveAll(List.of(first, second, third), storedCategory.getDbId(), saved);
 
-        List<Channel> channels = ChannelService.getInstance().getChannelsByChannelIdsAndAccount(List.of("one", "three", "missing"), saved.getDbId());
+        List<Channel> channels = new ChannelService().getChannelsByChannelIdsAndAccount(List.of("one", "three", "missing"), saved.getDbId());
 
         assertEquals(2, channels.size());
         assertTrue(channels.stream().anyMatch(channel -> "one".equals(channel.getChannelId())));
@@ -57,8 +57,8 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
     void getChannelsByChannelIdsAndAccount_deduplicatesRequestedIds() {
         Account account = new Account("batch-dedupe", "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, null, false);
         account.setAction(Account.AccountAction.itv);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName("batch-dedupe");
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName("batch-dedupe");
         saved.setAction(Account.AccountAction.itv);
 
         Category category = new Category("cat-1", "News", "news", false, 0);
@@ -77,7 +77,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
 
         ChannelDb.get().saveAll(List.of(first, second), storedCategory.getDbId(), saved);
 
-        List<Channel> channels = ChannelService.getInstance()
+        List<Channel> channels = new ChannelService()
                 .getChannelsByChannelIdsAndAccount(List.of("dup", "dup", "other", "dup"), saved.getDbId());
 
         assertEquals(2, channels.size());
@@ -87,11 +87,11 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
 
     @Test
     void getChannelsByChannelIdsAndAccount_returnsEmptyForNullBlankOrMissingInput() {
-        assertNotNull(ChannelService.getInstance().getChannelsByChannelIdsAndAccount(null, "account-id"));
-        assertTrue(ChannelService.getInstance().getChannelsByChannelIdsAndAccount(null, "account-id").isEmpty());
-        assertTrue(ChannelService.getInstance().getChannelsByChannelIdsAndAccount(List.of(), "account-id").isEmpty());
-        assertTrue(ChannelService.getInstance().getChannelsByChannelIdsAndAccount(Arrays.asList(" ", "", null), "account-id").isEmpty());
-        assertTrue(ChannelService.getInstance().getChannelsByChannelIdsAndAccount(List.of("one"), "").isEmpty());
-        assertTrue(ChannelService.getInstance().getChannelsByChannelIdsAndAccount(List.of("one"), null).isEmpty());
+        assertNotNull(new ChannelService().getChannelsByChannelIdsAndAccount(null, "account-id"));
+        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(null, "account-id").isEmpty());
+        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(List.of(), "account-id").isEmpty());
+        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(Arrays.asList(" ", "", null), "account-id").isEmpty());
+        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(List.of("one"), "").isEmpty());
+        assertTrue(new ChannelService().getChannelsByChannelIdsAndAccount(List.of("one"), null).isEmpty());
     }
 }

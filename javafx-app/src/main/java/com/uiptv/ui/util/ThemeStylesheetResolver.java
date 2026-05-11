@@ -8,11 +8,13 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 public final class ThemeStylesheetResolver {
     private static final double DEFAULT_FONT_SIZE_PX = 13.0;
     private static final String LIGHT_THEME_RESOURCE = "/application.css";
     private static final String DARK_THEME_RESOURCE = "/dark-application.css";
+    private static Supplier<ThemeCssOverrideService> themeCssOverrideServiceSupplier = () -> ThemeCssOverrideService.INSTANCE;
 
     private ThemeStylesheetResolver() {
     }
@@ -82,6 +84,10 @@ public final class ThemeStylesheetResolver {
     }
 
     private static ThemeCssOverrideService themeCssOverrideService() {
-        return ThemeCssOverrideService.getInstance();
+        return themeCssOverrideServiceSupplier.get();
+    }
+
+    static void setThemeCssOverrideServiceSupplierForTests(Supplier<ThemeCssOverrideService> supplier) {
+        themeCssOverrideServiceSupplier = supplier != null ? supplier : () -> ThemeCssOverrideService.INSTANCE;
     }
 }

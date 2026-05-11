@@ -12,7 +12,7 @@ class BookmarkServiceCoverageTest extends DbBackedTest {
 
     @Test
     void listenersAndTimestamps_updateOnMutations_andIgnoreFailingListeners() {
-        BookmarkService service = BookmarkService.getInstance();
+        BookmarkService service = BookmarkService.INSTANCE;
         long beforeTimestamp = service.getLastUpdatedEpochMs();
         long beforeRevision = service.getChangeRevision();
         AtomicLong observedRevision = new AtomicLong();

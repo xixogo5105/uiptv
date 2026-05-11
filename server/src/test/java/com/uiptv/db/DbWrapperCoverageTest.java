@@ -43,8 +43,8 @@ class DbWrapperCoverageTest extends DbBackedTest {
         assertNull(AccountDb.get().getAccountByName("account-db-unsaved"));
 
         Account saved = new Account("account-db-saved", "user", "pass", "http://portal.test", null, null, null, null, null, null, AccountType.STALKER_PORTAL, null, null, false);
-        AccountService.getInstance().save(saved);
-        saved = AccountService.getInstance().getByName("account-db-saved");
+        AccountService.INSTANCE.save(saved);
+        saved = AccountService.INSTANCE.getByName("account-db-saved");
         saved.setServerPortalUrl("http://portal.test/server/load.php");
 
         AccountDb.get().saveServerPortalUrl(saved);
@@ -130,7 +130,7 @@ class DbWrapperCoverageTest extends DbBackedTest {
         assertTrue(DatabasePatchesUtils.hasMigrationsListResource());
         assertTrue(DatabasePatchesUtils.hasBaselineResource());
 
-        try (Connection conn = SQLConnection.connect(); Statement statement = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement statement = conn.createStatement()) {
             statement.executeUpdate("DROP TABLE IF EXISTS schema_migrations");
             statement.executeUpdate("DROP TABLE IF EXISTS Account");
 
@@ -165,8 +165,8 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     @Test
     void sqlConnection_initUsesFlywayHistoryForRuntimeStartup() throws Exception {
-        SQLConnection.init();
-        try (Connection connection = SQLConnection.connect();
+        SqlConnectionRuntime.init();
+        try (Connection connection = SqlConnectionRuntime.connect();
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1")) {
             assertTrue(resultSet.next());
@@ -176,7 +176,7 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     @Test
     void sqlConnection_helpers_detectBusyState_andInterruptedSleep() throws Exception {
-        Method isBusy = SQLConnection.class.getDeclaredMethod("isBusy", SQLException.class);
+        Method isBusy = SqlConnectionRuntime.class.getDeclaredMethod("isBusy", SQLException.class);
         isBusy.setAccessible(true);
         SQLException busy = new SQLException("SQLITE_BUSY: database is locked", "state", 5);
         SQLException wrapped = new SQLException("wrapper");
@@ -185,7 +185,7 @@ class DbWrapperCoverageTest extends DbBackedTest {
         assertTrue((Boolean) isBusy.invoke(null, wrapped));
         assertFalse((Boolean) isBusy.invoke(null, new SQLException("other failure", "state", 1)));
 
-        Method sleepBeforeRetry = SQLConnection.class.getDeclaredMethod("sleepBeforeRetry");
+        Method sleepBeforeRetry = SqlConnectionRuntime.class.getDeclaredMethod("sleepBeforeRetry");
         sleepBeforeRetry.setAccessible(true);
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Thread thread = new Thread(() -> {
@@ -219,7 +219,7 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
         Method executeDirective = DatabasePatchesUtils.class.getDeclaredMethod("executeDirective", Connection.class, String.class);
         executeDirective.setAccessible(true);
-        try (Connection conn = SQLConnection.connect(); Statement statement = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement statement = conn.createStatement()) {
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS temp_patch_table(id INTEGER PRIMARY KEY)");
             assertDoesNotThrow(() -> executeDirective.invoke(null, conn, "--@add_column temp_patch_table patchCol TEXT"));
             assertDoesNotThrow(() -> executeDirective.invoke(null, conn, "--@drop_column temp_patch_table patchCol"));
@@ -308,15 +308,15 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     private Account persistAccount(String name) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.M3U8_URL, null, "http://127.0.0.1/mock/list.m3u", false);
-        AccountService.getInstance().save(account);
-        return AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        return AccountService.INSTANCE.getByName(name);
     }
 
     private Account persistSeriesAccount(String name) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, "http://127.0.0.1/mock", false);
         account.setAction(series);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(series);
         return saved;
     }
@@ -324,8 +324,8 @@ class DbWrapperCoverageTest extends DbBackedTest {
     private Account persistActionAccount(String name, Account.AccountAction action) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, "http://127.0.0.1/mock", false);
         account.setAction(action);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(action);
         return saved;
     }

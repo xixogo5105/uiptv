@@ -18,7 +18,7 @@ class VodWatchStateServiceTest extends DbBackedTest {
     @Test
     void saveAndRemove_areScopedByCategory() {
         Account account = createVodAccount("vod-watch-state");
-        VodWatchStateService service = VodWatchStateService.getInstance();
+        VodWatchStateService service = VodWatchStateService.INSTANCE;
 
         service.save(account, "movies", vod("vod-1", "Movie One", "http://vod/1.mp4"));
         service.save(account, "shows", vod("vod-1", "Movie One Duplicate", "http://vod/1b.mp4"));
@@ -38,7 +38,7 @@ class VodWatchStateServiceTest extends DbBackedTest {
     @Test
     void getVod_fallsBackToLatestAcrossCategoryVariants() {
         Account account = createVodAccount("vod-watch-fallback");
-        VodWatchStateService service = VodWatchStateService.getInstance();
+        VodWatchStateService service = VodWatchStateService.INSTANCE;
 
         service.save(account, "portal-cat-1", vod("vod-2", "Movie Two", "http://vod/2.mp4"));
 
@@ -51,7 +51,7 @@ class VodWatchStateServiceTest extends DbBackedTest {
     @Test
     void save_normalizesColonDelimitedVodIds() {
         Account account = createVodAccount("vod-watch-normalize");
-        VodWatchStateService service = VodWatchStateService.getInstance();
+        VodWatchStateService service = VodWatchStateService.INSTANCE;
 
         service.save(account, "movies", vod("123:123", "Movie Colon", "http://vod/123.mp4"));
 
@@ -78,8 +78,8 @@ class VodWatchStateServiceTest extends DbBackedTest {
                 false
         );
         account.setAction(vod);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(vod);
         return saved;
     }

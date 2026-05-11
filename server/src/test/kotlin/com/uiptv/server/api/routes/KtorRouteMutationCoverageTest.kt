@@ -231,8 +231,8 @@ class KtorRouteMutationCoverageTest : DbBackedTest() {
             false
         )
         account.action = action
-        AccountService.getInstance().save(account)
-        return AccountService.getInstance().getByName(name) ?: error("Saved account not found: $name")
+        AccountService.save(account)
+        return AccountService.getByName(name) ?: error("Saved account not found: $name")
     }
 
     private fun saveLiveCategory(account: Account, categoryId: String, title: String): Category {

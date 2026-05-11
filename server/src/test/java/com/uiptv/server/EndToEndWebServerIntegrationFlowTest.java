@@ -13,6 +13,7 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.server.bootstrap.ServerModulesKt;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.CacheService;
@@ -118,7 +119,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
     @AfterEach
     void tearDownServers() {
-        RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
+        RemoteSyncSessionService remoteSyncSessionService = new RemoteSyncSessionService();
         remoteSyncSessionService.clearSessions();
         remoteSyncSessionService.setApprovalPrompt(new DefaultRemoteSyncUiBridge());
         remoteSyncSessionService.setNotifier(new DefaultRemoteSyncUiBridge());
@@ -164,7 +165,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
      *    - /drm.html
      */
     void endToEndWebPortal_backendApisAndAllJsonHandlers() throws Exception {
-        RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
+        RemoteSyncSessionService remoteSyncSessionService = new RemoteSyncSessionService();
         remoteSyncSessionService.clearSessions();
         remoteSyncSessionService.setApprovalPrompt((request, decisionConsumer) -> decisionConsumer.accept(true));
         remoteSyncSessionService.setNotifier(new DefaultRemoteSyncUiBridge());
@@ -177,22 +178,29 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         cfg.setEnableThumbnails(false);
         cfg.setLanguageLocale("ar-SA");
         cfg.setUiZoomPercent("133");
-        ConfigurationService.getInstance().save(cfg);
+        ConfigurationService.INSTANCE.save(cfg);
 
         saveAccounts();
         warmUpCacheAndData();
 
-        try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class);
-             MockedStatic<ImdbMetadataService> imdbStatic = Mockito.mockStatic(ImdbMetadataService.class)) {
+        try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class)) {
             logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(i -> null);
 
             ImdbMetadataService imdb = Mockito.mock(ImdbMetadataService.class);
-            imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdb);
+            ServerModulesKt.setImdbMetadataServiceOverrideForTests(imdb);
             Mockito.when(imdb.findBestEffortDetails(Mockito.anyString(), Mockito.anyString()))
                     .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
                             {"name":"Series Mock","imdbUrl":"https://www.imdb.com/title/tt1234567/","episodesMeta":[]}
                             """));
+            Mockito.when(imdb.findBestEffortDetails(Mockito.anyString(), Mockito.anyString(), Mockito.anyList()))
+                    .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
+                            {"name":"Series Mock","imdbUrl":"https://www.imdb.com/title/tt1234567/","episodesMeta":[]}
+                            """));
             Mockito.when(imdb.findBestEffortMovieDetails(Mockito.anyString(), Mockito.anyString()))
+                    .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
+                            {"name":"Movie Mock","imdbUrl":"https://www.imdb.com/title/tt7654321/"}
+                            """));
+            Mockito.when(imdb.findBestEffortMovieDetails(Mockito.anyString(), Mockito.anyString(), Mockito.anyList()))
                     .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
                             {"name":"Movie Mock","imdbUrl":"https://www.imdb.com/title/tt7654321/"}
                             """));
@@ -214,6 +222,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertPlaylistApis();
             assertRemoteSyncApis();
             assertHlsAndProxyApis();
+        } finally {
+            ServerModulesKt.setImdbMetadataServiceOverrideForTests(null);
         }
     }
 
@@ -229,7 +239,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         );
         stalker.setServerPortalUrl(stalkerPortalUrl);
         stalker.setAction(itv);
-        AccountService.getInstance().save(stalker);
+        AccountService.INSTANCE.save(stalker);
 
         Account xtreme = new Account(
                 "web-xtreme", "xtuser", "xtpass", xtremeBaseUrl,
@@ -240,7 +250,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 new XtremeCredentialsJson.Entry("xtuser", "xtpass", true)
         )));
         xtreme.setAction(itv);
-        AccountService.getInstance().save(xtreme);
+        AccountService.INSTANCE.save(xtreme);
 
         Account m3uLocal = new Account(
                 "web-m3u-local", null, null, drmLocalPlaylist,
@@ -248,7 +258,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 AccountType.M3U8_LOCAL, null, drmLocalPlaylist, false
         );
         m3uLocal.setAction(itv);
-        AccountService.getInstance().save(m3uLocal);
+        AccountService.INSTANCE.save(m3uLocal);
 
         Account m3uUrl = new Account(
                 "web-m3u-url", null, null, providerBaseUrl + "/m3u/account-2.m3u",
@@ -256,7 +266,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 AccountType.M3U8_URL, null, providerBaseUrl + "/m3u/account-2.m3u", false
         );
         m3uUrl.setAction(itv);
-        AccountService.getInstance().save(m3uUrl);
+        AccountService.INSTANCE.save(m3uUrl);
 
         Account m3uUncategorizedOnly = new Account(
                 WEB_M3U_UNCATEGORIZED_ONLY, null, null, providerBaseUrl + "/m3u/account-uncategorized-only.m3u",
@@ -264,7 +274,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 AccountType.M3U8_URL, null, providerBaseUrl + "/m3u/account-uncategorized-only.m3u", false
         );
         m3uUncategorizedOnly.setAction(itv);
-        AccountService.getInstance().save(m3uUncategorizedOnly);
+        AccountService.INSTANCE.save(m3uUncategorizedOnly);
 
         Account rss = new Account(
                 "web-rss", null, null, rssFeedUrl,
@@ -272,12 +282,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 AccountType.RSS_FEED, null, rssFeedUrl, false
         );
         rss.setAction(itv);
-        AccountService.getInstance().save(rss);
+        AccountService.INSTANCE.save(rss);
     }
 
     private void warmUpCacheAndData() throws IOException {
         CacheService cacheService = new CacheServiceImpl();
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
 
         Account stalker = accountService.getByName("web-stalker");
         stalker.setAction(itv);
@@ -286,18 +296,18 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         stalker.setAction(vod);
         accountService.save(stalker);
-        CategoryService.getInstance().get(stalker, false);
+        new CategoryService().get(stalker, false);
         List<Category> stalkerVodCats = VodCategoryDb.get().getCategories(stalker);
         for (Category c : stalkerVodCats) {
-            ChannelService.getInstance().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
+            new ChannelService().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
         }
 
         stalker.setAction(series);
         accountService.save(stalker);
-        CategoryService.getInstance().get(stalker, false);
+        new CategoryService().get(stalker, false);
         List<Category> stalkerSeriesCats = SeriesCategoryDb.get().getCategories(stalker);
         for (Category c : stalkerSeriesCats) {
-            ChannelService.getInstance().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
+            new ChannelService().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
         }
 
         Account xtreme = accountService.getByName("web-xtreme");
@@ -307,18 +317,18 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         xtreme.setAction(vod);
         accountService.save(xtreme);
-        CategoryService.getInstance().get(xtreme, false);
+        new CategoryService().get(xtreme, false);
         List<Category> xtremeVodCats = VodCategoryDb.get().getCategories(xtreme);
         for (Category c : xtremeVodCats) {
-            ChannelService.getInstance().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
+            new ChannelService().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
         }
 
         xtreme.setAction(series);
         accountService.save(xtreme);
-        CategoryService.getInstance().get(xtreme, false);
+        new CategoryService().get(xtreme, false);
         List<Category> xtremeSeriesCats = SeriesCategoryDb.get().getCategories(xtreme);
         for (Category c : xtremeSeriesCats) {
-            ChannelService.getInstance().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
+            new ChannelService().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
         }
 
         for (String name : List.of("web-m3u-local", "web-m3u-url", WEB_M3U_UNCATEGORIZED_ONLY, "web-rss")) {
@@ -328,7 +338,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             cacheService.reloadCache(a, m -> {});
         }
 
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
         bookmarkService.addCategory(new com.uiptv.model.BookmarkCategory(null, "Web Favorites"));
         com.uiptv.model.BookmarkCategory webCategory = bookmarkService.getAllCategories().stream()
                 .filter(c -> "Web Favorites".equals(c.getName()))
@@ -356,7 +366,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         b.setCategoryId(webCategory.getId());
         bookmarkService.save(b);
 
-        M3U8PublicationService.getInstance().setSelectedAccountIds(
+        new M3U8PublicationService().setSelectedAccountIds(
                 Set.of(
                         accountService.getByName("web-m3u-local").getDbId(),
                         accountService.getByName("web-m3u-url").getDbId()
@@ -402,7 +412,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(names.contains("web-stalker"));
         assertTrue(names.contains("web-xtreme"));
 
-        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        Account xtreme = AccountService.INSTANCE.getByName("web-xtreme");
         List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(xtreme.getXtremeCredentialsJson());
         assertFalse(entries.isEmpty());
         XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
@@ -411,7 +421,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertCategoriesApi() throws Exception {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account stalker = accountService.getByName("web-stalker");
         Account xtreme = accountService.getByName("web-xtreme");
         Account m3u = accountService.getByName("web-m3u-local");
@@ -441,7 +451,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertChannelsApi() throws Exception {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account stalker = accountService.getByName("web-stalker");
         Account xtreme = accountService.getByName("web-xtreme");
         Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
@@ -478,7 +488,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertSeriesApis() throws Exception {
-        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        Account xtreme = AccountService.INSTANCE.getByName("web-xtreme");
         JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
         assertTrue(xtremeSeriesCategories.length() >= 1);
         String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
@@ -518,7 +528,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         JSONArray afterEpisode2 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
                 + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
                 + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
-        SeriesWatchState afterEpisode2State = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), categoryApiId, seriesId);
+        SeriesWatchState afterEpisode2State = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(account.getDbId(), categoryApiId, seriesId);
         assertNotNull(afterEpisode2State, "Expected watch state to be created for series " + seriesId);
         assertEquals(episode2.optString("channelId"), afterEpisode2State.getEpisodeId());
         assertEquals(episode2.optString("channelId"), watchedEpisodeId(afterEpisode2));
@@ -708,7 +718,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertVodDetailsApi() throws Exception {
-        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        Account xtreme = AccountService.INSTANCE.getByName("web-xtreme");
         JSONArray xtremeVodCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=vod"));
         assertTrue(xtremeVodCategories.length() >= 1);
         String xtremeVodCategoryDbId = xtremeVodCategories.getJSONObject(0).optString("dbId");
@@ -738,7 +748,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         JSONArray categories = jsonArrayBody(get("/bookmarks?view=categories"));
         assertTrue(categories.length() >= 1);
 
-        Account stalker = AccountService.getInstance().getByName("web-stalker");
+        Account stalker = AccountService.INSTANCE.getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
                 .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
@@ -786,7 +796,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertPlayerApis() throws Exception {
-        Account stalker = AccountService.getInstance().getByName("web-stalker");
+        Account stalker = AccountService.INSTANCE.getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
                 .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
@@ -799,18 +809,18 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                 + "&mode=itv"));
         assertFalse(directPlayer.optString("url").isBlank());
 
-        Bookmark bookmark = BookmarkService.getInstance().read().get(0);
+        Bookmark bookmark = BookmarkService.INSTANCE.read().get(0);
         JSONObject bookmarkPlayer = jsonObjectBody(get("/player?bookmarkId=" + bookmark.getDbId() + "&mode=itv"));
         assertFalse(bookmarkPlayer.optString("url").isBlank());
 
-        Account m3u = AccountService.getInstance().getByName("web-m3u-local");
+        Account m3u = AccountService.INSTANCE.getByName("web-m3u-local");
         m3u.setAction(itv);
         List<Category> m3uCats = CategoryDb.get().getCategories(m3u);
         Channel drmChannel = null;
         for (Category c : m3uCats) {
             List<Channel> channels = ChannelDb.get().getChannels(c.getDbId());
             for (Channel ch : channels) {
-                if (PlayerService.getInstance().isDrmProtected(ch)) {
+                if (new PlayerService().isDrmProtected(ch)) {
                     drmChannel = ch;
                     break;
                 }
@@ -839,7 +849,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertPlaylistApis() throws Exception {
-        Account stalker = AccountService.getInstance().getByName("web-stalker");
+        Account stalker = AccountService.INSTANCE.getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
                 .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
                 .findFirst()
@@ -856,7 +866,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertEquals(200, bookmarksM3u.statusCode());
         assertTrue(bookmarksM3u.body().contains("/bookmarkEntry.ts?bookmarkId="));
 
-        String firstBookmarkId = BookmarkService.getInstance().read().get(0).getDbId();
+        String firstBookmarkId = BookmarkService.INSTANCE.read().get(0).getDbId();
         HttpTextResponse bookmarkEntry = get("/bookmarkEntry.ts?bookmarkId=" + firstBookmarkId);
         assertEquals(307, bookmarkEntry.statusCode());
         assertTrue(bookmarkEntry.firstHeader("location").startsWith("http"));
@@ -946,7 +956,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse recentlyDeletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(200, recentlyDeletedSegmentFetch.statusCode());
 
-        com.uiptv.service.InMemoryHlsService.getInstance().clear();
+        com.uiptv.service.InMemoryHlsService.INSTANCE.clear();
         HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
         assertEquals(404, deletedSegmentFetch.statusCode());
 

@@ -43,7 +43,7 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
-    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.getInstance();
+    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.INSTANCE;
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
@@ -51,8 +51,8 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
-    private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private final CategoryService categoryService = CategoryService.getInstance();
+    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private final CategoryService categoryService = new CategoryService();
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
     private final HBox navHeader = new HBox(6);
@@ -63,7 +63,7 @@ public class AccountListUI extends HBox {
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
-    AccountService accountService = AccountService.getInstance();
+    AccountService accountService = AccountService.INSTANCE;
     @Setter
     private ManageAccountUI manageAccountUI;
     private Node currentContent;

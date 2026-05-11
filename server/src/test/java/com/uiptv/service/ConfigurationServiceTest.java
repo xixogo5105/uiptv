@@ -12,14 +12,14 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void cacheExpiry_defaultsTo30Days_whenNotConfigured() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         assertEquals(30, service.getCacheExpiryDays());
         assertEquals(30L * 24L * 60L * 60L * 1000L, service.getCacheExpiryMs());
     }
 
     @Test
     void cacheExpiry_usesConfiguredPositiveDays() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         Configuration configuration = new Configuration();
         configuration.setCacheExpiryDays("7");
         service.save(configuration);
@@ -30,7 +30,7 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void cacheExpiry_fallsBackToDefault_whenInvalidOrZero() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         Configuration invalid = new Configuration();
         invalid.setCacheExpiryDays("abc");
         service.save(invalid);
@@ -44,7 +44,7 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void litePlayerFfmpegFlag_defaultsToFalse_andPersistsWhenEnabled() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         assertFalse(service.read().isEnableLitePlayerFfmpeg());
 
         Configuration configuration = service.read();
@@ -56,7 +56,7 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void autoRunServerOnStartup_defaultsToFalse_andPersistsWhenEnabled() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         assertFalse(service.read().isAutoRunServerOnStartup());
 
         Configuration configuration = service.read();
@@ -68,19 +68,19 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void vlcSettings_defaultToOneSecondCaching_andEnabledFlags() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
 
         assertEquals(ConfigurationService.DEFAULT_VLC_CACHING_MS,
-                ConfigurationService.getInstance().normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs()));
+                ConfigurationService.INSTANCE.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs()));
         assertEquals(ConfigurationService.DEFAULT_VLC_CACHING_MS,
-                ConfigurationService.getInstance().normalizeVlcCachingMs(configuration.getVlcLiveCachingMs()));
+                ConfigurationService.INSTANCE.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs()));
         assertTrue(configuration.isEnableVlcHttpUserAgent());
         assertTrue(configuration.isEnableVlcHttpForwardCookies());
     }
 
     @Test
     void vlcSettings_persistCustomValues() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         Configuration configuration = service.read();
         configuration.setVlcNetworkCachingMs("30000");
         configuration.setVlcLiveCachingMs("");
@@ -97,7 +97,7 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void resolveChainAndDeepRedirects_defaultsToDisabled_andPersistsWhenEnabled() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         assertFalse(service.isResolveChainAndDeepRedirectsEnabled());
 
         Configuration configuration = service.read();
@@ -110,7 +110,7 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void resolveChainAndDeepRedirects_accountOverrideEnablesFeatureWhenGlobalIsDisabled() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         Account account = new Account();
         account.setResolveChainAndDeepRedirects(true);
 
@@ -119,7 +119,7 @@ class ConfigurationServiceTest extends DbBackedTest {
 
     @Test
     void publishedM3uCategoryMode_defaultsToSourceDashCategory_andPersistsCustomValue() {
-        ConfigurationService service = ConfigurationService.getInstance();
+        ConfigurationService service = ConfigurationService.INSTANCE;
         assertEquals(M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY, service.getPublishedM3uCategoryMode());
 
         Configuration configuration = service.read();

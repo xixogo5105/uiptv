@@ -12,10 +12,10 @@ class ThumbnailModeServiceTest extends DbBackedTest {
     void imdbMetadataService_returnsEmpty_whenThumbnailsDisabled() {
         saveConfig(false);
 
-        JsonObject details = ImdbMetadataService.getInstance().findBestEffortDetails("Test Series", "");
-        JsonObject detailsWithHints = ImdbMetadataService.getInstance().findBestEffortDetails("Test Series", "", java.util.List.of("Hint"));
-        JsonObject movieDetails = ImdbMetadataService.getInstance().findBestEffortMovieDetails("Test Movie", "");
-        JsonObject movieDetailsWithHints = ImdbMetadataService.getInstance().findBestEffortMovieDetails("Test Movie", "", java.util.List.of("Hint"));
+        JsonObject details = ImdbMetadataService.INSTANCE.findBestEffortDetails("Test Series", "");
+        JsonObject detailsWithHints = ImdbMetadataService.INSTANCE.findBestEffortDetails("Test Series", "", java.util.List.of("Hint"));
+        JsonObject movieDetails = ImdbMetadataService.INSTANCE.findBestEffortMovieDetails("Test Movie", "");
+        JsonObject movieDetailsWithHints = ImdbMetadataService.INSTANCE.findBestEffortMovieDetails("Test Movie", "", java.util.List.of("Hint"));
 
         assertEquals(0, details.size());
         assertEquals(0, detailsWithHints.size());
@@ -35,6 +35,6 @@ class ThumbnailModeServiceTest extends DbBackedTest {
                 "30",
                 enableThumbnails
         );
-        ConfigurationService.getInstance().save(config);
+        ConfigurationService.INSTANCE.save(config);
     }
 }

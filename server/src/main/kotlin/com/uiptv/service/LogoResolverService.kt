@@ -34,8 +34,6 @@ object LogoResolverService {
         loadLocalCache()
     }
 
-    @JvmStatic
-    fun getInstance(): LogoResolverService = this
     fun resolve(channelName: String?, providerLogo: String?): String {
         if (isNotBlank(providerLogo)) return providerLogo.orEmpty()
         if (isBlank(channelName)) return ""

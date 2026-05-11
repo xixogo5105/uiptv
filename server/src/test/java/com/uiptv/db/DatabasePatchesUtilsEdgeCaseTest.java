@@ -40,7 +40,7 @@ class DatabasePatchesUtilsEdgeCaseTest extends DbBackedTest {
         Method columnExists = DatabasePatchesUtils.class.getDeclaredMethod("columnExists", Connection.class, String.class, String.class);
         columnExists.setAccessible(true);
 
-        try (Connection conn = SQLConnection.connect(); Statement st = conn.createStatement()) {
+        try (Connection conn = SqlConnectionRuntime.connect(); Statement st = conn.createStatement()) {
             st.executeUpdate("DROP TABLE IF EXISTS TestTable");
             st.executeUpdate("CREATE TABLE TestTable (id INTEGER PRIMARY KEY)");
 

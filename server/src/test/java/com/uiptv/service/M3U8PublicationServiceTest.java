@@ -24,8 +24,8 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
     @Override
     protected void afterDatabaseSetup() {
-        AccountService.getInstance().deleteAll();
-        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of());
+        AccountService.INSTANCE.deleteAll();
+        new M3U8PublicationService().setSelectedAccountIds(Set.of());
     }
 
     @BeforeEach
@@ -41,7 +41,7 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
     @Test
     void testGetPublishedM3u8() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
 
         // Create an account pointing to the local M3U8 file
         Account account = new Account("M3U8Account", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
@@ -49,7 +49,7 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         Account savedAccount = accountService.getByName("M3U8Account");
 
         // Select the account for publication
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         Set<String> selectedIds = new LinkedHashSet<>();
         selectedIds.add(savedAccount.getDbId());
         publicationService.setSelectedAccountIds(selectedIds);
@@ -67,12 +67,12 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
     @Test
     void deletingAccountRemovesPublishedSelection() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account account = new Account("DeleteMe", "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
         accountService.save(account);
         Account savedAccount = accountService.getByName("DeleteMe");
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         publicationService.setSelectedAccountIds(new LinkedHashSet<>(Set.of(savedAccount.getDbId())));
         accountService.delete(savedAccount.getDbId());
 
@@ -82,7 +82,7 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
     @Test
     void deleteAllRemovesAllPublishedSelections() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account first = new Account("DeleteAllOne", "user", "pass", "http://test.com", "00:11:22:33:44:51", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
         Account second = new Account("DeleteAllTwo", "user", "pass", "http://test.com", "00:11:22:33:44:52", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
         accountService.save(first);
@@ -91,7 +91,7 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         Account savedFirst = accountService.getByName("DeleteAllOne");
         Account savedSecond = accountService.getByName("DeleteAllTwo");
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         publicationService.setSelectedAccountIds(new LinkedHashSet<>(Set.of(savedFirst.getDbId(), savedSecond.getDbId())));
         assertEquals(Set.of(savedFirst.getDbId(), savedSecond.getDbId()), publicationService.getSelectedAccountIds());
 
@@ -103,12 +103,12 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
     @Test
     void getPublishedM3u8IgnoresStaleSelectedAccountIds() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account valid = new Account("ValidSelection", "user", "pass", "http://test.com", "00:11:22:33:44:53", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
         accountService.save(valid);
         Account savedValid = accountService.getByName("ValidSelection");
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         LinkedHashSet<String> selectedIds = new LinkedHashSet<>();
         selectedIds.add("999999");
         selectedIds.add(savedValid.getDbId());
@@ -136,10 +136,10 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("FilterMe", "user", "pass", "http://unused", "00:11:22:33:44:59", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("FilterMe");
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("FilterMe");
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         M3U8PublicationService.PlaylistAccount playlist = publicationService.getPlaylist(savedAccount.getDbId());
         String newsTwoId = playlist.categories().stream()
                 .filter(category -> "News".equals(category.categoryName()))
@@ -174,10 +174,10 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("CaseMerge", "user", "pass", "http://unused", "00:11:22:33:44:60", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("CaseMerge");
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("CaseMerge");
 
-        M3U8PublicationService.PlaylistAccount playlist = M3U8PublicationService.getInstance().getPlaylist(savedAccount.getDbId());
+        M3U8PublicationService.PlaylistAccount playlist = new M3U8PublicationService().getPlaylist(savedAccount.getDbId());
 
         assertEquals(1, playlist.categories().size());
         assertEquals("Movies", playlist.categories().getFirst().categoryName());
@@ -194,10 +194,10 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("SplitCats", "user", "pass", "http://unused", "00:11:22:33:44:62", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("SplitCats");
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("SplitCats");
 
-        M3U8PublicationService.PlaylistAccount playlist = M3U8PublicationService.getInstance().getPlaylist(savedAccount.getDbId());
+        M3U8PublicationService.PlaylistAccount playlist = new M3U8PublicationService().getPlaylist(savedAccount.getDbId());
 
         assertEquals(Set.of("News", "Sports"),
                 playlist.categories().stream().map(M3U8PublicationService.PlaylistCategory::categoryName).collect(java.util.stream.Collectors.toSet()));
@@ -206,9 +206,9 @@ class M3U8PublicationServiceTest extends DbBackedTest {
     @Test
     void getAvailableAccounts_listsBookmarksPlaylistFirst() {
         Account account = new Account("LaterAccount", "user", "pass", "http://test.com", "00:11:22:33:44:61", null, null, null, null, null, AccountType.M3U8_LOCAL, null, m3u8File.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        var accounts = M3U8PublicationService.getInstance().getAvailableAccounts();
+        var accounts = new M3U8PublicationService().getAvailableAccounts();
 
         assertFalse(accounts.isEmpty());
         assertEquals(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID, accounts.getFirst().accountId());
@@ -218,10 +218,10 @@ class M3U8PublicationServiceTest extends DbBackedTest {
     @Test
     void getPublishedM3u8_includesBookmarksPlaylistWhenSelected() {
         Bookmark bookmark = new Bookmark("acc", "", "ch-1", "Favorite One", "cmd1", "http://portal", null);
-        BookmarkService.getInstance().save(bookmark);
-        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+        BookmarkService.INSTANCE.save(bookmark);
+        Bookmark savedBookmark = BookmarkService.INSTANCE.getBookmark(bookmark);
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         publicationService.setSelectedAccountIds(Set.of(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID));
 
         String result = publicationService.getPublishedM3u8();
@@ -235,10 +235,10 @@ class M3U8PublicationServiceTest extends DbBackedTest {
     @Test
     void getPublishedM3u8_usesRequestHostForBookmarksPlaylistWhenProvided() {
         Bookmark bookmark = new Bookmark("acc", "", "ch-1", "Favorite One", "cmd1", "http://portal", null);
-        BookmarkService.getInstance().save(bookmark);
-        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+        BookmarkService.INSTANCE.save(bookmark);
+        Bookmark savedBookmark = BookmarkService.INSTANCE.getBookmark(bookmark);
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         publicationService.setSelectedAccountIds(Set.of(M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID));
 
         String result = publicationService.getPublishedM3u8("192.168.0.210:8080");
@@ -257,11 +257,11 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("Provider One", "user", "pass", "http://unused", "00:11:22:33:44:63", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("Provider One");
-        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("Provider One");
+        new M3U8PublicationService().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
 
-        String result = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        String result = new M3U8PublicationService().getPublishedM3u8("192.168.0.210:8080");
 
         assertTrue(result.contains("group-title=\"Provider One\""));
     }
@@ -278,31 +278,31 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("Provider Two", "user", "pass", "http://unused", "00:11:22:33:44:64", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("Provider Two");
-        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("Provider Two");
+        new M3U8PublicationService().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
 
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.CATEGORY_WITH_SOURCE.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        String categoryWithSource = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        String categoryWithSource = new M3U8PublicationService().getPublishedM3u8("192.168.0.210:8080");
         assertTrue(categoryWithSource.contains("group-title=\"Sports [Provider Two]\""));
         assertTrue(categoryWithSource.contains("group-title=\"Uncategorized [Provider Two]\""));
 
-        configuration = ConfigurationService.getInstance().read();
+        configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        String multiGroup = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        String multiGroup = new M3U8PublicationService().getPublishedM3u8("192.168.0.210:8080");
         assertTrue(multiGroup.contains("group-title=\"Provider Two;Sports\""));
         assertTrue(multiGroup.contains("group-title=\"Provider Two;Uncategorized\""));
 
-        configuration = ConfigurationService.getInstance().read();
+        configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.ORIGINAL_CATEGORY.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        String original = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        String original = new M3U8PublicationService().getPublishedM3u8("192.168.0.210:8080");
         assertTrue(original.contains("group-title=\"Sports\""));
         assertFalse(original.contains("group-title=\"Uncategorized\""));
     }
@@ -317,10 +317,10 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("Provider Split", "user", "pass", "http://unused", "00:11:22:33:44:66", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("Provider Split");
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("Provider Split");
 
-        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        M3U8PublicationService publicationService = new M3U8PublicationService();
         M3U8PublicationService.PlaylistAccount playlist = publicationService.getPlaylist(savedAccount.getDbId());
         String newsChannelId = playlist.categories().stream()
                 .filter(category -> "News".equals(category.categoryName()))
@@ -335,9 +335,9 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 Map.of(new M3U8PublicationService.ChannelSelectionKey(savedAccount.getDbId(), "News", newsChannelId), true)
         ));
 
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.ORIGINAL_CATEGORY.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
         String result = publicationService.getPublishedM3u8("192.168.0.210:8080");
 
@@ -357,23 +357,23 @@ class M3U8PublicationServiceTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("Provider Three", "user", "pass", "http://unused", "00:11:22:33:44:65", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("Provider Three");
-        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("Provider Three");
+        new M3U8PublicationService().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
 
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.CATEGORY_WITH_SOURCE.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        String categoryWithSource = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        String categoryWithSource = new M3U8PublicationService().getPublishedM3u8("192.168.0.210:8080");
         assertTrue(categoryWithSource.contains("group-title=\"Provider Three\""));
         assertFalse(categoryWithSource.contains("group-title=\"Sports [Provider Three]\""));
 
-        configuration = ConfigurationService.getInstance().read();
+        configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        String multiGroup = M3U8PublicationService.getInstance().getPublishedM3u8("192.168.0.210:8080");
+        String multiGroup = new M3U8PublicationService().getPublishedM3u8("192.168.0.210:8080");
         assertTrue(multiGroup.contains("group-title=\"Provider Three\""));
         assertFalse(multiGroup.contains("group-title=\"Provider Three;Sports\""));
     }

@@ -13,12 +13,12 @@ class AccountServiceSessionTokenCacheTest extends DbBackedTest {
     @Override
     protected void afterDatabaseSetup() throws Exception {
         // Ensure singleton in-memory token cache is clean per test.
-        AccountService.getInstance().deleteAll();
+        AccountService.INSTANCE.deleteAll();
     }
 
     @Test
     void syncSessionToken_hydratesTokenOnAllReadPaths() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account account = createStalkerAccount("token-cache-hydration");
         accountService.save(account);
 
@@ -42,7 +42,7 @@ class AccountServiceSessionTokenCacheTest extends DbBackedTest {
 
     @Test
     void syncSessionToken_withBlankToken_removesCachedSession() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account account = createStalkerAccount("token-cache-clear");
         accountService.save(account);
 
@@ -60,7 +60,7 @@ class AccountServiceSessionTokenCacheTest extends DbBackedTest {
 
     @Test
     void save_andDeleteAll_invalidateSessionTokenCache() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account account = createStalkerAccount("token-cache-invalidate");
         accountService.save(account);
 

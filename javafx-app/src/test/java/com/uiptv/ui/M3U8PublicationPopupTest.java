@@ -47,14 +47,14 @@ class M3U8PublicationPopupTest extends DbBackedUiTest {
     @Test
     void bookmarksPlaylist_isListedFirstWithoutDetailsToggleAndRemainsSelectable() throws Exception {
         Bookmark bookmark = new Bookmark("acc", "", "ch-1", "Bookmark One", "cmd1", "http://portal", null);
-        com.uiptv.service.BookmarkService.getInstance().save(bookmark);
+        com.uiptv.service.BookmarkService.INSTANCE.save(bookmark);
 
         java.io.File playlistFile = tempDir.resolve("popup-test.m3u8").toFile();
         try (FileWriter writer = new FileWriter(playlistFile)) {
             writer.write("#EXTM3U\n#EXTINF:-1,Channel One\nhttp://example.com/one.ts\n");
         }
         Account account = new Account("Playlist Account", "user", "pass", "http://unused", "00:11:22:33:44:62", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
         M3U8PublicationPopup popup = runOnFxThread(() -> new M3U8PublicationPopup(null));
 
@@ -75,9 +75,9 @@ class M3U8PublicationPopupTest extends DbBackedUiTest {
 
     @Test
     void popup_readsPersistedPublishedCategoryMode() throws Exception {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setPublishedM3uCategoryMode(M3U8PublicationService.PublishedCategoryMode.MULTI_GROUP.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
         M3U8PublicationPopup popup = runOnFxThread(() -> new M3U8PublicationPopup(null));
 

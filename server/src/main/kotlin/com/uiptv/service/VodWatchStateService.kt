@@ -10,8 +10,6 @@ import java.util.concurrent.CopyOnWriteArraySet
 object VodWatchStateService {
     private val listeners = CopyOnWriteArraySet<VodWatchStateChangeListener>()
 
-    @JvmStatic
-    fun getInstance(): VodWatchStateService = this
     fun getVod(accountId: String?, categoryId: String?, vodId: String?): VodWatchState? {
         if (StringUtils.isBlank(accountId) || StringUtils.isBlank(vodId)) {
             return null

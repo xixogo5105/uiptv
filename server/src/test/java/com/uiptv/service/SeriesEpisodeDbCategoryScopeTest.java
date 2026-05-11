@@ -63,8 +63,8 @@ class SeriesEpisodeDbCategoryScopeTest extends DbBackedTest {
                 false
         );
         account.setAction(Account.AccountAction.series);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(Account.AccountAction.series);
         return saved;
     }

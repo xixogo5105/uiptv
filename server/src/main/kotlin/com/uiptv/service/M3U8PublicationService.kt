@@ -617,8 +617,5 @@ class M3U8PublicationService(
         private const val GROUP_TITLE_ATTR = "group-title"
         private const val PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n"
 
-        @JvmStatic
-        fun getInstance(): M3U8PublicationService =
-            runCatching { GlobalContext.get().get<M3U8PublicationService>() }.getOrDefault(defaultInstance)
     }
 }

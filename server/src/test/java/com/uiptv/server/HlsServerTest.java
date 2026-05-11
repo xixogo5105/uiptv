@@ -27,24 +27,24 @@ class HlsServerTest {
 
     @AfterEach
     void tearDown() {
-        InMemoryHlsService.getInstance().clear();
+        InMemoryHlsService.INSTANCE.clear();
     }
 
     @Test
     void hlsUploadServer_putDeleteAndReject() throws Exception {
         HlsRouteSupport.INSTANCE.upload("segment.ts", "data".getBytes(StandardCharsets.UTF_8));
-        assertEquals("data", new String(InMemoryHlsService.getInstance().get("segment.ts"), StandardCharsets.UTF_8));
+        assertEquals("data", new String(InMemoryHlsService.INSTANCE.get("segment.ts"), StandardCharsets.UTF_8));
 
         System.setProperty("uiptv.hls.ts.delete.grace.millis", "1");
         HlsRouteSupport.INSTANCE.delete("segment.ts");
-        awaitCondition(() -> !InMemoryHlsService.getInstance().exists("segment.ts"), TimeUnit.MILLISECONDS.toNanos(200));
-        assertFalse(InMemoryHlsService.getInstance().exists("segment.ts"));
+        awaitCondition(() -> !InMemoryHlsService.INSTANCE.exists("segment.ts"), TimeUnit.MILLISECONDS.toNanos(200));
+        assertFalse(InMemoryHlsService.INSTANCE.exists("segment.ts"));
     }
 
     @Test
     void hlsFileServer_servesM3u8RewritesAndTs() throws Exception {
         String playlist = "#EXTM3U\n#EXTINF:10,\nsegment1.ts\nsegment2.ts?x=1\n#EXT-X-ENDLIST\n";
-        InMemoryHlsService.getInstance().put("playlist.m3u8", playlist.getBytes(StandardCharsets.UTF_8));
+        InMemoryHlsService.INSTANCE.put("playlist.m3u8", playlist.getBytes(StandardCharsets.UTF_8));
 
         HlsFilePayload m3u8Payload = HlsRouteSupport.INSTANCE.readFile("playlist.m3u8", true);
         assertNotNull(m3u8Payload);
@@ -54,7 +54,7 @@ class HlsServerTest {
         assertTrue(body.contains("segment2.ts?x=1&hvec=1"));
 
         byte[] tsData = "ts-data".getBytes(StandardCharsets.UTF_8);
-        InMemoryHlsService.getInstance().put("segment.ts", tsData);
+        InMemoryHlsService.INSTANCE.put("segment.ts", tsData);
         HlsFilePayload tsPayload = HlsRouteSupport.INSTANCE.readFile("segment.ts", false);
         assertNotNull(tsPayload);
         assertTrue(tsPayload.getContentType().contains("video/mp2t"));
@@ -63,7 +63,7 @@ class HlsServerTest {
 
     @Test
     void hlsFileServer_returns404ForEmptySegment() throws Exception {
-        InMemoryHlsService.getInstance().put("empty.ts", new byte[0]);
+        InMemoryHlsService.INSTANCE.put("empty.ts", new byte[0]);
         assertNull(HlsRouteSupport.INSTANCE.readFile("empty.ts", false));
     }
 
@@ -74,7 +74,7 @@ class HlsServerTest {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         CountDownLatch uploadLatch = new CountDownLatch(1);
         scheduler.schedule(() -> {
-            InMemoryHlsService.getInstance().put(fileName, "late".getBytes(StandardCharsets.UTF_8));
+            InMemoryHlsService.INSTANCE.put(fileName, "late".getBytes(StandardCharsets.UTF_8));
             uploadLatch.countDown();
         }, 10, TimeUnit.MILLISECONDS);
 

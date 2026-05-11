@@ -14,7 +14,7 @@ class AccountResolverTest extends DbBackedTest {
     void resolveAccounts_includesPinMetadata() {
         Account account = new Account("acc-pin", "user", "pass", "http://test", null, null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://test/list.m3u8", true);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
         AccountResolver resolver = new AccountResolver();
         List<AccountResolver.AccountRow> rows = resolver.resolveAccounts();
@@ -37,7 +37,7 @@ class AccountResolverTest extends DbBackedTest {
     void resolveAccounts_preservesUnpinnedFlag() {
         Account account = new Account("acc-unpinned", "user", "pass", "http://test", null, null, null, null, null, null,
                 AccountType.XTREME_API, null, "http://test/list.m3u8", false);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
         AccountResolver resolver = new AccountResolver();
         List<AccountResolver.AccountRow> rows = resolver.resolveAccounts();

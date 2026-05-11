@@ -11,7 +11,7 @@ class InMemoryHlsServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = InMemoryHlsService.getInstance();
+        service = InMemoryHlsService.INSTANCE;
         service.clear();
     }
 

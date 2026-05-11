@@ -50,7 +50,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
                 "done"
         );
 
-        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.getInstance());
+        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.INSTANCE);
         List<RemoteSyncProgressStep> progressSteps = new ArrayList<>();
         RemoteSyncExecutionResult result = service.exportToRemote(
                 "127.0.0.1",
@@ -100,7 +100,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         ));
         httpClient.downloadSource = new DatabaseSnapshotService().createSnapshot(remoteSourceDb.toString());
 
-        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.getInstance());
+        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.INSTANCE);
         RemoteSyncExecutionResult result = service.importFromRemote(
                 "127.0.0.1",
                 8888,
@@ -110,8 +110,8 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         );
 
         assertNotNull(result.report());
-        assertNotNull(AccountService.getInstance().getByName("remote-account"));
-        Configuration configuration = ConfigurationService.getInstance().read();
+        assertNotNull(AccountService.INSTANCE.getByName("remote-account"));
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         assertTrue(configuration.isDarkTheme());
         assertEquals("remote-player", configuration.getPlayerPath1());
         assertEquals("session-2", httpClient.completedSessionId);
@@ -119,11 +119,11 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     private void initializeDatabase(Path path) throws Exception {
-        withDatabase(path, () -> ConfigurationService.getInstance().read());
+        withDatabase(path, () -> ConfigurationService.INSTANCE.read());
     }
 
     private void saveLocalAccount(String accountName) {
-        AccountService.getInstance().save(new Account(
+        AccountService.INSTANCE.save(new Account(
                 accountName,
                 "user",
                 "pass",
@@ -142,19 +142,19 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     private void saveLocalConfiguration(boolean darkTheme, String playerPath1) {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setDarkTheme(darkTheme);
         configuration.setPlayerPath1(playerPath1);
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
     }
 
     private void withDatabase(Path databasePath, ThrowingRunnable runnable) throws Exception {
-        String originalPath = com.uiptv.db.SQLConnection.getDatabasePath();
-        com.uiptv.db.SQLConnection.setDatabasePath(databasePath.toString());
+        String originalPath = com.uiptv.db.SqlConnectionRuntime.getDatabasePath();
+        com.uiptv.db.SqlConnectionRuntime.setDatabasePath(databasePath.toString());
         try {
             runnable.run();
         } finally {
-            com.uiptv.db.SQLConnection.setDatabasePath(originalPath);
+            com.uiptv.db.SqlConnectionRuntime.setDatabasePath(originalPath);
         }
     }
 

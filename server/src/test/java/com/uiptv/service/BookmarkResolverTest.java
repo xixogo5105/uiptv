@@ -20,7 +20,7 @@ class BookmarkResolverTest extends DbBackedTest {
     void resolveBookmark_usesSnapshotData_andDefaultsAccountAction() {
         Account account = new Account("bookmark-acc", "user", "pass", "http://test", null, null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://test/list.m3u8", false);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
         Channel snapshot = new Channel();
         snapshot.setLogo("http://img/logo.png");
@@ -49,8 +49,8 @@ class BookmarkResolverTest extends DbBackedTest {
     void resolveBookmark_fallsBackToChannelCache_whenSnapshotIsMissing() {
         Account account = new Account("bookmark-cache", "user", "pass", "http://test", null, null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://test/list.m3u8", false);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName("bookmark-cache");
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName("bookmark-cache");
 
         Category category = new Category("100", "News", "news", false, 0);
         CategoryDb.get().insert(category, saved);

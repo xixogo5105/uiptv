@@ -18,7 +18,7 @@ import static com.uiptv.util.json.JsonAccessKt.parseJsonObject;
 
 class HandshakeServiceProfileInferenceTest {
 
-    private final HandshakeService service = HandshakeService.getInstance();
+    private final HandshakeService service = new HandshakeService();
 
     @Test
     void deriveAccountStatus_activeWhenStatusZeroAndNotBlocked() throws Exception {

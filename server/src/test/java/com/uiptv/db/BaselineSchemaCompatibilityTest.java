@@ -60,10 +60,10 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
             DatabasePatchesUtils.applyBaseline(conn);
         }
 
-        ConfigurationService configurationService = ConfigurationService.getInstance();
-        ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
-        AccountService accountService = AccountService.getInstance();
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        ConfigurationService configurationService = ConfigurationService.INSTANCE;
+        ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.INSTANCE;
+        AccountService accountService = AccountService.INSTANCE;
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         Configuration savedConfiguration = saveAndReadConfiguration(configurationService);
         assertConfigurationPersistence(savedConfiguration);

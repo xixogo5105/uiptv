@@ -31,8 +31,8 @@ class M3uCacheReloaderPlaylistSwitchTest extends DbBackedTest {
                 """, StandardCharsets.UTF_8);
 
         Account account = new Account("Switch Groups", "user", "pass", "http://unused", "00:11:22:33:44:67", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("Switch Groups");
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("Switch Groups");
 
         M3uCacheReloader reloader = new M3uCacheReloader();
         reloader.reloadCache(savedAccount, null);

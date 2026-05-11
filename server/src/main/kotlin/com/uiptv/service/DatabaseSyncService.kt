@@ -18,8 +18,6 @@ object DatabaseSyncService {
         DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE
     )
 
-    @JvmStatic
-    fun getInstance(): DatabaseSyncService = this
 
     @JvmStatic
     @Throws(SQLException::class)

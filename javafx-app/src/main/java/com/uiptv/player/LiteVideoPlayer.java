@@ -29,7 +29,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private volatile long playbackStartOffsetMs;
     private volatile long playbackWallClockStartedAtMs;
     private volatile long lastObservedPlaybackTimeMs;
-    private final LitePlayerFfmpegService litePlayerFfmpegService = LitePlayerFfmpegService.getInstance();
+    private final LitePlayerFfmpegService litePlayerFfmpegService = new LitePlayerFfmpegService();
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {

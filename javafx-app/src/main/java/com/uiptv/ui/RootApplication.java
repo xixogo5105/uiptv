@@ -39,11 +39,11 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
-    private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
+    private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.INSTANCE;
     private static Stage primaryStage;
     private static String currentTheme;
-    private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private final RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
+    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private final RemoteSyncSessionService remoteSyncSessionService = new RemoteSyncSessionService();
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");

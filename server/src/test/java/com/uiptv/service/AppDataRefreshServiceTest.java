@@ -13,22 +13,22 @@ class AppDataRefreshServiceTest extends DbBackedTest {
     void refreshAfterDatabaseChange_notifiesAccountBookmarkAndConfigurationListeners() {
         AtomicInteger accountNotifications = new AtomicInteger();
         AtomicInteger configurationNotifications = new AtomicInteger();
-        long bookmarkRevisionBefore = BookmarkService.getInstance().getChangeRevision();
+        long bookmarkRevisionBefore = BookmarkService.INSTANCE.getChangeRevision();
 
         AccountChangeListener accountListener = revision -> accountNotifications.incrementAndGet();
         ConfigurationChangeListener configurationListener = revision -> configurationNotifications.incrementAndGet();
 
-        AccountService.getInstance().addChangeListener(accountListener);
-        ConfigurationService.getInstance().addChangeListener(configurationListener);
+        AccountService.INSTANCE.addChangeListener(accountListener);
+        ConfigurationService.INSTANCE.addChangeListener(configurationListener);
         try {
-            AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
+            AppDataRefreshService.INSTANCE.refreshAfterDatabaseChange();
         } finally {
-            AccountService.getInstance().removeChangeListener(accountListener);
-            ConfigurationService.getInstance().removeChangeListener(configurationListener);
+            AccountService.INSTANCE.removeChangeListener(accountListener);
+            ConfigurationService.INSTANCE.removeChangeListener(configurationListener);
         }
 
         assertEquals(1, accountNotifications.get());
         assertEquals(1, configurationNotifications.get());
-        assertTrue(BookmarkService.getInstance().getChangeRevision() > bookmarkRevisionBefore);
+        assertTrue(BookmarkService.INSTANCE.getChangeRevision() > bookmarkRevisionBefore);
     }
 }

@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ConfigurationUISaveFilterLockTest extends DbBackedUiTest {
 
-    private final FilterLockService filterLockService = FilterLockService.getInstance();
-    private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final FilterLockService filterLockService = FilterLockService.INSTANCE;
+    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
 
     @AfterEach
     void clearLockSession() {

@@ -1,6 +1,6 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.SQLConnection;
+import com.uiptv.db.SqlConnectionRuntime;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchingNowSnapshot;
@@ -35,7 +35,7 @@ class ConfigurationUIClearWatchingNowTest {
     @BeforeEach
     void setUpDatabase() {
         testDbFile = tempDir.resolve("uiptv-test.db").toFile();
-        SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
+        SqlConnectionRuntime.setDatabasePath(testDbFile.getAbsolutePath());
     }
 
     @AfterEach
@@ -53,9 +53,9 @@ class ConfigurationUIClearWatchingNowTest {
         vodChannel.setChannelId("vod-1");
         vodChannel.setName("VOD 1");
         vodChannel.setCmd("http://127.0.0.1/vod/1.m3u8");
-        VodWatchStateService.getInstance().save(account, "vod-cat", vodChannel);
+        VodWatchStateService.INSTANCE.save(account, "vod-cat", vodChannel);
 
-        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+        SeriesWatchStateService.INSTANCE.markSeriesEpisodeManual(
                 account,
                 "series-cat",
                 "series-1",
@@ -75,19 +75,19 @@ class ConfigurationUIClearWatchingNowTest {
         snapshot.setUpdatedAt(System.currentTimeMillis());
         com.uiptv.db.SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
 
-        assertFalse(SeriesWatchStateService.getInstance()
+        assertFalse(SeriesWatchStateService.INSTANCE
                 .getAllSeriesLastWatchedByAccount(account.getDbId()).isEmpty());
-        assertFalse(SeriesWatchingNowSnapshotService.getInstance()
+        assertFalse(SeriesWatchingNowSnapshotService.INSTANCE
                 .loadEpisodeList(account.getDbId(), "series-cat", "series-1").getEpisodes().isEmpty());
-        assertFalse(VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).isEmpty());
+        assertFalse(VodWatchStateService.INSTANCE.getAllByAccount(account.getDbId()).isEmpty());
 
         ConfigurationUI.clearWatchingNowStates();
 
-        assertTrue(SeriesWatchStateService.getInstance()
+        assertTrue(SeriesWatchStateService.INSTANCE
                 .getAllSeriesLastWatchedByAccount(account.getDbId()).isEmpty());
-        assertTrue(SeriesWatchingNowSnapshotService.getInstance()
+        assertTrue(SeriesWatchingNowSnapshotService.INSTANCE
                 .loadEpisodeList(account.getDbId(), "series-cat", "series-1").getEpisodes().isEmpty());
-        assertTrue(VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).isEmpty());
+        assertTrue(VodWatchStateService.INSTANCE.getAllByAccount(account.getDbId()).isEmpty());
     }
 
     private Account createSeriesAccount(String name) {
@@ -108,8 +108,8 @@ class ConfigurationUIClearWatchingNowTest {
                 false
         );
         account.setAction(series);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(series);
         return saved;
     }

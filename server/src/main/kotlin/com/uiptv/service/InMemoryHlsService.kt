@@ -21,8 +21,6 @@ object InMemoryHlsService {
         Thread(runnable, "uiptv-hls-delete-grace").apply { isDaemon = true }
     }
 
-    @JvmStatic
-    fun getInstance(): InMemoryHlsService = this
     fun put(name: String, data: ByteArray) {
         if (name.endsWith(".ts")) {
             cancelPendingDelete(name)

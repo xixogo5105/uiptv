@@ -25,8 +25,6 @@ object AccountService {
     private val changeListeners = CopyOnWriteArraySet<AccountChangeListener>()
     private val sessionTokenByAccountKey = ConcurrentHashMap<String, String>()
 
-    @JvmStatic
-    fun getInstance(): AccountService = this
     fun save(account: Account?) {
         if (account == null) {
             return

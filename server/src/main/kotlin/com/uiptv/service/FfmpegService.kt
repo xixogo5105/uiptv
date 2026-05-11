@@ -29,8 +29,6 @@ object FfmpegService : AbstractFfmpegHlsService() {
         stopManagedHlsStream()
     }
 
-    @JvmStatic
-    fun getInstance(): FfmpegService = this
 
     @JvmStatic
     fun buildHlsCommand(inputUrl: String, outputUrl: String, vodStylePlaylist: Boolean): List<String> =

@@ -38,7 +38,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class MacAddressManagementPopup extends VBox {
-    private final HandshakeService handshakeService = HandshakeService.getInstance();
+    private final HandshakeService handshakeService = new HandshakeService();
 
     private final Stage stage;
     private final ListView<MacItem> macListView = new ListView<>();

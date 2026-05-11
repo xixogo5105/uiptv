@@ -12,7 +12,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
-    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     private static VideoPlayerInterface instance;
     private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();

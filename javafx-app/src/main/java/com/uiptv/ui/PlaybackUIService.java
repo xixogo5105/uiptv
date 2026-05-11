@@ -32,8 +32,8 @@ public final class PlaybackUIService {
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
-    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private static final PlayerService playerService = PlayerService.getInstance();
+    private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private static final PlayerService playerService = new PlayerService();
 
     private PlaybackUIService() {
     }

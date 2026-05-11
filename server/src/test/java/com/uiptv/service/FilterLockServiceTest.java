@@ -10,57 +10,57 @@ class FilterLockServiceTest extends DbBackedTest {
 
     @AfterEach
     void clearLockSession() {
-        FilterLockService.getInstance().clearUnlockSession();
+        FilterLockService.INSTANCE.clearUnlockSession();
     }
 
     @Test
     void initialPassword_isStoredHashed_andUnlocksWithCorrectPassword() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
 
-        FilterLockService.getInstance().applyInitialPassword(configuration, "correct horse battery");
-        ConfigurationService.getInstance().save(configuration);
+        FilterLockService.INSTANCE.applyInitialPassword(configuration, "correct horse battery");
+        ConfigurationService.INSTANCE.save(configuration);
 
-        Configuration saved = ConfigurationService.getInstance().read();
+        Configuration saved = ConfigurationService.INSTANCE.read();
         assertNotNull(saved.getFilterLockHash());
         assertFalse(saved.getFilterLockHash().isBlank());
         assertFalse(saved.getFilterLockHash().contains("correct horse battery"));
         assertTrue(saved.getFilterLockHash().startsWith("pbkdf2-sha256$"));
-        assertTrue(FilterLockService.getInstance().unlockWithPassword("correct horse battery"));
-        assertTrue(FilterLockService.getInstance().isUnlocked());
-        assertFalse(FilterLockService.getInstance().unlockWithPassword("wrong password"));
+        assertTrue(FilterLockService.INSTANCE.unlockWithPassword("correct horse battery"));
+        assertTrue(FilterLockService.INSTANCE.isUnlocked());
+        assertFalse(FilterLockService.INSTANCE.unlockWithPassword("wrong password"));
     }
 
     @Test
     void passwordChange_requiresCurrentPassword_andInvalidatesPreviousPassword() {
-        Configuration configuration = ConfigurationService.getInstance().read();
-        FilterLockService.getInstance().applyInitialPassword(configuration, "correct horse battery");
-        ConfigurationService.getInstance().save(configuration);
+        Configuration configuration = ConfigurationService.INSTANCE.read();
+        FilterLockService.INSTANCE.applyInitialPassword(configuration, "correct horse battery");
+        ConfigurationService.INSTANCE.save(configuration);
 
-        Configuration persisted = ConfigurationService.getInstance().read();
-        Runnable changeWithWrongPassword = () -> FilterLockService.getInstance().applyPasswordChange(
+        Configuration persisted = ConfigurationService.INSTANCE.read();
+        Runnable changeWithWrongPassword = () -> FilterLockService.INSTANCE.applyPasswordChange(
                 persisted,
                 "wrong password",
                 "new parent lock secret"
         );
         assertThrows(IllegalArgumentException.class, changeWithWrongPassword::run);
 
-        FilterLockService.getInstance().applyPasswordChange(
+        FilterLockService.INSTANCE.applyPasswordChange(
                 persisted,
                 "correct horse battery",
                 "new parent lock secret"
         );
-        ConfigurationService.getInstance().save(persisted);
+        ConfigurationService.INSTANCE.save(persisted);
 
-        FilterLockService.getInstance().clearUnlockSession();
-        assertFalse(FilterLockService.getInstance().unlockWithPassword("correct horse battery"));
-        assertTrue(FilterLockService.getInstance().unlockWithPassword("new parent lock secret"));
+        FilterLockService.INSTANCE.clearUnlockSession();
+        assertFalse(FilterLockService.INSTANCE.unlockWithPassword("correct horse battery"));
+        assertTrue(FilterLockService.INSTANCE.unlockWithPassword("new parent lock secret"));
     }
 
     @Test
     void shortPassword_isRejected() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
 
-        Runnable applyShortPassword = () -> FilterLockService.getInstance().applyInitialPassword(configuration, "short");
+        Runnable applyShortPassword = () -> FilterLockService.INSTANCE.applyInitialPassword(configuration, "short");
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, applyShortPassword::run);
 
         assertEquals("filterLockPasswordTooShort", ex.getMessage());
@@ -68,56 +68,56 @@ class FilterLockServiceTest extends DbBackedTest {
 
     @Test
     void sixCharacterPassword_isAccepted() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
 
-        FilterLockService.getInstance().applyInitialPassword(configuration, "secret");
-        ConfigurationService.getInstance().save(configuration);
+        FilterLockService.INSTANCE.applyInitialPassword(configuration, "secret");
+        ConfigurationService.INSTANCE.save(configuration);
 
-        assertTrue(FilterLockService.getInstance().unlockWithPassword("secret"));
+        assertTrue(FilterLockService.INSTANCE.unlockWithPassword("secret"));
     }
 
     @Test
     void clearPassword_requiresCurrentPassword_andRemovesStoredHash() {
-        Configuration configuration = ConfigurationService.getInstance().read();
-        FilterLockService.getInstance().applyInitialPassword(configuration, "secret");
-        ConfigurationService.getInstance().save(configuration);
+        Configuration configuration = ConfigurationService.INSTANCE.read();
+        FilterLockService.INSTANCE.applyInitialPassword(configuration, "secret");
+        ConfigurationService.INSTANCE.save(configuration);
 
-        Configuration persisted = ConfigurationService.getInstance().read();
-        Runnable clearWithWrongPassword = () -> FilterLockService.getInstance().clearPassword(persisted, "wrong");
+        Configuration persisted = ConfigurationService.INSTANCE.read();
+        Runnable clearWithWrongPassword = () -> FilterLockService.INSTANCE.clearPassword(persisted, "wrong");
         assertThrows(IllegalArgumentException.class, clearWithWrongPassword::run);
 
-        FilterLockService.getInstance().clearPassword(persisted, "secret");
-        ConfigurationService.getInstance().save(persisted);
+        FilterLockService.INSTANCE.clearPassword(persisted, "secret");
+        ConfigurationService.INSTANCE.save(persisted);
 
-        Configuration saved = ConfigurationService.getInstance().read();
+        Configuration saved = ConfigurationService.INSTANCE.read();
         assertTrue(saved.getFilterLockHash() == null || saved.getFilterLockHash().isBlank());
-        assertTrue(FilterLockService.getInstance().isUnlocked());
-        assertFalse(FilterLockService.getInstance().hasPasswordConfigured());
+        assertTrue(FilterLockService.INSTANCE.isUnlocked());
+        assertFalse(FilterLockService.INSTANCE.hasPasswordConfigured());
       }
 
       @Test
     void filterLockUnlockDurationDefaultsTo15Minutes() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         assertEquals("15", configuration.getFilterLockUnlockDurationMinutes());
       }
 
       @Test
     void filterLockUnlockDurationCanBeSetToCustomValue() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setFilterLockUnlockDurationMinutes("30");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        Configuration saved = ConfigurationService.getInstance().read();
+        Configuration saved = ConfigurationService.INSTANCE.read();
         assertEquals("30", saved.getFilterLockUnlockDurationMinutes());
       }
 
       @Test
     void filterLockUnlockDurationPersistsWithCorrectValues() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setFilterLockUnlockDurationMinutes("60");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
-        Configuration saved = ConfigurationService.getInstance().read();
+        Configuration saved = ConfigurationService.INSTANCE.read();
         assertEquals("60", saved.getFilterLockUnlockDurationMinutes());
       }
     }

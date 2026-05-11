@@ -12,7 +12,7 @@ class AccountServiceDeleteWatchStateTest extends DbBackedTest {
 
     @Test
     void delete_removesVodWatchStateForAccount() {
-        AccountService accountService = AccountService.getInstance();
+        AccountService accountService = AccountService.INSTANCE;
         Account account = new Account(
                 "vod-delete-watch-state",
                 "user",
@@ -38,7 +38,7 @@ class AccountServiceDeleteWatchStateTest extends DbBackedTest {
         channel.setCmd("http://vod/123.mp4");
         channel.setLogo("http://vod/123.png");
 
-        VodWatchStateService.getInstance().save(saved, "movies", channel);
+        VodWatchStateService.INSTANCE.save(saved, "movies", channel);
         assertTrue(VodWatchStateDb.get().getByAccount(saved.getDbId()).size() > 0);
 
         accountService.delete(saved.getDbId());

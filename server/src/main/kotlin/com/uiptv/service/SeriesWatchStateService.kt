@@ -24,8 +24,6 @@ object SeriesWatchStateService {
     private val EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b")
     private val listeners = CopyOnWriteArraySet<SeriesWatchStateChangeListener>()
 
-    @JvmStatic
-    fun getInstance(): SeriesWatchStateService = this
     fun getSeriesLastWatched(accountId: String?, seriesId: String?): SeriesWatchState? =
         getSeriesLastWatched(accountId, "", seriesId)
     fun getSeriesLastWatched(accountId: String?, categoryId: String?, seriesId: String?): SeriesWatchState? {

@@ -318,8 +318,8 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
 
     private Account persistAccount(String name, AccountType accountType) {
         Account account = new Account(name, "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, accountType, null, "mock-source", false);
-        AccountService.getInstance().save(account);
-        return AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        return AccountService.INSTANCE.getByName(name);
     }
 
     private static Channel channel(String id, String name) {
@@ -336,7 +336,7 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
         private int loadMapInvocationCount;
 
         private StubM3uCacheReloader(CategoryService categoryService) {
-            super(() -> categoryService, com.uiptv.service.ConfigurationService::getInstance);
+            super(() -> categoryService, () -> com.uiptv.service.ConfigurationService.INSTANCE);
         }
 
         @Override
@@ -364,7 +364,7 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
         private String failOn;
 
         private StubRssCacheReloader(CategoryService categoryService) {
-            super(() -> categoryService, com.uiptv.service.ConfigurationService::getInstance);
+            super(() -> categoryService, () -> com.uiptv.service.ConfigurationService.INSTANCE);
         }
 
         @Override

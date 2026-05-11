@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CategoryManagementPopup extends VBox {
-    private final BookmarkService bookmarkService = BookmarkService.getInstance();
+    private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
     private ListView<BookmarkItem> categoryListView = new ListView<>();
     private TextField categoryNameField = new TextField();
     private Button addButton = new Button(I18n.tr("autoAdd"));

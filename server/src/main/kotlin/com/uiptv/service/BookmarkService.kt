@@ -16,8 +16,6 @@ object BookmarkService {
     @Volatile
     private var lastUpdatedEpochMs = System.currentTimeMillis()
 
-    @JvmStatic
-    fun getInstance(): BookmarkService = this
     fun isChannelBookmarked(bookmark: Bookmark): Boolean = BookmarkDb.get().getBookmarkById(bookmark) != null
     fun getBookmark(dbId: String?): Bookmark? = BookmarkDb.get().getById(dbId.orEmpty())
     fun getBookmark(bookmark: Bookmark): Bookmark? = BookmarkDb.get().getBookmarkById(bookmark)

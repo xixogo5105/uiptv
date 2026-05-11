@@ -71,9 +71,9 @@ class CacheServiceImplTest extends DbBackedTest {
 
         CacheService cacheService = new CacheServiceImpl(
                 () -> handshakeService,
-                CategoryService::getInstance,
-                ConfigurationService::getInstance,
-                ChannelService::getInstance,
+                CategoryService::new,
+                () -> ConfigurationService.INSTANCE,
+                ChannelService::new,
                 (params, ignoredAccount) -> mockStalkerApiResponse(params, false, orderedListCalls)
         );
 
@@ -101,7 +101,7 @@ class CacheServiceImplTest extends DbBackedTest {
         int channelCount = ChannelDb.get().getChannelCountForAccount(account.getDbId());
         assertEquals(3, channelCount);
 
-        List<Channel> allChannels = ChannelService.getInstance().get("All", account, categories.get(0).getDbId());
+        List<Channel> allChannels = new ChannelService().get("All", account, categories.get(0).getDbId());
         assertEquals(3, allChannels.size(), "All category should still expose every playlist item");
     }
 
@@ -127,7 +127,7 @@ class CacheServiceImplTest extends DbBackedTest {
                 account
         );
 
-        List<Channel> channels = ChannelService.getInstance().get(CategoryType.ALL.displayName(), account, allCategory.getDbId());
+        List<Channel> channels = new ChannelService().get(CategoryType.ALL.displayName(), account, allCategory.getDbId());
         assertEquals(1, channels.size(), "All category should include channels stored under legacy Uncategorized rows");
         assertEquals("Legacy Channel", channels.get(0).getName());
     }
@@ -141,9 +141,9 @@ class CacheServiceImplTest extends DbBackedTest {
 
         CacheService cacheService = new CacheServiceImpl(
                 () -> handshakeService,
-                CategoryService::getInstance,
-                ConfigurationService::getInstance,
-                ChannelService::getInstance,
+                CategoryService::new,
+                () -> ConfigurationService.INSTANCE,
+                ChannelService::new,
                 (params, ignoredAccount) -> mockStalkerApiResponse(params, true, orderedListCalls)
         );
 
@@ -167,9 +167,9 @@ class CacheServiceImplTest extends DbBackedTest {
 
         CacheService cacheService = new CacheServiceImpl(
                 () -> handshakeService,
-                CategoryService::getInstance,
-                ConfigurationService::getInstance,
-                ChannelService::getInstance,
+                CategoryService::new,
+                () -> ConfigurationService.INSTANCE,
+                ChannelService::new,
                 (params, ignoredAccount) -> mockStalkerApiResponse(params, false, orderedListCalls)
         );
 
@@ -200,8 +200,8 @@ class CacheServiceImplTest extends DbBackedTest {
         CacheService cacheService = new CacheServiceImpl(
                 () -> handshakeService,
                 () -> categoryService,
-                ConfigurationService::getInstance,
-                ChannelService::getInstance,
+                () -> ConfigurationService.INSTANCE,
+                ChannelService::new,
                 (params, ignoredAccount) -> "{\"js\":[]}"
         );
 
@@ -215,7 +215,7 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-verify-handshake-fail");
         String originalMac = account.getMacAddress();
         HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-        CacheService cacheService = new CacheServiceImpl(() -> handshakeService, CategoryService::getInstance);
+        CacheService cacheService = new CacheServiceImpl(() -> handshakeService, CategoryService::new);
         Mockito.doAnswer(invocation -> {
             Account a = invocation.getArgument(0);
             a.setToken(null);
@@ -237,8 +237,8 @@ class CacheServiceImplTest extends DbBackedTest {
         CacheService cacheService = new CacheServiceImpl(
                 () -> handshakeService,
                 () -> categoryService,
-                ConfigurationService::getInstance,
-                ChannelService::getInstance,
+                () -> ConfigurationService.INSTANCE,
+                ChannelService::new,
                 (params, ignoredAccount) -> "{\"js\":[]}"
         );
 
@@ -258,8 +258,8 @@ class CacheServiceImplTest extends DbBackedTest {
         CacheService cacheService = new CacheServiceImpl(
                 () -> handshakeService,
                 () -> categoryService,
-                ConfigurationService::getInstance,
-                ChannelService::getInstance,
+                () -> ConfigurationService.INSTANCE,
+                ChannelService::new,
                 (params, ignoredAccount) -> {
                     actions.add(params.get("action"));
                     fetchCalls.incrementAndGet();
@@ -453,7 +453,7 @@ class CacheServiceImplTest extends DbBackedTest {
                 false,
                 false
         );
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
     }
 
     private String writePlaylist(String filename) throws IOException {

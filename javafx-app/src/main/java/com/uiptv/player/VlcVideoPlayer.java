@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
-    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
 
     private final Object playerLock = new Object();
     private MediaPlayerFactory mediaPlayerFactory;

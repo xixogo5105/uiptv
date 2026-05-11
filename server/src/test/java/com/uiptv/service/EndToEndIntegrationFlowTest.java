@@ -171,10 +171,10 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      * - Mocks LogUtil.httpLog to avoid JavaFX LogDisplayUI initialization in headless CI.
      */
     void endToEnd_allAccountTypes_configurationParseCachePlayAndClear() throws Exception {
-        ConfigurationService configurationService = ConfigurationService.getInstance();
-        AccountService accountService = AccountService.getInstance();
+        ConfigurationService configurationService = ConfigurationService.INSTANCE;
+        AccountService accountService = AccountService.INSTANCE;
         CacheService cacheService = new CacheServiceImpl();
-        BookmarkService bookmarkService = BookmarkService.getInstance();
+        BookmarkService bookmarkService = BookmarkService.INSTANCE;
 
         try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class)) {
             logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(invocation -> null);
@@ -191,7 +191,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertFlywayManagedDatabaseRuntime() throws SQLException {
-        try (Connection connection = SQLConnection.connect();
+        try (Connection connection = SqlConnectionRuntime.connect();
              PreparedStatement existsStatement = connection.prepareStatement(
                      "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='flyway_schema_history'"
              );
@@ -200,7 +200,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertEquals(1, existsResult.getInt(1));
         }
 
-        try (Connection connection = SQLConnection.connect();
+        try (Connection connection = SqlConnectionRuntime.connect();
              PreparedStatement successStatement = connection.prepareStatement(
                      "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"
              );
@@ -246,7 +246,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         themeOverride.setLightThemeCssContent(".root { -fx-base: #fafafa; }");
         themeOverride.setDarkThemeCssName("dark-e2e.css");
         themeOverride.setDarkThemeCssContent(".root { -fx-base: #111111; }");
-        ThemeCssOverrideService.getInstance().save(themeOverride);
+        ThemeCssOverrideService.INSTANCE.save(themeOverride);
 
         Configuration persisted = configurationService.read();
         assertEquals("10001", persisted.getServerPort());
@@ -272,7 +272,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertNotEquals("123", I18n.formatNumber("123"));
         assertFalse(I18n.formatEpisodeLabel("7").isBlank());
 
-        ThemeCssOverride savedOverride = ThemeCssOverrideService.getInstance().read();
+        ThemeCssOverride savedOverride = ThemeCssOverrideService.INSTANCE.read();
         assertEquals("light-e2e.css", savedOverride.getLightThemeCssName());
         assertEquals("dark-e2e.css", savedOverride.getDarkThemeCssName());
     }
@@ -339,9 +339,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         updatedXtreme.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(normalized));
         updatedXtreme.setUsername("xt-alt-user");
         updatedXtreme.setPassword("xt-alt-pass");
-        AccountService.getInstance().save(updatedXtreme);
+        AccountService.INSTANCE.save(updatedXtreme);
 
-        Account reloaded = AccountService.getInstance().getById(updatedXtreme.getDbId());
+        Account reloaded = AccountService.INSTANCE.getById(updatedXtreme.getDbId());
         List<XtremeCredentialsJson.Entry> reloadedEntries = XtremeCredentialsJson.parse(reloaded.getXtremeCredentialsJson());
         XtremeCredentialsJson.Entry reloadedDefault = XtremeCredentialsJson.resolveDefault(reloadedEntries);
         assertNotNull(reloadedDefault);
@@ -395,26 +395,26 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         Account drmAccount = accountService.getByName("m3u-seed-1");
         drmAccount.setAction(itv);
         List<Channel> m3uChannels = allLiveChannels(drmAccount);
-        Channel drmChannel = m3uChannels.stream().filter(ch -> PlayerService.getInstance().isDrmProtected(ch)).findFirst().orElse(null);
+        Channel drmChannel = m3uChannels.stream().filter(ch -> new PlayerService().isDrmProtected(ch)).findFirst().orElse(null);
         assertNotNull(drmChannel, "Expected at least one DRM-protected M3U channel");
         assertEquals("org.w3.clearkey", drmChannel.getDrmType());
         assertNotNull(drmChannel.getClearKeysJson());
 
-        PlayerResponse drmPlay = PlayerService.getInstance().get(drmAccount, drmChannel);
+        PlayerResponse drmPlay = new PlayerService().get(drmAccount, drmChannel);
         assertNotNull(drmPlay.getUrl());
-        assertTrue(PlayerService.getInstance().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("launch="));
+        assertTrue(new PlayerService().buildDrmBrowserPlaybackUrl(drmAccount, drmChannel, "cat", "itv").contains("launch="));
 
         Account stalkerPlayAccount = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalkerPlayAccount.setAction(itv);
         Channel stalkerLiveChannel = allLiveChannels(stalkerPlayAccount).get(0);
-        PlayerResponse stalkerPlay = PlayerService.getInstance().get(stalkerPlayAccount, stalkerLiveChannel);
+        PlayerResponse stalkerPlay = new PlayerService().get(stalkerPlayAccount, stalkerLiveChannel);
         assertTrue(stalkerPlay.getUrl().contains("stream=1001") || stalkerPlay.getUrl().contains("stream=2001"));
         assertTrue(stalkerPlay.getUrl().contains("play_token="));
 
         Account xtremePlayAccount = getAccountsByType(AccountType.XTREME_API).get(0);
         xtremePlayAccount.setAction(itv);
         Channel xtremeChannel = allLiveChannels(xtremePlayAccount).get(0);
-        PlayerResponse xtremePlay = PlayerService.getInstance().get(xtremePlayAccount, xtremeChannel);
+        PlayerResponse xtremePlay = new PlayerService().get(xtremePlayAccount, xtremeChannel);
         assertTrue(xtremePlay.getUrl().contains("/xtreme/"));
 
         bookmarkService.addCategory(new BookmarkCategory(null, "E2E Favorites"));
@@ -443,7 +443,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         Bookmark persistedBookmark = bookmarkService.getBookmark(playBookmark);
         assertNotNull(persistedBookmark);
-        PlayerResponse bookmarkPlay = PlayerService.getInstance().get(
+        PlayerResponse bookmarkPlay = new PlayerService().get(
                 stalkerPlayAccount,
                 Channel.fromJson(persistedBookmark.getChannelJson()),
                 persistedBookmark.getChannelId()
@@ -527,7 +527,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
     private void cacheLive(Account account, CacheService cacheService) throws IOException {
         account.setAction(itv);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
         cacheService.reloadCache(account, m -> {
         });
 
@@ -541,7 +541,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
     private void cacheLiveWithFallbackAssertion(Account account, CacheService cacheService) throws IOException {
         account.setAction(itv);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
         List<String> logs = new ArrayList<>();
         cacheService.reloadCache(account, logs::add);
 
@@ -563,14 +563,14 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             return;
         }
         account.setAction(vod);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        List<Category> vodCategories = CategoryService.getInstance().get(account, false);
+        List<Category> vodCategories = new CategoryService().get(account, false);
         assertTrue(vodCategories.size() >= 2, "Expected at least 2 VOD categories for " + account.getAccountName());
 
         int totalVodChannels = 0;
         for (Category category : vodCategories) {
-            List<Channel> channels = ChannelService.getInstance().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
+            List<Channel> channels = new ChannelService().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
             assertTrue(channels.size() >= 2, "Expected at least 2 VOD channels in category " + category.getTitle());
             totalVodChannels += channels.size();
         }
@@ -584,14 +584,14 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             return;
         }
         account.setAction(series);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
 
-        List<Category> seriesCategories = CategoryService.getInstance().get(account, false);
+        List<Category> seriesCategories = new CategoryService().get(account, false);
         assertTrue(seriesCategories.size() >= 2, "Expected at least 2 series categories for " + account.getAccountName());
 
         int totalSeriesChannels = 0;
         for (Category category : seriesCategories) {
-            List<Channel> channels = ChannelService.getInstance().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
+            List<Channel> channels = new ChannelService().get(category.getCategoryId(), account, category.getDbId(), null, null, null);
             assertTrue(channels.size() >= 1, "Expected series entries in category " + category.getTitle());
             totalSeriesChannels += channels.size();
 
@@ -608,21 +608,21 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void assertCategoryAndChannelCacheHitPaths() throws IOException {
         Account stalker = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalker.setAction(vod);
-        AccountService.getInstance().save(stalker);
+        AccountService.INSTANCE.save(stalker);
 
         List<String> categoryLogs = new ArrayList<>();
-        List<Category> vodCategories = CategoryService.getInstance().get(stalker, false, categoryLogs::add);
+        List<Category> vodCategories = new CategoryService().get(stalker, false, categoryLogs::add);
         assertFalse(vodCategories.isEmpty());
 
         List<String> categoryLogsSecondCall = new ArrayList<>();
-        List<Category> cachedVodCategories = CategoryService.getInstance().get(stalker, false, categoryLogsSecondCall::add);
+        List<Category> cachedVodCategories = new CategoryService().get(stalker, false, categoryLogsSecondCall::add);
         assertEquals(vodCategories.size(), cachedVodCategories.size());
         assertTrue(categoryLogsSecondCall.stream().anyMatch(m -> m.contains("Loaded categories from local cache.")),
                 "Expected VOD category cache-hit log on second call");
 
         Category firstVodCategory = cachedVodCategories.get(0);
         List<String> channelLogsSecondCall = new ArrayList<>();
-        List<Channel> cachedVodChannels = ChannelService.getInstance().get(
+        List<Channel> cachedVodChannels = new ChannelService().get(
                 firstVodCategory.getCategoryId(),
                 stalker,
                 firstVodCategory.getDbId(),
@@ -636,9 +636,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void assertStalkerPageIndexFallback() {
         Account stalker = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalker.setAction(itv);
-        AccountService.getInstance().save(stalker);
+        AccountService.INSTANCE.save(stalker);
         List<String> logs = new ArrayList<>();
-        List<Channel> channels = ChannelService.getInstance().getStalkerPortalChOrSeries(
+        List<Channel> channels = new ChannelService().getStalkerPortalChOrSeries(
                 "99",
                 stalker,
                 null,
@@ -656,11 +656,11 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void assertChannelFetchCancellationFlow() throws IOException {
         Account stalker = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalker.setAction(vod);
-        AccountService.getInstance().save(stalker);
+        AccountService.INSTANCE.save(stalker);
 
         AtomicInteger callbackHits = new AtomicInteger();
         List<String> logs = new ArrayList<>();
-        List<Channel> channels = ChannelService.getInstance().get(
+        List<Channel> channels = new ChannelService().get(
                 "777",
                 stalker,
                 "cancel-test-category",
@@ -688,9 +688,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         Channel logoMissingChannelJson = Channel.fromJson(channel.toJson());
         logoMissingChannelJson.setLogo("");
         logoBookmark.setChannelJson(logoMissingChannelJson.toJson());
-        BookmarkService.getInstance().save(logoBookmark);
+        BookmarkService.INSTANCE.save(logoBookmark);
 
-        JSONArray bookmarks = new JSONArray(BookmarkService.getInstance().readToJson());
+        JSONArray bookmarks = new JSONArray(BookmarkService.INSTANCE.readToJson());
         JSONObject enriched = null;
         for (int i = 0; i < bookmarks.length(); i++) {
             JSONObject row = bookmarks.getJSONObject(i);
@@ -711,14 +711,14 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 .orElseThrow();
 
         uncategorizedOnlyM3u.setAction(itv);
-        AccountService.getInstance().save(uncategorizedOnlyM3u);
+        AccountService.INSTANCE.save(uncategorizedOnlyM3u);
 
         List<Category> categories = CategoryDb.get().getCategories(uncategorizedOnlyM3u);
         assertEquals(1, categories.size(), "Uncategorized-only M3U should expose only All category");
         Category allCategory = categories.get(0);
         assertEquals(CategoryType.ALL.displayName(), allCategory.getTitle());
 
-        List<Channel> channels = ChannelService.getInstance().get(CategoryType.ALL.displayName(), uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
+        List<Channel> channels = new ChannelService().get(CategoryType.ALL.displayName(), uncategorizedOnlyM3u, allCategory.getDbId(), null, null, null);
         assertEquals(3, channels.size(), "All category should preserve all channels from uncategorized-only playlist");
         assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
                 channels.stream().map(Channel::getName).collect(Collectors.toSet()));
@@ -727,7 +727,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void assertSeriesEpisodeBookmarkPlayFlow() throws Exception {
         Account stalker = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         stalker.setAction(series);
-        AccountService.getInstance().save(stalker);
+        AccountService.INSTANCE.save(stalker);
         List<Category> seriesCategories = SeriesCategoryDb.get().getCategories(stalker);
         assertFalse(seriesCategories.isEmpty());
         List<Channel> seriesChannels = SeriesChannelDb.get().getChannels(stalker, seriesCategories.get(0).getDbId());
@@ -752,9 +752,9 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         );
         episodeBookmark.setAccountAction(series);
         episodeBookmark.setSeriesJson(episode.toJson());
-        BookmarkService.getInstance().save(episodeBookmark);
+        BookmarkService.INSTANCE.save(episodeBookmark);
 
-        Bookmark persisted = BookmarkService.getInstance().getBookmark(episodeBookmark);
+        Bookmark persisted = BookmarkService.INSTANCE.getBookmark(episodeBookmark);
         assertNotNull(persisted);
         com.uiptv.shared.Episode restored = com.uiptv.shared.Episode.fromJson(persisted.getSeriesJson());
         Channel playbackChannel = new Channel();
@@ -762,7 +762,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         playbackChannel.setCmd(restored.getCmd());
         playbackChannel.setName(restored.getTitle());
 
-        PlayerResponse response = PlayerService.getInstance().get(stalker, playbackChannel, persisted.getChannelId());
+        PlayerResponse response = new PlayerService().get(stalker, playbackChannel, persisted.getChannelId());
         assertNotNull(response.getUrl());
         assertTrue(response.getUrl().contains("stream="));
     }
@@ -775,22 +775,22 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         localPlaybackAccount.setAction(series);
 
         String seriesId = "series-e2e-pointer";
-        SeriesWatchStateService.getInstance().clearSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        SeriesWatchStateService.INSTANCE.clearSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
 
-        PlayerService.getInstance().get(localPlaybackAccount, buildPlayableEpisode("ep-2", "Episode 2", "1", "2"), "ep-2", seriesId);
-        SeriesWatchState afterEpisode2 = SeriesWatchStateService.getInstance().getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        new PlayerService().get(localPlaybackAccount, buildPlayableEpisode("ep-2", "Episode 2", "1", "2"), "ep-2", seriesId);
+        SeriesWatchState afterEpisode2 = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
         assertNotNull(afterEpisode2);
         assertEquals("ep-2", afterEpisode2.getEpisodeId());
         assertEquals(2, afterEpisode2.getEpisodeNum());
 
-        PlayerService.getInstance().get(localPlaybackAccount, buildPlayableEpisode("ep-1", "Episode 1", "1", "1"), "ep-1", seriesId);
-        SeriesWatchState afterEpisode1 = SeriesWatchStateService.getInstance().getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        new PlayerService().get(localPlaybackAccount, buildPlayableEpisode("ep-1", "Episode 1", "1", "1"), "ep-1", seriesId);
+        SeriesWatchState afterEpisode1 = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
         assertNotNull(afterEpisode1);
         assertEquals("ep-2", afterEpisode1.getEpisodeId());
         assertEquals(2, afterEpisode1.getEpisodeNum());
 
-        PlayerService.getInstance().get(localPlaybackAccount, buildPlayableEpisode("ep-3", "Episode 3", "1", "3"), "ep-3", seriesId);
-        SeriesWatchState afterEpisode3 = SeriesWatchStateService.getInstance().getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
+        new PlayerService().get(localPlaybackAccount, buildPlayableEpisode("ep-3", "Episode 3", "1", "3"), "ep-3", seriesId);
+        SeriesWatchState afterEpisode3 = SeriesWatchStateService.INSTANCE.getSeriesLastWatched(localPlaybackAccount.getDbId(), seriesId);
         assertNotNull(afterEpisode3);
         assertEquals("ep-3", afterEpisode3.getEpisodeId());
         assertEquals(3, afterEpisode3.getEpisodeNum());
@@ -816,7 +816,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     }
 
     private List<Account> getAccountsByType(AccountType type) {
-        return AccountService.getInstance().getAll().values().stream()
+        return AccountService.INSTANCE.getAll().values().stream()
                 .filter(a -> a.getType() == type)
                 .sorted(Comparator.comparing(Account::getDbId))
                 .toList();
@@ -830,7 +830,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     }
 
     private List<Account> getM3uAccounts() {
-        return AccountService.getInstance().getAll().values().stream()
+        return AccountService.INSTANCE.getAll().values().stream()
                 .filter(a -> a.getType() == AccountType.M3U8_LOCAL || a.getType() == AccountType.M3U8_URL)
                 .sorted(Comparator.comparing(Account::getDbId))
                 .toList();
@@ -870,7 +870,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         seedPublishedM3uSelectionRow(sourcePath.toString(), "100");
         seedPublishedM3uSelectionRow(targetPath.toString(), "200");
 
-        DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, false);
+        DatabaseSyncService.INSTANCE.syncDatabases(sourcePath.toString(), targetPath.toString(), true, false);
 
         for (DatabaseUtils.DbTable table : DatabaseUtils.Syncable) {
             int sourceCount = countRowsInDatabase(sourcePath.toString(), table.getTableName());
@@ -885,7 +885,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertThemeCssOverrideSynced(targetPath.toString());
         assertPublishedM3uSelectionSynced(targetPath.toString());
 
-        DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
+        DatabaseSyncService.INSTANCE.syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
         assertConfigurationSynced(targetPath.toString(), true);
         assertThemeCssOverrideSynced(targetPath.toString());
         assertPublishedM3uSelectionSynced(targetPath.toString());
@@ -1161,7 +1161,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private int countTableRows(DatabaseUtils.DbTable table) {
         try {
             String sql = "SELECT COUNT(*) FROM " + table.getTableName();
-            try (Connection conn = SQLConnection.connect();
+            try (Connection conn = SqlConnectionRuntime.connect();
                  PreparedStatement statement = conn.prepareStatement(sql);
                  ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
@@ -1174,7 +1174,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private int countRowsByAccount(DatabaseUtils.DbTable table, String accountId) {
         try {
             String sql = "SELECT COUNT(*) FROM " + table.getTableName() + " WHERE accountId = ?";
-            try (Connection conn = SQLConnection.connect();
+            try (Connection conn = SqlConnectionRuntime.connect();
                  PreparedStatement statement = conn.prepareStatement(sql)) {
                 statement.setString(1, accountId);
                 try (ResultSet rs = statement.executeQuery()) {
@@ -1191,7 +1191,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             String sql = "SELECT COUNT(*) FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName() +
                     " c JOIN " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName() +
                     " cat ON c.categoryId = cat.id WHERE cat.accountId = ?";
-            try (Connection conn = SQLConnection.connect();
+            try (Connection conn = SqlConnectionRuntime.connect();
                  PreparedStatement statement = conn.prepareStatement(sql)) {
                 statement.setString(1, accountId);
                 try (ResultSet rs = statement.executeQuery()) {
@@ -1222,7 +1222,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         );
         account.setServerPortalUrl(stalkerPortalUrl);
         account.setAction(itv);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
     }
 
     private void saveXtreme(String name, String username, String password) {
@@ -1246,7 +1246,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 new XtremeCredentialsJson.Entry(username, password, true)
         )));
         account.setAction(itv);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
     }
 
     private void saveM3uLocal(String name, String path) {
@@ -1267,7 +1267,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 false
         );
         account.setAction(itv);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
     }
 
     private void saveRss(String name, String feedUrl) {
@@ -1288,7 +1288,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 false
         );
         account.setAction(itv);
-        AccountService.getInstance().save(account);
+        AccountService.INSTANCE.save(account);
     }
 
     private String writeM3uPlaylist(String fileName, boolean withDrm) throws IOException {

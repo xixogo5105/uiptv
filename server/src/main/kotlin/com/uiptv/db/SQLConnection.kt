@@ -70,6 +70,18 @@ object SqlConnectionRuntime {
             throw DatabaseAccessException("Unable to open database connection", e)
         }
 
+    @Suppress("unused")
+    @JvmStatic
+    private fun isBusy(exception: SQLException): Boolean {
+        return DatabaseRetrySupport.isBusy(exception)
+    }
+
+    @Suppress("unused")
+    @JvmStatic
+    private fun sleepBeforeRetry() {
+        DatabaseRetrySupport.sleepBeforeRetry(INIT_RETRY_DELAY_MS)
+    }
+
     @JvmStatic
     fun database(): Database = exposedDatabase ?: synchronized(this) {
         exposedDatabase ?: Database.connect(dataSource()).also { exposedDatabase = it }
@@ -130,38 +142,4 @@ object SqlConnectionRuntime {
         }
     }
 
-}
-
-object SQLConnection {
-    private const val INIT_RETRY_DELAY_MS = 250L
-
-    @JvmStatic
-    fun init() = SqlConnectionRuntime.init()
-
-    @JvmStatic
-    fun setDatabasePath(path: String) = SqlConnectionRuntime.setDatabasePath(path)
-
-    @JvmStatic
-    fun getDatabasePath(): String = SqlConnectionRuntime.getDatabasePath()
-
-    @JvmStatic
-    fun connect(): Connection = SqlConnectionRuntime.connect()
-
-    @JvmStatic
-    fun database(): Database = SqlConnectionRuntime.database()
-
-    @JvmStatic
-    fun close() = SqlConnectionRuntime.close()
-
-    @Suppress("unused")
-    @JvmStatic
-    private fun isBusy(exception: SQLException): Boolean {
-        return DatabaseRetrySupport.isBusy(exception)
-    }
-
-    @Suppress("unused")
-    @JvmStatic
-    private fun sleepBeforeRetry() {
-        DatabaseRetrySupport.sleepBeforeRetry(INIT_RETRY_DELAY_MS)
-    }
 }

@@ -31,9 +31,9 @@ import java.util.Set;
 public class M3U8PublicationPopup extends VBox {
     private static final String CUSTOMIZED_CHECKBOX_STYLE_CLASS = "published-m3u-customized-checkbox";
     private static final String SHOW_TRANSLATION_KEY = "commonShow";
-    private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     private final List<AccountNode> accountNodes = new ArrayList<>();
-    private final M3U8PublicationService service = M3U8PublicationService.getInstance();
+    private final M3U8PublicationService service = new M3U8PublicationService();
     private final M3U8PublicationService.PublicationSelections savedSelections;
     private final Map<M3U8PublicationService.CategorySelectionKey, Boolean> currentCategorySelections;
     private final Map<M3U8PublicationService.ChannelSelectionKey, Boolean> currentChannelSelections;

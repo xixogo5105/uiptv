@@ -22,8 +22,8 @@ class ChannelDbCoverageTest extends DbBackedTest {
         Account account = new Account("channel-db-coverage", "user", "pass", "http://test.com",
                 "00:11:22:33:44:55", null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
-        AccountService.getInstance().save(account);
-        Account savedAccount = AccountService.getInstance().getByName("channel-db-coverage");
+        AccountService.INSTANCE.save(account);
+        Account savedAccount = AccountService.INSTANCE.getByName("channel-db-coverage");
         assertNotNull(savedAccount);
 
         Category category = new Category("cat-1", "Sports", "sports", false, 0);

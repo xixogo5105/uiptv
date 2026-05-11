@@ -147,9 +147,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isLiveLikeContent = true;
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
-    protected final PlayerService playerService = PlayerService.getInstance();
-    protected final BingeWatchService bingeWatchService = BingeWatchService.getInstance();
-    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
+    protected final PlayerService playerService = new PlayerService();
+    protected final BingeWatchService bingeWatchService = new BingeWatchService();
+    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
     private double lastMouseEventScreenX = Double.NaN;
@@ -1945,7 +1945,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected ConfigurationService configurationService() {
-        return ConfigurationService.getInstance();
+        return ConfigurationService.INSTANCE;
     }
 
     private static void markHiddenBarMessageShown() {

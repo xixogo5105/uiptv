@@ -284,16 +284,5 @@ class BingeWatchService @JvmOverloads constructor(
         private const val EPISODE_ID_QUERY = "&episodeId="
         private val instanceRef = AtomicReference<BingeWatchService?>()
 
-        @JvmStatic
-        @JvmOverloads
-        fun getInstance(
-            accountService: AccountService = AccountService,
-            seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
-            playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService()
-        ): BingeWatchService =
-            koinOrNull<BingeWatchService>()
-                ?: instanceRef.updateAndGet { current ->
-                    current ?: BingeWatchService(accountService, seriesWatchStateService, playerService)
-                }!!
     }
 }

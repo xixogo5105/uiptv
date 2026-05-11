@@ -16,8 +16,8 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public final class FilterLockDialogs {
-    private static final FilterLockService lockService = FilterLockService.getInstance();
-    private static final com.uiptv.service.ConfigurationService configurationService = com.uiptv.service.ConfigurationService.getInstance();
+    private static final FilterLockService lockService = FilterLockService.INSTANCE;
+    private static final com.uiptv.service.ConfigurationService configurationService = com.uiptv.service.ConfigurationService.INSTANCE;
 
     private FilterLockDialogs() {
     }

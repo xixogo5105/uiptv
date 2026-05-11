@@ -43,7 +43,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
         try (MockedStatic<XtremeApiParser> xtremeParserMock = Mockito.mockStatic(XtremeApiParser.class)) {
             xtremeParserMock.when(() -> XtremeApiParser.parseEpisodes(seriesId, account)).thenReturn(portalResponse);
 
-            EpisodeList reloaded = SeriesEpisodeService.getInstance()
+            EpisodeList reloaded = SeriesEpisodeService.INSTANCE
                     .reloadEpisodesFromPortal(account, categoryId, seriesId, () -> false);
 
             assertEquals(1, reloaded.getEpisodes().size());
@@ -75,8 +75,8 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
                 false
         );
         account.setAction(Account.AccountAction.series);
-        AccountService.getInstance().save(account);
-        Account saved = AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        Account saved = AccountService.INSTANCE.getByName(name);
         saved.setAction(Account.AccountAction.series);
         return saved;
     }

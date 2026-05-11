@@ -42,9 +42,9 @@ public class VodWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, VodPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final VodWatchStateService vodWatchStateService = VodWatchStateService.getInstance();
-    private final AccountService accountService = AccountService.getInstance();
-    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.getInstance();
+    private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
+    private final AccountService accountService = AccountService.INSTANCE;
+    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.INSTANCE;
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
     private volatile boolean dirty = true;
     private final VodWatchStateChangeListener changeListener = this::onDataChanged;

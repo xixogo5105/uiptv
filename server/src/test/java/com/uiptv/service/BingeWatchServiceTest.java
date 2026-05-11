@@ -12,7 +12,7 @@ class BingeWatchServiceTest {
 
     @Test
     void orderSeasonEpisodes_startsAtWatchedEpisodeWithinSelectedSeason() {
-        BingeWatchService service = BingeWatchService.getInstance();
+        BingeWatchService service = new BingeWatchService();
         SeriesWatchState watchState = new SeriesWatchState();
         watchState.setSeason("2");
         watchState.setEpisodeId("s2e2");
@@ -30,7 +30,7 @@ class BingeWatchServiceTest {
 
     @Test
     void orderSeasonEpisodes_ignoresWatchStateFromDifferentSeason() {
-        BingeWatchService service = BingeWatchService.getInstance();
+        BingeWatchService service = new BingeWatchService();
         SeriesWatchState watchState = new SeriesWatchState();
         watchState.setSeason("1");
         watchState.setEpisodeId("s1e2");
@@ -46,7 +46,7 @@ class BingeWatchServiceTest {
 
     @Test
     void orderSeasonEpisodes_startsFromEpisodeOneWhenWatchFlagIsFromDifferentSeason() {
-        BingeWatchService service = BingeWatchService.getInstance();
+        BingeWatchService service = new BingeWatchService();
         SeriesWatchState watchState = new SeriesWatchState();
         watchState.setSeason("1");
         watchState.setEpisodeId("s1e3");

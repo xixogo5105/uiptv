@@ -14,9 +14,9 @@ class UIptvServerTest extends DbBackedTest {
 
     @Test
     void startEnsureStop_andThreadFactoryCover() throws Exception {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setServerPort("0");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
         try {
             assertTrue(UIptvServer.ensureStarted());
@@ -40,9 +40,9 @@ class UIptvServerTest extends DbBackedTest {
 
     @Test
     void getHttpPort_defaultsWhenBlank() throws Exception {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setServerPort("");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
         Method method = UIptvServer.class.getDeclaredMethod("getHttpPort");
         method.setAccessible(true);
@@ -51,9 +51,9 @@ class UIptvServerTest extends DbBackedTest {
 
     @Test
     void startUsesConfiguredPort() throws Exception {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = ConfigurationService.INSTANCE.read();
         configuration.setServerPort("0");
-        ConfigurationService.getInstance().save(configuration);
+        ConfigurationService.INSTANCE.save(configuration);
 
         try {
             UIptvServer.start();

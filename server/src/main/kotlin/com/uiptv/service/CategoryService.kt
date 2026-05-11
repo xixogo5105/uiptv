@@ -293,9 +293,5 @@ class CategoryService @JvmOverloads constructor(
 
     companion object {
         private val defaultInstance by lazy { CategoryService() }
-
-        @JvmStatic
-        fun getInstance(): CategoryService =
-            koinOrNull<CategoryService>() ?: defaultInstance
     }
 }

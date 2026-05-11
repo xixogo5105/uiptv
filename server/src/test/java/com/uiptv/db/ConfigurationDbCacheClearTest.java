@@ -49,8 +49,8 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE, second.getDbId()));
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE, second.getDbId()));
 
-        Account firstAfterClear = AccountService.getInstance().getById(first.getDbId());
-        Account secondAfterClear = AccountService.getInstance().getById(second.getDbId());
+        Account firstAfterClear = AccountService.INSTANCE.getById(first.getDbId());
+        Account secondAfterClear = AccountService.INSTANCE.getById(second.getDbId());
         assertTrue(firstAfterClear.getServerPortalUrl() == null || firstAfterClear.getServerPortalUrl().isEmpty());
         assertFalse(secondAfterClear.getServerPortalUrl() == null || secondAfterClear.getServerPortalUrl().isEmpty());
     }
@@ -72,8 +72,8 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE));
 
-        Account firstAfterClear = AccountService.getInstance().getById(first.getDbId());
-        Account secondAfterClear = AccountService.getInstance().getById(second.getDbId());
+        Account firstAfterClear = AccountService.INSTANCE.getById(first.getDbId());
+        Account secondAfterClear = AccountService.INSTANCE.getById(second.getDbId());
         assertTrue(firstAfterClear.getServerPortalUrl() == null || firstAfterClear.getServerPortalUrl().isEmpty());
         assertTrue(secondAfterClear.getServerPortalUrl() == null || secondAfterClear.getServerPortalUrl().isEmpty());
     }
@@ -130,8 +130,8 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         );
         account.setServerPortalUrl("http://portal.example/server");
         account.setAction(itv);
-        AccountService.getInstance().save(account);
-        return AccountService.getInstance().getByName(name);
+        AccountService.INSTANCE.save(account);
+        return AccountService.INSTANCE.getByName(name);
     }
 
     private void seedAllCacheTables(Account account, String suffix) {
@@ -165,7 +165,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
 
     private int countTableRows(DatabaseUtils.DbTable table) throws SQLException {
         String sql = "SELECT COUNT(*) FROM " + table.getTableName();
-        try (Connection conn = SQLConnection.connect();
+        try (Connection conn = SqlConnectionRuntime.connect();
              PreparedStatement statement = conn.prepareStatement(sql);
              ResultSet rs = statement.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;
@@ -177,7 +177,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
             String sql = "SELECT COUNT(*) FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
                     + " c JOIN " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName()
                     + " cat ON c.categoryId = cat.id WHERE cat.accountId = ?";
-            try (Connection conn = SQLConnection.connect();
+            try (Connection conn = SqlConnectionRuntime.connect();
                  PreparedStatement statement = conn.prepareStatement(sql)) {
                 statement.setString(1, accountId);
                 try (ResultSet rs = statement.executeQuery()) {
@@ -187,7 +187,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         }
 
         String sql = "SELECT COUNT(*) FROM " + table.getTableName() + " WHERE accountId = ?";
-        try (Connection conn = SQLConnection.connect();
+        try (Connection conn = SqlConnectionRuntime.connect();
              PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, accountId);
             try (ResultSet rs = statement.executeQuery()) {
@@ -198,7 +198,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
 
     private int countChannelsForCategory(String categoryDbId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName() + " WHERE categoryId = ?";
-        try (Connection conn = SQLConnection.connect();
+        try (Connection conn = SqlConnectionRuntime.connect();
              PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, categoryDbId);
             try (ResultSet rs = statement.executeQuery()) {
@@ -211,7 +211,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         String sql = "SELECT COUNT(*) FROM " + DatabaseUtils.DbTable.CHANNEL_TABLE.getTableName()
                 + " c LEFT JOIN " + DatabaseUtils.DbTable.CATEGORY_TABLE.getTableName()
                 + " cat ON c.categoryId = cat.id WHERE cat.id IS NULL";
-        try (Connection conn = SQLConnection.connect();
+        try (Connection conn = SqlConnectionRuntime.connect();
              PreparedStatement statement = conn.prepareStatement(sql);
              ResultSet rs = statement.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;

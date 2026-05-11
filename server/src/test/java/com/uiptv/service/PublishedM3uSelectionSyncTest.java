@@ -30,7 +30,7 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
 
         seedAccount(targetPath, "9001", "Sky UK");
 
-        DatabaseSyncService.getInstance().syncDatabases(
+        DatabaseSyncService.INSTANCE.syncDatabases(
                 sourcePath.toString(),
                 targetPath.toString(),
                 true,

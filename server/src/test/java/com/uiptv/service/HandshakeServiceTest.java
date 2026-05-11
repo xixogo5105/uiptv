@@ -16,7 +16,7 @@ class HandshakeServiceTest {
                 }
                 """;
 
-        String token = HandshakeService.getInstance().parseJasonToken(json);
+        String token = new HandshakeService().parseJasonToken(json);
 
         assertEquals("abc123token", token);
     }
