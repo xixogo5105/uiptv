@@ -59,7 +59,6 @@ public abstract class BaseWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final JavaFxServices services;
     private final AccountService accountService;
     private final SeriesEpisodeService seriesEpisodeService;
     private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService;
@@ -89,7 +88,6 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     protected BaseWatchingNowUI(JavaFxServices services) {
-        this.services = services;
         this.accountService = services.accountService();
         this.seriesEpisodeService = services.seriesEpisodeService();
         this.seriesWatchingNowSnapshotService = services.seriesWatchingNowSnapshotService();

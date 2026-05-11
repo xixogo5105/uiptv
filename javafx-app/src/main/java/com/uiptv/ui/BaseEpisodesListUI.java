@@ -66,7 +66,6 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final String seriesId;
     protected final String seriesCategoryId;
     protected final EpisodeList channelList;
-    protected final JavaFxServices services;
     protected final BookmarkService bookmarkService;
     protected final SeriesWatchStateService seriesWatchStateService;
     protected final BingeWatchService bingeWatchService;
@@ -101,7 +100,6 @@ public abstract class BaseEpisodesListUI extends HBox {
         this.categoryTitle = categoryTitle;
         this.seriesId = isBlank(seriesId) ? "" : seriesId.trim();
         this.seriesCategoryId = isBlank(seriesCategoryId) ? "" : seriesCategoryId.trim();
-        this.services = services;
         this.bookmarkService = services.bookmarkService();
         this.seriesWatchStateService = services.seriesWatchStateService();
         this.bingeWatchService = services.bingeWatchService();

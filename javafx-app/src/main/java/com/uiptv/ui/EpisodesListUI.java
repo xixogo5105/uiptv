@@ -12,7 +12,6 @@ import org.json.JSONObject;
 import java.util.function.Consumer;
 
 public class EpisodesListUI extends HBox {
-    private final JavaFxServices services;
     private final Account account;
     private final String categoryTitle;
     private final String seriesId;
@@ -39,7 +38,6 @@ public class EpisodesListUI extends HBox {
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
-        this.services = services;
         this.account = account;
         this.categoryTitle = categoryTitle;
         this.seriesId = seriesId;

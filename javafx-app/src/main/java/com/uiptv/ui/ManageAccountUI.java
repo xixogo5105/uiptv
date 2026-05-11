@@ -85,7 +85,6 @@ public class ManageAccountUI extends VBox {
     private final DangerousButton deleteButton = new DangerousButton(I18n.tr("autoDeleteAccount"));
     private final Button clearButton = new Button(I18n.tr("autoClearData"));
     private final Button refreshChannelsButton = new Button(I18n.tr("autoReloadCache"));
-    private final JavaFxServices services;
     private final CacheService cacheService;
     private final AccountInfoService accountInfoService;
     private final VBox formContainer = new VBox();
@@ -127,7 +126,6 @@ public class ManageAccountUI extends VBox {
     }
 
     public ManageAccountUI(JavaFxServices services) {
-        this.services = services;
         this.cacheService = services.cacheService();
         this.accountInfoService = services.accountInfoService();
         this.service = services.accountService();

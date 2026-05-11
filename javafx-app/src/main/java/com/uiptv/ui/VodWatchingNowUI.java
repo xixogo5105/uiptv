@@ -42,7 +42,6 @@ public class VodWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, VodPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final JavaFxServices services;
     private final VodWatchStateService vodWatchStateService;
     private final AccountService accountService;
     private final ImdbMetadataService imdbMetadataService;
@@ -59,7 +58,6 @@ public class VodWatchingNowUI extends VBox {
     }
 
     public VodWatchingNowUI(JavaFxServices services) {
-        this.services = services;
         this.vodWatchStateService = services.vodWatchStateService();
         this.accountService = services.accountService();
         this.imdbMetadataService = services.imdbMetadataService();

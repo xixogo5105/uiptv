@@ -2,6 +2,7 @@ package com.uiptv.ui.util;
 
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.service.ThemeCssOverrideService;
+import com.uiptv.ui.JavaFxServices;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,7 +14,7 @@ public final class ThemeStylesheetResolver {
     private static final double DEFAULT_FONT_SIZE_PX = 13.0;
     private static final String LIGHT_THEME_RESOURCE = "/application.css";
     private static final String DARK_THEME_RESOURCE = "/dark-application.css";
-    private static volatile ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.INSTANCE;
+    private static volatile ThemeCssOverrideService themeCssOverrideService = JavaFxServices.current().themeCssOverrideService();
 
     private ThemeStylesheetResolver() {
     }

@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * thumbnail and plain text rendering modes based on configuration.
  */
 public abstract class ThumbnailAwareUI {
-    private static volatile ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private static volatile ConfigurationService configurationService = JavaFxServices.current().configurationService();
 
     public interface ThumbnailModeListener {
         void onThumbnailModeChanged(boolean enabled);

@@ -69,7 +69,6 @@ public class ChannelListUI extends HBox {
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
-    private final JavaFxServices services;
     private final SeriesWatchStateService seriesWatchStateService;
     private final PlayerService playerService;
     private final BookmarkService bookmarkService;
@@ -125,7 +124,6 @@ public class ChannelListUI extends HBox {
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId, JavaFxServices services) {
-        this.services = services;
         this.seriesWatchStateService = services.seriesWatchStateService();
         this.playerService = services.playerService();
         this.bookmarkService = services.bookmarkService();

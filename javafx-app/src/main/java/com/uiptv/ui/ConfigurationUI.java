@@ -146,7 +146,6 @@ public class ConfigurationUI extends VBox {
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
-    private final JavaFxServices services;
     private final ConfigurationService service;
     private final ThemeCssOverrideService themeCssOverrideService;
     private final SeriesWatchStateService seriesWatchStateService;
@@ -178,7 +177,6 @@ public class ConfigurationUI extends VBox {
 
     public ConfigurationUI(Callback<Object> onSaveCallback, JavaFxServices services) {
         this.onSaveCallback = onSaveCallback;
-        this.services = services;
         this.service = services.configurationService();
         this.themeCssOverrideService = services.themeCssOverrideService();
         this.seriesWatchStateService = services.seriesWatchStateService();

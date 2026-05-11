@@ -52,7 +52,6 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
-    private final JavaFxServices services;
     private final ConfigurationService configurationService;
     private final CategoryService categoryService;
     private final VBox listView = new VBox(5);
@@ -87,7 +86,6 @@ public class AccountListUI extends HBox {
 
     public AccountListUI(boolean embeddedMode, JavaFxServices services) {
         this.embeddedMode = embeddedMode;
-        this.services = services;
         this.configurationService = services.configurationService();
         this.categoryService = services.categoryService();
         this.accountService = services.accountService();

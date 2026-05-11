@@ -48,7 +48,6 @@ public class CategoryListUI extends HBox {
     private static final String LOG_CATEGORY_ID = " categoryId=";
     private static final String LOG_TITLE = " title=";
     private static final String LOG_CHANNELS = " channels: ";
-    private final JavaFxServices services;
     private final CategoryService categoryService;
     private final ChannelService channelService;
     private final com.uiptv.service.FilterLockService filterLockService;
@@ -84,7 +83,6 @@ public class CategoryListUI extends HBox {
     }
 
     public CategoryListUI(Account account, boolean embeddedMode, JavaFxServices services) {
-        this.services = services;
         this.categoryService = services.categoryService();
         this.channelService = services.channelService();
         this.filterLockService = services.filterLockService();

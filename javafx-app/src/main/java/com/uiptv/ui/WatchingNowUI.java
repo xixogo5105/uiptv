@@ -12,7 +12,6 @@ import javafx.scene.layout.VBox;
 import java.util.List;
 
 public class WatchingNowUI extends VBox {
-    private final JavaFxServices services;
     private TabPane tabPane;
     private BaseWatchingNowUI seriesDelegate;
     private VodWatchingNowUI vodDelegate;
@@ -24,7 +23,6 @@ public class WatchingNowUI extends VBox {
     }
 
     public WatchingNowUI(JavaFxServices services) {
-        this.services = services;
         tabPane = buildTabs();
         getChildren().setAll(tabPane);
         VBox.setVgrow(tabPane, Priority.ALWAYS);

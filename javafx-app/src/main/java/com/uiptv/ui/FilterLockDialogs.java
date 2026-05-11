@@ -17,8 +17,8 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public final class FilterLockDialogs {
-    private static volatile FilterLockService lockService = FilterLockService.INSTANCE;
-    private static volatile ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private static volatile FilterLockService lockService = JavaFxServices.current().filterLockService();
+    private static volatile ConfigurationService configurationService = JavaFxServices.current().configurationService();
 
     private FilterLockDialogs() {
     }

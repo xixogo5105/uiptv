@@ -52,7 +52,6 @@ public class BookmarkChannelListUI extends HBox {
         thread.setDaemon(true);
         return thread;
     });
-    private final JavaFxServices services;
     private final BookmarkService bookmarkService;
     private final AccountService accountService;
     private final ChannelService channelService;
@@ -88,7 +87,6 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     public BookmarkChannelListUI(JavaFxServices services) {
-        this.services = services;
         this.bookmarkService = services.bookmarkService();
         this.accountService = services.accountService();
         this.channelService = services.channelService();
