@@ -1,5 +1,8 @@
 package com.uiptv.ui;
 
+import com.uiptv.db.PublishedM3uCategorySelectionDb;
+import com.uiptv.db.PublishedM3uChannelSelectionDb;
+import com.uiptv.db.PublishedM3uSelectionDb;
 import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.AppDataRefreshService;
@@ -14,13 +17,18 @@ import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.FilterLockService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.ImdbMetadataService;
+import com.uiptv.service.LogoResolverService;
 import com.uiptv.service.M3U8PublicationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.service.PredefinedPlayerService;
 import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.service.VodWatchStateService;
+import com.uiptv.service.ContentFilterService;
+import com.uiptv.service.StalkerPortalPlayerService;
+import com.uiptv.service.XtremePlayerService;
 import com.uiptv.service.remotesync.RemoteSyncClientService;
 
 public record JavaFxServices(
@@ -49,28 +57,85 @@ public record JavaFxServices(
     private static volatile JavaFxServices current;
 
     public static JavaFxServices defaults() {
+        var accountService = AccountService.INSTANCE;
+        var accountInfoService = AccountInfoService.INSTANCE;
+        var appDataRefreshService = AppDataRefreshService.INSTANCE;
+        var bookmarkService = BookmarkService.INSTANCE;
+        var configurationService = ConfigurationService.INSTANCE;
+        var databaseSyncService = DatabaseSyncService.INSTANCE;
+        var filterLockService = FilterLockService.INSTANCE;
+        var themeCssOverrideService = ThemeCssOverrideService.INSTANCE;
+        var seriesWatchStateService = SeriesWatchStateService.INSTANCE;
+        var seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
+        var vodWatchStateService = VodWatchStateService.INSTANCE;
+        var imdbMetadataService = ImdbMetadataService.INSTANCE;
+
+        var handshakeService = new HandshakeService(accountService, accountInfoService);
+        var categoryService = new CategoryService(
+                ContentFilterService.INSTANCE,
+                configurationService,
+                handshakeService
+        );
+
+        final CacheService[] cacheRef = new CacheService[1];
+        final ChannelService[] channelRef = new ChannelService[1];
+
+        cacheRef[0] = new CacheServiceImpl(
+                () -> handshakeService,
+                () -> categoryService,
+                () -> configurationService,
+                () -> channelRef[0],
+                com.uiptv.util.FetchAPI::fetch
+        );
+        channelRef[0] = new ChannelService(
+                () -> cacheRef[0],
+                ContentFilterService.INSTANCE,
+                LogoResolverService.INSTANCE,
+                configurationService,
+                handshakeService
+        );
+
+        var stalkerPortalPlayerService = new StalkerPortalPlayerService(accountService, handshakeService);
+        var playerService = new PlayerService(
+                seriesWatchStateService,
+                new XtremePlayerService(),
+                stalkerPortalPlayerService,
+                new PredefinedPlayerService()
+        );
+        var bingeWatchService = new BingeWatchService(accountService, seriesWatchStateService, playerService);
+        var seriesEpisodeService = new SeriesEpisodeService(channelRef[0], configurationService);
+        var m3u8PublicationService = new M3U8PublicationService(
+                accountService,
+                bookmarkService,
+                configurationService,
+                PublishedM3uSelectionDb.get(),
+                PublishedM3uCategorySelectionDb.get(),
+                PublishedM3uChannelSelectionDb.get()
+        );
+        var remoteSyncClientService = RemoteSyncClientService.INSTANCE;
+
         return new JavaFxServices(
-                AccountService.INSTANCE,
-                AccountInfoService.INSTANCE,
-                AppDataRefreshService.INSTANCE,
-                BingeWatchService.INSTANCE,
-                BookmarkService.INSTANCE,
-                CacheServiceImpl.INSTANCE,
-                CategoryService.INSTANCE,
-                ChannelService.INSTANCE,
-                ConfigurationService.INSTANCE,
-                DatabaseSyncService.INSTANCE,
-                FilterLockService.INSTANCE,
-                HandshakeService.INSTANCE,
-                ImdbMetadataService.INSTANCE,
-                M3U8PublicationService.INSTANCE,
-                PlayerService.INSTANCE,
-                RemoteSyncClientService.INSTANCE,
-                SeriesEpisodeService.INSTANCE,
-                SeriesWatchStateService.INSTANCE,
-                SeriesWatchingNowSnapshotService.INSTANCE,
-                ThemeCssOverrideService.INSTANCE,
-                VodWatchStateService.INSTANCE
+                accountService,
+                accountInfoService,
+                appDataRefreshService,
+                bingeWatchService,
+                bookmarkService,
+                cacheRef[0],
+                categoryService,
+                channelRef[0],
+                configurationService,
+                databaseSyncService,
+                filterLockService,
+                handshakeService,
+                imdbMetadataService,
+                m3u8PublicationService,
+                playerService,
+                remoteSyncClientService,
+                seriesEpisodeService,
+                seriesWatchStateService,
+                seriesWatchingNowSnapshotService,
+                themeCssOverrideService,
+                vodWatchStateService
         );
     }
 
