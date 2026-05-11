@@ -18,12 +18,11 @@ object SqlConnectionRuntime {
     private var hikariDataSource: HikariDataSource? = null
 
     init {
-        init()
+        initialize()
     }
 
-    @JvmStatic
     @Synchronized
-    fun init() {
+    internal fun initialize() {
         try {
             ensureDatabasePathReady()
             rebuildDataSource()
@@ -46,17 +45,6 @@ object SqlConnectionRuntime {
     }
 
     @JvmStatic
-    @Synchronized
-    fun setDatabasePath(path: String) {
-        if (path == databasePath()) {
-            return
-        }
-        close()
-        DatabasePathState.override(path)
-        init()
-    }
-
-    @JvmStatic
     fun databasePath(): String = DatabasePathState.currentPath()
 
     @JvmStatic
@@ -74,7 +62,7 @@ object SqlConnectionRuntime {
 
     @JvmStatic
     @Synchronized
-    fun close() {
+    internal fun close() {
         exposedDatabase = null
         hikariDataSource?.close()
         hikariDataSource = null

@@ -19,8 +19,6 @@ class XtremeApiCacheReloader(
     categoryServiceProvider: () -> CategoryService,
     configurationServiceProvider: () -> ConfigurationService
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
-    constructor() : this({ CategoryService.INSTANCE }, { ConfigurationService })
-
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         if (isVodOrSeriesAction(account)) {
             reloadVodOrSeriesCategories(account, logger)

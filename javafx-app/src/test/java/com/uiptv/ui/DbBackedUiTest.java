@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.SqlConnectionRuntime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,13 +21,15 @@ abstract class DbBackedUiTest {
     @BeforeEach
     void setUpDatabase() throws Exception {
         testDbFile = tempDir.resolve("uiptv-test.db").toFile();
-        SqlConnectionRuntime.setDatabasePath(testDbFile.getAbsolutePath());
+        SqlConnectionUiTestSupport.useDatabasePath(testDbFile.getAbsolutePath());
         afterDatabaseSetup();
     }
 
     @AfterEach
     void tearDownDatabase() {
         beforeDatabaseCleanup();
+        SqlConnectionUiTestSupport.shutdown();
+        SqlConnectionUiTestSupport.restoreConfiguredPath();
         if (testDbFile != null && testDbFile.exists()) {
             testDbFile.delete();
         }

@@ -12,14 +12,6 @@ class AccountCacheReloaderFactory(
     channelServiceProvider: () -> ChannelService,
     fetchProvider: (Map<String, String>, com.uiptv.model.Account) -> String
 ) {
-    constructor() : this(
-        categoryServiceProvider = { CategoryService.INSTANCE },
-        configurationServiceProvider = { ConfigurationService },
-        handshakeServiceProvider = { HandshakeService.INSTANCE },
-        channelServiceProvider = { ChannelService.INSTANCE },
-        fetchProvider = com.uiptv.util.FetchAPI::fetch
-    )
-
     private val stalkerReloader: AccountCacheReloader =
         StalkerPortalCacheReloader(handshakeServiceProvider, channelServiceProvider, categoryServiceProvider, configurationServiceProvider, fetchProvider)
     private val xtremeReloader: AccountCacheReloader =

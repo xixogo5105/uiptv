@@ -1,6 +1,6 @@
 package com.uiptv.service;
 
-import com.uiptv.db.SqlConnectionRuntime;
+import com.uiptv.db.SqlConnectionTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,14 +23,14 @@ public abstract class DbBackedTest {
     @BeforeEach
     public void setUpDatabase() throws Exception {
         testDbFile = tempDir.resolve("uiptv-test.db").toFile();
-        SqlConnectionRuntime.setDatabasePath(testDbFile.getAbsolutePath());
+        SqlConnectionTestSupport.useDatabasePath(testDbFile.getAbsolutePath());
         afterDatabaseSetup();
     }
 
     @AfterEach
     public void tearDownDatabase() {
         beforeDatabaseCleanup();
-        SqlConnectionRuntime.close();
+        SqlConnectionTestSupport.shutdown();
         if (testDbFile != null && testDbFile.exists()) {
             testDbFile.delete();
         }

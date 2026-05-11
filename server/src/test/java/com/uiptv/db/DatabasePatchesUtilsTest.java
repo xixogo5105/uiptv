@@ -77,7 +77,7 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
 
             initThread = new Thread(() -> {
                 try {
-                    SqlConnectionRuntime.init();
+                    SqlConnectionTestSupport.reinitialize();
                 } catch (Throwable throwable) {
                     failure.set(throwable);
                 }

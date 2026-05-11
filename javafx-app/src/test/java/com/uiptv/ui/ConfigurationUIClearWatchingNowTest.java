@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.SqlConnectionRuntime;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchingNowSnapshot;
@@ -35,11 +34,13 @@ class ConfigurationUIClearWatchingNowTest {
     @BeforeEach
     void setUpDatabase() {
         testDbFile = tempDir.resolve("uiptv-test.db").toFile();
-        SqlConnectionRuntime.setDatabasePath(testDbFile.getAbsolutePath());
+        SqlConnectionUiTestSupport.useDatabasePath(testDbFile.getAbsolutePath());
     }
 
     @AfterEach
     void tearDownDatabase() {
+        SqlConnectionUiTestSupport.shutdown();
+        SqlConnectionUiTestSupport.restoreConfiguredPath();
         if (testDbFile != null && testDbFile.exists()) {
             testDbFile.delete();
         }

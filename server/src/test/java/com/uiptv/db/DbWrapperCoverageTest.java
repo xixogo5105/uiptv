@@ -165,7 +165,7 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     @Test
     void sqlConnection_initUsesFlywayHistoryForRuntimeStartup() throws Exception {
-        SqlConnectionRuntime.init();
+        SqlConnectionTestSupport.reinitialize();
         try (Connection connection = SqlConnectionRuntime.connect();
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1")) {

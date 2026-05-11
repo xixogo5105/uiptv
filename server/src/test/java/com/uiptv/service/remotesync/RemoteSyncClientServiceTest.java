@@ -1,5 +1,7 @@
 package com.uiptv.service.remotesync;
 
+import com.uiptv.db.SqlConnectionRuntime;
+import com.uiptv.db.SqlConnectionTestSupport;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.AccountService;
@@ -149,12 +151,12 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     private void withDatabase(Path databasePath, ThrowingRunnable runnable) throws Exception {
-        String originalPath = com.uiptv.db.SqlConnectionRuntime.databasePath();
-        com.uiptv.db.SqlConnectionRuntime.setDatabasePath(databasePath.toString());
+        String originalPath = SqlConnectionRuntime.databasePath();
+        SqlConnectionTestSupport.useDatabasePath(databasePath.toString());
         try {
             runnable.run();
         } finally {
-            com.uiptv.db.SqlConnectionRuntime.setDatabasePath(originalPath);
+            SqlConnectionTestSupport.useDatabasePath(originalPath);
         }
     }
 

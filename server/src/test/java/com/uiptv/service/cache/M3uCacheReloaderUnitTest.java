@@ -4,6 +4,8 @@ import com.uiptv.api.LoggerCallback;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
+import com.uiptv.service.CategoryService;
+import com.uiptv.service.ConfigurationService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -16,9 +18,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class M3uCacheReloaderUnitTest {
 
+    private static M3uCacheReloader reloader() {
+        return new M3uCacheReloader(() -> CategoryService.INSTANCE, () -> ConfigurationService.INSTANCE);
+    }
+
     @Test
     void createAllCategoryWithAccumulatedChannels_whenNoMatchingCategories() throws Exception {
-        M3uCacheReloader reloader = new M3uCacheReloader();
+        M3uCacheReloader reloader = reloader();
 
         List<Category> categories = List.of(
                 new Category("1", "News", "news", false, 0),
@@ -41,7 +47,7 @@ class M3uCacheReloaderUnitTest {
 
     @Test
     void singleNonAllCategory_mergesChannelsIntoExistingAll_withImmutableLists() throws Exception {
-        M3uCacheReloader reloader = new M3uCacheReloader();
+        M3uCacheReloader reloader = reloader();
 
         Category all = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category single = new Category("1", "Movies", "movies", false, 0);
@@ -66,7 +72,7 @@ class M3uCacheReloaderUnitTest {
 
     @Test
     void singleNonAllCategory_noChannels_createsAllWhenMissing() throws Exception {
-        M3uCacheReloader reloader = new M3uCacheReloader();
+        M3uCacheReloader reloader = reloader();
 
         Category single = new Category("1", "Solo", "solo", false, 0);
         List<Category> categories = List.of(single);

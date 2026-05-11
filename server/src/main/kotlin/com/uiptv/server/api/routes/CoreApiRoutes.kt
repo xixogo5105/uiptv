@@ -47,7 +47,8 @@ fun Route.registerCoreApiRoutes(
     configurationService: ConfigurationService,
     accountService: AccountService,
     categoryService: CategoryService,
-    bookmarkService: BookmarkService
+    bookmarkService: BookmarkService,
+    channelService: ChannelService
 ) {
     get("/config") {
         val configuration = configurationService.read()
@@ -65,7 +66,7 @@ fun Route.registerCoreApiRoutes(
             return@get
         }
         applyMode(account, call.request.queryParameters["mode"])
-        call.respond(CategoryResolver { ChannelService.INSTANCE }.resolveCategories(account, categoryService.get(account)).map(::toCategoryDto))
+        call.respond(CategoryResolver { channelService }.resolveCategories(account, categoryService.get(account)).map(::toCategoryDto))
     }
 
     options("/bookmarks") {
@@ -82,7 +83,7 @@ fun Route.registerCoreApiRoutes(
         val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 0
         val bookmarks = if (limit > 0) bookmarkService.read(offset, limit) else bookmarkService.read()
-        val resolved = com.uiptv.service.BookmarkResolver(channelServiceProvider = { ChannelService.INSTANCE }).resolveBookmarks(bookmarks)
+        val resolved = com.uiptv.service.BookmarkResolver(channelServiceProvider = { channelService }).resolveBookmarks(bookmarks)
         call.respond(resolved.mapNotNull { it.bookmark }.map(::toBookmarkDto))
     }
 

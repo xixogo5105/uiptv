@@ -151,7 +151,7 @@ fun Application.configureServerApplication(extraModules: List<Module> = emptyLis
     val remoteSyncSessionService = get<com.uiptv.service.remotesync.RemoteSyncSessionService>()
     val bingeWatchService = get<com.uiptv.service.BingeWatchService>()
     routing {
-        registerCoreApiRoutes(configurationService, accountService, categoryService, bookmarkService)
+        registerCoreApiRoutes(configurationService, accountService, categoryService, bookmarkService, channelService)
         registerChannelApiRoutes(accountService, channelService, configurationService, seriesWatchStateService)
         registerSeriesApiRoutes(accountService, configurationService, seriesWatchStateService, handshakeService, imdbMetadataService)
         registerVodApiRoutes(

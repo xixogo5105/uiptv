@@ -12,7 +12,6 @@ import com.uiptv.service.ChannelService
 import com.uiptv.service.ConfigurationService
 import com.uiptv.service.HandshakeService
 import com.uiptv.shared.Pagination
-import com.uiptv.util.FetchAPI
 import com.uiptv.util.StringUtils
 import java.util.Collections
 import java.util.LinkedHashMap
@@ -27,14 +26,6 @@ class StalkerPortalCacheReloader(
     configurationServiceProvider: () -> ConfigurationService,
     private val fetchProvider: (Map<String, String>, Account) -> String
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
-    constructor() : this(
-        handshakeServiceProvider = { HandshakeService.INSTANCE },
-        channelServiceProvider = { ChannelService.INSTANCE },
-        categoryServiceProvider = { CategoryService.INSTANCE },
-        configurationServiceProvider = { ConfigurationService },
-        fetchProvider = FetchAPI::fetch
-    )
-
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         handshakeService().connect(account)
         if (account.isNotConnected()) {
