@@ -46,7 +46,7 @@ class ChannelService @JvmOverloads constructor(
     private val contentFilterService: ContentFilterService = ContentFilterService,
     private val logoResolverService: LogoResolverService = LogoResolverService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService.getInstance()
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
 ) {
 
     @Throws(IOException::class)

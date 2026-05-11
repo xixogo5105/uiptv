@@ -101,7 +101,7 @@ object SeriesEpisodeService {
         return EpisodeList()
     }
 
-    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: ChannelService.getInstance()
+    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: (koinOrNull<ChannelService>() ?: ChannelService())
 
     private fun loadFromDbCache(account: Account, categoryId: String, seriesId: String): EpisodeList? {
         val cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId)

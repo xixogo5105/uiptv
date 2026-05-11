@@ -6,6 +6,7 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.util.FetchAPI
 import com.uiptv.util.PlayerUrlUtils
 import com.uiptv.util.StringUtils.isBlank
+import com.uiptv.util.koinOrNull
 import com.uiptv.util.json.KJsonObject
 import java.io.IOException
 import java.net.URI
@@ -18,7 +19,7 @@ import java.util.function.Supplier
 import java.util.stream.Collectors
 class StalkerPortalPlayerService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
-    private val handshakeService: HandshakeService = HandshakeService.getInstance()
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
 ) : AccountPlayerService {
     companion object {
         private const val CREATE_LINK_TIMEOUT_SECONDS = 8

@@ -11,12 +11,13 @@ import com.uiptv.service.CategoryService
 import com.uiptv.service.ConfigurationService
 import com.uiptv.util.StringUtils
 import com.uiptv.util.XtremeApiParser
+import com.uiptv.util.koinOrNull
 import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
 class XtremeApiCacheReloader @JvmOverloads constructor(
-    categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
     configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {

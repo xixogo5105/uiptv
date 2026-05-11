@@ -18,10 +18,12 @@ class PlaylistExportService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val bookmarkService: BookmarkService = BookmarkService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService.getInstance(),
-    private val playerService: PlayerService = PlayerService.getInstance(),
-    private val playerRequestResolver: PlayerRequestResolver = koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver(playerService = PlayerService.getInstance()),
-    private val channelDb: ChannelDb = ChannelDb.get()
+    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService(),
+    private val playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService(),
+    private val playerRequestResolver: PlayerRequestResolver =
+        koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver(playerService = koinOrNull<PlayerService>() ?: PlayerService()),
+    private val channelDb: ChannelDb = ChannelDb.get(),
+    private val publicationService: M3U8PublicationService = koinOrNull<M3U8PublicationService>() ?: M3U8PublicationService()
 ) {
     companion object {
         const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
@@ -62,10 +64,10 @@ class PlaylistExportService @JvmOverloads constructor(
         return PlaylistDocument(response, "${accountId}-${categoryId}-${channelId}.m3u8")
     }
 
-    fun buildBookmarksPlaylist(host: String): String = M3U8PublicationService.getInstance().buildBookmarkPlaylist(host)
+    fun buildBookmarksPlaylist(host: String): String = publicationService.buildBookmarkPlaylist(host)
 
     fun buildPublishedPlaylist(host: String?, requestPath: String?): PlaylistDocument {
-        val response = M3U8PublicationService.getInstance().getPublishedM3u8(host)
+        val response = publicationService.getPublishedM3u8(host)
         val filename = if ((requestPath ?: "").endsWith(".m3u")) "iptv.m3u" else "iptv.m3u8"
         return PlaylistDocument(response, filename)
     }

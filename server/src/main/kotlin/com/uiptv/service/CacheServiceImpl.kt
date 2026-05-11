@@ -11,10 +11,10 @@ import java.util.Date
 import java.util.HashMap
 
 class CacheServiceImpl @JvmOverloads constructor(
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.getInstance() },
-    private val categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
+    private val handshakeServiceProvider: () -> HandshakeService = { koinOrNull<HandshakeService>() ?: HandshakeService() },
+    private val categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
     private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
-    private val channelServiceProvider: () -> ChannelService = { ChannelService.getInstance() },
+    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() },
     private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
 ) : CacheService {
     private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {

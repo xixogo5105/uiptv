@@ -5,6 +5,7 @@ import com.uiptv.server.HlsRouteSupport
 import com.uiptv.server.ProxyStreamSupport
 import com.uiptv.server.UIptvServer
 import com.uiptv.server.WebStaticContentSupport
+import com.uiptv.server.api.BackendHttpException
 import com.uiptv.service.BingeWatchService
 import com.uiptv.util.AppLog
 import com.uiptv.util.HttpUtil
@@ -71,11 +72,9 @@ fun Route.registerLegacyWebRoutes(bingeWatchService: BingeWatchService) {
 }
 
 private suspend fun ApplicationCall.respondStaticUtf8(requestPath: String, contentType: ContentType) {
-    try {
-        respondText(WebStaticContentSupport.readStaticUtf8(requestPath), contentType)
-    } catch (_: Exception) {
-        respond(HttpStatusCode.NotFound)
-    }
+    val payload = runCatching { WebStaticContentSupport.readStaticUtf8(requestPath) }
+        .getOrElse { throw BackendHttpException(HttpStatusCode.NotFound) }
+    respondText(payload, contentType)
 }
 
 private suspend fun ApplicationCall.respondSpaHtml(htmlFileName: String) {
@@ -83,12 +82,10 @@ private suspend fun ApplicationCall.respondSpaHtml(htmlFileName: String) {
 }
 
 private suspend fun ApplicationCall.respondIcon() {
-    try {
-        response.header(HttpHeaders.ContentType, "image/x-icon")
-        respondBytes(WebStaticContentSupport.readIconBytes())
-    } catch (_: Exception) {
-        respond(HttpStatusCode.NotFound)
-    }
+    val iconBytes = runCatching { WebStaticContentSupport.readIconBytes() }
+        .getOrElse { throw BackendHttpException(HttpStatusCode.NotFound) }
+    response.header(HttpHeaders.ContentType, "image/x-icon")
+    respondBytes(iconBytes)
 }
 
 private suspend fun ApplicationCall.respondHlsFile() {
@@ -132,8 +129,7 @@ private suspend fun ApplicationCall.handleProxyStream() {
             request.httpMethod.value
         ).use { upstream ->
             if (upstream == null) {
-                respond(HttpStatusCode.BadGateway)
-                return
+                throw BackendHttpException(HttpStatusCode.BadGateway)
             }
             applyProxyResponseHeaders(this, upstream.responseHeaders)
             if (request.httpMethod.value.equals("HEAD", true)) {
@@ -144,8 +140,10 @@ private suspend fun ApplicationCall.handleProxyStream() {
                 upstream.bodyStream.use { input -> ProxyStreamSupport.copyStream(input, this) }
             }
         }
+    } catch (cause: BackendHttpException) {
+        throw cause
     } catch (_: Exception) {
-        respond(HttpStatusCode.BadGateway)
+        throw BackendHttpException(HttpStatusCode.BadGateway)
     }
 }
 
