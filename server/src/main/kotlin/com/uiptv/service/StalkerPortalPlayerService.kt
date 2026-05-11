@@ -17,10 +17,12 @@ import java.util.LinkedHashMap
 import java.util.function.Supplier
 import java.util.stream.Collectors
 class StalkerPortalPlayerService @JvmOverloads constructor(
-    private val accountService: AccountService = RuntimeServices.accountService,
-    private val handshakeService: HandshakeService = RuntimeServices.handshakeService
+    private val accountService: AccountService = AccountService,
+    private val handshakeService: HandshakeService = HandshakeService.INSTANCE
 ) : AccountPlayerService {
     companion object {
+        @JvmField
+        val INSTANCE: StalkerPortalPlayerService = StalkerPortalPlayerService(AccountService, HandshakeService.INSTANCE)
         private const val CREATE_LINK_TIMEOUT_SECONDS = 8
         private const val FFMPEG_PREFIX = "ffmpeg "
         private const val STREAM_PARAM = "stream="

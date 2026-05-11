@@ -76,4 +76,9 @@ class XtremePlayerService : AccountPlayerService {
         val ext = lastSegment.substring(dotIndex + 1)
         return if (ext.matches(Regex("^[a-zA-Z0-9]+$"))) ext else ""
     }
+
+    companion object {
+        @JvmField
+        val INSTANCE: XtremePlayerService = XtremePlayerService()
+    }
 }

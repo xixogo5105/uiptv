@@ -26,4 +26,9 @@ class PredefinedPlayerService : AccountPlayerService {
         response.setFromChannel(channel, account)
         return response
     }
+
+    companion object {
+        @JvmField
+        val INSTANCE: PredefinedPlayerService = PredefinedPlayerService()
+    }
 }

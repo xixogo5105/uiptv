@@ -32,8 +32,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 class HandshakeService(
-    private val accountService: AccountService = RuntimeServices.accountService,
-    private val accountInfoService: AccountInfoService = RuntimeServices.accountInfoService
+    private val accountService: AccountService = AccountService,
+    private val accountInfoService: AccountInfoService = AccountInfoService
 ) {
     private val PASS_RANDOM = SecureRandom()
 
@@ -540,7 +540,7 @@ class HandshakeService(
 
     companion object {
         @JvmField
-        val INSTANCE: HandshakeService = RuntimeServices.handshakeService
+        val INSTANCE: HandshakeService = HandshakeService(AccountService, AccountInfoService)
         private const val PARAM_ACTION = "action"
         private const val PARAM_JS_HTTP_REQUEST = "JsHttpRequest"
         private const val PARAM_TOKEN = "token"

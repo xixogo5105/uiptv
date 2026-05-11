@@ -607,7 +607,12 @@ class M3U8PublicationService(
     }
 
     companion object {
-        private val defaultInstance by lazy { M3U8PublicationService() }
+        @JvmField
+        val INSTANCE: M3U8PublicationService = M3U8PublicationService(
+            accountService = AccountService,
+            bookmarkService = BookmarkService,
+            configurationService = ConfigurationService
+        )
         private const val COMMENT_PREFIX = "#"
         private const val EXTM3U = "#EXTM3U"
         private const val EXTINF = "#EXTINF"

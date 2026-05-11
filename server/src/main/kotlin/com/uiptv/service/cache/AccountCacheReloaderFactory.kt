@@ -4,13 +4,12 @@ import com.uiptv.service.CategoryService
 import com.uiptv.service.ChannelService
 import com.uiptv.service.ConfigurationService
 import com.uiptv.service.HandshakeService
-import com.uiptv.service.RuntimeServices
 import com.uiptv.util.AccountType
 class AccountCacheReloaderFactory @JvmOverloads constructor(
-    categoryServiceProvider: () -> CategoryService = { RuntimeServices.categoryService },
-    configurationServiceProvider: () -> ConfigurationService = { RuntimeServices.configurationService },
-    handshakeServiceProvider: () -> HandshakeService = { RuntimeServices.handshakeService },
-    channelServiceProvider: () -> ChannelService = { RuntimeServices.channelService },
+    categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
+    handshakeServiceProvider: () -> HandshakeService = { HandshakeService.INSTANCE },
+    channelServiceProvider: () -> ChannelService = { ChannelService.INSTANCE },
     fetchProvider: (Map<String, String>, com.uiptv.model.Account) -> String = com.uiptv.util.FetchAPI::fetch
 ) {
     private val stalkerReloader: AccountCacheReloader =

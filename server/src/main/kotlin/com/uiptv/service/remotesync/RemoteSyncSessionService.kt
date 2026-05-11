@@ -3,7 +3,6 @@ package com.uiptv.service.remotesync
 import com.uiptv.db.SqlConnectionRuntime
 import com.uiptv.service.AppDataRefreshService
 import com.uiptv.service.DatabaseSyncService
-import com.uiptv.service.RuntimeServices
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
@@ -19,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class RemoteSyncSessionService internal constructor(
     private val snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
-    private val databaseSyncService: DatabaseSyncService = RuntimeServices.databaseSyncService,
+    private val databaseSyncService: DatabaseSyncService = DatabaseSyncService,
     private val clock: Clock = Clock.systemDefaultZone(),
     approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
     notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()
@@ -42,7 +41,7 @@ class RemoteSyncSessionService internal constructor(
         @JvmOverloads
         internal fun runtimeInstance(
             snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
-            databaseSyncService: DatabaseSyncService = RuntimeServices.databaseSyncService,
+            databaseSyncService: DatabaseSyncService = DatabaseSyncService,
             clock: Clock = Clock.systemDefaultZone(),
             approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
             notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()

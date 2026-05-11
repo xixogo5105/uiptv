@@ -8,11 +8,10 @@ import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
 import com.uiptv.service.ConfigurationService
-import com.uiptv.service.RuntimeServices
 
 open class RssCacheReloader @JvmOverloads constructor(
-    categoryServiceProvider: () -> CategoryService = { RuntimeServices.categoryService },
-    configurationServiceProvider: () -> ConfigurationService = { RuntimeServices.configurationService }
+    categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         val categories = categoryService().get(account, false, logger)

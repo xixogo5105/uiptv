@@ -8,8 +8,8 @@ import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 
 class BookmarkResolver(
-    private val accountServiceProvider: () -> AccountService = { RuntimeServices.accountService },
-    private val channelServiceProvider: () -> ChannelService = { RuntimeServices.channelService }
+    private val accountServiceProvider: () -> AccountService = { AccountService },
+    private val channelServiceProvider: () -> ChannelService = { ChannelService.INSTANCE }
 ) {
     fun prepare(bookmarks: List<Bookmark>?): ResolutionContext {
         val accountByName = accountServiceProvider.invoke().getAll()

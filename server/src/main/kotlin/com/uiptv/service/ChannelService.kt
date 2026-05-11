@@ -41,11 +41,11 @@ import java.util.function.Consumer
 import java.util.function.Supplier
 
 class ChannelService @JvmOverloads constructor(
-    private val cacheServiceProvider: () -> CacheService = { RuntimeServices.cacheService },
-    private val contentFilterService: ContentFilterService = RuntimeServices.contentFilterService,
-    private val logoResolverService: LogoResolverService = RuntimeServices.logoResolverService,
-    private val configurationService: ConfigurationService = RuntimeServices.configurationService,
-    private val handshakeService: HandshakeService = RuntimeServices.handshakeService
+    private val cacheServiceProvider: () -> CacheService = { CacheServiceImpl.INSTANCE },
+    private val contentFilterService: ContentFilterService = ContentFilterService,
+    private val logoResolverService: LogoResolverService = LogoResolverService,
+    private val configurationService: ConfigurationService = ConfigurationService,
+    private val handshakeService: HandshakeService = HandshakeService.INSTANCE
 ) {
     private fun cacheService(): CacheService = cacheServiceProvider.invoke()
 
@@ -1074,7 +1074,13 @@ class ChannelService @JvmOverloads constructor(
         private val STALKER_MAX_RETRIES_PER_PAGE: Int = Integer.getInteger("uiptv.stalker.page.maxRetries", 2)
         private val STALKER_THROTTLES = ConcurrentHashMap<String, RequestThrottle>()
         @JvmField
-        val INSTANCE: ChannelService = RuntimeServices.channelService
+        val INSTANCE: ChannelService = ChannelService(
+            cacheServiceProvider = { CacheServiceImpl.INSTANCE },
+            contentFilterService = ContentFilterService,
+            logoResolverService = LogoResolverService,
+            configurationService = ConfigurationService,
+            handshakeService = HandshakeService.INSTANCE
+        )
 
         @JvmStatic
         fun getChannelOrSeriesParams(

@@ -2,7 +2,6 @@ package com.uiptv.service.remotesync
 
 import com.uiptv.db.SqlConnectionRuntime
 import com.uiptv.service.DatabaseSyncService
-import com.uiptv.service.RuntimeServices
 import java.io.IOException
 import java.net.InetAddress
 import java.nio.file.Files
@@ -13,7 +12,7 @@ import java.time.Duration
 class RemoteSyncClientService(
     private val httpClient: RemoteSyncHttpClient = RemoteSyncHttpClient(),
     private val snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
-    private val databaseSyncService: DatabaseSyncService = RuntimeServices.databaseSyncService
+    private val databaseSyncService: DatabaseSyncService = DatabaseSyncService
 ) {
     @Throws(IOException::class)
     fun checkConnection(host: String, port: Int) {

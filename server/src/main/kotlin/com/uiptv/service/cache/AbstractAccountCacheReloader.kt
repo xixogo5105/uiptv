@@ -10,7 +10,6 @@ import com.uiptv.model.CategoryType
 import com.uiptv.model.Channel
 import com.uiptv.service.CategoryService
 import com.uiptv.service.ConfigurationService
-import com.uiptv.service.RuntimeServices
 import com.uiptv.shared.PlaylistEntry
 import com.uiptv.util.AccountType
 import com.uiptv.util.M3U8Parser
@@ -26,8 +25,8 @@ import java.util.Locale
 import java.util.UUID
 
 abstract class AbstractAccountCacheReloader(
-    private val categoryServiceProvider: () -> CategoryService = { RuntimeServices.categoryService },
-    private val configurationServiceProvider: () -> ConfigurationService = { RuntimeServices.configurationService }
+    private val categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
+    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 ) : AccountCacheReloader {
     companion object {
         private const val ALL_CATEGORY = "All"

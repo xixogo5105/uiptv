@@ -15,8 +15,8 @@ import java.util.function.Supplier
 import java.util.regex.Pattern
 
 class SeriesEpisodeService @JvmOverloads constructor(
-    private val channelService: ChannelService = RuntimeServices.channelService,
-    private val configurationService: ConfigurationService = RuntimeServices.configurationService
+    private val channelService: ChannelService = ChannelService.INSTANCE,
+    private val configurationService: ConfigurationService = ConfigurationService
 ) {
     fun getEpisodes(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {
@@ -267,7 +267,7 @@ class SeriesEpisodeService @JvmOverloads constructor(
 
     companion object {
         @JvmField
-        val INSTANCE = SeriesEpisodeService()
+        val INSTANCE: SeriesEpisodeService = SeriesEpisodeService(ChannelService.INSTANCE, ConfigurationService)
 
         private val SEASON_WORD_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b")
         private val SEASON_SHORT_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})(?=\\b|E\\d+)")

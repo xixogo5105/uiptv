@@ -14,14 +14,14 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.LinkedHashMap
 
 class PlaylistExportService @JvmOverloads constructor(
-    private val accountService: AccountService = RuntimeServices.accountService,
-    private val bookmarkService: BookmarkService = RuntimeServices.bookmarkService,
-    private val configurationService: ConfigurationService = RuntimeServices.configurationService,
-    private val handshakeService: HandshakeService = RuntimeServices.handshakeService,
-    private val playerService: PlayerService = RuntimeServices.playerService,
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(playerService = RuntimeServices.playerService),
+    private val accountService: AccountService = AccountService,
+    private val bookmarkService: BookmarkService = BookmarkService,
+    private val configurationService: ConfigurationService = ConfigurationService,
+    private val handshakeService: HandshakeService = HandshakeService.INSTANCE,
+    private val playerService: PlayerService = PlayerService.INSTANCE,
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver.INSTANCE,
     private val channelDb: ChannelDb = ChannelDb.get(),
-    private val publicationService: M3U8PublicationService = M3U8PublicationService()
+    private val publicationService: M3U8PublicationService = M3U8PublicationService.INSTANCE
 ) {
     companion object {
         const val BOOKMARK_MISC_GROUP_TITLE = "Misc"

@@ -14,9 +14,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 class BingeWatchService @JvmOverloads constructor(
-    private val accountService: AccountService = RuntimeServices.accountService,
-    private val seriesWatchStateService: SeriesWatchStateService = RuntimeServices.seriesWatchStateService,
-    private val playerService: PlayerService = RuntimeServices.playerService
+    private val accountService: AccountService = AccountService,
+    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
+    private val playerService: PlayerService = PlayerService.INSTANCE
 ) {
     private val sessions = ConcurrentHashMap<String, Session>()
 
@@ -278,7 +278,7 @@ class BingeWatchService @JvmOverloads constructor(
 
     companion object {
         @JvmField
-        val INSTANCE: BingeWatchService = RuntimeServices.bingeWatchService
+        val INSTANCE: BingeWatchService = BingeWatchService(AccountService, SeriesWatchStateService, PlayerService.INSTANCE)
         private const val DEFAULT_SEASON = "1"
         private const val PLAYLIST_PATH = "/bingewatch.m3u8?token="
         private const val ENTRY_PATH = "/bingwatch?token="

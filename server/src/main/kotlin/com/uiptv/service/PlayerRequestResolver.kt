@@ -18,9 +18,9 @@ import java.util.function.Consumer
 import java.util.function.Supplier
 
 class PlayerRequestResolver @JvmOverloads constructor(
-    private val bookmarkService: BookmarkService = RuntimeServices.bookmarkService,
-    private val accountService: AccountService = RuntimeServices.accountService,
-    private val playerService: PlayerService = RuntimeServices.playerService,
+    private val bookmarkService: BookmarkService = BookmarkService,
+    private val accountService: AccountService = AccountService,
+    private val playerService: PlayerService = PlayerService.INSTANCE,
     private val seriesCategoryDb: SeriesCategoryDb = SeriesCategoryDb.get(),
     private val vodChannelDb: VodChannelDb = VodChannelDb.get(),
     private val channelDb: ChannelDb = ChannelDb.get()
@@ -139,5 +139,14 @@ class PlayerRequestResolver @JvmOverloads constructor(
 
     private fun fillIfBlank(getter: Supplier<String?>, setter: Consumer<String?>, value: String?) {
         if (isBlank(getter.get()) && isNotBlank(value)) setter.accept(value)
+    }
+
+    companion object {
+        @JvmField
+        val INSTANCE: PlayerRequestResolver = PlayerRequestResolver(
+            bookmarkService = BookmarkService,
+            accountService = AccountService,
+            playerService = PlayerService.INSTANCE
+        )
     }
 }
