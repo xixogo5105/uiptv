@@ -112,15 +112,15 @@ public class ReloadCachePopup extends VBox {
     private ColumnConstraints logsColumn;
 
     public static void showPopup(Stage owner) {
-        showPopup(owner, null, null, JavaFxServices.defaults());
+        showPopup(owner, null, null, JavaFxServices.current());
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts) {
-        showPopup(owner, preselectedAccounts, null, JavaFxServices.defaults());
+        showPopup(owner, preselectedAccounts, null, JavaFxServices.current());
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        showPopup(owner, preselectedAccounts, onAccountsDeleted, JavaFxServices.defaults());
+        showPopup(owner, preselectedAccounts, onAccountsDeleted, JavaFxServices.current());
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted, JavaFxServices services) {
@@ -138,15 +138,15 @@ public class ReloadCachePopup extends VBox {
     }
 
     public ReloadCachePopup(Stage stage) {
-        this(stage, null, null, JavaFxServices.defaults());
+        this(stage, null, null, JavaFxServices.current());
     }
 
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts) {
-        this(stage, preselectedAccounts, null, JavaFxServices.defaults());
+        this(stage, preselectedAccounts, null, JavaFxServices.current());
     }
 
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        this(stage, preselectedAccounts, onAccountsDeleted, JavaFxServices.defaults());
+        this(stage, preselectedAccounts, onAccountsDeleted, JavaFxServices.current());
     }
 
     public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted, JavaFxServices services) {

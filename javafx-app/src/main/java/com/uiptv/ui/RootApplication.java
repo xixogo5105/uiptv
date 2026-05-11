@@ -212,6 +212,7 @@ public class RootApplication extends Application {
     }
 
     private void configureUiServices(JavaFxServices services) {
+        JavaFxServices.configureCurrent(services);
         MediaPlayerFactory.configure(services);
         PlaybackUIService.configure(services);
         ThumbnailAwareUI.configure(services.configurationService());

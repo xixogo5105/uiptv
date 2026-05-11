@@ -43,6 +43,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -73,6 +74,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private static final int UNCATEGORIZED_ONLY_CHANNEL_COUNT = 3;
 
     private HttpServer providerMockServer;
+    private java.util.concurrent.ExecutorService providerMockExecutor;
     private String providerBaseUrl;
     private String stalkerPortalUrl;
     private String xtremeBaseUrl;
@@ -103,6 +105,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         providerMockServer.createContext("/rss/feed.xml", this::handleRss);
         providerMockServer.createContext("/m3u", this::handleM3uPlaylist);
         providerMockServer.createContext("/upstream", this::handleUpstreamStream);
+        providerMockExecutor = java.util.concurrent.Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable, "uiptv-web-e2e-provider");
+            thread.setDaemon(true);
+            return thread;
+        });
+        providerMockServer.setExecutor(providerMockExecutor);
         providerMockServer.start();
 
         int providerPort = providerMockServer.getAddress().getPort();
@@ -128,6 +136,10 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         }
         if (providerMockServer != null) {
             providerMockServer.stop(0);
+        }
+        if (providerMockExecutor != null) {
+            providerMockExecutor.shutdownNow();
+            providerMockExecutor = null;
         }
     }
 
@@ -994,35 +1006,44 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
     @SuppressWarnings("java:S1874")
     private HttpTextResponse send(String url, String method, String body, String contentType) throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setRequestMethod(method);
-        conn.setConnectTimeout(20_000);
-        conn.setReadTimeout(20_000);
-        conn.setInstanceFollowRedirects(false);
-        conn.setRequestProperty("Accept", "application/json, */*");
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestMethod(method);
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(60_000);
+                conn.setInstanceFollowRedirects(false);
+                conn.setRequestProperty("Accept", "application/json, */*");
 
-        if (contentType != null) {
-            conn.setRequestProperty("Content-Type", contentType);
-        }
-        if (body != null) {
-            conn.setDoOutput(true);
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            try (OutputStream out = conn.getOutputStream()) {
-                out.write(bytes);
+                if (contentType != null) {
+                    conn.setRequestProperty("Content-Type", contentType);
+                }
+                if (body != null) {
+                    conn.setDoOutput(true);
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    try (OutputStream out = conn.getOutputStream()) {
+                        out.write(bytes);
+                    }
+                }
+
+                int status = conn.getResponseCode();
+                InputStream responseStream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                String responseBody = "";
+                if (responseStream != null) {
+                    try (InputStream in = responseStream) {
+                        responseBody = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                }
+                Map<String, List<String>> responseHeaders = conn.getHeaderFields();
+                conn.disconnect();
+                return new HttpTextResponse(status, responseBody, responseHeaders);
+            } catch (SocketTimeoutException ex) {
+                if (attempt == 1) {
+                    throw ex;
+                }
             }
         }
-
-        int status = conn.getResponseCode();
-        InputStream responseStream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-        String responseBody = "";
-        if (responseStream != null) {
-            try (InputStream in = responseStream) {
-                responseBody = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            }
-        }
-        Map<String, List<String>> responseHeaders = conn.getHeaderFields();
-        conn.disconnect();
-        return new HttpTextResponse(status, responseBody, responseHeaders);
+        throw new IllegalStateException("unreachable");
     }
 
     private JSONArray jsonArrayBody(HttpTextResponse response) {

@@ -84,7 +84,7 @@ public class BookmarkChannelListUI extends HBox {
     });
 
     public BookmarkChannelListUI() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     public BookmarkChannelListUI(JavaFxServices services) {
@@ -623,7 +623,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void openCategoryManagementPopup() {
         Stage popupStage = new Stage();
-        CategoryManagementPopup popup = new CategoryManagementPopup(this, services);
+        CategoryManagementPopup popup = new CategoryManagementPopup(this);
         Scene scene = new Scene(popup, 300, 400);
         UiI18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());

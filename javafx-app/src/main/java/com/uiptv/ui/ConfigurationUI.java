@@ -69,7 +69,7 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
-    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.defaults();
+    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.current();
     private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = DEFAULT_SERVICES.configurationService();
     private static final SeriesWatchStateService STATIC_SERIES_WATCH_STATE_SERVICE = DEFAULT_SERVICES.seriesWatchStateService();
     private static final SeriesWatchingNowSnapshotService STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE = DEFAULT_SERVICES.seriesWatchingNowSnapshotService();
@@ -173,7 +173,7 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationChangeListener configurationChangeListener = revision -> javafx.application.Platform.runLater(this::refreshConfigurationForm);
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {
-        this(onSaveCallback, JavaFxServices.defaults());
+        this(onSaveCallback, JavaFxServices.current());
     }
 
     public ConfigurationUI(Callback<Object> onSaveCallback, JavaFxServices services) {
@@ -643,7 +643,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow(), null, this::notifyAccountsChanged, services));
+        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow(), null, this::notifyAccountsChanged));
     }
 
     private void notifyAccountsChanged() {
@@ -714,7 +714,7 @@ public class ConfigurationUI extends VBox {
                 return;
             }
             Stage popupStage = new Stage();
-            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage, services);
+            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
             Scene scene = new Scene(popup, 680, 560);
             UiI18n.applySceneOrientation(scene);
             scene.getStylesheets().add(RootApplication.getCurrentTheme());

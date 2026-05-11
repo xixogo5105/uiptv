@@ -71,16 +71,16 @@ public class CategoryListUI extends HBox {
     private Account.AccountAction activeMode;
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
-        this(account, false, JavaFxServices.defaults());
+        this(account, false, JavaFxServices.current());
         setItems(list);
     }
 
     public CategoryListUI(Account account) {
-        this(account, false, JavaFxServices.defaults());
+        this(account, false, JavaFxServices.current());
     }
 
     public CategoryListUI(Account account, boolean embeddedMode) {
-        this(account, embeddedMode, JavaFxServices.defaults());
+        this(account, embeddedMode, JavaFxServices.current());
     }
 
     public CategoryListUI(Account account, boolean embeddedMode, JavaFxServices services) {
@@ -462,7 +462,7 @@ public class CategoryListUI extends HBox {
     private void initializeChannelListView(CategoryItem item, String selectedCategoryKey, ModeState state,
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems, CountDownLatch latch) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
-        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey, services);
+        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey);
         if (embeddedMode) {
             ui.setEmbeddedMode(true);
         } else {

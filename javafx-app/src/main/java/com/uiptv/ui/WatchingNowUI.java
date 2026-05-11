@@ -20,7 +20,7 @@ public class WatchingNowUI extends VBox {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public WatchingNowUI() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     public WatchingNowUI(JavaFxServices services) {
@@ -47,7 +47,7 @@ public class WatchingNowUI extends VBox {
 
     private TabPane buildTabs() {
         seriesDelegate = buildSeriesDelegate();
-        vodDelegate = new VodWatchingNowUI(services);
+        vodDelegate = new VodWatchingNowUI();
 
         TabPane tabs = new TabPane();
         List<String> tabLabels = tabLabels();
@@ -82,9 +82,9 @@ public class WatchingNowUI extends VBox {
 
     private BaseWatchingNowUI buildSeriesDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return new ThumbnailWatchingNowUI(services);
+            return new ThumbnailWatchingNowUI();
         }
-        return new PlainWatchingNowUI(services);
+        return new PlainWatchingNowUI();
     }
 
     private void registerThumbnailModeListener() {

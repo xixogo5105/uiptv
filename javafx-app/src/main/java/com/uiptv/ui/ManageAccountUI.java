@@ -123,7 +123,7 @@ public class ManageAccountUI extends VBox {
     private String xtremeDefaultUsername;
 
     public ManageAccountUI() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     public ManageAccountUI(JavaFxServices services) {
@@ -403,7 +403,7 @@ public class ManageAccountUI extends VBox {
                 }
                 saveAccount(false);
             });
-        }, services);
+        });
         popup.show();
     }
 
@@ -590,7 +590,7 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert(I18n.tr("autoPleaseSaveTheAccountBeforeReloadingTheCache"));
                 return;
             }
-            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged, services);
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged);
         });
     }
 

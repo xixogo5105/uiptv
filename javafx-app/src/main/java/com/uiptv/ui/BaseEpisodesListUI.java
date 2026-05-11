@@ -92,7 +92,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     private final SeriesWatchStateChangeListener watchStateChangeListener;
 
     protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
     }
 
     protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {

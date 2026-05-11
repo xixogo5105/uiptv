@@ -34,7 +34,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     LiteVideoPlayer(JavaFxServices services) {

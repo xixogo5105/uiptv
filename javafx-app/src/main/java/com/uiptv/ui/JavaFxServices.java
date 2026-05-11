@@ -46,6 +46,8 @@ public record JavaFxServices(
         ThemeCssOverrideService themeCssOverrideService,
         VodWatchStateService vodWatchStateService
 ) {
+    private static volatile JavaFxServices current;
+
     public static JavaFxServices defaults() {
         return new JavaFxServices(
                 AccountService.INSTANCE,
@@ -70,5 +72,20 @@ public record JavaFxServices(
                 ThemeCssOverrideService.INSTANCE,
                 VodWatchStateService.INSTANCE
         );
+    }
+
+    public static JavaFxServices current() {
+        JavaFxServices services = current;
+        if (services == null) {
+            services = defaults();
+            current = services;
+        }
+        return services;
+    }
+
+    public static void configureCurrent(JavaFxServices services) {
+        if (services != null) {
+            current = services;
+        }
     }
 }

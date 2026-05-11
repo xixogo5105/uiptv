@@ -43,7 +43,7 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
-    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.defaults();
+    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.current();
     private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = DEFAULT_SERVICES.configurationService();
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
@@ -538,7 +538,7 @@ public class AccountListUI extends HBox {
             showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
         }
-        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh, services);
+        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
     }
 
     private void runSingleSelectionAction(Runnable action) {
@@ -607,7 +607,7 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode, services);
+        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
         if (embeddedMode) {
             showDetailView(categoryListUI);
         } else {

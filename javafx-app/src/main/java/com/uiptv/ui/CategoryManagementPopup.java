@@ -23,7 +23,7 @@ public class CategoryManagementPopup extends VBox {
     private BookmarkChannelListUI parent;
 
     public CategoryManagementPopup(BookmarkChannelListUI parent) {
-        this(parent, JavaFxServices.defaults());
+        this(parent, JavaFxServices.current());
     }
 
     public CategoryManagementPopup(BookmarkChannelListUI parent, JavaFxServices services) {

@@ -41,7 +41,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private final AtomicLong audioStateRequestVersion = new AtomicLong();
 
     public VlcVideoPlayer() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     VlcVideoPlayer(JavaFxServices services) {
@@ -76,7 +76,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     static List<String> buildVlcArgs(Configuration configuration) {
-        return buildVlcArgs(configuration, JavaFxServices.defaults().configurationService());
+        return buildVlcArgs(configuration, JavaFxServices.current().configurationService());
     }
 
     static List<String> buildVlcArgs(Configuration configuration, ConfigurationService configurationService) {

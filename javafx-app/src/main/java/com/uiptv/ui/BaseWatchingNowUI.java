@@ -85,7 +85,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private boolean accountListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     protected BaseWatchingNowUI(JavaFxServices services) {
@@ -541,8 +541,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 data.account,
                 firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
                 data.state.getSeriesId(),
-                data.state.getCategoryId(),
-                services
+                data.state.getCategoryId()
         );
         if (thumbnailsEnabled) {
             episodesListUI.applyWatchingNowDetailStyling();

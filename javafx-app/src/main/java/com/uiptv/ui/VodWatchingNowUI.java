@@ -55,7 +55,7 @@ public class VodWatchingNowUI extends VBox {
     private HBox selectedCard;
 
     public VodWatchingNowUI() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     public VodWatchingNowUI(JavaFxServices services) {

@@ -112,7 +112,7 @@ public class ChannelListUI extends HBox {
     private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
-        this(channelList, account, categoryTitle, categoryId, JavaFxServices.defaults());
+        this(channelList, account, categoryTitle, categoryId, JavaFxServices.current());
     }
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId, JavaFxServices services) {
@@ -121,7 +121,7 @@ public class ChannelListUI extends HBox {
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId) {
-        this(account, categoryTitle, categoryId, JavaFxServices.defaults());
+        this(account, categoryTitle, categoryId, JavaFxServices.current());
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId, JavaFxServices services) {
@@ -1044,7 +1044,7 @@ public class ChannelListUI extends HBox {
     }
 
     private EpisodesListUI buildEpisodesListUi(ChannelItem item) {
-        return new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId, services);
+        return new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
     }
 
     private boolean awaitEpisodesUiReady(ChannelItem item, EpisodesListUI ui, AtomicBoolean isCancelled) throws InterruptedException {
@@ -1141,7 +1141,7 @@ public class ChannelListUI extends HBox {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId, services);
+            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
             HBox.setHgrow(ui, Priority.ALWAYS);
             if (embeddedMode || inlineEpisodeNavigationEnabled) {
                 showDetailView(ui, item.getChannelName());

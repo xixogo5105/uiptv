@@ -183,7 +183,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public static final String CHROME_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";
 
     protected BaseVideoPlayer() {
-        this(JavaFxServices.defaults());
+        this(JavaFxServices.current());
     }
 
     protected BaseVideoPlayer(JavaFxServices services) {

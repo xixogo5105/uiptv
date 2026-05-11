@@ -26,7 +26,7 @@ public class EpisodesListUI extends HBox {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(channelList, account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+        this(channelList, account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
     }
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
@@ -35,7 +35,7 @@ public class EpisodesListUI extends HBox {
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.current());
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
@@ -127,9 +127,9 @@ public class EpisodesListUI extends HBox {
 
     private BaseEpisodesListUI buildDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId, services);
+            return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
         }
-        return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId, services);
+        return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
     }
 
     private void withThumbnailDelegate(java.util.function.Consumer<ThumbnailEpisodesListUI> action) {
