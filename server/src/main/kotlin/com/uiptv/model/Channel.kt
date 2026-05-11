@@ -4,7 +4,11 @@ import com.uiptv.shared.BaseJson
 import java.util.stream.Collectors
 
 import com.uiptv.util.StringUtils.safeGetString
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optBoolean
+import com.uiptv.util.json.optInt
+import com.uiptv.util.json.parseJsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 private const val KEY_SEASON = "season"
 
@@ -120,7 +124,7 @@ data class Channel @JvmOverloads constructor(
         @JvmStatic
         fun fromJson(json: String): Channel? {
             return try {
-                val jsonObj = KJsonObject(json)
+                val jsonObj = parseJsonObject(json) ?: return null
                 val channel = Channel(
                     dbId = safeGetString(jsonObj, "dbId"),
                     channelId = safeGetString(jsonObj, "channelId"),
@@ -148,9 +152,11 @@ data class Channel @JvmOverloads constructor(
                     inputstreamaddon = safeGetString(jsonObj, "inputstreamaddon"),
                     manifestType = safeGetString(jsonObj, "manifestType")
                 )
-                val watched = jsonObj.opt("watched")
+                val watched = jsonObj["watched"]
                 channel.watched = when (watched) {
-                    is Boolean -> watched
+                    is JsonPrimitive -> watched.booleanOrNull ?: safeGetString(jsonObj, "watched").let {
+                        "1".equals(it) || "true".equals(it, ignoreCase = true)
+                    }
                     else -> {
                         val watchedStr = safeGetString(jsonObj, "watched")
                         "1".equals(watchedStr) || "true".equals(watchedStr, ignoreCase = true)

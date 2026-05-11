@@ -43,6 +43,7 @@ public class RootApplication extends Application {
     private static Stage primaryStage;
     private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
@@ -179,8 +180,8 @@ public class RootApplication extends Application {
         Configuration bootConfiguration = configurationService.read();
         I18n.initialize(bootConfiguration == null ? null : bootConfiguration.getLanguageLocale());
         FxRemoteSyncUiBridge remoteSyncUiBridge = new FxRemoteSyncUiBridge();
-        RemoteSyncSessionService.getInstance().setApprovalPrompt(remoteSyncUiBridge);
-        RemoteSyncSessionService.getInstance().setNotifier(remoteSyncUiBridge);
+        remoteSyncSessionService.setApprovalPrompt(remoteSyncUiBridge);
+        remoteSyncSessionService.setNotifier(remoteSyncUiBridge);
 
         boolean embeddedEnabled = bootConfiguration != null && bootConfiguration.isEmbeddedPlayer();
         boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();

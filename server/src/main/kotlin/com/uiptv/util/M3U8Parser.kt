@@ -2,7 +2,7 @@ package com.uiptv.util
 
 import com.uiptv.model.CategoryType
 import com.uiptv.shared.PlaylistEntry
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.parseJsonObject
 import java.io.BufferedReader
 import java.io.FileReader
 import java.io.IOException
@@ -298,11 +298,13 @@ object M3U8Parser {
         val normalized = keyString!!.trim()
         if (normalized.startsWith("{") && normalized.endsWith("}")) {
             try {
-                val json = KJsonObject(normalized)
-                for (key in json.keys()) {
-                    keys[key] = json.optString(key)
+                val json = parseJsonObject(normalized)
+                if (json != null) {
+                    for ((key, value) in json) {
+                        keys[key] = value.toString().trim('"')
+                    }
+                    return keys
                 }
-                return keys
             } catch (_: Exception) {
             }
         }

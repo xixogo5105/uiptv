@@ -1,7 +1,12 @@
 package com.uiptv.util
 
-import com.uiptv.util.json.KJsonArray
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optBoolean
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonArray
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 object XtremeCredentialsJson {
     const val KEY_USERNAME = "username"
@@ -20,10 +25,10 @@ object XtremeCredentialsJson {
             return ArrayList()
         }
         return try {
-            val array = KJsonArray(rawJson!!.trim())
+            val array = parseJsonArray(rawJson!!.trim()) ?: return ArrayList()
             val entries = ArrayList<Entry>()
-            for (index in 0 until array.length()) {
-                val obj = array.optJSONObject(index) ?: continue
+            for (index in array.indices) {
+                val obj = array.optObject(index) ?: continue
                 val username = obj.optString(KEY_USERNAME, "").trim()
                 val password = obj.optString(KEY_PASSWORD, "")
                 val isDefault = obj.optBoolean(KEY_DEFAULT, false)
@@ -66,17 +71,19 @@ object XtremeCredentialsJson {
             return ""
         }
         val normalized = normalize(entries, null)
-        val array = KJsonArray()
-        for (entry in normalized) {
-            val obj = KJsonObject()
-            obj.put(KEY_USERNAME, entry.username)
-            obj.put(KEY_PASSWORD, entry.password)
-            if (entry.isDefault) {
-                obj.put(KEY_DEFAULT, true)
+        return buildJsonArray {
+            for (entry in normalized) {
+                add(
+                    buildJsonObject {
+                        put(KEY_USERNAME, entry.username)
+                        put(KEY_PASSWORD, entry.password)
+                        if (entry.isDefault) {
+                            put(KEY_DEFAULT, true)
+                        }
+                    }
+                )
             }
-            array.put(obj)
-        }
-        return array.toString()
+        }.toString()
     }
 
     private fun dedupe(entries: List<Entry>): List<Entry> {

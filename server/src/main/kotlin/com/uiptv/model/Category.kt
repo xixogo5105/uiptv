@@ -2,7 +2,9 @@ package com.uiptv.model
 
 import com.uiptv.shared.BaseJson
 import com.uiptv.util.StringUtils.safeGetString
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optBoolean
+import com.uiptv.util.json.optInt
+import com.uiptv.util.json.parseJsonObject
 
 data class Category @JvmOverloads constructor(
     var dbId: String? = null,
@@ -28,7 +30,7 @@ data class Category @JvmOverloads constructor(
         @JvmStatic
         fun fromJson(json: String): Category? {
             return try {
-                val jsonObj = KJsonObject(json)
+                val jsonObj = parseJsonObject(json) ?: return null
                 Category(
                     dbId = safeGetString(jsonObj, "dbId"),
                     accountId = safeGetString(jsonObj, "accountId"),

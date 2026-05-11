@@ -49,7 +49,7 @@ class KtorRouteMutationCoverageTest : DbBackedTest() {
                 """.trimIndent()
             )
         }
-        assertEquals(HttpStatusCode.OK, create.status)
+        assertEquals(HttpStatusCode.OK, create.status, create.bodyAsText())
         val createJson = JSONObject(create.bodyAsText())
         assertEquals("saved", createJson.getString("action"))
         val bookmarkId = createJson.getString("bookmarkId")

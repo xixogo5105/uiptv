@@ -3,13 +3,9 @@ package com.uiptv.db
 import com.uiptv.util.Platform
 import com.uiptv.util.StringUtils
 import com.zaxxer.hikari.HikariDataSource
-import org.apache.commons.io.FileUtils
 import org.jetbrains.exposed.sql.Database
-import org.sqlite.SQLiteConfig
-import java.io.File
 import java.io.IOException
 import java.sql.Connection
-import java.sql.DriverManager
 import java.sql.SQLException
 
 object SqlConnectionRuntime {
@@ -71,7 +67,7 @@ object SqlConnectionRuntime {
     @JvmStatic
     fun connect(): Connection =
         try {
-            dataSource().connection.also(::configurePragmas)
+            dataSource().connection.also { DatabaseSqliteSupport.configurePragmas(it, BUSY_TIMEOUT_MS) }
         } catch (e: SQLException) {
             throw DatabaseAccessException("Unable to open database connection", e)
         }
@@ -112,27 +108,22 @@ object SqlConnectionRuntime {
 
     @Throws(SQLException::class)
     private fun openConnection(): Connection {
-        val connection = DriverManager.getConnection(jdbcUrl(), sqliteProperties())
-        configurePragmas(connection)
-        return connection
+        return DatabaseSqliteSupport.openConnection(dbPath, BUSY_TIMEOUT_MS)
     }
 
     @Synchronized
     private fun rebuildDataSource() {
         ensureDatabasePathReadyUnchecked()
         hikariDataSource?.close()
-        hikariDataSource = DatabasePoolFactory.create(dbPath, sqliteProperties())
+        hikariDataSource = DatabasePoolFactory.create(
+            dbPath,
+            DatabaseSqliteSupport.sqliteProperties(BUSY_TIMEOUT_MS)
+        )
     }
 
     @Throws(IOException::class)
     private fun ensureDatabasePathReady() {
-        val databaseFile = File(dbPath)
-        databaseFile.parentFile?.let { parent ->
-            if (!parent.exists() && !parent.mkdirs()) {
-                throw IOException("Unable to create database directory: ${parent.absolutePath}")
-            }
-        }
-        FileUtils.touch(databaseFile)
+        DatabaseFileSupport.ensureDatabasePathReady(dbPath)
     }
 
     private fun ensureDatabasePathReadyUnchecked() {
@@ -143,22 +134,6 @@ object SqlConnectionRuntime {
         }
     }
 
-    private fun jdbcUrl(): String = "jdbc:sqlite:$dbPath"
-
-    private fun sqliteProperties() = SQLiteConfig().apply {
-        busyTimeout = BUSY_TIMEOUT_MS
-        setJournalMode(SQLiteConfig.JournalMode.WAL)
-        setSynchronous(SQLiteConfig.SynchronousMode.NORMAL)
-    }.toProperties()
-
-    @Throws(SQLException::class)
-    private fun configurePragmas(connection: Connection) {
-        connection.createStatement().use { statement ->
-            statement.execute("PRAGMA busy_timeout = $BUSY_TIMEOUT_MS")
-            statement.execute("PRAGMA journal_mode = WAL")
-            statement.execute("PRAGMA synchronous = NORMAL")
-        }
-    }
 }
 
 object SQLConnection {

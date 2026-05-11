@@ -1,7 +1,6 @@
 package com.uiptv.shared
 
 import com.uiptv.util.StringUtils.safeGetString
-import com.uiptv.util.json.KJsonObject
 import kotlinx.serialization.json.JsonObject
 
 data class SeasonInfo @JvmOverloads constructor(
@@ -21,24 +20,6 @@ data class SeasonInfo @JvmOverloads constructor(
     var episodeRunTime: String? = null,
     var categoryId: String? = null
 ) : BaseJson() {
-    constructor(info: KJsonObject) : this(
-        name = safeGetString(info, "name"),
-        cover = safeGetString(info, "cover"),
-        plot = safeGetString(info, "plot"),
-        cast = safeGetString(info, "cast"),
-        director = safeGetString(info, "director"),
-        genre = safeGetString(info, "genre"),
-        releaseDate = safeGetString(info, "releaseDate"),
-        lastModified = safeGetString(info, "last_modified"),
-        rating = safeGetString(info, "rating"),
-        rating5Based = safeGetString(info, "rating_5based"),
-        backdropPath = safeGetString(info, "backdrop_path"),
-        tmdb = safeGetString(info, "tmdb"),
-        youtubeTrailer = safeGetString(info, "youtube_trailer"),
-        episodeRunTime = safeGetString(info, "episode_run_time"),
-        categoryId = safeGetString(info, "category_id")
-    )
-
     constructor(info: JsonObject) : this(
         name = safeGetString(info, "name"),
         cover = safeGetString(info, "cover"),

@@ -1,5 +1,5 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
+
 import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Account;
@@ -32,12 +32,14 @@ public final class PlaybackUIService {
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
+    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private static final PlayerService playerService = PlayerService.getInstance();
 
     private PlaybackUIService() {
     }
 
     public static List<PlayerOption> getConfiguredPlayerOptions() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = configurationService.read();
         String player1 = configuration == null ? "" : configuration.getPlayerPath1();
         String player2 = configuration == null ? "" : configuration.getPlayerPath2();
         String player3 = configuration == null ? "" : configuration.getPlayerPath3();
@@ -55,7 +57,7 @@ public final class PlaybackUIService {
             return;
         }
 
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = configurationService.read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request);
 
         if (handleBrowserPlayback(context, request)) return;
@@ -95,7 +97,7 @@ public final class PlaybackUIService {
             response.setFromChannel(channel, account);
         }
         if (isEmbeddedPlayerPath(playerPath)) {
-            Configuration configuration = ConfigurationService.getInstance().read();
+            Configuration configuration = configurationService.read();
             playEmbedded(response, configuration != null && configuration.isEmbeddedPlayer());
             return;
         }
@@ -133,7 +135,7 @@ public final class PlaybackUIService {
     }
 
     private static boolean handleDrmBrowserFallback(PlaybackModeContext context, PlaybackRequest request) {
-        if (!request.allowDrmBrowserFallback || !PlayerService.getInstance().isDrmProtected(request.channel)) {
+        if (!request.allowDrmBrowserFallback || !playerService().isDrmProtected(request.channel)) {
             return false;
         }
         if (!context.browserIsDefaultConfig()) {
@@ -154,7 +156,7 @@ public final class PlaybackUIService {
         if (request == null) {
             return false;
         }
-        String browserUrl = PlayerService.getInstance()
+        String browserUrl = playerService()
                 .buildDrmBrowserPlaybackUrl(
                         request.account,
                         request.channel,
@@ -170,9 +172,9 @@ public final class PlaybackUIService {
     private static PlayerResponse resolvePlayerResponse(PlaybackRequest request) throws IOException {
         String channelId = isBlank(request.channelId) ? request.channel.getChannelId() : request.channelId;
         if (isBlank(request.seriesId)) {
-            return PlayerService.getInstance().get(request.account, request.channel, channelId);
+            return playerService().get(request.account, request.channel, channelId);
         }
-        return PlayerService.getInstance().get(request.account, request.channel, channelId, request.seriesId, request.seriesCategoryId);
+        return playerService().get(request.account, request.channel, channelId, request.seriesId, request.seriesCategoryId);
     }
 
     private static void launchResolvedPlayback(PlaybackModeContext context, PlaybackRequest request, PlayerResponse response) {
@@ -266,6 +268,10 @@ public final class PlaybackUIService {
             return "";
         }
         return normalized;
+    }
+
+    private static PlayerService playerService() {
+        return playerService;
     }
 
     private static String determineMode(Account account) {

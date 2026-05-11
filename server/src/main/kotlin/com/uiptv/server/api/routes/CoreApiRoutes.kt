@@ -37,6 +37,9 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import com.uiptv.util.json.parseJsonObject
+import com.uiptv.util.json.optString
 
 fun Route.registerCoreApiRoutes(
     configurationService: ConfigurationService,
@@ -83,15 +86,18 @@ fun Route.registerCoreApiRoutes(
 
     post("/bookmarks") {
         call.bookmarkHeaders()
-        val body = call.receivePayloadOrDefault<BookmarkUpsertRequest>()
-        val accountId = body.accountId ?: call.request.queryParameters["accountId"]
-        val categoryId = body.categoryId ?: call.request.queryParameters["categoryId"]
-        val mode = body.mode ?: call.request.queryParameters["mode"]
-        var channelId = body.channelId ?: call.request.queryParameters["channelId"].orEmpty()
-        val channelName = body.name ?: call.request.queryParameters["name"].orEmpty()
-        val cmd = body.cmd ?: call.request.queryParameters["cmd"].orEmpty()
+        val rawBody = call.receiveTextSafely()
+        val payload = parseJsonObject(rawBody)
+        val accountId = payload.optStringAny("accountId") ?: call.request.queryParameters["accountId"]
+        val categoryId = payload.optStringAny("categoryId") ?: call.request.queryParameters["categoryId"]
+        val mode = payload.optStringAny("mode") ?: call.request.queryParameters["mode"]
+        var channelId = payload.optStringAny("channelId") ?: call.request.queryParameters["channelId"].orEmpty()
+        val channelName = payload.optStringAny("name")
+            ?: payload.optStringAny("channelName")
+            ?: call.request.queryParameters["name"].orEmpty()
+        val cmd = payload.optStringAny("cmd") ?: call.request.queryParameters["cmd"].orEmpty()
         if (channelId.isBlank()) {
-            channelId = body.id.orEmpty()
+            channelId = payload.optStringAny("id").orEmpty()
         }
 
         if (accountId.isNullOrBlank() || channelId.isBlank() || channelName.isBlank()) {
@@ -113,12 +119,12 @@ fun Route.registerCoreApiRoutes(
             this.channelId = channelId
             name = channelName
             this.cmd = cmd
-            logo = body.logo.orEmpty()
-            drmType = body.drmType.orEmpty()
-            drmLicenseUrl = body.drmLicenseUrl.orEmpty()
-            clearKeysJson = body.clearKeysJson.orEmpty()
-            inputstreamaddon = body.inputstreamaddon.orEmpty()
-            manifestType = body.manifestType.orEmpty()
+            logo = payload.optStringAny("logo").orEmpty()
+            drmType = payload.optStringAny("drmType").orEmpty()
+            drmLicenseUrl = payload.optStringAny("drmLicenseUrl").orEmpty()
+            clearKeysJson = payload.optStringAny("clearKeysJson").orEmpty()
+            inputstreamaddon = payload.optStringAny("inputstreamaddon").orEmpty()
+            manifestType = payload.optStringAny("manifestType").orEmpty()
         }
 
         val portal = if (account.serverPortalUrl.isNullOrBlank()) account.url else account.serverPortalUrl
@@ -191,13 +197,19 @@ private fun ApplicationCall.bookmarkHeaders() {
 }
 
 private suspend inline fun <reified T> ApplicationCall.receivePayloadOrDefault(): T {
-    val text = try {
+    val text = receiveTextSafely()
+    return routeJson.decodeFromString(if (text.isBlank()) emptyJsonObject else text)
+}
+
+private suspend fun ApplicationCall.receiveTextSafely(): String =
+    try {
         receiveText()
     } catch (_: Exception) {
         ""
     }
-    return routeJson.decodeFromString(if (text.isBlank()) emptyJsonObject else text)
-}
+
+private fun JsonObject?.optStringAny(key: String): String? =
+    this?.optString(key)?.takeIf { it.isNotBlank() }
 
 private fun extractBookmarkOrders(body: BookmarkOrderRequest): MutableMap<String, Int> {
     val bookmarkOrders = linkedMapOf<String, Int>()
