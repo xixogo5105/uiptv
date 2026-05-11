@@ -30,7 +30,7 @@ import com.uiptv.model.Account.AccountAction.vod
 class CategoryService @JvmOverloads constructor(
     private val contentFilterService: ContentFilterService = ContentFilterService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService()
+    private val handshakeService: HandshakeService = HandshakeService.getInstance()
 ) {
 
     fun get(account: Account): List<Category> = get(account, true)

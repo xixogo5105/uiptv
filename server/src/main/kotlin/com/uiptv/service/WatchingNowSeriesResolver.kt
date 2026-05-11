@@ -8,8 +8,8 @@ import com.uiptv.model.Channel
 import com.uiptv.model.SeriesWatchState
 import com.uiptv.model.SeriesWatchingNowSnapshot
 import com.uiptv.util.StringUtils.isBlank
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 
 class WatchingNowSeriesResolver(
     private val accountService: AccountService = AccountService,
@@ -250,12 +250,12 @@ class WatchingNowSeriesResolver(
         if (isBlank(raw)) {
             return null
         }
-        var payload: JSONObject? = null
+        var payload: KJsonObject? = null
         try {
-            payload = JSONObject(raw)
+            payload = KJsonObject(raw)
         } catch (_: Exception) {
             try {
-                val array = JSONArray(raw)
+                val array = KJsonArray(raw)
                 payload = array.optJSONObject(0)
             } catch (_: Exception) {
                 return null

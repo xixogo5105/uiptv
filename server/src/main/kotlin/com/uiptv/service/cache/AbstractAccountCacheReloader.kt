@@ -26,7 +26,7 @@ import java.util.Locale
 import java.util.UUID
 
 abstract class AbstractAccountCacheReloader(
-    private val categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
+    private val categoryServiceProvider: () -> CategoryService = { CategoryService.getInstance() },
     private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
 ) : AccountCacheReloader {
     companion object {

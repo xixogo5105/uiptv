@@ -1,6 +1,6 @@
 package com.uiptv.service.remotesync
 
-import com.uiptv.db.SqlConnectionRuntime
+import com.uiptv.db.DatabasePathState
 import com.uiptv.service.DatabaseSyncService
 import java.io.IOException
 import java.net.InetAddress
@@ -35,7 +35,7 @@ class RemoteSyncClientService(
         awaitReadyState(baseUrl, session.sessionId, RemoteSyncStatus.APPROVED, verificationCode, progressListener)
 
         notifyProgress(progressListener, RemoteSyncProgressStep.CREATING_SNAPSHOT, null)
-        val snapshotPath = snapshotService.createSnapshot(SqlConnectionRuntime.getDatabasePath())
+        val snapshotPath = snapshotService.createSnapshot(DatabasePathState.currentPath())
         try {
             notifyProgress(progressListener, RemoteSyncProgressStep.UPLOADING, null)
             val result = httpClient.uploadSnapshot(baseUrl, session.sessionId, snapshotPath)
@@ -67,7 +67,7 @@ class RemoteSyncClientService(
             notifyProgress(progressListener, RemoteSyncProgressStep.APPLYING_SYNC, null)
             val report = databaseSyncService.syncDatabasesWithReport(
                 downloadedSnapshot.toAbsolutePath().toString(),
-                SqlConnectionRuntime.getDatabasePath(),
+                DatabasePathState.currentPath(),
                 options.syncConfiguration,
                 options.syncExternalPlayerPaths,
                 null

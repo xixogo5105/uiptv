@@ -8,7 +8,7 @@ import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeInfo
 import com.uiptv.shared.EpisodeList
 import com.uiptv.util.StringUtils
-import org.json.JSONArray
+import com.uiptv.util.json.KJsonArray
 
 object SeriesWatchingNowSnapshotService {
     @JvmStatic
@@ -29,7 +29,7 @@ object SeriesWatchingNowSnapshotService {
             return EpisodeList()
         }
         val payload = try {
-            JSONArray(snapshot.episodesJson.orEmpty())
+            KJsonArray(snapshot.episodesJson.orEmpty())
         } catch (_: Exception) {
             return EpisodeList()
         }
@@ -48,7 +48,7 @@ object SeriesWatchingNowSnapshotService {
             return emptyList()
         }
         val payload = try {
-            JSONArray(snapshot.episodesJson.orEmpty())
+            KJsonArray(snapshot.episodesJson.orEmpty())
         } catch (_: Exception) {
             return emptyList()
         }
@@ -73,14 +73,14 @@ object SeriesWatchingNowSnapshotService {
         if (account == null || StringUtils.isBlank(account.dbId) || StringUtils.isBlank(seriesId) || episodeList?.episodes.isNullOrEmpty()) {
             return
         }
-        val episodesPayload = JSONArray()
+        val episodesPayload = KJsonArray()
         episodeList.episodes.forEach { episode ->
             val channel = toChannel(episode)
             if (channel != null) {
                 episodesPayload.put(channel.toJson())
             }
         }
-        if (episodesPayload.isEmpty()) {
+        if (episodesPayload.isEmpty) {
             return
         }
         val snapshot = SeriesWatchingNowSnapshot()
@@ -201,7 +201,7 @@ object SeriesWatchingNowSnapshotService {
         return latest
     }
 
-    private fun readChannel(payload: JSONArray, index: Int): Channel? =
+    private fun readChannel(payload: KJsonArray, index: Int): Channel? =
         payload.opt(index)?.toString()?.let(Channel::fromJson)
 
     private fun hydrateParsedEpisode(parsed: Episode, channel: Channel) {

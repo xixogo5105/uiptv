@@ -5,8 +5,6 @@ import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.json.KJsonArray
 import com.uiptv.util.json.KJsonObject
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -219,7 +217,7 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
                     null
                 } else {
                     val json = String(process.inputStream.readAllBytes(), StandardCharsets.UTF_8)
-                    if (json.isBlank()) null else toProbeResult(JSONObject(json))
+                    if (json.isBlank()) null else toProbeResult(KJsonObject(json))
                 }
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -246,18 +244,13 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
             java.lang.Long.getLong("uiptv.ffprobe.timeout.ms", 4_000L)
 
         @JvmStatic
-        private fun toProbeResult(root: JSONObject): ProbeResult {
+        private fun toProbeResult(root: KJsonObject): ProbeResult {
             val format = root.optJSONObject("format")
             val formatName = format?.optString("format_name").orEmpty()
             val durationMs = parseDurationMs(format?.opt("duration"))
             val codecs = extractCodecs(root.optJSONArray("streams"))
             return ProbeResult(formatName, codecs.videoCodec, codecs.audioCodec, durationMs)
         }
-
-        @JvmStatic
-        @Suppress("unused")
-        private fun toProbeResult(root: KJsonObject): ProbeResult =
-            toProbeResult(JSONObject(root.toString()))
 
         private fun parseDurationMs(rawDuration: Any?): Long {
             if (rawDuration == null) return 0L
@@ -271,7 +264,7 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
 
         private fun estimateDurationMs(probe: ProbeResult?): Long = probe?.durationMs ?: 0L
 
-        private fun extractCodecs(streams: JSONArray?): CodecPair {
+        private fun extractCodecs(streams: KJsonArray?): CodecPair {
             var videoCodec = ""
             var audioCodec = ""
             if (streams == null) return CodecPair(videoCodec, audioCodec)
@@ -286,10 +279,6 @@ class LitePlayerFfmpegService private constructor() : AbstractFfmpegHlsService()
             }
             return CodecPair(videoCodec, audioCodec)
         }
-
-        @Suppress("unused")
-        private fun extractCodecs(streams: KJsonArray?): CodecPair =
-            extractCodecs(streams?.let { JSONArray(it.toString()) })
 
         private data class CodecPair(val videoCodec: String, val audioCodec: String)
     }

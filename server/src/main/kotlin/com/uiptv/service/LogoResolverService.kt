@@ -8,8 +8,8 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import org.json.JSONArray
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.KJsonObject
 
 object LogoResolverService {
     private const val CHANNELS_CATALOG_URL = "https://iptv-org.github.io/api/channels.json"
@@ -56,7 +56,7 @@ object LogoResolverService {
             val response = fetchChannelsCatalog()
             if (response.statusCode != HttpUtil.STATUS_OK) return
             val logoByChannelId = loadLogosByChannelId()
-            val fresh = buildCatalogEntries(JSONArray(response.body), logoByChannelId)
+            val fresh = buildCatalogEntries(KJsonArray(response.body), logoByChannelId)
             if (fresh.isNotEmpty()) {
                 catalog.clear()
                 catalog.putAll(fresh)
@@ -72,7 +72,7 @@ object LogoResolverService {
 
     private fun fetchChannelsCatalog(): HttpUtil.HttpResult = HttpUtil.sendRequest(CHANNELS_CATALOG_URL, null, "GET")
 
-    private fun buildCatalogEntries(channels: JSONArray, logoByChannelId: Map<String, String>): ConcurrentHashMap<String, String> {
+    private fun buildCatalogEntries(channels: KJsonArray, logoByChannelId: Map<String, String>): ConcurrentHashMap<String, String> {
         val fresh = ConcurrentHashMap<String, String>()
         for (index in 0 until channels.length()) {
             channels.optJSONObject(index)?.let { addCatalogAliases(fresh, it, logoByChannelId) }
@@ -80,7 +80,7 @@ object LogoResolverService {
         return fresh
     }
 
-    private fun addCatalogAliases(fresh: ConcurrentHashMap<String, String>, item: JSONObject, logoByChannelId: Map<String, String>) {
+    private fun addCatalogAliases(fresh: ConcurrentHashMap<String, String>, item: KJsonObject, logoByChannelId: Map<String, String>) {
         val logo = resolveCatalogLogo(item, logoByChannelId)
         if (isBlank(logo)) return
         addAlias(fresh, item.optString("name", ""), logo)
@@ -90,7 +90,7 @@ object LogoResolverService {
         }
     }
 
-    private fun resolveCatalogLogo(item: JSONObject, logoByChannelId: Map<String, String>): String {
+    private fun resolveCatalogLogo(item: KJsonObject, logoByChannelId: Map<String, String>): String {
         val channelId = item.optString("id", "")
         val logo = item.optString("logo", "")
         return if (isBlank(logo) && isNotBlank(channelId)) logoByChannelId[channelId].orEmpty() else logo
@@ -238,7 +238,7 @@ object LogoResolverService {
         if (!localCacheFile.exists()) return
         try {
             FileInputStream(localCacheFile).use { input ->
-                val root = JSONObject(String(input.readAllBytes(), StandardCharsets.UTF_8))
+                val root = KJsonObject(String(input.readAllBytes(), StandardCharsets.UTF_8))
                 root.keys().forEach { key ->
                     val value = root.optString(key, "")
                     if (isNotBlank(value)) localCache[key] = value
@@ -252,7 +252,7 @@ object LogoResolverService {
     private fun persistLocalCache() {
         try {
             FileOutputStream(localCacheFile).use { output ->
-                output.write(JSONObject(localCache.toMap()).toString().toByteArray(StandardCharsets.UTF_8))
+                output.write(KJsonObject(localCache.toMap()).toString().toByteArray(StandardCharsets.UTF_8))
             }
         } catch (_: Exception) {
         }

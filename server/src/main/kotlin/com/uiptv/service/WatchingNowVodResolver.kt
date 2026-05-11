@@ -5,7 +5,7 @@ import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.VodWatchState
 import com.uiptv.util.StringUtils.isBlank
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import java.util.function.Consumer
 import java.util.function.Supplier
 
@@ -66,7 +66,7 @@ class WatchingNowVodResolver(
             return
         }
         try {
-            val json = JSONObject(extraJson.orEmpty())
+            val json = KJsonObject(extraJson.orEmpty())
             builder.name = preferIfBlank(builder.name, json.optString("name"), json.optString("o_name"))
             builder.logo = preferIfBlank(builder.logo, json.optString("stream_icon"), json.optString("cover_big"), json.optString("cover"))
             builder.plot = preferIfBlank(builder.plot, json.optString("description"), json.optString("plot"), json.optString("overview"))

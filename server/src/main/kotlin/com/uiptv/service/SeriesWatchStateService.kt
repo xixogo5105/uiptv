@@ -9,7 +9,7 @@ import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.model.SeriesWatchState
 import com.uiptv.util.StringUtils
-import org.json.JSONObject
+import com.uiptv.util.json.KJsonObject
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.concurrent.CopyOnWriteArraySet
@@ -206,7 +206,7 @@ object SeriesWatchStateService {
         if (matchedCategory == null) {
             return resolveSnapshotFallback("", existing?.seriesCategorySnapshot)
         }
-        return JSONObject(matchedCategory.toJson())
+        return KJsonObject(matchedCategory.toJson())
             .put(FIELD_CATEGORY_ID, portalCategoryId)
             .toString()
     }
@@ -216,7 +216,7 @@ object SeriesWatchStateService {
         if (seriesChannel == null) {
             return resolveSnapshotFallback("", existing?.seriesChannelSnapshot)
         }
-        return JSONObject(seriesChannel.toJson())
+        return KJsonObject(seriesChannel.toJson())
             .put(FIELD_CATEGORY_ID, portalCategoryId)
             .put("channelId", safe(seriesChannel.channelId))
             .toString()
@@ -228,7 +228,7 @@ object SeriesWatchStateService {
             val episodeFallback = if (existing != null && safe(existing.episodeId) == safe(state.episodeId)) existing.seriesEpisodeSnapshot else ""
             return resolveSnapshotFallback("", episodeFallback)
         }
-        return JSONObject(episodeChannel.toJson())
+        return KJsonObject(episodeChannel.toJson())
             .put(FIELD_CATEGORY_ID, portalCategoryId)
             .put("seriesId", safe(state.seriesId))
             .put("channelId", safe(episodeChannel.channelId))

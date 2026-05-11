@@ -16,9 +16,6 @@ object SqlConnectionRuntime {
     private const val CURRENT_SCHEMA_VERSION = "0197"
 
     @Volatile
-    private var dbPath: String = DatabasePathResolver.resolve()
-
-    @Volatile
     private var exposedDatabase: Database? = null
 
     @Volatile
@@ -56,13 +53,13 @@ object SqlConnectionRuntime {
     @Synchronized
     fun setDatabasePath(path: String) {
         close()
-        dbPath = path
+        DatabasePathState.override(path)
         init()
     }
 
     @JvmStatic
     @Synchronized
-    fun getDatabasePath(): String = dbPath
+    fun getDatabasePath(): String = DatabasePathState.currentPath()
 
     @JvmStatic
     fun connect(): Connection =
@@ -99,7 +96,7 @@ object SqlConnectionRuntime {
 
     private fun migrate() {
         DatabaseMigrationRunner.migrate(
-            dbPath = dbPath,
+            dbPath = getDatabasePath(),
             currentSchemaVersion = CURRENT_SCHEMA_VERSION,
             baselineMigration = BASELINE_MIGRATION,
             openConnection = ::openConnection
@@ -108,7 +105,7 @@ object SqlConnectionRuntime {
 
     @Throws(SQLException::class)
     private fun openConnection(): Connection {
-        return DatabaseSqliteSupport.openConnection(dbPath, BUSY_TIMEOUT_MS)
+        return DatabaseSqliteSupport.openConnection(getDatabasePath(), BUSY_TIMEOUT_MS)
     }
 
     @Synchronized
@@ -116,14 +113,14 @@ object SqlConnectionRuntime {
         ensureDatabasePathReadyUnchecked()
         hikariDataSource?.close()
         hikariDataSource = DatabasePoolFactory.create(
-            dbPath,
+            getDatabasePath(),
             DatabaseSqliteSupport.sqliteProperties(BUSY_TIMEOUT_MS)
         )
     }
 
     @Throws(IOException::class)
     private fun ensureDatabasePathReady() {
-        DatabaseFileSupport.ensureDatabasePathReady(dbPath)
+        DatabaseFileSupport.ensureDatabasePathReady(getDatabasePath())
     }
 
     private fun ensureDatabasePathReadyUnchecked() {
