@@ -384,7 +384,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         reloadEpisodesButton.setDisable(true);
         reloadEpisodesButton.setText(I18n.tr("autoReloading"));
         new Thread(() -> {
-            EpisodeList refreshed = SeriesEpisodeService.getInstance()
+            EpisodeList refreshed = seriesEpisodeService
                     .reloadEpisodesFromPortal(account, seriesCategoryId, seriesId, () -> false);
             Platform.runLater(() -> {
                 imdbLoaded = false;
@@ -561,7 +561,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                play(row, configurationService.read().getDefaultPlayerPath());
             } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
                 setSelectedEpisodeCard(root);
             }
@@ -917,7 +917,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         int attempts = Math.max(1, maxAttempts);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                JSONObject imdb = new JSONObject(ImdbMetadataService.getInstance().findBestEffortDetails(title, tmdb, hints).toString());
+                JSONObject imdb = new JSONObject(imdbMetadataService.findBestEffortDetails(title, tmdb, hints).toString());
                 if (imdb != null) {
                     return imdb;
                 }

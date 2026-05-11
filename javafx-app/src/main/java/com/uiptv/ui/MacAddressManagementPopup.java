@@ -38,6 +38,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class MacAddressManagementPopup extends VBox {
+    private final HandshakeService handshakeService = HandshakeService.getInstance();
 
     private final Stage stage;
     private final ListView<MacItem> macListView = new ListView<>();
@@ -235,7 +236,7 @@ public class MacAddressManagementPopup extends VBox {
             try {
                 for (MacItem item : finalTargets) {
                     Account account = buildAccountForMac(item.getMac());
-                    AccountInfo info = HandshakeService.getInstance().fetchAccountInfo(account);
+                    AccountInfo info = handshakeService.fetchAccountInfo(account);
                     updateMacItemInfo(item, info);
                 }
             } finally {

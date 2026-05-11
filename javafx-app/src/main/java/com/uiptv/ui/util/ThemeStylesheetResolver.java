@@ -18,7 +18,7 @@ public final class ThemeStylesheetResolver {
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme) {
-        ThemeCssOverride override = ThemeCssOverrideService.getInstance().read();
+        ThemeCssOverride override = themeCssOverrideService().read();
         String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
         if (overrideCss != null && !overrideCss.isBlank()) {
             return toDataUrl(overrideCss);
@@ -29,7 +29,7 @@ public final class ThemeStylesheetResolver {
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, int zoomPercent) {
-        ThemeCssOverride override = ThemeCssOverrideService.getInstance().read();
+        ThemeCssOverride override = themeCssOverrideService().read();
         String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
         if (overrideCss != null && !overrideCss.isBlank()) {
             return toDataUrl(overrideCss + "\n" + buildZoomOverrideCss(zoomPercent));
@@ -79,5 +79,9 @@ public final class ThemeStylesheetResolver {
     private static String toDataUrl(String cssContent) {
         String encoded = Base64.getEncoder().encodeToString(cssContent.getBytes(StandardCharsets.UTF_8));
         return "data:text/css;base64," + encoded;
+    }
+
+    private static ThemeCssOverrideService themeCssOverrideService() {
+        return ThemeCssOverrideService.getInstance();
     }
 }

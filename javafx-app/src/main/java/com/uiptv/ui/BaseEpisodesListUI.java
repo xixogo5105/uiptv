@@ -11,7 +11,10 @@ import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.BingeWatchService;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
+import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.shared.Episode;
@@ -63,6 +66,13 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final String seriesId;
     protected final String seriesCategoryId;
     protected final EpisodeList channelList;
+    protected final BookmarkService bookmarkService = BookmarkService.getInstance();
+    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
+    protected final BingeWatchService bingeWatchService = BingeWatchService.getInstance();
+    protected final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.getInstance();
+    protected final ConfigurationService configurationService = ConfigurationService.getInstance();
+    protected final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.getInstance();
+    protected final ImdbMetadataService imdbMetadataService = ImdbMetadataService.getInstance();
 
     protected final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     protected final StackPane contentStack = new StackPane();
@@ -130,7 +140,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         syncSeasonInfo(newChannelList);
         persistWatchingNowSnapshot(newChannelList);
         Set<String> bookmarkKeys = loadBookmarkKeysForAccount();
-        SeriesWatchState watchedState = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+        SeriesWatchState watchedState = seriesWatchStateService.getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
         navigateToLastWatched(watchedState);
         List<EpisodeItem> items = buildEpisodeItems(newChannelList, bookmarkKeys, watchedState);
         runLater(() -> {
@@ -233,14 +243,14 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (bookmarkListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+        bookmarkService.addChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = true;
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
                 releaseTransientState();
             } else if (!bookmarkListenerRegistered) {
-                BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+                bookmarkService.addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
                 refreshBookmarkStatesAsync();
             }
@@ -251,14 +261,14 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (watchStateListenerRegistered) {
             return;
         }
-        SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+        seriesWatchStateService.addChangeListener(watchStateChangeListener);
         watchStateListenerRegistered = true;
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterWatchStateListener();
                 releaseTransientState();
             } else if (!watchStateListenerRegistered) {
-                SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+                seriesWatchStateService.addChangeListener(watchStateChangeListener);
                 watchStateListenerRegistered = true;
                 refreshWatchedStatesAsync();
             }
@@ -276,7 +286,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (!bookmarkListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+        bookmarkService.removeChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = false;
     }
 
@@ -284,7 +294,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (!watchStateListenerRegistered) {
             return;
         }
-        SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
+        seriesWatchStateService.removeChangeListener(watchStateChangeListener);
         watchStateListenerRegistered = false;
     }
 
@@ -293,7 +303,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         new Thread(() -> {
-            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            List<Bookmark> bookmarks = bookmarkService.read();
             Set<String> bookmarkKeys = bookmarks.stream()
                     .filter(b -> account.getAccountName().equals(b.getAccountName()))
                     .map(b -> bookmarkIdentityKey(b.getChannelId(), b.getChannelName()))
@@ -313,10 +323,10 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         new Thread(() -> {
-            SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+            SeriesWatchState state = seriesWatchStateService.getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
             runLater(() -> {
                 for (EpisodeItem item : allEpisodeItems) {
-                    item.setWatched(SeriesWatchStateService.getInstance().isMatchingEpisode(
+                    item.setWatched(seriesWatchStateService.isMatchingEpisode(
                             state,
                             item.getEpisodeId(),
                             item.getSeason(),
@@ -341,7 +351,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     protected Set<String> loadBookmarkKeysForAccount() {
-        return BookmarkService.getInstance().read().stream()
+        return bookmarkService.read().stream()
                 .filter(b -> account.getAccountName().equals(b.getAccountName()))
                 .map(b -> bookmarkKey(b.getCategoryTitle(), b.getChannelId(), b.getChannelName()))
                 .collect(Collectors.toSet());
@@ -353,7 +363,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         }
         new Thread(() -> {
             account.setAction(Account.AccountAction.series);
-            SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+            seriesWatchStateService.markSeriesEpisodeManual(
                     account,
                     seriesCategoryId,
                     seriesId,
@@ -371,7 +381,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         new Thread(() -> {
-            SeriesWatchStateService.getInstance().clearSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
+            seriesWatchStateService.clearSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
             refreshWatchedStatesAsync();
         }, "episodes-clear-watched").start();
     }
@@ -381,7 +391,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         account.setAction(Account.AccountAction.series);
-        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+        seriesWatchStateService.markSeriesEpisodeManual(
                 account,
                 seriesCategoryId,
                 seriesId,
@@ -422,9 +432,9 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         account.setAction(Account.AccountAction.series);
-        SeriesWatchState watchState = SeriesWatchStateService.getInstance()
+        SeriesWatchState watchState = seriesWatchStateService
                 .getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
-        String token = BingeWatchService.getInstance().createSession(
+        String token = bingeWatchService.createSession(
                 account,
                 seriesId,
                 seriesCategoryId,
@@ -443,7 +453,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         bingeWatchChannel.setLogo(seasonInfo.optString("cover", ""));
         PlaybackUIService.playDirectUrl(
                 playerPath,
-                BingeWatchService.getInstance().buildPlaylistUrl(token),
+                bingeWatchService.buildPlaylistUrl(token),
                 "Binge watch playback failed: ",
                 account,
                 bingeWatchChannel
@@ -751,7 +761,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         String tmdbId = episode.getInfo() != null ? episode.getInfo().getTmdbId() : "";
         String season = inferSeason(episode);
         String episodeNo = inferEpisodeNumber(episode);
-        boolean isWatched = SeriesWatchStateService.getInstance().isMatchingEpisode(
+        boolean isWatched = seriesWatchStateService.isMatchingEpisode(
                 watchedState, episode.getId(), season, episodeNo, episode.getTitle());
         String plot = episode.getInfo() != null ? safe(episode.getInfo().getPlot()) : "";
         String cleanTitle = cleanEpisodeTitleWithPlot(episode.getTitle(), plot);
@@ -939,7 +949,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                 seasonInfo.optString("cover", ""),
                 firstEpisodePoster(episodeList)
         );
-        SeriesWatchingNowSnapshotService.getInstance().save(
+        seriesWatchingNowSnapshotService.save(
                 account,
                 seriesCategoryId,
                 seriesId,

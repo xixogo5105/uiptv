@@ -59,6 +59,12 @@ public abstract class BaseWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
+    private final AccountService accountService = AccountService.getInstance();
+    private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.getInstance();
+    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.getInstance();
+    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
+    private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.getInstance();
     private final WatchingNowSeriesResolver seriesResolver = new WatchingNowSeriesResolver();
     private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
@@ -132,7 +138,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private List<SeriesPanelData> buildPanelsFromCache() {
         List<SeriesPanelData> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
+        for (Account account : accountService.getAll().values()) {
             rows.addAll(buildPanelsForAccount(account));
         }
         rows.sort(Comparator.comparing((SeriesPanelData d) -> safe(d.seriesTitle), String.CASE_INSENSITIVE_ORDER));
@@ -161,7 +167,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (!cacheInfo.resolvedFromCache && isBlank(cacheInfo.seriesTitle) && scopedState.getSeriesId().matches("^\\d+$")) {
             return null;
         }
-        EpisodeList list = SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
+        EpisodeList list = seriesEpisodeService.getEpisodesForWatchingNow(account, scopedState.getCategoryId(), scopedState.getSeriesId(), () -> false);
         if (list == null) {
             list = new EpisodeList();
         }
@@ -172,7 +178,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             list.getSeasonInfo().setName(cacheInfo.seriesTitle);
         }
         if (list.getEpisodes() != null && !list.getEpisodes().isEmpty()) {
-            SeriesWatchingNowSnapshotService.getInstance().save(
+            seriesWatchingNowSnapshotService.save(
                     account,
                     scopedState.getCategoryId(),
                     scopedState.getSeriesId(),
@@ -240,7 +246,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             String releaseDate = episode.getInfo() != null ? safe(episode.getInfo().getReleaseDate()) : "";
             String rating = episode.getInfo() != null ? safe(episode.getInfo().getRating()) : "";
 
-            boolean watched = SeriesWatchStateService.getInstance().isMatchingEpisode(
+            boolean watched = seriesWatchStateService.isMatchingEpisode(
                     state,
                     episode.getId(),
                     season,
@@ -471,13 +477,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         String accountId = data.account.getDbId();
         String seriesId = data.state.getSeriesId();
         new Thread(() -> {
-            List<SeriesWatchState> states = SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount(accountId);
+            List<SeriesWatchState> states = seriesWatchStateService.getAllSeriesLastWatchedByAccount(accountId);
             for (SeriesWatchState state : states) {
                 if (state == null) {
                     continue;
                 }
                 if (safe(seriesId).equals(safe(state.getSeriesId()))) {
-                    SeriesWatchStateService.getInstance().clearSeriesLastWatched(accountId, state.getCategoryId(), seriesId);
+                    seriesWatchStateService.clearSeriesLastWatched(accountId, state.getCategoryId(), seriesId);
                 }
             }
             Platform.runLater(() -> {
@@ -747,7 +753,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         play.setFocusTraversable(true);
         play.setOnAction(event -> {
             event.consume();
-            playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            playEpisode(data, row, configurationService.read().getDefaultPlayerPath());
         });
         badges.getChildren().add(play);
 
@@ -794,7 +800,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                playEpisode(data, row, configurationService.read().getDefaultPlayerPath());
             } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
                 setSelectedEpisodeCard(data, root);
             }
@@ -930,7 +936,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         new Thread(() -> {
             item.account.setAction(Account.AccountAction.series);
-            SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+            seriesWatchStateService.markSeriesEpisodeManual(
                     item.account,
                     item.state.getCategoryId(),
                     item.state.getSeriesId(),
@@ -946,7 +952,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (item == null || isBlank(item.account.getDbId())) {
             return;
         }
-        new Thread(() -> SeriesWatchStateService.getInstance().clearSeriesLastWatched(
+        new Thread(() -> seriesWatchStateService.clearSeriesLastWatched(
                 item.account.getDbId(),
                 item.state.getCategoryId(),
                 item.state.getSeriesId()
@@ -962,7 +968,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         updateWatchingStatusUI(data, item);
 
         item.account.setAction(Account.AccountAction.series);
-        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+        seriesWatchStateService.markSeriesEpisodeManual(
                 item.account,
                 item.state.getCategoryId(),
                 item.state.getSeriesId(),
@@ -1103,7 +1109,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         int attempts = Math.max(1, maxAttempts);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                JSONObject imdb = new JSONObject(ImdbMetadataService.getInstance().findBestEffortDetails(
+                JSONObject imdb = new JSONObject(imdbMetadataService.findBestEffortDetails(
                         firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
                         data.seasonInfo.optString("tmdb", ""),
                         hints
@@ -1194,9 +1200,9 @@ public abstract class BaseWatchingNowUI extends VBox {
             data.reloadEpisodesButton.setText(I18n.tr("autoReloading"));
         }
         new Thread(() -> {
-            EpisodeList refreshed = SeriesEpisodeService.getInstance()
+            EpisodeList refreshed = seriesEpisodeService
                     .reloadEpisodesFromPortal(data.account, data.state.getCategoryId(), data.state.getSeriesId(), () -> false);
-            SeriesWatchingNowSnapshotService.getInstance().save(
+            seriesWatchingNowSnapshotService.save(
                     data.account,
                     data.state.getCategoryId(),
                     data.state.getSeriesId(),
@@ -1346,22 +1352,22 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void ensureListenersRegistered() {
         if (!watchStateListenerRegistered) {
-            SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
+            seriesWatchStateService.addChangeListener(watchStateChangeListener);
             watchStateListenerRegistered = true;
         }
         if (!accountListenerRegistered) {
-            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountService.addChangeListener(accountChangeListener);
             accountListenerRegistered = true;
         }
     }
 
     private void unregisterListeners() {
         if (watchStateListenerRegistered) {
-            SeriesWatchStateService.getInstance().removeChangeListener(watchStateChangeListener);
+            seriesWatchStateService.removeChangeListener(watchStateChangeListener);
             watchStateListenerRegistered = false;
         }
         if (accountListenerRegistered) {
-            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountService.removeChangeListener(accountChangeListener);
             accountListenerRegistered = false;
         }
     }
@@ -1403,7 +1409,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private List<SeriesPanelData> buildUpdatedSeriesPanels(String accountId, String seriesId) {
         List<SeriesPanelData> updated = new ArrayList<>();
-        Account account = AccountService.getInstance().getById(accountId);
+        Account account = accountService.getById(accountId);
         if (account == null || isBlank(account.getDbId())) {
             return updated;
         }

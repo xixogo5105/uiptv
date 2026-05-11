@@ -12,6 +12,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
+    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
     private static VideoPlayerInterface instance;
     private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();
@@ -35,7 +36,7 @@ public class MediaPlayerFactory {
     }
 
     private static void initializePlayer() {
-        Configuration config = ConfigurationService.getInstance().read();
+        Configuration config = configurationService.read();
         if (config != null && config.isEmbeddedPlayer()) {
             try {
                 instance = new VlcVideoPlayer();
@@ -86,7 +87,7 @@ public class MediaPlayerFactory {
 
     public static synchronized Node getPlayerContainer() {
         if (!hostConfigured) {
-            Configuration config = ConfigurationService.getInstance().read();
+            Configuration config = configurationService.read();
             if (config != null && config.isEmbeddedPlayer()) {
                 definePlayerRegion(playerHostContainer);
             } else {

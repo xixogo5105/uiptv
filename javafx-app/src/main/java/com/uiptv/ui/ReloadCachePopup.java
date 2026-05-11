@@ -733,7 +733,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void deleteAccountsAndRefresh(List<Account> toDelete) {
-        toDelete.forEach(a -> AccountService.getInstance().delete(a.getDbId()));
+        toDelete.forEach(a -> accountService.delete(a.getDbId()));
         if (onAccountsDeleted != null) {
             onAccountsDeleted.run();
         }

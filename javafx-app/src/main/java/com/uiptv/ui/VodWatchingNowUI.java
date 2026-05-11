@@ -42,6 +42,9 @@ public class VodWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, VodPanelData> panelDataByKey = new LinkedHashMap<>();
+    private final VodWatchStateService vodWatchStateService = VodWatchStateService.getInstance();
+    private final AccountService accountService = AccountService.getInstance();
+    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.getInstance();
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
     private volatile boolean dirty = true;
     private final VodWatchStateChangeListener changeListener = this::onDataChanged;
@@ -319,7 +322,7 @@ public class VodWatchingNowUI extends VBox {
         data.imdbLoading = true;
         new Thread(() -> {
             try {
-                JSONObject imdb = new JSONObject(ImdbMetadataService.getInstance().findBestEffortMovieDetails(data.displayTitle, "").toString());
+                JSONObject imdb = new JSONObject(imdbMetadataService.findBestEffortMovieDetails(data.displayTitle, "").toString());
                 if (imdb != null) {
                     mergeImdb(data, imdb);
                 }
@@ -476,7 +479,7 @@ public class VodWatchingNowUI extends VBox {
             return;
         }
         new Thread(() -> {
-            VodWatchStateService.getInstance().remove(data.account.getDbId(), data.state.getCategoryId(), data.state.getVodId());
+            vodWatchStateService.remove(data.account.getDbId(), data.state.getCategoryId(), data.state.getVodId());
             Platform.runLater(() -> {
                 panelDataByKey.remove(panelKey(data));
                 render(new ArrayList<>(panelDataByKey.values()));
@@ -504,22 +507,22 @@ public class VodWatchingNowUI extends VBox {
 
     private void ensureListenersRegistered() {
         if (!listenerRegistered) {
-            VodWatchStateService.getInstance().addChangeListener(changeListener);
+            vodWatchStateService.addChangeListener(changeListener);
             listenerRegistered = true;
         }
         if (!accountListenerRegistered) {
-            AccountService.getInstance().addChangeListener(accountChangeListener);
+            accountService.addChangeListener(accountChangeListener);
             accountListenerRegistered = true;
         }
     }
 
     private void unregisterListeners() {
         if (listenerRegistered) {
-            VodWatchStateService.getInstance().removeChangeListener(changeListener);
+            vodWatchStateService.removeChangeListener(changeListener);
             listenerRegistered = false;
         }
         if (accountListenerRegistered) {
-            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountService.removeChangeListener(accountChangeListener);
             accountListenerRegistered = false;
         }
     }

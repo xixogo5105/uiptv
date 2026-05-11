@@ -8,7 +8,7 @@ import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeInfo
 import com.uiptv.shared.EpisodeList
 import com.uiptv.util.StringUtils
-import com.uiptv.util.json.KJsonArray
+import org.json.JSONArray
 
 object SeriesWatchingNowSnapshotService {
     @JvmStatic
@@ -29,7 +29,7 @@ object SeriesWatchingNowSnapshotService {
             return EpisodeList()
         }
         val payload = try {
-            KJsonArray(snapshot.episodesJson.orEmpty())
+            JSONArray(snapshot.episodesJson.orEmpty())
         } catch (_: Exception) {
             return EpisodeList()
         }
@@ -48,7 +48,7 @@ object SeriesWatchingNowSnapshotService {
             return emptyList()
         }
         val payload = try {
-            KJsonArray(snapshot.episodesJson.orEmpty())
+            JSONArray(snapshot.episodesJson.orEmpty())
         } catch (_: Exception) {
             return emptyList()
         }
@@ -73,14 +73,14 @@ object SeriesWatchingNowSnapshotService {
         if (account == null || StringUtils.isBlank(account.dbId) || StringUtils.isBlank(seriesId) || episodeList?.episodes.isNullOrEmpty()) {
             return
         }
-        val episodesPayload = KJsonArray()
+        val episodesPayload = JSONArray()
         episodeList.episodes.forEach { episode ->
             val channel = toChannel(episode)
             if (channel != null) {
                 episodesPayload.put(channel.toJson())
             }
         }
-        if (episodesPayload.isEmpty) {
+        if (episodesPayload.isEmpty()) {
             return
         }
         val snapshot = SeriesWatchingNowSnapshot()
@@ -201,10 +201,8 @@ object SeriesWatchingNowSnapshotService {
         return latest
     }
 
-    private fun readChannel(payload: KJsonArray, index: Int): Channel? {
-        val value = payload.opt(index) ?: return null
-        return Channel.fromJson(value.toString())
-    }
+    private fun readChannel(payload: JSONArray, index: Int): Channel? =
+        payload.opt(index)?.toString()?.let(Channel::fromJson)
 
     private fun hydrateParsedEpisode(parsed: Episode, channel: Channel) {
         if (StringUtils.isBlank(parsed.season)) {

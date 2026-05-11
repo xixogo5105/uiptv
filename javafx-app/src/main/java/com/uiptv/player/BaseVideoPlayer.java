@@ -147,6 +147,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isLiveLikeContent = true;
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
+    protected final PlayerService playerService = PlayerService.getInstance();
+    protected final BingeWatchService bingeWatchService = BingeWatchService.getInstance();
+    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
     private double lastMouseEventScreenX = Double.NaN;
@@ -1010,7 +1013,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             errorLabel.setVisible(false);
             new Thread(() -> {
                 try {
-                    final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
+                    final PlayerResponse newResponse = playerService.get(currentAccount, currentChannel);
                     Platform.runLater(() -> play(newResponse, true));
                 } catch (IOException e) {
                     showError("Failed to refresh stream for account '" + currentAccount.getAccountName() + "' and channel '" + currentChannel.getName() + "'", e);
@@ -1682,7 +1685,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (!isNotBlank(activeBingeWatchToken)) {
             return Collections.emptyList();
         }
-        List<BingeWatchService.PlaylistItem> playlistItems = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        List<BingeWatchService.PlaylistItem> playlistItems = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
         if (playlistItems.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1773,7 +1776,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (!isNotBlank(activeBingeWatchToken)) {
             return null;
         }
-        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        List<BingeWatchService.PlaylistItem> items = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
         if (items.isEmpty()) {
             return null;
         }
@@ -1786,7 +1789,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private int getSelectedPlaylistTrackId() {
-        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        List<BingeWatchService.PlaylistItem> items = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).episodeId().equals(activeBingeWatchEpisodeId)) {
                 return i;
@@ -1796,12 +1799,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void selectPlaylistTrack(int index) {
-        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        List<BingeWatchService.PlaylistItem> items = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
         if (index < 0 || index >= items.size()) {
             return;
         }
         BingeWatchService.PlaylistItem selected = items.get(index);
-        String playlistUrl = BingeWatchService.getInstance().buildPlaylistUrl(activeBingeWatchToken, selected.episodeId());
+        String playlistUrl = bingeWatchService.buildPlaylistUrl(activeBingeWatchToken, selected.episodeId());
         if (!isNotBlank(playlistUrl)) {
             return;
         }
@@ -1820,7 +1823,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
         if (!isNotBlank(activeBingeWatchEpisodeId)) {
-            List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+            List<BingeWatchService.PlaylistItem> items = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
             if (!items.isEmpty()) {
                 activeBingeWatchEpisodeId = items.get(0).episodeId();
             }
@@ -1857,7 +1860,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (!matchesActiveBingeWatchSeries(accountId, seriesId)) {
                 return;
             }
-            SeriesWatchState state = SeriesWatchStateService.getInstance()
+            SeriesWatchState state = seriesWatchStateService
                     .getSeriesLastWatched(currentAccount.getDbId(), currentChannel.getChannelId());
             if (state == null || !isNotBlank(state.getEpisodeId()) || state.getEpisodeId().equals(activeBingeWatchEpisodeId)) {
                 return;
@@ -1868,12 +1871,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 refreshTrackMenus();
             });
         };
-        SeriesWatchStateService.getInstance().addChangeListener(bingeWatchStateChangeListener);
+        seriesWatchStateService.addChangeListener(bingeWatchStateChangeListener);
     }
 
     private void removeBingeWatchWatchStateListener() {
         if (bingeWatchStateChangeListener != null) {
-            SeriesWatchStateService.getInstance().removeChangeListener(bingeWatchStateChangeListener);
+            seriesWatchStateService.removeChangeListener(bingeWatchStateChangeListener);
             bingeWatchStateChangeListener = null;
         }
     }
@@ -1882,7 +1885,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (!hasBingeWatchSeriesContext()) {
             return;
         }
-        SeriesWatchState state = SeriesWatchStateService.getInstance()
+        SeriesWatchState state = seriesWatchStateService
                 .getSeriesLastWatched(currentAccount.getDbId(), currentChannel.getChannelId());
         if (state != null && isNotBlank(state.getEpisodeId())) {
             activeBingeWatchEpisodeId = state.getEpisodeId();
@@ -1925,7 +1928,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected String resolveHlsPlaylistChain(String uri) {
-        if (!ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled(currentAccount)) {
+        if (!configurationService().isResolveChainAndDeepRedirectsEnabled(currentAccount)) {
             return uri;
         }
         return HlsPlaylistResolver.resolveHlsPlaylistChain(uri, createBrowserHeaders(), MAX_HLS_RESOLUTION_DEPTH);
@@ -1933,12 +1936,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     protected java.util.Map<String, String> createBrowserHeaders() {
         java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
-        if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+        if (configurationService().isVlcHttpUserAgentEnabled()) {
             headers.put("User-Agent", CHROME_USER_AGENT);
         }
         headers.put("Accept", "application/vnd.apple.mpegurl, */*");
         headers.put("Accept-Language", "en-US,en;q=0.9");
         return headers;
+    }
+
+    protected ConfigurationService configurationService() {
+        return ConfigurationService.getInstance();
     }
 
     private static void markHiddenBarMessageShown() {

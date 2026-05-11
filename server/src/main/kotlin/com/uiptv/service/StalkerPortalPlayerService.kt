@@ -7,7 +7,6 @@ import com.uiptv.util.FetchAPI
 import com.uiptv.util.PlayerUrlUtils
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.koinOrNull
-import com.uiptv.util.json.KJsonObject
 import java.io.IOException
 import java.net.URI
 import java.net.URLDecoder
@@ -17,6 +16,7 @@ import java.util.Date
 import java.util.LinkedHashMap
 import java.util.function.Supplier
 import java.util.stream.Collectors
+import org.json.JSONObject
 
 class StalkerPortalPlayerService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
@@ -239,7 +239,7 @@ class StalkerPortalPlayerService @JvmOverloads constructor(
 
     private fun parseUrl(json: String?): String? {
         return try {
-            val root = KJsonObject(json.orEmpty())
+            val root = JSONObject(json.orEmpty())
             val js = root.optJSONObject("js")
             if (js != null) {
                 val cmd = js.optString("cmd")

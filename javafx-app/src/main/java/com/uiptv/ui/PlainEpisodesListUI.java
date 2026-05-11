@@ -108,14 +108,14 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     private void handleEpisodeRowClick(TableRow<EpisodeItem> row, javafx.scene.input.MouseEvent event) {
         if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(row.getItem(), configurationService.read().getDefaultPlayerPath());
         }
     }
 
     private void playSelectedEpisode() {
         EpisodeItem selected = tableView.getSelectionModel().getSelectedItem();
         if (selected != null) {
-            play(selected, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(selected, configurationService.read().getDefaultPlayerPath());
         }
     }
 

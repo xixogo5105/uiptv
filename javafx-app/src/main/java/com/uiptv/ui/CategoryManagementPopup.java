@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CategoryManagementPopup extends VBox {
+    private final BookmarkService bookmarkService = BookmarkService.getInstance();
     private ListView<BookmarkItem> categoryListView = new ListView<>();
     private TextField categoryNameField = new TextField();
     private Button addButton = new Button(I18n.tr("autoAdd"));
@@ -48,7 +49,7 @@ public class CategoryManagementPopup extends VBox {
     private void addCategory() {
         String categoryName = categoryNameField.getText();
         if (!categoryName.isEmpty()) {
-            BookmarkService.getInstance().addCategory(new BookmarkCategory(null, categoryName));
+            bookmarkService.addCategory(new BookmarkCategory(null, categoryName));
             categoryListView.setItems(FXCollections.observableArrayList(getBookmarkItems()));
             categoryNameField.clear();
             parent.populateCategoryTabPane();
@@ -58,14 +59,14 @@ public class CategoryManagementPopup extends VBox {
     private void removeCategory() {
         BookmarkItem selectedItem = categoryListView.getSelectionModel().getSelectedItem();
         if (selectedItem != null) {
-            BookmarkService.getInstance().removeCategory(new BookmarkCategory(selectedItem.getId(), selectedItem.getName()));
+            bookmarkService.removeCategory(new BookmarkCategory(selectedItem.getId(), selectedItem.getName()));
             categoryListView.setItems(FXCollections.observableArrayList(getBookmarkItems()));
             parent.populateCategoryTabPane();
         }
     }
 
     private List<BookmarkItem> getBookmarkItems() {
-        List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+        List<BookmarkCategory> categories = bookmarkService.getAllCategories();
         List<BookmarkItem> items = new ArrayList<>();
         for (BookmarkCategory category : categories) {
             items.add(new BookmarkItem(category.getId(), category.getName()));

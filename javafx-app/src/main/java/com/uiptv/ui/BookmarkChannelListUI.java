@@ -52,6 +52,11 @@ public class BookmarkChannelListUI extends HBox {
         thread.setDaemon(true);
         return thread;
     });
+    private final BookmarkService bookmarkService = BookmarkService.getInstance();
+    private final AccountService accountService = AccountService.getInstance();
+    private final ChannelService channelService = ChannelService.getInstance();
+    private final CategoryService categoryService = CategoryService.getInstance();
+    private final ConfigurationService configurationService = ConfigurationService.getInstance();
     private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean isPromptShowing = false;
@@ -130,8 +135,8 @@ public class BookmarkChannelListUI extends HBox {
 
     private void reloadBookmarks(long generation) {
         try {
-            long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
-            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            long revisionBeforeRead = bookmarkService.getChangeRevision();
+            List<Bookmark> bookmarks = bookmarkService.read();
             BookmarkResolver.ResolutionContext context = bookmarkResolver.prepare(bookmarks);
             List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
             if (generation != reloadGeneration.get()) {
@@ -140,8 +145,8 @@ public class BookmarkChannelListUI extends HBox {
 
             List<BookmarkCategory> categories = new ArrayList<>();
             categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
-            categories.addAll(BookmarkService.getInstance().getAllCategories());
-            long revisionAfterRead = BookmarkService.getInstance().getChangeRevision();
+            categories.addAll(bookmarkService.getAllCategories());
+            long revisionAfterRead = bookmarkService.getChangeRevision();
             if (revisionAfterRead != revisionBeforeRead) {
                 reloadRequestedWhileReloading = true;
             }
@@ -233,14 +238,14 @@ public class BookmarkChannelListUI extends HBox {
         if (changeListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+        bookmarkService.addChangeListener(bookmarkChangeListener);
         changeListenerRegistered = true;
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkChangeListener();
             } else {
                 if (!changeListenerRegistered) {
-                    BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+                    bookmarkService.addChangeListener(bookmarkChangeListener);
                     changeListenerRegistered = true;
                 }
             }
@@ -251,7 +256,7 @@ public class BookmarkChannelListUI extends HBox {
         if (!changeListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+        bookmarkService.removeChangeListener(bookmarkChangeListener);
         changeListenerRegistered = false;
     }
 
@@ -444,7 +449,7 @@ public class BookmarkChannelListUI extends HBox {
     void populateCategoryTabPane() {
         List<BookmarkCategory> categories = new ArrayList<>();
         categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
-        categories.addAll(BookmarkService.getInstance().getAllCategories());
+        categories.addAll(bookmarkService.getAllCategories());
         populateCategoryTabPane(categories);
     }
 
@@ -643,7 +648,7 @@ public class BookmarkChannelListUI extends HBox {
                 isPromptShowing = false;
                 return;
             }
-            play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), configurationService.read().getDefaultPlayerPath());
         }
     }
 
@@ -652,7 +657,7 @@ public class BookmarkChannelListUI extends HBox {
             return;
         }
         if (event.getClickCount() == 2) {
-            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(row.getItem(), configurationService.read().getDefaultPlayerPath());
             return;
         }
         if (!event.isControlDown() && !event.isShiftDown()) {
@@ -743,8 +748,8 @@ public class BookmarkChannelListUI extends HBox {
                 return;
             }
             try {
-                BookmarkService.getInstance().saveBookmarkOrders(finalBookmarkOrders);
-                long revision = BookmarkService.getInstance().getChangeRevision();
+                bookmarkService.saveBookmarkOrders(finalBookmarkOrders);
+                long revision = bookmarkService.getChangeRevision();
                 runLater(() -> {
                     lastKnownBookmarkRevision = revision;
                     if (saveGeneration == bookmarkOrderSaveGeneration.get()) {
@@ -826,16 +831,16 @@ public class BookmarkChannelListUI extends HBox {
         }
 
         Menu addToMenu = new Menu(I18n.tr("autoAddTo"));
-        List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+        List<BookmarkCategory> categories = bookmarkService.getAllCategories();
         for (BookmarkCategory category : categories) {
             MenuItem categoryItem = new MenuItem(category.getName());
             categoryItem.setOnAction(event -> {
                 ObservableList<BookmarkItem> selectedItems = bookmarkTable.getTableView().getSelectionModel().getSelectedItems();
                 for (BookmarkItem selectedItem : selectedItems) {
                     selectedItem.setCategoryTitle(category.getName());
-                    Bookmark b = BookmarkService.getInstance().getBookmark(selectedItem.getBookmarkId());
+                    Bookmark b = bookmarkService.getBookmark(selectedItem.getBookmarkId());
                     b.setCategoryId(category.getId());
-                    BookmarkService.getInstance().save(b);
+                    bookmarkService.save(b);
                 }
                 forceReload();
             });
@@ -875,7 +880,7 @@ public class BookmarkChannelListUI extends HBox {
             List<String> removedBookmarkIds = new ArrayList<>();
             for (BookmarkItem selectedItem : selectedItems) {
                 try {
-                    BookmarkService.getInstance().remove(selectedItem.getBookmarkId());
+                    bookmarkService.remove(selectedItem.getBookmarkId());
                     removedBookmarkIds.add(selectedItem.getBookmarkId());
                 } catch (Exception _) {
                     // Best-effort batch delete: continue removing the remaining bookmarks.
@@ -891,7 +896,7 @@ public class BookmarkChannelListUI extends HBox {
                             bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoNoBookmarksFound")));
                         }
                     }
-                    lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
+                    lastKnownBookmarkRevision = bookmarkService.getChangeRevision();
                 } finally {
                     suppressAutoReloadOnBookmarkChange = false;
                 }
@@ -921,7 +926,7 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private PlaybackContext resolvePlaybackContext(BookmarkItem item) {
-        Account account = AccountService.getInstance().getByName(item.getAccountName());
+        Account account = accountService.getByName(item.getAccountName());
         if (account == null) {
             return null;
         }
@@ -929,7 +934,7 @@ public class BookmarkChannelListUI extends HBox {
             account.setServerPortalUrl(item.getServerPortalUrl());
         }
         account.setAction(item.getAccountAction());
-        Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
+        Bookmark bookmark = bookmarkService.getBookmark(item.getBookmarkId());
 
         Channel channel = null;
         if (bookmark != null && isNotBlank(bookmark.getSeriesJson())) {
@@ -974,18 +979,18 @@ public class BookmarkChannelListUI extends HBox {
         if (account == null || item == null) {
             return null;
         }
-        Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
+        Bookmark bookmark = bookmarkService.getBookmark(item.getBookmarkId());
         if (bookmark != null && isNotBlank(bookmark.getSeriesJson())) {
             return null;
         }
         String sourceCategoryDbId = resolveSourceCategoryDbId(account, item, bookmark);
         return switch (account.getAction()) {
             case itv ->
-                    ChannelService.getInstance().findCachedLiveChannel(account, item.getChannelId(), item.getChannelName());
+                    channelService.findCachedLiveChannel(account, item.getChannelId(), item.getChannelName());
             case vod ->
-                    ChannelService.getInstance().findCachedVodChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
+                    channelService.findCachedVodChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
             case series ->
-                    ChannelService.getInstance().findCachedSeriesChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
+                    channelService.findCachedSeriesChannel(account, sourceCategoryDbId, item.getChannelId(), item.getChannelName());
         };
     }
 
@@ -1015,7 +1020,7 @@ public class BookmarkChannelListUI extends HBox {
         if (account == null || isBlank(categoryTitle)) {
             return "";
         }
-        List<Category> categories = CategoryService.getInstance().getCached(account);
+        List<Category> categories = categoryService.getCached(account);
         if (categories == null || categories.isEmpty()) {
             return "";
         }

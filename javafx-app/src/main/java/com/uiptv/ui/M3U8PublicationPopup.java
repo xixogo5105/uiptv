@@ -31,6 +31,7 @@ import java.util.Set;
 public class M3U8PublicationPopup extends VBox {
     private static final String CUSTOMIZED_CHECKBOX_STYLE_CLASS = "published-m3u-customized-checkbox";
     private static final String SHOW_TRANSLATION_KEY = "commonShow";
+    private final ConfigurationService configurationService = ConfigurationService.getInstance();
     private final List<AccountNode> accountNodes = new ArrayList<>();
     private final M3U8PublicationService service = M3U8PublicationService.getInstance();
     private final M3U8PublicationService.PublicationSelections savedSelections;
@@ -82,7 +83,7 @@ public class M3U8PublicationPopup extends VBox {
     private void configureCategoryModeComboBox() {
         categoryModeComboBox.getItems().setAll(M3U8PublicationService.PublishedCategoryMode.values());
         categoryModeComboBox.setMaxWidth(Double.MAX_VALUE);
-        categoryModeComboBox.setValue(ConfigurationService.getInstance().getPublishedM3uCategoryMode());
+        categoryModeComboBox.setValue(configurationService.getPublishedM3uCategoryMode());
         categoryModeComboBox.setCellFactory(_ -> new javafx.scene.control.ListCell<>() {
             @Override
             protected void updateItem(M3U8PublicationService.PublishedCategoryMode item, boolean empty) {
@@ -100,7 +101,7 @@ public class M3U8PublicationPopup extends VBox {
     }
 
     private void saveCategoryModeSelection() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = configurationService.read();
         if (configuration == null) {
             configuration = new Configuration();
         }
@@ -108,7 +109,7 @@ public class M3U8PublicationPopup extends VBox {
         configuration.setPublishedM3uCategoryMode(selectedMode == null
                 ? M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY.persistedValue()
                 : selectedMode.persistedValue());
-        ConfigurationService.getInstance().save(configuration);
+        configurationService.save(configuration);
     }
 
     private M3U8PublicationService.PublicationSelections buildSelectionsToSave() {

@@ -29,6 +29,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private volatile long playbackStartOffsetMs;
     private volatile long playbackWallClockStartedAtMs;
     private volatile long lastObservedPlaybackTimeMs;
+    private final LitePlayerFfmpegService litePlayerFfmpegService = LitePlayerFfmpegService.getInstance();
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
@@ -97,7 +98,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
                 if (isBlank(episodeId)) {
                     throw new IllegalStateException("No binge watch episode is selected.");
                 }
-                BingeWatchService.ResolvedEpisode resolvedEpisode = BingeWatchService.getInstance()
+                BingeWatchService.ResolvedEpisode resolvedEpisode = bingeWatchService
                         .resolveEpisode(activeBingeWatchToken, episodeId);
                 if (resolvedEpisode == null || isBlank(resolvedEpisode.url())) {
                     throw new IllegalStateException("Unable to resolve binge watch episode URL.");
@@ -122,7 +123,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             mediaPlayer = null;
         }
         if (usingFfmpegFallback) {
-            LitePlayerFfmpegService.getInstance().stopPlayback();
+            litePlayerFfmpegService.stopPlayback();
             usingFfmpegFallback = false;
         }
         currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
@@ -140,7 +141,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             mediaPlayer = null;
         }
         if (usingFfmpegFallback) {
-            LitePlayerFfmpegService.getInstance().stopPlayback();
+            litePlayerFfmpegService.stopPlayback();
             usingFfmpegFallback = false;
         }
         currentPlaybackModeLabel = PLAYBACK_MODE_LITE_DIRECT;
@@ -379,7 +380,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
             mediaPlayer = null;
         }
         if (usingFfmpegFallback) {
-            LitePlayerFfmpegService.getInstance().stopPlayback();
+            litePlayerFfmpegService.stopPlayback();
             usingFfmpegFallback = false;
         }
     }
@@ -511,25 +512,25 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
 
     private LitePlayerFfmpegService.PreparedPlayback resolvePlayback(String rawUri, boolean forceCompatibilityFallback, long startOffsetMs) {
         if (!forceCompatibilityFallback && !isLitePlayerFfmpegEnabled()) {
-            return LitePlayerFfmpegService.getInstance().prepareDirectPlayback(rawUri);
+            return litePlayerFfmpegService.prepareDirectPlayback(rawUri);
         }
-        return LitePlayerFfmpegService.getInstance().preparePlayback(rawUri, currentAccount, forceCompatibilityFallback, isLitePlayerTranscodingEnabled(), startOffsetMs);
+        return litePlayerFfmpegService.preparePlayback(rawUri, currentAccount, forceCompatibilityFallback, isLitePlayerTranscodingEnabled(), startOffsetMs);
     }
 
     private boolean canUseCompatibilityFallback(String sourceUrl) {
-        if (isBlank(sourceUrl) || LitePlayerFfmpegService.getInstance().isManagedPlaybackUrl(sourceUrl)) {
+        if (isBlank(sourceUrl) || litePlayerFfmpegService.isManagedPlaybackUrl(sourceUrl)) {
             return false;
         }
         return isLitePlayerFfmpegEnabled();
     }
 
     private boolean isLitePlayerFfmpegEnabled() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = configurationService().read();
         return configuration != null && configuration.isEnableLitePlayerFfmpeg();
     }
 
     private boolean isLitePlayerTranscodingEnabled() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = configurationService().read();
         return configuration != null
                 && configuration.isEnableLitePlayerFfmpeg()
                 && configuration.isEnableFfmpegTranscoding();
@@ -563,7 +564,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         if (!isBlank(activeBingeWatchEpisodeId)) {
             return activeBingeWatchEpisodeId;
         }
-        java.util.List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        java.util.List<BingeWatchService.PlaylistItem> items = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
         if (items.isEmpty()) {
             return "";
         }
@@ -574,7 +575,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         if (!isBingeWatchPlayback()) {
             return false;
         }
-        java.util.List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(activeBingeWatchToken);
+        java.util.List<BingeWatchService.PlaylistItem> items = bingeWatchService.getPlaylistItems(activeBingeWatchToken);
         if (items.isEmpty()) {
             return false;
         }

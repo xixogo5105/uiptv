@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
+    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
 
     private final Object playerLock = new Object();
     private MediaPlayerFactory mediaPlayerFactory;
@@ -67,12 +68,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private List<String> createVlcArgs() {
-        return buildVlcArgs(ConfigurationService.getInstance().read());
+        return buildVlcArgs(configurationService.read());
     }
 
     static List<String> buildVlcArgs(Configuration configuration) {
         List<String> vlcArgs = new ArrayList<>();
-        ConfigurationService configurationService = ConfigurationService.getInstance();
         String networkCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcNetworkCachingMs());
         String liveCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcLiveCachingMs());
         boolean enableUserAgent = configuration == null || configuration.isEnableVlcHttpUserAgent();
@@ -351,7 +351,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 if (player != null && !isDisposed.get()) {
                     // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
                     // Some CDNs ignore the global --http-user-agent for HLS modules.
-                    if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+                    if (configurationService.isVlcHttpUserAgentEnabled()) {
                         player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
                     } else {
                         player.media().play(playUri);

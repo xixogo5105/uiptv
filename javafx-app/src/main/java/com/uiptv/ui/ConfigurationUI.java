@@ -69,6 +69,10 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
+    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.getInstance();
+    private static final SeriesWatchStateService STATIC_SERIES_WATCH_STATE_SERVICE = SeriesWatchStateService.getInstance();
+    private static final SeriesWatchingNowSnapshotService STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE = SeriesWatchingNowSnapshotService.getInstance();
+    private static final VodWatchStateService STATIC_VOD_WATCH_STATE_SERVICE = VodWatchStateService.getInstance();
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
@@ -143,6 +147,11 @@ public class ConfigurationUI extends VBox {
     private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
+    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
+    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.getInstance();
+    private final VodWatchStateService vodWatchStateService = VodWatchStateService.getInstance();
+    private final FilterLockService filterLockService = FilterLockService.getInstance();
+    private final AppDataRefreshService appDataRefreshService = AppDataRefreshService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private String dbId;
@@ -167,9 +176,9 @@ public class ConfigurationUI extends VBox {
     }
 
     static void clearWatchingNowStates() {
-        SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
-        SeriesWatchingNowSnapshotService.getInstance().clearAll();
-        VodWatchStateService.getInstance().clearAll();
+        STATIC_SERIES_WATCH_STATE_SERVICE.clearAllSeriesLastWatched();
+        STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE.clearAll();
+        STATIC_VOD_WATCH_STATE_SERVICE.clearAll();
     }
 
     private void initWidgets() {
@@ -673,7 +682,7 @@ public class ConfigurationUI extends VBox {
                     UIptvServer.start();
                 }
                 refreshServerStatusUI();
-                // showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort()); // Removed alert
+                // Removed alert after local server toggle.
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to toggle local web server", e);
             }
@@ -791,7 +800,7 @@ public class ConfigurationUI extends VBox {
             }
         });
         filterRelockButton.setOnAction(event -> {
-            FilterLockService.getInstance().clearUnlockSession();
+            filterLockService.clearUnlockSession();
             refreshFilterLockUi();
         });
         filterDisablePasswordCheckBox.setOnAction(event -> {
@@ -805,7 +814,6 @@ public class ConfigurationUI extends VBox {
             }
         });
         filterPausedCheckBox.setOnAction(event -> {
-            FilterLockService filterLockService = FilterLockService.getInstance();
             if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
                 return;
             }
@@ -914,7 +922,6 @@ public class ConfigurationUI extends VBox {
     }
 
     private void refreshFilterLockUi() {
-        FilterLockService filterLockService = FilterLockService.getInstance();
         boolean passwordSet = filterLockService.hasPasswordConfigured();
         boolean unlocked = filterLockService.isUnlocked();
 
@@ -1027,7 +1034,7 @@ public class ConfigurationUI extends VBox {
 
                   // Restore original lock state if user was not already unlocked
                 if (!wasAlreadyUnlocked) {
-                    FilterLockService.getInstance().clearUnlockSession();
+                    filterLockService.clearUnlockSession();
                 }
 
                 showSaveSuccessAnimation();
@@ -1071,7 +1078,6 @@ public class ConfigurationUI extends VBox {
     }
 
     private boolean wasFilterAlreadyUnlocked() {
-        FilterLockService filterLockService = FilterLockService.getInstance();
         if (!filterLockService.hasPasswordConfigured()) {
             return true;
          }
@@ -1079,7 +1085,6 @@ public class ConfigurationUI extends VBox {
       }
 
     private boolean ensureFilterAccessForPendingSave() {
-        FilterLockService filterLockService = FilterLockService.getInstance();
         if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
             return true;
         }
@@ -1097,21 +1102,21 @@ public class ConfigurationUI extends VBox {
     }
 
     private String resolveFilterCategoriesValueForSave() {
-        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
             return persistedFilterCategoriesValue;
         }
         return filterCategoriesWithTextContains.getText();
     }
 
     private String resolveFilterChannelsValueForSave() {
-        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
             return persistedFilterChannelsValue;
         }
         return filterChannelWithTextContains.getText();
     }
 
     private boolean resolvePauseFilteringValueForSave() {
-        if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
+        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
             return persistedPauseFilteringValue;
         }
         return filterPausedCheckBox.isSelected();
@@ -1863,7 +1868,7 @@ public class ConfigurationUI extends VBox {
         if (!didLocalDatabaseChange(importMode)) {
             return;
         }
-        AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
+        appDataRefreshService.refreshAfterDatabaseChange();
     }
 
     private boolean didLocalDatabaseChange(boolean importMode) {
@@ -2058,7 +2063,7 @@ public class ConfigurationUI extends VBox {
         }
 
         private static VlcCachingOption fromValue(String value) {
-            String normalized = ConfigurationService.getInstance().normalizeVlcCachingMs(value);
+            String normalized = STATIC_CONFIGURATION_SERVICE.normalizeVlcCachingMs(value);
             for (VlcCachingOption option : all()) {
                 if (Objects.equals(option.value(), normalized)) {
                     return option;

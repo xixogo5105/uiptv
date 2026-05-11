@@ -48,6 +48,9 @@ public class CategoryListUI extends HBox {
     private static final String LOG_CATEGORY_ID = " categoryId=";
     private static final String LOG_TITLE = " title=";
     private static final String LOG_CHANNELS = " channels: ";
+    private final CategoryService categoryService = CategoryService.getInstance();
+    private final ChannelService channelService = ChannelService.getInstance();
+    private final com.uiptv.service.FilterLockService filterLockService = com.uiptv.service.FilterLockService.getInstance();
     private final Account account;
     private final boolean embeddedMode;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
@@ -270,7 +273,7 @@ public class CategoryListUI extends HBox {
         new Thread(() -> {
             try {
                 account.setAction(mode);
-                List<Category> categories = CategoryService.getInstance().get(account, true,
+                List<Category> categories = categoryService.get(account, true,
                         message -> logCategoryFetch(mode, message));
                 Platform.runLater(() -> {
                     modeStates.computeIfAbsent(mode, k -> new ModeState()).categories = new ArrayList<>(categories);
@@ -481,7 +484,7 @@ public class CategoryListUI extends HBox {
         if (isLoadingCancelled(isCancelled)) {
             return;
         }
-        ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(),
+        channelService.get(selectedCategoryKey, account, item.getId(),
                 message -> logChannelFetch(item, message),
                 channelListUI::addItems, isCancelled::getAsBoolean,
                 progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
@@ -489,12 +492,12 @@ public class CategoryListUI extends HBox {
 
     private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
                                          ChannelListUI channelListUI, List<CategoryItem> allItems) throws IOException {
-        int existingChannelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
+        int existingChannelCount = channelService.getChannelCountForAccount(account.getDbId());
         if (existingChannelCount == 0) {
             return;
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
-            ChannelService.getInstance().get(selectedCategoryKey(item), account, item.getId(),
+            channelService.get(selectedCategoryKey(item), account, item.getId(),
                     message -> logChannelFetch(item, message),
                     channelListUI::addItems, isCancelled::getAsBoolean,
                     progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
@@ -505,7 +508,7 @@ public class CategoryListUI extends HBox {
                 return;
             }
             if (categoryItem != null && !isAllCategory(categoryItem)) {
-                ChannelService.getInstance().get(selectedCategoryKey(categoryItem), account, categoryItem.getId(),
+                channelService.get(selectedCategoryKey(categoryItem), account, categoryItem.getId(),
                         message -> logChannelFetch(categoryItem, message),
                         channelListUI::addItems, isCancelled::getAsBoolean,
                         progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
@@ -517,8 +520,8 @@ public class CategoryListUI extends HBox {
         if (account.getType() != STALKER_PORTAL || !item.isCensored()) {
             return true;
         }
-        boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();
-        boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
+        boolean passwordConfigured = filterLockService.hasPasswordConfigured();
+        boolean sessionUnlocked = filterLockService.isUnlocked();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
                 PARENTAL_LOCK_LOG_PREFIX + "categoryAccessCheck"
                         + LOG_ACCOUNT + account.getAccountName()

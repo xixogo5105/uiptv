@@ -69,6 +69,15 @@ public class ChannelListUI extends HBox {
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.getInstance();
+    private final PlayerService playerService = PlayerService.getInstance();
+    private final BookmarkService bookmarkService = BookmarkService.getInstance();
+    private final VodWatchStateService vodWatchStateService = VodWatchStateService.getInstance();
+    private final CategoryService categoryService = CategoryService.getInstance();
+    private final ChannelService channelService = ChannelService.getInstance();
+    private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.getInstance();
+    private final FilterLockService filterLockService = FilterLockService.getInstance();
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_CHANNEL_ID = " channelId=";
     private static final String LOG_NAME = " name=";
@@ -200,7 +209,7 @@ public class ChannelListUI extends HBox {
             return;
         }
         String seriesCategoryId = resolveSeriesCategoryId(channel, context);
-        boolean inProgress = SeriesWatchStateService.getInstance()
+        boolean inProgress = seriesWatchStateService
                 .getSeriesLastWatched(account.getDbId(), seriesCategoryId, channel.getChannelId()) != null;
         channel.setWatched(inProgress);
     }
@@ -468,7 +477,7 @@ public class ChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
-                boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
+                boolean drmProtected = channelItem.getChannel() != null && playerService.isDrmProtected(channelItem.getChannel());
                 drmBadge.setVisible(drmProtected);
                 drmBadge.setManaged(drmProtected);
                 boolean inProgress = account.getAction() == series
@@ -527,7 +536,7 @@ public class ChannelListUI extends HBox {
                 }
 
                 nameLabel.setText(item);
-                boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
+                boolean drmProtected = channelItem.getChannel() != null && playerService.isDrmProtected(channelItem.getChannel());
                 drmBadge.setVisible(drmProtected);
                 drmBadge.setManaged(drmProtected);
                 boolean inProgress = account.getAction() == series
@@ -545,10 +554,10 @@ public class ChannelListUI extends HBox {
         if (bookmarkListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+        bookmarkService.addChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = true;
         if (account.getAction() == vod && !vodWatchStateListenerRegistered) {
-            VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
+            vodWatchStateService.addChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = true;
         }
         sceneProperty().addListener((_, _, newScene) -> {
@@ -558,10 +567,10 @@ public class ChannelListUI extends HBox {
                     releaseTransientState();
                 }
             } else if (!bookmarkListenerRegistered) {
-                BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+                bookmarkService.addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
                 if (account.getAction() == vod && !vodWatchStateListenerRegistered) {
-                    VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
+                    vodWatchStateService.addChangeListener(vodWatchStateChangeListener);
                     vodWatchStateListenerRegistered = true;
                 }
                 refreshBookmarkStatesAsync();
@@ -628,10 +637,10 @@ public class ChannelListUI extends HBox {
         if (!bookmarkListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+        bookmarkService.removeChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = false;
         if (vodWatchStateListenerRegistered) {
-            VodWatchStateService.getInstance().removeChangeListener(vodWatchStateChangeListener);
+            vodWatchStateService.removeChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = false;
         }
     }
@@ -660,7 +669,7 @@ public class ChannelListUI extends HBox {
         if (account.getAction() == vod) {
             return List.of();
         }
-        return BookmarkService.getInstance().read().stream()
+        return bookmarkService.read().stream()
                 .filter(b -> account.getAccountName().equals(b.getAccountName()))
                 .toList();
     }
@@ -669,7 +678,7 @@ public class ChannelListUI extends HBox {
         if (account.getAction() != vod || isBlank(account.getDbId())) {
             return Set.of();
         }
-        return VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).stream()
+        return vodWatchStateService.getAllByAccount(account.getDbId()).stream()
                 .filter(Objects::nonNull)
                 .map(state -> normalizeExact(state.getCategoryId()) + "|" + normalizeExact(state.getVodId()))
                 .collect(Collectors.toSet());
@@ -795,7 +804,7 @@ public class ChannelListUI extends HBox {
         }
         new Thread(() -> {
             try {
-                List<Category> categories = CategoryService.getInstance().getCached(account);
+                List<Category> categories = categoryService.getCached(account);
 
                 categoryTitleByCategoryId.set(categories.stream()
                         .filter(c -> c != null && c.getCategoryId() != null && c.getTitle() != null)
@@ -857,7 +866,7 @@ public class ChannelListUI extends HBox {
                 if ("all".equalsIgnoreCase(category.getTitle().trim())) {
                     continue;
                 }
-                List<Channel> channels = ChannelService.getInstance().getCachedLiveChannelsByDbCategoryId(category.getDbId());
+                List<Channel> channels = channelService.getCachedLiveChannelsByDbCategoryId(category.getDbId());
                 for (Channel channel : channels) {
                     String key = channelIdentityKey(channel);
                     if (isBlank(key)) {
@@ -983,11 +992,11 @@ public class ChannelListUI extends HBox {
         AtomicBoolean isCancelled = preparePlaybackLoad();
 
         if (account.getAction() != series) {
-            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(item, configurationService.read().getDefaultPlayerPath());
             return;
         }
         if (account.getType() == STALKER_PORTAL && !isBlank(item.getCmd())) {
-            play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(item, configurationService.read().getDefaultPlayerPath());
             return;
         }
         loadSeriesEpisodesAsync(item, isCancelled);
@@ -1039,7 +1048,7 @@ public class ChannelListUI extends HBox {
 
     private void populateEpisodes(ChannelItem item, AtomicBoolean isCancelled, EpisodesListUI ui) {
         try {
-            EpisodeList episodes = SeriesEpisodeService.getInstance()
+            EpisodeList episodes = seriesEpisodeService
                     .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
             seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
             ui.setItems(episodes);
@@ -1221,7 +1230,7 @@ public class ChannelListUI extends HBox {
     private void loadBookmarkMenuItemsAsync(List<ChannelItem> items, Menu bookmarkMenu) {
         new Thread(() -> {
             List<Bookmark> accountBookmarks = loadBookmarksForAccount();
-            List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+            List<BookmarkCategory> categories = bookmarkService.getAllCategories();
             Map<ChannelItem, Bookmark> existingBookmarks = new LinkedHashMap<>();
             for (ChannelItem item : items) {
                 BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
@@ -1267,7 +1276,7 @@ public class ChannelListUI extends HBox {
             for (Map.Entry<ChannelItem, Bookmark> entry : existingBookmarks.entrySet()) {
                 Bookmark bookmark = entry.getValue();
                 if (bookmark != null && !isBlank(bookmark.getDbId())) {
-                    BookmarkService.getInstance().remove(bookmark.getDbId());
+                    bookmarkService.remove(bookmark.getDbId());
                 }
             }
             Platform.runLater(() -> {
@@ -1334,7 +1343,7 @@ public class ChannelListUI extends HBox {
                         bookmark.setChannelJson(item.getChannel().toJson());
                     }
                 }
-                BookmarkService.getInstance().save(bookmark);
+                bookmarkService.save(bookmark);
             }
             Platform.runLater(() -> {
                 for (ChannelItem item : items) {
@@ -1352,7 +1361,7 @@ public class ChannelListUI extends HBox {
         }
         new Thread(() -> {
             BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
-            VodWatchStateService.getInstance().save(account, ctx == null ? categoryId : ctx.categoryId, item.getChannel());
+            vodWatchStateService.save(account, ctx == null ? categoryId : ctx.categoryId, item.getChannel());
             Platform.runLater(() -> {
                 item.setBookmarked(true);
                 table.refresh();
@@ -1367,7 +1376,7 @@ public class ChannelListUI extends HBox {
         }
         new Thread(() -> {
             BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
-            VodWatchStateService.getInstance().remove(account.getDbId(), ctx == null ? categoryId : ctx.categoryId, item.getChannelId());
+            vodWatchStateService.remove(account.getDbId(), ctx == null ? categoryId : ctx.categoryId, item.getChannelId());
             Platform.runLater(() -> {
                 item.setBookmarked(false);
                 table.refresh();
@@ -1424,8 +1433,8 @@ public class ChannelListUI extends HBox {
         }
         int censored = item.getChannel().getCensored();
         boolean isStalker = account.getType() == STALKER_PORTAL;
-        boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();
-        boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
+        boolean passwordConfigured = filterLockService.hasPasswordConfigured();
+        boolean sessionUnlocked = filterLockService.isUnlocked();
         com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
                 "[ParentalLock] channelAccessCheck"
                         + LOG_ACCOUNT + account.getAccountName()

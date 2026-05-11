@@ -16,11 +16,13 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public final class FilterLockDialogs {
+    private static final FilterLockService lockService = FilterLockService.getInstance();
+    private static final com.uiptv.service.ConfigurationService configurationService = com.uiptv.service.ConfigurationService.getInstance();
+
     private FilterLockDialogs() {
     }
 
     public static boolean ensureUnlocked(Node owner, String reasonKey) {
-        FilterLockService lockService = FilterLockService.getInstance();
         if (!lockService.hasPasswordConfigured() || lockService.isUnlocked()) {
             return true;
         }
@@ -51,7 +53,6 @@ public final class FilterLockDialogs {
     }
 
     public static void openPasswordChangeDialog(Node owner) {
-        FilterLockService lockService = FilterLockService.getInstance();
         boolean passwordAlreadySet = lockService.hasPasswordConfigured();
 
         PasswordField currentPassword = new PasswordField();
@@ -87,7 +88,6 @@ public final class FilterLockDialogs {
         }
 
         try {
-            var configurationService = com.uiptv.service.ConfigurationService.getInstance();
             var configuration = configurationService.read();
             if (passwordAlreadySet) {
                 lockService.applyPasswordChange(configuration, currentPassword.getText(), newPassword.getText());
@@ -104,7 +104,6 @@ public final class FilterLockDialogs {
     }
 
     public static boolean openDisablePasswordDialog(Node owner) {
-        FilterLockService lockService = FilterLockService.getInstance();
         if (!lockService.hasPasswordConfigured()) {
             showErrorAlert(I18n.tr("filterLockPasswordNotSet"));
             return false;
@@ -130,7 +129,6 @@ public final class FilterLockDialogs {
         }
 
         try {
-            var configurationService = com.uiptv.service.ConfigurationService.getInstance();
             var configuration = configurationService.read();
             lockService.clearPassword(configuration, currentPassword.getText());
             configurationService.save(configuration);

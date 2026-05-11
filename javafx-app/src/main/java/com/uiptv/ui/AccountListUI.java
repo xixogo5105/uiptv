@@ -43,6 +43,7 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
+    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.getInstance();
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
@@ -50,6 +51,8 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
+    private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final CategoryService categoryService = CategoryService.getInstance();
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
     private final HBox navHeader = new HBox(6);
@@ -73,7 +76,7 @@ public class AccountListUI extends HBox {
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
 
     public AccountListUI() { // Removed MediaPlayer argument
-        this(ConfigurationService.getInstance().read().isEmbeddedPlayer());
+        this(STATIC_CONFIGURATION_SERVICE.read().isEmbeddedPlayer());
     }
 
     public AccountListUI(boolean embeddedMode) {
@@ -576,7 +579,7 @@ public class AccountListUI extends HBox {
         isPromptShowing = true;
         if (showConfirmationAlert(localizedMessage)) {
             for (AccountItem selectedItem : table.getSelectionModel().getSelectedItems()) {
-                AccountService.getInstance().delete(selectedItem.getAccountId());
+                accountService.delete(selectedItem.getAccountId());
                 if (onDeleteCallback != null) {
                     onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
                 }
@@ -605,7 +608,7 @@ public class AccountListUI extends HBox {
 
         new Thread(() -> {
             try {
-                final List<Category> list = CategoryService.getInstance().get(account, true,
+                final List<Category> list = categoryService.get(account, true,
                         message -> com.uiptv.util.AppLog.addInfoLog(AccountListUI.class,
                                 "[ParentalLock] account=" + account.getAccountName()
                                         + " type=" + account.getType()

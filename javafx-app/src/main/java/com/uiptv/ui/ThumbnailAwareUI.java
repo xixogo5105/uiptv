@@ -12,6 +12,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * thumbnail and plain text rendering modes based on configuration.
  */
 public abstract class ThumbnailAwareUI {
+    private static final ConfigurationService configurationService = ConfigurationService.getInstance();
+
     public interface ThumbnailModeListener {
         void onThumbnailModeChanged(boolean enabled);
     }
@@ -65,7 +67,7 @@ public abstract class ThumbnailAwareUI {
 
     private static boolean readThumbnailState() {
         try {
-            var config = ConfigurationService.getInstance().read();
+            var config = configurationService.read();
             return config != null && config.isEnableThumbnails();
         } catch (Exception _) {
             // Fall back to disabled thumbnails if configuration cannot be read.

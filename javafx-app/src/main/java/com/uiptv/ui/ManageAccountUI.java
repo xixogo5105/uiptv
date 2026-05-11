@@ -114,7 +114,7 @@ public class ManageAccountUI extends VBox {
     private AccountInfoRow accountInfoTariffPlanRow;
     private AccountInfoRow accountInfoDefaultTimezoneRow;
     private BorderPane accountInfoPane;
-    AccountService service = AccountService.getInstance();
+    private final AccountService service = AccountService.getInstance();
     private String accountId;
     private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;
