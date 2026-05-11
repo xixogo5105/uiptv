@@ -60,7 +60,7 @@ val serverServiceModule = module {
     single { PlayerService(get()) }
     single { BingeWatchService(get(), get(), get()) }
     single { M3U8PublicationService(get(), get(), get()) }
-    single { SeriesEpisodeService }
+    single { SeriesEpisodeService(get(), get()) }
     single { PlayerRequestResolver(get(), get(), get()) }
     single { WebPlayerApiService(get(), get(), FfmpegService, get(), get()) }
     single { PlaylistExportService(get(), get(), get(), get(), get(), get()) }

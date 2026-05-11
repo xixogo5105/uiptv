@@ -14,22 +14,10 @@ import java.util.ArrayList
 import java.util.function.Supplier
 import java.util.regex.Pattern
 
-object SeriesEpisodeService {
-    private val SEASON_WORD_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b")
-    private val SEASON_SHORT_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})(?=\\b|E\\d+)")
-    private val SEASON_X_PATTERN = Pattern.compile("(?i)\\b(\\d{1,2})x\\d{1,3}\\b")
-    private val EPISODE_WORD_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b")
-    private val EPISODE_SHORT_PATTERN = Pattern.compile("(?i)\\bE(\\d{1,3})\\b")
-    private val EPISODE_X_PATTERN = Pattern.compile("(?i)\\b\\d{1,2}x(\\d{1,3})\\b")
-
-    @Volatile
-    private var channelServiceResolver: (() -> ChannelService)? = null
-
-
-    @JvmStatic
-    fun setChannelServiceResolverForTests(resolver: (() -> ChannelService)?) {
-        channelServiceResolver = resolver
-    }
+class SeriesEpisodeService @JvmOverloads constructor(
+    private val channelService: ChannelService = ChannelService(),
+    private val configurationService: ConfigurationService = ConfigurationService
+) {
     fun getEpisodes(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {
             return EpisodeList()
@@ -44,6 +32,7 @@ object SeriesEpisodeService {
         }
         return EpisodeList()
     }
+
     fun getEpisodesForWatchingNow(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {
             return EpisodeList()
@@ -62,6 +51,7 @@ object SeriesEpisodeService {
         }
         return EpisodeList()
     }
+
     fun reloadEpisodesFromPortal(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {
             return EpisodeList()
@@ -91,21 +81,18 @@ object SeriesEpisodeService {
         }
         if (account.type == STALKER_PORTAL) {
             val cancellationCheck = isCancelled ?: Supplier { false }
-            val seriesChannels = resolveChannelService().getSeries(categoryId, seriesId, account, null, cancellationCheck)
+            val seriesChannels = channelService.getSeries(categoryId, seriesId, account, null, cancellationCheck)
             SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, seriesChannels)
             return toEpisodeList(seriesChannels)
         }
         return EpisodeList()
     }
 
-    private fun resolveChannelService(): ChannelService = channelServiceResolver?.invoke() ?: ChannelService()
-
     private fun loadFromDbCache(account: Account, categoryId: String, seriesId: String): EpisodeList? {
         val cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId)
         if (cachedChannels.isNullOrEmpty()) {
             return loadFromAnyCategoryCache(account, seriesId)
         }
-        val configurationService = ConfigurationService
         if (!SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, configurationService.getCacheExpiryMs())) {
             return loadFromAnyCategoryCache(account, seriesId)
         }
@@ -120,7 +107,7 @@ object SeriesEpisodeService {
         if (cachedChannels.isNullOrEmpty()) {
             return null
         }
-        if (!SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getCacheExpiryMs())) {
+        if (!SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, configurationService.getCacheExpiryMs())) {
             return null
         }
         return toEpisodeList(cachedChannels)
@@ -276,5 +263,17 @@ object SeriesEpisodeService {
             }
         }
         return ""
+    }
+
+    companion object {
+        @JvmField
+        val INSTANCE = SeriesEpisodeService()
+
+        private val SEASON_WORD_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b")
+        private val SEASON_SHORT_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})(?=\\b|E\\d+)")
+        private val SEASON_X_PATTERN = Pattern.compile("(?i)\\b(\\d{1,2})x\\d{1,3}\\b")
+        private val EPISODE_WORD_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b")
+        private val EPISODE_SHORT_PATTERN = Pattern.compile("(?i)\\bE(\\d{1,3})\\b")
+        private val EPISODE_X_PATTERN = Pattern.compile("(?i)\\b\\d{1,2}x(\\d{1,3})\\b")
     }
 }

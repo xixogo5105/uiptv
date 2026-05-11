@@ -71,21 +71,17 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
     void getEpisodes_fetchesAndPersistsStalkerEpisodes() {
         Account account = createStalkerAccount("stalker-series-fetch");
         ChannelService channelService = Mockito.mock(ChannelService.class);
+        SeriesEpisodeService service = new SeriesEpisodeService(channelService, ConfigurationService.INSTANCE);
         List<Channel> remote = List.of(channel("stalker-1", "Season 4 Episode 2", "cmd://stalker"));
 
-        try {
-            SeriesEpisodeService.setChannelServiceResolverForTests(() -> channelService);
-            Mockito.when(channelService.getSeries(Mockito.eq("cat-s"), Mockito.eq("series-s"), Mockito.eq(account), Mockito.isNull(), Mockito.any()))
-                    .thenReturn(remote);
+        Mockito.when(channelService.getSeries(Mockito.eq("cat-s"), Mockito.eq("series-s"), Mockito.eq(account), Mockito.isNull(), Mockito.any()))
+                .thenReturn(remote);
 
-            EpisodeList list = SeriesEpisodeService.INSTANCE.getEpisodes(account, "cat-s", "series-s", () -> false);
+        EpisodeList list = service.getEpisodes(account, "cat-s", "series-s", () -> false);
 
-            assertEquals(1, list.getEpisodes().size());
-            assertEquals("4", list.getEpisodes().get(0).getSeason());
-            assertEquals(1, SeriesEpisodeDb.get().getEpisodes(account, "cat-s", "series-s").size());
-        } finally {
-            SeriesEpisodeService.setChannelServiceResolverForTests(null);
-        }
+        assertEquals(1, list.getEpisodes().size());
+        assertEquals("4", list.getEpisodes().get(0).getSeason());
+        assertEquals(1, SeriesEpisodeDb.get().getEpisodes(account, "cat-s", "series-s").size());
     }
 
     @Test
