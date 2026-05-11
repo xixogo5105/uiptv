@@ -10,6 +10,7 @@ import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.http.HttpStatusCode
@@ -36,6 +37,7 @@ fun Application.configureBackendPlatform(extraModules: List<Module> = emptyList(
     install(CallLogging)
     install(StatusPages) {
         exception<BackendHttpException> { call, cause ->
+            cause.responseHeaders.forEach { (name, value) -> call.response.header(name, value) }
             when {
                 cause.responseBody != null -> call.respondText(
                     text = cause.responseBody,

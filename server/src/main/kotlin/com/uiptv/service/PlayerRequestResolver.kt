@@ -9,7 +9,6 @@ import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.model.PlayerResponse
 import com.uiptv.shared.Episode
-import com.uiptv.util.koinOrNull
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 import java.io.IOException
@@ -21,7 +20,7 @@ import java.util.function.Supplier
 class PlayerRequestResolver @JvmOverloads constructor(
     private val bookmarkService: BookmarkService = BookmarkService,
     private val accountService: AccountService = AccountService,
-    private val playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService(),
+    private val playerService: PlayerService = PlayerService(),
     private val seriesCategoryDb: SeriesCategoryDb = SeriesCategoryDb.get(),
     private val vodChannelDb: VodChannelDb = VodChannelDb.get(),
     private val channelDb: ChannelDb = ChannelDb.get()

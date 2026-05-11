@@ -8,7 +8,6 @@ import com.uiptv.server.api.dto.PlayerPlaybackBingeWatchItemDto
 import com.uiptv.server.api.dto.PlayerPlaybackChannelDto
 import com.uiptv.server.api.dto.PlayerPlaybackDrmDto
 import com.uiptv.server.api.dto.PlayerPlaybackResponseDto
-import com.uiptv.util.koinOrNull
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
@@ -24,9 +23,8 @@ class WebPlayerApiService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val configurationService: ConfigurationService = ConfigurationService,
     private val ffmpegService: FfmpegService = FfmpegService,
-    private val bingeWatchService: BingeWatchService = koinOrNull<BingeWatchService>() ?: BingeWatchService(),
-    private val playerRequestResolver: PlayerRequestResolver =
-        koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver(playerService = koinOrNull<PlayerService>() ?: PlayerService())
+    private val bingeWatchService: BingeWatchService = BingeWatchService(),
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver()
 ) {
     private val json = Json {
         explicitNulls = false

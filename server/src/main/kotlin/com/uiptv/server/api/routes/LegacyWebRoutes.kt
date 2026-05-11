@@ -90,10 +90,8 @@ private suspend fun ApplicationCall.respondIcon() {
 
 private suspend fun ApplicationCall.respondHlsFile() {
     val fileName = request.path().substringAfterLast('/')
-    val payload = HlsRouteSupport.readFile(fileName, HlsRouteSupport.isTruthy(request.queryParameters["hvec"])) ?: run {
-        respond(HttpStatusCode.NotFound)
-        return
-    }
+    val payload = HlsRouteSupport.readFile(fileName, HlsRouteSupport.isTruthy(request.queryParameters["hvec"]))
+        ?: throw BackendHttpException(HttpStatusCode.NotFound)
     response.header(HttpHeaders.AccessControlAllowOrigin, "*")
     response.header(HttpHeaders.CacheControl, "no-store")
     response.header(HttpHeaders.ContentType, payload.contentType)
@@ -114,8 +112,7 @@ private suspend fun ApplicationCall.handleHlsUploadDelete() {
 private suspend fun ApplicationCall.handleProxyStream() {
     val source = request.queryParameters["src"]?.trim()
     if (source.isNullOrBlank()) {
-        respond(HttpStatusCode.BadRequest)
-        return
+        throw BackendHttpException(HttpStatusCode.BadRequest)
     }
     try {
         ProxyStreamSupport.openResolvedStream(
@@ -128,9 +125,7 @@ private suspend fun ApplicationCall.handleProxyStream() {
             ),
             request.httpMethod.value
         ).use { upstream ->
-            if (upstream == null) {
-                throw BackendHttpException(HttpStatusCode.BadGateway)
-            }
+            if (upstream == null) throw BackendHttpException(HttpStatusCode.BadGateway)
             applyProxyResponseHeaders(this, upstream.responseHeaders)
             if (request.httpMethod.value.equals("HEAD", true)) {
                 respond(HttpStatusCode.fromValue(upstream.statusCode))
@@ -167,10 +162,8 @@ private fun copyProxyHeaderIfPresent(call: ApplicationCall, upstreamHeaders: Map
 }
 
 private suspend fun ApplicationCall.respondBingeWatchPlaylist(bingeWatchService: BingeWatchService) {
-    val payload = BingeWatchRouteSupport.renderPlaylist(request.queryParameters["token"], bingeWatchService) ?: run {
-        respond(HttpStatusCode.NotFound)
-        return
-    }
+    val payload = BingeWatchRouteSupport.renderPlaylist(request.queryParameters["token"], bingeWatchService)
+        ?: throw BackendHttpException(HttpStatusCode.NotFound)
     response.header(HttpHeaders.AccessControlAllowOrigin, "*")
     response.header(HttpHeaders.ContentType, "application/vnd.apple.mpegurl")
     response.header(HttpHeaders.ContentDisposition, ContentDisposition.Inline.withParameter(ContentDisposition.Parameters.FileName, payload.fileName).toString())
@@ -179,18 +172,25 @@ private suspend fun ApplicationCall.respondBingeWatchPlaylist(bingeWatchService:
 
 private suspend fun ApplicationCall.respondBingeWatchEntry(bingeWatchService: BingeWatchService) {
     when (val result = BingeWatchRouteSupport.resolveEntry(request.httpMethod.value, request.queryParameters["token"], request.queryParameters["episodeId"], bingeWatchService)) {
-        else -> when (result.statusCode) {
-            307 -> {
-                response.header(HttpHeaders.Location, result.location.orEmpty())
-                respond(HttpStatusCode.TemporaryRedirect)
+        else -> throw BackendHttpException(
+            status = HttpStatusCode.fromValue(result.statusCode),
+            responseBody = when (result.statusCode) {
+                404 -> result.message ?: "Binge watch item not found."
+                502 -> result.message ?: "Bad gateway"
+                else -> null
+            },
+            contentType = when (result.statusCode) {
+                404, 502 -> ContentType.Text.Plain
+                else -> null
+            },
+            responseHeaders = buildMap {
+                if (result.statusCode == 307 && !result.location.isNullOrBlank()) {
+                    put(HttpHeaders.Location, result.location)
+                }
+                if (result.statusCode == 405) {
+                    put(HttpHeaders.Allow, "GET, HEAD")
+                }
             }
-            404 -> respondText(result.message ?: "Binge watch item not found.", ContentType.Text.Plain, HttpStatusCode.NotFound)
-            405 -> {
-                response.header(HttpHeaders.Allow, "GET, HEAD")
-                respond(HttpStatusCode.MethodNotAllowed)
-            }
-            502 -> respondText(result.message ?: "Bad gateway", ContentType.Text.Plain, HttpStatusCode.BadGateway)
-            else -> respond(HttpStatusCode.fromValue(result.statusCode))
-        }
+        )
     }
 }

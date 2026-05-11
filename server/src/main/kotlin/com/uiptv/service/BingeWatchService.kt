@@ -6,7 +6,6 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.model.SeriesWatchState
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
-import com.uiptv.util.koinOrNull
 import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -17,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference
 class BingeWatchService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
-    private val playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService()
+    private val playerService: PlayerService = PlayerService()
 ) {
     private val sessions = ConcurrentHashMap<String, Session>()
 

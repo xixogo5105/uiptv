@@ -45,17 +45,12 @@ class ThemeStylesheetResolverTest {
         override.setDarkThemeCssContent(".root { -fx-accent: blue; }");
         Mockito.when(overrideService.read()).thenReturn(override);
 
-        ThemeStylesheetResolver.setThemeCssOverrideServiceSupplierForTests(() -> overrideService);
-        try {
-            String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false);
-            String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true);
-            assertTrue(lightUrl.startsWith("data:text/css;base64,"));
-            assertTrue(darkUrl.startsWith("data:text/css;base64,"));
-            assertEquals(".root { -fx-accent: red; }", decodeCss(lightUrl));
-            assertEquals(".root { -fx-accent: blue; }", decodeCss(darkUrl));
-        } finally {
-            ThemeStylesheetResolver.setThemeCssOverrideServiceSupplierForTests(null);
-        }
+        String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false, overrideService);
+        String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true, overrideService);
+        assertTrue(lightUrl.startsWith("data:text/css;base64,"));
+        assertTrue(darkUrl.startsWith("data:text/css;base64,"));
+        assertEquals(".root { -fx-accent: red; }", decodeCss(lightUrl));
+        assertEquals(".root { -fx-accent: blue; }", decodeCss(darkUrl));
     }
 
     @Test
@@ -65,15 +60,10 @@ class ThemeStylesheetResolverTest {
         override.setLightThemeCssContent(".root { -fx-accent: green; }");
         Mockito.when(overrideService.read()).thenReturn(override);
 
-        ThemeStylesheetResolver.setThemeCssOverrideServiceSupplierForTests(() -> overrideService);
-        try {
-            String url = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false, 110);
-            String css = decodeCss(url);
-            assertTrue(css.contains("-fx-accent: green"));
-            assertTrue(css.contains("-fx-font-size: 14.300"));
-        } finally {
-            ThemeStylesheetResolver.setThemeCssOverrideServiceSupplierForTests(null);
-        }
+        String url = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false, 110, overrideService);
+        String css = decodeCss(url);
+        assertTrue(css.contains("-fx-accent: green"));
+        assertTrue(css.contains("-fx-font-size: 14.300"));
     }
 
     @Test
@@ -82,15 +72,10 @@ class ThemeStylesheetResolverTest {
         ThemeCssOverride override = new ThemeCssOverride();
         Mockito.when(overrideService.read()).thenReturn(override);
 
-        ThemeStylesheetResolver.setThemeCssOverrideServiceSupplierForTests(() -> overrideService);
-        try {
-            String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false);
-            String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true);
-            assertTrue(lightUrl.contains("application.css"));
-            assertTrue(darkUrl.contains("dark-application.css"));
-        } finally {
-            ThemeStylesheetResolver.setThemeCssOverrideServiceSupplierForTests(null);
-        }
+        String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false, overrideService);
+        String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true, overrideService);
+        assertTrue(lightUrl.contains("application.css"));
+        assertTrue(darkUrl.contains("dark-application.css"));
     }
 
     private static String decodeCss(String dataUrl) {

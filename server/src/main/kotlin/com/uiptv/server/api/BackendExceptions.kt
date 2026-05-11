@@ -9,5 +9,6 @@ class BackendHttpException(
     val status: HttpStatusCode,
     message: String? = null,
     val responseBody: String? = null,
-    val contentType: ContentType? = null
+    val contentType: ContentType? = null,
+    val responseHeaders: Map<String, String> = emptyMap()
 ) : RuntimeException(message ?: responseBody ?: status.description)

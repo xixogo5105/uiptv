@@ -7,7 +7,6 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.util.HlsPlaylistResolver
 import com.uiptv.util.M3uPlaylistUtils.escapeAttributeValue
 import com.uiptv.util.M3uPlaylistUtils.sanitizeTitle
-import com.uiptv.util.koinOrNull
 import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import java.net.URLDecoder
@@ -18,12 +17,11 @@ class PlaylistExportService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val bookmarkService: BookmarkService = BookmarkService,
     private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = koinOrNull<HandshakeService>() ?: HandshakeService(),
-    private val playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService(),
-    private val playerRequestResolver: PlayerRequestResolver =
-        koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver(playerService = koinOrNull<PlayerService>() ?: PlayerService()),
+    private val handshakeService: HandshakeService = HandshakeService(),
+    private val playerService: PlayerService = PlayerService(),
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
     private val channelDb: ChannelDb = ChannelDb.get(),
-    private val publicationService: M3U8PublicationService = koinOrNull<M3U8PublicationService>() ?: M3U8PublicationService()
+    private val publicationService: M3U8PublicationService = M3U8PublicationService()
 ) {
     companion object {
         const val BOOKMARK_MISC_GROUP_TITLE = "Misc"

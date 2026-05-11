@@ -13,7 +13,6 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
-import com.uiptv.server.bootstrap.ServerModulesKt;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.CacheService;
@@ -38,7 +37,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -187,7 +185,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(i -> null);
 
             ImdbMetadataService imdb = Mockito.mock(ImdbMetadataService.class);
-            ServerModulesKt.setImdbMetadataServiceOverrideForTests(imdb);
             Mockito.when(imdb.findBestEffortDetails(Mockito.anyString(), Mockito.anyString()))
                     .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
                             {"name":"Series Mock","imdbUrl":"https://www.imdb.com/title/tt1234567/","episodesMeta":[]}
@@ -205,7 +202,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                             {"name":"Movie Mock","imdbUrl":"https://www.imdb.com/title/tt7654321/"}
                             """));
 
-            UIptvServer.start();
+            UIptvServer.start(List.of(TestServerModulesKt.imdbOverrideModule(imdb)));
             assertTrue(UIptvServer.isRunning());
 
             assertSpaPages();
@@ -222,8 +219,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertPlaylistApis();
             assertRemoteSyncApis();
             assertHlsAndProxyApis();
-        } finally {
-            ServerModulesKt.setImdbMetadataServiceOverrideForTests(null);
         }
     }
 

@@ -34,6 +34,12 @@ class UIptvServer private constructor() {
 
         @JvmStatic
         @Throws(IOException::class)
+        fun start(extraModules: List<Module>) {
+            KtorServerRuntime.start(extraModules)
+        }
+
+        @JvmStatic
+        @Throws(IOException::class)
         fun ensureStarted(): Boolean = KtorServerRuntime.ensureStarted()
 
         @JvmStatic
@@ -53,9 +59,18 @@ class UIptvServer private constructor() {
 }
 
 object KtorServerRuntime {
+    private var startupModules: List<Module> = emptyList()
+
     @JvmStatic
     @Throws(IOException::class)
     fun start() {
+        start(emptyList())
+    }
+
+    @JvmStatic
+    @Throws(IOException::class)
+    fun start(extraModules: List<Module>) {
+        startupModules = extraModules
         initialiseServer()
         applicationEngine!!.start(wait = false)
         addInfoLog(UIptvServer::class.java, "Server Started on port ${getHttpPort()}")
@@ -77,6 +92,7 @@ object KtorServerRuntime {
     fun stop() {
         val engine = applicationEngine
         applicationEngine = null
+        startupModules = emptyList()
         if (engine != null) {
             Thread({
                 try {
@@ -110,7 +126,7 @@ object KtorServerRuntime {
         stop()
         val port = getHttpPort().toInt()
         applicationEngine = embeddedServer(Netty, host = "0.0.0.0", port = port) {
-            configureServerApplication()
+            configureServerApplication(startupModules)
         }
     }
 }

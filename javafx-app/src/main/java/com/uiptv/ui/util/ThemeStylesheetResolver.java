@@ -8,19 +8,20 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 public final class ThemeStylesheetResolver {
     private static final double DEFAULT_FONT_SIZE_PX = 13.0;
     private static final String LIGHT_THEME_RESOURCE = "/application.css";
     private static final String DARK_THEME_RESOURCE = "/dark-application.css";
-    private static Supplier<ThemeCssOverrideService> themeCssOverrideServiceSupplier = () -> ThemeCssOverrideService.INSTANCE;
-
     private ThemeStylesheetResolver() {
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme) {
-        ThemeCssOverride override = themeCssOverrideService().read();
+        return resolveStylesheetUrl(resourceAnchor, darkTheme, ThemeCssOverrideService.INSTANCE);
+    }
+
+    static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, ThemeCssOverrideService themeCssOverrideService) {
+        ThemeCssOverride override = themeCssOverrideService.read();
         String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
         if (overrideCss != null && !overrideCss.isBlank()) {
             return toDataUrl(overrideCss);
@@ -31,7 +32,11 @@ public final class ThemeStylesheetResolver {
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, int zoomPercent) {
-        ThemeCssOverride override = themeCssOverrideService().read();
+        return resolveStylesheetUrl(resourceAnchor, darkTheme, zoomPercent, ThemeCssOverrideService.INSTANCE);
+    }
+
+    static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, int zoomPercent, ThemeCssOverrideService themeCssOverrideService) {
+        ThemeCssOverride override = themeCssOverrideService.read();
         String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
         if (overrideCss != null && !overrideCss.isBlank()) {
             return toDataUrl(overrideCss + "\n" + buildZoomOverrideCss(zoomPercent));
@@ -81,13 +86,5 @@ public final class ThemeStylesheetResolver {
     private static String toDataUrl(String cssContent) {
         String encoded = Base64.getEncoder().encodeToString(cssContent.getBytes(StandardCharsets.UTF_8));
         return "data:text/css;base64," + encoded;
-    }
-
-    private static ThemeCssOverrideService themeCssOverrideService() {
-        return themeCssOverrideServiceSupplier.get();
-    }
-
-    static void setThemeCssOverrideServiceSupplierForTests(Supplier<ThemeCssOverrideService> supplier) {
-        themeCssOverrideServiceSupplier = supplier != null ? supplier : () -> ThemeCssOverrideService.INSTANCE;
     }
 }

@@ -1,5 +1,6 @@
 package com.uiptv.server.api.routes
 
+import com.uiptv.server.api.BackendHttpException
 import com.uiptv.server.api.dto.PlayerPlaybackResponseDto
 import com.uiptv.service.PlaylistExportService
 import com.uiptv.service.WebPlayerApiService
@@ -86,18 +87,18 @@ private suspend fun ApplicationCall.respondPlaylist(body: String, fileName: Stri
 }
 
 private suspend fun ApplicationCall.respondBookmarkEntry(result: PlaylistExportService.BookmarkRedirectResult) {
-    result.allowHeader?.let { response.header(HttpHeaders.Allow, it) }
-    result.location?.let {
-        response.header(HttpHeaders.Location, it)
-        respondText("", status = HttpStatusCode.fromValue(result.statusCode))
-        return
-    }
-    if (result.responseBody != null) {
-        response.header("Access-Control-Allow-Origin", "*")
-        respondText(result.responseBody, ContentType.Text.Plain, HttpStatusCode.fromValue(result.statusCode))
-        return
-    }
-    respondText("", status = HttpStatusCode.fromValue(result.statusCode))
+    throw BackendHttpException(
+        status = HttpStatusCode.fromValue(result.statusCode),
+        responseBody = result.responseBody,
+        contentType = result.responseBody?.let { ContentType.Text.Plain },
+        responseHeaders = buildMap {
+            result.allowHeader?.let { put(HttpHeaders.Allow, it) }
+            result.location?.let { put(HttpHeaders.Location, it) }
+            if (result.responseBody != null) {
+                put("Access-Control-Allow-Origin", "*")
+            }
+        }
+    )
 }
 
 private fun io.ktor.http.Parameters.toSingleMap(): Map<String, String?> = names().associateWith { get(it) }
