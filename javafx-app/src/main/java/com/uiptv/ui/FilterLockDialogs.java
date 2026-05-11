@@ -1,7 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.service.FilterLockService;
-import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.I18n;
 import javafx.geometry.Insets;
 import javafx.geometry.NodeOrientation;
@@ -17,20 +15,11 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public final class FilterLockDialogs {
-    private static volatile FilterLockService lockService = JavaFxServices.current().filterLockService();
-    private static volatile ConfigurationService configurationService = JavaFxServices.current().configurationService();
-
     private FilterLockDialogs() {
     }
 
-    public static void configure(JavaFxServices services) {
-        if (services != null) {
-            lockService = services.filterLockService();
-            configurationService = services.configurationService();
-        }
-    }
-
     public static boolean ensureUnlocked(Node owner, String reasonKey) {
+        var lockService = lockService();
         if (!lockService.hasPasswordConfigured() || lockService.isUnlocked()) {
             return true;
         }
@@ -61,6 +50,8 @@ public final class FilterLockDialogs {
     }
 
     public static void openPasswordChangeDialog(Node owner) {
+        var lockService = lockService();
+        var configurationService = configurationService();
         boolean passwordAlreadySet = lockService.hasPasswordConfigured();
 
         PasswordField currentPassword = new PasswordField();
@@ -112,6 +103,8 @@ public final class FilterLockDialogs {
     }
 
     public static boolean openDisablePasswordDialog(Node owner) {
+        var lockService = lockService();
+        var configurationService = configurationService();
         if (!lockService.hasPasswordConfigured()) {
             showErrorAlert(I18n.tr("filterLockPasswordNotSet"));
             return false;
@@ -168,5 +161,13 @@ public final class FilterLockDialogs {
         );
         dialog.getDialogPane().setPadding(new Insets(12));
         return dialog;
+    }
+
+    private static com.uiptv.service.FilterLockService lockService() {
+        return JavaFxServices.current().filterLockService();
+    }
+
+    private static com.uiptv.service.ConfigurationService configurationService() {
+        return JavaFxServices.current().configurationService();
     }
 }

@@ -12,7 +12,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * thumbnail and plain text rendering modes based on configuration.
  */
 public abstract class ThumbnailAwareUI {
-    private static volatile ConfigurationService configurationService = JavaFxServices.current().configurationService();
 
     public interface ThumbnailModeListener {
         void onThumbnailModeChanged(boolean enabled);
@@ -27,13 +26,6 @@ public abstract class ThumbnailAwareUI {
      */
     public static boolean areThumbnailsEnabled() {
         return readThumbnailState();
-    }
-
-    public static void configure(ConfigurationService configurationService) {
-        if (configurationService != null) {
-            ThumbnailAwareUI.configurationService = configurationService;
-            lastKnownThumbnailState = readThumbnailState();
-        }
     }
 
     public static void addThumbnailModeListener(ThumbnailModeListener listener) {
@@ -74,7 +66,7 @@ public abstract class ThumbnailAwareUI {
 
     private static boolean readThumbnailState() {
         try {
-            var config = configurationService.read();
+            var config = JavaFxServices.current().configurationService().read();
             return config != null && config.isEnableThumbnails();
         } catch (Exception _) {
             // Fall back to disabled thumbnails if configuration cannot be read.

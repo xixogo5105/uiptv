@@ -213,11 +213,6 @@ public class RootApplication extends Application {
 
     private void configureUiServices(JavaFxServices services) {
         JavaFxServices.configureCurrent(services);
-        MediaPlayerFactory.configure(services);
-        PlaybackUIService.configure(services);
-        ThumbnailAwareUI.configure(services.configurationService());
-        ThemeStylesheetResolver.configure(services.themeCssOverrideService());
-        FilterLockDialogs.configure(services);
     }
 
     private void applyMaximizedBounds(Stage stage) {

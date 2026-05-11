@@ -13,7 +13,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
-    private static volatile JavaFxServices services = JavaFxServices.current();
     private static VideoPlayerInterface instance;
     private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();
@@ -28,12 +27,6 @@ public class MediaPlayerFactory {
     private MediaPlayerFactory() {
     }
 
-    public static synchronized void configure(JavaFxServices services) {
-        if (services != null) {
-            MediaPlayerFactory.services = services;
-        }
-    }
-
     public static synchronized VideoPlayerInterface getPlayer() {
         if (instance == null) {
             // Lazy initialization - player only created when first needed
@@ -46,12 +39,12 @@ public class MediaPlayerFactory {
         Configuration config = configurationService().read();
         if (config != null && config.isEmbeddedPlayer()) {
             try {
-                instance = new VlcVideoPlayer(services);
+                instance = new VlcVideoPlayer(JavaFxServices.current());
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
             } catch (Exception e) {
                 AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos. Error: " + e.getMessage());
-                instance = new LiteVideoPlayer(services);
+                instance = new LiteVideoPlayer(JavaFxServices.current());
                 playerType = VideoPlayerInterface.PlayerType.LITE;
             }
             if (instance.getPlayerContainer() instanceof Region playerContainer) {
@@ -166,6 +159,6 @@ public class MediaPlayerFactory {
     }
 
     private static ConfigurationService configurationService() {
-        return services.configurationService();
+        return JavaFxServices.current().configurationService();
     }
 }

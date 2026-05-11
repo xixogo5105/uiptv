@@ -32,15 +32,8 @@ public final class PlaybackUIService {
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
-    private static volatile JavaFxServices services = JavaFxServices.current();
 
     private PlaybackUIService() {
-    }
-
-    public static void configure(JavaFxServices services) {
-        if (services != null) {
-            PlaybackUIService.services = services;
-        }
     }
 
     public static List<PlayerOption> getConfiguredPlayerOptions() {
@@ -276,11 +269,11 @@ public final class PlaybackUIService {
     }
 
     private static PlayerService playerService() {
-        return services.playerService();
+        return JavaFxServices.current().playerService();
     }
 
     private static ConfigurationService configurationService() {
-        return services.configurationService();
+        return JavaFxServices.current().configurationService();
     }
 
     private static String determineMode(Account account) {
