@@ -18,9 +18,9 @@ import java.util.function.Consumer
 import java.util.function.Supplier
 
 class PlayerRequestResolver @JvmOverloads constructor(
-    private val bookmarkService: BookmarkService = BookmarkService,
-    private val accountService: AccountService = AccountService,
-    private val playerService: PlayerService = PlayerService(),
+    private val bookmarkService: BookmarkService = RuntimeServices.bookmarkService,
+    private val accountService: AccountService = RuntimeServices.accountService,
+    private val playerService: PlayerService = RuntimeServices.playerService,
     private val seriesCategoryDb: SeriesCategoryDb = SeriesCategoryDb.get(),
     private val vodChannelDb: VodChannelDb = VodChannelDb.get(),
     private val channelDb: ChannelDb = ChannelDb.get()

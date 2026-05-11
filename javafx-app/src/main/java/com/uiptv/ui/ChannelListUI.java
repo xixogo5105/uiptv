@@ -70,11 +70,11 @@ public class ChannelListUI extends HBox {
     private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
-    private final PlayerService playerService = new PlayerService();
+    private final PlayerService playerService = PlayerService.INSTANCE;
     private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
     private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
     private final CategoryService categoryService = new CategoryService();
-    private final ChannelService channelService = new ChannelService();
+    private final ChannelService channelService = ChannelService.INSTANCE;
     private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;
     private final FilterLockService filterLockService = FilterLockService.INSTANCE;

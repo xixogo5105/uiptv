@@ -6,8 +6,6 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
-import com.uiptv.util.koinOrNull
-import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.net.URLDecoder
@@ -21,13 +19,13 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.SerialName
 
 class PlayerService(
-    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService
+    private val seriesWatchStateService: SeriesWatchStateService = RuntimeServices.seriesWatchStateService,
+    private val xtremePlayerService: XtremePlayerService = RuntimeServices.xtremePlayerService,
+    private val stalkerPortalPlayerService: StalkerPortalPlayerService = RuntimeServices.stalkerPortalPlayerService,
+    private val predefinedPlayerService: PredefinedPlayerService = RuntimeServices.predefinedPlayerService
 ) {
     private val log = LoggerFactory.getLogger(PlayerService::class.java)
     private val playbackResolvedListeners = CopyOnWriteArraySet<PlaybackResolvedListener>()
-    private val xtremePlayerService = XtremePlayerService()
-    private val stalkerPortalPlayerService = StalkerPortalPlayerService()
-    private val predefinedPlayerService = PredefinedPlayerService()
     private val json = Json { explicitNulls = false }
 
     init {
@@ -216,8 +214,8 @@ class PlayerService(
     }
 
     companion object {
-        private val defaultInstance by lazy { PlayerService() }
-
+        @JvmField
+        val INSTANCE: PlayerService = RuntimeServices.playerService
     }
 
     @Serializable

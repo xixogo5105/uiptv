@@ -1,5 +1,7 @@
 package com.uiptv.server.api.routes
 
+import com.uiptv.server.api.ApiBadRequestException
+import com.uiptv.server.api.ApiRequestBodyRequiredException
 import com.uiptv.db.ChannelDb
 import com.uiptv.db.SeriesEpisodeDb
 import com.uiptv.db.VodChannelDb
@@ -242,7 +244,7 @@ private fun upsertWatchingNowSeries(
     val seriesTitle = body.seriesTitle.orEmpty()
     val seriesPoster = body.seriesPoster.orEmpty()
     if (accountId.isBlank() || seriesId.isBlank() || episodeId.isBlank()) {
-        throw IllegalArgumentException("accountId, seriesId and episodeId are required")
+        throw ApiBadRequestException("accountId, seriesId and episodeId are required")
     }
     val account = accountService.getById(accountId)
         ?: throw ApiNotFoundException("account not found")
@@ -268,7 +270,7 @@ private fun deleteWatchingNowSeries(
     val categoryId = body.categoryId.orEmpty()
     val seriesId = body.seriesId.orEmpty()
     if (accountId.isBlank() || seriesId.isBlank()) {
-        throw IllegalArgumentException("accountId and seriesId are required")
+        throw ApiBadRequestException("accountId and seriesId are required")
     }
     seriesWatchStateService.clearSeriesLastWatched(accountId, categoryId, seriesId)
     return StatusResponse(status = "ok")
@@ -311,7 +313,7 @@ private fun upsertWatchingNowVod(
     val vodCmd = body.vodCmd.orEmpty()
     val vodLogo = body.vodLogo.orEmpty()
     if (accountId.isBlank() || vodId.isBlank()) {
-        throw IllegalArgumentException("accountId and vodId are required")
+        throw ApiBadRequestException("accountId and vodId are required")
     }
     val account = accountService.getById(accountId)
         ?: throw ApiNotFoundException("account not found")
@@ -334,7 +336,7 @@ private fun deleteWatchingNowVod(
     val categoryId = body.categoryId.orEmpty()
     val vodId = body.vodId.orEmpty()
     if (accountId.isBlank() || vodId.isBlank()) {
-        throw IllegalArgumentException("accountId and vodId are required")
+        throw ApiBadRequestException("accountId and vodId are required")
     }
     vodWatchStateService.remove(accountId, categoryId, vodId)
     return StatusResponse(status = "ok")
@@ -480,7 +482,7 @@ private data class WatchingNowSeriesMetadata(
 private suspend inline fun <reified T> ApplicationCall.receivePayload(): T {
     val text = receiveText()
     if (text.isBlank()) {
-        throw IllegalArgumentException("Request body is required")
+        throw ApiRequestBodyRequiredException()
     }
     return vodRouteJson.decodeFromString(text)
 }

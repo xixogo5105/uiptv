@@ -41,12 +41,13 @@ import java.util.function.Consumer
 import java.util.function.Supplier
 
 class ChannelService @JvmOverloads constructor(
-    private val cacheService: CacheService = CacheServiceImpl(),
-    private val contentFilterService: ContentFilterService = ContentFilterService,
-    private val logoResolverService: LogoResolverService = LogoResolverService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService()
+    private val cacheServiceProvider: () -> CacheService = { RuntimeServices.cacheService },
+    private val contentFilterService: ContentFilterService = RuntimeServices.contentFilterService,
+    private val logoResolverService: LogoResolverService = RuntimeServices.logoResolverService,
+    private val configurationService: ConfigurationService = RuntimeServices.configurationService,
+    private val handshakeService: HandshakeService = RuntimeServices.handshakeService
 ) {
+    private fun cacheService(): CacheService = cacheServiceProvider.invoke()
 
     @Throws(IOException::class)
     fun get(categoryId: String, account: Account, dbId: String): List<Channel> =
@@ -105,8 +106,8 @@ class ChannelService @JvmOverloads constructor(
     private fun loadCachedLiveChannels(categoryId: String, dbId: String, account: Account, logger: LoggerCallback?): MutableList<Channel> {
         val channels = resolveCachedLiveChannels(categoryId, dbId, account).toMutableList()
         if (channels.isNotEmpty()) return channels
-        if (cacheService.getChannelCountForAccount(account.dbId.orEmpty()) != 0) return channels
-        cacheService.reloadCache(account, logger ?: LoggerCallback { message -> log.info(message) })
+        if (cacheService().getChannelCountForAccount(account.dbId.orEmpty()) != 0) return channels
+        cacheService().reloadCache(account, logger ?: LoggerCallback { message -> log.info(message) })
         return resolveCachedLiveChannels(categoryId, dbId, account).toMutableList()
     }
 
@@ -339,10 +340,10 @@ class ChannelService @JvmOverloads constructor(
 
     @Throws(IOException::class)
     fun reloadCache(account: Account, logger: LoggerCallback?) {
-        cacheService.reloadCache(account, logger ?: LoggerCallback { message -> log.info(message) })
+        cacheService().reloadCache(account, logger ?: LoggerCallback { message -> log.info(message) })
     }
 
-    fun getChannelCountForAccount(accountId: String?): Int = cacheService.getChannelCountForAccount(accountId.orEmpty())
+    fun getChannelCountForAccount(accountId: String?): Int = cacheService().getChannelCountForAccount(accountId.orEmpty())
 
     fun getCachedLiveChannelsByDbCategoryId(dbCategoryId: String): List<Channel> =
         dedupeChannels(ChannelDb.get().getChannels(dbCategoryId))
@@ -1072,7 +1073,8 @@ class ChannelService @JvmOverloads constructor(
         private val STALKER_JITTER_MS: Long = java.lang.Long.getLong("uiptv.stalker.page.jitter.ms", 200L)
         private val STALKER_MAX_RETRIES_PER_PAGE: Int = Integer.getInteger("uiptv.stalker.page.maxRetries", 2)
         private val STALKER_THROTTLES = ConcurrentHashMap<String, RequestThrottle>()
-        private val defaultInstance by lazy { ChannelService() }
+        @JvmField
+        val INSTANCE: ChannelService = RuntimeServices.channelService
 
         @JvmStatic
         fun getChannelOrSeriesParams(

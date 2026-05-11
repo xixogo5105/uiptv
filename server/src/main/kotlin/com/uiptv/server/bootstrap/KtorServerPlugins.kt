@@ -1,6 +1,10 @@
 package com.uiptv.server.bootstrap
 
+import com.uiptv.server.api.ApiBadGatewayException
+import com.uiptv.server.api.ApiBadRequestException
+import com.uiptv.server.api.ApiMethodNotAllowedException
 import com.uiptv.server.api.ApiNotFoundException
+import com.uiptv.server.api.ApiRequestBodyRequiredException
 import com.uiptv.server.api.BackendHttpException
 import com.uiptv.server.api.dto.ErrorResponse
 import io.ktor.serialization.kotlinx.json.json
@@ -47,6 +51,25 @@ fun Application.configureBackendPlatform(extraModules: List<Module> = emptyList(
                 else -> call.respond(cause.status)
             }
         }
+        exception<ApiMethodNotAllowedException> { call, cause ->
+            call.response.header("Allow", cause.allowHeader)
+            call.respond(
+                status = HttpStatusCode.MethodNotAllowed,
+                message = ErrorResponse("method_not_allowed", cause.message ?: "Method not allowed")
+            )
+        }
+        exception<ApiRequestBodyRequiredException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.BadRequest,
+                message = ErrorResponse("request_body_required", cause.message ?: "Request body is required")
+            )
+        }
+        exception<ApiBadRequestException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.BadRequest,
+                message = ErrorResponse("bad_request", cause.message ?: "Invalid request")
+            )
+        }
         exception<IllegalArgumentException> { call, cause ->
             call.respond(
                 status = HttpStatusCode.BadRequest,
@@ -69,6 +92,12 @@ fun Application.configureBackendPlatform(extraModules: List<Module> = emptyList(
             call.respond(
                 status = HttpStatusCode.NotFound,
                 message = ErrorResponse("not_found", cause.message ?: "Resource not found")
+            )
+        }
+        exception<ApiBadGatewayException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.BadGateway,
+                message = ErrorResponse("bad_gateway", cause.message ?: "Upstream request failed")
             )
         }
         exception<SQLException> { call, cause ->

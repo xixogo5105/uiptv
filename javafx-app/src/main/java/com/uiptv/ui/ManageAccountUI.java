@@ -85,7 +85,7 @@ public class ManageAccountUI extends VBox {
     private final DangerousButton deleteButton = new DangerousButton(I18n.tr("autoDeleteAccount"));
     private final Button clearButton = new Button(I18n.tr("autoClearData"));
     private final Button refreshChannelsButton = new Button(I18n.tr("autoReloadCache"));
-    private final CacheService cacheService = new CacheServiceImpl();
+    private final CacheService cacheService = CacheServiceImpl.INSTANCE;
     private final AccountInfoService accountInfoService = AccountInfoService.INSTANCE;
     private final VBox formContainer = new VBox();
     private HBox macAddressContainer;

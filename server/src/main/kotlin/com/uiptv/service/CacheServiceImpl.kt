@@ -10,10 +10,10 @@ import java.util.Date
 import java.util.HashMap
 
 class CacheServiceImpl @JvmOverloads constructor(
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService() },
-    private val categoryServiceProvider: () -> CategoryService = { CategoryService() },
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
-    private val channelServiceProvider: () -> ChannelService = { ChannelService() },
+    private val handshakeServiceProvider: () -> HandshakeService = { RuntimeServices.handshakeService },
+    private val categoryServiceProvider: () -> CategoryService = { RuntimeServices.categoryService },
+    private val configurationServiceProvider: () -> ConfigurationService = { RuntimeServices.configurationService },
+    private val channelServiceProvider: () -> ChannelService = { RuntimeServices.channelService },
     private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
 ) : CacheService {
     private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {
@@ -59,5 +59,10 @@ class CacheServiceImpl @JvmOverloads constructor(
         params["type"] = accountAction.name
         params["action"] = if (accountAction == Account.AccountAction.itv) "get_genres" else "get_categories"
         return params
+    }
+
+    companion object {
+        @JvmField
+        val INSTANCE: CacheService = RuntimeServices.cacheService
     }
 }

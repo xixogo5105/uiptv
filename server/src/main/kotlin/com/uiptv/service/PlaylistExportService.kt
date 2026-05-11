@@ -14,12 +14,12 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.LinkedHashMap
 
 class PlaylistExportService @JvmOverloads constructor(
-    private val accountService: AccountService = AccountService,
-    private val bookmarkService: BookmarkService = BookmarkService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService(),
-    private val playerService: PlayerService = PlayerService(),
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(),
+    private val accountService: AccountService = RuntimeServices.accountService,
+    private val bookmarkService: BookmarkService = RuntimeServices.bookmarkService,
+    private val configurationService: ConfigurationService = RuntimeServices.configurationService,
+    private val handshakeService: HandshakeService = RuntimeServices.handshakeService,
+    private val playerService: PlayerService = RuntimeServices.playerService,
+    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver(playerService = RuntimeServices.playerService),
     private val channelDb: ChannelDb = ChannelDb.get(),
     private val publicationService: M3U8PublicationService = M3U8PublicationService()
 ) {

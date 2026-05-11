@@ -95,7 +95,7 @@ public class ReloadCachePopup extends VBox {
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
     private final Button stopButton = new Button(I18n.tr("autoStop"));
-    private final CacheService cacheService = new CacheServiceImpl();
+    private final CacheService cacheService = CacheServiceImpl.INSTANCE;
     private final AccountService accountService = AccountService.INSTANCE;
     private final AccountInfoService accountInfoService = AccountInfoService.INSTANCE;
     private final List<CheckBox> checkBoxes = new ArrayList<>();

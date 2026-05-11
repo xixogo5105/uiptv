@@ -49,7 +49,7 @@ public class CategoryListUI extends HBox {
     private static final String LOG_TITLE = " title=";
     private static final String LOG_CHANNELS = " channels: ";
     private final CategoryService categoryService = new CategoryService();
-    private final ChannelService channelService = new ChannelService();
+    private final ChannelService channelService = ChannelService.INSTANCE;
     private final com.uiptv.service.FilterLockService filterLockService = com.uiptv.service.FilterLockService.INSTANCE;
     private final Account account;
     private final boolean embeddedMode;

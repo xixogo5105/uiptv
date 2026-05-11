@@ -1,5 +1,6 @@
 package com.uiptv.server.api.routes
 
+import com.uiptv.server.api.ApiRequestBodyRequiredException
 import com.uiptv.server.api.dto.RemoteSyncCompleteRequest
 import com.uiptv.server.api.dto.RemoteSyncExecutionResultDto
 import com.uiptv.server.api.dto.RemoteSyncHealthResponse
@@ -75,7 +76,7 @@ fun Route.registerRemoteSyncApiRoutes(
 private suspend inline fun <reified T> ApplicationCall.receivePayload(): T {
     val text = receiveText()
     if (text.isBlank()) {
-        throw IllegalArgumentException("Request body is required")
+        throw ApiRequestBodyRequiredException()
     }
     return remoteSyncRouteJson.decodeFromString(text)
 }

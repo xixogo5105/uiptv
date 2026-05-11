@@ -15,8 +15,8 @@ import java.util.function.Supplier
 import java.util.regex.Pattern
 
 class SeriesEpisodeService @JvmOverloads constructor(
-    private val channelService: ChannelService = ChannelService(),
-    private val configurationService: ConfigurationService = ConfigurationService
+    private val channelService: ChannelService = RuntimeServices.channelService,
+    private val configurationService: ConfigurationService = RuntimeServices.configurationService
 ) {
     fun getEpisodes(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {

@@ -1,5 +1,6 @@
 package com.uiptv.server.api.routes
 
+import com.uiptv.server.api.ApiBadRequestException
 import com.uiptv.model.Account
 import com.uiptv.model.Bookmark
 import com.uiptv.model.Category
@@ -101,7 +102,7 @@ fun Route.registerCoreApiRoutes(
         }
 
         if (accountId.isNullOrBlank() || channelId.isBlank() || channelName.isBlank()) {
-            throw IllegalArgumentException("accountId, channelId and name are required")
+            throw ApiBadRequestException("accountId, channelId and name are required")
         }
         val account = accountService.getById(accountId)
             ?: throw ApiNotFoundException("account not found")
@@ -161,7 +162,7 @@ fun Route.registerCoreApiRoutes(
         val body = call.receivePayloadOrDefault<BookmarkOrderRequest>()
         val bookmarkOrders = extractBookmarkOrders(body)
         if (bookmarkOrders.isEmpty()) {
-            throw IllegalArgumentException("bookmarkOrders is required")
+            throw ApiBadRequestException("bookmarkOrders is required")
         }
         bookmarkService.saveBookmarkOrders(bookmarkOrders)
         call.respond(StatusResponse(status = "ok", action = "reordered"))
@@ -174,7 +175,7 @@ fun Route.registerCoreApiRoutes(
             bookmarkId = call.receivePayloadOrDefault<BookmarkDeleteRequest>().bookmarkId.orEmpty()
         }
         if (bookmarkId.isBlank()) {
-            throw IllegalArgumentException("bookmarkId is required")
+            throw ApiBadRequestException("bookmarkId is required")
         }
         bookmarkService.remove(bookmarkId)
         call.respond(StatusResponse(status = "ok", action = "removed"))

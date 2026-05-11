@@ -24,9 +24,12 @@ import com.uiptv.service.SeriesWatchingNowSnapshotService
 import com.uiptv.service.SeriesEpisodeService
 import com.uiptv.service.VodWatchStateService
 import com.uiptv.service.PlaylistExportService
+import com.uiptv.service.PredefinedPlayerService
+import com.uiptv.service.XtremePlayerService
 import com.uiptv.service.WebPlayerApiService
 import com.uiptv.service.WatchingNowSeriesResolver
 import com.uiptv.service.WatchingNowVodResolver
+import com.uiptv.service.StalkerPortalPlayerService
 import com.uiptv.service.remotesync.DatabaseSnapshotService
 import com.uiptv.service.remotesync.RemoteSyncClientService
 import com.uiptv.service.remotesync.RemoteSyncSessionService
@@ -52,12 +55,15 @@ val serverServiceModule = module {
     single { ContentFilterService }
     single { LogoResolverService }
     single { DatabaseSyncService }
-    single<CacheService> { CacheServiceImpl({ get() }, { get() }, { get() }, { get() }) }
+    single<XtremePlayerService> { XtremePlayerService() }
+    single<PredefinedPlayerService> { PredefinedPlayerService() }
     single { HandshakeService(get(), get()) }
+    single { StalkerPortalPlayerService(get(), get()) }
+    single<CacheService> { CacheServiceImpl({ get() }, { get() }, { get() }, { get() }) }
     single { ImdbMetadataService }
     single { CategoryService(get(), get(), get()) }
-    single { ChannelService(cacheService = get(), contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
-    single { PlayerService(get()) }
+    single { ChannelService(cacheServiceProvider = { get() }, contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
+    single { PlayerService(get(), get(), get(), get()) }
     single { BingeWatchService(get(), get(), get()) }
     single { M3U8PublicationService(get(), get(), get()) }
     single { SeriesEpisodeService(get(), get()) }

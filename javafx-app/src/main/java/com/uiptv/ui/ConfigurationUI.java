@@ -152,7 +152,7 @@ public class ConfigurationUI extends VBox {
     private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
     private final FilterLockService filterLockService = FilterLockService.INSTANCE;
     private final AppDataRefreshService appDataRefreshService = AppDataRefreshService.INSTANCE;
-    private final CacheService cacheService = new CacheServiceImpl();
+    private final CacheService cacheService = CacheServiceImpl.INSTANCE;
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private String dbId;
     private String persistedFilterCategoriesValue = "";

@@ -33,7 +33,7 @@ public final class PlaybackUIService {
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
     private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    private static final PlayerService playerService = new PlayerService();
+    private static final PlayerService playerService = PlayerService.INSTANCE;
 
     private PlaybackUIService() {
     }
