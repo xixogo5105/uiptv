@@ -1715,11 +1715,11 @@ public class ConfigurationUI extends VBox {
     }
 
     private String resolveDatabaseSyncSourcePath(boolean importMode, String normalizedPath) {
-        return importMode ? normalizedPath : SqlConnectionRuntime.getDatabasePath();
+        return importMode ? normalizedPath : SqlConnectionRuntime.databasePath();
     }
 
     private String resolveDatabaseSyncTargetPath(boolean importMode, String normalizedPath) {
-        return importMode ? SqlConnectionRuntime.getDatabasePath() : normalizedPath;
+        return importMode ? SqlConnectionRuntime.databasePath() : normalizedPath;
     }
 
     private void applyPostDatabaseImport(boolean importMode,

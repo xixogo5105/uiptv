@@ -18,8 +18,9 @@ class BingeWatchServerEdgeCaseTest {
 
     @Test
     void entryServer_rejectsUnsupportedMethod_andMissingParams() throws Exception {
-        assertEquals(405, BingeWatchRouteSupport.INSTANCE.resolveEntry("POST", "tok", "ep").getStatusCode());
-        assertEquals(404, BingeWatchRouteSupport.INSTANCE.resolveEntry("GET", "tok", null).getStatusCode());
+        BingeWatchService service = Mockito.mock(BingeWatchService.class);
+        assertEquals(405, BingeWatchRouteSupport.INSTANCE.resolveEntry("POST", "tok", "ep", service).getStatusCode());
+        assertEquals(404, BingeWatchRouteSupport.INSTANCE.resolveEntry("GET", "tok", null, service).getStatusCode());
     }
 
     @Test

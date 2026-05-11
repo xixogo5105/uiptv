@@ -17,8 +17,7 @@ data class BingeWatchEntryResult(
 object BingeWatchRouteSupport {
     private const val logPrefix = "BingeWatch: "
 
-    @JvmOverloads
-    fun renderPlaylist(token: String?, service: BingeWatchService = BingeWatchService.INSTANCE): BingeWatchPlaylistPayload? {
+    fun renderPlaylist(token: String?, service: BingeWatchService): BingeWatchPlaylistPayload? {
         AppLog.addInfoLog(UIptvServer::class.java, "${logPrefix}HTTP playlist request token=${token ?: ""}")
         val playlist = service.renderPlaylist(token)
         if (token.isNullOrBlank() || playlist.isBlank()) {
@@ -29,12 +28,11 @@ object BingeWatchRouteSupport {
         return BingeWatchPlaylistPayload("binge-watch-$token.m3u8", playlist)
     }
 
-    @JvmOverloads
     fun resolveEntry(
         method: String,
         token: String?,
         episodeId: String?,
-        service: BingeWatchService = BingeWatchService.INSTANCE
+        service: BingeWatchService
     ): BingeWatchEntryResult {
         AppLog.addInfoLog(UIptvServer::class.java, "${logPrefix}HTTP entry request method=${AppLog.sanitizeValue(method)}")
         if (!method.equals("GET", true) && !method.equals("HEAD", true)) {

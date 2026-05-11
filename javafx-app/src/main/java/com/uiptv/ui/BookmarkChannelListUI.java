@@ -57,7 +57,7 @@ public class BookmarkChannelListUI extends HBox {
     private final ChannelService channelService;
     private final CategoryService categoryService;
     private final ConfigurationService configurationService;
-    private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
+    private final BookmarkResolver bookmarkResolver;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean isPromptShowing = false;
     private volatile long lastKnownBookmarkRevision = 0;
@@ -89,6 +89,7 @@ public class BookmarkChannelListUI extends HBox {
         this.channelService = services.channelService();
         this.categoryService = services.categoryService();
         this.configurationService = services.configurationService();
+        this.bookmarkResolver = new BookmarkResolver(() -> accountService, () -> channelService);
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
             ImageCacheManager.clearCache(BOOKMARK_CACHE);
         }

@@ -89,7 +89,7 @@ class RemoteSyncSessionService internal constructor(
         try {
             val report = databaseSyncService.syncDatabasesWithReport(
                 uploadedSnapshot.toAbsolutePath().toString(),
-                SqlConnectionRuntime.getDatabasePath(),
+                SqlConnectionRuntime.databasePath(),
                 session.options.syncConfiguration,
                 session.options.syncExternalPlayerPaths,
                 null
@@ -158,7 +158,7 @@ class RemoteSyncSessionService internal constructor(
             }
             try {
                 if (session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE) {
-                    session.snapshotPath = snapshotService.createSnapshot(SqlConnectionRuntime.getDatabasePath())
+                    session.snapshotPath = snapshotService.createSnapshot(SqlConnectionRuntime.databasePath())
                     session.status = RemoteSyncStatus.READY_FOR_DOWNLOAD
                     session.message = "Approved. Snapshot ready."
                 } else {

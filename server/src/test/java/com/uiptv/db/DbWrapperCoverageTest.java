@@ -176,24 +176,20 @@ class DbWrapperCoverageTest extends DbBackedTest {
 
     @Test
     void sqlConnection_helpers_detectBusyState_andInterruptedSleep() throws Exception {
-        Method isBusy = SqlConnectionRuntime.class.getDeclaredMethod("isBusy", SQLException.class);
-        isBusy.setAccessible(true);
         SQLException busy = new SQLException("SQLITE_BUSY: database is locked", "state", 5);
         SQLException wrapped = new SQLException("wrapper");
         wrapped.setNextException(busy);
-        assertTrue((Boolean) isBusy.invoke(null, busy));
-        assertTrue((Boolean) isBusy.invoke(null, wrapped));
-        assertFalse((Boolean) isBusy.invoke(null, new SQLException("other failure", "state", 1)));
+        assertTrue(DatabaseRetrySupport.INSTANCE.isBusy(busy));
+        assertTrue(DatabaseRetrySupport.INSTANCE.isBusy(wrapped));
+        assertFalse(DatabaseRetrySupport.INSTANCE.isBusy(new SQLException("other failure", "state", 1)));
 
-        Method sleepBeforeRetry = SqlConnectionRuntime.class.getDeclaredMethod("sleepBeforeRetry");
-        sleepBeforeRetry.setAccessible(true);
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Thread thread = new Thread(() -> {
             Thread.currentThread().interrupt();
             try {
-                sleepBeforeRetry.invoke(null);
+                DatabaseRetrySupport.INSTANCE.sleepBeforeRetry(1L);
             } catch (Throwable throwable) {
-                failure.set(throwable.getCause());
+                failure.set(throwable);
             }
         });
         thread.start();

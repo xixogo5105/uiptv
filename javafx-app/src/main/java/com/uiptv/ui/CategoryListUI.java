@@ -92,7 +92,7 @@ public class CategoryListUI extends HBox {
     }
 
     public void setItems(List<Category> list) {
-        List<Category> processedList = new CategoryResolver().resolveCategories(account, list);
+        List<Category> processedList = new CategoryResolver(() -> channelService).resolveCategories(account, list);
         long censoredCount = processedList.stream().filter(category -> category != null && category.getCensored() == 1).count();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
                 PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()

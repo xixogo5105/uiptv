@@ -57,9 +57,6 @@ object SqlConnectionRuntime {
     }
 
     @JvmStatic
-    fun getDatabasePath(): String = databasePath()
-
-    @JvmStatic
     fun databasePath(): String = DatabasePathState.currentPath()
 
     @JvmStatic
@@ -69,18 +66,6 @@ object SqlConnectionRuntime {
         } catch (e: SQLException) {
             throw DatabaseAccessException("Unable to open database connection", e)
         }
-
-    @Suppress("unused")
-    @JvmStatic
-    private fun isBusy(exception: SQLException): Boolean {
-        return DatabaseRetrySupport.isBusy(exception)
-    }
-
-    @Suppress("unused")
-    @JvmStatic
-    private fun sleepBeforeRetry() {
-        DatabaseRetrySupport.sleepBeforeRetry(INIT_RETRY_DELAY_MS)
-    }
 
     @JvmStatic
     fun database(): Database = exposedDatabase ?: synchronized(this) {

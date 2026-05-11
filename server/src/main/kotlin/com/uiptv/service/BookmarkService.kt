@@ -62,7 +62,7 @@ object BookmarkService {
     }
     fun readToJson(): String {
         val bookmarks = ArrayList(BookmarkDb.get().getBookmarks())
-        val resolved = BookmarkResolver().resolveBookmarks(bookmarks)
+        val resolved = BookmarkResolver(channelServiceProvider = { ChannelService.INSTANCE }).resolveBookmarks(bookmarks)
         return ServerUtils.objectToJson(resolved.map { it.bookmark })
     }
     fun readToJson(offset: Int, limit: Int): String {
@@ -72,7 +72,7 @@ object BookmarkService {
         val safeOffset = maxOf(0, offset)
         val safeLimit = maxOf(0, limit)
         val bookmarks = ArrayList(BookmarkDb.get().getBookmarksPage(safeOffset, safeLimit))
-        val resolved = BookmarkResolver().resolveBookmarks(bookmarks)
+        val resolved = BookmarkResolver(channelServiceProvider = { ChannelService.INSTANCE }).resolveBookmarks(bookmarks)
         return ServerUtils.objectToJson(resolved.map { it.bookmark })
     }
     fun getAllCategories(): List<BookmarkCategory> = BookmarkDb.get().getAllCategories()

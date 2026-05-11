@@ -149,7 +149,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     private void withDatabase(Path databasePath, ThrowingRunnable runnable) throws Exception {
-        String originalPath = com.uiptv.db.SqlConnectionRuntime.getDatabasePath();
+        String originalPath = com.uiptv.db.SqlConnectionRuntime.databasePath();
         com.uiptv.db.SqlConnectionRuntime.setDatabasePath(databasePath.toString());
         try {
             runnable.run();
