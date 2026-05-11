@@ -5,7 +5,6 @@ import com.uiptv.db.ChannelDb
 import com.uiptv.model.Account
 import com.uiptv.service.cache.AccountCacheReloaderFactory
 import com.uiptv.util.AccountType
-import com.uiptv.util.FetchAPI
 import java.util.Date
 import java.util.HashMap
 
@@ -16,25 +15,6 @@ class CacheServiceImpl(
     private val channelServiceProvider: () -> ChannelService,
     private val fetchProvider: (Map<String, String>, Account) -> String
 ) : CacheService {
-    constructor() : this(
-        handshakeServiceProvider = { HandshakeService.INSTANCE },
-        categoryServiceProvider = { CategoryService.INSTANCE },
-        configurationServiceProvider = { ConfigurationService },
-        channelServiceProvider = { ChannelService.INSTANCE },
-        fetchProvider = FetchAPI::fetch
-    )
-
-    constructor(
-        handshakeServiceProvider: () -> HandshakeService,
-        categoryServiceProvider: () -> CategoryService
-    ) : this(
-        handshakeServiceProvider = handshakeServiceProvider,
-        categoryServiceProvider = categoryServiceProvider,
-        configurationServiceProvider = { ConfigurationService },
-        channelServiceProvider = { ChannelService.INSTANCE },
-        fetchProvider = FetchAPI::fetch
-    )
-
     private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {
         AccountCacheReloaderFactory(
             categoryServiceProvider = categoryServiceProvider,
@@ -82,6 +62,24 @@ class CacheServiceImpl(
 
     companion object {
         @JvmField
-        val INSTANCE: CacheService = CacheServiceImpl()
+        val INSTANCE: CacheService = run {
+            val cacheRef = arrayOfNulls<CacheService>(1)
+            val channelRef = arrayOfNulls<ChannelService>(1)
+            cacheRef[0] = CacheServiceImpl(
+                handshakeServiceProvider = { HandshakeService.INSTANCE },
+                categoryServiceProvider = { CategoryService.INSTANCE },
+                configurationServiceProvider = { ConfigurationService },
+                channelServiceProvider = { channelRef[0]!! },
+                fetchProvider = com.uiptv.util.FetchAPI::fetch
+            )
+            channelRef[0] = ChannelService(
+                cacheServiceProvider = { cacheRef[0]!! },
+                contentFilterService = ContentFilterService,
+                logoResolverService = LogoResolverService,
+                configurationService = ConfigurationService,
+                handshakeService = HandshakeService.INSTANCE
+            )
+            cacheRef[0]!!
+        }
     }
 }

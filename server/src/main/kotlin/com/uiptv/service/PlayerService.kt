@@ -19,10 +19,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.SerialName
 
 class PlayerService(
-    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
-    private val xtremePlayerService: XtremePlayerService = XtremePlayerService.INSTANCE,
-    private val stalkerPortalPlayerService: StalkerPortalPlayerService = StalkerPortalPlayerService.INSTANCE,
-    private val predefinedPlayerService: PredefinedPlayerService = PredefinedPlayerService.INSTANCE
+    private val seriesWatchStateService: SeriesWatchStateService,
+    private val xtremePlayerService: XtremePlayerService,
+    private val stalkerPortalPlayerService: StalkerPortalPlayerService,
+    private val predefinedPlayerService: PredefinedPlayerService
 ) {
     private val log = LoggerFactory.getLogger(PlayerService::class.java)
     private val playbackResolvedListeners = CopyOnWriteArraySet<PlaybackResolvedListener>()

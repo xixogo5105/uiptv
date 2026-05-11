@@ -47,14 +47,6 @@ class ChannelService(
     private val configurationService: ConfigurationService,
     private val handshakeService: HandshakeService
 ) {
-    constructor() : this(
-        cacheServiceProvider = { CacheServiceImpl.INSTANCE },
-        contentFilterService = ContentFilterService,
-        logoResolverService = LogoResolverService,
-        configurationService = ConfigurationService,
-        handshakeService = HandshakeService.INSTANCE
-    )
-
     private fun cacheService(): CacheService = cacheServiceProvider.invoke()
 
     @Throws(IOException::class)

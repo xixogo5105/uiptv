@@ -27,6 +27,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CacheServiceImplTest extends DbBackedTest {
     private final TestServiceFactory services = TestServiceFactory.create();
 
+    private CategoryService categoryService(HandshakeService handshakeService) {
+        return new CategoryService(ContentFilterService.INSTANCE, ConfigurationService.INSTANCE, handshakeService);
+    }
+
+    private CacheService cacheService(
+            HandshakeService handshakeService,
+            CategoryService categoryService,
+            java.util.function.BiFunction<java.util.Map<String, String>, Account, String> fetchProvider
+    ) {
+        final CacheService[] cacheRef = new CacheService[1];
+        final ChannelService[] channelRef = new ChannelService[1];
+        cacheRef[0] = new CacheServiceImpl(
+                () -> handshakeService,
+                () -> categoryService,
+                () -> ConfigurationService.INSTANCE,
+                () -> channelRef[0],
+                (params, account) -> fetchProvider.apply(params, account)
+        );
+        channelRef[0] = new ChannelService(
+                () -> cacheRef[0],
+                ContentFilterService.INSTANCE,
+                LogoResolverService.INSTANCE,
+                ConfigurationService.INSTANCE,
+                handshakeService
+        );
+        return cacheRef[0];
+    }
+
     @Test
     void reloadCache_m3u8Local_ignoresFiltering_whenPauseFilteringFalse() throws IOException {
         saveConfiguration("live", "premium", false);
@@ -70,11 +98,9 @@ class CacheServiceImplTest extends DbBackedTest {
         AtomicInteger orderedListCalls = new AtomicInteger();
         HandshakeService handshakeService = successfulHandshake(null);
 
-        CacheService cacheService = new CacheServiceImpl(
-                () -> handshakeService,
-                CategoryService::new,
-                () -> ConfigurationService.INSTANCE,
-                ChannelService::new,
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService(handshakeService),
                 (params, ignoredAccount) -> mockStalkerApiResponse(params, false, orderedListCalls)
         );
 
@@ -140,11 +166,9 @@ class CacheServiceImplTest extends DbBackedTest {
         AtomicInteger orderedListCalls = new AtomicInteger();
         HandshakeService handshakeService = successfulHandshake(null);
 
-        CacheService cacheService = new CacheServiceImpl(
-                () -> handshakeService,
-                CategoryService::new,
-                () -> ConfigurationService.INSTANCE,
-                ChannelService::new,
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService(handshakeService),
                 (params, ignoredAccount) -> mockStalkerApiResponse(params, true, orderedListCalls)
         );
 
@@ -166,11 +190,9 @@ class CacheServiceImplTest extends DbBackedTest {
 
         assertTrue(account.getServerPortalUrl() == null || account.getServerPortalUrl().isBlank());
 
-        CacheService cacheService = new CacheServiceImpl(
-                () -> handshakeService,
-                CategoryService::new,
-                () -> ConfigurationService.INSTANCE,
-                ChannelService::new,
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService(handshakeService),
                 (params, ignoredAccount) -> mockStalkerApiResponse(params, false, orderedListCalls)
         );
 
@@ -198,11 +220,9 @@ class CacheServiceImplTest extends DbBackedTest {
         CategoryService categoryService = Mockito.mock(CategoryService.class);
         Mockito.when(categoryService.parseCategories(Mockito.anyString(), Mockito.eq(false)))
                 .thenReturn(List.of(new Category("10", "News", "news", false, 0)));
-        CacheService cacheService = new CacheServiceImpl(
-                () -> handshakeService,
-                () -> categoryService,
-                () -> ConfigurationService.INSTANCE,
-                ChannelService::new,
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService,
                 (params, ignoredAccount) -> "{\"js\":[]}"
         );
 
@@ -216,7 +236,11 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-verify-handshake-fail");
         String originalMac = account.getMacAddress();
         HandshakeService handshakeService = Mockito.mock(HandshakeService.class);
-        CacheService cacheService = new CacheServiceImpl(() -> handshakeService, CategoryService::new);
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService(handshakeService),
+                (params, ignoredAccount) -> "{\"js\":[]}"
+        );
         Mockito.doAnswer(invocation -> {
             Account a = invocation.getArgument(0);
             a.setToken(null);
@@ -235,11 +259,9 @@ class CacheServiceImplTest extends DbBackedTest {
         HandshakeService handshakeService = successfulHandshake(null);
         CategoryService categoryService = Mockito.mock(CategoryService.class);
         Mockito.when(categoryService.parseCategories(Mockito.anyString(), Mockito.eq(false))).thenReturn(List.of());
-        CacheService cacheService = new CacheServiceImpl(
-                () -> handshakeService,
-                () -> categoryService,
-                () -> ConfigurationService.INSTANCE,
-                ChannelService::new,
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService,
                 (params, ignoredAccount) -> "{\"js\":[]}"
         );
 
@@ -256,11 +278,9 @@ class CacheServiceImplTest extends DbBackedTest {
 
         HandshakeService handshakeService = successfulHandshake(null);
         CategoryService categoryService = Mockito.mock(CategoryService.class);
-        CacheService cacheService = new CacheServiceImpl(
-                () -> handshakeService,
-                () -> categoryService,
-                () -> ConfigurationService.INSTANCE,
-                ChannelService::new,
+        CacheService cacheService = cacheService(
+                handshakeService,
+                categoryService,
                 (params, ignoredAccount) -> {
                     actions.add(params.get("action"));
                     fetchCalls.incrementAndGet();

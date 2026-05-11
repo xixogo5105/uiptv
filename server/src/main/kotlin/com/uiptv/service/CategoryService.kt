@@ -31,9 +31,6 @@ class CategoryService(
     private val configurationService: ConfigurationService,
     private val handshakeService: HandshakeService
 ) {
-    constructor() : this(ContentFilterService, ConfigurationService, HandshakeService.INSTANCE)
-
-
     fun get(account: Account): List<Category> = get(account, true)
     fun getCached(account: Account?): List<Category> {
         if (account == null) {
