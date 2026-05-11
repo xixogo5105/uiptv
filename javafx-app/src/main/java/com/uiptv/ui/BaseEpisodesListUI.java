@@ -68,7 +68,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final EpisodeList channelList;
     protected final BookmarkService bookmarkService = BookmarkService.INSTANCE;
     protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
-    protected final BingeWatchService bingeWatchService = new BingeWatchService();
+    protected final BingeWatchService bingeWatchService = BingeWatchService.INSTANCE;
     protected final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
     protected final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     protected final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;

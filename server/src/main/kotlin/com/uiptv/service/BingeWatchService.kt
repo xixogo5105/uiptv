@@ -277,6 +277,8 @@ class BingeWatchService @JvmOverloads constructor(
     }
 
     companion object {
+        @JvmField
+        val INSTANCE: BingeWatchService = RuntimeServices.bingeWatchService
         private const val DEFAULT_SEASON = "1"
         private const val PLAYLIST_PATH = "/bingewatch.m3u8?token="
         private const val ENTRY_PATH = "/bingwatch?token="

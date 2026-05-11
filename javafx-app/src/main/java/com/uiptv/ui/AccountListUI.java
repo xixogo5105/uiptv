@@ -52,7 +52,7 @@ public class AccountListUI extends HBox {
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
     private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    private final CategoryService categoryService = new CategoryService();
+    private final CategoryService categoryService = CategoryService.INSTANCE;
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
     private final HBox navHeader = new HBox(6);

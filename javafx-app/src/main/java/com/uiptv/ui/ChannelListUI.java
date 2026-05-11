@@ -73,7 +73,7 @@ public class ChannelListUI extends HBox {
     private final PlayerService playerService = PlayerService.INSTANCE;
     private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
     private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
-    private final CategoryService categoryService = new CategoryService();
+    private final CategoryService categoryService = CategoryService.INSTANCE;
     private final ChannelService channelService = ChannelService.INSTANCE;
     private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;

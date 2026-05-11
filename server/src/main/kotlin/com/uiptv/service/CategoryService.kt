@@ -27,9 +27,9 @@ import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
 class CategoryService @JvmOverloads constructor(
-    private val contentFilterService: ContentFilterService = ContentFilterService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService()
+    private val contentFilterService: ContentFilterService = RuntimeServices.contentFilterService,
+    private val configurationService: ConfigurationService = RuntimeServices.configurationService,
+    private val handshakeService: HandshakeService = RuntimeServices.handshakeService
 ) {
 
     fun get(account: Account): List<Category> = get(account, true)
@@ -291,6 +291,7 @@ class CategoryService @JvmOverloads constructor(
     }
 
     companion object {
-        private val defaultInstance by lazy { CategoryService() }
+        @JvmField
+        val INSTANCE: CategoryService = RuntimeServices.categoryService
     }
 }

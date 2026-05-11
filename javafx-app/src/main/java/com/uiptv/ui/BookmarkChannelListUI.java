@@ -55,7 +55,7 @@ public class BookmarkChannelListUI extends HBox {
     private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
     private final AccountService accountService = AccountService.INSTANCE;
     private final ChannelService channelService = ChannelService.INSTANCE;
-    private final CategoryService categoryService = new CategoryService();
+    private final CategoryService categoryService = CategoryService.INSTANCE;
     private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
     private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;

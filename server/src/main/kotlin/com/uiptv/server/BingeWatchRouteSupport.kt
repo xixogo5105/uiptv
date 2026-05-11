@@ -1,6 +1,7 @@
 package com.uiptv.server
 
 import com.uiptv.service.BingeWatchService
+import com.uiptv.service.RuntimeServices
 import com.uiptv.util.AppLog
 
 data class BingeWatchPlaylistPayload(
@@ -18,7 +19,7 @@ object BingeWatchRouteSupport {
     private const val logPrefix = "BingeWatch: "
 
     @JvmOverloads
-    fun renderPlaylist(token: String?, service: BingeWatchService = BingeWatchService()): BingeWatchPlaylistPayload? {
+    fun renderPlaylist(token: String?, service: BingeWatchService = RuntimeServices.bingeWatchService): BingeWatchPlaylistPayload? {
         AppLog.addInfoLog(UIptvServer::class.java, "${logPrefix}HTTP playlist request token=${token ?: ""}")
         val playlist = service.renderPlaylist(token)
         if (token.isNullOrBlank() || playlist.isBlank()) {
@@ -34,7 +35,7 @@ object BingeWatchRouteSupport {
         method: String,
         token: String?,
         episodeId: String?,
-        service: BingeWatchService = BingeWatchService()
+        service: BingeWatchService = RuntimeServices.bingeWatchService
     ): BingeWatchEntryResult {
         AppLog.addInfoLog(UIptvServer::class.java, "${logPrefix}HTTP entry request method=${AppLog.sanitizeValue(method)}")
         if (!method.equals("GET", true) && !method.equals("HEAD", true)) {

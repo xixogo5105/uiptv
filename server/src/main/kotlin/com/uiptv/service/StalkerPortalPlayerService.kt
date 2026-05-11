@@ -17,8 +17,8 @@ import java.util.LinkedHashMap
 import java.util.function.Supplier
 import java.util.stream.Collectors
 class StalkerPortalPlayerService @JvmOverloads constructor(
-    private val accountService: AccountService = AccountService,
-    private val handshakeService: HandshakeService = HandshakeService()
+    private val accountService: AccountService = RuntimeServices.accountService,
+    private val handshakeService: HandshakeService = RuntimeServices.handshakeService
 ) : AccountPlayerService {
     companion object {
         private const val CREATE_LINK_TIMEOUT_SECONDS = 8

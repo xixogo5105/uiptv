@@ -148,7 +148,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
     protected final PlayerService playerService = PlayerService.INSTANCE;
-    protected final BingeWatchService bingeWatchService = new BingeWatchService();
+    protected final BingeWatchService bingeWatchService = BingeWatchService.INSTANCE;
     protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);

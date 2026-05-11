@@ -22,6 +22,9 @@ object RuntimeServices {
     @JvmField
     val bookmarkService: BookmarkService = BookmarkService
 
+    @JvmField
+    val databaseSyncService: DatabaseSyncService = DatabaseSyncService
+
     val handshakeService: HandshakeService by lazy(LazyThreadSafetyMode.NONE) {
         HandshakeService(accountService, accountInfoService)
     }
@@ -65,6 +68,18 @@ object RuntimeServices {
             xtremePlayerService = xtremePlayerService,
             stalkerPortalPlayerService = stalkerPortalPlayerService,
             predefinedPlayerService = predefinedPlayerService
+        )
+    }
+
+    val bingeWatchService: BingeWatchService by lazy(LazyThreadSafetyMode.NONE) {
+        BingeWatchService(accountService, seriesWatchStateService, playerService)
+    }
+
+    val playerRequestResolver: PlayerRequestResolver by lazy(LazyThreadSafetyMode.NONE) {
+        PlayerRequestResolver(
+            bookmarkService = bookmarkService,
+            accountService = accountService,
+            playerService = playerService
         )
     }
 }

@@ -153,7 +153,7 @@ public class ConfigurationUI extends VBox {
     private final FilterLockService filterLockService = FilterLockService.INSTANCE;
     private final AppDataRefreshService appDataRefreshService = AppDataRefreshService.INSTANCE;
     private final CacheService cacheService = CacheServiceImpl.INSTANCE;
-    private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
+    private final RemoteSyncClientService remoteSyncClientService = RemoteSyncClientService.INSTANCE;
     private String dbId;
     private String persistedFilterCategoriesValue = "";
     private String persistedFilterChannelsValue = "";

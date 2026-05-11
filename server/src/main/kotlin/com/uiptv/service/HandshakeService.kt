@@ -8,7 +8,6 @@ import com.uiptv.util.FetchAPI.nullSafeString
 import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import com.uiptv.util.koinOrNull
 import com.uiptv.util.json.optArray
 import com.uiptv.util.json.optObject
 import com.uiptv.util.json.optString
@@ -33,8 +32,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 class HandshakeService(
-    private val accountService: AccountService = AccountService,
-    private val accountInfoService: AccountInfoService = AccountInfoService
+    private val accountService: AccountService = RuntimeServices.accountService,
+    private val accountInfoService: AccountInfoService = RuntimeServices.accountInfoService
 ) {
     private val PASS_RANDOM = SecureRandom()
 
@@ -540,7 +539,8 @@ class HandshakeService(
     }
 
     companion object {
-        private val defaultInstance by lazy { HandshakeService() }
+        @JvmField
+        val INSTANCE: HandshakeService = RuntimeServices.handshakeService
         private const val PARAM_ACTION = "action"
         private const val PARAM_JS_HTTP_REQUEST = "JsHttpRequest"
         private const val PARAM_TOKEN = "token"
