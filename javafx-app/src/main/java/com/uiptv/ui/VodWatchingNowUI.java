@@ -42,9 +42,10 @@ public class VodWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, VodPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
-    private final AccountService accountService = AccountService.INSTANCE;
-    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.INSTANCE;
+    private final JavaFxServices services;
+    private final VodWatchStateService vodWatchStateService;
+    private final AccountService accountService;
+    private final ImdbMetadataService imdbMetadataService;
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
     private volatile boolean dirty = true;
     private final VodWatchStateChangeListener changeListener = this::onDataChanged;
@@ -54,6 +55,14 @@ public class VodWatchingNowUI extends VBox {
     private HBox selectedCard;
 
     public VodWatchingNowUI() {
+        this(JavaFxServices.defaults());
+    }
+
+    public VodWatchingNowUI(JavaFxServices services) {
+        this.services = services;
+        this.vodWatchStateService = services.vodWatchStateService();
+        this.accountService = services.accountService();
+        this.imdbMetadataService = services.imdbMetadataService();
         setPadding(new Insets(5));
         setSpacing(5);
         scrollPane.setFitToWidth(true);

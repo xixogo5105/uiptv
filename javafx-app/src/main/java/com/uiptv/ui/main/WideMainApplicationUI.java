@@ -4,6 +4,7 @@ import com.uiptv.ui.util.*;
 
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
+import com.uiptv.ui.JavaFxServices;
 import javafx.application.HostServices;
 import javafx.scene.Scene;
 import javafx.scene.control.TabPane;
@@ -17,12 +18,13 @@ public class WideMainApplicationUI extends BaseMainApplicationUI {
     public WideMainApplicationUI(
             Stage primaryStage,
             HostServices hostServices,
+            JavaFxServices services,
             ConfigurationService configurationService,
             Consumer<Scene> fontStyleConfigurer,
             int guidedMaxWidthPixels,
             int guidedMaxHeightPixels
     ) {
-        super(primaryStage, hostServices, configurationService, fontStyleConfigurer, guidedMaxWidthPixels, guidedMaxHeightPixels);
+        super(primaryStage, hostServices, services, configurationService, fontStyleConfigurer, guidedMaxWidthPixels, guidedMaxHeightPixels);
     }
 
     @Override

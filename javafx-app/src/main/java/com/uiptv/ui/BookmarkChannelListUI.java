@@ -52,11 +52,12 @@ public class BookmarkChannelListUI extends HBox {
         thread.setDaemon(true);
         return thread;
     });
-    private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
-    private final AccountService accountService = AccountService.INSTANCE;
-    private final ChannelService channelService = ChannelService.INSTANCE;
-    private final CategoryService categoryService = CategoryService.INSTANCE;
-    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private final JavaFxServices services;
+    private final BookmarkService bookmarkService;
+    private final AccountService accountService;
+    private final ChannelService channelService;
+    private final CategoryService categoryService;
+    private final ConfigurationService configurationService;
     private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean isPromptShowing = false;
@@ -83,6 +84,16 @@ public class BookmarkChannelListUI extends HBox {
     });
 
     public BookmarkChannelListUI() {
+        this(JavaFxServices.defaults());
+    }
+
+    public BookmarkChannelListUI(JavaFxServices services) {
+        this.services = services;
+        this.bookmarkService = services.bookmarkService();
+        this.accountService = services.accountService();
+        this.channelService = services.channelService();
+        this.categoryService = services.categoryService();
+        this.configurationService = services.configurationService();
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
             ImageCacheManager.clearCache(BOOKMARK_CACHE);
         }
@@ -612,7 +623,7 @@ public class BookmarkChannelListUI extends HBox {
 
     private void openCategoryManagementPopup() {
         Stage popupStage = new Stage();
-        CategoryManagementPopup popup = new CategoryManagementPopup(this);
+        CategoryManagementPopup popup = new CategoryManagementPopup(this, services);
         Scene scene = new Scene(popup, 300, 400);
         UiI18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());

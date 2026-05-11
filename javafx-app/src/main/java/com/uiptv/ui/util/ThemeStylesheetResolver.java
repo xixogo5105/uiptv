@@ -13,11 +13,19 @@ public final class ThemeStylesheetResolver {
     private static final double DEFAULT_FONT_SIZE_PX = 13.0;
     private static final String LIGHT_THEME_RESOURCE = "/application.css";
     private static final String DARK_THEME_RESOURCE = "/dark-application.css";
+    private static volatile ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.INSTANCE;
+
     private ThemeStylesheetResolver() {
     }
 
+    public static void configure(ThemeCssOverrideService themeCssOverrideService) {
+        if (themeCssOverrideService != null) {
+            ThemeStylesheetResolver.themeCssOverrideService = themeCssOverrideService;
+        }
+    }
+
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme) {
-        return resolveStylesheetUrl(resourceAnchor, darkTheme, ThemeCssOverrideService.INSTANCE);
+        return resolveStylesheetUrl(resourceAnchor, darkTheme, themeCssOverrideService);
     }
 
     static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, ThemeCssOverrideService themeCssOverrideService) {
@@ -32,7 +40,7 @@ public final class ThemeStylesheetResolver {
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, int zoomPercent) {
-        return resolveStylesheetUrl(resourceAnchor, darkTheme, zoomPercent, ThemeCssOverrideService.INSTANCE);
+        return resolveStylesheetUrl(resourceAnchor, darkTheme, zoomPercent, themeCssOverrideService);
     }
 
     static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, int zoomPercent, ThemeCssOverrideService themeCssOverrideService) {

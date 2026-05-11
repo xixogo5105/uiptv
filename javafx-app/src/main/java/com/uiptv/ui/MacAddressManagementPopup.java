@@ -38,7 +38,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class MacAddressManagementPopup extends VBox {
-    private final HandshakeService handshakeService = HandshakeService.INSTANCE;
+    private final HandshakeService handshakeService;
 
     private final Stage stage;
     private final ListView<MacItem> macListView = new ListView<>();
@@ -57,6 +57,11 @@ public class MacAddressManagementPopup extends VBox {
     private final BiConsumer<List<String>, String> onSave;
 
     public MacAddressManagementPopup(Stage owner, Account baseAccount, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
+        this(owner, baseAccount, initialMacs, currentDefaultMac, onSave, JavaFxServices.defaults());
+    }
+
+    public MacAddressManagementPopup(Stage owner, Account baseAccount, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave, JavaFxServices services) {
+        this.handshakeService = services.handshakeService();
         this.defaultMac = currentDefaultMac;
         this.baseAccount = baseAccount;
         this.onSave = onSave;

@@ -12,6 +12,7 @@ import org.json.JSONObject;
 import java.util.function.Consumer;
 
 public class EpisodesListUI extends HBox {
+    private final JavaFxServices services;
     private final Account account;
     private final String categoryTitle;
     private final String seriesId;
@@ -25,11 +26,20 @@ public class EpisodesListUI extends HBox {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId);
+        this(channelList, account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+    }
+
+    public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
+        this(account, categoryTitle, seriesId, seriesCategoryId, services);
         setItems(channelList);
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+    }
+
+    public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
+        this.services = services;
         this.account = account;
         this.categoryTitle = categoryTitle;
         this.seriesId = seriesId;
@@ -117,9 +127,9 @@ public class EpisodesListUI extends HBox {
 
     private BaseEpisodesListUI buildDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+            return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId, services);
         }
-        return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+        return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId, services);
     }
 
     private void withThumbnailDelegate(java.util.function.Consumer<ThumbnailEpisodesListUI> action) {

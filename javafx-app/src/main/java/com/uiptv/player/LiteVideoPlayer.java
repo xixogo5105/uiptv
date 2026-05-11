@@ -5,6 +5,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.LitePlayerFfmpegService;
+import com.uiptv.ui.JavaFxServices;
 import com.uiptv.util.I18n;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -33,7 +34,11 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
     private final PauseTransition compatibilityFallbackTimer = new PauseTransition(Duration.seconds(6));
 
     public LiteVideoPlayer() {
-        super(); // Calls buildUI -> getVideoView
+        this(JavaFxServices.defaults());
+    }
+
+    LiteVideoPlayer(JavaFxServices services) {
+        super(services); // Calls buildUI -> getVideoView
 
         setMute(isMuted);
         compatibilityFallbackTimer.setOnFinished(e -> triggerCompatibilityFallbackIfNeeded());

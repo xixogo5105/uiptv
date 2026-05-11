@@ -84,13 +84,21 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private String pendingTargetEpisodeName;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(channelList, account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+    }
+
+    public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
+        super(account, categoryTitle, seriesId, seriesCategoryId, services);
         finishInit();
         setItems(channelList);
     }
 
     public ThumbnailEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+    }
+
+    public ThumbnailEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
+        super(account, categoryTitle, seriesId, seriesCategoryId, services);
         finishInit();
     }
 

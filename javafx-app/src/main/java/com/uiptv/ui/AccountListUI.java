@@ -43,7 +43,8 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
-    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.INSTANCE;
+    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.defaults();
+    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = DEFAULT_SERVICES.configurationService();
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
@@ -51,8 +52,9 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
-    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    private final CategoryService categoryService = CategoryService.INSTANCE;
+    private final JavaFxServices services;
+    private final ConfigurationService configurationService;
+    private final CategoryService categoryService;
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
     private final HBox navHeader = new HBox(6);
@@ -63,7 +65,7 @@ public class AccountListUI extends HBox {
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
-    AccountService accountService = AccountService.INSTANCE;
+    AccountService accountService;
     @Setter
     private ManageAccountUI manageAccountUI;
     private Node currentContent;
@@ -76,11 +78,19 @@ public class AccountListUI extends HBox {
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
 
     public AccountListUI() { // Removed MediaPlayer argument
-        this(STATIC_CONFIGURATION_SERVICE.read().isEmbeddedPlayer());
+        this(STATIC_CONFIGURATION_SERVICE.read().isEmbeddedPlayer(), DEFAULT_SERVICES);
     }
 
     public AccountListUI(boolean embeddedMode) {
+        this(embeddedMode, DEFAULT_SERVICES);
+    }
+
+    public AccountListUI(boolean embeddedMode, JavaFxServices services) {
         this.embeddedMode = embeddedMode;
+        this.services = services;
+        this.configurationService = services.configurationService();
+        this.categoryService = services.categoryService();
+        this.accountService = services.accountService();
         initWidgets();
         // Don't load accounts on startup - load lazily when visible
         registerVisibilityListener();
@@ -528,7 +538,7 @@ public class AccountListUI extends HBox {
             showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
         }
-        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
+        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh, services);
     }
 
     private void runSingleSelectionAction(Runnable action) {
@@ -597,7 +607,7 @@ public class AccountListUI extends HBox {
         account.setAction(accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
+        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode, services);
         if (embeddedMode) {
             showDetailView(categoryListUI);
         } else {

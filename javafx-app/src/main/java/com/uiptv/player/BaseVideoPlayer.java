@@ -10,6 +10,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.ui.JavaFxServices;
 import com.uiptv.ui.util.StyleClassDecorator;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
@@ -147,9 +148,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isLiveLikeContent = true;
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
-    protected final PlayerService playerService = PlayerService.INSTANCE;
-    protected final BingeWatchService bingeWatchService = BingeWatchService.INSTANCE;
-    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
+    protected final JavaFxServices services;
+    protected final PlayerService playerService;
+    protected final BingeWatchService bingeWatchService;
+    protected final SeriesWatchStateService seriesWatchStateService;
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
     private double lastMouseEventScreenX = Double.NaN;
@@ -181,6 +183,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public static final String CHROME_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";
 
     protected BaseVideoPlayer() {
+        this(JavaFxServices.defaults());
+    }
+
+    protected BaseVideoPlayer(JavaFxServices services) {
+        this.services = services;
+        this.playerService = services.playerService();
+        this.bingeWatchService = services.bingeWatchService();
+        this.seriesWatchStateService = services.seriesWatchStateService();
         loadIcons();
         buildUI();
         setupEventHandlers();
@@ -1945,7 +1955,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected ConfigurationService configurationService() {
-        return ConfigurationService.INSTANCE;
+        return services.configurationService();
     }
 
     private static void markHiddenBarMessageShown() {

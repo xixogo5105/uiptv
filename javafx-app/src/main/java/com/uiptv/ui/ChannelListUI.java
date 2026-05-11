@@ -69,15 +69,16 @@ public class ChannelListUI extends HBox {
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
-    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
-    private final PlayerService playerService = PlayerService.INSTANCE;
-    private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
-    private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
-    private final CategoryService categoryService = CategoryService.INSTANCE;
-    private final ChannelService channelService = ChannelService.INSTANCE;
-    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;
-    private final FilterLockService filterLockService = FilterLockService.INSTANCE;
+    private final JavaFxServices services;
+    private final SeriesWatchStateService seriesWatchStateService;
+    private final PlayerService playerService;
+    private final BookmarkService bookmarkService;
+    private final VodWatchStateService vodWatchStateService;
+    private final CategoryService categoryService;
+    private final ChannelService channelService;
+    private final ConfigurationService configurationService;
+    private final SeriesEpisodeService seriesEpisodeService;
+    private final FilterLockService filterLockService;
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_CHANNEL_ID = " channelId=";
     private static final String LOG_NAME = " name=";
@@ -111,11 +112,29 @@ public class ChannelListUI extends HBox {
     private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
-        this(account, categoryTitle, categoryId);
+        this(channelList, account, categoryTitle, categoryId, JavaFxServices.defaults());
+    }
+
+    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId, JavaFxServices services) {
+        this(account, categoryTitle, categoryId, services);
         addItems(channelList);
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId) {
+        this(account, categoryTitle, categoryId, JavaFxServices.defaults());
+    }
+
+    public ChannelListUI(Account account, String categoryTitle, String categoryId, JavaFxServices services) {
+        this.services = services;
+        this.seriesWatchStateService = services.seriesWatchStateService();
+        this.playerService = services.playerService();
+        this.bookmarkService = services.bookmarkService();
+        this.vodWatchStateService = services.vodWatchStateService();
+        this.categoryService = services.categoryService();
+        this.channelService = services.channelService();
+        this.configurationService = services.configurationService();
+        this.seriesEpisodeService = services.seriesEpisodeService();
+        this.filterLockService = services.filterLockService();
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
         this.account = account;
@@ -1025,7 +1044,7 @@ public class ChannelListUI extends HBox {
     }
 
     private EpisodesListUI buildEpisodesListUi(ChannelItem item) {
-        return new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+        return new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId, services);
     }
 
     private boolean awaitEpisodesUiReady(ChannelItem item, EpisodesListUI ui, AtomicBoolean isCancelled) throws InterruptedException {
@@ -1122,7 +1141,7 @@ public class ChannelListUI extends HBox {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId, services);
             HBox.setHgrow(ui, Priority.ALWAYS);
             if (embeddedMode || inlineEpisodeNavigationEnabled) {
                 showDetailView(ui, item.getChannelName());

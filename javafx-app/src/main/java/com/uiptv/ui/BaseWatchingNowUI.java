@@ -59,12 +59,13 @@ public abstract class BaseWatchingNowUI extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
-    private final AccountService accountService = AccountService.INSTANCE;
-    private final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;
-    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
-    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
-    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    private final ImdbMetadataService imdbMetadataService = ImdbMetadataService.INSTANCE;
+    private final JavaFxServices services;
+    private final AccountService accountService;
+    private final SeriesEpisodeService seriesEpisodeService;
+    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService;
+    private final SeriesWatchStateService seriesWatchStateService;
+    private final ConfigurationService configurationService;
+    private final ImdbMetadataService imdbMetadataService;
     private final WatchingNowSeriesResolver seriesResolver = new WatchingNowSeriesResolver();
     private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
@@ -84,6 +85,17 @@ public abstract class BaseWatchingNowUI extends VBox {
     private boolean accountListenerRegistered = false;
 
     protected BaseWatchingNowUI() {
+        this(JavaFxServices.defaults());
+    }
+
+    protected BaseWatchingNowUI(JavaFxServices services) {
+        this.services = services;
+        this.accountService = services.accountService();
+        this.seriesEpisodeService = services.seriesEpisodeService();
+        this.seriesWatchingNowSnapshotService = services.seriesWatchingNowSnapshotService();
+        this.seriesWatchStateService = services.seriesWatchStateService();
+        this.configurationService = services.configurationService();
+        this.imdbMetadataService = services.imdbMetadataService();
         setPadding(new Insets(5));
         setSpacing(5);
         scrollPane.setFitToWidth(true);
@@ -529,7 +541,8 @@ public abstract class BaseWatchingNowUI extends VBox {
                 data.account,
                 firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
                 data.state.getSeriesId(),
-                data.state.getCategoryId()
+                data.state.getCategoryId(),
+                services
         );
         if (thumbnailsEnabled) {
             episodesListUI.applyWatchingNowDetailStyling();

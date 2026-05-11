@@ -69,10 +69,11 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
-    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = ConfigurationService.INSTANCE;
-    private static final SeriesWatchStateService STATIC_SERIES_WATCH_STATE_SERVICE = SeriesWatchStateService.INSTANCE;
-    private static final SeriesWatchingNowSnapshotService STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE = SeriesWatchingNowSnapshotService.INSTANCE;
-    private static final VodWatchStateService STATIC_VOD_WATCH_STATE_SERVICE = VodWatchStateService.INSTANCE;
+    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.defaults();
+    private static final ConfigurationService STATIC_CONFIGURATION_SERVICE = DEFAULT_SERVICES.configurationService();
+    private static final SeriesWatchStateService STATIC_SERIES_WATCH_STATE_SERVICE = DEFAULT_SERVICES.seriesWatchStateService();
+    private static final SeriesWatchingNowSnapshotService STATIC_SERIES_WATCHING_NOW_SNAPSHOT_SERVICE = DEFAULT_SERVICES.seriesWatchingNowSnapshotService();
+    private static final VodWatchStateService STATIC_VOD_WATCH_STATE_SERVICE = DEFAULT_SERVICES.vodWatchStateService();
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
@@ -145,15 +146,16 @@ public class ConfigurationUI extends VBox {
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
-    private final ConfigurationService service = ConfigurationService.INSTANCE;
-    private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.INSTANCE;
-    private final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
-    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
-    private final VodWatchStateService vodWatchStateService = VodWatchStateService.INSTANCE;
-    private final FilterLockService filterLockService = FilterLockService.INSTANCE;
-    private final AppDataRefreshService appDataRefreshService = AppDataRefreshService.INSTANCE;
-    private final CacheService cacheService = CacheServiceImpl.INSTANCE;
-    private final RemoteSyncClientService remoteSyncClientService = RemoteSyncClientService.INSTANCE;
+    private final JavaFxServices services;
+    private final ConfigurationService service;
+    private final ThemeCssOverrideService themeCssOverrideService;
+    private final SeriesWatchStateService seriesWatchStateService;
+    private final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService;
+    private final VodWatchStateService vodWatchStateService;
+    private final FilterLockService filterLockService;
+    private final AppDataRefreshService appDataRefreshService;
+    private final CacheService cacheService;
+    private final RemoteSyncClientService remoteSyncClientService;
     private String dbId;
     private String persistedFilterCategoriesValue = "";
     private String persistedFilterChannelsValue = "";
@@ -171,7 +173,21 @@ public class ConfigurationUI extends VBox {
     private final ConfigurationChangeListener configurationChangeListener = revision -> javafx.application.Platform.runLater(this::refreshConfigurationForm);
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {
+        this(onSaveCallback, JavaFxServices.defaults());
+    }
+
+    public ConfigurationUI(Callback<Object> onSaveCallback, JavaFxServices services) {
         this.onSaveCallback = onSaveCallback;
+        this.services = services;
+        this.service = services.configurationService();
+        this.themeCssOverrideService = services.themeCssOverrideService();
+        this.seriesWatchStateService = services.seriesWatchStateService();
+        this.seriesWatchingNowSnapshotService = services.seriesWatchingNowSnapshotService();
+        this.vodWatchStateService = services.vodWatchStateService();
+        this.filterLockService = services.filterLockService();
+        this.appDataRefreshService = services.appDataRefreshService();
+        this.cacheService = services.cacheService();
+        this.remoteSyncClientService = services.remoteSyncClientService();
         initWidgets();
     }
 
@@ -627,7 +643,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow(), null, this::notifyAccountsChanged));
+        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow(), null, this::notifyAccountsChanged, services));
     }
 
     private void notifyAccountsChanged() {
@@ -698,7 +714,7 @@ public class ConfigurationUI extends VBox {
                 return;
             }
             Stage popupStage = new Stage();
-            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
+            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage, services);
             Scene scene = new Scene(popup, 680, 560);
             UiI18n.applySceneOrientation(scene);
             scene.getStylesheets().add(RootApplication.getCurrentTheme());

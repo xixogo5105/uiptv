@@ -32,14 +32,19 @@ public final class PlaybackUIService {
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
-    private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    private static final PlayerService playerService = PlayerService.INSTANCE;
+    private static volatile JavaFxServices services = JavaFxServices.defaults();
 
     private PlaybackUIService() {
     }
 
+    public static void configure(JavaFxServices services) {
+        if (services != null) {
+            PlaybackUIService.services = services;
+        }
+    }
+
     public static List<PlayerOption> getConfiguredPlayerOptions() {
-        Configuration configuration = configurationService.read();
+        Configuration configuration = configurationService().read();
         String player1 = configuration == null ? "" : configuration.getPlayerPath1();
         String player2 = configuration == null ? "" : configuration.getPlayerPath2();
         String player3 = configuration == null ? "" : configuration.getPlayerPath3();
@@ -57,7 +62,7 @@ public final class PlaybackUIService {
             return;
         }
 
-        Configuration configuration = configurationService.read();
+        Configuration configuration = configurationService().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request);
 
         if (handleBrowserPlayback(context, request)) return;
@@ -97,7 +102,7 @@ public final class PlaybackUIService {
             response.setFromChannel(channel, account);
         }
         if (isEmbeddedPlayerPath(playerPath)) {
-            Configuration configuration = configurationService.read();
+            Configuration configuration = configurationService().read();
             playEmbedded(response, configuration != null && configuration.isEmbeddedPlayer());
             return;
         }
@@ -271,7 +276,11 @@ public final class PlaybackUIService {
     }
 
     private static PlayerService playerService() {
-        return playerService;
+        return services.playerService();
+    }
+
+    private static ConfigurationService configurationService() {
+        return services.configurationService();
     }
 
     private static String determineMode(Account account) {

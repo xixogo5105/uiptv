@@ -66,13 +66,14 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final String seriesId;
     protected final String seriesCategoryId;
     protected final EpisodeList channelList;
-    protected final BookmarkService bookmarkService = BookmarkService.INSTANCE;
-    protected final SeriesWatchStateService seriesWatchStateService = SeriesWatchStateService.INSTANCE;
-    protected final BingeWatchService bingeWatchService = BingeWatchService.INSTANCE;
-    protected final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService = SeriesWatchingNowSnapshotService.INSTANCE;
-    protected final ConfigurationService configurationService = ConfigurationService.INSTANCE;
-    protected final SeriesEpisodeService seriesEpisodeService = SeriesEpisodeService.INSTANCE;
-    protected final ImdbMetadataService imdbMetadataService = ImdbMetadataService.INSTANCE;
+    protected final JavaFxServices services;
+    protected final BookmarkService bookmarkService;
+    protected final SeriesWatchStateService seriesWatchStateService;
+    protected final BingeWatchService bingeWatchService;
+    protected final SeriesWatchingNowSnapshotService seriesWatchingNowSnapshotService;
+    protected final ConfigurationService configurationService;
+    protected final SeriesEpisodeService seriesEpisodeService;
+    protected final ImdbMetadataService imdbMetadataService;
 
     protected final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     protected final StackPane contentStack = new StackPane();
@@ -91,11 +92,23 @@ public abstract class BaseEpisodesListUI extends HBox {
     private final SeriesWatchStateChangeListener watchStateChangeListener;
 
     protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this(account, categoryTitle, seriesId, seriesCategoryId, JavaFxServices.defaults());
+    }
+
+    protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId, JavaFxServices services) {
         this.channelList = new EpisodeList();
         this.account = account;
         this.categoryTitle = categoryTitle;
         this.seriesId = isBlank(seriesId) ? "" : seriesId.trim();
         this.seriesCategoryId = isBlank(seriesCategoryId) ? "" : seriesCategoryId.trim();
+        this.services = services;
+        this.bookmarkService = services.bookmarkService();
+        this.seriesWatchStateService = services.seriesWatchStateService();
+        this.bingeWatchService = services.bingeWatchService();
+        this.seriesWatchingNowSnapshotService = services.seriesWatchingNowSnapshotService();
+        this.configurationService = services.configurationService();
+        this.seriesEpisodeService = services.seriesEpisodeService();
+        this.imdbMetadataService = services.imdbMetadataService();
         this.watchStateChangeListener = (accountId, changedSeriesId) -> {
             if (this.account != null
                     && this.account.getDbId() != null

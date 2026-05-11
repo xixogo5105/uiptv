@@ -5,6 +5,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.util.ResolutionDisplayUtil;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.JavaFxServices;
 
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -28,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
-    private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
 
     private final Object playerLock = new Object();
     private MediaPlayerFactory mediaPlayerFactory;
@@ -41,7 +41,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private final AtomicLong audioStateRequestVersion = new AtomicLong();
 
     public VlcVideoPlayer() {
-        super(); // Must be the first call
+        this(JavaFxServices.defaults());
+    }
+
+    VlcVideoPlayer(JavaFxServices services) {
+        super(services); // Must be the first call
 
         if (videoImageView == null) {
             videoImageView = new ImageView();
@@ -68,10 +72,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private List<String> createVlcArgs() {
-        return buildVlcArgs(configurationService.read());
+        return buildVlcArgs(configurationService().read(), configurationService());
     }
 
     static List<String> buildVlcArgs(Configuration configuration) {
+        return buildVlcArgs(configuration, JavaFxServices.defaults().configurationService());
+    }
+
+    static List<String> buildVlcArgs(Configuration configuration, ConfigurationService configurationService) {
         List<String> vlcArgs = new ArrayList<>();
         String networkCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcNetworkCachingMs());
         String liveCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcLiveCachingMs());
@@ -351,7 +359,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 if (player != null && !isDisposed.get()) {
                     // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
                     // Some CDNs ignore the global --http-user-agent for HLS modules.
-                    if (configurationService.isVlcHttpUserAgentEnabled()) {
+                    if (configurationService().isVlcHttpUserAgentEnabled()) {
                         player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
                     } else {
                         player.media().play(playUri);

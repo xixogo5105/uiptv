@@ -39,10 +39,12 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
-    private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.INSTANCE;
+    private static final JavaFxServices DEFAULT_SERVICES = JavaFxServices.defaults();
+    private static final DatabaseSyncService databaseSyncService = DEFAULT_SERVICES.databaseSyncService();
     private static Stage primaryStage;
     private static String currentTheme;
-    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private final JavaFxServices services = DEFAULT_SERVICES;
+    private final ConfigurationService configurationService = services.configurationService();
     private final RemoteSyncSessionService remoteSyncSessionService = new RemoteSyncSessionService();
 
     public static void main(String[] args) {
@@ -177,6 +179,7 @@ public class RootApplication extends Application {
     public final void start(Stage primaryStage) throws IOException {
         setPrimaryStage(primaryStage);
         UiServerUrlUtil.setHostServices(getHostServices());
+        configureUiServices(services);
         Configuration bootConfiguration = configurationService.read();
         I18n.initialize(bootConfiguration == null ? null : bootConfiguration.getLanguageLocale());
         FxRemoteSyncUiBridge remoteSyncUiBridge = new FxRemoteSyncUiBridge();
@@ -208,6 +211,14 @@ public class RootApplication extends Application {
         });
     }
 
+    private void configureUiServices(JavaFxServices services) {
+        MediaPlayerFactory.configure(services);
+        PlaybackUIService.configure(services);
+        ThumbnailAwareUI.configure(services.configurationService());
+        ThemeStylesheetResolver.configure(services.themeCssOverrideService());
+        FilterLockDialogs.configure(services);
+    }
+
     private void applyMaximizedBounds(Stage stage) {
         if (stage == null) {
             return;
@@ -225,6 +236,7 @@ public class RootApplication extends Application {
             return new WideMainApplicationUI(
                     primaryStage,
                     getHostServices(),
+                    services,
                     configurationService,
                     this::configureFontStyles,
                     GUIDED_MAX_WIDTH_PIXELS,
@@ -235,6 +247,7 @@ public class RootApplication extends Application {
         return new MainApplicationUI(
                 primaryStage,
                 getHostServices(),
+                services,
                 configurationService,
                 this::configureFontStyles,
                 GUIDED_MAX_WIDTH_PIXELS,

@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CategoryManagementPopup extends VBox {
-    private final BookmarkService bookmarkService = BookmarkService.INSTANCE;
+    private final BookmarkService bookmarkService;
     private ListView<BookmarkItem> categoryListView = new ListView<>();
     private TextField categoryNameField = new TextField();
     private Button addButton = new Button(I18n.tr("autoAdd"));
@@ -23,6 +23,11 @@ public class CategoryManagementPopup extends VBox {
     private BookmarkChannelListUI parent;
 
     public CategoryManagementPopup(BookmarkChannelListUI parent) {
+        this(parent, JavaFxServices.defaults());
+    }
+
+    public CategoryManagementPopup(BookmarkChannelListUI parent, JavaFxServices services) {
+        this.bookmarkService = services.bookmarkService();
         this.parent = parent;
         setPadding(new Insets(10));
         setSpacing(10);

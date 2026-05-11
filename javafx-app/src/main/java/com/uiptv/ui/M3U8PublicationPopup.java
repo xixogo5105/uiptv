@@ -31,15 +31,23 @@ import java.util.Set;
 public class M3U8PublicationPopup extends VBox {
     private static final String CUSTOMIZED_CHECKBOX_STYLE_CLASS = "published-m3u-customized-checkbox";
     private static final String SHOW_TRANSLATION_KEY = "commonShow";
-    private final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private final JavaFxServices services;
+    private final ConfigurationService configurationService;
     private final List<AccountNode> accountNodes = new ArrayList<>();
-    private final M3U8PublicationService service = new M3U8PublicationService();
+    private final M3U8PublicationService service;
     private final M3U8PublicationService.PublicationSelections savedSelections;
     private final Map<M3U8PublicationService.CategorySelectionKey, Boolean> currentCategorySelections;
     private final Map<M3U8PublicationService.ChannelSelectionKey, Boolean> currentChannelSelections;
     private final ComboBox<M3U8PublicationService.PublishedCategoryMode> categoryModeComboBox = new ComboBox<>();
 
     public M3U8PublicationPopup(Stage stage) {
+        this(stage, JavaFxServices.defaults());
+    }
+
+    public M3U8PublicationPopup(Stage stage, JavaFxServices services) {
+        this.services = services;
+        this.configurationService = services.configurationService();
+        this.service = services.m3u8PublicationService();
         this.savedSelections = service.getSelections();
         this.currentCategorySelections = new LinkedHashMap<>(savedSelections.categorySelections());
         this.currentChannelSelections = new LinkedHashMap<>(savedSelections.channelSelections());

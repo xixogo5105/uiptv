@@ -4,7 +4,11 @@ import com.uiptv.ui.util.*;
 
 public class ThumbnailWatchingNowUI extends BaseWatchingNowUI {
     public ThumbnailWatchingNowUI() {
-        super();
+        this(JavaFxServices.defaults());
+    }
+
+    public ThumbnailWatchingNowUI(JavaFxServices services) {
+        super(services);
     }
 
     @Override

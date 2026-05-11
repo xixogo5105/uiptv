@@ -85,8 +85,9 @@ public class ManageAccountUI extends VBox {
     private final DangerousButton deleteButton = new DangerousButton(I18n.tr("autoDeleteAccount"));
     private final Button clearButton = new Button(I18n.tr("autoClearData"));
     private final Button refreshChannelsButton = new Button(I18n.tr("autoReloadCache"));
-    private final CacheService cacheService = CacheServiceImpl.INSTANCE;
-    private final AccountInfoService accountInfoService = AccountInfoService.INSTANCE;
+    private final JavaFxServices services;
+    private final CacheService cacheService;
+    private final AccountInfoService accountInfoService;
     private final VBox formContainer = new VBox();
     private HBox macAddressContainer;
     private VBox actionSection;
@@ -114,7 +115,7 @@ public class ManageAccountUI extends VBox {
     private AccountInfoRow accountInfoTariffPlanRow;
     private AccountInfoRow accountInfoDefaultTimezoneRow;
     private BorderPane accountInfoPane;
-    private final AccountService service = AccountService.INSTANCE;
+    private final AccountService service;
     private String accountId;
     private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;
@@ -122,6 +123,14 @@ public class ManageAccountUI extends VBox {
     private String xtremeDefaultUsername;
 
     public ManageAccountUI() {
+        this(JavaFxServices.defaults());
+    }
+
+    public ManageAccountUI(JavaFxServices services) {
+        this.services = services;
+        this.cacheService = services.cacheService();
+        this.accountInfoService = services.accountInfoService();
+        this.service = services.accountService();
         initWidgets();
     }
 
@@ -394,7 +403,7 @@ public class ManageAccountUI extends VBox {
                 }
                 saveAccount(false);
             });
-        });
+        }, services);
         popup.show();
     }
 
@@ -581,7 +590,7 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert(I18n.tr("autoPleaseSaveTheAccountBeforeReloadingTheCache"));
                 return;
             }
-            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged);
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged, services);
         });
     }
 

@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.service.FilterLockService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.I18n;
 import javafx.geometry.Insets;
 import javafx.geometry.NodeOrientation;
@@ -16,10 +17,17 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public final class FilterLockDialogs {
-    private static final FilterLockService lockService = FilterLockService.INSTANCE;
-    private static final com.uiptv.service.ConfigurationService configurationService = com.uiptv.service.ConfigurationService.INSTANCE;
+    private static volatile FilterLockService lockService = FilterLockService.INSTANCE;
+    private static volatile ConfigurationService configurationService = ConfigurationService.INSTANCE;
 
     private FilterLockDialogs() {
+    }
+
+    public static void configure(JavaFxServices services) {
+        if (services != null) {
+            lockService = services.filterLockService();
+            configurationService = services.configurationService();
+        }
     }
 
     public static boolean ensureUnlocked(Node owner, String reasonKey) {

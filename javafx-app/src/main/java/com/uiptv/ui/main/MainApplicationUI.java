@@ -5,6 +5,7 @@ import com.uiptv.ui.util.*;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
+import com.uiptv.ui.JavaFxServices;
 import javafx.application.HostServices;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -24,13 +25,14 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     public MainApplicationUI(
             Stage primaryStage,
             HostServices hostServices,
+            JavaFxServices services,
             ConfigurationService configurationService,
             Consumer<Scene> fontStyleConfigurer,
             int guidedMaxWidthPixels,
             int guidedMaxHeightPixels,
             boolean embeddedEnabled
     ) {
-        super(primaryStage, hostServices, configurationService, fontStyleConfigurer, guidedMaxWidthPixels, guidedMaxHeightPixels);
+        super(primaryStage, hostServices, services, configurationService, fontStyleConfigurer, guidedMaxWidthPixels, guidedMaxHeightPixels);
         this.embeddedEnabled = embeddedEnabled;
     }
 

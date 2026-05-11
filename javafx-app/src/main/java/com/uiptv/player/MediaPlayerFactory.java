@@ -4,6 +4,7 @@ import com.uiptv.ui.util.*;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.JavaFxServices;
 import com.uiptv.ui.DummyVideoPlayer;
 import com.uiptv.util.AppLog;
 import javafx.scene.Node;
@@ -12,7 +13,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
-    private static final ConfigurationService configurationService = ConfigurationService.INSTANCE;
+    private static volatile JavaFxServices services = JavaFxServices.defaults();
     private static VideoPlayerInterface instance;
     private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();
@@ -27,6 +28,12 @@ public class MediaPlayerFactory {
     private MediaPlayerFactory() {
     }
 
+    public static synchronized void configure(JavaFxServices services) {
+        if (services != null) {
+            MediaPlayerFactory.services = services;
+        }
+    }
+
     public static synchronized VideoPlayerInterface getPlayer() {
         if (instance == null) {
             // Lazy initialization - player only created when first needed
@@ -36,15 +43,15 @@ public class MediaPlayerFactory {
     }
 
     private static void initializePlayer() {
-        Configuration config = configurationService.read();
+        Configuration config = configurationService().read();
         if (config != null && config.isEmbeddedPlayer()) {
             try {
-                instance = new VlcVideoPlayer();
+                instance = new VlcVideoPlayer(services);
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
             } catch (Exception e) {
                 AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos. Error: " + e.getMessage());
-                instance = new LiteVideoPlayer();
+                instance = new LiteVideoPlayer(services);
                 playerType = VideoPlayerInterface.PlayerType.LITE;
             }
             if (instance.getPlayerContainer() instanceof Region playerContainer) {
@@ -87,7 +94,7 @@ public class MediaPlayerFactory {
 
     public static synchronized Node getPlayerContainer() {
         if (!hostConfigured) {
-            Configuration config = configurationService.read();
+            Configuration config = configurationService().read();
             if (config != null && config.isEmbeddedPlayer()) {
                 definePlayerRegion(playerHostContainer);
             } else {
@@ -156,5 +163,9 @@ public class MediaPlayerFactory {
         syncHostToPlayerNode(null);
         playerType = null;
         hostConfigured = false;
+    }
+
+    private static ConfigurationService configurationService() {
+        return services.configurationService();
     }
 }
