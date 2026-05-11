@@ -1,113 +1,159 @@
 package com.uiptv.service.remotesync
 
 import com.uiptv.service.DatabaseSyncService
-import com.uiptv.util.json.KJsonArray
-import com.uiptv.util.json.KJsonObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 object RemoteSyncJson {
-    private const val DIRECTION = "direction"
-    private const val VERIFICATION_CODE = "verificationCode"
-    private const val REQUESTER_NAME = "requesterName"
-    private const val SYNC_CONFIGURATION = "syncConfiguration"
-    private const val SYNC_EXTERNAL_PLAYER_PATHS = "syncExternalPlayerPaths"
-    private const val MESSAGE = "message"
+    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     @JvmStatic
-    fun toJson(request: RemoteSyncRequest): KJsonObject =
-        KJsonObject()
-            .put(DIRECTION, request.direction.name)
-            .put(VERIFICATION_CODE, request.verificationCode)
-            .put(REQUESTER_NAME, request.requesterName)
-            .put(SYNC_CONFIGURATION, request.options.syncConfiguration)
-            .put(SYNC_EXTERNAL_PLAYER_PATHS, request.options.syncExternalPlayerPaths)
-
-    @JvmStatic
-    fun toRequest(json: KJsonObject): RemoteSyncRequest =
-        RemoteSyncRequest(
-            RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name)),
-            json.optString(VERIFICATION_CODE, ""),
-            json.optString(REQUESTER_NAME, ""),
-            RemoteSyncOptions(
-                json.optBoolean(SYNC_CONFIGURATION, false),
-                json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false)
+    fun toJson(request: RemoteSyncRequest): String =
+        json.encodeToString(
+            RequestPayload(
+                direction = request.direction.name,
+                verificationCode = request.verificationCode,
+                requesterName = request.requesterName,
+                syncConfiguration = request.options.syncConfiguration,
+                syncExternalPlayerPaths = request.options.syncExternalPlayerPaths
             )
         )
 
     @JvmStatic
-    fun toJson(state: RemoteSyncSessionState): KJsonObject =
-        KJsonObject()
-            .put("sessionId", state.sessionId)
-            .put(DIRECTION, state.direction.name)
-            .put("status", state.status.name)
-            .put(VERIFICATION_CODE, state.verificationCode)
-            .put(REQUESTER_NAME, state.requesterName)
-            .put("requesterAddress", state.requesterAddress)
-            .put(SYNC_CONFIGURATION, state.options.syncConfiguration)
-            .put(SYNC_EXTERNAL_PLAYER_PATHS, state.options.syncExternalPlayerPaths)
-            .put(MESSAGE, state.message)
+    fun toRequest(payload: String): RemoteSyncRequest {
+        val parsed = json.decodeFromString<RequestPayload>(payload)
+        return RemoteSyncRequest(
+            RemoteSyncDirection.valueOf(parsed.direction),
+            parsed.verificationCode,
+            parsed.requesterName,
+            RemoteSyncOptions(
+                parsed.syncConfiguration,
+                parsed.syncExternalPlayerPaths
+            )
+        )
+    }
 
     @JvmStatic
-    fun toSessionState(json: KJsonObject): RemoteSyncSessionState =
-        RemoteSyncSessionState(
-            json.optString("sessionId", ""),
-            RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name)),
-            RemoteSyncStatus.valueOf(json.optString("status", RemoteSyncStatus.FAILED.name)),
-            json.optString(VERIFICATION_CODE, ""),
-            json.optString(REQUESTER_NAME, ""),
-            json.optString("requesterAddress", ""),
+    fun toJson(state: RemoteSyncSessionState): String =
+        json.encodeToString(
+            SessionStatePayload(
+                sessionId = state.sessionId,
+                direction = state.direction.name,
+                status = state.status.name,
+                verificationCode = state.verificationCode,
+                requesterName = state.requesterName,
+                requesterAddress = state.requesterAddress,
+                syncConfiguration = state.options.syncConfiguration,
+                syncExternalPlayerPaths = state.options.syncExternalPlayerPaths,
+                message = state.message.orEmpty()
+            )
+        )
+
+    @JvmStatic
+    fun toSessionState(payload: String): RemoteSyncSessionState {
+        val parsed = json.decodeFromString<SessionStatePayload>(payload)
+        return RemoteSyncSessionState(
+            parsed.sessionId,
+            RemoteSyncDirection.valueOf(parsed.direction),
+            RemoteSyncStatus.valueOf(parsed.status),
+            parsed.verificationCode,
+            parsed.requesterName,
+            parsed.requesterAddress,
             RemoteSyncOptions(
-                json.optBoolean(SYNC_CONFIGURATION, false),
-                json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false)
+                parsed.syncConfiguration,
+                parsed.syncExternalPlayerPaths
             ),
-            json.optString(MESSAGE, "")
+            parsed.message
+        )
+    }
+
+    @JvmStatic
+    fun toJson(result: RemoteSyncExecutionResult): String =
+        json.encodeToString(
+            ExecutionResultPayload(
+                message = result.message.orEmpty(),
+                report = result.report?.let { report ->
+                    ReportPayload(
+                        configurationRequested = report.configurationRequested,
+                        configurationCopied = report.configurationCopied,
+                        externalPlayerPathsIncluded = report.externalPlayerPathsIncluded,
+                        tableResults = report.tableResults.map { TableResultPayload(it.tableName, it.rowCount) }
+                    )
+                }
+            )
         )
 
     @JvmStatic
-    fun toJson(result: RemoteSyncExecutionResult): KJsonObject {
-        val json = KJsonObject().put(MESSAGE, result.message)
-        val report = result.report ?: return json
-        val tables = KJsonArray()
-        for (table in report.tableResults) {
-            tables.put(
-                KJsonObject()
-                    .put("tableName", table.tableName)
-                    .put("rowCount", table.rowCount)
+    fun toExecutionResult(payload: String): RemoteSyncExecutionResult {
+        val parsed = json.decodeFromString<ExecutionResultPayload>(payload)
+        val report = parsed.report?.let { report ->
+            DatabaseSyncService.DatabaseSyncReport(
+                report.tableResults.map { DatabaseSyncService.TableSyncResult(it.tableName, it.rowCount) },
+                report.configurationRequested,
+                report.configurationCopied,
+                report.externalPlayerPathsIncluded
             )
         }
-        json.put(
-            "report",
-            KJsonObject()
-                .put("configurationRequested", report.configurationRequested)
-                .put("configurationCopied", report.configurationCopied)
-                .put("externalPlayerPathsIncluded", report.externalPlayerPathsIncluded)
-                .put("tableResults", tables)
-        )
-        return json
+        return RemoteSyncExecutionResult(report, parsed.message)
     }
 
     @JvmStatic
-    fun toExecutionResult(json: KJsonObject): RemoteSyncExecutionResult {
-        val reportJson = json.optJSONObject("report")
-        if (reportJson == null) {
-            return RemoteSyncExecutionResult(null, json.optString(MESSAGE, ""))
-        }
-        val tableResults = ArrayList<DatabaseSyncService.TableSyncResult>()
-        val tables = reportJson.optJSONArray("tableResults")
-        if (tables != null) {
-            for (i in 0 until tables.length()) {
-                val tableJson = tables.optJSONObject(i) ?: continue
-                tableResults += DatabaseSyncService.TableSyncResult(
-                    tableJson.optString("tableName", ""),
-                    tableJson.optInt("rowCount", 0)
-                )
-            }
-        }
-        val report = DatabaseSyncService.DatabaseSyncReport(
-            tableResults,
-            reportJson.optBoolean("configurationRequested", false),
-            reportJson.optBoolean("configurationCopied", false),
-            reportJson.optBoolean("externalPlayerPathsIncluded", false)
+    fun toJson(sessionId: String, success: Boolean, message: String?): String =
+        json.encodeToString(
+            CompleteSessionPayload(
+                sessionId = sessionId,
+                success = success,
+                message = message.orEmpty()
+            )
         )
-        return RemoteSyncExecutionResult(report, json.optString(MESSAGE, ""))
-    }
+
+    @Serializable
+    private data class RequestPayload(
+        val direction: String = RemoteSyncDirection.EXPORT_TO_REMOTE.name,
+        val verificationCode: String = "",
+        val requesterName: String = "",
+        val syncConfiguration: Boolean = false,
+        val syncExternalPlayerPaths: Boolean = false
+    )
+
+    @Serializable
+    private data class SessionStatePayload(
+        val sessionId: String = "",
+        val direction: String = RemoteSyncDirection.EXPORT_TO_REMOTE.name,
+        val status: String = RemoteSyncStatus.FAILED.name,
+        val verificationCode: String = "",
+        val requesterName: String = "",
+        val requesterAddress: String = "",
+        val syncConfiguration: Boolean = false,
+        val syncExternalPlayerPaths: Boolean = false,
+        val message: String = ""
+    )
+
+    @Serializable
+    private data class ExecutionResultPayload(
+        val message: String = "",
+        val report: ReportPayload? = null
+    )
+
+    @Serializable
+    private data class ReportPayload(
+        val configurationRequested: Boolean = false,
+        val configurationCopied: Boolean = false,
+        val externalPlayerPathsIncluded: Boolean = false,
+        val tableResults: List<TableResultPayload> = emptyList()
+    )
+
+    @Serializable
+    private data class TableResultPayload(
+        val tableName: String = "",
+        val rowCount: Int = 0
+    )
+
+    @Serializable
+    private data class CompleteSessionPayload(
+        val sessionId: String = "",
+        val success: Boolean = false,
+        val message: String = ""
+    )
 }

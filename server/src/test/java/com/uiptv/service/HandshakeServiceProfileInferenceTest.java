@@ -2,7 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.model.AccountInfo;
 import com.uiptv.model.AccountStatus;
-import com.uiptv.util.json.KJsonObject;
+import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.uiptv.util.json.JsonAccessKt.parseJsonObject;
 
 class HandshakeServiceProfileInferenceTest {
 
@@ -21,12 +22,10 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveAccountStatus_activeWhenStatusZeroAndNotBlocked() throws Exception {
-        KJsonObject json = new KJsonObject()
-                .put("status", 0)
-                .put("blocked", "0");
+        JsonObject json = parseJsonObject("{\"status\":0,\"blocked\":\"0\"}");
 
         AccountStatus status = invokePrivate("deriveAccountStatus",
-                new Class[]{KJsonObject.class},
+                new Class[]{JsonObject.class},
                 json);
 
         assertEquals(AccountStatus.ACTIVE, status);
@@ -34,12 +33,10 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveAccountStatus_suspendedWhenBlocked() throws Exception {
-        KJsonObject json = new KJsonObject()
-                .put("status", 0)
-                .put("blocked", "1");
+        JsonObject json = parseJsonObject("{\"status\":0,\"blocked\":\"1\"}");
 
         AccountStatus status = invokePrivate("deriveAccountStatus",
-                new Class[]{KJsonObject.class},
+                new Class[]{JsonObject.class},
                 json);
 
         assertEquals(AccountStatus.SUSPENDED, status);
@@ -47,12 +44,10 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveAccountStatus_activeWhenNotBlockedEvenIfStatusNonZero() throws Exception {
-        KJsonObject json = new KJsonObject()
-                .put("status", 2)
-                .put("blocked", "0");
+        JsonObject json = parseJsonObject("{\"status\":2,\"blocked\":\"0\"}");
 
         AccountStatus status = invokePrivate("deriveAccountStatus",
-                new Class[]{KJsonObject.class},
+                new Class[]{JsonObject.class},
                 json);
 
         assertEquals(AccountStatus.ACTIVE, status);
@@ -60,13 +55,12 @@ class HandshakeServiceProfileInferenceTest {
 
     @Test
     void deriveExpiryDate_prefersTariffExpiredDate() throws Exception {
-        KJsonObject json = new KJsonObject()
-                .put("tariff_expired_date", "2027-02-16 00:00:00")
-                .put("expire_billing_date", "0000-00-00 00:00:00")
-                .put("extend_at", "1773074900");
+        JsonObject json = parseJsonObject("""
+                {"tariff_expired_date":"2027-02-16 00:00:00","expire_billing_date":"0000-00-00 00:00:00","extend_at":"1773074900"}
+                """);
 
         String result = invokePrivate("deriveExpiryDate",
-                new Class[]{KJsonObject.class},
+                new Class[]{JsonObject.class},
                 json);
 
         assertEquals("2027-02-16 00:00:00", result);
@@ -75,13 +69,12 @@ class HandshakeServiceProfileInferenceTest {
     @Test
     void deriveExpiryDate_fallsBackToExtendAt() throws Exception {
         long epoch = 1_700_000_000L;
-        KJsonObject json = new KJsonObject()
-                .put("tariff_expired_date", KJsonObject.NULL)
-                .put("expire_billing_date", "0000-00-00 00:00:00")
-                .put("extend_at", String.valueOf(epoch));
+        JsonObject json = parseJsonObject("""
+                {"tariff_expired_date":null,"expire_billing_date":"0000-00-00 00:00:00","extend_at":"%s"}
+                """.formatted(epoch));
 
         String result = invokePrivate("deriveExpiryDate",
-                new Class[]{KJsonObject.class},
+                new Class[]{JsonObject.class},
                 json);
 
         String expected = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -93,22 +86,24 @@ class HandshakeServiceProfileInferenceTest {
     @Test
     void applyAllowedStbTypes_setsPreferredWhenMag250MissingAndClearsWhenPresent() throws Exception {
         AccountInfo info = new AccountInfo();
-        KJsonObject withoutMag = new KJsonObject()
-                .put("allowed_stb_types", new com.uiptv.util.json.KJsonArray().put("mag270").put("mag275"));
+        JsonObject withoutMag = parseJsonObject("""
+                {"allowed_stb_types":["mag270","mag275"]}
+                """);
 
         boolean updated = invokePrivate("applyAllowedStbTypes",
-                new Class[]{AccountInfo.class, KJsonObject.class},
+                new Class[]{AccountInfo.class, JsonObject.class},
                 info, withoutMag);
 
         assertTrue(updated);
         assertEquals("mag270", info.getPreferredStbType());
         assertNotNull(info.getAllowedStbTypesJson());
 
-        KJsonObject withMag = new KJsonObject()
-                .put("allowed_stb_types", new com.uiptv.util.json.KJsonArray().put("mag250").put("mag275"));
+        JsonObject withMag = parseJsonObject("""
+                {"allowed_stb_types":["mag250","mag275"]}
+                """);
 
         updated = invokePrivate("applyAllowedStbTypes",
-                new Class[]{AccountInfo.class, KJsonObject.class},
+                new Class[]{AccountInfo.class, JsonObject.class},
                 info, withMag);
 
         assertTrue(updated);
@@ -118,15 +113,12 @@ class HandshakeServiceProfileInferenceTest {
     @Test
     void applyPasswordHashes_hashesAndVerifies() throws Exception {
         AccountInfo info = new AccountInfo();
-        KJsonObject json = new KJsonObject()
-                .put("pass", "pass1")
-                .put("parent_password", "parent1")
-                .put("password", "login1")
-                .put("settings_password", "settings1")
-                .put("account_page_by_password", "page1");
+        JsonObject json = parseJsonObject("""
+                {"pass":"pass1","parent_password":"parent1","password":"login1","settings_password":"settings1","account_page_by_password":"page1"}
+                """);
 
         boolean updated = invokePrivate("applyPasswordHashes",
-                new Class[]{AccountInfo.class, KJsonObject.class},
+                new Class[]{AccountInfo.class, JsonObject.class},
                 info, json);
 
         assertTrue(updated);

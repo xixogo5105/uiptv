@@ -3,10 +3,10 @@ package com.uiptv.service
 import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.PlayerResponse
-import com.uiptv.util.json.KJsonObject
 import com.uiptv.util.AccountType.XTREME_API
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
+import com.uiptv.util.koinOrNull
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
@@ -15,6 +15,10 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArraySet
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.SerialName
 
 class PlayerService(
     private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService
@@ -24,6 +28,7 @@ class PlayerService(
     private val xtremePlayerService = XtremePlayerService()
     private val stalkerPortalPlayerService = StalkerPortalPlayerService()
     private val predefinedPlayerService = PredefinedPlayerService()
+    private val json = Json { explicitNulls = false }
 
     init {
         addPlaybackResolvedListener { account, channel, seriesId, parentSeriesId, categoryId ->
@@ -134,14 +139,16 @@ class PlayerService(
             !isBlank(channel.inputstreamaddon) ||
             !isBlank(channel.manifestType))
     fun buildDrmBrowserPlaybackUrl(account: Account?, channel: Channel?, categoryId: String?, mode: String?, seriesParentId: String?, seriesCategoryId: String?): String {
-        val payload = KJsonObject()
-            .put("mode", normalizeMode(mode, account))
-            .put("accountId", if (account == null) "" else safe(account.dbId))
-            .put("categoryId", safe(categoryId))
-            .put("seriesParentId", safe(seriesParentId))
-            .put("seriesCategoryId", safe(seriesCategoryId))
-            .put("channel", buildChannelPayload(channel))
-        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.toString().toByteArray(StandardCharsets.UTF_8))
+        val payload = DrmBrowserLaunchPayload(
+            mode = normalizeMode(mode, account),
+            accountId = if (account == null) "" else safe(account.dbId),
+            categoryId = safe(categoryId),
+            seriesParentId = safe(seriesParentId),
+            seriesCategoryId = safe(seriesCategoryId),
+            channel = buildChannelPayload(channel)
+        )
+        val encoded = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(json.encodeToString(payload).toByteArray(StandardCharsets.UTF_8))
         return localServerOrigin() + "/player.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260301f"
     }
     fun buildDrmBrowserPlaybackUrl(account: Account?, channel: Channel?, categoryId: String?, mode: String?): String =
@@ -149,23 +156,24 @@ class PlayerService(
 
     private fun localServerOrigin(): String = ServerUrlUtil.getLocalServerUrl()
 
-    private fun buildChannelPayload(channel: Channel?): KJsonObject =
-        KJsonObject()
-            .put("dbId", safeChannelValue(channel) { it.dbId })
-            .put("channelId", safeChannelValue(channel) { it.channelId })
-            .put("name", safeChannelValue(channel) { it.name })
-            .put("logo", safeChannelValue(channel) { it.logo })
-            .put("cmd", safeChannelValue(channel) { it.cmd })
-            .put("cmd_1", safeChannelValue(channel) { it.cmd_1 })
-            .put("cmd_2", safeChannelValue(channel) { it.cmd_2 })
-            .put("cmd_3", safeChannelValue(channel) { it.cmd_3 })
-            .put("drmType", safeChannelValue(channel) { it.drmType })
-            .put("drmLicenseUrl", safeChannelValue(channel) { it.drmLicenseUrl })
-            .put("clearKeysJson", safeChannelValue(channel) { it.clearKeysJson })
-            .put("inputstreamaddon", safeChannelValue(channel) { it.inputstreamaddon })
-            .put("manifestType", safeChannelValue(channel) { it.manifestType })
-            .put("season", safeChannelValue(channel) { it.season })
-            .put("episodeNum", safeChannelValue(channel) { it.episodeNum })
+    private fun buildChannelPayload(channel: Channel?): DrmBrowserLaunchChannelPayload =
+        DrmBrowserLaunchChannelPayload(
+            dbId = safeChannelValue(channel) { it.dbId },
+            channelId = safeChannelValue(channel) { it.channelId },
+            name = safeChannelValue(channel) { it.name },
+            logo = safeChannelValue(channel) { it.logo },
+            cmd = safeChannelValue(channel) { it.cmd },
+            cmd1 = safeChannelValue(channel) { it.cmd_1 },
+            cmd2 = safeChannelValue(channel) { it.cmd_2 },
+            cmd3 = safeChannelValue(channel) { it.cmd_3 },
+            drmType = safeChannelValue(channel) { it.drmType },
+            drmLicenseUrl = safeChannelValue(channel) { it.drmLicenseUrl },
+            clearKeysJson = safeChannelValue(channel) { it.clearKeysJson },
+            inputstreamaddon = safeChannelValue(channel) { it.inputstreamaddon },
+            manifestType = safeChannelValue(channel) { it.manifestType },
+            season = safeChannelValue(channel) { it.season },
+            episodeNum = safeChannelValue(channel) { it.episodeNum }
+        )
 
     private fun safeChannelValue(channel: Channel?, getter: (Channel) -> String?): String = if (channel == null) "" else safe(getter(channel))
 
@@ -212,6 +220,38 @@ class PlayerService(
 
         @JvmStatic
         fun getInstance(): PlayerService =
-            runCatching { GlobalContext.get().get<PlayerService>() }.getOrDefault(defaultInstance)
+            koinOrNull<PlayerService>() ?: defaultInstance
     }
+
+    @Serializable
+    private data class DrmBrowserLaunchPayload(
+        val mode: String,
+        val accountId: String,
+        val categoryId: String,
+        val seriesParentId: String,
+        val seriesCategoryId: String,
+        val channel: DrmBrowserLaunchChannelPayload
+    )
+
+    @Serializable
+    private data class DrmBrowserLaunchChannelPayload(
+        val dbId: String,
+        val channelId: String,
+        val name: String,
+        val logo: String,
+        val cmd: String,
+        @SerialName("cmd_1")
+        val cmd1: String,
+        @SerialName("cmd_2")
+        val cmd2: String,
+        @SerialName("cmd_3")
+        val cmd3: String,
+        val drmType: String,
+        val drmLicenseUrl: String,
+        val clearKeysJson: String,
+        val inputstreamaddon: String,
+        val manifestType: String,
+        val season: String,
+        val episodeNum: String
+    )
 }

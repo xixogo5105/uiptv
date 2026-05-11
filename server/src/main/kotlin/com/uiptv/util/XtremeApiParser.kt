@@ -6,8 +6,11 @@ import com.uiptv.model.Channel
 import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeList
 import com.uiptv.shared.SeasonInfo
-import com.uiptv.util.json.KJsonObject
-import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonArray
+import com.uiptv.util.json.parseJsonObject
+import com.uiptv.util.json.toPlainMap
 import java.io.IOException
 import java.io.UncheckedIOException
 import java.util.LinkedHashSet
@@ -56,13 +59,13 @@ object XtremeApiParser {
     private fun doParseCategories(json: String): List<Category> {
         val categoryList = ArrayList<Category>()
         try {
-            val list = KJsonArray(json)
-            for (i in 0 until list.length()) {
-                val jsonCategory = list.getJSONObject(i)
+            val list = parseJsonArray(json) ?: return categoryList
+            for (i in list.indices) {
+                val jsonCategory = list.optObject(i) ?: continue
                 val category = Category(
-                    jsonCategory.getString(PARAM_CATEGORY_ID),
-                    jsonCategory.getString("category_name"),
-                    jsonCategory.getString("category_name"),
+                    jsonCategory.optString(PARAM_CATEGORY_ID),
+                    jsonCategory.optString("category_name"),
+                    jsonCategory.optString("category_name"),
                     true,
                     0
                 )
@@ -78,9 +81,9 @@ object XtremeApiParser {
     private fun doParseChannels(json: String, account: Account): List<Channel> {
         val categoryList = ArrayList<Channel>()
         try {
-            val list = KJsonArray(json)
-            for (i in 0 until list.length()) {
-                val jsonCategory = list.getJSONObject(i)
+            val list = parseJsonArray(json) ?: return categoryList
+            for (i in list.indices) {
+                val jsonCategory = list.optObject(i) ?: continue
                 val channel = Channel(
                     StringUtils.safeGetString(jsonCategory, if (account.action == Account.AccountAction.series) "series_id" else "stream_id"),
                     StringUtils.safeGetString(jsonCategory, "name"),
@@ -112,9 +115,10 @@ object XtremeApiParser {
     private fun doParseEpisodes(json: String, account: Account): EpisodeList {
         val episodeList = EpisodeList()
         try {
-            val data = KJsonObject(json)
-            episodeList.seasonInfo = SeasonInfo(data.getJSONObject("info"))
-            for (entry in data.getJSONObject("episodes").toMap().entries) {
+            val data = parseJsonObject(json) ?: return episodeList
+            data.optObject("info")?.let { episodeList.seasonInfo = SeasonInfo(it) }
+            val episodes = data.optObject("episodes") ?: return episodeList
+            for (entry in episodes.toPlainMap().entries) {
                 val seasonEpisodes = entry.value as? List<*> ?: continue
                 if (seasonEpisodes.isNotEmpty()) {
                     seasonEpisodes.forEach { episode -> episodeList.episodes.add(Episode(account, episode as? Map<*, *>)) }

@@ -1,7 +1,9 @@
 package com.uiptv.util
 
 import com.uiptv.model.Account
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonObject
 import java.net.ConnectException
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
@@ -191,12 +193,12 @@ object PingStalkerPortal {
     private fun hasHandshakeToken(body: String?): Boolean {
         if (StringUtils.isBlank(body)) return false
         return try {
-            val root = KJsonObject(body.orEmpty())
-            val js = root.optJSONObject("js")
+            val root = parseJsonObject(body)
+            val js = root?.optObject("js")
             if (js != null && StringUtils.isNotBlank(js.optString("token"))) {
                 true
             } else {
-                StringUtils.isNotBlank(root.optString("token"))
+                StringUtils.isNotBlank(root?.optString("token"))
             }
         } catch (_: Exception) {
             false

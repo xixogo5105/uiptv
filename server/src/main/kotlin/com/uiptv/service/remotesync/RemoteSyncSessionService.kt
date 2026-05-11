@@ -1,9 +1,9 @@
 package com.uiptv.service.remotesync
 
-import com.uiptv.db.SQLConnection
 import com.uiptv.db.SqlConnectionRuntime
 import com.uiptv.service.AppDataRefreshService
 import com.uiptv.service.DatabaseSyncService
+import com.uiptv.util.koinOrNull
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
@@ -28,11 +28,28 @@ class RemoteSyncSessionService internal constructor(
     private val approvalPrompt = AtomicReference(approvalPrompt)
     private val notifier = AtomicReference(notifier)
 
+    init {
+        instanceRef.compareAndSet(null, this)
+    }
+
     companion object {
         private val APPROVAL_TTL: Duration = Duration.ofMinutes(2)
         private val TRANSFER_TTL: Duration = Duration.ofMinutes(10)
         private const val REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed."
         private val instanceRef = AtomicReference<RemoteSyncSessionService?>()
+
+        @JvmStatic
+        @JvmOverloads
+        internal fun runtimeInstance(
+            snapshotService: DatabaseSnapshotService = DatabaseSnapshotService(),
+            databaseSyncService: DatabaseSyncService = DatabaseSyncService,
+            clock: Clock = Clock.systemDefaultZone(),
+            approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
+            notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()
+        ): RemoteSyncSessionService =
+            instanceRef.updateAndGet { current ->
+                current ?: RemoteSyncSessionService(snapshotService, databaseSyncService, clock, approvalPrompt, notifier)
+            }!!
 
         @JvmStatic
         @JvmOverloads
@@ -43,9 +60,8 @@ class RemoteSyncSessionService internal constructor(
             approvalPrompt: RemoteSyncApprovalPrompt = DefaultRemoteSyncUiBridge(),
             notifier: RemoteSyncNotifier = DefaultRemoteSyncUiBridge()
         ): RemoteSyncSessionService =
-            instanceRef.updateAndGet { current ->
-                current ?: RemoteSyncSessionService(snapshotService, databaseSyncService, clock, approvalPrompt, notifier)
-            }!!
+            koinOrNull<RemoteSyncSessionService>()
+                ?: runtimeInstance(snapshotService, databaseSyncService, clock, approvalPrompt, notifier)
     }
 
     fun createSession(request: RemoteSyncRequest, requesterAddress: String?): RemoteSyncSessionState {

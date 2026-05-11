@@ -23,8 +23,10 @@ import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 import com.uiptv.util.XtremeApiParser
-import com.uiptv.util.json.KJsonObject
-import org.koin.core.context.GlobalContext
+import com.uiptv.util.json.asJsonString
+import com.uiptv.util.json.optArray
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.parseJsonObject
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.net.URI
@@ -752,9 +754,9 @@ class ChannelService @JvmOverloads constructor(
 
     fun parsePagination(json: String, logger: LoggerCallback?): Pagination? {
         return try {
-            val js = KJsonObject(json)
-            var pagination = js.optJSONObject("pagination")
-            if (pagination == null) pagination = js.optJSONObject("js")
+            val js = parseJsonObject(json) ?: return null
+            var pagination = js.optObject("pagination")
+            if (pagination == null) pagination = js.optObject("js")
             if (pagination != null) {
                 logger?.log("total_items " + nullSafeInteger(pagination, "total_items"))
                 logger?.log("max_page_items " + nullSafeInteger(pagination, "max_page_items"))
@@ -770,21 +772,21 @@ class ChannelService @JvmOverloads constructor(
 
     fun parseItvChannels(json: String, censor: Boolean): List<Channel> {
         return try {
-            val root = KJsonObject(json)
-            val js = root.optJSONObject("js") ?: root
-            val list = js.getJSONArray("data")
+            val root = parseJsonObject(json) ?: return emptyList()
+            val js = root.optObject("js") ?: root
+            val list = js.optArray("data") ?: return emptyList()
             val channelList = ArrayList<Channel>()
-            for (i in 0 until list.length()) {
-                val jsonChannel = list.getJSONObject(i)
+            for (i in list.indices) {
+                val jsonChannel = list.optObject(i) ?: continue
                 val channel = Channel(
-                    jsonChannel.get("id").toString(),
-                    jsonChannel.getString("name"),
-                    jsonChannel.getString("number"),
-                    jsonChannel.getString("cmd"),
-                    jsonChannel.getString("cmd_1"),
-                    jsonChannel.getString("cmd_2"),
-                    jsonChannel.getString("cmd_3"),
-                    normalizeLogoUrl(null, jsonChannel.getString("logo")),
+                    jsonChannel["id"]?.toString()?.trim('"'),
+                    nullSafeString(jsonChannel, "name"),
+                    nullSafeString(jsonChannel, "number"),
+                    nullSafeString(jsonChannel, "cmd"),
+                    nullSafeString(jsonChannel, "cmd_1"),
+                    nullSafeString(jsonChannel, "cmd_2"),
+                    nullSafeString(jsonChannel, "cmd_3"),
+                    normalizeLogoUrl(null, nullSafeString(jsonChannel, "logo")),
                     nullSafeInteger(jsonChannel, FIELD_CENSORED),
                     nullSafeInteger(jsonChannel, FIELD_STATUS),
                     nullSafeInteger(jsonChannel, "hd"),
@@ -795,7 +797,7 @@ class ChannelService @JvmOverloads constructor(
                     null
                 )
                 channel.categoryId = nullSafeString(jsonChannel, "tv_genre_id")
-                channel.extraJson = jsonChannel.toString()
+                channel.extraJson = jsonChannel.asJsonString()
                 resolveLogoIfNeeded(channel)
                 channelList.add(channel)
             }
@@ -808,12 +810,12 @@ class ChannelService @JvmOverloads constructor(
 
     fun parseVodChannels(account: Account, json: String, censor: Boolean): List<Channel> {
         return try {
-            val root = KJsonObject(json)
-            val js = root.optJSONObject("js") ?: root
-            val list = js.getJSONArray("data")
+            val root = parseJsonObject(json) ?: return emptyList()
+            val js = root.optObject("js") ?: root
+            val list = js.optArray("data") ?: return emptyList()
             val channelList = ArrayList<Channel>()
-            for (i in 0 until list.length()) {
-                val jsonChannel = list.getJSONObject(i)
+            for (i in list.indices) {
+                val jsonChannel = list.optObject(i) ?: continue
                 var name = nullSafeString(jsonChannel, "name")
                 if (isBlank(name)) name = nullSafeString(jsonChannel, "o_name")
                 val number = nullSafeString(jsonChannel, "id")
@@ -821,11 +823,11 @@ class ChannelService @JvmOverloads constructor(
                 val categoryId = nullSafeString(jsonChannel, "tv_genre_id")
                 val preferredLogo = preferredVodLogo(jsonChannel)
                 if (account.action == Account.AccountAction.series && isNotBlank(cmd)) {
-                    val seriesArray = jsonChannel.getJSONArray("series")
-                    for (j in 0 until seriesArray.length()) {
+                    val seriesArray = jsonChannel.optArray("series") ?: continue
+                    for (j in seriesArray.indices) {
                         val channel = Channel(
-                            seriesArray.get(j).toString(),
-                            "$name - Episode ${seriesArray.get(j)}",
+                            seriesArray[j].toString().trim('"'),
+                            "$name - Episode ${seriesArray[j].toString().trim('\"')}",
                             number,
                             cmd,
                             null,
@@ -842,13 +844,13 @@ class ChannelService @JvmOverloads constructor(
                             null
                         )
                         channel.categoryId = categoryId
-                        channel.extraJson = jsonChannel.toString()
+                        channel.extraJson = jsonChannel.asJsonString()
                         resolveLogoIfNeeded(channel)
                         channelList.add(channel)
                     }
                 } else {
                     val channel = Channel(
-                        jsonChannel.get("id").toString(),
+                        jsonChannel["id"]?.toString()?.trim('"'),
                         name,
                         number,
                         cmd,
@@ -866,7 +868,7 @@ class ChannelService @JvmOverloads constructor(
                         null
                     )
                     channel.categoryId = categoryId
-                    channel.extraJson = jsonChannel.toString()
+                    channel.extraJson = jsonChannel.asJsonString()
                     resolveLogoIfNeeded(channel)
                     channelList.add(channel)
                 }
@@ -881,7 +883,7 @@ class ChannelService @JvmOverloads constructor(
         }
     }
 
-    private fun preferredVodLogo(jsonChannel: KJsonObject?): String {
+    private fun preferredVodLogo(jsonChannel: kotlinx.serialization.json.JsonObject?): String {
         if (jsonChannel == null) return ""
         var logo = nullSafeString(jsonChannel, "screenshot_uri")
         if (isBlank(logo)) logo = nullSafeString(jsonChannel, "stream_icon")
@@ -893,7 +895,7 @@ class ChannelService @JvmOverloads constructor(
     private fun extractLogoFromExtraJson(extraJson: String?): String {
         if (isBlank(extraJson)) return ""
         return try {
-            val json = KJsonObject(extraJson.orEmpty())
+            val json = parseJsonObject(extraJson) ?: return ""
             var logo = nullSafeString(json, "screenshot_uri")
             if (isBlank(logo)) logo = nullSafeString(json, "stream_icon")
             if (isBlank(logo)) logo = nullSafeString(json, "cover")
@@ -1073,7 +1075,7 @@ class ChannelService @JvmOverloads constructor(
         private val STALKER_THROTTLES = ConcurrentHashMap<String, RequestThrottle>()
         @JvmStatic
         fun getInstance(): ChannelService =
-            runCatching { GlobalContext.get().get<ChannelService>() }.getOrDefault(defaultInstance)
+            koinOrNull<ChannelService>() ?: defaultInstance
 
         private val defaultInstance by lazy { ChannelService() }
 

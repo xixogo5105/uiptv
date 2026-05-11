@@ -291,8 +291,9 @@ class BingeWatchService @JvmOverloads constructor(
             seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
             playerService: PlayerService = koinOrNull<PlayerService>() ?: PlayerService()
         ): BingeWatchService =
-            instanceRef.updateAndGet { current ->
-                current ?: BingeWatchService(accountService, seriesWatchStateService, playerService)
-            }!!
+            koinOrNull<BingeWatchService>()
+                ?: instanceRef.updateAndGet { current ->
+                    current ?: BingeWatchService(accountService, seriesWatchStateService, playerService)
+                }!!
     }
 }

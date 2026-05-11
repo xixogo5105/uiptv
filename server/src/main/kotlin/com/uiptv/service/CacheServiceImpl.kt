@@ -14,14 +14,16 @@ class CacheServiceImpl @JvmOverloads constructor(
     private val handshakeServiceProvider: () -> HandshakeService = { koinOrNull<HandshakeService>() ?: HandshakeService() },
     private val categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
     private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
-    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() }
+    private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() },
+    private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
 ) : CacheService {
     private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {
         AccountCacheReloaderFactory(
             categoryServiceProvider = categoryServiceProvider,
             configurationServiceProvider = configurationServiceProvider,
             handshakeServiceProvider = handshakeServiceProvider,
-            channelServiceProvider = channelServiceProvider
+            channelServiceProvider = channelServiceProvider,
+            fetchProvider = fetchProvider
         )
     }
 
@@ -40,7 +42,7 @@ class CacheServiceImpl @JvmOverloads constructor(
             if (account.isNotConnected()) {
                 false
             } else {
-                val jsonCategories = FetchAPI.fetch(getCategoryParams(account.action), account)
+                val jsonCategories = fetchProvider.invoke(getCategoryParams(account.action), account)
                 categoryServiceProvider.invoke().parseCategories(jsonCategories, false).isNotEmpty()
             }
         } catch (_: Exception) {

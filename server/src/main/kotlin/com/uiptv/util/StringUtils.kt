@@ -3,6 +3,8 @@ package com.uiptv.util
 import com.uiptv.api.JsonCompliant
 import com.uiptv.model.Account
 import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optString
+import kotlinx.serialization.json.JsonObject
 import java.net.URLEncoder.encode
 import java.nio.charset.StandardCharsets.UTF_8
 import java.text.Normalizer
@@ -44,6 +46,18 @@ object StringUtils {
         }
         return try {
             jsonCategory.get(key).toString()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    @JvmStatic
+    fun safeGetString(jsonCategory: JsonObject?, key: String?): String? {
+        if (jsonCategory == null || key == null) {
+            return null
+        }
+        return try {
+            jsonCategory.optString(key).ifEmpty { null }
         } catch (_: Exception) {
             null
         }

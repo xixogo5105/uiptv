@@ -1,7 +1,7 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
-import com.uiptv.util.json.KJsonObject;
+import kotlinx.serialization.json.JsonObject;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.protocol.RedirectLocations;
@@ -31,7 +31,7 @@ class UtilityEdgeCaseTest {
         assertThrows(IllegalArgumentException.class, () -> AccountType.getAccountTypeByDisplay(" "));
         assertThrows(IllegalArgumentException.class, () -> AccountType.getAccountTypeByDisplay("unknown"));
 
-        KJsonObject json = new KJsonObject().put("value", "x");
+        JsonObject json = com.uiptv.util.json.JsonAccessKt.parseJsonObject("{\"value\":\"x\"}");
         assertEquals("x", StringUtils.safeGetString(json, "value"));
         assertEquals("1", StringUtils.safeGetString(Map.of("value", 1), "value"));
         assertEquals("", StringUtils.safeJson(null));
@@ -123,12 +123,12 @@ class UtilityEdgeCaseTest {
             assertEquals("ok", body);
         }
 
-        assertTrue(FetchAPI.nullSafeBoolean(new KJsonObject().put("active", true), "active"));
-        assertFalse(FetchAPI.nullSafeBoolean(new KJsonObject(), "missing"));
-        assertEquals(7, FetchAPI.nullSafeInteger(new KJsonObject().put("count", 7), "count"));
-        assertEquals(-1, FetchAPI.nullSafeInteger(new KJsonObject(), "missing"));
-        assertEquals("value", FetchAPI.nullSafeString(new KJsonObject().put("key", "value"), "key"));
-        assertEquals("", FetchAPI.nullSafeString(new KJsonObject(), "missing"));
+        assertTrue(FetchAPI.nullSafeBoolean(com.uiptv.util.json.JsonAccessKt.parseJsonObject("{\"active\":true}"), "active"));
+        assertFalse(FetchAPI.nullSafeBoolean(com.uiptv.util.json.JsonAccessKt.parseJsonObject("{}"), "missing"));
+        assertEquals(7, FetchAPI.nullSafeInteger(com.uiptv.util.json.JsonAccessKt.parseJsonObject("{\"count\":7}"), "count"));
+        assertEquals(-1, FetchAPI.nullSafeInteger(com.uiptv.util.json.JsonAccessKt.parseJsonObject("{}"), "missing"));
+        assertEquals("value", FetchAPI.nullSafeString(com.uiptv.util.json.JsonAccessKt.parseJsonObject("{\"key\":\"value\"}"), "key"));
+        assertEquals("", FetchAPI.nullSafeString(com.uiptv.util.json.JsonAccessKt.parseJsonObject("{}"), "missing"));
         assertEquals("portal.php", FetchAPI.ServerType.PORTAL.getLoader());
 
         Method toSafeUri = HttpUtil.class.getDeclaredMethod("toSafeUri", String.class);

@@ -146,7 +146,7 @@ private fun buildVodDetailsResponse(
         queryTitle,
         vodInfo.tmdb,
         buildVodFuzzyHints(queryTitle, providerChannel, vodInfo)
-    ).toJsonObject()
+    )
     vodInfo.mergeMissing("name", imdb.stringField("name"))
     vodInfo.mergeMissing("cover", imdb.stringField("cover"))
     vodInfo.mergeMissing("plot", imdb.stringField("plot"))

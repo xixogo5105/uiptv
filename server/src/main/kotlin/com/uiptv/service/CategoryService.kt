@@ -15,8 +15,10 @@ import com.uiptv.util.koinOrNull
 import com.uiptv.util.RssParser
 import com.uiptv.util.ServerUtils
 import com.uiptv.util.XtremeApiParser
-import com.uiptv.util.json.KJsonObject
-import org.koin.core.context.GlobalContext
+import com.uiptv.util.json.asJsonString
+import com.uiptv.util.json.optArray
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.parseJsonObject
 import java.net.MalformedURLException
 import java.net.URL
 import java.util.Date
@@ -211,17 +213,36 @@ class CategoryService @JvmOverloads constructor(
     fun parseCategories(json: String?, censor: Boolean): List<Category> {
         val categoryList = ArrayList<Category>()
         try {
-            val list = KJsonObject(json.orEmpty()).getJSONArray("js")
-            for (index in 0 until list.length()) {
-                val jsonCategory = list.getJSONObject(index)
+            val root = parseJsonObject(json) ?: return maybeFilterCategories(categoryList, censor)
+            val list = root.optArray("js")
+                ?: root.optObject("js")?.optArray("data")
+                ?: root.optArray("data")
+                ?: return maybeFilterCategories(categoryList, censor)
+            for (index in list.indices) {
+                val jsonCategory = list.optObject(index) ?: continue
+                val categoryId = firstNonBlank(
+                    FetchAPI.nullSafeString(jsonCategory, "id"),
+                    FetchAPI.nullSafeString(jsonCategory, "category_id"),
+                    FetchAPI.nullSafeString(jsonCategory, "tv_genre_id"),
+                    FetchAPI.nullSafeString(jsonCategory, "alias"),
+                    FetchAPI.nullSafeString(jsonCategory, "title"),
+                    FetchAPI.nullSafeString(jsonCategory, "name")
+                )
+                val title = firstNonBlank(
+                    FetchAPI.nullSafeString(jsonCategory, "title"),
+                    FetchAPI.nullSafeString(jsonCategory, "name"),
+                    categoryId
+                )
+                val alias = firstNonBlank(FetchAPI.nullSafeString(jsonCategory, "alias"), title, categoryId)
+                if (categoryId.isBlank() || title.isBlank()) continue
                 val category = Category(
-                    jsonCategory.getString("id"),
-                    jsonCategory.getString("title"),
-                    jsonCategory.getString("alias"),
+                    categoryId,
+                    title,
+                    alias,
                     FetchAPI.nullSafeBoolean(jsonCategory, "active_sub"),
                     FetchAPI.nullSafeInteger(jsonCategory, "censored")
                 )
-                category.extraJson = jsonCategory.toString()
+                category.extraJson = jsonCategory.asJsonString()
                 categoryList.add(category)
             }
         } catch (e: Exception) {
@@ -255,6 +276,9 @@ class CategoryService @JvmOverloads constructor(
         return title.trim().equals(value.trim(), true)
     }
 
+    private fun firstNonBlank(vararg values: String?): String =
+        values.firstOrNull { !it.isNullOrBlank() }?.trim().orEmpty()
+
     private fun log(logger: LoggerCallback?, message: String) {
         logger?.log(message)
     }
@@ -272,6 +296,6 @@ class CategoryService @JvmOverloads constructor(
 
         @JvmStatic
         fun getInstance(): CategoryService =
-            runCatching { GlobalContext.get().get<CategoryService>() }.getOrDefault(defaultInstance)
+            koinOrNull<CategoryService>() ?: defaultInstance
     }
 }

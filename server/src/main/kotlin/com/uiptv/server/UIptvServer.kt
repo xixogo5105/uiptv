@@ -133,6 +133,7 @@ fun Application.configureServerApplication(extraModules: List<Module> = emptyLis
     val webPlayerApiService = get<com.uiptv.service.WebPlayerApiService>()
     val playlistExportService = get<com.uiptv.service.PlaylistExportService>()
     val remoteSyncSessionService = get<com.uiptv.service.remotesync.RemoteSyncSessionService>()
+    val bingeWatchService = get<com.uiptv.service.BingeWatchService>()
     routing {
         registerCoreApiRoutes(configurationService, accountService, categoryService, bookmarkService)
         registerChannelApiRoutes(accountService, channelService, configurationService, seriesWatchStateService)
@@ -150,6 +151,6 @@ fun Application.configureServerApplication(extraModules: List<Module> = emptyLis
         )
         registerRemoteSyncApiRoutes(remoteSyncSessionService)
         registerPlayerPublicationApiRoutes(webPlayerApiService, playlistExportService)
-        registerLegacyWebRoutes()
+        registerLegacyWebRoutes(bingeWatchService)
     }
 }

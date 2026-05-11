@@ -5,6 +5,7 @@ import com.uiptv.server.HlsRouteSupport
 import com.uiptv.server.ProxyStreamSupport
 import com.uiptv.server.UIptvServer
 import com.uiptv.server.WebStaticContentSupport
+import com.uiptv.service.BingeWatchService
 import com.uiptv.util.AppLog
 import com.uiptv.util.HttpUtil
 import io.ktor.http.ContentDisposition
@@ -33,7 +34,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.util.Locale
 
-fun Route.registerLegacyWebRoutes() {
+fun Route.registerLegacyWebRoutes(bingeWatchService: BingeWatchService) {
     get("/") { call.respondSpaHtml("index.html") }
     get("/index.html") { call.respondSpaHtml("index.html") }
     get("/myflix.html") { call.respondSpaHtml("myflix.html") }
@@ -58,13 +59,13 @@ fun Route.registerLegacyWebRoutes() {
     get("/proxy-stream") { call.handleProxyStream() }
     head("/proxy-stream") { call.handleProxyStream() }
 
-    get("/bingewatch.m3u8") { call.respondBingeWatchPlaylist() }
+    get("/bingewatch.m3u8") { call.respondBingeWatchPlaylist(bingeWatchService) }
     options("/bingwatch/{...}") {
         call.response.header(HttpHeaders.Allow, "GET, HEAD")
         call.respond(HttpStatusCode.NoContent)
     }
-    get("/bingwatch/{...}") { call.respondBingeWatchEntry() }
-    head("/bingwatch/{...}") { call.respondBingeWatchEntry() }
+    get("/bingwatch/{...}") { call.respondBingeWatchEntry(bingeWatchService) }
+    head("/bingwatch/{...}") { call.respondBingeWatchEntry(bingeWatchService) }
 
     get("/{...}") { call.respondSpaHtml("index.html") }
 }
@@ -167,8 +168,8 @@ private fun copyProxyHeaderIfPresent(call: ApplicationCall, upstreamHeaders: Map
     }
 }
 
-private suspend fun ApplicationCall.respondBingeWatchPlaylist() {
-    val payload = BingeWatchRouteSupport.renderPlaylist(request.queryParameters["token"]) ?: run {
+private suspend fun ApplicationCall.respondBingeWatchPlaylist(bingeWatchService: BingeWatchService) {
+    val payload = BingeWatchRouteSupport.renderPlaylist(request.queryParameters["token"], bingeWatchService) ?: run {
         respond(HttpStatusCode.NotFound)
         return
     }
@@ -178,8 +179,8 @@ private suspend fun ApplicationCall.respondBingeWatchPlaylist() {
     respondText(payload.body, ContentType.parse("application/vnd.apple.mpegurl"))
 }
 
-private suspend fun ApplicationCall.respondBingeWatchEntry() {
-    when (val result = BingeWatchRouteSupport.resolveEntry(request.httpMethod.value, request.queryParameters["token"], request.queryParameters["episodeId"])) {
+private suspend fun ApplicationCall.respondBingeWatchEntry(bingeWatchService: BingeWatchService) {
+    when (val result = BingeWatchRouteSupport.resolveEntry(request.httpMethod.value, request.queryParameters["token"], request.queryParameters["episodeId"], bingeWatchService)) {
         else -> when (result.statusCode) {
             307 -> {
                 response.header(HttpHeaders.Location, result.location.orEmpty())

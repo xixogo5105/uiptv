@@ -24,7 +24,7 @@ class WebPlayerApiService @JvmOverloads constructor(
     private val accountService: AccountService = AccountService,
     private val configurationService: ConfigurationService = ConfigurationService,
     private val ffmpegService: FfmpegService = FfmpegService,
-    private val bingeWatchService: BingeWatchService = koinOrNull<BingeWatchService>() ?: BingeWatchService.getInstance(),
+    private val bingeWatchService: BingeWatchService = koinOrNull<BingeWatchService>() ?: BingeWatchService(),
     private val playerRequestResolver: PlayerRequestResolver = koinOrNull<PlayerRequestResolver>() ?: PlayerRequestResolver()
 ) {
     private val json = Json {

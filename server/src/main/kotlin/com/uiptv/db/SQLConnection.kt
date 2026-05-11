@@ -2,18 +2,12 @@ package com.uiptv.db
 
 import com.uiptv.util.Platform
 import com.uiptv.util.StringUtils
-import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.apache.commons.io.FileUtils
-import org.flywaydb.core.Flyway
-import org.flywaydb.core.api.MigrationVersion
 import org.jetbrains.exposed.sql.Database
 import org.sqlite.SQLiteConfig
 import java.io.File
 import java.io.IOException
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -22,7 +16,6 @@ object SqlConnectionRuntime {
     private const val BUSY_TIMEOUT_MS = 10_000
     private const val INIT_RETRY_ATTEMPTS = 6
     private const val INIT_RETRY_DELAY_MS = 250L
-    private const val MIGRATIONS_LIST_RESOURCE = "db/migrations/migrations.txt"
     private const val BASELINE_MIGRATION = "0000_baseline.sql"
     private const val CURRENT_SCHEMA_VERSION = "0197"
 
@@ -51,8 +44,8 @@ object SqlConnectionRuntime {
                     exposedDatabase = Database.connect(dataSource())
                     return
                 } catch (ex: SQLException) {
-                    if (isBusy(ex) && attempt < INIT_RETRY_ATTEMPTS) {
-                        sleepBeforeRetry()
+                    if (DatabaseRetrySupport.isBusy(ex) && attempt < INIT_RETRY_ATTEMPTS) {
+                        DatabaseRetrySupport.sleepBeforeRetry(INIT_RETRY_DELAY_MS)
                         continue
                     }
                     throw DatabaseAccessException("Unable to initialize database migrations", ex)
@@ -109,93 +102,13 @@ object SqlConnectionRuntime {
     }
 
     private fun migrate() {
-        openConnection().use { connection ->
-            val plan = DatabaseMigrationCompatibility.determineMigrationPlan(
-                connection = connection,
-                currentSchemaVersion = CURRENT_SCHEMA_VERSION,
-                baselineMigration = BASELINE_MIGRATION,
-                readAllMigrationNames = ::readMigrationNames
-            )
-            if (plan.baselineVersion != null) {
-                baselineExistingSchema(plan.baselineVersion, plan.baselineDescription)
-            }
-            if (plan.files.isNotEmpty()) {
-                val migrationDirectory = materializeMigrations(plan)
-                loadFlyway(migrationDirectory).migrate()
-            }
-        }
+        DatabaseMigrationRunner.migrate(
+            dbPath = dbPath,
+            currentSchemaVersion = CURRENT_SCHEMA_VERSION,
+            baselineMigration = BASELINE_MIGRATION,
+            openConnection = ::openConnection
+        )
     }
-
-    private fun loadFlyway(migrationDirectory: Path): Flyway =
-        Flyway.configure()
-            .dataSource("jdbc:sqlite:$dbPath", null, null)
-            .table("flyway_schema_history")
-            .locations("filesystem:${migrationDirectory.toAbsolutePath()}")
-            .cleanDisabled(true)
-            .baselineOnMigrate(false)
-            .load()
-
-    private fun baselineExistingSchema(version: String, description: String) {
-        Flyway.configure()
-            .dataSource("jdbc:sqlite:$dbPath", null, null)
-            .table("flyway_schema_history")
-            .baselineVersion(MigrationVersion.fromVersion(version))
-            .baselineDescription(description)
-            .load()
-            .baseline()
-    }
-
-    private fun materializeMigrations(plan: MigrationPlan): Path {
-        val directory = Files.createTempDirectory("uiptv-flyway-")
-        directory.toFile().deleteOnExit()
-        plan.files.forEach { migrationName ->
-            val content = readMigrationResource(migrationName)
-            val transformed = transformMigration(content)
-            val flywayName = toFlywayFileName(migrationName, plan.versionOverride)
-            Files.writeString(directory.resolve(flywayName), transformed, StandardCharsets.UTF_8)
-        }
-        return directory
-    }
-
-    private fun readMigrationNames(): List<String> =
-        openResource(MIGRATIONS_LIST_RESOURCE).bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
-            lines.map(String::trim)
-                .filter(String::isNotEmpty)
-                .toList()
-        }
-
-    private fun readMigrationResource(name: String): String =
-        openResource("db/migrations/$name").bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
-
-    private fun toFlywayFileName(name: String, versionOverride: String? = null): String {
-        val match = Regex("""^(\d+)_([^.]+)\.sql$""").matchEntire(name)
-            ?: throw IllegalStateException("Unsupported migration file name: $name")
-        val version = versionOverride ?: match.groupValues[1]
-        return "V${version}__${match.groupValues[2]}.sql"
-    }
-
-    private fun transformMigration(content: String): String {
-        val trimmed = content.trimStart()
-        return when {
-            trimmed.startsWith("--@add_column ") -> {
-                val directive = trimmed.lineSequence().first().removePrefix("--@add_column ").trim()
-                val pieces = directive.split(Regex("\\s+"), limit = 3)
-                require(pieces.size == 3) { "Unsupported add-column directive: $directive" }
-                "ALTER TABLE ${pieces[0]} ADD COLUMN ${pieces[1]} ${pieces[2].trimEnd(';')};\n"
-            }
-            trimmed.startsWith("--@drop_column ") -> {
-                val directive = trimmed.lineSequence().first().removePrefix("--@drop_column ").trim()
-                val pieces = directive.split(Regex("\\s+"), limit = 2)
-                require(pieces.size == 2) { "Unsupported drop-column directive: $directive" }
-                "ALTER TABLE ${pieces[0]} DROP COLUMN ${pieces[1].trimEnd(';')};\n"
-            }
-            else -> content
-        }
-    }
-
-    private fun openResource(path: String) =
-        SqlConnectionRuntime::class.java.classLoader.getResourceAsStream(path)
-            ?: throw IllegalStateException("Migration resource not found: $path")
 
     @Throws(SQLException::class)
     private fun openConnection(): Connection {
@@ -208,20 +121,7 @@ object SqlConnectionRuntime {
     private fun rebuildDataSource() {
         ensureDatabasePathReadyUnchecked()
         hikariDataSource?.close()
-        hikariDataSource = HikariDataSource(HikariConfig().apply {
-            jdbcUrl = jdbcUrl()
-            driverClassName = "org.sqlite.JDBC"
-            maximumPoolSize = Integer.getInteger("uiptv.db.pool.maxSize", 8)
-            minimumIdle = Integer.getInteger("uiptv.db.pool.minIdle", 0)
-            connectionTimeout = Integer.getInteger("uiptv.db.pool.connectionTimeoutMs", 10_000).toLong()
-            idleTimeout = Integer.getInteger("uiptv.db.pool.idleTimeoutMs", 60_000).toLong()
-            maxLifetime = Integer.getInteger("uiptv.db.pool.maxLifetimeMs", 300_000).toLong()
-            validationTimeout = Integer.getInteger("uiptv.db.pool.validationTimeoutMs", 5_000).toLong()
-            initializationFailTimeout = -1
-            isAutoCommit = true
-            connectionTestQuery = "SELECT 1"
-            dataSourceProperties.putAll(sqliteProperties())
-        })
+        hikariDataSource = DatabasePoolFactory.create(dbPath, sqliteProperties())
     }
 
     @Throws(IOException::class)
@@ -259,31 +159,6 @@ object SqlConnectionRuntime {
             statement.execute("PRAGMA synchronous = NORMAL")
         }
     }
-
-    private fun isBusy(exception: SQLException): Boolean {
-        var current: SQLException? = exception
-        while (current != null) {
-            val message = current.message
-            if (current.errorCode == 5 || (message != null && message.contains("SQLITE_BUSY"))) {
-                return true
-            }
-            current = current.nextException
-        }
-        return false
-    }
-
-    private fun sleepBeforeRetry() {
-        try {
-            Thread.sleep(INIT_RETRY_DELAY_MS)
-        } catch (interruptedException: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw DatabaseAccessException(
-                "Interrupted while waiting to retry database initialization",
-                interruptedException
-            )
-        }
-    }
-
 }
 
 object SQLConnection {
@@ -320,28 +195,12 @@ object SQLConnection {
     @Suppress("unused")
     @JvmStatic
     private fun isBusy(exception: SQLException): Boolean {
-        var current: SQLException? = exception
-        while (current != null) {
-            val message = current.message
-            if (current.errorCode == 5 || (message != null && message.contains("SQLITE_BUSY"))) {
-                return true
-            }
-            current = current.nextException
-        }
-        return false
+        return DatabaseRetrySupport.isBusy(exception)
     }
 
     @Suppress("unused")
     @JvmStatic
     private fun sleepBeforeRetry() {
-        try {
-            Thread.sleep(INIT_RETRY_DELAY_MS)
-        } catch (interruptedException: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw DatabaseAccessException(
-                "Interrupted while waiting to retry database initialization",
-                interruptedException
-            )
-        }
+        DatabaseRetrySupport.sleepBeforeRetry(INIT_RETRY_DELAY_MS)
     }
 }

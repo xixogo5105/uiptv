@@ -25,7 +25,8 @@ class StalkerPortalCacheReloader @JvmOverloads constructor(
     private val handshakeServiceProvider: () -> HandshakeService = { koinOrNull<HandshakeService>() ?: HandshakeService() },
     private val channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() },
     categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
-    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
+    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
+    private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         handshakeService().connect(account)
@@ -90,7 +91,7 @@ class StalkerPortalCacheReloader @JvmOverloads constructor(
     private fun fetchAllStalkerChannelsJson(account: Account): String {
         val attempts = listOf(getAllChannelsParams(null, null), getAllChannelsParams(0, 99999), getAllChannelsParams(1, 99999))
         for (params in attempts) {
-            val json = FetchAPI.fetch(params, account)
+            val json = fetchProvider.invoke(params, account)
             if (StringUtils.isBlank(json)) continue
             try {
                 if (channelService().parseItvChannels(json, false).isNotEmpty()) return json
@@ -124,7 +125,7 @@ class StalkerPortalCacheReloader @JvmOverloads constructor(
         val aggregated = ArrayList<Channel>()
         var maxAdditionalPages = 2
         for (page in startPage..(startPage + maxAdditionalPages)) {
-            val json = FetchAPI.fetch(ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account)
+            val json = fetchProvider.invoke(ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account)
             if (StringUtils.isBlank(json)) break
             try {
                 if (page == startPage) maxAdditionalPages = resolveMaxAdditionalPages(json, maxAdditionalPages)
@@ -140,7 +141,7 @@ class StalkerPortalCacheReloader @JvmOverloads constructor(
     }
 
     private fun loadOfficialLiveCategories(account: Account): List<Category> =
-        categoryService().parseCategories(FetchAPI.fetch(getCategoryParams(account.action), account), false)
+        categoryService().parseCategories(fetchProvider.invoke(getCategoryParams(account.action), account), false)
             .filterNot { CategoryType.ALL.displayName().equals(it.title, true) }
 
     private fun parseGlobalLiveChannels(account: Account, logger: LoggerCallback?): List<Channel> {

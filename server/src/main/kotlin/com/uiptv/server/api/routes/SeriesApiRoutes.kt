@@ -229,7 +229,7 @@ private fun applyInitialSeriesImdbMetadata(
 ): JsonObject {
     val resolvedSeriesName = seriesName ?: ""
     val fuzzyHints = buildSeriesFuzzyHints(resolvedSeriesName, response.seasonInfo, response.episodes)
-    val imdbFirst = imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints).toJsonObject()
+    val imdbFirst = imdbMetadataService.findBestEffortDetails(resolvedSeriesName, "", fuzzyHints)
     copySeriesMetadata(response.seasonInfo, imdbFirst)
     response.episodesMeta += imdbFirst.jsonArrayField("episodesMeta")
     return imdbFirst
@@ -306,7 +306,7 @@ private fun applyFallbackSeriesImdbMetadata(
         displayName,
         response.seasonInfo["tmdb"].orEmpty(),
         fuzzyHints
-    ).toJsonObject()
+    )
     mergeSeriesMetadata(response.seasonInfo, imdbFallback)
     if (response.episodesMeta.isEmpty()) {
         response.episodesMeta += imdbFallback.jsonArrayField("episodesMeta")

@@ -12,18 +12,19 @@ import org.apache.hc.core5.http.ParseException
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity
 import org.apache.hc.core5.http.io.entity.EntityUtils
 import org.apache.hc.core5.http.io.entity.FileEntity
-import com.uiptv.util.json.KJsonObject
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonObject
 
 open class RemoteSyncHttpClient {
     @Throws(IOException::class)
     open fun checkHealth(baseUrl: String) {
-        val json = executeJson(HttpGet("$baseUrl/remote-sync/health"))
-        if (!"ok".equals(json.optString("status", ""), true)) {
+        val body = executeJson(HttpGet("$baseUrl/remote-sync/health"))
+        if (parseJsonObject(body)?.optString("status") != "ok") {
             throw IOException("Remote sync server did not respond with OK status")
         }
     }
@@ -32,7 +33,7 @@ open class RemoteSyncHttpClient {
     open fun createSession(baseUrl: String, request: RemoteSyncRequest): RemoteSyncSessionState {
         val post = HttpPost("$baseUrl/remote-sync/request")
         post.setHeader("Content-Type", "application/json")
-        post.entity = ByteArrayEntity(RemoteSyncJson.toJson(request).toString().toByteArray(), ContentType.APPLICATION_JSON)
+        post.entity = ByteArrayEntity(RemoteSyncJson.toJson(request).toByteArray(), ContentType.APPLICATION_JSON)
         return RemoteSyncJson.toSessionState(executeJson(post))
     }
 
@@ -68,27 +69,25 @@ open class RemoteSyncHttpClient {
     open fun completeSession(baseUrl: String, sessionId: String, success: Boolean, message: String?) {
         val post = HttpPost("$baseUrl/remote-sync/complete")
         post.setHeader("Content-Type", "application/json")
-        val json = KJsonObject()
-            .put("sessionId", sessionId)
-            .put("success", success)
-            .put("message", message ?: "")
-        post.entity = ByteArrayEntity(json.toString().toByteArray(), ContentType.APPLICATION_JSON)
+        post.entity = ByteArrayEntity(
+            RemoteSyncJson.toJson(sessionId, success, message).toByteArray(),
+            ContentType.APPLICATION_JSON
+        )
         executeJson(post)
     }
 
     @Throws(IOException::class)
-    private fun executeJson(request: HttpUriRequestBase): KJsonObject {
+    private fun executeJson(request: HttpUriRequestBase): String {
         HttpClients.createDefault().use { client ->
             return client.execute(request) { response ->
                 val body = readEntityText(response)
                 if (response.code >= 300) {
                     throw IOException(if (body.isBlank()) "Remote sync request failed with status ${response.code}" else body)
                 }
-                if (body.isBlank()) KJsonObject() else KJsonObject(body)
+                body
             }
         }
     }
-
     @Throws(IOException::class)
     private fun readEntityText(response: ClassicHttpResponse): String {
         if (response.entity == null) {

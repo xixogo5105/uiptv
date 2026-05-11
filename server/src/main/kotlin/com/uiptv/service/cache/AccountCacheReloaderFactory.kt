@@ -11,10 +11,11 @@ class AccountCacheReloaderFactory @JvmOverloads constructor(
     categoryServiceProvider: () -> CategoryService = { koinOrNull<CategoryService>() ?: CategoryService() },
     configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
     handshakeServiceProvider: () -> HandshakeService = { koinOrNull<HandshakeService>() ?: HandshakeService() },
-    channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() }
+    channelServiceProvider: () -> ChannelService = { koinOrNull<ChannelService>() ?: ChannelService() },
+    fetchProvider: (Map<String, String>, com.uiptv.model.Account) -> String = com.uiptv.util.FetchAPI::fetch
 ) {
     private val stalkerReloader: AccountCacheReloader =
-        StalkerPortalCacheReloader(handshakeServiceProvider, channelServiceProvider, categoryServiceProvider, configurationServiceProvider)
+        StalkerPortalCacheReloader(handshakeServiceProvider, channelServiceProvider, categoryServiceProvider, configurationServiceProvider, fetchProvider)
     private val xtremeReloader: AccountCacheReloader =
         XtremeApiCacheReloader(categoryServiceProvider, configurationServiceProvider)
     private val m3uReloader: AccountCacheReloader =

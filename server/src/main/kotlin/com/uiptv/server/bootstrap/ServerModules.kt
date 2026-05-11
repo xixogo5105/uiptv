@@ -58,7 +58,7 @@ val serverServiceModule = module {
     single { CategoryService(get(), get(), get()) }
     single { ChannelService(cacheService = get(), contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
     single { PlayerService(get()) }
-    single { BingeWatchService.getInstance(get(), get(), get()) }
+    single { BingeWatchService(get(), get(), get()) }
     single { M3U8PublicationService(get(), get(), get()) }
     single { SeriesEpisodeService }
     single { PlayerRequestResolver(get(), get(), get()) }
@@ -66,6 +66,6 @@ val serverServiceModule = module {
     single { PlaylistExportService(get(), get(), get(), get(), get(), get()) }
     single { WatchingNowSeriesResolver(get(), get(), get()) }
     single { WatchingNowVodResolver(get(), get()) }
-    single { RemoteSyncSessionService.getInstance(get(), get()) }
+    single { RemoteSyncSessionService.runtimeInstance(get(), get()) }
     single { RemoteSyncClientService(databaseSyncService = get()) }
 }

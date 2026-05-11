@@ -8,8 +8,12 @@ import com.uiptv.util.FetchAPI.nullSafeString
 import com.uiptv.util.StringUtils
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import com.uiptv.util.json.KJsonArray
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.koinOrNull
+import com.uiptv.util.json.optArray
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonArray
+import com.uiptv.util.json.parseJsonObject
 import java.security.SecureRandom
 import java.time.Instant
 import java.time.LocalDate
@@ -25,7 +29,8 @@ import java.util.Locale
 import java.util.UUID
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
-import org.koin.core.context.GlobalContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 
 class HandshakeService(
     private val accountService: AccountService = AccountService,
@@ -172,7 +177,7 @@ class HandshakeService(
             return StringUtils.EMPTY
         }
         return try {
-            val token = KJsonObject(json.orEmpty()).getJSONObject("js").getString(PARAM_TOKEN)
+            val token = parseJsonObject(json)?.optObject("js")?.optString(PARAM_TOKEN).orEmpty()
             if (isBlank(token)) {
                 com.uiptv.util.AppLog.addErrorLog(HandshakeService::class.java, "Error while establishing connection to server")
                 StringUtils.EMPTY
@@ -213,7 +218,7 @@ class HandshakeService(
     private fun applyAccountInfoDetails(info: AccountInfo?, json: String?): Boolean {
         val js = parsePortalResponse(json) ?: return false
         if (info == null) return false
-        val accountInfoJson = js.optJSONObject(KEY_ACCOUNT_INFO) ?: js
+        val accountInfoJson = js.optObject(KEY_ACCOUNT_INFO) ?: js
         var updated = false
         val balance = firstNonBlank(
             nullSafeString(accountInfoJson, KEY_ACCOUNT_INFO),
@@ -256,11 +261,11 @@ class HandshakeService(
         return updated
     }
 
-    private fun parsePortalResponse(json: String?): KJsonObject? {
+    private fun parsePortalResponse(json: String?): JsonObject? {
         if (isBlank(json)) return null
         return try {
-            val root = KJsonObject(json!!)
-            root.optJSONObject("js") ?: root
+            val root = parseJsonObject(json) ?: return null
+            root.optObject("js") ?: root
         } catch (_: Exception) {
             null
         }
@@ -274,7 +279,7 @@ class HandshakeService(
         return true
     }
 
-    private fun applyPasswordHashes(info: AccountInfo?, json: KJsonObject?): Boolean {
+    private fun applyPasswordHashes(info: AccountInfo?, json: JsonObject?): Boolean {
         if (info == null || json == null) return false
         var updated = false
         updated = updatePasswordHash(nullSafeString(json, "pass"), { info.passHash }, { info.passHash = it }) || updated
@@ -295,7 +300,7 @@ class HandshakeService(
         return true
     }
 
-    private fun deriveAccountStatus(js: KJsonObject): AccountStatus =
+    private fun deriveAccountStatus(js: JsonObject): AccountStatus =
         if (isTruthy(nullSafeString(js, "blocked"))) AccountStatus.SUSPENDED else AccountStatus.ACTIVE
 
     private fun isTruthy(value: String?): Boolean {
@@ -306,7 +311,7 @@ class HandshakeService(
         }
     }
 
-    private fun deriveExpiryDate(js: KJsonObject): String {
+    private fun deriveExpiryDate(js: JsonObject): String {
         val tariffExpired = normalizeExpiry(nullSafeString(js, "tariff_expired_date"))
         if (isNotBlank(tariffExpired)) return tariffExpired
         val expireBilling = normalizeExpiry(nullSafeString(js, "expire_billing_date"))
@@ -316,7 +321,7 @@ class HandshakeService(
         return ""
     }
 
-    private fun firstAccountInfoExpiry(accountInfoJson: KJsonObject, rootJson: KJsonObject, existingExpiry: String?): String {
+    private fun firstAccountInfoExpiry(accountInfoJson: JsonObject, rootJson: JsonObject, existingExpiry: String?): String {
         if (isNotBlank(normalizeExpiry(existingExpiry))) return ""
         val candidates = arrayOf(
             normalizeAccountInfoExpiry(nullSafeString(accountInfoJson, "end_date")),
@@ -364,11 +369,11 @@ class HandshakeService(
         }
     }
 
-    private fun applyAllowedStbTypes(info: AccountInfo?, json: KJsonObject?): Boolean {
+    private fun applyAllowedStbTypes(info: AccountInfo?, json: JsonObject?): Boolean {
         if (info == null || json == null) return false
         var updated = false
-        val allowed = normalizeArray(json.optJSONArray("allowed_stb_types"))
-        val allowedRecording = normalizeArray(json.optJSONArray("allowed_stb_types_for_local_recording"))
+        val allowed = normalizeArray(json.optArray("allowed_stb_types"))
+        val allowedRecording = normalizeArray(json.optArray("allowed_stb_types_for_local_recording"))
         updated = updateIfNotBlank(allowed, { info.allowedStbTypesJson }, { info.allowedStbTypesJson = it }) || updated
         updated = updateIfNotBlank(allowedRecording, { info.allowedStbTypesForLocalRecordingJson }, { info.allowedStbTypesForLocalRecordingJson = it }) || updated
         if (isNotBlank(allowed)) {
@@ -403,10 +408,10 @@ class HandshakeService(
     fun selectPreferredStbType(allowedJson: String?): String {
         if (isBlank(allowedJson)) return ""
         return try {
-            val array = KJsonArray(allowedJson.orEmpty())
-            if (array.length() == 0) return ""
+            val array = parseJsonArray(allowedJson)
+            if (array.isNullOrEmpty()) return ""
             var hasMag = false
-            for (i in 0 until array.length()) {
+            for (i in array.indices) {
                 if (array.optString(i, "").equals("mag250", true)) {
                     hasMag = true
                     break
@@ -432,8 +437,9 @@ class HandshakeService(
     fun allowedContainsMag250(allowedJson: String?): Boolean {
         if (isBlank(allowedJson)) return false
         return try {
-            val array = KJsonArray(allowedJson.orEmpty())
-            for (i in 0 until array.length()) {
+            val array = parseJsonArray(allowedJson)
+            if (array.isNullOrEmpty()) return false
+            for (i in array.indices) {
                 if (array.optString(i, "").equals("mag250", true)) return true
             }
             false
@@ -444,15 +450,15 @@ class HandshakeService(
     fun firstAllowedStbType(allowedJson: String?, fallback: String): String {
         if (isBlank(allowedJson)) return fallback
         return try {
-            val array = KJsonArray(allowedJson.orEmpty())
-            array.optString(0, "").takeIf { isNotBlank(it) } ?: fallback
+            val array = parseJsonArray(allowedJson)
+            array?.optString(0, "")?.takeIf { isNotBlank(it) } ?: fallback
         } catch (_: Exception) {
             fallback
         }
     }
 
-    private fun normalizeArray(array: KJsonArray?): String =
-        if (array == null || array.length() == 0) "" else array.toString()
+    private fun normalizeArray(array: JsonArray?): String =
+        if (array.isNullOrEmpty()) "" else array.toString()
 
     private fun hashPassword(rawValue: String?): String {
         if (isBlank(rawValue)) return ""
@@ -564,6 +570,6 @@ class HandshakeService(
 
         @JvmStatic
         fun getInstance(): HandshakeService =
-            runCatching { GlobalContext.get().get<HandshakeService>() }.getOrDefault(defaultInstance)
+            koinOrNull<HandshakeService>() ?: defaultInstance
     }
 }

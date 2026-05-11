@@ -1,7 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Configuration;
-import com.uiptv.util.json.KJsonObject;
+import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,15 +12,15 @@ class ThumbnailModeServiceTest extends DbBackedTest {
     void imdbMetadataService_returnsEmpty_whenThumbnailsDisabled() {
         saveConfig(false);
 
-        KJsonObject details = ImdbMetadataService.getInstance().findBestEffortDetails("Test Series", "");
-        KJsonObject detailsWithHints = ImdbMetadataService.getInstance().findBestEffortDetails("Test Series", "", java.util.List.of("Hint"));
-        KJsonObject movieDetails = ImdbMetadataService.getInstance().findBestEffortMovieDetails("Test Movie", "");
-        KJsonObject movieDetailsWithHints = ImdbMetadataService.getInstance().findBestEffortMovieDetails("Test Movie", "", java.util.List.of("Hint"));
+        JsonObject details = ImdbMetadataService.getInstance().findBestEffortDetails("Test Series", "");
+        JsonObject detailsWithHints = ImdbMetadataService.getInstance().findBestEffortDetails("Test Series", "", java.util.List.of("Hint"));
+        JsonObject movieDetails = ImdbMetadataService.getInstance().findBestEffortMovieDetails("Test Movie", "");
+        JsonObject movieDetailsWithHints = ImdbMetadataService.getInstance().findBestEffortMovieDetails("Test Movie", "", java.util.List.of("Hint"));
 
-        assertEquals(0, details.length());
-        assertEquals(0, detailsWithHints.length());
-        assertEquals(0, movieDetails.length());
-        assertEquals(0, movieDetailsWithHints.length());
+        assertEquals(0, details.size());
+        assertEquals(0, detailsWithHints.size());
+        assertEquals(0, movieDetails.size());
+        assertEquals(0, movieDetailsWithHints.size());
     }
 
     private void saveConfig(boolean enableThumbnails) {

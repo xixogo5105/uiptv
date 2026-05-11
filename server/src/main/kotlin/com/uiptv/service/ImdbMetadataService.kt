@@ -7,6 +7,8 @@ import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
 import com.uiptv.util.json.KJsonArray
 import com.uiptv.util.json.KJsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.ArrayList
@@ -51,29 +53,29 @@ object ImdbMetadataService {
 
     @JvmStatic
     fun getInstance(): ImdbMetadataService = this
-    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?): KJsonObject {
+    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?): JsonObject {
         if (!areThumbnailsEnabled()) {
-            return KJsonObject()
+            return buildJsonObject { }
         }
-        return findBestEffortInternal(rawTitle, preferredImdbId, false, emptyList())
+        return findBestEffortInternal(rawTitle, preferredImdbId, false, emptyList()).toJsonObject()
     }
-    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): KJsonObject {
+    fun findBestEffortDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): JsonObject {
         if (!areThumbnailsEnabled()) {
-            return KJsonObject()
+            return buildJsonObject { }
         }
-        return findBestEffortInternal(rawTitle, preferredImdbId, false, fuzzyHints ?: emptyList())
+        return findBestEffortInternal(rawTitle, preferredImdbId, false, fuzzyHints ?: emptyList()).toJsonObject()
     }
-    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?): KJsonObject {
+    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?): JsonObject {
         if (!areThumbnailsEnabled()) {
-            return KJsonObject()
+            return buildJsonObject { }
         }
-        return findBestEffortInternal(rawTitle, preferredImdbId, true, emptyList())
+        return findBestEffortInternal(rawTitle, preferredImdbId, true, emptyList()).toJsonObject()
     }
-    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): KJsonObject {
+    fun findBestEffortMovieDetails(rawTitle: String?, preferredImdbId: String?, fuzzyHints: List<String>?): JsonObject {
         if (!areThumbnailsEnabled()) {
-            return KJsonObject()
+            return buildJsonObject { }
         }
-        return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints ?: emptyList())
+        return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints ?: emptyList()).toJsonObject()
     }
 
     private fun areThumbnailsEnabled(): Boolean =

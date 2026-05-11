@@ -189,11 +189,11 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             ImdbMetadataService imdb = Mockito.mock(ImdbMetadataService.class);
             imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdb);
             Mockito.when(imdb.findBestEffortDetails(Mockito.anyString(), Mockito.anyString()))
-                    .thenReturn(new com.uiptv.util.json.KJsonObject("""
+                    .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
                             {"name":"Series Mock","imdbUrl":"https://www.imdb.com/title/tt1234567/","episodesMeta":[]}
                             """));
             Mockito.when(imdb.findBestEffortMovieDetails(Mockito.anyString(), Mockito.anyString()))
-                    .thenReturn(new com.uiptv.util.json.KJsonObject("""
+                    .thenReturn(com.uiptv.util.json.JsonAccessKt.parseJsonObject("""
                             {"name":"Movie Mock","imdbUrl":"https://www.imdb.com/title/tt7654321/"}
                             """));
 

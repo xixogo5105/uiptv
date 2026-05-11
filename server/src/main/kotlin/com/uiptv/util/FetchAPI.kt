@@ -1,7 +1,10 @@
 package com.uiptv.util
 
 import com.uiptv.model.Account
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optBoolean
+import com.uiptv.util.json.optInt
+import com.uiptv.util.json.optString
+import kotlinx.serialization.json.JsonObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -94,28 +97,16 @@ object FetchAPI {
         }
 
     @JvmStatic
-    fun nullSafeBoolean(jsonCategory: KJsonObject, key: String): Boolean =
-        try {
-            jsonCategory.get(key).toString().toBoolean()
-        } catch (_: Exception) {
-            false
-        }
+    fun nullSafeBoolean(jsonCategory: JsonObject, key: String): Boolean =
+        jsonCategory.optBoolean(key)
 
     @JvmStatic
-    fun nullSafeInteger(jsonCategory: KJsonObject, key: String): Int =
-        try {
-            jsonCategory.get(key).toString().toInt()
-        } catch (_: Exception) {
-            -1
-        }
+    fun nullSafeInteger(jsonCategory: JsonObject, key: String): Int =
+        jsonCategory.optInt(key, -1)
 
     @JvmStatic
-    fun nullSafeString(jsonCategory: KJsonObject, key: String): String =
-        try {
-            jsonCategory.getString(key)
-        } catch (_: Exception) {
-            ""
-        }
+    fun nullSafeString(jsonCategory: JsonObject, key: String): String =
+        jsonCategory.optString(key)
 
     enum class ServerType(private val loader: String) {
         PORTAL(PORTAL_PHP),
