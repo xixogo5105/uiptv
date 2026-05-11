@@ -3,8 +3,11 @@ package com.uiptv.service
 import com.uiptv.model.Account
 import com.uiptv.util.ServerUrlUtil
 import com.uiptv.util.StringUtils.isBlank
-import com.uiptv.util.json.KJsonArray
 import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optArray
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonObject
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -212,7 +215,7 @@ class LitePlayerFfmpegService : AbstractFfmpegHlsService() {
                     null
                 } else {
                     val json = String(process.inputStream.readAllBytes(), StandardCharsets.UTF_8)
-                    if (json.isBlank()) null else toProbeResult(KJsonObject(json))
+                    if (json.isBlank()) null else parseJsonObject(json)?.let(::toProbeResult)
                 }
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -239,13 +242,18 @@ class LitePlayerFfmpegService : AbstractFfmpegHlsService() {
             java.lang.Long.getLong("uiptv.ffprobe.timeout.ms", 4_000L)
 
         @JvmStatic
-        private fun toProbeResult(root: KJsonObject): ProbeResult {
-            val format = root.optJSONObject("format")
+        private fun toProbeResult(root: kotlinx.serialization.json.JsonObject): ProbeResult {
+            val format = root.optObject("format")
             val formatName = format?.optString("format_name").orEmpty()
-            val durationMs = parseDurationMs(format?.opt("duration"))
-            val codecs = extractCodecs(root.optJSONArray("streams"))
+            val durationMs = parseDurationMs(format?.get("duration"))
+            val codecs = extractCodecs(root.optArray("streams"))
             return ProbeResult(formatName, codecs.videoCodec, codecs.audioCodec, durationMs)
         }
+
+        @Suppress("unused")
+        @JvmStatic
+        private fun toProbeResult(root: KJsonObject): ProbeResult =
+            parseJsonObject(root.toString())?.let(::toProbeResult) ?: ProbeResult()
 
         private fun parseDurationMs(rawDuration: Any?): Long {
             if (rawDuration == null) return 0L
@@ -259,12 +267,12 @@ class LitePlayerFfmpegService : AbstractFfmpegHlsService() {
 
         private fun estimateDurationMs(probe: ProbeResult?): Long = probe?.durationMs ?: 0L
 
-        private fun extractCodecs(streams: KJsonArray?): CodecPair {
+        private fun extractCodecs(streams: kotlinx.serialization.json.JsonArray?): CodecPair {
             var videoCodec = ""
             var audioCodec = ""
             if (streams == null) return CodecPair(videoCodec, audioCodec)
-            for (i in 0 until streams.length()) {
-                val stream = streams.optJSONObject(i) ?: continue
+            for (i in streams.indices) {
+                val stream = streams.optObject(i) ?: continue
                 val codecType = stream.optString("codec_type", "")
                 if (codecType.equals("video", true) && videoCodec.isBlank()) {
                     videoCodec = stream.optString("codec_name", "")

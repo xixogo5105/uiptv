@@ -17,14 +17,16 @@ import java.nio.charset.StandardCharsets
 import java.util.function.Consumer
 import java.util.function.Supplier
 
-class PlayerRequestResolver @JvmOverloads constructor(
-    private val bookmarkService: BookmarkService = BookmarkService,
-    private val accountService: AccountService = AccountService,
-    private val playerService: PlayerService = PlayerService.INSTANCE,
-    private val seriesCategoryDb: SeriesCategoryDb = SeriesCategoryDb.get(),
-    private val vodChannelDb: VodChannelDb = VodChannelDb.get(),
-    private val channelDb: ChannelDb = ChannelDb.get()
+class PlayerRequestResolver(
+    private val bookmarkService: BookmarkService,
+    private val accountService: AccountService,
+    private val playerService: PlayerService,
+    private val seriesCategoryDb: SeriesCategoryDb,
+    private val vodChannelDb: VodChannelDb,
+    private val channelDb: ChannelDb
 ) {
+    constructor() : this(BookmarkService, AccountService, PlayerService.INSTANCE, SeriesCategoryDb.get(), VodChannelDb.get(), ChannelDb.get())
+
     @Throws(IOException::class)
     fun resolveBookmarkPlayback(bookmarkId: String, mode: String?, seriesParentId: String?): PlayerResponse {
         val bookmark = bookmarkService.getBookmark(bookmarkId) ?: throw IOException("Bookmark not found")
@@ -146,7 +148,10 @@ class PlayerRequestResolver @JvmOverloads constructor(
         val INSTANCE: PlayerRequestResolver = PlayerRequestResolver(
             bookmarkService = BookmarkService,
             accountService = AccountService,
-            playerService = PlayerService.INSTANCE
+            playerService = PlayerService.INSTANCE,
+            seriesCategoryDb = SeriesCategoryDb.get(),
+            vodChannelDb = VodChannelDb.get(),
+            channelDb = ChannelDb.get()
         )
     }
 }

@@ -9,13 +9,32 @@ import com.uiptv.util.FetchAPI
 import java.util.Date
 import java.util.HashMap
 
-class CacheServiceImpl @JvmOverloads constructor(
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.INSTANCE },
-    private val categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
-    private val channelServiceProvider: () -> ChannelService = { ChannelService.INSTANCE },
-    private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
+class CacheServiceImpl(
+    private val handshakeServiceProvider: () -> HandshakeService,
+    private val categoryServiceProvider: () -> CategoryService,
+    private val configurationServiceProvider: () -> ConfigurationService,
+    private val channelServiceProvider: () -> ChannelService,
+    private val fetchProvider: (Map<String, String>, Account) -> String
 ) : CacheService {
+    constructor() : this(
+        handshakeServiceProvider = { HandshakeService.INSTANCE },
+        categoryServiceProvider = { CategoryService.INSTANCE },
+        configurationServiceProvider = { ConfigurationService },
+        channelServiceProvider = { ChannelService.INSTANCE },
+        fetchProvider = FetchAPI::fetch
+    )
+
+    constructor(
+        handshakeServiceProvider: () -> HandshakeService,
+        categoryServiceProvider: () -> CategoryService
+    ) : this(
+        handshakeServiceProvider = handshakeServiceProvider,
+        categoryServiceProvider = categoryServiceProvider,
+        configurationServiceProvider = { ConfigurationService },
+        channelServiceProvider = { ChannelService.INSTANCE },
+        fetchProvider = FetchAPI::fetch
+    )
+
     private val reloaderFactory by lazy(LazyThreadSafetyMode.NONE) {
         AccountCacheReloaderFactory(
             categoryServiceProvider = categoryServiceProvider,

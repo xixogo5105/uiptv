@@ -26,11 +26,13 @@ import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-class CategoryService @JvmOverloads constructor(
-    private val contentFilterService: ContentFilterService = ContentFilterService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService.INSTANCE
+class CategoryService(
+    private val contentFilterService: ContentFilterService,
+    private val configurationService: ConfigurationService,
+    private val handshakeService: HandshakeService
 ) {
+    constructor() : this(ContentFilterService, ConfigurationService, HandshakeService.INSTANCE)
+
 
     fun get(account: Account): List<Category> = get(account, true)
     fun getCached(account: Account?): List<Category> {

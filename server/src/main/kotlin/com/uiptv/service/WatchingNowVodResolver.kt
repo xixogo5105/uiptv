@@ -5,7 +5,8 @@ import com.uiptv.model.Account
 import com.uiptv.model.Channel
 import com.uiptv.model.VodWatchState
 import com.uiptv.util.StringUtils.isBlank
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonObject
 import java.util.function.Consumer
 import java.util.function.Supplier
 
@@ -65,16 +66,13 @@ class WatchingNowVodResolver(
         if (builder == null || isBlank(extraJson)) {
             return
         }
-        try {
-            val json = KJsonObject(extraJson.orEmpty())
-            builder.name = preferIfBlank(builder.name, json.optString("name"), json.optString("o_name"))
-            builder.logo = preferIfBlank(builder.logo, json.optString("stream_icon"), json.optString("cover_big"), json.optString("cover"))
-            builder.plot = preferIfBlank(builder.plot, json.optString("description"), json.optString("plot"), json.optString("overview"))
-            builder.releaseDate = preferIfBlank(builder.releaseDate, json.optString("release_date"), json.optString("released"), json.optString("year"))
-            builder.rating = preferIfBlank(builder.rating, json.optString("rating_imdb"), json.optString("rating"))
-            builder.duration = preferIfBlank(builder.duration, json.optString("duration"), json.optString("runtime"), json.optString("time"))
-        } catch (_: Exception) {
-        }
+        val json = parseJsonObject(extraJson.orEmpty()) ?: return
+        builder.name = preferIfBlank(builder.name, json.optString("name"), json.optString("o_name"))
+        builder.logo = preferIfBlank(builder.logo, json.optString("stream_icon"), json.optString("cover_big"), json.optString("cover"))
+        builder.plot = preferIfBlank(builder.plot, json.optString("description"), json.optString("plot"), json.optString("overview"))
+        builder.releaseDate = preferIfBlank(builder.releaseDate, json.optString("release_date"), json.optString("released"), json.optString("year"))
+        builder.rating = preferIfBlank(builder.rating, json.optString("rating_imdb"), json.optString("rating"))
+        builder.duration = preferIfBlank(builder.duration, json.optString("duration"), json.optString("runtime"), json.optString("time"))
     }
 
     private fun preferIfBlank(current: String?, vararg candidates: String?): String {

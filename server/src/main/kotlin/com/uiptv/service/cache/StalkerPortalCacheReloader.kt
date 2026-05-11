@@ -20,13 +20,21 @@ import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-class StalkerPortalCacheReloader @JvmOverloads constructor(
-    private val handshakeServiceProvider: () -> HandshakeService = { HandshakeService.INSTANCE },
-    private val channelServiceProvider: () -> ChannelService = { ChannelService.INSTANCE },
-    categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
-    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService },
-    private val fetchProvider: (Map<String, String>, Account) -> String = FetchAPI::fetch
+class StalkerPortalCacheReloader(
+    private val handshakeServiceProvider: () -> HandshakeService,
+    private val channelServiceProvider: () -> ChannelService,
+    categoryServiceProvider: () -> CategoryService,
+    configurationServiceProvider: () -> ConfigurationService,
+    private val fetchProvider: (Map<String, String>, Account) -> String
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
+    constructor() : this(
+        handshakeServiceProvider = { HandshakeService.INSTANCE },
+        channelServiceProvider = { ChannelService.INSTANCE },
+        categoryServiceProvider = { CategoryService.INSTANCE },
+        configurationServiceProvider = { ConfigurationService },
+        fetchProvider = FetchAPI::fetch
+    )
+
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         handshakeService().connect(account)
         if (account.isNotConnected()) {

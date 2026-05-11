@@ -9,12 +9,14 @@ import com.uiptv.model.Category
 import com.uiptv.model.Channel
 import com.uiptv.model.SeriesWatchState
 import com.uiptv.util.StringUtils
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.parseJsonObject
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.regex.Pattern
 import com.uiptv.model.Account.AccountAction.series
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 object SeriesWatchStateService {
     private const val FIELD_CATEGORY_ID = "categoryId"
@@ -204,9 +206,7 @@ object SeriesWatchStateService {
         if (matchedCategory == null) {
             return resolveSnapshotFallback("", existing?.seriesCategorySnapshot)
         }
-        return KJsonObject(matchedCategory.toJson())
-            .put(FIELD_CATEGORY_ID, portalCategoryId)
-            .toString()
+        return enrichSnapshot(matchedCategory.toJson(), FIELD_CATEGORY_ID to portalCategoryId)
     }
 
     private fun buildSeriesChannelSnapshot(account: Account, portalCategoryId: String, state: SeriesWatchState, matchedCategory: Category?, existing: SeriesWatchState?): String {
@@ -214,10 +214,11 @@ object SeriesWatchStateService {
         if (seriesChannel == null) {
             return resolveSnapshotFallback("", existing?.seriesChannelSnapshot)
         }
-        return KJsonObject(seriesChannel.toJson())
-            .put(FIELD_CATEGORY_ID, portalCategoryId)
-            .put("channelId", safe(seriesChannel.channelId))
-            .toString()
+        return enrichSnapshot(
+            seriesChannel.toJson(),
+            FIELD_CATEGORY_ID to portalCategoryId,
+            "channelId" to safe(seriesChannel.channelId)
+        )
     }
 
     private fun buildEpisodeSnapshot(account: Account, portalCategoryId: String, state: SeriesWatchState, matchedCategory: Category?, existing: SeriesWatchState?): String {
@@ -226,11 +227,20 @@ object SeriesWatchStateService {
             val episodeFallback = if (existing != null && safe(existing.episodeId) == safe(state.episodeId)) existing.seriesEpisodeSnapshot else ""
             return resolveSnapshotFallback("", episodeFallback)
         }
-        return KJsonObject(episodeChannel.toJson())
-            .put(FIELD_CATEGORY_ID, portalCategoryId)
-            .put("seriesId", safe(state.seriesId))
-            .put("channelId", safe(episodeChannel.channelId))
-            .toString()
+        return enrichSnapshot(
+            episodeChannel.toJson(),
+            FIELD_CATEGORY_ID to portalCategoryId,
+            "seriesId" to safe(state.seriesId),
+            "channelId" to safe(episodeChannel.channelId)
+        )
+    }
+
+    private fun enrichSnapshot(rawJson: String, vararg extraFields: Pair<String, String>): String {
+        val parsed = parseJsonObject(rawJson)
+        return buildJsonObject {
+            parsed?.forEach { (key, value) -> put(key, value) }
+            extraFields.forEach { (key, value) -> put(key, value) }
+        }.toString()
     }
 
     private fun resolveSnapshotFallback(currentSnapshot: String?, fallbackSnapshot: String?): String {

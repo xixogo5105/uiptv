@@ -8,8 +8,13 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 import com.uiptv.util.StringUtils.isBlank
 import com.uiptv.util.StringUtils.isNotBlank
-import com.uiptv.util.json.KJsonArray
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optArray
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonArray
+import com.uiptv.util.json.parseJsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 object LogoResolverService {
     private const val CHANNELS_CATALOG_URL = "https://iptv-org.github.io/api/channels.json"
@@ -54,7 +59,7 @@ object LogoResolverService {
             val response = fetchChannelsCatalog()
             if (response.statusCode != HttpUtil.STATUS_OK) return
             val logoByChannelId = loadLogosByChannelId()
-            val fresh = buildCatalogEntries(KJsonArray(response.body), logoByChannelId)
+            val fresh = buildCatalogEntries(parseJsonArray(response.body) ?: return, logoByChannelId)
             if (fresh.isNotEmpty()) {
                 catalog.clear()
                 catalog.putAll(fresh)
@@ -70,25 +75,25 @@ object LogoResolverService {
 
     private fun fetchChannelsCatalog(): HttpUtil.HttpResult = HttpUtil.sendRequest(CHANNELS_CATALOG_URL, null, "GET")
 
-    private fun buildCatalogEntries(channels: KJsonArray, logoByChannelId: Map<String, String>): ConcurrentHashMap<String, String> {
+    private fun buildCatalogEntries(channels: kotlinx.serialization.json.JsonArray, logoByChannelId: Map<String, String>): ConcurrentHashMap<String, String> {
         val fresh = ConcurrentHashMap<String, String>()
-        for (index in 0 until channels.length()) {
-            channels.optJSONObject(index)?.let { addCatalogAliases(fresh, it, logoByChannelId) }
+        for (index in channels.indices) {
+            channels.optObject(index)?.let { addCatalogAliases(fresh, it, logoByChannelId) }
         }
         return fresh
     }
 
-    private fun addCatalogAliases(fresh: ConcurrentHashMap<String, String>, item: KJsonObject, logoByChannelId: Map<String, String>) {
+    private fun addCatalogAliases(fresh: ConcurrentHashMap<String, String>, item: kotlinx.serialization.json.JsonObject, logoByChannelId: Map<String, String>) {
         val logo = resolveCatalogLogo(item, logoByChannelId)
         if (isBlank(logo)) return
         addAlias(fresh, item.optString("name", ""), logo)
-        val altNames = item.optJSONArray("alt_names") ?: return
-        for (index in 0 until altNames.length()) {
+        val altNames = item.optArray("alt_names") ?: return
+        for (index in altNames.indices) {
             addAlias(fresh, altNames.optString(index, ""), logo)
         }
     }
 
-    private fun resolveCatalogLogo(item: KJsonObject, logoByChannelId: Map<String, String>): String {
+    private fun resolveCatalogLogo(item: kotlinx.serialization.json.JsonObject, logoByChannelId: Map<String, String>): String {
         val channelId = item.optString("id", "")
         val logo = item.optString("logo", "")
         return if (isBlank(logo) && isNotBlank(channelId)) logoByChannelId[channelId].orEmpty() else logo
@@ -236,8 +241,8 @@ object LogoResolverService {
         if (!localCacheFile.exists()) return
         try {
             FileInputStream(localCacheFile).use { input ->
-                val root = KJsonObject(String(input.readAllBytes(), StandardCharsets.UTF_8))
-                root.keys().forEach { key ->
+                val root = parseJsonObject(String(input.readAllBytes(), StandardCharsets.UTF_8)) ?: return
+                root.keys.forEach { key ->
                     val value = root.optString(key, "")
                     if (isNotBlank(value)) localCache[key] = value
                 }
@@ -250,7 +255,11 @@ object LogoResolverService {
     private fun persistLocalCache() {
         try {
             FileOutputStream(localCacheFile).use { output ->
-                output.write(KJsonObject(localCache.toMap()).toString().toByteArray(StandardCharsets.UTF_8))
+                output.write(
+                    buildJsonObject {
+                        localCache.toSortedMap().forEach { (key, value) -> put(key, value) }
+                    }.toString().toByteArray(StandardCharsets.UTF_8)
+                )
             }
         } catch (_: Exception) {
         }

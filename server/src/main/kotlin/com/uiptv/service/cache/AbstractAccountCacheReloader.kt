@@ -25,8 +25,8 @@ import java.util.Locale
 import java.util.UUID
 
 abstract class AbstractAccountCacheReloader(
-    private val categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
-    private val configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
+    private val categoryServiceProvider: () -> CategoryService,
+    private val configurationServiceProvider: () -> ConfigurationService
 ) : AccountCacheReloader {
     companion object {
         private const val ALL_CATEGORY = "All"

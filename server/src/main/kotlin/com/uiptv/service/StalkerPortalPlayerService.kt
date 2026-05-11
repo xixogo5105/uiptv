@@ -6,7 +6,9 @@ import com.uiptv.model.PlayerResponse
 import com.uiptv.util.FetchAPI
 import com.uiptv.util.PlayerUrlUtils
 import com.uiptv.util.StringUtils.isBlank
-import com.uiptv.util.json.KJsonObject
+import com.uiptv.util.json.optObject
+import com.uiptv.util.json.optString
+import com.uiptv.util.json.parseJsonObject
 import java.io.IOException
 import java.net.URI
 import java.net.URLDecoder
@@ -238,19 +240,15 @@ class StalkerPortalPlayerService @JvmOverloads constructor(
     }
 
     private fun parseUrl(json: String?): String? {
-        return try {
-            val root = KJsonObject(json.orEmpty())
-            val js = root.optJSONObject("js")
-            if (js != null) {
-                val cmd = js.optString("cmd")
-                if (!isBlank(cmd)) return cmd
-                val url = js.optString("url")
-                if (!isBlank(url)) return url
-            }
-            root.optString("cmd").takeUnless { isBlank(it) }
-        } catch (_: Exception) {
-            null
+        val root = parseJsonObject(json.orEmpty()) ?: return null
+        val js = root.optObject("js")
+        if (js != null) {
+            val cmd = js.optString("cmd")
+            if (!isBlank(cmd)) return cmd
+            val url = js.optString("url")
+            if (!isBlank(url)) return url
         }
+        return root.optString("cmd").takeUnless { isBlank(it) }
     }
 
     private fun normalizeSeriesStreamPlaceholder(resolvedCmd: String, seriesParam: String?): String {

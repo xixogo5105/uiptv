@@ -21,10 +21,12 @@ import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import com.uiptv.model.CategoryType.ALL
 
-open class M3uCacheReloader @JvmOverloads constructor(
-    categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
-    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
+open class M3uCacheReloader(
+    categoryServiceProvider: () -> CategoryService,
+    configurationServiceProvider: () -> ConfigurationService
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
+    constructor() : this({ CategoryService.INSTANCE }, { ConfigurationService })
+
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         val categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories()
         if (categories.isEmpty()) {

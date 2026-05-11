@@ -19,13 +19,15 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 @Suppress("java:S1075")
-class WebPlayerApiService @JvmOverloads constructor(
-    private val accountService: AccountService = AccountService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val ffmpegService: FfmpegService = FfmpegService,
-    private val bingeWatchService: BingeWatchService = BingeWatchService.INSTANCE,
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver.INSTANCE
+class WebPlayerApiService(
+    private val accountService: AccountService,
+    private val configurationService: ConfigurationService,
+    private val ffmpegService: FfmpegService,
+    private val bingeWatchService: BingeWatchService,
+    private val playerRequestResolver: PlayerRequestResolver
 ) {
+    constructor() : this(AccountService, ConfigurationService, FfmpegService, BingeWatchService.INSTANCE, PlayerRequestResolver.INSTANCE)
+
     private val json = Json {
         explicitNulls = false
     }

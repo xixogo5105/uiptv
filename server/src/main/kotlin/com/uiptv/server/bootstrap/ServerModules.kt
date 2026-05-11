@@ -59,7 +59,7 @@ val serverServiceModule = module {
     single<PredefinedPlayerService> { PredefinedPlayerService() }
     single { HandshakeService(get(), get()) }
     single { StalkerPortalPlayerService(get(), get()) }
-    single<CacheService> { CacheServiceImpl({ get() }, { get() }, { get() }, { get() }) }
+    single<CacheService> { CacheServiceImpl({ get() }, { get() }, { get() }, { get() }, com.uiptv.util.FetchAPI::fetch) }
     single { ImdbMetadataService }
     single { CategoryService(get(), get(), get()) }
     single { ChannelService(cacheServiceProvider = { get() }, contentFilterService = get(), logoResolverService = get(), configurationService = get(), handshakeService = get()) }
@@ -67,9 +67,9 @@ val serverServiceModule = module {
     single { BingeWatchService(get(), get(), get()) }
     single { M3U8PublicationService(get(), get(), get()) }
     single { SeriesEpisodeService(get(), get()) }
-    single { PlayerRequestResolver(get(), get(), get()) }
+    single { PlayerRequestResolver(get(), get(), get(), com.uiptv.db.SeriesCategoryDb.get(), com.uiptv.db.VodChannelDb.get(), com.uiptv.db.ChannelDb.get()) }
     single { WebPlayerApiService(get(), get(), FfmpegService, get(), get()) }
-    single { PlaylistExportService(get(), get(), get(), get(), get(), get()) }
+    single { PlaylistExportService(get(), get(), get(), get(), get(), get(), com.uiptv.db.ChannelDb.get(), get()) }
     single { WatchingNowSeriesResolver(get(), get(), get()) }
     single { WatchingNowVodResolver(get(), get()) }
     single { RemoteSyncSessionService.runtimeInstance(get(), get()) }

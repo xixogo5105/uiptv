@@ -13,16 +13,27 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.LinkedHashMap
 
-class PlaylistExportService @JvmOverloads constructor(
-    private val accountService: AccountService = AccountService,
-    private val bookmarkService: BookmarkService = BookmarkService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService.INSTANCE,
-    private val playerService: PlayerService = PlayerService.INSTANCE,
-    private val playerRequestResolver: PlayerRequestResolver = PlayerRequestResolver.INSTANCE,
-    private val channelDb: ChannelDb = ChannelDb.get(),
-    private val publicationService: M3U8PublicationService = M3U8PublicationService.INSTANCE
+class PlaylistExportService(
+    private val accountService: AccountService,
+    private val bookmarkService: BookmarkService,
+    private val configurationService: ConfigurationService,
+    private val handshakeService: HandshakeService,
+    private val playerService: PlayerService,
+    private val playerRequestResolver: PlayerRequestResolver,
+    private val channelDb: ChannelDb,
+    private val publicationService: M3U8PublicationService
 ) {
+    constructor() : this(
+        accountService = AccountService,
+        bookmarkService = BookmarkService,
+        configurationService = ConfigurationService,
+        handshakeService = HandshakeService.INSTANCE,
+        playerService = PlayerService.INSTANCE,
+        playerRequestResolver = PlayerRequestResolver.INSTANCE,
+        channelDb = ChannelDb.get(),
+        publicationService = M3U8PublicationService.INSTANCE
+    )
+
     companion object {
         const val BOOKMARK_MISC_GROUP_TITLE = "Misc"
         private const val MAX_HLS_RESOLUTION_DEPTH = 8

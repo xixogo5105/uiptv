@@ -8,7 +8,12 @@ import com.uiptv.shared.Episode
 import com.uiptv.shared.EpisodeInfo
 import com.uiptv.shared.EpisodeList
 import com.uiptv.util.StringUtils
-import com.uiptv.util.json.KJsonArray
+import com.uiptv.util.json.parseJsonArray
+import com.uiptv.util.json.parseJsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 object SeriesWatchingNowSnapshotService {
     fun getSnapshot(accountId: String?, categoryId: String?, seriesId: String?): SeriesWatchingNowSnapshot? {
@@ -26,13 +31,9 @@ object SeriesWatchingNowSnapshotService {
         if (snapshot == null || StringUtils.isBlank(snapshot.episodesJson)) {
             return EpisodeList()
         }
-        val payload = try {
-            KJsonArray(snapshot.episodesJson.orEmpty())
-        } catch (_: Exception) {
-            return EpisodeList()
-        }
+        val payload = parseJsonArray(snapshot.episodesJson.orEmpty()) ?: return EpisodeList()
         val list = EpisodeList()
-        for (index in 0 until payload.length()) {
+        for (index in payload.indices) {
             val channel = readChannel(payload, index)
             if (channel != null) {
                 list.episodes.add(toEpisode(channel))
@@ -45,13 +46,9 @@ object SeriesWatchingNowSnapshotService {
         if (snapshot == null || StringUtils.isBlank(snapshot.episodesJson)) {
             return emptyList()
         }
-        val payload = try {
-            KJsonArray(snapshot.episodesJson.orEmpty())
-        } catch (_: Exception) {
-            return emptyList()
-        }
+        val payload = parseJsonArray(snapshot.episodesJson.orEmpty()) ?: return emptyList()
         val channels = ArrayList<Channel>()
-        for (index in 0 until payload.length()) {
+        for (index in payload.indices) {
             val channel = readChannel(payload, index)
             if (channel != null) {
                 channels.add(channel)
@@ -71,14 +68,16 @@ object SeriesWatchingNowSnapshotService {
         if (account == null || StringUtils.isBlank(account.dbId) || StringUtils.isBlank(seriesId) || episodeList?.episodes.isNullOrEmpty()) {
             return
         }
-        val episodesPayload = KJsonArray()
-        episodeList.episodes.forEach { episode ->
-            val channel = toChannel(episode)
-            if (channel != null) {
-                episodesPayload.put(channel.toJson())
+        val episodesPayload = buildJsonArray {
+            episodeList.episodes.forEach { episode ->
+                val channel = toChannel(episode)
+                val payload = channel?.toJson()?.let(::parseJsonObject)
+                if (payload != null) {
+                    add(payload)
+                }
             }
         }
-        if (episodesPayload.isEmpty) {
+        if (episodesPayload.isEmpty()) {
             return
         }
         val snapshot = SeriesWatchingNowSnapshot()
@@ -199,8 +198,13 @@ object SeriesWatchingNowSnapshotService {
         return latest
     }
 
-    private fun readChannel(payload: KJsonArray, index: Int): Channel? =
-        payload.opt(index)?.toString()?.let(Channel::fromJson)
+    private fun readChannel(payload: kotlinx.serialization.json.JsonArray, index: Int): Channel? =
+        payload.getOrNull(index)?.let { element ->
+            when (element) {
+                is JsonPrimitive -> element.contentOrNull?.let(Channel::fromJson)
+                else -> Channel.fromJson(element.toString())
+            }
+        }
 
     private fun hydrateParsedEpisode(parsed: Episode, channel: Channel) {
         if (StringUtils.isBlank(parsed.season)) {

@@ -15,10 +15,12 @@ import com.uiptv.model.Account.AccountAction.itv
 import com.uiptv.model.Account.AccountAction.series
 import com.uiptv.model.Account.AccountAction.vod
 
-class XtremeApiCacheReloader @JvmOverloads constructor(
-    categoryServiceProvider: () -> CategoryService = { CategoryService.INSTANCE },
-    configurationServiceProvider: () -> ConfigurationService = { ConfigurationService }
+class XtremeApiCacheReloader(
+    categoryServiceProvider: () -> CategoryService,
+    configurationServiceProvider: () -> ConfigurationService
 ) : AbstractAccountCacheReloader(categoryServiceProvider, configurationServiceProvider) {
+    constructor() : this({ CategoryService.INSTANCE }, { ConfigurationService })
+
     override fun reloadCache(account: Account, logger: LoggerCallback?) {
         if (isVodOrSeriesAction(account)) {
             reloadVodOrSeriesCategories(account, logger)

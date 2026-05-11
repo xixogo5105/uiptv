@@ -13,11 +13,13 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
-class BingeWatchService @JvmOverloads constructor(
-    private val accountService: AccountService = AccountService,
-    private val seriesWatchStateService: SeriesWatchStateService = SeriesWatchStateService,
-    private val playerService: PlayerService = PlayerService.INSTANCE
+class BingeWatchService(
+    private val accountService: AccountService,
+    private val seriesWatchStateService: SeriesWatchStateService,
+    private val playerService: PlayerService
 ) {
+    constructor() : this(AccountService, SeriesWatchStateService, PlayerService.INSTANCE)
+
     private val sessions = ConcurrentHashMap<String, Session>()
 
     fun createSession(

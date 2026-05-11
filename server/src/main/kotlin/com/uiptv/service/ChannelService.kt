@@ -40,13 +40,21 @@ import java.util.function.BooleanSupplier
 import java.util.function.Consumer
 import java.util.function.Supplier
 
-class ChannelService @JvmOverloads constructor(
-    private val cacheServiceProvider: () -> CacheService = { CacheServiceImpl.INSTANCE },
-    private val contentFilterService: ContentFilterService = ContentFilterService,
-    private val logoResolverService: LogoResolverService = LogoResolverService,
-    private val configurationService: ConfigurationService = ConfigurationService,
-    private val handshakeService: HandshakeService = HandshakeService.INSTANCE
+class ChannelService(
+    private val cacheServiceProvider: () -> CacheService,
+    private val contentFilterService: ContentFilterService,
+    private val logoResolverService: LogoResolverService,
+    private val configurationService: ConfigurationService,
+    private val handshakeService: HandshakeService
 ) {
+    constructor() : this(
+        cacheServiceProvider = { CacheServiceImpl.INSTANCE },
+        contentFilterService = ContentFilterService,
+        logoResolverService = LogoResolverService,
+        configurationService = ConfigurationService,
+        handshakeService = HandshakeService.INSTANCE
+    )
+
     private fun cacheService(): CacheService = cacheServiceProvider.invoke()
 
     @Throws(IOException::class)

@@ -14,10 +14,12 @@ import java.util.ArrayList
 import java.util.function.Supplier
 import java.util.regex.Pattern
 
-class SeriesEpisodeService @JvmOverloads constructor(
-    private val channelService: ChannelService = ChannelService.INSTANCE,
-    private val configurationService: ConfigurationService = ConfigurationService
+class SeriesEpisodeService(
+    private val channelService: ChannelService,
+    private val configurationService: ConfigurationService
 ) {
+    constructor() : this(ChannelService.INSTANCE, ConfigurationService)
+
     fun getEpisodes(account: Account?, categoryId: String?, seriesId: String?, isCancelled: Supplier<Boolean>?): EpisodeList {
         if (account == null || isBlank(seriesId)) {
             return EpisodeList()
