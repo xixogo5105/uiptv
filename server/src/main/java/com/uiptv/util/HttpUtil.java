@@ -6,11 +6,17 @@ import org.apache.hc.client5.http.impl.LaxRedirectStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.FileEntity;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,8 +49,20 @@ public class HttpUtil {
     private static final int CONNECTION_REQUEST_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.connection.request.timeout.seconds", DEFAULT_TIMEOUT_SECONDS);
     private static final int RESPONSE_TIMEOUT_SECONDS = Integer.getInteger("uiptv.http.response.timeout.seconds", DEFAULT_TIMEOUT_SECONDS);
     private static final int MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 5);
+    private static final int MAX_CONNECTIONS_TOTAL = Integer.getInteger("uiptv.http.max.connections.total", 50);
+    private static final int MAX_CONNECTIONS_PER_ROUTE = Integer.getInteger("uiptv.http.max.connections.per.route", 10);
+    private static final int IDLE_CONNECTION_EVICT_SECONDS = Integer.getInteger("uiptv.http.idle.connection.evict.seconds", 30);
+    private static final PoolingHttpClientConnectionManager CONNECTION_MANAGER =
+            PoolingHttpClientConnectionManagerBuilder.create()
+                    .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)
+                    .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
+                    .build();
     private static final CloseableHttpClient HTTP_CLIENT = HttpClients.custom()
+            .setConnectionManager(CONNECTION_MANAGER)
             .setRedirectStrategy(new LaxRedirectStrategy())
+            .disableAutomaticRetries()
+            .evictExpiredConnections()
+            .evictIdleConnections(TimeValue.ofSeconds(IDLE_CONNECTION_EVICT_SECONDS))
             .setDefaultRequestConfig(RequestConfig.custom()
                     .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS))
                     .setConnectionRequestTimeout(Timeout.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS))
@@ -67,13 +85,7 @@ public class HttpUtil {
         HttpClientContext context = HttpClientContext.create();
 
         return HTTP_CLIENT.execute(request, context, response -> {
-            HttpEntity entity = response.getEntity();
-            String responseBody = "";
-            if (options.readBody()) {
-                responseBody = entity == null ? "" : EntityUtils.toString(entity);
-            } else if (entity != null) {
-                EntityUtils.consumeQuietly(entity);
-            }
+            String responseBody = readResponseBody(response, options);
             return new HttpResult(
                     request.getMethod(),
                     getFinalUri(request, context),
@@ -83,6 +95,28 @@ public class HttpUtil {
                     headersToMap(response.getHeaders())
             );
         });
+    }
+
+    public static HttpResult sendFileRequest(String url,
+                                             Map<String, String> headers,
+                                             String method,
+                                             java.nio.file.Path file,
+                                             ContentType contentType,
+                                             RequestOptions options) throws IOException {
+        HttpUriRequestBase request = buildRequest(url, headers, method, null, options);
+        if (file != null) {
+            request.setEntity(new FileEntity(file.toFile(), contentType == null ? ContentType.APPLICATION_OCTET_STREAM : contentType));
+        }
+        HttpClientContext context = HttpClientContext.create();
+
+        return HTTP_CLIENT.execute(request, context, response -> new HttpResult(
+                request.getMethod(),
+                getFinalUri(request, context),
+                response.getCode(),
+                readResponseBody(response, options),
+                headersToMap(request.getHeaders()),
+                headersToMap(response.getHeaders())
+        ));
     }
 
     public static StreamResult openStream(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
@@ -213,6 +247,25 @@ public class HttpUtil {
 
     private static String nonBlank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static String readResponseBody(org.apache.hc.core5.http.ClassicHttpResponse response, RequestOptions options) throws IOException {
+        HttpEntity entity = response.getEntity();
+        boolean readBody = options == null || options.readBody();
+        if (readBody) {
+            if (entity == null) {
+                return "";
+            }
+            try {
+                return EntityUtils.toString(entity);
+            } catch (ParseException ex) {
+                throw new IOException("Unable to parse HTTP response body", ex);
+            }
+        }
+        if (entity != null) {
+            EntityUtils.consumeQuietly(entity);
+        }
+        return "";
     }
 
     private static HttpUriRequestBase buildRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) {

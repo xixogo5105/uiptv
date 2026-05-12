@@ -49,7 +49,7 @@ public final class AppLog {
             } catch (Exception e) {
                 // Keep logging resilient if a listener fails.
                 Logger logger = LoggerFactory.getLogger(AppLog.class);
-                logger.error("Log listener failed", e);
+                logger.warn("Log listener failed: {}", e.toString());
             }
         }
     }

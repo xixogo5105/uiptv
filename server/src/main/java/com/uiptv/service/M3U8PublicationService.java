@@ -11,13 +11,12 @@ import com.uiptv.model.PublishedM3uSelection;
 import com.uiptv.server.api.json.HttpM3u8BookmarkPlayListServer;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.HttpUtil;
 import com.uiptv.util.ServerUrlUtil;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -530,12 +529,8 @@ public class M3U8PublicationService {
         }
     }
 
-    @SuppressWarnings("java:S1874")
     private String readUrl(String urlString) throws IOException {
-        URL url = new URL(urlString);
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream(), StandardCharsets.UTF_8))) {
-            return reader.lines().collect(Collectors.joining("\n"));
-        }
+        return HttpUtil.sendRequest(urlString, null, "GET").body();
     }
 
     public record PublicationSelections(Set<String> accountIds,
