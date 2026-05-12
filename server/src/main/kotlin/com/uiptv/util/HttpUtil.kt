@@ -3,7 +3,8 @@ package com.uiptv.util
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.Headers
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.runBlocking
@@ -56,7 +57,7 @@ object HttpUtil {
                         setBody(body)
                     }
                 }
-                val responseBody = if (options.readBody) response.bodyAsText() else ""
+                val responseBody = if (options.readBody) readResponseBodyText(response) else ""
                 HttpResult(
                     safeMethod(requestMethod),
                     response.call.request.url.toString(),
@@ -109,6 +110,30 @@ object HttpUtil {
             }
             throw IOException("Unable to open HTTP stream", ex)
         }
+    }
+
+    private suspend fun readResponseBodyText(response: HttpResponse): String {
+        val bytes = response.bodyAsBytes()
+        val charset = response.headers["Content-Type"]
+            ?.let(::extractCharsetFromContentType)
+            ?: StandardCharsets.UTF_8
+        return bytes.toString(charset)
+    }
+
+    private fun extractCharsetFromContentType(contentType: String): java.nio.charset.Charset? {
+        return contentType
+            .split(';')
+            .asSequence()
+            .drop(1)
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("charset=", ignoreCase = true) }
+            ?.substringAfter('=')
+            ?.trim()
+            ?.trim('"')
+            ?.takeIf { it.isNotEmpty() }
+            ?.let {
+                runCatching { java.nio.charset.Charset.forName(it) }.getOrNull()
+            }
     }
 
     @JvmStatic
