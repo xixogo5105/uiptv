@@ -112,8 +112,7 @@ final class SecureTempFileSupport {
             String permission = resolvePermissionFailure(
                     permissionsCleared,
                     ownerReadable,
-                    ownerWritable,
-                    ownerExecutable
+                    ownerWritable
             );
             throw new IOException("Unable to set " + permission + " permissions for " + file.toPath());
         }
@@ -121,8 +120,7 @@ final class SecureTempFileSupport {
 
     private static String resolvePermissionFailure(boolean permissionsCleared,
                                                    boolean ownerReadable,
-                                                   boolean ownerWritable,
-                                                   boolean ownerExecutable) {
+                                                   boolean ownerWritable) {
         if (!permissionsCleared) {
             return "owner-only";
         }

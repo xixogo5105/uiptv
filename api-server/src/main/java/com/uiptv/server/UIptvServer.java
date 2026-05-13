@@ -106,13 +106,13 @@ public class UIptvServer {
         return isBlank(ConfigurationService.getInstance().read().getServerPort()) ? "8888" : ConfigurationService.getInstance().read().getServerPort();
     }
 
-    public static synchronized void start() throws IOException {
+    public static synchronized void start() {
         initialiseServer();
         httpServer.start();
         addInfoLog(UIptvServer.class, "Server Started on port " + getHttpPort());
     }
 
-    public static synchronized boolean ensureStarted() throws IOException {
+    public static synchronized boolean ensureStarted() {
         if (isRunning()) {
             return false;
         }
