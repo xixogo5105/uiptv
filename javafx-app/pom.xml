@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.spc</groupId>
         <artifactId>uiptv</artifactId>
-        <version>0.1.11</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>uiptv-gui</artifactId>
@@ -278,7 +278,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>1.0.0</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                                 <option>-Xdock:name=UIPTV</option>
@@ -345,7 +345,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.icns</icon>
-                            <appVersion>1.0.0</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option>
                                 <option>-Xdock:name=UIPTV</option>

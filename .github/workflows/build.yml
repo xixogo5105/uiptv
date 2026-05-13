@@ -109,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-windows-${{ matrix.arch }}
-          path: target/dist/*
+          path: javafx-app/target/dist/*
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
 
@@ -143,7 +143,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-macos-${{ matrix.arch }}
-          path: target/dist/*
+          path: javafx-app/target/dist/*
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
 
@@ -185,11 +185,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-deb
-          path: target/dist/*.deb
+          path: javafx-app/target/dist/*.deb
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
-        run: rm -rf target/dist/*
+        run: rm -rf javafx-app/target/dist/*
 
       - name: Build RPM package
         if: steps.rpm_support.outputs.supported == 'true'
@@ -200,11 +200,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-rpm
-          path: target/dist/*.rpm
+          path: javafx-app/target/dist/*.rpm
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
-        run: rm -rf target/dist/*
+        run: rm -rf javafx-app/target/dist/*
 
       - name: Build AppImage package
         run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-app-image
@@ -212,7 +212,7 @@ jobs:
       - name: Archive app-image artifact (x86_64)
         shell: bash
         run: |
-          tar -C target/dist -czf target/UIPTV-linux-x86_64-app-image.tar.gz .
+          tar -C javafx-app/target/dist -czf target/UIPTV-linux-x86_64-app-image.tar.gz .
 
       - name: Upload AppImage artifact (x86_64)
         uses: actions/upload-artifact@v7
@@ -222,7 +222,7 @@ jobs:
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
-        run: rm -rf target/dist/*
+        run: rm -rf javafx-app/target/dist/*
 
       # NOTE:
       # Do not build linux-aarch64 app-image on an x86_64 runner.
@@ -250,7 +250,7 @@ jobs:
       - name: Archive app-image artifact (aarch64)
         shell: bash
         run: |
-          tar -C target/dist -czf target/UIPTV-linux-aarch64-app-image.tar.gz .
+          tar -C javafx-app/target/dist -czf target/UIPTV-linux-aarch64-app-image.tar.gz .
 
       - name: Upload AppImage artifact (aarch64)
         uses: actions/upload-artifact@v7

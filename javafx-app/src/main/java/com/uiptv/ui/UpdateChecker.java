@@ -57,6 +57,10 @@ public class UpdateChecker {
 
     static boolean isUpdateAvailable(String latestVersion) {
         String currentVersion = VersionManager.getCurrentVersion();
+        return isUpdateAvailable(currentVersion, latestVersion);
+    }
+
+    static boolean isUpdateAvailable(String currentVersion, String latestVersion) {
         if (latestVersion == null || currentVersion == null) {
             return false;
         }

@@ -42,4 +42,17 @@ class UpdateCheckerTest {
         assertFalse(UpdateChecker.isUpdateAvailable(current));
         assertFalse(UpdateChecker.isUpdateAvailable(major + "." + minor + "." + Math.max(0, patch - 1)));
     }
+
+    @Test
+    void isUpdateAvailable_detectsMajorReleaseUpgrade() {
+        assertTrue(UpdateChecker.isUpdateAvailable("0.1.10", "1.0.0"));
+        assertFalse(UpdateChecker.isUpdateAvailable("1.0.0", "0.1.10"));
+    }
+
+    @Test
+    void isUpdateAvailable_handlesDoubleDigitPatchAndMinorSegments() {
+        assertTrue(UpdateChecker.isUpdateAvailable("0.1.9", "0.1.10"));
+        assertTrue(UpdateChecker.isUpdateAvailable("0.9.11", "0.10.0"));
+        assertFalse(UpdateChecker.isUpdateAvailable("0.10.0", "0.9.11"));
+    }
 }
