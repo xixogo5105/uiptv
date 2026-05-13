@@ -7,6 +7,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -35,5 +37,24 @@ class ServerUrlUtilTest {
 
             assertEquals("http://127.0.0.1:9090", ServerUrlUtil.getLocalServerUrl());
         }
+    }
+
+    @Test
+    void getLocalServerUrl_fallsBackWhenConfigurationFails() {
+        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+            ConfigurationService service = mock(ConfigurationService.class);
+            when(service.read()).thenThrow(new IllegalStateException("db unavailable"));
+            mockedService.when(ConfigurationService::getInstance).thenReturn(service);
+
+            assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLocalServerUrl());
+        }
+    }
+
+    @Test
+    void serverReflectionFacade_handlesMissingRuntimeModule() {
+        assertFalse(ServerUrlUtil.isServerRunning());
+        assertThrows(IllegalStateException.class, ServerUrlUtil::ensureServerForWebPlayback);
+        ServerUrlUtil.stopServer();
+        assertThrows(IllegalStateException.class, ServerUrlUtil::startServerChecked);
     }
 }

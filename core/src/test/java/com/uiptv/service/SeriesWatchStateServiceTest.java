@@ -11,6 +11,8 @@ import com.uiptv.util.AccountType;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+
 import static com.uiptv.model.Account.AccountAction.series;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -231,6 +233,61 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
         assertEquals("37177", updated.getSeriesId());
     }
 
+    @Test
+    void helperMethods_coverSeriesIdParsingMatchingAndListenerGuards() throws Exception {
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
+
+        assertEquals("37177", invoke(service, "normalizeSeriesId", new Class[]{String.class}, "37177:37177"));
+        assertEquals("abc", invoke(service, "normalizeSeriesId", new Class[]{String.class}, " : abc "));
+        assertEquals(java.util.List.of("37177", "37177:37177"), invoke(service, "buildSeriesIdCandidates", new Class[]{String.class}, "37177:37177"));
+        assertEquals(java.util.List.of("123:123", "123"), invoke(service, "buildSeriesIdCandidates", new Class[]{String.class}, "123"));
+        assertTrue(((java.util.List<?>) invoke(service, "buildSeriesIdCandidates", new Class[]{String.class}, "")).isEmpty());
+        assertTrue((Boolean) invoke(service, "areAllPartsNumeric", new Class[]{String[].class}, (Object) new String[]{"12", "", "34"}));
+        assertFalse((Boolean) invoke(service, "areAllPartsNumeric", new Class[]{String[].class}, (Object) new String[]{"12", "abc"}));
+        assertEquals("last", invoke(service, "lastNonBlank", new Class[]{String[].class}, (Object) new String[]{"", "first", "last"}));
+
+        java.util.Set<String> candidates = new java.util.LinkedHashSet<>();
+        invoke(service, "addNonBlankParts", new Class[]{java.util.Set.class, String[].class}, candidates, new String[]{" ", "one", "two"});
+        assertEquals(java.util.List.of("one", "two"), new java.util.ArrayList<>(candidates));
+
+        assertEquals(15, service.parseEpisodeNum("", "S03E015 - Finale"));
+        assertEquals(8, service.parseEpisodeNum("", "Season 1 Episode 8"));
+        assertEquals(0, service.parseEpisodeNum("", "Finale"));
+        assertEquals(3, service.parseSeasonNum("", "S03E015 - Finale"));
+        assertEquals(2, service.parseSeasonNum("", "2x10 - Title"));
+        assertEquals(0, service.parseSeasonNum("", "Finale"));
+        assertTrue(service.shouldAdvancePointer(1, 10, 2, 1));
+        assertFalse(service.shouldAdvancePointer(2, 1, 1, 10));
+        assertFalse(service.shouldAdvancePointer(2, 1, 2, 0));
+        assertTrue(service.shouldAdvancePointer(0, 0, 0, 1));
+        assertFalse(service.shouldAdvancePointer(0, 2, 0, 1));
+
+        SeriesWatchState watched = new SeriesWatchState();
+        watched.setEpisodeId("ep-1");
+        watched.setSeason("1");
+        watched.setEpisodeNum(8);
+        assertFalse(service.isMatchingEpisode(null, "ep-1", "1", "8", "Episode 8"));
+        assertFalse(service.isMatchingEpisode(watched, "", "1", "8", "Episode 8"));
+        assertFalse(service.isMatchingEpisode(watched, "ep-2", "1", "8", "Episode 8"));
+        assertTrue(service.isMatchingEpisode(watched, "ep-1", "1", "8", "Episode 8"));
+        assertFalse(service.isMatchingEpisode(watched, "ep-1", "2", "8", "Episode 8"));
+
+        java.util.List<String> notifications = new java.util.ArrayList<>();
+        SeriesWatchStateChangeListener listener = (accountId, seriesId) -> notifications.add(accountId + ":" + seriesId);
+        SeriesWatchStateChangeListener throwing = (_, _) -> {
+            throw new IllegalStateException("boom");
+        };
+        service.addChangeListener(listener);
+        service.addChangeListener(throwing);
+        try {
+            invoke(service, "notifyListeners", new Class[]{String.class, String.class}, "acc", "series");
+            assertEquals(java.util.List.of("acc:series"), notifications);
+        } finally {
+            service.removeChangeListener(listener);
+            service.removeChangeListener(throwing);
+        }
+    }
+
     private Account createSeriesAccount(String name) {
         Account account = new Account(
                 name,
@@ -263,5 +320,12 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
         channel.setSeason("1");
         channel.setCmd("http://127.0.0.1/media/" + episodeId + ".m3u8");
         return channel;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T invoke(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, parameterTypes);
+        method.setAccessible(true);
+        return (T) method.invoke(target, args);
     }
 }

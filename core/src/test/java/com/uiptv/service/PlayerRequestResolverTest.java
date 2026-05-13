@@ -1,15 +1,19 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Bookmark;
+import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Account;
+import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
+import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-class PlayerRequestResolverTest {
+class PlayerRequestResolverTest extends DbBackedTest {
 
     @Test
     void resolveBookmarkChannel_prefersSeriesSnapshot() {
@@ -56,5 +60,51 @@ class PlayerRequestResolverTest {
         assertEquals("widevine", merged.getDrmType());
         assertEquals("http://license", merged.getDrmLicenseUrl());
         assertEquals("hls", merged.getManifestType());
+    }
+
+    @Test
+    void resolveBookmarkChannel_fallsBackThroughChannelVodAndLegacySnapshots() {
+        Channel channelSnapshot = new Channel();
+        channelSnapshot.setChannelId("ch-1");
+        channelSnapshot.setName("Channel Snapshot");
+        Bookmark channelBookmark = new Bookmark("acc", "Live", "ch-1", "Legacy", "http%3A%2F%2Fencoded", "http://portal", "cat");
+        channelBookmark.setChannelJson(channelSnapshot.toJson());
+
+        Channel vodSnapshot = new Channel();
+        vodSnapshot.setChannelId("vod-1");
+        vodSnapshot.setName("VOD Snapshot");
+        Bookmark vodBookmark = new Bookmark("acc", "Movies", "vod-1", "Legacy", "http%3A%2F%2Fencoded", "http://portal", "cat");
+        vodBookmark.setVodJson(vodSnapshot.toJson());
+
+        Bookmark legacy = new Bookmark("acc", "Legacy", "legacy-1", "Legacy Name", "http%3A%2F%2Fstream", "http://portal", "cat");
+        legacy.setDrmType("widevine");
+        legacy.setManifestType("hls");
+
+        PlayerRequestResolver resolver = new PlayerRequestResolver();
+
+        assertEquals("Channel Snapshot", resolver.resolveBookmarkChannel(channelBookmark).getName());
+        assertEquals("VOD Snapshot", resolver.resolveBookmarkChannel(vodBookmark).getName());
+        Channel legacyChannel = resolver.resolveBookmarkChannel(legacy);
+        assertEquals("http://stream", legacyChannel.getCmd());
+        assertEquals("widevine", legacyChannel.getDrmType());
+        assertEquals("hls", legacyChannel.getManifestType());
+    }
+
+    @Test
+    void resolveSeriesCategoryId_mapsDbIdToApiCategoryForSeriesAccounts() {
+        Account account = new Account("resolver-series", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://test", false);
+        account.setDbId("resolver-series-id");
+        account.setAction(Account.AccountAction.series);
+        Category category = new Category("api-cat", "Series", "series", false, 0);
+        SeriesCategoryDb.get().saveAll(java.util.List.of(category), account);
+        Category saved = SeriesCategoryDb.get().getCategories(account).getFirst();
+
+        PlayerRequestResolver resolver = new PlayerRequestResolver();
+
+        assertEquals("api-cat", resolver.resolveSeriesCategoryId(account, saved.getDbId()));
+        assertEquals("raw-cat", resolver.resolveSeriesCategoryId(account, "raw-cat"));
+        account.setAction(Account.AccountAction.itv);
+        assertEquals("", resolver.resolveSeriesCategoryId(account, saved.getDbId()));
     }
 }

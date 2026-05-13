@@ -212,6 +212,106 @@ class ImdbMetadataServiceTest {
         }
     }
 
+    @Test
+    void findBestEffortDetails_mergesSuggestionImdbCinemetaAndTvMazeMetadata() {
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setEnableThumbnails(true);
+
+        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
+                    Mockito.anyString(),
+                    Mockito.anyMap(),
+                    Mockito.eq("GET")
+            )).thenAnswer(invocation -> new com.uiptv.util.HttpUtil.HttpResult(
+                    com.uiptv.util.HttpUtil.STATUS_OK,
+                    metadataBodyFor(invocation.getArgument(0, String.class)),
+                    Map.of(),
+                    Map.of()
+            ));
+
+            JSONObject details = service.findBestEffortDetails("Example Show Season 1", "", List.of("Example Show 2024"));
+
+            assertEquals("IMDb Name", details.getString("name"));
+            assertEquals("https://www.imdb.com/title/tt1234567/", details.getString("imdbUrl"));
+            assertEquals("IMDb Plot", details.getString("plot"));
+            assertEquals("Actor One, Actor Two", details.getString("cast"));
+            assertEquals("Director One", details.getString("director"));
+            assertEquals("8.4", details.getString("rating"));
+            assertEquals("2024-01-01", details.getString("releaseDate"));
+            assertTrue(details.has("episodesMeta"));
+            JSONObject episode = details.getJSONArray("episodesMeta").getJSONObject(0);
+            assertEquals("Episode 1 - Pilot", episode.getString("title"));
+            assertEquals("TVMaze summary", episode.getString("plot"));
+            assertEquals("2024-02-01", episode.getString("releaseDate"));
+        }
+    }
+
+    @Test
+    void findBestEffortDetails_returnsEmptyWhenThumbnailsDisabled() {
+        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setEnableThumbnails(false);
+
+        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+
+            assertTrue(service.findBestEffortMovieDetails("Anything", "tt1234567").isEmpty());
+        }
+    }
+
+    private String metadataBodyFor(String url) {
+        if (url.contains("v2.sg.media-imdb.com/suggestion")) {
+            return """
+                    {"d":[
+                      {"id":"tt1234567","l":"Example Show","q":"TV Series","y":"2024","s":"Actor One, Actor Two",
+                       "i":{"imageUrl":"https://img/suggestion.jpg"}}
+                    ]}
+                    """;
+        }
+        if (url.contains("www.imdb.com/title/tt1234567")) {
+            return """
+                    <html><script type="application/ld+json">
+                    {"name":"IMDb Name","image":"https://img/imdb.jpg","description":"IMDb Plot","datePublished":"2024-01-01",
+                     "aggregateRating":{"ratingValue":"8.4"},"genre":["Drama","Mystery"],
+                     "actor":[{"name":"Actor One"},{"name":"Actor Two"}],"director":[{"name":"Director One"}]}
+                    </script></html>
+                    """;
+        }
+        if (url.contains("v3-cinemeta.strem.io/meta/series/tt1234567.json")) {
+            return """
+                    {"meta":{"name":"Cinemeta Show","poster":"https://img/series.jpg","description":"Series Plot",
+                     "imdb_id":"tt1234567","moviedb_id":321,"genres":["Drama"],"cast":["Actor One"],"director":["Director One"],
+                     "releaseInfo":"2024","imdbRating":"8.2",
+                     "videos":[{"title":"Episode 1 - Pilot","overview":"","thumbnail":"https://img/ep.jpg",
+                       "released":"2024-02-01","season":1,"episode":1}]}}
+                    """;
+        }
+        if (url.contains("v3-cinemeta.strem.io/meta/movie/tt1234567.json")) {
+            return """
+                    {"meta":{"name":"Cinemeta Movie","poster":"https://img/movie.jpg","description":"Movie Plot",
+                     "imdb_id":"tt1234567","moviedb_id":654,"genre":"Drama","cast":"Actor One","director":"Director One",
+                     "released":"2024-01-01T00:00:00.000Z","imdbRating":"8.1"}}
+                    """;
+        }
+        if (url.contains("api.tvmaze.com/search/shows")) {
+            return """
+                    [{"show":{"id":55,"name":"Example Show","type":"Scripted","externals":{"imdb":"tt1234567"}}}]
+                    """;
+        }
+        if (url.contains("api.tvmaze.com/shows/55/episodes")) {
+            return """
+                    [{"season":1,"number":1,"name":"Pilot","summary":"<p>TVMaze summary</p>","airdate":"2024-02-01"}]
+                    """;
+        }
+        return "";
+    }
+
     private String extractPosterCover() throws Exception {
         JSONObject result = new JSONObject();
         invoke("putTmdbPoster", new Class[]{JSONObject.class, String.class}, result, "/poster.png");

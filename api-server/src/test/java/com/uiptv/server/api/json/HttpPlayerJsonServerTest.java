@@ -372,6 +372,82 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         }
     }
 
+    @Test
+    void handle_directUrl_usesRequestMetadataAndPathModeDefaults() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        AccountService accountService = Mockito.mock(AccountService.class);
+        FfmpegService ffmpegService = Mockito.mock(FfmpegService.class);
+
+        Account account = new Account("direct-url", "user", "pass", "http://demo", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, null, false);
+        account.setDbId("acc-direct");
+
+        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class);
+             MockedStatic<FfmpegService> ffmpegStatic = Mockito.mockStatic(FfmpegService.class)) {
+            accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
+            ffmpegStatic.when(FfmpegService::getInstance).thenReturn(ffmpegService);
+            Mockito.when(accountService.getById("acc-direct")).thenReturn(account);
+            Mockito.when(ffmpegService.isTransmuxingNeeded(Mockito.anyString())).thenReturn(false);
+
+            StubHttpExchange exchange = new StubHttpExchange(
+                    "/player/vod?accountId=acc-direct&channelId=ch-direct&url=http://stream.test/movie.mp4"
+                            + "&name=Direct%20Movie&logo=undefined&season=2&episodeNum=5",
+                    "GET"
+            );
+
+            handler.handle(exchange);
+
+            assertEquals(200, exchange.getResponseCode());
+            assertTrue(exchange.getResponseBodyText().contains("\"url\":\"http://stream.test/movie.mp4\""));
+            assertTrue(exchange.getResponseBodyText().contains("\"title\":\"Direct Movie\""));
+            assertTrue(exchange.getResponseBodyText().contains("\"season\":\"2\""));
+            assertTrue(exchange.getResponseBodyText().contains("\"episodeNum\":\"5\""));
+            Mockito.verify(ffmpegService).stopTransmuxing();
+        }
+    }
+
+    @Test
+    void privateHelpers_coverStrategyDrmClientDisconnectAndUrlPredicates() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+
+        assertEquals("series", invoke(handler, "resolveRequestedMode",
+                new Class[]{HttpExchange.class, String.class}, new StubHttpExchange("/player/series", "GET"), ""));
+        assertEquals("vod", invoke(handler, "resolveRequestedMode",
+                new Class[]{HttpExchange.class, String.class}, new StubHttpExchange("/player/vod", "GET"), ""));
+        assertEquals("itv", invoke(handler, "resolveRequestedMode",
+                new Class[]{HttpExchange.class, String.class}, new StubHttpExchange("/player/live", "GET"), ""));
+        assertEquals("custom", invoke(handler, "resolveRequestedMode",
+                new Class[]{HttpExchange.class, String.class}, new StubHttpExchange("/player/live", "GET"), "custom"));
+
+        PlayerResponse drm = new PlayerResponse("http://stream.test/movie.mpd");
+        drm.setDrmType("widevine");
+        drm.setClearKeysJson("{\"kid\":\"key\"}");
+        drm.setManifestType("dash");
+        assertEquals("SHAKA", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, drm));
+        assertTrue((Boolean) invoke(handler, "hasDrmMetadata", new Class[]{PlayerResponse.class}, drm));
+
+        PlayerResponse proxied = new PlayerResponse("http://127.0.0.1:9090/proxy-stream?src=x");
+        assertEquals("NATIVE_PROXY", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, proxied));
+        assertEquals("NATIVE", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, new PlayerResponse("http://stream.test/movie.mp4")));
+
+        assertNotNull(invoke(handler, "parseClearKeysJson", new Class[]{String.class}, "{\"kid\":\"key\"}"));
+        assertNull(invoke(handler, "parseClearKeysJson", new Class[]{String.class}, "{bad"));
+        assertTrue((Boolean) invoke(handler, "isClientDisconnect", new Class[]{Throwable.class}, new IOException("connection reset by peer")));
+        assertFalse((Boolean) invoke(handler, "isClientDisconnect", new Class[]{Throwable.class}, new IllegalStateException("other")));
+
+        assertTrue((Boolean) invoke(handler, "isForcedWebPath", new Class[]{String.class}, "http://host/play/movie.php?id=1"));
+        assertTrue((Boolean) invoke(handler, "isForcedWebPath", new Class[]{String.class}, "http://host/user/pass/123"));
+        assertFalse((Boolean) invoke(handler, "isForcedWebPath", new Class[]{String.class}, ""));
+        assertTrue((Boolean) invoke(handler, "hasVideoFileExtension", new Class[]{String.class}, "http://host/movie.mkv?x=1"));
+        assertTrue((Boolean) invoke(handler, "hasKnownProgressiveVideoExtension", new Class[]{String.class}, "http://host/movie.webm?x=1"));
+        assertTrue((Boolean) invoke(handler, "hasKnownProgressiveVideoQuery", new Class[]{String.class}, "http://host/play?stream=movie.mp4&token=x"));
+        assertTrue((Boolean) invoke(handler, "hasTrailingNumericPath", new Class[]{String.class}, "http://host/live/123?token=x"));
+        assertFalse((Boolean) invoke(handler, "hasTrailingNumericPath", new Class[]{String.class}, "http://host/live/abc?token=x"));
+        assertEquals("http://host/live/123", invoke(handler, "stripQuery", new Class[]{String.class}, "http://host/live/123?token=x"));
+        assertTrue((Boolean) invoke(handler, "isDigitsOnly", new Class[]{String.class}, "123"));
+        assertFalse((Boolean) invoke(handler, "isDigitsOnly", new Class[]{String.class}, "12x"));
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T invoke(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterTypes);

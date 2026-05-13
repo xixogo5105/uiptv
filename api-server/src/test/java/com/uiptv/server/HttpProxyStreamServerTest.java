@@ -5,11 +5,16 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -120,5 +125,69 @@ class HttpProxyStreamServerTest {
         assertTrue(String.valueOf(upstreamUserAgent.get()).contains("MAG200"));
         assertEquals("Model: MAG250; Link: WiFi", upstreamXUserAgent.get());
         assertTrue(String.valueOf(upstreamCookie.get()).contains("mac=00:1A:79:A1:32:EB"));
+    }
+
+    @Test
+    void privateHelpers_coverHeaderCookiesOriginsFallbacksAndUrlParsing() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer();
+
+        Map<String, List<String>> responseHeaders = new LinkedHashMap<>();
+        responseHeaders.put("set-cookie", List.of("session=one; Path=/", "mac=00:11; HttpOnly", " "));
+        List<String> cookies = new ArrayList<>(List.of("session=old"));
+        invoke(handler, "collectCookies", new Class[]{Map.class, List.class}, responseHeaders, cookies);
+        assertEquals(List.of("session=one", "mac=00:11"), cookies);
+
+        assertEquals("session=one; Path=/", invoke(handler, "firstHeader", new Class[]{Map.class, String.class}, responseHeaders, "Set-Cookie"));
+        assertEquals("", invoke(handler, "firstHeader", new Class[]{Map.class, String.class}, null, "Set-Cookie"));
+
+        Map<String, String> forwarded = new LinkedHashMap<>();
+        forwarded.put("Accept", "video/*");
+        forwarded.put("Range", "bytes=0-10");
+        forwarded.put("Referer", "http://localhost:8080/player");
+        forwarded.put("Origin", "http://localhost:8080");
+        @SuppressWarnings("unchecked")
+        Map<String, String> upstreamHeaders = invoke(handler, "buildUpstreamHeaders",
+                new Class[]{String.class, List.class, Map.class},
+                "http://portal.test/live/play/123?mac=AA%3ABB&play_token=pt", cookies, forwarded);
+        assertEquals("video/*", upstreamHeaders.get("Accept"));
+        assertEquals("bytes=0-10", upstreamHeaders.get("Range"));
+        assertEquals("http://portal.test", upstreamHeaders.get("Origin"));
+        assertEquals("http://portal.test/", upstreamHeaders.get("Referer"));
+        assertTrue(upstreamHeaders.get("Cookie").contains("mac=AA:BB"));
+
+        assertEquals("http://example.test:8081", invoke(handler, "originOf", new Class[]{String.class}, "http://example.test:8081/a/b"));
+        assertEquals("https://example.test", invoke(handler, "originOf", new Class[]{String.class}, "https://example.test/a/b"));
+        assertEquals("", invoke(handler, "originOf", new Class[]{String.class}, "not a uri"));
+        assertTrue((Boolean) invoke(handler, "sameOrigin", new Class[]{String.class, String.class}, "http://a.test/x", "http://a.test/y"));
+        assertFalse((Boolean) invoke(handler, "sameOrigin", new Class[]{String.class, String.class}, "http://a.test/x", "http://b.test/y"));
+        assertTrue((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://localhost:8080/player"));
+        assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://portal.test/player"));
+
+        assertEquals("A B", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path?mac=A+B&empty", "mac"));
+        assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path", "mac"));
+        assertEquals(Long.valueOf(123L), invoke(handler, "resolveContentLength", new Class[]{String.class}, "123"));
+        assertEquals(Long.valueOf(0L), invoke(handler, "resolveContentLength", new Class[]{String.class}, "bad"));
+
+        assertEquals("http://host/live/play/123",
+                invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/live/play/123"));
+        assertEquals("https://host/static/file.mp4",
+                invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/static/file.mp4"));
+        assertEquals("http://host/user/pass/123.ts?token=a",
+                invoke(handler, "build406Fallback", new Class[]{String.class}, "http://host/user/pass/123?token=a"));
+        assertEquals("http://host/user/pass/123.ts",
+                invoke(handler, "build406Fallback", new Class[]{String.class}, "http://host/user/pass/123.ts"));
+        assertEquals("mkv", invoke(handler, "extensionOf", new Class[]{String.class}, "movie.mkv"));
+        assertEquals("", invoke(handler, "extensionOf", new Class[]{String.class}, "movie"));
+        assertTrue((Boolean) invoke(handler, "hasNumericLastPathSegment", new Class[]{String.class}, "http://host/a/123?x=1"));
+        assertFalse((Boolean) invoke(handler, "hasNumericLastPathSegment", new Class[]{String.class}, "http://host/a/abc?x=1"));
+        assertTrue((Boolean) invoke(handler, "isAsciiDigits", new Class[]{String.class}, "12345"));
+        assertFalse((Boolean) invoke(handler, "isAsciiDigits", new Class[]{String.class}, "12a45"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T invoke(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, parameterTypes);
+        method.setAccessible(true);
+        return (T) method.invoke(target, args);
     }
 }

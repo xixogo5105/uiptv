@@ -1,12 +1,16 @@
 package com.uiptv.service;
 
+import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BingeWatchServiceTest {
 
@@ -59,6 +63,51 @@ class BingeWatchServiceTest {
         ), watchState);
 
         assertEquals(List.of("s2e1", "s2e2", "s2e3"), ordered.stream().map(BingeWatchService.SessionEpisode::episodeId).toList());
+    }
+
+    @Test
+    void createSessionPlaylistAndStartOffset_coverPublicSessionFlow() {
+        BingeWatchService service = BingeWatchService.getInstance();
+        Account account = new Account("binge", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://test", false);
+        account.setDbId("account-1");
+
+        String token = service.createSession(account, "series-1", "cat-1", "S02", List.of(
+                episode("s2e3", "2", "3"),
+                episode("s1e1", "1", "1"),
+                episode("s2e1", "2", "1"),
+                episode("s2e2", "2", "2")
+        ), null);
+
+        assertFalse(token.isBlank());
+        assertTrue(service.buildPlaylistUrl(token).contains("bingewatch.m3u8?token="));
+        assertEquals(List.of("s2e1", "s2e2", "s2e3"),
+                service.getPlaylistItems(token).stream().map(BingeWatchService.PlaylistItem::episodeId).toList());
+
+        String playlist = service.renderPlaylist(token);
+        assertTrue(playlist.startsWith("#EXTM3U"));
+        assertTrue(playlist.contains("Season 2 - Episode 1"));
+        assertTrue(playlist.contains("episodeId=s2e1"));
+
+        String offsetUrl = service.buildPlaylistUrl(token, "s2e2");
+        assertFalse(offsetUrl.isBlank());
+        assertEquals("", service.buildPlaylistUrl("missing-token", "s2e2"));
+        assertTrue(service.getPlaylistItems("missing-token").isEmpty());
+        assertEquals("", service.renderPlaylist("missing-token"));
+    }
+
+    @Test
+    void createSession_rejectsInvalidInputsAndFiltersSeason() {
+        BingeWatchService service = BingeWatchService.getInstance();
+        Account account = new Account("binge-invalid", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://test", false);
+        account.setDbId("account-2");
+
+        assertEquals("", service.createSession(null, "series", "cat", "1", List.of(episode("e1", "1", "1")), null));
+        assertEquals("", service.createSession(account, "", "cat", "1", List.of(episode("e1", "1", "1")), null));
+        assertEquals("", service.createSession(account, "series", "cat", "x", List.of(episode("e1", "1", "1")), null));
+        assertEquals("", service.createSession(account, "series", "cat", "2", List.of(episode("e1", "1", "1")), null));
+        assertEquals("", service.buildPlaylistUrl(""));
     }
 
     private Channel episode(String id, String season, String episodeNumber) {
