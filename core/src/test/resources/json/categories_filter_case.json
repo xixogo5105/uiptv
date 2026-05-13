@@ -1,0 +1,25 @@
+{
+  "js": [
+    {
+      "id": "501",
+      "title": "Sports",
+      "alias": "sports",
+      "active_sub": false,
+      "censored": 0
+    },
+    {
+      "id": "502",
+      "title": "Premium Movies",
+      "alias": "premium-movies",
+      "active_sub": false,
+      "censored": 0
+    },
+    {
+      "id": "503",
+      "title": "Documentary",
+      "alias": "documentary",
+      "active_sub": false,
+      "censored": 1
+    }
+  ]
+}

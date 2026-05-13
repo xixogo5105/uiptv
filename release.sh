@@ -80,7 +80,7 @@ fi
 # ===============================
 info "Updating pom.xml to version $VERSION"
 mvn versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
-git add pom.xml
+git add pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml
 
 # ===============================
 # Create release commit
