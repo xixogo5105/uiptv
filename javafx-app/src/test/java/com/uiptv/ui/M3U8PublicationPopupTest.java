@@ -6,6 +6,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.M3U8PublicationService;
+import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.util.AccountType;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;

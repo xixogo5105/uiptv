@@ -21,7 +21,12 @@
         </dependency>
         <dependency>
             <groupId>com.spc</groupId>
-            <artifactId>uiptv-server</artifactId>
+            <artifactId>uiptv-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.spc</groupId>
+            <artifactId>uiptv-api-server</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -160,7 +165,7 @@
                             <outputDirectory>${project.build.directory}/jpackage-app/web</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>../server/src/main/resources/web</directory>
+                                    <directory>../api-server/src/main/resources/web</directory>
                                 </resource>
                             </resources>
                         </configuration>
@@ -197,7 +202,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.ico</icon>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
                             <winMenu>true</winMenu>
                             <winShortcut>true</winShortcut>
@@ -232,7 +237,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.ico</icon>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
                             <winMenu>true</winMenu>
                             <winShortcut>true</winShortcut>
@@ -429,7 +434,7 @@
                             <linuxShortcut>true</linuxShortcut>
                             <linuxPackageName>uiptv</linuxPackageName>
                             <linuxMenuGroup>Video</linuxMenuGroup>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
                             <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
@@ -464,7 +469,7 @@
                             <linuxShortcut>true</linuxShortcut>
                             <linuxPackageName>uiptv</linuxPackageName>
                             <linuxMenuGroup>Video</linuxMenuGroup>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
                             <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
@@ -496,7 +501,7 @@
                             <mainJar>UIPTV.jar</mainJar>
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.png</icon>
-                            <appVersion>${version}</appVersion>
+                            <appVersion>${project.version}</appVersion>
                             <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
                         </configuration>

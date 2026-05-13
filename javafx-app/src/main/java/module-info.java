@@ -13,7 +13,8 @@ module com.uiptv.gui {
     requires transitive uk.co.caprica.vlcj.javafx;
     requires static lombok;
 
-    requires com.uiptv.server;
+    requires com.uiptv.core;
+    requires com.uiptv.api.server;
 
     opens com.uiptv.ui to javafx.fxml;
     opens com.uiptv.ui.main to javafx.fxml;

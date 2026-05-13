@@ -1,0 +1,1341 @@
+package com.uiptv.server;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import com.uiptv.db.CategoryDb;
+import com.uiptv.db.ChannelDb;
+import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.VodCategoryDb;
+import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
+import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
+import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
+import com.uiptv.model.SeriesWatchState;
+import com.uiptv.server.api.json.HttpWebChannelJsonServer;
+import com.uiptv.service.AccountService;
+import com.uiptv.service.BookmarkService;
+import com.uiptv.service.CacheService;
+import com.uiptv.service.CacheServiceImpl;
+import com.uiptv.service.ChannelService;
+import com.uiptv.service.CategoryService;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.testsupport.DbBackedTest;
+import com.uiptv.service.ImdbMetadataService;
+import com.uiptv.service.M3U8PublicationService;
+import com.uiptv.service.PlayerService;
+import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.util.AccountType;
+import com.uiptv.util.LogUtil;
+import com.uiptv.util.XtremeCredentialsJson;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import static com.uiptv.model.Account.AccountAction.itv;
+import static com.uiptv.model.Account.AccountAction.series;
+import static com.uiptv.model.Account.AccountAction.vod;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
+    private static final String WEB_M3U_UNCATEGORIZED_ONLY = "web-m3u-uncat-url";
+    private static final int UNCATEGORIZED_ONLY_CHANNEL_COUNT = 3;
+
+    private HttpServer providerMockServer;
+    private String providerBaseUrl;
+    private String stalkerPortalUrl;
+    private String xtremeBaseUrl;
+    private String rssFeedUrl;
+
+    private int appPort;
+    private String appBaseUrl;
+    private String watchedSeriesAccountId;
+    private String watchedSeriesId;
+    private String watchedEpisodeId;
+    private String watchedSeriesCategoryId;
+    private String watchedSeriesEpisodeName;
+    private String watchedSeriesSeason;
+    private String watchedSeriesEpisodeNum;
+    private String watchedVodAccountId;
+    private String watchedVodCategoryId;
+    private String watchedVodId;
+    private String watchedVodName;
+    private String watchedVodCmd;
+    private String watchedVodLogo;
+
+    @BeforeEach
+    void setUpServers() throws Exception {
+        System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
+        providerMockServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        providerMockServer.createContext("/portal.php", this::handleStalker);
+        providerMockServer.createContext("/xtreme/player_api.php", this::handleXtreme);
+        providerMockServer.createContext("/rss/feed.xml", this::handleRss);
+        providerMockServer.createContext("/m3u", this::handleM3uPlaylist);
+        providerMockServer.createContext("/upstream", this::handleUpstreamStream);
+        providerMockServer.start();
+
+        int providerPort = providerMockServer.getAddress().getPort();
+        providerBaseUrl = "http://127.0.0.1:" + providerPort;
+        stalkerPortalUrl = providerBaseUrl + "/portal.php";
+        xtremeBaseUrl = providerBaseUrl + "/xtreme/";
+        rssFeedUrl = providerBaseUrl + "/rss/feed.xml";
+
+        appPort = findFreePort();
+        appBaseUrl = "http://127.0.0.1:" + appPort;
+    }
+
+    @AfterEach
+    void tearDownServers() {
+        try {
+            UIptvServer.stop();
+        } catch (Exception _) {
+            // Best-effort shutdown between tests; server may already be stopped.
+        }
+        if (providerMockServer != null) {
+            providerMockServer.stop(0);
+        }
+    }
+
+    @Test
+    /*
+     * End-to-end backend web API coverage:
+     *
+     * 1) Starts real UIptvServer on a random configured port.
+     * 2) Seeds Stalker/Xtreme/M3U/RSS accounts against a mock provider server.
+     * 3) Populates cache and then exercises backend endpoints used by web clients:
+     *    - /accounts
+     *    - /categories
+     *    - /channels (category + All + series movieId branch)
+     *    - /seriesEpisodes
+     *    - /seriesDetails
+     *    - /vodDetails
+     *    - /player (direct channel path + bookmark path + launch payload path)
+     *    - /bookmarks (OPTIONS/GET/POST/PUT/DELETE + categories view)
+     *    - /playlist.m3u8
+     *    - /bookmarks.m3u8
+     *    - /bookmarkEntry.ts
+     *    - /iptv.m3u8 and /iptv.m3u
+     * 4) Verifies SPA pages wired in UIptvServer:
+     *    - /
+     *    - /index.html
+     *    - /myflix.html
+     *    - /player.html
+     *    - /drm.html
+     * 5) Covers HttpWebChannelJsonServer via dedicated temporary HTTP context:
+     *    - Stalker paged response shape
+     *    - Non-stalker fallback slicing response shape
+     */
+    void endToEndWebPortal_backendApisAndAllJsonHandlers() throws Exception {
+        Configuration cfg = new Configuration(
+                "player-a", "player-b", "player-c", "player-a",
+                "", "", false,
+                false, String.valueOf(appPort), false, false
+        );
+        cfg.setEnableThumbnails(false);
+        cfg.setLanguageLocale("ar-SA");
+        cfg.setUiZoomPercent("133");
+        ConfigurationService.getInstance().save(cfg);
+
+        saveAccounts();
+        warmUpCacheAndData();
+
+        try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class);
+             MockedStatic<ImdbMetadataService> imdbStatic = Mockito.mockStatic(ImdbMetadataService.class)) {
+            logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(i -> null);
+
+            ImdbMetadataService imdb = Mockito.mock(ImdbMetadataService.class);
+            imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdb);
+            Mockito.when(imdb.findBestEffortDetails(Mockito.anyString(), Mockito.anyString()))
+                    .thenReturn(new JSONObject("""
+                            {"name":"Series Mock","imdbUrl":"https://www.imdb.com/title/tt1234567/","episodesMeta":[]}
+                            """));
+            Mockito.when(imdb.findBestEffortMovieDetails(Mockito.anyString(), Mockito.anyString()))
+                    .thenReturn(new JSONObject("""
+                            {"name":"Movie Mock","imdbUrl":"https://www.imdb.com/title/tt7654321/"}
+                            """));
+
+            UIptvServer.start();
+            assertTrue(UIptvServer.isRunning());
+
+            assertSpaPages();
+            assertStaticBootstrapApis();
+            assertAccountsApi();
+            assertConfigApi();
+            assertCategoriesApi();
+            assertChannelsApi();
+            assertSeriesApis();
+            assertVodDetailsApi();
+            assertWatchingNowApi();
+            assertBookmarksApis();
+            assertPlayerApis();
+            assertPlaylistApis();
+            assertHlsAndProxyApis();
+            assertWebChannelJsonServerApi();
+        }
+    }
+
+    private void saveAccounts() throws IOException {
+        String drmLocalPlaylist = writeM3uPlaylist("m3u-drm-local.m3u", true);
+
+        Account stalker = new Account(
+                "web-stalker", "st-user", "st-pass", stalkerPortalUrl,
+                "00:11:22:33:44:81", null,
+                "AABBCCDDEE81", "AABBCCDDEEFF00112233445566778881", "AABBCCDDEEFF00112233445566778881",
+                "AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899",
+                AccountType.STALKER_PORTAL, null, null, false
+        );
+        stalker.setServerPortalUrl(stalkerPortalUrl);
+        stalker.setAction(itv);
+        AccountService.getInstance().save(stalker);
+
+        Account xtreme = new Account(
+                "web-xtreme", "xtuser", "xtpass", xtremeBaseUrl,
+                null, null, null, null, null, null,
+                AccountType.XTREME_API, null, xtremeBaseUrl, false
+        );
+        xtreme.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(List.of(
+                new XtremeCredentialsJson.Entry("xtuser", "xtpass", true)
+        )));
+        xtreme.setAction(itv);
+        AccountService.getInstance().save(xtreme);
+
+        Account m3uLocal = new Account(
+                "web-m3u-local", null, null, drmLocalPlaylist,
+                null, null, null, null, null, null,
+                AccountType.M3U8_LOCAL, null, drmLocalPlaylist, false
+        );
+        m3uLocal.setAction(itv);
+        AccountService.getInstance().save(m3uLocal);
+
+        Account m3uUrl = new Account(
+                "web-m3u-url", null, null, providerBaseUrl + "/m3u/account-2.m3u",
+                null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, providerBaseUrl + "/m3u/account-2.m3u", false
+        );
+        m3uUrl.setAction(itv);
+        AccountService.getInstance().save(m3uUrl);
+
+        Account m3uUncategorizedOnly = new Account(
+                WEB_M3U_UNCATEGORIZED_ONLY, null, null, providerBaseUrl + "/m3u/account-uncategorized-only.m3u",
+                null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, providerBaseUrl + "/m3u/account-uncategorized-only.m3u", false
+        );
+        m3uUncategorizedOnly.setAction(itv);
+        AccountService.getInstance().save(m3uUncategorizedOnly);
+
+        Account rss = new Account(
+                "web-rss", null, null, rssFeedUrl,
+                null, null, null, null, null, null,
+                AccountType.RSS_FEED, null, rssFeedUrl, false
+        );
+        rss.setAction(itv);
+        AccountService.getInstance().save(rss);
+    }
+
+    private void warmUpCacheAndData() throws IOException {
+        CacheService cacheService = new CacheServiceImpl();
+        AccountService accountService = AccountService.getInstance();
+
+        Account stalker = accountService.getByName("web-stalker");
+        stalker.setAction(itv);
+        accountService.save(stalker);
+        cacheService.reloadCache(stalker, m -> {});
+
+        stalker.setAction(vod);
+        accountService.save(stalker);
+        CategoryService.getInstance().get(stalker, false);
+        List<Category> stalkerVodCats = VodCategoryDb.get().getCategories(stalker);
+        for (Category c : stalkerVodCats) {
+            ChannelService.getInstance().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
+        }
+
+        stalker.setAction(series);
+        accountService.save(stalker);
+        CategoryService.getInstance().get(stalker, false);
+        List<Category> stalkerSeriesCats = SeriesCategoryDb.get().getCategories(stalker);
+        for (Category c : stalkerSeriesCats) {
+            ChannelService.getInstance().get(c.getCategoryId(), stalker, c.getDbId(), null, null, null);
+        }
+
+        Account xtreme = accountService.getByName("web-xtreme");
+        xtreme.setAction(itv);
+        accountService.save(xtreme);
+        cacheService.reloadCache(xtreme, m -> {});
+
+        xtreme.setAction(vod);
+        accountService.save(xtreme);
+        CategoryService.getInstance().get(xtreme, false);
+        List<Category> xtremeVodCats = VodCategoryDb.get().getCategories(xtreme);
+        for (Category c : xtremeVodCats) {
+            ChannelService.getInstance().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
+        }
+
+        xtreme.setAction(series);
+        accountService.save(xtreme);
+        CategoryService.getInstance().get(xtreme, false);
+        List<Category> xtremeSeriesCats = SeriesCategoryDb.get().getCategories(xtreme);
+        for (Category c : xtremeSeriesCats) {
+            ChannelService.getInstance().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
+        }
+
+        for (String name : List.of("web-m3u-local", "web-m3u-url", WEB_M3U_UNCATEGORIZED_ONLY, "web-rss")) {
+            Account a = accountService.getByName(name);
+            a.setAction(itv);
+            accountService.save(a);
+            cacheService.reloadCache(a, m -> {});
+        }
+
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+        bookmarkService.addCategory(new com.uiptv.model.BookmarkCategory(null, "Web Favorites"));
+        com.uiptv.model.BookmarkCategory webCategory = bookmarkService.getAllCategories().stream()
+                .filter(c -> "Web Favorites".equals(c.getName()))
+                .findFirst()
+                .orElseThrow();
+
+        Account stalkerItv = accountService.getByName("web-stalker");
+        stalkerItv.setAction(itv);
+        List<Category> liveCats = CategoryDb.get().getCategories(stalkerItv);
+        Category liveCategory = liveCats.stream().filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())).findFirst().orElse(liveCats.get(0));
+        Channel liveChannel = ChannelDb.get().getChannels(liveCategory.getDbId()).get(0);
+
+        Bookmark b = new Bookmark(
+                stalkerItv.getAccountName(),
+                liveCategory.getTitle(),
+                liveChannel.getChannelId(),
+                liveChannel.getName(),
+                liveChannel.getCmd(),
+                stalkerItv.getServerPortalUrl(),
+                liveCategory.getDbId()
+        );
+        b.setAccountAction(itv);
+        b.setFromChannel(liveChannel);
+        b.setChannelJson(liveChannel.toJson());
+        b.setCategoryId(webCategory.getId());
+        bookmarkService.save(b);
+
+        M3U8PublicationService.getInstance().setSelectedAccountIds(
+                Set.of(
+                        accountService.getByName("web-m3u-local").getDbId(),
+                        accountService.getByName("web-m3u-url").getDbId()
+                )
+        );
+    }
+
+    private void assertSpaPages() throws Exception {
+        for (String path : List.of("/", "/index.html", "/myflix.html", "/player.html", "/drm.html")) {
+            HttpTextResponse response = get(path);
+            assertEquals(200, response.statusCode(), "Expected 200 for " + path);
+            assertTrue(response.body().toLowerCase().contains("<html"), "Expected html body for " + path);
+        }
+    }
+
+    private void assertStaticBootstrapApis() throws Exception {
+        HttpTextResponse manifest = get("/manifest.json");
+        assertEquals(200, manifest.statusCode());
+        assertTrue(manifest.body().contains("\"name\": \"UIPTV Web\""));
+        assertTrue(manifest.body().contains("\"start_url\": \"index.html\""));
+
+        HttpTextResponse serviceWorker = get("/sw.js");
+        assertEquals(200, serviceWorker.statusCode());
+        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v10';"));
+        assertTrue(serviceWorker.body().contains("self.addEventListener('fetch'"));
+    }
+
+    private void assertConfigApi() throws Exception {
+        JSONObject config = jsonObjectBody(get("/config"));
+        assertTrue(config.has("enableThumbnails"));
+        assertFalse(config.getBoolean("enableThumbnails"));
+    }
+
+    private void assertAccountsApi() throws Exception {
+        HttpTextResponse response = get("/accounts");
+        assertEquals(200, response.statusCode());
+        JSONArray accounts = new JSONArray(response.body());
+        assertTrue(accounts.length() >= 5);
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < accounts.length(); i++) {
+            names.add(accounts.getJSONObject(i).optString("accountName"));
+        }
+        assertTrue(names.contains("web-stalker"));
+        assertTrue(names.contains("web-xtreme"));
+
+        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(xtreme.getXtremeCredentialsJson());
+        assertFalse(entries.isEmpty());
+        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
+        assertNotNull(defaultEntry);
+        assertEquals(xtreme.getUsername(), defaultEntry.username());
+    }
+
+    private void assertCategoriesApi() throws Exception {
+        AccountService accountService = AccountService.getInstance();
+        Account stalker = accountService.getByName("web-stalker");
+        Account xtreme = accountService.getByName("web-xtreme");
+        Account m3u = accountService.getByName("web-m3u-local");
+        Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
+        Account rss = accountService.getByName("web-rss");
+
+        JSONArray stalkerItvCats = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=itv"));
+        JSONArray stalkerVodCats = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=vod"));
+        JSONArray stalkerSeriesCats = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=series"));
+        JSONArray xtremeItvCats = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=itv"));
+        JSONArray xtremeVodCats = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=vod"));
+        JSONArray xtremeSeriesCats = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
+        JSONArray m3uCats = jsonArrayBody(get("/categories?accountId=" + m3u.getDbId() + "&mode=itv"));
+        JSONArray uncategorizedOnlyM3uCats = jsonArrayBody(get("/categories?accountId=" + uncategorizedOnlyM3u.getDbId() + "&mode=itv"));
+        JSONArray rssCats = jsonArrayBody(get("/categories?accountId=" + rss.getDbId() + "&mode=itv"));
+
+        assertTrue(stalkerItvCats.length() >= 2);
+        assertTrue(stalkerVodCats.length() >= 2);
+        assertTrue(stalkerSeriesCats.length() >= 2);
+        assertTrue(xtremeItvCats.length() >= 2);
+        assertTrue(xtremeVodCats.length() >= 2);
+        assertTrue(xtremeSeriesCats.length() >= 2);
+        assertTrue(m3uCats.length() >= 1);
+        assertEquals(1, uncategorizedOnlyM3uCats.length());
+        assertEquals(CategoryType.ALL.displayName(), uncategorizedOnlyM3uCats.getJSONObject(0).optString("title"));
+        assertTrue(rssCats.length() >= 1);
+    }
+
+    private void assertChannelsApi() throws Exception {
+        AccountService accountService = AccountService.getInstance();
+        Account stalker = accountService.getByName("web-stalker");
+        Account xtreme = accountService.getByName("web-xtreme");
+        Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
+
+        Category stalkerLiveCategory = CategoryDb.get().getCategories(stalker).stream()
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                .findFirst()
+                .orElseThrow();
+        JSONArray stalkerChannels = jsonArrayBody(get("/channels?accountId=" + stalker.getDbId() + "&categoryId=" + stalkerLiveCategory.getDbId() + "&mode=itv"));
+        assertTrue(stalkerChannels.length() >= 1);
+
+        JSONArray stalkerAllChannels = jsonArrayBody(get("/channels?accountId=" + stalker.getDbId() + "&categoryId=All&mode=itv"));
+        assertTrue(stalkerAllChannels.length() >= stalkerChannels.length());
+
+        JSONArray stalkerSeriesCategories = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=series"));
+        assertTrue(stalkerSeriesCategories.length() >= 1);
+        String stalkerSeriesCategoryDbId = stalkerSeriesCategories.getJSONObject(0).optString("dbId");
+        JSONArray stalkerSeriesChildren = jsonArrayBody(get("/channels?accountId=" + stalker.getDbId()
+                + "&categoryId=" + URLEncoder.encode(stalkerSeriesCategoryDbId, StandardCharsets.UTF_8) + "&mode=series&movieId=9201"));
+        assertTrue(stalkerSeriesChildren.length() >= 1);
+
+        Category xtremeLiveCategory = CategoryDb.get().getCategories(xtreme).stream()
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                .findFirst()
+                .orElseThrow();
+        JSONArray xtremeChannels = jsonArrayBody(get("/channels?accountId=" + xtreme.getDbId() + "&categoryId=" + xtremeLiveCategory.getDbId() + "&mode=itv"));
+        assertTrue(xtremeChannels.length() >= 1);
+
+        JSONArray uncategorizedOnlyAllChannels = jsonArrayBody(get("/channels?accountId="
+                + uncategorizedOnlyM3u.getDbId()
+                + "&categoryId=All&mode=itv"));
+        assertEquals(UNCATEGORIZED_ONLY_CHANNEL_COUNT, uncategorizedOnlyAllChannels.length());
+        assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"), jsonFieldSet(uncategorizedOnlyAllChannels, "name"));
+    }
+
+    private void assertSeriesApis() throws Exception {
+        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
+        assertTrue(xtremeSeriesCategories.length() >= 1);
+        String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
+        String seriesCategoryApiId = xtremeSeriesCategories.getJSONObject(0).optString("categoryId");
+        JSONArray seriesRows = jsonArrayBody(get("/channels?accountId=" + xtreme.getDbId()
+                + "&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8) + "&mode=series"));
+        assertTrue(seriesRows.length() >= 1);
+        String seriesId = seriesRows.getJSONObject(0).optString("channelId");
+
+        JSONArray episodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)));
+        assertTrue(episodes.length() >= 5);
+        JSONArray cachedEpisodes = jsonArrayBody(get("/seriesEpisodes?accountId=" + xtreme.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)));
+        assertEquals(episodes.length(), cachedEpisodes.length());
+        assertSeriesWatchProgressionApis(xtreme, xtremeSeriesCategoryDbId, seriesCategoryApiId, seriesId, episodes);
+
+        JSONObject details = jsonObjectBody(get("/seriesDetails?accountId=" + xtreme.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&seriesName=" + URLEncoder.encode("X Series", StandardCharsets.UTF_8)));
+        assertTrue(details.has("seasonInfo"));
+        assertTrue(details.has("episodes"));
+        assertTrue(details.has("episodesMeta"));
+    }
+
+    private void assertSeriesWatchProgressionApis(Account account, String categoryDbId, String categoryApiId, String seriesId, JSONArray episodes) throws Exception {
+        JSONObject episode1 = findEpisodeByNumber(episodes, 1);
+        JSONObject episode2 = findEpisodeByNumber(episodes, 2);
+        JSONObject episode3 = findEpisodeByNumber(episodes, 3);
+        assertNotNull(episode1);
+        assertNotNull(episode2);
+        assertNotNull(episode3);
+
+        playSeriesEpisode(account, categoryDbId, seriesId, episode2);
+        JSONArray afterEpisode2 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
+        SeriesWatchState afterEpisode2State = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), categoryApiId, seriesId);
+        assertNotNull(afterEpisode2State, "Expected watch state to be created for series " + seriesId);
+        assertEquals(episode2.optString("channelId"), afterEpisode2State.getEpisodeId());
+        assertEquals(episode2.optString("channelId"), watchedEpisodeId(afterEpisode2));
+        assertSeriesRowWatched(account, categoryDbId, seriesId, true);
+
+        playSeriesEpisode(account, categoryDbId, seriesId, episode1);
+        JSONArray afterEpisode1 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
+        assertEquals(episode2.optString("channelId"), watchedEpisodeId(afterEpisode1));
+
+        playSeriesEpisode(account, categoryDbId, seriesId, episode3);
+        JSONArray afterEpisode3 = jsonArrayBody(get("/seriesEpisodes?accountId=" + account.getDbId()
+                + "&seriesId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)));
+        assertEquals(episode3.optString("channelId"), watchedEpisodeId(afterEpisode3));
+        watchedSeriesAccountId = account.getDbId();
+        watchedSeriesId = seriesId;
+        watchedEpisodeId = episode3.optString("channelId");
+        watchedSeriesCategoryId = categoryApiId;
+        watchedSeriesEpisodeName = episode3.optString("name");
+        watchedSeriesSeason = episode3.optString("season");
+        watchedSeriesEpisodeNum = episode3.optString("episodeNum");
+    }
+
+    private void assertSeriesRowWatched(Account account, String categoryDbId, String seriesId, boolean expectedWatched) throws Exception {
+        JSONArray rows = jsonArrayBody(get("/channels?accountId=" + account.getDbId()
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8) + "&mode=series"));
+        JSONObject row = null;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject current = rows.getJSONObject(i);
+            if (seriesId.equals(current.optString("channelId"))) {
+                row = current;
+                break;
+            }
+        }
+        assertNotNull(row);
+        assertEquals(expectedWatched, isWatchedFlag(row));
+    }
+
+    private void playSeriesEpisode(Account account, String categoryDbId, String seriesId, JSONObject episode) throws Exception {
+        String response = jsonObjectBody(get("/player?accountId=" + account.getDbId()
+                + "&categoryId=" + URLEncoder.encode(categoryDbId, StandardCharsets.UTF_8)
+                + "&channelId=" + URLEncoder.encode(episode.optString("channelId"), StandardCharsets.UTF_8)
+                + "&mode=series"
+                + "&seriesId=" + URLEncoder.encode(episode.optString("channelId"), StandardCharsets.UTF_8)
+                + "&seriesParentId=" + URLEncoder.encode(seriesId, StandardCharsets.UTF_8)
+                + "&name=" + URLEncoder.encode(episode.optString("name"), StandardCharsets.UTF_8)
+                + "&cmd=" + URLEncoder.encode(episode.optString("cmd"), StandardCharsets.UTF_8)
+                + "&season=" + URLEncoder.encode(episode.optString("season"), StandardCharsets.UTF_8)
+                + "&episodeNum=" + URLEncoder.encode(episode.optString("episodeNum"), StandardCharsets.UTF_8)
+        )).optString("url");
+        assertFalse(response.isBlank());
+    }
+
+    private JSONObject findEpisodeByNumber(JSONArray episodes, int episodeNum) {
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject episode = episodes.getJSONObject(i);
+            String raw = episode.optString("episodeNum");
+            if (raw == null) {
+                continue;
+            }
+            String digits = raw.replaceAll("[^0-9]", "");
+            if (!digits.isBlank() && Integer.parseInt(digits) == episodeNum) {
+                return episode;
+            }
+        }
+        return null;
+    }
+
+    private String watchedEpisodeId(JSONArray episodes) {
+        String watchedId = "";
+        int watchedCount = 0;
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject episode = episodes.getJSONObject(i);
+            if (isWatchedFlag(episode)) {
+                watchedCount++;
+                watchedId = episode.optString("channelId");
+            }
+        }
+        assertEquals(1, watchedCount);
+        return watchedId;
+    }
+
+    private void assertWatchingNowApi() throws Exception {
+        JSONArray watchingNow = jsonArrayBody(get("/watchingNow"));
+        assertFalse(watchingNow.isEmpty());
+
+        JSONObject matched = null;
+        for (int i = 0; i < watchingNow.length(); i++) {
+            JSONObject row = watchingNow.getJSONObject(i);
+            if (Objects.equals(watchedSeriesAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedSeriesId, row.optString("seriesId"))) {
+                matched = row;
+                break;
+            }
+        }
+
+        assertNotNull(matched, "Expected watching-now row for watched series");
+        assertEquals(watchedEpisodeId, matched.optString("episodeId"));
+        assertFalse(matched.optString("seriesTitle").isBlank());
+        assertFalse(matched.optString("episodeName").isBlank());
+        assertFalse(matched.optString("categoryDbId").isBlank());
+
+        JSONObject deletePayload = new JSONObject();
+        deletePayload.put("accountId", watchedSeriesAccountId);
+        deletePayload.put("categoryId", watchedSeriesCategoryId);
+        deletePayload.put("seriesId", watchedSeriesId);
+        JSONObject deleteRes = jsonObjectBody(deleteWithBody("/watchingNowSeriesAction", deletePayload.toString()));
+        assertEquals("ok", deleteRes.optString("status"));
+
+        JSONArray afterDelete = jsonArrayBody(get("/watchingNow"));
+        boolean removed = true;
+        for (int i = 0; i < afterDelete.length(); i++) {
+            JSONObject row = afterDelete.getJSONObject(i);
+            if (Objects.equals(watchedSeriesAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedSeriesId, row.optString("seriesId"))) {
+                removed = false;
+                break;
+            }
+        }
+        assertTrue(removed);
+
+        JSONObject createPayload = new JSONObject();
+        createPayload.put("accountId", watchedSeriesAccountId);
+        createPayload.put("categoryId", watchedSeriesCategoryId);
+        createPayload.put("seriesId", watchedSeriesId);
+        createPayload.put("episodeId", watchedEpisodeId);
+        createPayload.put("episodeName", watchedSeriesEpisodeName);
+        createPayload.put("season", watchedSeriesSeason);
+        createPayload.put("episodeNum", watchedSeriesEpisodeNum);
+        JSONObject createRes = jsonObjectBody(postJson("/watchingNowSeriesAction", createPayload.toString()));
+        assertEquals("ok", createRes.optString("status"));
+
+        JSONArray afterCreate = jsonArrayBody(get("/watchingNow"));
+        boolean restored = false;
+        for (int i = 0; i < afterCreate.length(); i++) {
+            JSONObject row = afterCreate.getJSONObject(i);
+            if (Objects.equals(watchedSeriesAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedSeriesId, row.optString("seriesId"))) {
+                restored = true;
+                break;
+            }
+        }
+        assertTrue(restored);
+
+        JSONObject vodCreate = new JSONObject();
+        vodCreate.put("accountId", watchedVodAccountId);
+        vodCreate.put("categoryId", watchedVodCategoryId);
+        vodCreate.put("vodId", watchedVodId);
+        vodCreate.put("vodName", watchedVodName);
+        vodCreate.put("vodCmd", watchedVodCmd);
+        vodCreate.put("vodLogo", watchedVodLogo);
+        JSONObject vodCreateRes = jsonObjectBody(postJson("/watchingNowVodAction", vodCreate.toString()));
+        assertEquals("ok", vodCreateRes.optString("status"));
+
+        JSONArray watchingVod = jsonArrayBody(get("/watchingNowVod"));
+        boolean vodFound = false;
+        for (int i = 0; i < watchingVod.length(); i++) {
+            JSONObject row = watchingVod.getJSONObject(i);
+            if (Objects.equals(watchedVodAccountId, row.optString("accountId"))
+                    && Objects.equals(watchedVodId, row.optString("vodId"))) {
+                vodFound = true;
+                break;
+            }
+        }
+        assertTrue(vodFound);
+
+        JSONObject vodDeletePayload = new JSONObject();
+        vodDeletePayload.put("accountId", watchedVodAccountId);
+        vodDeletePayload.put("categoryId", watchedVodCategoryId);
+        vodDeletePayload.put("vodId", watchedVodId);
+        JSONObject vodDeleteRes = jsonObjectBody(deleteWithBody("/watchingNowVodAction", vodDeletePayload.toString()));
+        assertEquals("ok", vodDeleteRes.optString("status"));
+    }
+
+    private boolean isWatchedFlag(JSONObject item) {
+        Object watched = item.opt("watched");
+        if (watched instanceof Boolean) {
+            return (Boolean) watched;
+        }
+        if (watched instanceof Number) {
+            return ((Number) watched).intValue() == 1;
+        }
+        String value = String.valueOf(watched == null ? "" : watched).trim().toLowerCase();
+        return "1".equals(value) || "true".equals(value);
+    }
+
+    private void assertVodDetailsApi() throws Exception {
+        Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+        JSONArray xtremeVodCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=vod"));
+        assertTrue(xtremeVodCategories.length() >= 1);
+        String xtremeVodCategoryDbId = xtremeVodCategories.getJSONObject(0).optString("dbId");
+        JSONArray vodRows = jsonArrayBody(get("/channels?accountId=" + xtreme.getDbId()
+                + "&categoryId=" + URLEncoder.encode(xtremeVodCategoryDbId, StandardCharsets.UTF_8) + "&mode=vod"));
+        assertTrue(vodRows.length() >= 1);
+        JSONObject vod = vodRows.getJSONObject(0);
+        watchedVodAccountId = xtreme.getDbId();
+        watchedVodCategoryId = xtremeVodCategoryDbId;
+        watchedVodId = vod.optString("channelId");
+        watchedVodName = vod.optString("name");
+        watchedVodCmd = vod.optString("cmd");
+        watchedVodLogo = vod.optString("logo");
+
+        JSONObject details = jsonObjectBody(get("/vodDetails?accountId=" + xtreme.getDbId()
+                + "&categoryId=" + URLEncoder.encode(xtremeVodCategoryDbId, StandardCharsets.UTF_8)
+                + "&channelId=" + URLEncoder.encode(vod.optString("channelId"), StandardCharsets.UTF_8)
+                + "&vodName=" + URLEncoder.encode(vod.optString("name"), StandardCharsets.UTF_8)));
+        assertTrue(details.has("vodInfo"));
+        assertFalse(details.getJSONObject("vodInfo").optString("name").isBlank());
+    }
+
+    private void assertBookmarksApis() throws Exception {
+        HttpTextResponse options = options("/bookmarks");
+        assertEquals(204, options.statusCode());
+
+        JSONArray categories = jsonArrayBody(get("/bookmarks?view=categories"));
+        assertTrue(categories.length() >= 1);
+
+        Account stalker = AccountService.getInstance().getByName("web-stalker");
+        Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                .findFirst()
+                .orElseThrow();
+
+        JSONObject createPayload = new JSONObject();
+        createPayload.put("accountId", stalker.getDbId());
+        createPayload.put("categoryId", liveCategory.getDbId());
+        createPayload.put("mode", "itv");
+        createPayload.put("channelId", "web-post-1");
+        createPayload.put("name", "Posted Bookmark One");
+        createPayload.put("cmd", "ffmpeg " + providerBaseUrl + "/live/play/live.php?stream=7001&play_token=pt7001");
+        createPayload.put("logo", providerBaseUrl + "/logo/post-1.png");
+
+        JSONObject createRes = jsonObjectBody(postJson("/bookmarks", createPayload.toString()));
+        assertEquals("ok", createRes.optString("status"));
+        String bookmarkId = createRes.optString("bookmarkId");
+        assertFalse(bookmarkId.isBlank());
+
+        JSONArray bookmarks = jsonArrayBody(get("/bookmarks"));
+        assertTrue(bookmarks.length() >= 2);
+
+        JSONArray pageOne = jsonArrayBody(get("/bookmarks?offset=0&limit=1"));
+        JSONArray pageTwo = jsonArrayBody(get("/bookmarks?offset=1&limit=1"));
+        assertEquals(1, pageOne.length());
+        assertEquals(1, pageTwo.length());
+        assertNotEquals(pageOne.getJSONObject(0).optString("dbId"), pageTwo.getJSONObject(0).optString("dbId"));
+
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < bookmarks.length(); i++) {
+            ids.add(bookmarks.getJSONObject(i).optString("dbId"));
+        }
+        JSONObject reorderPayload = new JSONObject();
+        JSONObject bookmarkOrders = new JSONObject();
+        List<String> reorderedIds = ids.stream().sorted(Comparator.reverseOrder()).toList();
+        for (int i = 0; i < reorderedIds.size(); i++) {
+            bookmarkOrders.put(reorderedIds.get(i), i + 1);
+        }
+        reorderPayload.put("bookmarkOrders", bookmarkOrders);
+        JSONObject reorderRes = jsonObjectBody(putJson("/bookmarks", reorderPayload.toString()));
+        assertEquals("reordered", reorderRes.optString("action"));
+
+        JSONObject deleteRes = jsonObjectBody(delete("/bookmarks?bookmarkId=" + URLEncoder.encode(bookmarkId, StandardCharsets.UTF_8)));
+        assertEquals("removed", deleteRes.optString("action"));
+    }
+
+    private void assertPlayerApis() throws Exception {
+        Account stalker = AccountService.getInstance().getByName("web-stalker");
+        Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                .findFirst()
+                .orElseThrow();
+        Channel liveChannel = ChannelDb.get().getChannels(liveCategory.getDbId()).get(0);
+
+        JSONObject directPlayer = jsonObjectBody(get("/player?accountId=" + stalker.getDbId()
+                + "&categoryId=" + liveCategory.getDbId()
+                + "&channelId=" + liveChannel.getDbId()
+                + "&mode=itv"));
+        assertFalse(directPlayer.optString("url").isBlank());
+
+        Bookmark bookmark = BookmarkService.getInstance().read().get(0);
+        JSONObject bookmarkPlayer = jsonObjectBody(get("/player?bookmarkId=" + bookmark.getDbId() + "&mode=itv"));
+        assertFalse(bookmarkPlayer.optString("url").isBlank());
+
+        Account m3u = AccountService.getInstance().getByName("web-m3u-local");
+        m3u.setAction(itv);
+        List<Category> m3uCats = CategoryDb.get().getCategories(m3u);
+        Channel drmChannel = null;
+        for (Category c : m3uCats) {
+            List<Channel> channels = ChannelDb.get().getChannels(c.getDbId());
+            for (Channel ch : channels) {
+                if (PlayerService.getInstance().isDrmProtected(ch)) {
+                    drmChannel = ch;
+                    break;
+                }
+            }
+            if (drmChannel != null) break;
+        }
+        assertNotNull(drmChannel);
+
+        JSONObject launchPayload = new JSONObject();
+        launchPayload.put("accountId", m3u.getDbId());
+        launchPayload.put("categoryId", m3uCats.get(0).getDbId());
+        launchPayload.put("mode", "itv");
+        launchPayload.put("channel", new JSONObject(drmChannel.toJson()));
+        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(launchPayload.toString().getBytes(StandardCharsets.UTF_8));
+        HttpTextResponse drmPlayer = get("/player?accountId=" + m3u.getDbId()
+                + "&categoryId=" + m3uCats.get(0).getDbId()
+                + "&channelId=" + URLEncoder.encode(drmChannel.getChannelId(), StandardCharsets.UTF_8)
+                + "&mode=itv"
+                + "&name=" + URLEncoder.encode(drmChannel.getName(), StandardCharsets.UTF_8)
+                + "&cmd=" + URLEncoder.encode(drmChannel.getCmd(), StandardCharsets.UTF_8)
+                + "&drmType=" + URLEncoder.encode(drmChannel.getDrmType(), StandardCharsets.UTF_8)
+                + "&clearKeysJson=" + URLEncoder.encode(drmChannel.getClearKeysJson(), StandardCharsets.UTF_8)
+                + "&launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8));
+        assertEquals(200, drmPlayer.statusCode());
+        assertTrue(drmPlayer.body().contains("\"url\""));
+    }
+
+    private void assertPlaylistApis() throws Exception {
+        Account stalker = AccountService.getInstance().getByName("web-stalker");
+        Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                .findFirst()
+                .orElseThrow();
+        Channel liveChannel = ChannelDb.get().getChannels(liveCategory.getDbId()).get(0);
+
+        HttpTextResponse singlePlaylist = get("/playlist.m3u8?accountId=" + stalker.getDbId()
+                + "&categoryId=" + liveCategory.getDbId()
+                + "&channelId=" + liveChannel.getDbId());
+        assertEquals(200, singlePlaylist.statusCode());
+        assertTrue(singlePlaylist.body().contains("#EXTM3U"));
+
+        HttpTextResponse bookmarksM3u = get("/bookmarks.m3u8");
+        assertEquals(200, bookmarksM3u.statusCode());
+        assertTrue(bookmarksM3u.body().contains("/bookmarkEntry.ts?bookmarkId="));
+
+        String firstBookmarkId = BookmarkService.getInstance().read().get(0).getDbId();
+        HttpTextResponse bookmarkEntry = get("/bookmarkEntry.ts?bookmarkId=" + firstBookmarkId);
+        assertEquals(307, bookmarkEntry.statusCode());
+        assertTrue(bookmarkEntry.firstHeader("location").startsWith("http"));
+
+        HttpTextResponse iptvM3u8 = get("/iptv.m3u8");
+        HttpTextResponse iptvM3u = get("/iptv.m3u");
+        assertEquals(200, iptvM3u8.statusCode());
+        assertEquals(200, iptvM3u.statusCode());
+        assertTrue(iptvM3u8.body().contains("#EXTM3U"));
+        assertTrue(iptvM3u.body().contains("#EXTM3U"));
+    }
+
+    private void assertHlsAndProxyApis() throws Exception {
+        System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
+        String playlistBody = """
+                #EXTM3U
+                #EXT-X-VERSION:3
+                #EXTINF:6.0,
+                segment-1.ts
+                """;
+        HttpTextResponse putPlaylist = send(appBaseUrl + "/hls-upload/sample.m3u8", "PUT", playlistBody, "application/vnd.apple.mpegurl");
+        assertEquals(200, putPlaylist.statusCode());
+
+        HttpTextResponse putSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "PUT", "UPSTREAM-TS-DATA", "video/mp2t");
+        assertEquals(200, putSegment.statusCode());
+
+        HttpTextResponse playlistNoHvec = get("/hls/sample.m3u8");
+        assertEquals(200, playlistNoHvec.statusCode());
+        assertTrue(playlistNoHvec.body().contains("segment-1.ts"));
+        assertFalse(playlistNoHvec.body().contains("hvec=1"));
+
+        HttpTextResponse playlistHvec = get("/hls/sample.m3u8?hvec=1");
+        assertEquals(200, playlistHvec.statusCode());
+        assertTrue(playlistHvec.body().contains("segment-1.ts?hvec=1"));
+
+        HttpTextResponse segment = get("/hls/segment-1.ts");
+        assertEquals(200, segment.statusCode());
+        assertTrue(segment.body().contains("UPSTREAM-TS-DATA"));
+
+        HttpTextResponse deleteSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "DELETE", null, null);
+        assertEquals(200, deleteSegment.statusCode());
+
+        HttpTextResponse recentlyDeletedSegmentFetch = get("/hls/segment-1.ts");
+        assertEquals(200, recentlyDeletedSegmentFetch.statusCode());
+
+        com.uiptv.service.InMemoryHlsService.getInstance().clear();
+        HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
+        assertEquals(404, deletedSegmentFetch.statusCode());
+
+        HttpTextResponse missingProxyParam = get("/proxy-stream");
+        assertEquals(400, missingProxyParam.statusCode());
+
+        String src = URLEncoder.encode(providerBaseUrl + "/upstream/stream.ts", StandardCharsets.UTF_8);
+        HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
+        assertEquals(200, proxyStream.statusCode());
+        assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
+    }
+
+    private void assertWebChannelJsonServerApi() throws Exception {
+        HttpServer tempServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            tempServer.createContext("/webchannels", new HttpWebChannelJsonServer());
+            tempServer.start();
+            int port = tempServer.getAddress().getPort();
+
+            Account stalker = AccountService.getInstance().getByName("web-stalker");
+            Category stalkerCategory = CategoryDb.get().getCategories(stalker).stream()
+                    .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                    .findFirst()
+                    .orElseThrow();
+            String stalkerUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + stalker.getDbId()
+                    + "&mode=itv&categoryId=" + stalkerCategory.getDbId() + "&page=0&pageSize=2&prefetchPages=1";
+            JSONObject stalkerJson = jsonObjectBody(getAbsolute(stalkerUrl));
+            assertTrue(stalkerJson.has("items"));
+            assertTrue(stalkerJson.has("nextPage"));
+            assertTrue(stalkerJson.has("hasMore"));
+            assertTrue(stalkerJson.has("apiOffset"));
+
+            Account xtreme = AccountService.getInstance().getByName("web-xtreme");
+            Category xtremeCategory = CategoryDb.get().getCategories(xtreme).stream()
+                    .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+                    .findFirst()
+                    .orElseThrow();
+            String xtremeUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
+                    + "&mode=itv&categoryId=" + xtremeCategory.getDbId() + "&page=0&pageSize=10&prefetchPages=1";
+            JSONObject xtremeJson = jsonObjectBody(getAbsolute(xtremeUrl));
+            assertFalse(xtremeJson.getJSONArray("items").isEmpty());
+
+            JSONArray xtremeSeriesCategories = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
+            assertFalse(xtremeSeriesCategories.isEmpty());
+            String xtremeSeriesCategoryDbId = xtremeSeriesCategories.getJSONObject(0).optString("dbId");
+            String xtremeSeriesRowsUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
+                    + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
+                    + "&page=0&pageSize=50&prefetchPages=1";
+            JSONObject xtremeSeriesRows = jsonObjectBody(getAbsolute(xtremeSeriesRowsUrl));
+            JSONArray xtremeSeriesItems = xtremeSeriesRows.getJSONArray("items");
+            assertFalse(xtremeSeriesItems.isEmpty());
+            boolean hasWatchedSeries = false;
+            String wsIdentity = "";
+            for (int i = 0; i < xtremeSeriesItems.length(); i++) {
+                JSONObject row = xtremeSeriesItems.getJSONObject(i);
+                if (isWatchedFlag(row)) {
+                    hasWatchedSeries = true;
+                    wsIdentity = row.optString("channelId");
+                    break;
+                }
+            }
+            assertTrue(hasWatchedSeries);
+            assertFalse(wsIdentity.isBlank());
+
+            String xtremeSeriesEpisodesUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + xtreme.getDbId()
+                    + "&mode=series&categoryId=" + URLEncoder.encode(xtremeSeriesCategoryDbId, StandardCharsets.UTF_8)
+                    + "&movieId=" + URLEncoder.encode(wsIdentity, StandardCharsets.UTF_8)
+                    + "&page=0&pageSize=50&prefetchPages=1";
+            JSONObject xtremeSeriesEpisodes = jsonObjectBody(getAbsolute(xtremeSeriesEpisodesUrl));
+            assertFalse(watchedEpisodeId(xtremeSeriesEpisodes.getJSONArray("items")).isBlank());
+
+            Account uncategorizedOnlyM3u = AccountService.getInstance().getByName(WEB_M3U_UNCATEGORIZED_ONLY);
+            String uncategorizedOnlyUrl = "http://127.0.0.1:" + port + "/webchannels?accountId=" + uncategorizedOnlyM3u.getDbId()
+                    + "&mode=itv&categoryId=All&page=0&pageSize=10&prefetchPages=1";
+            JSONObject uncategorizedOnlyJson = jsonObjectBody(getAbsolute(uncategorizedOnlyUrl));
+            assertEquals(UNCATEGORIZED_ONLY_CHANNEL_COUNT, uncategorizedOnlyJson.getJSONArray("items").length());
+            assertFalse(uncategorizedOnlyJson.getBoolean("hasMore"));
+            assertEquals(Set.of("Uncat One", "Uncat Two", "Uncat Three"),
+                    jsonFieldSet(uncategorizedOnlyJson.getJSONArray("items"), "name"));
+        } finally {
+            tempServer.stop(0);
+        }
+    }
+
+    private HttpTextResponse get(String path) throws Exception {
+        return send(appBaseUrl + path, "GET", null, null);
+    }
+
+    private HttpTextResponse getAbsolute(String url) throws Exception {
+        return send(url, "GET", null, null);
+    }
+
+    private HttpTextResponse postJson(String path, String body) throws Exception {
+        return send(appBaseUrl + path, "POST", body, "application/json");
+    }
+
+    private HttpTextResponse putJson(String path, String body) throws Exception {
+        return send(appBaseUrl + path, "PUT", body, "application/json");
+    }
+
+    private HttpTextResponse delete(String path) throws Exception {
+        return send(appBaseUrl + path, "DELETE", null, null);
+    }
+
+    private HttpTextResponse deleteWithBody(String path, String body) throws Exception {
+        return send(appBaseUrl + path, "DELETE", body, "application/json");
+    }
+
+    private HttpTextResponse options(String path) throws Exception {
+        return send(appBaseUrl + path, "OPTIONS", null, null);
+    }
+
+    @SuppressWarnings("java:S1874")
+    private HttpTextResponse send(String url, String method, String body, String contentType) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod(method);
+        conn.setConnectTimeout(20_000);
+        conn.setReadTimeout(20_000);
+        conn.setInstanceFollowRedirects(false);
+        conn.setRequestProperty("Accept", "application/json, */*");
+
+        if (contentType != null) {
+            conn.setRequestProperty("Content-Type", contentType);
+        }
+        if (body != null) {
+            conn.setDoOutput(true);
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream out = conn.getOutputStream()) {
+                out.write(bytes);
+            }
+        }
+
+        int status = conn.getResponseCode();
+        InputStream responseStream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        String responseBody = "";
+        if (responseStream != null) {
+            try (InputStream in = responseStream) {
+                responseBody = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        }
+        Map<String, List<String>> responseHeaders = conn.getHeaderFields();
+        conn.disconnect();
+        return new HttpTextResponse(status, responseBody, responseHeaders);
+    }
+
+    private JSONArray jsonArrayBody(HttpTextResponse response) {
+        assertEquals(200, response.statusCode(), response.body());
+        return new JSONArray(response.body());
+    }
+
+    private JSONObject jsonObjectBody(HttpTextResponse response) {
+        assertEquals(200, response.statusCode(), response.body());
+        return new JSONObject(response.body());
+    }
+
+    private Set<String> jsonFieldSet(JSONArray array, String field) {
+        Set<String> values = new java.util.HashSet<>();
+        for (int i = 0; i < array.length(); i++) {
+            values.add(array.getJSONObject(i).optString(field));
+        }
+        return values;
+    }
+
+    private record HttpTextResponse(int statusCode, String body, Map<String, List<String>> headers) {
+        String firstHeader(String name) {
+            if (headers == null || name == null) {
+                return "";
+            }
+            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+                if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name) && entry.getValue() != null && !entry.getValue().isEmpty()) {
+                    return entry.getValue().get(0);
+                }
+            }
+            return "";
+        }
+    }
+
+    private int findFreePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    private String writeM3uPlaylist(String fileName, boolean withDrm) throws IOException {
+        String drmBlock = withDrm
+                ? """
+                #EXTINF:-1 tvg-id="drm-1" tvg-logo="drm.png" group-title="Live",DRM Live
+                #KODIPROP:inputstreamaddon=inputstream.adaptive
+                #KODIPROP:inputstream.adaptive.manifest_type=mpd
+                #KODIPROP:inputstream.adaptive.license_type=org.w3.clearkey
+                #KODIPROP:inputstream.adaptive.license_key={"00112233445566778899aabbccddeeff":"11223344556677889900aabbccddeeff"}
+                http://example.com/drm/live.mpd
+                """
+                : "";
+
+        String content = """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="live-1" tvg-logo="live1.png" group-title="Live",Live One
+                http://example.com/live/one.ts
+                #EXTINF:-1 tvg-id="live-2" tvg-logo="live2.png" group-title="Live",Live Two
+                http://example.com/live/two.ts
+                """ + drmBlock;
+
+        Path file = tempDir.resolve(fileName);
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+        return file.toString();
+    }
+
+    private void handleStalker(HttpExchange exchange) throws IOException {
+        Map<String, String> q = readQuery(exchange);
+        String action = q.getOrDefault("action", "");
+        String type = q.getOrDefault("type", "");
+        String body;
+
+        if ("handshake".equals(action)) {
+            body = "{\"js\":{\"token\":\"mock-token\"}}";
+        } else if ("get_profile".equals(action) || "get_main_info".equals(action)) {
+            body = "{\"js\":{\"status\":\"ok\"}}";
+        } else if ("get_genres".equals(action) && "itv".equals(type)) {
+            body = """
+                    {"js":[
+                      {"id":"10","title":"News","alias":"news","active_sub":true,"censored":0},
+                      {"id":"20","title":"Sports","alias":"sports","active_sub":true,"censored":0}
+                    ]}
+                    """;
+        } else if ("get_categories".equals(action) && "vod".equals(type)) {
+            body = """
+                    {"js":[
+                      {"id":"101","title":"Movies A","alias":"movies-a","active_sub":true,"censored":0},
+                      {"id":"102","title":"Movies B","alias":"movies-b","active_sub":true,"censored":0}
+                    ]}
+                    """;
+        } else if ("get_categories".equals(action) && "series".equals(type)) {
+            body = """
+                    {"js":[
+                      {"id":"201","title":"Series A","alias":"series-a","active_sub":true,"censored":0},
+                      {"id":"202","title":"Series B","alias":"series-b","active_sub":true,"censored":0}
+                    ]}
+                    """;
+        } else if ("get_all_channels".equals(action)) {
+            body = """
+                    {"js":{"data":[
+                      {"id":"1001","name":"Stalker News","number":"1","cmd":"ffmpeg %s/live/play/live.php?stream=1001&play_token=pt1001","cmd_1":"","cmd_2":"","cmd_3":"","logo":"logo1","censored":0,"status":1,"hd":1,"tv_genre_id":"10"},
+                      {"id":"2001","name":"Stalker Sports","number":"2","cmd":"ffmpeg %s/live/play/live.php?stream=2001&play_token=pt2001","cmd_1":"","cmd_2":"","cmd_3":"","logo":"logo2","censored":0,"status":1,"hd":1,"tv_genre_id":"20"}
+                    ]}}
+                    """.formatted(providerBaseUrl, providerBaseUrl);
+        } else if ("get_ordered_list".equals(action) && "itv".equals(type)) {
+            String genre = q.getOrDefault("genre", "10");
+            body = """
+                    {"js":{"total_items":1,"max_page_items":999,"data":[
+                      {"id":"%s0","name":"Live %s","number":"1","cmd":"ffmpeg %s/live/play/live.php?stream=%s0&play_token=pt%s0","cmd_1":"","cmd_2":"","cmd_3":"","logo":"live","censored":0,"status":1,"hd":1,"tv_genre_id":"%s"}
+                    ]}}
+                    """.formatted(genre, genre, providerBaseUrl, genre, genre, genre);
+        } else if ("get_ordered_list".equals(action) && "vod".equals(type)) {
+            String genre = q.getOrDefault("genre", "");
+            String page = q.getOrDefault("p", "0");
+            if (!"0".equals(page)) {
+                body = "{\"js\":{\"total_items\":2,\"max_page_items\":999,\"data\":[]}}";
+            } else {
+                body = """
+                        {"js":{"total_items":2,"max_page_items":999,"data":[
+                          {"id":"%s1","name":"Vod %s One","o_name":"Vod %s One","cmd":"ffmpeg %s/play/movie.php?stream=%s1&type=movie","tv_genre_id":"%s","stream_icon":"%s/vod/%s-1.png","censored":0,"status":1,"hd":1},
+                          {"id":"%s2","name":"Vod %s Two","o_name":"Vod %s Two","cmd":"ffmpeg %s/play/movie.php?stream=%s2&type=movie","tv_genre_id":"%s","stream_icon":"%s/vod/%s-2.png","censored":0,"status":1,"hd":1}
+                        ]}}
+                        """.formatted(genre, genre, genre, providerBaseUrl, genre, genre, providerBaseUrl, genre, genre, genre, genre, providerBaseUrl, genre, genre, providerBaseUrl, genre);
+            }
+        } else if ("get_ordered_list".equals(action) && "series".equals(type)) {
+            String genre = q.getOrDefault("genre", "");
+            String page = q.getOrDefault("p", "0");
+            if (!"0".equals(page)) {
+                body = "{\"js\":{\"total_items\":1,\"max_page_items\":999,\"data\":[]}}";
+            } else {
+                body = """
+                        {"js":{"total_items":1,"max_page_items":999,"data":[
+                          {"id":"9%s","name":"","o_name":"Series %s","cmd":"ffmpeg %s/play/movie.php?stream=9%s&type=series","tv_genre_id":"%s","series":[1,2,3,4,5],"screenshot_uri":"%s/series/%s.png","censored":0,"status":1,"hd":1}
+                        ]}}
+                        """.formatted(genre, genre, providerBaseUrl, genre, genre, providerBaseUrl, genre);
+            }
+        } else if ("create_link".equals(action)) {
+            body = """
+                    {"js":{"cmd":"ffmpeg %s/live/play/live.php?stream=&extension=ts&play_token="}}
+                    """.formatted(providerBaseUrl);
+        } else {
+            body = "{\"js\":{\"data\":[]}}";
+        }
+        writeResponse(exchange, 200, body, "application/json; charset=utf-8");
+    }
+
+    private void handleXtreme(HttpExchange exchange) throws IOException {
+        Map<String, String> q = readQuery(exchange);
+        String action = q.getOrDefault("action", "");
+        String categoryId = q.getOrDefault("category_id", "");
+        String seriesId = q.getOrDefault("series_id", "9601");
+
+        String body = switch (action) {
+            case "get_live_categories" -> """
+                    [
+                      {"category_id":"401","category_name":"X Live A"},
+                      {"category_id":"402","category_name":"X Live B"}
+                    ]
+                    """;
+            case "get_live_streams" -> """
+                    [
+                      {"stream_id":"%s1","name":"X Live %s One","stream_icon":"%s/xtreme/live/%s1.png","container_extension":"ts"},
+                      {"stream_id":"%s2","name":"X Live %s Two","stream_icon":"%s/xtreme/live/%s2.png","container_extension":"ts"}
+                    ]
+                    """.formatted(categoryId, categoryId, providerBaseUrl, categoryId, categoryId, categoryId, providerBaseUrl, categoryId);
+            case "get_vod_categories" -> """
+                    [
+                      {"category_id":"501","category_name":"X Vod A"},
+                      {"category_id":"502","category_name":"X Vod B"}
+                    ]
+                    """;
+            case "get_vod_streams" -> """
+                    [
+                      {"stream_id":"%s1","name":"X Vod %s One","stream_icon":"%s/xtreme/vod/%s1.jpg","container_extension":"mp4"},
+                      {"stream_id":"%s2","name":"X Vod %s Two","stream_icon":"%s/xtreme/vod/%s2.jpg","container_extension":"mp4"}
+                    ]
+                    """.formatted(categoryId, categoryId, providerBaseUrl, categoryId, categoryId, categoryId, providerBaseUrl, categoryId);
+            case "get_series_categories" -> """
+                    [
+                      {"category_id":"601","category_name":"X Series A"},
+                      {"category_id":"602","category_name":"X Series B"}
+                    ]
+                    """;
+            case "get_series" -> """
+                    [
+                      {"series_id":"9%s","stream_id":"9%s","name":"X Series %s","cover":"%s/xtreme/series/%s.jpg","container_extension":"mp4"}
+                    ]
+                    """.formatted(categoryId, categoryId, categoryId, providerBaseUrl, categoryId);
+            case "get_series_info" -> """
+                    {
+                      "info": {"name":"Series %s"},
+                      "episodes": {
+                        "1": [
+                          {"id":"%s1","episode_num":"1","title":"Episode 1","container_extension":"mp4","info":{"movie_image":"%s/ep/1.jpg","plot":"plot 1"}},
+                          {"id":"%s2","episode_num":"2","title":"Episode 2","container_extension":"mp4","info":{"movie_image":"%s/ep/2.jpg","plot":"plot 2"}},
+                          {"id":"%s3","episode_num":"3","title":"Episode 3","container_extension":"mp4","info":{"movie_image":"%s/ep/3.jpg","plot":"plot 3"}},
+                          {"id":"%s4","episode_num":"4","title":"Episode 4","container_extension":"mp4","info":{"movie_image":"%s/ep/4.jpg","plot":"plot 4"}},
+                          {"id":"%s5","episode_num":"5","title":"Episode 5","container_extension":"mp4","info":{"movie_image":"%s/ep/5.jpg","plot":"plot 5"}}
+                        ]
+                      }
+                    }
+                    """.formatted(seriesId, seriesId, providerBaseUrl, seriesId, providerBaseUrl, seriesId, providerBaseUrl, seriesId, providerBaseUrl, seriesId, providerBaseUrl);
+            default -> "[]";
+        };
+
+        writeResponse(exchange, 200, body, "application/json; charset=utf-8");
+    }
+
+    private void handleRss(HttpExchange exchange) throws IOException {
+        String body = """
+                <?xml version="1.0" encoding="UTF-8" ?>
+                <rss version="2.0">
+                  <channel>
+                    <title>Mock RSS</title>
+                    <link>%s</link>
+                    <description>Mock feed</description>
+                    <item><title>RSS Live One</title><link>%s/rss/stream/one.ts</link></item>
+                    <item><title>RSS Live Two</title><link>%s/rss/stream/two.ts</link></item>
+                  </channel>
+                </rss>
+                """.formatted(providerBaseUrl, providerBaseUrl, providerBaseUrl);
+        writeResponse(exchange, 200, body, "application/rss+xml; charset=utf-8");
+    }
+
+    private void handleM3uPlaylist(HttpExchange exchange) throws IOException {
+        URI uri = exchange.getRequestURI();
+        String path = uri == null ? "" : uri.getPath();
+        String body;
+        if (path.endsWith("account-2.m3u")) {
+            body = """
+                    #EXTM3U
+                    #EXTINF:-1 tvg-id="m3u2-1" group-title="Live",M3U Two One
+                    http://example.com/m3u/two/one.ts
+                    #EXTINF:-1 tvg-id="m3u2-2" group-title="Live",M3U Two Two
+                    http://example.com/m3u/two/two.ts
+                    """;
+        } else if (path.endsWith("account-uncategorized-only.m3u")) {
+            body = """
+                    #EXTM3U
+                    #EXTINF:-1 tvg-id="u-1" group-title="Uncategorized",Uncat One
+                    http://example.com/m3u/uncat/one.ts
+                    #EXTINF:-1 tvg-id="u-2" group-title="Uncategorized",Uncat Two
+                    http://example.com/m3u/uncat/two.ts
+                    #EXTINF:-1 tvg-id="u-3" group-title="Uncategorized",Uncat Three
+                    http://example.com/m3u/uncat/three.ts
+                    """;
+        } else {
+            body = """
+                    #EXTM3U
+                    #EXTINF:-1 tvg-id="m3u-1" group-title="Live",M3U One
+                    http://example.com/m3u/one.ts
+                    #EXTINF:-1 tvg-id="m3u-2" group-title="Live",M3U Two
+                    http://example.com/m3u/two.ts
+                    """;
+        }
+        writeResponse(exchange, 200, body, "application/vnd.apple.mpegurl; charset=utf-8");
+    }
+
+    private void handleUpstreamStream(HttpExchange exchange) throws IOException {
+        URI uri = exchange.getRequestURI();
+        String path = uri == null ? "" : uri.getPath();
+        if (!"/upstream/stream.ts".equals(path)) {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+            return;
+        }
+        byte[] data = "UPSTREAM-TS-DATA".getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "video/mp2t");
+        exchange.getResponseHeaders().set("Accept-Ranges", "bytes");
+        exchange.sendResponseHeaders(200, data.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(data);
+        }
+        exchange.close();
+    }
+
+    private Map<String, String> readQuery(HttpExchange exchange) throws IOException {
+        String query = exchange.getRequestURI() != null ? exchange.getRequestURI().getRawQuery() : "";
+        if (query == null || query.isBlank()) {
+            query = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        }
+        Map<String, String> result = new HashMap<>();
+        if (query == null || query.isBlank()) {
+            return result;
+        }
+        for (String pair : query.split("&")) {
+            if (pair == null || pair.isBlank()) continue;
+            String[] kv = pair.split("=", 2);
+            String key = URLDecoder.decode(kv[0], StandardCharsets.UTF_8);
+            String value = kv.length > 1 ? URLDecoder.decode(kv[1], StandardCharsets.UTF_8) : "";
+            result.put(key, value);
+        }
+        return result;
+    }
+
+    private void writeResponse(HttpExchange exchange, int status, String body, String contentType) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", contentType);
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(bytes);
+        }
+        exchange.close();
+    }
+
+}

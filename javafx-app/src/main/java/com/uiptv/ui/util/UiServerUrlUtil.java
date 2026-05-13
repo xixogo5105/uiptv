@@ -1,8 +1,5 @@
 package com.uiptv.ui.util;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
-
-import com.uiptv.server.UIptvServer;
+import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.HostServices;
 
@@ -13,6 +10,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class UiServerUrlUtil {
     private static final AtomicReference<HostServices> hostServices = new AtomicReference<>();
+    private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
 
     private UiServerUrlUtil() {
     }
@@ -27,7 +25,7 @@ public class UiServerUrlUtil {
 
     public static boolean ensureServerForWebPlayback(String friendlyFailureMessage) {
         try {
-            UIptvServer.ensureStarted();
+            configurationApplicationService.ensureServerStarted();
             return true;
         } catch (IOException | IllegalStateException e) {
             if (isNotBlank(friendlyFailureMessage)) {
@@ -40,7 +38,7 @@ public class UiServerUrlUtil {
     }
 
     public static void stopServerWithShutdownMessage() {
-        UIptvServer.stop();
+        configurationApplicationService.stopServer();
         UIptvAlert.showMessageKey("serverShuttingDown");
     }
 

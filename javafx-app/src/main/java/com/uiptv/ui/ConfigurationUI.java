@@ -1,12 +1,11 @@
 package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
+import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.player.api.VideoPlayerInterface;
-import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
-import com.uiptv.server.UIptvServer;
 import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.remotesync.RemoteSyncClientService;
@@ -142,6 +141,7 @@ public class ConfigurationUI extends VBox {
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
+    private final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
@@ -167,9 +167,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static void clearWatchingNowStates() {
-        SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
-        SeriesWatchingNowSnapshotService.getInstance().clearAll();
-        VodWatchStateService.getInstance().clearAll();
+        ConfigurationApplicationService.getInstance().clearWatchingNowState();
     }
 
     private void initWidgets() {
@@ -667,10 +665,10 @@ public class ConfigurationUI extends VBox {
     private void addStartServerButtonClickHandler() {
         startServerButton.setOnAction(event -> {
             try {
-                if (UIptvServer.isRunning()) {
-                    UIptvServer.stop();
+                if (configurationApplicationService.isServerRunning()) {
+                    configurationApplicationService.stopServer();
                 } else {
-                    UIptvServer.start();
+                    configurationApplicationService.startServer();
                 }
                 refreshServerStatusUI();
                 // showMessageAlert("Server started at " + ConfigurationService.getInstance().read().getServerPort()); // Removed alert
@@ -721,7 +719,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void refreshServerStatusUI() {
-        boolean running = UIptvServer.isRunning();
+        boolean running = configurationApplicationService.isServerRunning();
         if (running) {
             if (!startServerButton.getStyleClass().contains(STYLE_CLASS_DANGEROUS)) {
                 startServerButton.getStyleClass().add(STYLE_CLASS_DANGEROUS);
@@ -1699,11 +1697,11 @@ public class ConfigurationUI extends VBox {
     }
 
     private String resolveDatabaseSyncSourcePath(boolean importMode, String normalizedPath) {
-        return importMode ? normalizedPath : SQLConnection.getDatabasePath();
+        return importMode ? normalizedPath : configurationApplicationService.getDatabasePath();
     }
 
     private String resolveDatabaseSyncTargetPath(boolean importMode, String normalizedPath) {
-        return importMode ? SQLConnection.getDatabasePath() : normalizedPath;
+        return importMode ? configurationApplicationService.getDatabasePath() : normalizedPath;
     }
 
     private void applyPostDatabaseImport(boolean importMode,

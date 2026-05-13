@@ -1,0 +1,5 @@
+{
+  "version": "0.1.11",
+  "url": "https://github.com/xixogo5105/uiptv/releases/latest",
+  "description": "Major update: parental lock password flows, approval-based remote database sync, published M3U account/category/channel selection, HLS/VLC playback fixes, and series binge-watch support."
+}

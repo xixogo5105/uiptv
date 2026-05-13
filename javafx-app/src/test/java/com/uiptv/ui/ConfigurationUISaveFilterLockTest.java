@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.FilterLockService;
+import com.uiptv.testsupport.DbBackedUiTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

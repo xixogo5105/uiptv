@@ -1,49 +1,22 @@
 package com.uiptv.ui;
 
-import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
-import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.service.VodWatchStateService;
+import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.util.AccountType;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.io.File;
-import java.nio.file.Path;
+import java.util.List;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ConfigurationUIClearWatchingNowTest {
-
-    static {
-        System.setProperty("user.home", System.getProperty("java.io.tmpdir"));
-    }
-
-    @TempDir
-    Path tempDir;
-
-    private File testDbFile;
-
-    @BeforeEach
-    void setUpDatabase() {
-        testDbFile = tempDir.resolve("uiptv-test.db").toFile();
-        SQLConnection.setDatabasePath(testDbFile.getAbsolutePath());
-    }
-
-    @AfterEach
-    void tearDownDatabase() {
-        if (testDbFile != null && testDbFile.exists()) {
-            testDbFile.delete();
-        }
-    }
+class ConfigurationUIClearWatchingNowTest extends DbBackedUiTest {
 
     @Test
     void clearWatchingNowStates_removesSeriesAndVodWatchEntries() {
@@ -64,16 +37,19 @@ class ConfigurationUIClearWatchingNowTest {
                 "1",
                 "1"
         );
-        SeriesWatchingNowSnapshot snapshot = new SeriesWatchingNowSnapshot();
-        snapshot.setAccountId(account.getDbId());
-        snapshot.setCategoryId("series-cat");
-        snapshot.setSeriesId("series-1");
-        snapshot.setCategoryDbId("series-cat-db");
-        snapshot.setSeriesTitle("Series 1");
-        snapshot.setSeriesPoster("http://img/series-1.png");
-        snapshot.setEpisodesJson("[\"{\\\"channelId\\\":\\\"ep-1\\\",\\\"name\\\":\\\"Episode 1\\\",\\\"cmd\\\":\\\"http://127.0.0.1/ep/1.m3u8\\\"}\"]");
-        snapshot.setUpdatedAt(System.currentTimeMillis());
-        com.uiptv.db.SeriesWatchingNowSnapshotDb.get().upsert(snapshot);
+        Channel episode = new Channel();
+        episode.setChannelId("ep-1");
+        episode.setName("Episode 1");
+        episode.setCmd("http://127.0.0.1/ep/1.m3u8");
+        SeriesWatchingNowSnapshotService.getInstance().saveChannels(
+                account,
+                "series-cat",
+                "series-1",
+                "series-cat-db",
+                "Series 1",
+                "http://img/series-1.png",
+                List.of(episode)
+        );
 
         assertFalse(SeriesWatchStateService.getInstance()
                 .getAllSeriesLastWatchedByAccount(account.getDbId()).isEmpty());

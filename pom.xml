@@ -11,7 +11,8 @@
     <name>UIPTV</name>
 
     <modules>
-        <module>server</module>
+        <module>core</module>
+        <module>api-server</module>
         <module>javafx-app</module>
     </modules>
 

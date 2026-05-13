@@ -1,8 +1,8 @@
 package com.uiptv.ui;
 
+import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
-import com.uiptv.server.UIptvServer;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.remotesync.RemoteSyncSessionService;
@@ -40,6 +40,7 @@ public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
+    private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private static Stage primaryStage;
     private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
@@ -248,7 +249,7 @@ public class RootApplication extends Application {
         }
         Platform.runLater(() -> {
             try {
-                UIptvServer.ensureStarted();
+                configurationApplicationService.ensureServerStarted();
             } catch (IOException e) {
                 showErrorAlert(I18n.tr("configAutoRunServerStartupFailed", e.getMessage()));
             }
