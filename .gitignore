@@ -11,6 +11,12 @@ target/
 pom.xml.versionsBackup
 dependency-reduced-pom.xml
 release_notes.md
+
+# Gradle/mobile build output
+mobile/.gradle/
+mobile/build/
+mobile/**/build/
+mobile/local.properties
 /web/dist/css/myflix.css
 /web/dist/css/player.css
 /web/dist/css/spa.css

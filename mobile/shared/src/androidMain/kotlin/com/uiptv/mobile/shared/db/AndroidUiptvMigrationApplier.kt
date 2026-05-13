@@ -1,0 +1,111 @@
+package com.uiptv.mobile.shared.db
+
+import android.database.sqlite.SQLiteDatabase
+import java.security.MessageDigest
+
+class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
+    fun applyAll(db: SQLiteDatabase) {
+        createSchemaMigrationsTable(db)
+        source.migrationNames().forEach { migrationName ->
+            applyMigration(db, migrationName, source.migrationSql(migrationName))
+        }
+    }
+
+    private fun applyMigration(db: SQLiteDatabase, name: String, sql: String) {
+        val checksum = sha256(sql)
+        if (isSuccessful(db, name, checksum)) {
+            return
+        }
+
+        db.beginTransaction()
+        try {
+            executeMigration(db, sql)
+            recordMigration(db, name, checksum, "success", null)
+            db.setTransactionSuccessful()
+        } catch (ex: Exception) {
+            db.endTransaction()
+            recordMigration(db, name, checksum, "failed", ex.message ?: ex::class.simpleName.orEmpty())
+            throw ex
+        }
+        db.endTransaction()
+    }
+
+    private fun executeMigration(db: SQLiteDatabase, sql: String) {
+        when (val directive = UiptvMigrationSql.findDirective(sql)) {
+            is MigrationDirective.AddColumn -> {
+                if (!columnExists(db, directive.table, directive.column)) {
+                    db.execSQL("ALTER TABLE ${directive.table} ADD COLUMN ${directive.column} ${directive.definition}")
+                }
+            }
+            is MigrationDirective.DropColumn -> {
+                if (columnExists(db, directive.table, directive.column)) {
+                    db.execSQL("ALTER TABLE ${directive.table} DROP COLUMN ${directive.column}")
+                }
+            }
+            null -> UiptvMigrationSql.executableStatements(sql).forEach(db::execSQL)
+        }
+    }
+
+    private fun createSchemaMigrationsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                checksum TEXT NOT NULL,
+                status TEXT NOT NULL,
+                applied_at INTEGER NOT NULL,
+                error_message TEXT
+            )
+            """.trimIndent()
+        )
+    }
+
+    private fun isSuccessful(db: SQLiteDatabase, name: String, checksum: String): Boolean {
+        db.rawQuery(
+            "SELECT status FROM schema_migrations WHERE name = ? AND checksum = ?",
+            arrayOf(name, checksum)
+        ).use { cursor ->
+            return cursor.moveToFirst() && cursor.getString(0).equals("success", ignoreCase = true)
+        }
+    }
+
+    private fun recordMigration(
+        db: SQLiteDatabase,
+        name: String,
+        checksum: String,
+        status: String,
+        errorMessage: String?
+    ) {
+        db.execSQL(
+            """
+            INSERT INTO schema_migrations(name, checksum, status, applied_at, error_message)
+            VALUES(?, ?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+                checksum = excluded.checksum,
+                status = excluded.status,
+                applied_at = excluded.applied_at,
+                error_message = excluded.error_message
+            """.trimIndent(),
+            arrayOf(name, checksum, status, epochSeconds(), errorMessage)
+        )
+    }
+
+    private fun columnExists(db: SQLiteDatabase, table: String, column: String): Boolean {
+        db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex).equals(column, ignoreCase = true)) {
+                    return true
+                }
+            }
+            return false
+        }
+    }
+
+    private fun sha256(text: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(text.toByteArray())
+            .joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+    private fun epochSeconds(): Long = System.currentTimeMillis() / 1000L
+}
