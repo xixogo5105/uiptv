@@ -193,7 +193,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
     }
 
     @Test
-    void parsesPaginationItvVodAndSeriesJsonVariants() throws Exception {
+    void parsesPaginationItvVodAndSeriesJsonVariants() {
         ChannelService service = ChannelService.getInstance();
         Pagination pagination = service.parsePagination("""
                 {"pagination":{"total_items":42,"max_page_items":10}}
