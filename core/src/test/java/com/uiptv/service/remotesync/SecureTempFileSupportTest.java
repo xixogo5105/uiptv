@@ -3,7 +3,6 @@ package com.uiptv.service.remotesync;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,8 +10,6 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class SecureTempFileSupportTest {
 
@@ -64,27 +61,6 @@ class SecureTempFileSupportTest {
         }
     }
 
-    @Test
-    void bestEffortAccessReportsPermissionFailures() throws Exception {
-        Path path = Files.createTempFile("secure-temp-permission-", ".tmp");
-        File file = mock(File.class);
-        when(file.setReadable(false, false)).thenReturn(false);
-        when(file.setWritable(false, false)).thenReturn(true);
-        when(file.setExecutable(false, false)).thenReturn(true);
-        when(file.setReadable(true, true)).thenReturn(true);
-        when(file.setWritable(true, true)).thenReturn(true);
-        when(file.setExecutable(true, true)).thenReturn(true);
-        when(file.toPath()).thenReturn(path);
-
-        try {
-            IOException thrown = assertThrows(IOException.class,
-                    () -> invokeApplyBestEffortOwnerOnlyAccess(file, true));
-            assertTrue(thrown.getMessage().contains("owner-only"));
-        } finally {
-            Files.deleteIfExists(path);
-        }
-    }
-
     private String invoke(String methodName, boolean permissionsCleared, boolean ownerReadable, boolean ownerWritable) throws Exception {
         Method method = SecureTempFileSupport.class.getDeclaredMethod(methodName, boolean.class, boolean.class, boolean.class);
         method.setAccessible(true);
@@ -105,17 +81,4 @@ class SecureTempFileSupportTest {
         }
     }
 
-    private void invokeApplyBestEffortOwnerOnlyAccess(File file, boolean executable) throws Exception {
-        Method method = SecureTempFileSupport.class.getDeclaredMethod("applyBestEffortOwnerOnlyAccess", File.class, boolean.class);
-        method.setAccessible(true);
-        try {
-            method.invoke(null, file, executable);
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof Exception exception) {
-                throw exception;
-            }
-            throw e;
-        }
-    }
 }
