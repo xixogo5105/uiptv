@@ -12,9 +12,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpRemoteSyncServersTest {
@@ -106,6 +109,66 @@ class HttpRemoteSyncServersTest {
             assertEquals(405, post.getResponseCode());
             assertEquals("PUT", post.getResponseHeaders().getFirst("Allow"));
         }
+    }
+
+    @Test
+    void statusDownloadAndHealthServers_handleMethodsSuccessAndBadRequests() throws Exception {
+        RemoteSyncApplicationService app = Mockito.mock(RemoteSyncApplicationService.class);
+        RemoteSyncSessionState ready = state("ready", RemoteSyncStatus.READY_FOR_DOWNLOAD, "ready");
+        Path snapshot = Files.createTempFile("remote-sync-download-", ".db");
+        Files.write(snapshot, new byte[]{1, 2, 3});
+
+        Mockito.when(app.getSessionState("ready")).thenReturn(ready);
+        Mockito.when(app.getSessionState("bad")).thenThrow(new IllegalArgumentException("missing status"));
+        Mockito.when(app.getDownloadSnapshot("ready")).thenReturn(snapshot);
+        Mockito.when(app.getDownloadSnapshot("bad")).thenThrow(new IllegalStateException("missing download"));
+
+        try (MockedStatic<RemoteSyncApplicationService> appStatic = Mockito.mockStatic(RemoteSyncApplicationService.class)) {
+            appStatic.when(RemoteSyncApplicationService::getInstance).thenReturn(app);
+
+            TestHttpExchange statusOk = new TestHttpExchange("/remote-sync/status?sessionId=ready", "GET");
+            new HttpRemoteSyncStatusServer().handle(statusOk);
+            assertEquals(200, statusOk.getResponseCode());
+            assertEquals("ready", new JSONObject(statusOk.getResponseBodyText()).getString("sessionId"));
+
+            TestHttpExchange statusBad = new TestHttpExchange("/remote-sync/status?sessionId=bad", "GET");
+            new HttpRemoteSyncStatusServer().handle(statusBad);
+            assertEquals(400, statusBad.getResponseCode());
+            assertTrue(new JSONObject(statusBad.getResponseBodyText()).getString("message").contains("missing status"));
+
+            TestHttpExchange statusPost = new TestHttpExchange("/remote-sync/status", "POST");
+            new HttpRemoteSyncStatusServer().handle(statusPost);
+            assertEquals(405, statusPost.getResponseCode());
+            assertEquals("GET", statusPost.getResponseHeaders().getFirst("Allow"));
+
+            TestHttpExchange downloadOk = new TestHttpExchange("/remote-sync/download?sessionId=ready", "GET");
+            new HttpRemoteSyncDownloadServer().handle(downloadOk);
+            assertEquals(200, downloadOk.getResponseCode());
+            assertArrayEquals(new byte[]{1, 2, 3}, downloadOk.getResponseBodyBytes());
+            assertEquals("application/octet-stream", downloadOk.getResponseHeaders().getFirst("Content-Type"));
+
+            TestHttpExchange downloadBad = new TestHttpExchange("/remote-sync/download?sessionId=bad", "GET");
+            new HttpRemoteSyncDownloadServer().handle(downloadBad);
+            assertEquals(400, downloadBad.getResponseCode());
+            assertTrue(new JSONObject(downloadBad.getResponseBodyText()).getString("message").contains("missing download"));
+
+            TestHttpExchange downloadPost = new TestHttpExchange("/remote-sync/download", "POST");
+            new HttpRemoteSyncDownloadServer().handle(downloadPost);
+            assertEquals(405, downloadPost.getResponseCode());
+            assertEquals("GET", downloadPost.getResponseHeaders().getFirst("Allow"));
+        } finally {
+            Files.deleteIfExists(snapshot);
+        }
+
+        TestHttpExchange healthOk = new TestHttpExchange("/remote-sync/health", "GET");
+        new HttpRemoteSyncHealthServer().handle(healthOk);
+        assertEquals(200, healthOk.getResponseCode());
+        assertEquals("ok", new JSONObject(healthOk.getResponseBodyText()).getString("status"));
+
+        TestHttpExchange healthPost = new TestHttpExchange("/remote-sync/health", "POST");
+        new HttpRemoteSyncHealthServer().handle(healthPost);
+        assertEquals(405, healthPost.getResponseCode());
+        assertEquals("GET", healthPost.getResponseHeaders().getFirst("Allow"));
     }
 
     private RemoteSyncSessionState state(String id, RemoteSyncStatus status, String message) {

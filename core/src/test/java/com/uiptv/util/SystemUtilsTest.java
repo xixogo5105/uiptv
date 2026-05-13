@@ -12,14 +12,22 @@ class SystemUtilsTest {
     void detectsWindowsLinuxMacAndUnknownOsNames() throws Exception {
         assertFlags("Windows 11", true, false, false);
         assertFlags("Linux", false, true, false);
+        assertFlags("FreeBSD", false, true, false);
+        assertFlags("MPE/iX", false, true, false);
         assertFlags("Mac OS X", false, false, true);
         assertFlags("Solaris", false, false, false);
+        assertFlags("HP-UX", false, false, false);
+        assertFlags(null, false, false, false);
     }
 
     private void assertFlags(String osName, boolean windows, boolean linux, boolean mac) throws Exception {
         String original = System.getProperty("os.name");
         try {
-            System.setProperty("os.name", osName);
+            if (osName == null) {
+                System.clearProperty("os.name");
+            } else {
+                System.setProperty("os.name", osName);
+            }
             Class<?> shadow = Class.forName("com.uiptv.util.SystemUtils", true, new ShadowLoader());
             assertEquals(windows, shadow.getField("IS_OS_WINDOWS").getBoolean(null));
             assertEquals(linux, shadow.getField("IS_OS_LINUX").getBoolean(null));
