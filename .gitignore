@@ -10,6 +10,7 @@
 target/
 pom.xml.versionsBackup
 dependency-reduced-pom.xml
+release_notes.md
 /web/dist/css/myflix.css
 /web/dist/css/player.css
 /web/dist/css/spa.css
