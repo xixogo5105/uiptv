@@ -6,16 +6,25 @@ import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
+import com.uiptv.shared.Pagination;
+import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.RssParser;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChannelServiceBatchLookupTest extends DbBackedTest {
@@ -154,12 +163,18 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
         assertEquals("", invoke(service, "resolveCategoryDbId", new Class[]{Account.class, String.class}, saved, ""));
 
         assertEquals("http://logo.test/img.png", invoke(service, "extractLogoFromExtraJson", new Class[]{String.class}, "{\"stream_icon\":\"http://logo.test/img.png\"}"));
+        assertEquals("http://logo.test/cover.png", invoke(service, "extractLogoFromExtraJson", new Class[]{String.class}, "{\"cover\":\"http://logo.test/cover.png\"}"));
+        assertEquals("http://logo.test/movie.png", invoke(service, "extractLogoFromExtraJson", new Class[]{String.class}, "{\"movie_image\":\"http://logo.test/movie.png\"}"));
         assertEquals("", invoke(service, "extractLogoFromExtraJson", new Class[]{String.class}, "{bad"));
         assertEquals("http://cdn.test/logo.png", invoke(service, "normalizeLogoUrl", new Class[]{Account.class, String.class}, saved, "http://cdn.test/logo.png"));
+        assertEquals("", invoke(service, "normalizeLogoUrl", new Class[]{Account.class, String.class}, saved, " "));
         saved.setServerPortalUrl("http://portal.test/stalker_portal/server/load.php");
         assertEquals("http://portal.test/logo.png", invoke(service, "normalizeLogoUrl", new Class[]{Account.class, String.class}, saved, "/logo.png"));
         assertEquals("http://cdn.test/logo.png", invoke(service, "normalizeLogoUrl", new Class[]{Account.class, String.class}, saved, "//cdn.test/logo.png"));
+        saved.setServerPortalUrl("not a uri");
+        assertEquals("/logo.png", invoke(service, "normalizeLogoUrl", new Class[]{Account.class, String.class}, saved, "/logo.png"));
         assertEquals("logo.png", invoke(service, "trimWrappedLogo", new Class[]{String.class}, " 'logo.png' "));
+        assertEquals("logo.png", invoke(service, "trimWrappedLogo", new Class[]{String.class}, " \"logo.png\" "));
 
         List<Channel> deduped = invoke(service, "dedupeChannels", new Class[]{List.class}, List.of(
                 channel("dup", "Same", "http://stream/1"),
@@ -167,6 +182,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
                 channel("other", "Other", "http://stream/2")
         ));
         assertEquals(2, deduped.size());
+        assertTrue(((List<Channel>) invoke(service, "dedupeChannels", new Class[]{List.class}, (Object) null)).isEmpty());
 
         java.lang.reflect.Constructor<?> throttleConstructor = Class.forName("com.uiptv.service.ChannelService$RequestThrottle")
                 .getDeclaredConstructor(long.class, long.class, long.class);
@@ -174,6 +190,97 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
         Object throttle = throttleConstructor.newInstance(0L, 10L, 0L);
         assertEquals(Long.valueOf(0L), invoke(throttle, "onSuccess", new Class[]{}));
         assertEquals(Long.valueOf(0L), invoke(throttle, "onFailure", new Class[]{}));
+    }
+
+    @Test
+    void parsesPaginationItvVodAndSeriesJsonVariants() throws Exception {
+        ChannelService service = ChannelService.getInstance();
+        Pagination pagination = service.parsePagination("""
+                {"pagination":{"total_items":42,"max_page_items":10}}
+                """, null);
+        assertEquals(42, pagination.getMaxPageItems());
+        assertEquals(5, pagination.getPageCount());
+
+        Pagination jsPagination = service.parsePagination("""
+                {"js":{"total_items":12,"max_page_items":6}}
+                """, message -> { });
+        assertEquals(12, jsPagination.getMaxPageItems());
+        assertEquals(2, jsPagination.getPageCount());
+        assertNull(service.parsePagination("{}", null));
+        assertNull(service.parsePagination("{bad", null));
+
+        List<Channel> live = service.parseItvChannels("""
+                {"js":{"data":[
+                  {"id":1,"name":"Live One","number":"101","cmd":"ffmpeg http://live/one","cmd_1":"a","cmd_2":"b","cmd_3":"c",
+                   "logo":"\\/logo.png","censored":0,"status":1,"hd":1,"tv_genre_id":"news"},
+                  {"id":1,"name":"Live One","number":"101","cmd":"ffmpeg http://live/one","cmd_1":"a","cmd_2":"b","cmd_3":"c",
+                   "logo":"\\/logo.png","censored":0,"status":1,"hd":1,"tv_genre_id":"news"}
+                ]}}
+                """, false);
+        assertEquals(1, live.size());
+        assertEquals("news", live.getFirst().getCategoryId());
+        assertTrue(service.parseItvChannels("{bad", true).isEmpty());
+
+        Account vodAccount = saveAccount("parse-vod", Account.AccountAction.vod);
+        vodAccount.setServerPortalUrl("http://portal.test/stalker_portal/server/load.php");
+        List<Channel> vodChannels = service.parseVodChannels(vodAccount, """
+                {"data":[
+                  {"id":7,"o_name":"Movie Name","cmd":"movie-cmd","tv_genre_id":"movies","screenshot_uri":"","stream_icon":"","cover":"\\/covers\\/movie.jpg",
+                   "censored":0,"status":1,"hd":0}
+                ]}
+                """, false);
+        assertEquals(1, vodChannels.size());
+        assertEquals("Movie Name", vodChannels.getFirst().getName());
+        assertEquals("http://portal.test/covers/movie.jpg", vodChannels.getFirst().getLogo());
+
+        Account seriesAccount = saveAccount("parse-series", Account.AccountAction.series);
+        List<Channel> seriesChannels = service.parseVodChannels(seriesAccount, """
+                {"js":{"data":[
+                  {"id":8,"name":"Series Name","cmd":"series-cmd","tv_genre_id":"series","movie_image":"http://img/series.jpg",
+                   "series":[3,1],"censored":0,"status":1,"hd":1}
+                ]}}
+                """, false);
+        assertEquals(2, seriesChannels.size());
+        assertEquals("Series Name - Episode 1", seriesChannels.getFirst().getName());
+        assertTrue(service.parseVodChannels(seriesAccount, "{bad", true).isEmpty());
+    }
+
+    @Test
+    void channelParamsAndProgressRecordsExposeExpectedValues() {
+        var params = ChannelService.getChannelOrSeriesParams("cat", 3, Account.AccountAction.series, "", "season-1");
+
+        assertEquals("series", params.get("type"));
+        assertEquals("0", params.get("movie_id"));
+        assertEquals("season-1", params.get("season_id"));
+        assertEquals("3", params.get("p"));
+
+        ChannelService.PageProgress progress = new ChannelService.PageProgress(1, 2, 3, 4);
+        assertEquals(1, progress.fetchedItems());
+        assertEquals(2, progress.totalItems());
+        assertEquals(3, progress.pageNumber());
+        assertEquals(4, progress.pageCount());
+    }
+
+    @Test
+    void getOverloadsUseRssFeedBranchAndPublishCallback() throws IOException {
+        ChannelService service = ChannelService.getInstance();
+        Account rss = new Account("rss-account", "", "", "", null, null, null, null, null, null, AccountType.RSS_FEED, null, "rss://feed", false);
+        rss.setAction(Account.AccountAction.itv);
+        PlaylistEntry entry = new PlaylistEntry("rss-id", "RSS Title", "RSS Title", "http://stream/rss.mp4", "http://logo/rss.png");
+
+        try (MockedStatic<RssParser> rssParser = Mockito.mockStatic(RssParser.class)) {
+            rssParser.when(() -> RssParser.parse("rss://feed")).thenReturn(List.of(entry));
+
+            assertEquals(1, service.get(CategoryType.ALL.displayName(), rss, "db-id").size());
+            assertEquals(1, service.get("RSS Title", rss, "db-id", message -> { }).size());
+
+            List<List<Channel>> published = new ArrayList<>();
+            List<Channel> channels = service.get("rss-id", rss, "db-id", message -> { }, published::add);
+
+            assertEquals(1, channels.size());
+            assertEquals(1, published.size());
+            assertEquals("RSS Title", published.getFirst().getFirst().getName());
+        }
     }
 
     private Account saveAccount(String name, Account.AccountAction action) {

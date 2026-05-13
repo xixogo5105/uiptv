@@ -5,12 +5,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -152,6 +155,56 @@ class I18nTest {
         assertOrdinalLabels("en-US", "Season 1", "Episode 1", "Season 11", "Episode 11", "Season 50", "Episode 50", "1", "2", "50");
     }
 
+    @Test
+    void publicFormattingAndFallbackBranchesAreCovered() {
+        I18n.initialize("en-US");
+
+        assertEquals("en-US", I18n.resolveSupportedLanguage("en-US").languageTag());
+        assertEquals("en-US", I18n.resolveSupportedLanguage("not-a-real-tag").languageTag());
+        assertEquals("en-US", I18n.normalizeLanguageTag(null));
+        assertEquals("en-US", I18n.normalizeLanguageTag(""));
+        assertEquals("en-US", I18n.getCurrentLocale().toLanguageTag());
+        assertFalse(I18n.getSupportedLanguages().isEmpty());
+        assertEquals("English (United States)", I18n.getSupportedLanguages().getFirst().toString());
+
+        assertEquals("", I18n.tr(null));
+        assertEquals("missing.key", I18n.tr("missing.key"));
+        assertEquals("missing.key", I18n.trEnglish("missing.key"));
+        assertEquals("", I18n.formatDate(null));
+        assertEquals("1st January 2024", I18n.formatDate(LocalDate.of(2024, 1, 1)));
+        assertEquals("2nd January 2024", I18n.formatDate(LocalDate.of(2024, 1, 2)));
+        assertEquals("3rd January 2024", I18n.formatDate(LocalDate.of(2024, 1, 3)));
+        assertEquals("4th January 2024", I18n.formatDate(LocalDate.of(2024, 1, 4)));
+        assertEquals("11th January 2024", I18n.formatDate(LocalDate.of(2024, 1, 11)));
+        assertEquals("", I18n.formatNumber(null));
+        assertEquals("", I18n.formatNumber(""));
+        assertEquals("A12B", I18n.formatNumber("A12B"));
+        assertEquals("Season 1", I18n.formatSeasonLabel(""));
+        assertEquals("Episode -", I18n.formatEpisodeLabel(""));
+        assertEquals("1", I18n.formatTabNumberLabel(""));
+
+        I18n.setLocale("bn-BD");
+        assertEquals("১২", I18n.formatNumber("12"));
+        I18n.setLocale("fa-IR");
+        assertEquals("۱۲", I18n.formatNumber("12"));
+    }
+
+    @Test
+    void privateFallbackHelpersNormalizeArtifactsAndInvalidLocales() throws Exception {
+        assertEquals("\nline\nnext\nthird\nkey=value/path\n",
+                invokeString("normalizeResolvedText", "\\r\\nline\\nnext\\rthird\\nkey\\=value\\/path__TK1__"));
+        assertEquals("", invokeString("normalizeResolvedText", ""));
+        assertEquals("en-US", ((Locale) invoke("resolveLocale", new Class[]{String.class}, " ")).toLanguageTag());
+        assertEquals("en-US", ((Locale) invoke("resolveLocale", new Class[]{String.class}, "und")).toLanguageTag());
+        assertEquals("missing.private.key", invokeString("lookupOrFallback", "missing.private.key"));
+        assertEquals("missing.private.key", invoke("lookupOrFallback", new Class[]{Locale.class, String.class},
+                Locale.forLanguageTag("zz-ZZ"), "missing.private.key"));
+        assertEquals("missing.private.key", invoke("trForLocale", new Class[]{Locale.class, String.class, Object[].class},
+                Locale.forLanguageTag("zz-ZZ"), "missing.private.key", new Object[]{"ignored"}));
+        assertEquals("Close", invoke("lookupOrFallback", new Class[]{Locale.class, String.class},
+                Locale.forLanguageTag("zz-ZZ"), "commonClose"));
+    }
+
     private void assertOrdinalLabels(String localeTag,
                                      String season1,
                                      String episode1,
@@ -180,5 +233,28 @@ class I18nTest {
             properties.load(reader);
         }
         return properties;
+    }
+
+    private String invokeString(String name, Object... args) throws Exception {
+        Class<?>[] parameterTypes = new Class<?>[args.length];
+        for (int i = 0; i < args.length; i++) {
+            parameterTypes[i] = args[i].getClass();
+        }
+        Object result = invoke(name, parameterTypes, args);
+        return result == null ? null : result.toString();
+    }
+
+    private Object invoke(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Method method = I18n.class.getDeclaredMethod(name, parameterTypes);
+        method.setAccessible(true);
+        try {
+            return method.invoke(null, args);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            throw e;
+        }
     }
 }

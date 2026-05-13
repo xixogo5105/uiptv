@@ -1,11 +1,20 @@
 package com.uiptv.util;
 
+import com.uiptv.model.CategoryType;
 import com.uiptv.shared.PlaylistEntry;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.BufferedReader;
+import java.io.Reader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -122,14 +131,183 @@ class M3U8ParserTest {
         }
     }
 
+    @Test
+    void parsesUrlSourcesForHttpAndFileProtocols() throws Exception {
+        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+            httpUtil.when(() -> HttpUtil.sendRequest("https://playlist.test/live.m3u", null, "GET"))
+                    .thenReturn(new HttpUtil.HttpResult(HttpUtil.STATUS_OK, """
+                            #EXTM3U
+                            #EXTINF:-1 tvg-id="http-id" tvg-logo="https://img/logo.png" group-title="Remote",Remote Channel
+                            https://stream.test/remote.m3u8
+                            """, Map.of(), Map.of()));
+
+            List<PlaylistEntry> channels = M3U8Parser.parseChannelUrlM3U8(new URL("https://playlist.test/live.m3u"));
+            Set<PlaylistEntry> categories = M3U8Parser.parseUrlCategory(new URL("https://playlist.test/live.m3u"));
+
+            assertEquals(1, channels.size());
+            assertEquals("http-id", channels.getFirst().getId());
+            assertEquals("https://img/logo.png", channels.getFirst().getLogo());
+            assertTrue(categories.stream().anyMatch(entry -> "Remote".equals(entry.getGroupTitle())));
+        }
+
+        Path temp = writeTempPlaylist("""
+                #EXTM3U
+                #EXTINF:-1 group-title="File",File Channel
+                ./relative.m3u8
+                """);
+        try {
+            List<PlaylistEntry> channels = M3U8Parser.parseChannelUrlM3U8(temp.toUri().toURL());
+            Set<PlaylistEntry> categories = M3U8Parser.parseUrlCategory(temp.toUri().toURL());
+            assertEquals("./relative.m3u8", channels.getFirst().getPlaylistEntry());
+            assertTrue(categories.stream().anyMatch(entry -> "File".equals(entry.getGroupTitle())));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    @Test
+    void wrapsIoFailuresForInvalidPathsAndUrls() throws Exception {
+        assertThrows(UncheckedIOException.class, () -> M3U8Parser.parseChannelPathM3U8("missing-file.m3u"));
+        assertThrows(UncheckedIOException.class, () -> M3U8Parser.parsePathCategory("missing-file.m3u"));
+
+        URL missingFileUrl = Path.of("missing-url-file.m3u").toUri().toURL();
+        assertThrows(UncheckedIOException.class, () -> M3U8Parser.parseChannelUrlM3U8(missingFileUrl));
+        assertThrows(UncheckedIOException.class, () -> M3U8Parser.parseUrlCategory(missingFileUrl));
+    }
+
+    @Test
+    void coversDrmMetadataAndUrlHeuristics() throws IOException {
+        String content = """
+                #EXTM3U
+                #EXTINF:-1 group-title="",No Group
+                movie.mp4?token=1
+                #EXTINF:-1 tvg-id="all" group-title="All",All Category Is Skipped
+                /absolute/path/channel.ts
+                #EXTINF:-1 group-title="Dash",Widevine Dash
+                #EXT-X-KEY:METHOD=SAMPLE-AES,URI="https://license.test/wv",KEYFORMAT="com.widevine.alpha"
+                #KODIPROP:inputstreamaddon=inputstream.adaptive
+                #KODIPROP:inputstream.adaptive.manifest_type=mpd
+                #KODIPROP:inputstream.adaptive.license_key=https://license.test/k
+                stream.mpd
+                #EXTINF:-1 group-title="Clear",Clear Key Json
+                #KODIPROP:inputstream.adaptive.license_type=clearkey
+                #KODIPROP:inputstream.adaptive.license_key={"kid":"key"}
+                C:\\\\media\\\\local.ts
+                #EXTINF:-1 group-title="Clear",Malformed Clear Key Falls Back
+                #KODIPROP:inputstream.adaptive.license_type=org.w3.clearkey
+                #KODIPROP:inputstream.adaptive.license_key={bad}
+                ../up/stream.aac
+                #EXTINF:-1 group-title="Widevine",Widevine License Type
+                #KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+                #KODIPROP:inputstream.adaptive.license_key=https://license.test/widevine
+                folder/stream.m3u8
+                #EXTINF:-1 group-title="Unknown",Unknown License Type
+                #KODIPROP:inputstream.adaptive.license_type=unknown
+                #KODIPROP:inputstream.adaptive.license_key=https://license.test/unknown
+                ../up/stream.aac
+                """;
+
+        List<PlaylistEntry> entries = parseContent(content);
+
+        assertEquals(7, entries.size());
+        assertEquals(CategoryType.UNCATEGORIZED.displayName(), entries.get(0).getGroupTitle());
+        assertEquals("movie.mp4?token=1", entries.get(0).getPlaylistEntry());
+        assertEquals("/absolute/path/channel.ts", entries.get(1).getPlaylistEntry());
+
+        PlaylistEntry widevine = entries.get(2);
+        assertEquals("com.widevine.alpha", widevine.getDrmType());
+        assertEquals("https://license.test/k", widevine.getDrmLicenseUrl());
+        assertEquals("inputstream.adaptive", widevine.getInputstreamaddon());
+        assertEquals("mpd", widevine.getManifestType());
+
+        assertEquals("key", entries.get(3).getClearKeys().get("kid"));
+        assertTrue(entries.get(4).getClearKeys().isEmpty());
+        assertEquals("com.widevine.alpha", entries.get(5).getDrmType());
+        assertEquals("https://license.test/widevine", entries.get(5).getDrmLicenseUrl());
+        assertNull(entries.get(6).getDrmType());
+        assertEquals("https://license.test/unknown", entries.get(6).getDrmLicenseUrl());
+    }
+
+    @Test
+    void categoryParsingAddsUncategorizedAndSkipsInvalidGroups() throws IOException {
+        Path temp = writeTempPlaylist("""
+                #EXTM3U
+                #EXTINF:-1 tvg-id="blank"
+                no-group.mp4
+                #EXTINF:-1 tvg-id="all" group-title="All",All
+                all.mp4
+                #EXTINF:-1 tvg-id="explicit" group-title="Uncategorized",Explicit
+                explicit.mp4
+                """);
+        try {
+            Set<PlaylistEntry> categories = M3U8Parser.parsePathCategory(temp.toString());
+
+            assertTrue(categories.stream().anyMatch(entry -> CategoryType.ALL.displayName().equals(entry.getGroupTitle())));
+            assertTrue(categories.stream().anyMatch(entry -> CategoryType.UNCATEGORIZED.displayName().equals(entry.getGroupTitle())));
+            assertFalse(categories.stream().anyMatch(entry -> "All".equals(entry.getId()) && "All".equals(entry.getTitle())));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    @Test
+    void categoryParsingAddsUncategorizedWhenOnlyBlankGroupsExist() throws IOException {
+        Path temp = writeTempPlaylist("""
+                #EXTM3U
+                #EXTINF:-1 tvg-id="blank"
+                no-group.mp4
+                """);
+        try {
+            Set<PlaylistEntry> categories = M3U8Parser.parsePathCategory(temp.toString());
+
+            assertTrue(categories.stream().anyMatch(entry -> CategoryType.UNCATEGORIZED.displayName().equals(entry.getGroupTitle())));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    @Test
+    void privateParserBranchesCoverErrorsAndLowLevelHelpers() throws Exception {
+        @SuppressWarnings("unchecked")
+        Set<PlaylistEntry> categories = (Set<PlaylistEntry>) invoke("parseCategory", new Class[]{BufferedReader.class}, new ThrowingBufferedReader());
+        assertTrue(categories.stream().anyMatch(entry -> CategoryType.ALL.displayName().equals(entry.getGroupTitle())));
+
+        @SuppressWarnings("unchecked")
+        List<PlaylistEntry> channels = (List<PlaylistEntry>) invoke("parseM3U8", new Class[]{BufferedReader.class}, new ThrowingBufferedReader());
+        assertTrue(channels.isEmpty());
+
+        assertFalse((Boolean) invoke("processCategoryLineSafely", new Class[]{Set.class, String.class}, null, "#EXTINF:-1 group-title=\"Bad\",Bad"));
+        assertEquals("", invoke("parseTitle", new Class[]{String.class}, "#EXTINF:-1 group-title=\"NoTitle\","));
+        assertNull(invoke("parseDrmType", new Class[]{String.class}, "#EXT-X-KEY:KEYFORMAT=\"other\""));
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> blankKeys = (Map<String, String>) invoke("parseClearKeys", new Class[]{String.class}, "");
+        assertTrue(blankKeys.isEmpty());
+
+        assertEquals("", invoke("normalizePotentialUrl", new Class[]{String.class}, ""));
+        assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, ""));
+        assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "# comment"));
+        assertTrue((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "folder/channel"));
+        assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "plain text"));
+        assertEquals(List.of(CategoryType.UNCATEGORIZED.displayName()), invoke("effectiveGroupTitles", new Class[]{List.class}, (Object) null));
+        assertNull(invoke("buildCategoryEntry", new Class[]{String.class, String.class}, "id", ""));
+        Object parsedEmptyTail = invoke("parseEntryState", new Class[]{List.class, int.class}, List.of("# comment"), 0);
+        assertNotNull(parsedEmptyTail);
+    }
+
     private List<PlaylistEntry> parseContent(String content) throws IOException {
-        Path temp = Files.createTempFile("m3u8-parser-test-", ".m3u");
-        Files.writeString(temp, content, StandardCharsets.UTF_8);
+        Path temp = writeTempPlaylist(content);
         try {
             return M3U8Parser.parseChannelPathM3U8(temp.toString());
         } finally {
             Files.deleteIfExists(temp);
         }
+    }
+
+    private Path writeTempPlaylist(String content) throws IOException {
+        Path temp = Files.createTempFile("m3u8-parser-test-", ".m3u");
+        Files.writeString(temp, content, StandardCharsets.UTF_8);
+        return temp;
     }
 
     private DynamicTest urlCase(String name, String content, String expectedTitle, String expectedUrl) {
@@ -139,5 +317,30 @@ class M3U8ParserTest {
             assertEquals(expectedTitle, entries.get(0).getTitle());
             assertEquals(expectedUrl, entries.get(0).getPlaylistEntry());
         });
+    }
+
+    private Object invoke(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Method method = M3U8Parser.class.getDeclaredMethod(name, parameterTypes);
+        method.setAccessible(true);
+        try {
+            return method.invoke(null, args);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            throw e;
+        }
+    }
+
+    private static final class ThrowingBufferedReader extends BufferedReader {
+        private ThrowingBufferedReader() {
+            super(Reader.nullReader());
+        }
+
+        @Override
+        public String readLine() throws IOException {
+            throw new IOException("boom");
+        }
     }
 }
