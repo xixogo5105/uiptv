@@ -7,8 +7,6 @@ import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
 
-import java.io.IOException;
-
 import static com.uiptv.util.AppLog.addInfoLog;
 import static com.uiptv.util.StringUtils.isBlank;
 

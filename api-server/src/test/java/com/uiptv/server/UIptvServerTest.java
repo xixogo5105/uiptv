@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class UIptvServerTest extends DbBackedTest {
 
     @Test
-    void startEnsureStop_lifecycleWorks() throws Exception {
+    void startEnsureStop_lifecycleWorks() {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setServerPort("0");
         ConfigurationService.getInstance().save(configuration);
@@ -41,7 +41,7 @@ class UIptvServerTest extends DbBackedTest {
     }
 
     @Test
-    void startUsesConfiguredPort() throws Exception {
+    void startUsesConfiguredPort() {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setServerPort("0");
         ConfigurationService.getInstance().save(configuration);
