@@ -14,6 +14,7 @@
         <module>core</module>
         <module>api-server</module>
         <module>javafx-app</module>
+        <module>coverage-aggregate</module>
     </modules>
 
     <properties>
@@ -28,6 +29,11 @@
         <vlcj.version>4.12.1</vlcj.version>
         <lombok.version>1.18.46</lombok.version>
         <sonar.organization>xixogo5105</sonar.organization>
+        <sonar.exclusions>.github/**</sonar.exclusions>
+        <sonar.coverage.jacoco.xmlReportPaths>
+            ${maven.multiModuleProjectDirectory}/coverage-aggregate/target/site/jacoco-aggregate/jacoco.xml,
+            ${maven.multiModuleProjectDirectory}/javafx-app/target/site/jacoco/jacoco.xml
+        </sonar.coverage.jacoco.xmlReportPaths>
         <sonar.coverage.exclusions>
             javafx-app/src/main/java/com/uiptv/ui/**,
             javafx-app/src/main/java/com/uiptv/player/**,
