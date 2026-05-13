@@ -14,7 +14,7 @@ import java.io.BufferedReader;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.URL;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -141,8 +141,8 @@ class M3U8ParserTest {
                             https://stream.test/remote.m3u8
                             """, Map.of(), Map.of()));
 
-            List<PlaylistEntry> channels = M3U8Parser.parseChannelUrlM3U8(new URL("https://playlist.test/live.m3u"));
-            Set<PlaylistEntry> categories = M3U8Parser.parseUrlCategory(new URL("https://playlist.test/live.m3u"));
+            List<PlaylistEntry> channels = M3U8Parser.parseChannelUrlM3U8(URI.create("https://playlist.test/live.m3u").toURL());
+            Set<PlaylistEntry> categories = M3U8Parser.parseUrlCategory(URI.create("https://playlist.test/live.m3u").toURL());
 
             assertEquals(1, channels.size());
             assertEquals("http-id", channels.getFirst().getId());
@@ -170,7 +170,7 @@ class M3U8ParserTest {
         assertThrows(UncheckedIOException.class, () -> M3U8Parser.parseChannelPathM3U8("missing-file.m3u"));
         assertThrows(UncheckedIOException.class, () -> M3U8Parser.parsePathCategory("missing-file.m3u"));
 
-        URL missingFileUrl = Path.of("missing-url-file.m3u").toUri().toURL();
+        var missingFileUrl = Path.of("missing-url-file.m3u").toUri().toURL();
         assertThrows(UncheckedIOException.class, () -> M3U8Parser.parseChannelUrlM3U8(missingFileUrl));
         assertThrows(UncheckedIOException.class, () -> M3U8Parser.parseUrlCategory(missingFileUrl));
     }

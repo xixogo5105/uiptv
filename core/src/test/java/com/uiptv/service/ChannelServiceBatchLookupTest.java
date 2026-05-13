@@ -17,12 +17,12 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -262,7 +262,7 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
     }
 
     @Test
-    void getOverloadsUseRssFeedBranchAndPublishCallback() throws IOException {
+    void getOverloadsUseRssFeedBranchAndPublishCallback() {
         ChannelService service = ChannelService.getInstance();
         Account rss = new Account("rss-account", "", "", "", null, null, null, null, null, null, AccountType.RSS_FEED, null, "rss://feed", false);
         rss.setAction(Account.AccountAction.itv);
@@ -271,11 +271,11 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
         try (MockedStatic<RssParser> rssParser = Mockito.mockStatic(RssParser.class)) {
             rssParser.when(() -> RssParser.parse("rss://feed")).thenReturn(List.of(entry));
 
-            assertEquals(1, service.get(CategoryType.ALL.displayName(), rss, "db-id").size());
-            assertEquals(1, service.get("RSS Title", rss, "db-id", message -> { }).size());
+            assertEquals(1, assertDoesNotThrow(() -> service.get(CategoryType.ALL.displayName(), rss, "db-id")).size());
+            assertEquals(1, assertDoesNotThrow(() -> service.get("RSS Title", rss, "db-id", message -> { })).size());
 
             List<List<Channel>> published = new ArrayList<>();
-            List<Channel> channels = service.get("rss-id", rss, "db-id", message -> { }, published::add);
+            List<Channel> channels = assertDoesNotThrow(() -> service.get("rss-id", rss, "db-id", message -> { }, published::add));
 
             assertEquals(1, channels.size());
             assertEquals(1, published.size());
