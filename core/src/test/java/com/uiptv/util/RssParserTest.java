@@ -27,7 +27,7 @@ class RssParserTest {
     }
 
     @Test
-    void parseMapsFeedItemsToPlaylistEntries() throws Exception {
+    void parseMapsFeedItemsToPlaylistEntries() {
         try (MockedStatic<RssFeedReader> feedReader = Mockito.mockStatic(RssFeedReader.class)) {
             feedReader.when(() -> RssFeedReader.getItems("rss://feed")).thenReturn(List.of(
                     new RssFeedReader.RssItem("Title One", "https://stream.test/one.mp4", "desc")
@@ -44,7 +44,7 @@ class RssParserTest {
     }
 
     @Test
-    void parseWrapsIoAndCheckedParserFailuresButRethrowsRuntime() throws Exception {
+    void parseWrapsIoAndCheckedParserFailuresButRethrowsRuntime() {
         try (MockedStatic<RssFeedReader> feedReader = Mockito.mockStatic(RssFeedReader.class)) {
             feedReader.when(() -> RssFeedReader.getItems("rss://io"))
                     .thenThrow(new IOException("network down"));

@@ -16,10 +16,13 @@ class PublishedM3uSelectionTest {
 
         PublishedM3uSelection selection = new PublishedM3uSelection("account-1");
         selection.setDbId("db-1");
+        PublishedM3uSelection same = new PublishedM3uSelection("account-1");
+        same.setDbId("db-1");
 
         assertEquals("account-1", selection.getAccountId());
         assertEquals("db-1", selection.getDbId());
-        assertEquals(selection, selection);
+        assertEquals(selection, same);
+        assertEquals(selection.hashCode(), same.hashCode());
         assertNotEquals(selection, empty);
     }
 }

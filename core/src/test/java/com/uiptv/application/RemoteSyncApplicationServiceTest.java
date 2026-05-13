@@ -43,9 +43,11 @@ class RemoteSyncApplicationServiceTest {
 
         assertEquals(created.sessionId(), fetched.sessionId());
         assertEquals(RemoteSyncStatus.REJECTED, fetched.status());
+        String sessionId = created.sessionId();
+        ByteArrayInputStream upload = new ByteArrayInputStream(new byte[]{1});
         assertThrows(IllegalStateException.class,
-                () -> service.acceptUpload(created.sessionId(), new ByteArrayInputStream(new byte[]{1})));
-        assertThrows(IllegalStateException.class, () -> service.getDownloadSnapshot(created.sessionId()));
+                () -> service.acceptUpload(sessionId, upload));
+        assertThrows(IllegalStateException.class, () -> service.getDownloadSnapshot(sessionId));
 
         service.completeImport(created.sessionId(), false, "failed");
 
@@ -62,8 +64,8 @@ class RemoteSyncApplicationServiceTest {
         Mockito.when(delegate.acceptUpload(Mockito.eq("session"), Mockito.any())).thenReturn(result);
         Mockito.when(delegate.getDownloadSnapshot("session")).thenReturn(snapshot);
 
-        try {
-            assertEquals(result, service.acceptUpload("session", new ByteArrayInputStream(new byte[]{1})));
+        try (ByteArrayInputStream upload = new ByteArrayInputStream(new byte[]{1})) {
+            assertEquals(result, service.acceptUpload("session", upload));
             assertEquals(snapshot, service.getDownloadSnapshot("session"));
         } finally {
             replaceSessionService(service, original);
