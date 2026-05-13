@@ -7,6 +7,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;
 import com.uiptv.service.HandshakeService;
+import com.uiptv.util.AccountCopyUtil;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -248,27 +249,7 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private Account buildAccountForMac(String mac) {
-        Account account = new Account(
-                baseAccount.getAccountName(),
-                baseAccount.getUsername(),
-                baseAccount.getPassword(),
-                baseAccount.getUrl(),
-                mac,
-                baseAccount.getMacAddressList(),
-                baseAccount.getSerialNumber(),
-                baseAccount.getDeviceId1(),
-                baseAccount.getDeviceId2(),
-                baseAccount.getSignature(),
-                baseAccount.getType(),
-                baseAccount.getEpg(),
-                baseAccount.getM3u8Path(),
-                baseAccount.isPinToTop()
-        );
-        account.setHttpMethod(baseAccount.getHttpMethod());
-        account.setTimezone(baseAccount.getTimezone());
-        account.setServerPortalUrl(baseAccount.getServerPortalUrl());
-        account.setAction(baseAccount.getAction());
-        return account;
+        return AccountCopyUtil.copyForMac(baseAccount, mac);
     }
 
     private void updateMacItemInfo(MacItem item, AccountInfo info) {

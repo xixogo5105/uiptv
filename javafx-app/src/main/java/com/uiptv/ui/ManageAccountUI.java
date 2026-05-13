@@ -11,8 +11,9 @@ import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
+import com.uiptv.service.HandshakeService;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.XtremeCredentialsJson;
+import com.uiptv.util.AccountCopyUtil;
 import com.uiptv.widget.*;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -24,24 +25,17 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
@@ -53,9 +47,7 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
-    private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String DEFAULT_TIMEZONE = "Europe/London";
-    private static final String PROFILE_DATA_TITLE = "Profile data";
     final FileChooser fileChooser = new FileChooser();
     final Button browserButtonM3u8Path = new Button(I18n.tr("autoBrowse"));
     final UIptvText m3u8Path = new UIptvText("m3u8Path", "manageM3u8FilePathUrlPrompt", 5);
@@ -88,38 +80,15 @@ public class ManageAccountUI extends VBox {
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountInfoService accountInfoService = AccountInfoService.getInstance();
     private final VBox formContainer = new VBox();
+    private final ManageAccountInfoPane accountInfoPane = new ManageAccountInfoPane();
+    private final ManageAccountXtremeCredentialsHelper xtremeCredentialsHelper =
+            new ManageAccountXtremeCredentialsHelper(xtremeUsername, username, password, manageXtremeCredentialsLink, xtremeUsernameContainer);
     private HBox macAddressContainer;
     private VBox actionSection;
-    private final Label accountInfoExpireDate = new Label();
-    private final Label accountInfoStatus = new Label();
-    private final Label accountInfoBalance = new Label();
-    private final Label accountInfoTariffName = new Label();
-    private final Label accountInfoTariffPlan = new Label();
-    private final Label accountInfoDefaultTimezone = new Label();
-    private final Button accountInfoProfileCopyButton = new Button(I18n.tr("autoCopy"));
-    private final Label accountInfoProfileTitleLabel = new Label(PROFILE_DATA_TITLE);
-    private final VBox accountInfoProfileContainer = new VBox(6);
-    private final BorderPane accountInfoProfileBox = new BorderPane();
-    private final VBox accountInfoProfileLines = new VBox(4);
-    private final StackPane accountInfoProfileToggle = new StackPane();
-    private final javafx.scene.shape.SVGPath accountInfoProfileToggleIcon = new javafx.scene.shape.SVGPath();
-    private String accountInfoProfileRawJson;
-    private final Region accountInfoStatusIndicator = new Region();
-    private final Region accountInfoExpiryIndicator = new Region();
-    private boolean accountInfoHasProfileJson;
-    private AccountInfoRow accountInfoExpireDateRow;
-    private AccountInfoRow accountInfoStatusRow;
-    private AccountInfoRow accountInfoBalanceRow;
-    private AccountInfoRow accountInfoTariffNameRow;
-    private AccountInfoRow accountInfoTariffPlanRow;
-    private AccountInfoRow accountInfoDefaultTimezoneRow;
-    private BorderPane accountInfoPane;
     AccountService service = AccountService.getInstance();
     private String accountId;
     private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;
-    private List<XtremeCredentialsJson.Entry> xtremeCredentials = new ArrayList<>();
-    private String xtremeDefaultUsername;
 
     public ManageAccountUI() {
         initWidgets();
@@ -188,7 +157,6 @@ public class ManageAccountUI extends VBox {
         manageXtremeCredentialsLink.setManaged(false);
         manageXtremeCredentialsLink.setOnAction(event -> openManageXtremeCredentialsPopup());
         xtremeUsernameContainer.setAlignment(Pos.CENTER_LEFT);
-        xtremeUsername.valueProperty().addListener((obs, oldVal, newVal) -> handleXtremeUsernameSelection(newVal));
 
         pipeLabel.visibleProperty().bind(verifyMacsLink.visibleProperty());
         manageMacsLink.visibleProperty().bind(verifyMacsLink.visibleProperty());
@@ -218,9 +186,6 @@ public class ManageAccountUI extends VBox {
         // Initialize Timezone combo with all available timezones
         timezoneCombo.getItems().addAll(java.time.ZoneId.getAvailableZoneIds().stream().sorted().toList());
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
-
-        configureProfileJsonArea();
-        accountInfoPane = buildAccountInfoPane();
 
         accountType.getItems().addAll(Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList());
         accountType.setValue(STALKER_PORTAL.getDisplay());
@@ -262,23 +227,15 @@ public class ManageAccountUI extends VBox {
     }
 
     private void configureXtremeControls(AccountType type) {
-        boolean isXtreme = type == AccountType.XTREME_API;
-        password.setEditable(!isXtreme);
-        xtremeUsernameContainer.setVisible(isXtreme);
-        xtremeUsernameContainer.setManaged(isXtreme);
-        manageXtremeCredentialsLink.setVisible(isXtreme);
-        manageXtremeCredentialsLink.setManaged(isXtreme);
-        if (isXtreme) {
-            seedXtremeCredentialsFromFieldsIfNeeded();
-            refreshXtremeUsernameItems();
-        }
+        xtremeCredentialsHelper.configureForType(type);
+    }
+
+    private void openManageXtremeCredentialsPopup() {
+        xtremeCredentialsHelper.openManagementPopup((Stage) getScene().getWindow(), () -> saveAccount(false));
     }
 
     private void ensureAccountInfoSectionVisibility(AccountType type) {
-        if (accountInfoPane == null) {
-            return;
-        }
-        boolean showAccountInfo = type == STALKER_PORTAL && isNotBlank(accountId) && accountInfoHasProfileJson;
+        boolean showAccountInfo = type == STALKER_PORTAL && isNotBlank(accountId) && accountInfoPane.hasProfileJson();
         if (!showAccountInfo) {
             formContainer.getChildren().remove(accountInfoPane);
             accountInfoPane.setManaged(false);
@@ -295,83 +252,6 @@ public class ManageAccountUI extends VBox {
                 formContainer.getChildren().add(actionIndex, accountInfoPane);
             }
         }
-    }
-
-    private void seedXtremeCredentialsFromFieldsIfNeeded() {
-        if (!xtremeCredentials.isEmpty()) {
-            return;
-        }
-        String currentUsername = isNotBlank(xtremeUsername.getValue()) ? xtremeUsername.getValue() : username.getText();
-        String currentPassword = password.getText();
-        if (isBlank(currentUsername) || isBlank(currentPassword)) {
-            return;
-        }
-        xtremeCredentials = new ArrayList<>();
-        xtremeCredentials.add(new XtremeCredentialsJson.Entry(currentUsername, currentPassword, true));
-        xtremeDefaultUsername = currentUsername;
-    }
-
-    private void refreshXtremeUsernameItems() {
-        if (xtremeCredentials.isEmpty()) {
-            xtremeUsername.getItems().clear();
-            xtremeUsername.setValue(null);
-            return;
-        }
-        List<XtremeCredentialsJson.Entry> normalized = XtremeCredentialsJson.normalize(xtremeCredentials, xtremeDefaultUsername);
-        xtremeCredentials = normalized;
-        xtremeUsername.getItems().setAll(normalized.stream().map(XtremeCredentialsJson.Entry::username).toList());
-
-        String selection = xtremeDefaultUsername;
-        if (isBlank(selection)) {
-            selection = xtremeUsername.getValue();
-        }
-        if (isBlank(selection) && !normalized.isEmpty()) {
-            selection = normalized.getFirst().username();
-        }
-        if (selection != null) {
-            xtremeUsername.setValue(selection);
-            handleXtremeUsernameSelection(selection);
-        }
-    }
-
-    private void handleXtremeUsernameSelection(String usernameValue) {
-        if (isBlank(usernameValue)) {
-            return;
-        }
-        XtremeCredentialsJson.Entry entry = resolveXtremeCredentialByUsername(usernameValue);
-        if (entry == null) {
-            return;
-        }
-        xtremeDefaultUsername = entry.username();
-        username.setText(entry.username());
-        password.setText(entry.password());
-    }
-
-    private XtremeCredentialsJson.Entry resolveXtremeCredentialByUsername(String usernameValue) {
-        if (isBlank(usernameValue)) {
-            return null;
-        }
-        for (XtremeCredentialsJson.Entry entry : xtremeCredentials) {
-            if (entry != null && usernameValue.equals(entry.username())) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    private void openManageXtremeCredentialsPopup() {
-        XtremeCredentialsManagementPopup popup = new XtremeCredentialsManagementPopup(
-                (Stage) getScene().getWindow(),
-                xtremeCredentials,
-                xtremeDefaultUsername,
-                (newEntries, newDefault) -> {
-                    xtremeCredentials = newEntries != null ? newEntries : new ArrayList<>();
-                    xtremeDefaultUsername = newDefault;
-                    refreshXtremeUsernameItems();
-                    saveAccount(false);
-                }
-        );
-        popup.show();
     }
 
     private void openManageMacsPopup() {
@@ -472,19 +352,26 @@ public class ManageAccountUI extends VBox {
     }
 
     private boolean verifySingleMac(ProgressDialog progressDialog, Account accountToVerify, String mac, int index, int total) {
-        progressDialog.addProgressText(I18n.tr("manageVerifyingMacProgress", index + 1, total, mac));
+        appendVerificationSectionHeader(progressDialog, mac, index, total);
         boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac);
         progressDialog.addResult(isValid);
-        progressDialog.addProgressText(I18n.tr(isValid ? "manageResultValid" : "manageResultInvalid"));
-        AccountInfo info = accountInfoService.getByAccountId(accountToVerify.getDbId());
+        progressDialog.addProgressText("  " + I18n.tr(isValid ? "manageResultValid" : "manageResultInvalid"));
+        AccountInfo info = HandshakeService.getInstance().fetchAccountInfo(AccountCopyUtil.copyForMac(accountToVerify, mac));
         String expiry = info != null ? AccountInfoUiUtil.formatDate(info.getExpireDate()) : "";
         if (isBlank(expiry)) {
             expiry = "Unknown";
         }
         String status = info != null && info.getAccountStatus() != null ? info.getAccountStatus().toDisplay() : "unknown";
-        progressDialog.addProgressText(I18n.tr("manageAccountInfoExpireDate") + ": " + expiry);
-        progressDialog.addProgressText(I18n.tr("manageAccountInfoStatus") + ": " + status);
+        progressDialog.addProgressText("  " + I18n.tr("manageAccountInfoExpireDate") + ": " + expiry);
+        progressDialog.addProgressText("  " + I18n.tr("manageAccountInfoStatus") + ": " + status);
         return isValid;
+    }
+
+    private void appendVerificationSectionHeader(ProgressDialog progressDialog, String mac, int index, int total) {
+        if (index > 0) {
+            progressDialog.addProgressText("--------------------------------------------------");
+        }
+        progressDialog.addProgressText(I18n.tr("manageVerifyingMacProgress", index + 1, total, mac));
     }
 
     private void pauseBetweenMacChecks(ProgressDialog progressDialog, AtomicBoolean stopRequested) throws InterruptedException {
@@ -600,10 +487,7 @@ public class ManageAccountUI extends VBox {
 
     public void clearAll() {
         Arrays.stream(new UIptvText[]{name, username, password, url, serialNumber, deviceId1, deviceId2, signature, m3u8Path, epg}).forEach(TextInputControl::clear);
-        xtremeUsername.getItems().clear();
-        xtremeUsername.setValue(null);
-        xtremeCredentials = new ArrayList<>();
-        xtremeDefaultUsername = null;
+        xtremeCredentialsHelper.reset();
         macAddressList.clear();
         macAddress.getItems().clear();
         macAddress.setValue(null);
@@ -615,424 +499,16 @@ public class ManageAccountUI extends VBox {
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
         accountId = null;
-        clearAccountInfoFields();
+        accountInfoPane.clear();
         ensureAccountInfoSectionVisibility(getAccountTypeByDisplay(accountType.getValue()));
         updateButtonState();
     }
 
     private void updateButtonState() {
-        // Disable cache and delete buttons when no account is loaded
         boolean accountLoaded = isNotBlank(accountId);
         clearButton.setDisable(!accountLoaded);
         deleteButton.setDisable(!accountLoaded);
         refreshChannelsButton.setDisable(!accountLoaded);
-    }
-
-    private void configureProfileJsonArea() {
-        accountInfoProfileLines.setManaged(false);
-        accountInfoProfileLines.setVisible(false);
-        accountInfoProfileToggle.setMinSize(18, 18);
-        accountInfoProfileToggle.setPrefSize(18, 18);
-        accountInfoProfileToggle.setMaxSize(18, 18);
-        accountInfoProfileToggle.setStyle("-fx-cursor: hand;");
-        accountInfoProfileToggleIcon.setStyle("-fx-fill: -fx-text-base-color;");
-        accountInfoProfileToggle.getChildren().setAll(accountInfoProfileToggleIcon);
-        updateProfileToggleIcon(false);
-        accountInfoProfileTitleLabel.setText(PROFILE_DATA_TITLE);
-        accountInfoProfileToggle.setOnMouseClicked(event -> toggleProfileLines());
-        accountInfoProfileCopyButton.setOnAction(event -> {
-            String raw = accountInfoProfileRawJson != null ? accountInfoProfileRawJson : "";
-            if (isBlank(raw)) {
-                return;
-            }
-            ClipboardContent content = new ClipboardContent();
-            content.putString(raw);
-            Clipboard.getSystemClipboard().setContent(content);
-        });
-    }
-
-    private void toggleProfileLines() {
-        boolean show = !(accountInfoProfileLines.isVisible() && accountInfoProfileLines.isManaged());
-        accountInfoProfileLines.setVisible(show);
-        accountInfoProfileLines.setManaged(show);
-        accountInfoProfileBox.setVisible(show);
-        accountInfoProfileBox.setManaged(show);
-        updateProfileToggleIcon(show);
-        accountInfoProfileTitleLabel.setText(show ? "Hide profile data" : PROFILE_DATA_TITLE);
-    }
-
-    private void updateProfileToggleIcon(boolean expanded) {
-        if (expanded) {
-            accountInfoProfileToggleIcon.setContent("M4 11 H20 V13 H4 Z");
-        } else {
-            accountInfoProfileToggleIcon.setContent("M4 11 H20 V13 H4 Z M11 4 H13 V20 H11 Z");
-        }
-    }
-
-    private static class AccountInfoRow {
-        private final Label label;
-        private final javafx.scene.Node value;
-
-        private AccountInfoRow(Label label, javafx.scene.Node value) {
-            this.label = label;
-            this.value = value;
-        }
-    }
-
-    private BorderPane buildAccountInfoPane() {
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(10);
-        grid.setMaxWidth(Double.MAX_VALUE);
-
-        ColumnConstraints labelColumn = new ColumnConstraints();
-        ColumnConstraints valueColumn = new ColumnConstraints();
-        valueColumn.setHgrow(Priority.ALWAYS);
-        valueColumn.setFillWidth(true);
-        grid.getColumnConstraints().addAll(labelColumn, valueColumn);
-
-        accountInfoStatusIndicator.setMinSize(10, 10);
-        accountInfoStatusIndicator.setPrefSize(10, 10);
-        accountInfoStatusIndicator.setMaxSize(10, 10);
-        accountInfoStatusIndicator.setStyle("-fx-background-radius: 6px;");
-
-        accountInfoExpiryIndicator.setMinSize(10, 10);
-        accountInfoExpiryIndicator.setPrefSize(10, 10);
-        accountInfoExpiryIndicator.setMaxSize(10, 10);
-        accountInfoExpiryIndicator.setStyle("-fx-background-radius: 6px;");
-
-        HBox expiryValue = new HBox(6, accountInfoExpiryIndicator, accountInfoExpireDate);
-        expiryValue.setAlignment(Pos.CENTER_LEFT);
-
-        HBox statusValue = new HBox(6, accountInfoStatusIndicator, accountInfoStatus);
-        statusValue.setAlignment(Pos.CENTER_LEFT);
-
-        accountInfoExpireDateRow = addAccountInfoRow(grid, 0, "manageAccountInfoExpireDate", expiryValue);
-        accountInfoStatusRow = addAccountInfoRow(grid, 1, "manageAccountInfoStatus", statusValue);
-        accountInfoBalanceRow = addAccountInfoRow(grid, 2, "manageAccountInfoBalance", accountInfoBalance);
-        accountInfoTariffNameRow = addAccountInfoRow(grid, 3, "manageAccountInfoTariffName", accountInfoTariffName);
-        accountInfoTariffPlanRow = addAccountInfoRow(grid, 4, "manageAccountInfoTariffPlan", accountInfoTariffPlan);
-        accountInfoDefaultTimezoneRow = addAccountInfoRow(grid, 5, "manageAccountInfoDefaultTimezone", accountInfoDefaultTimezone);
-
-        Region profileSpacer = new Region();
-        profileSpacer.setMinHeight(2);
-        HBox profileHeader = new HBox(8, accountInfoProfileToggle, accountInfoProfileTitleLabel, profileSpacer, accountInfoProfileCopyButton);
-        HBox.setHgrow(profileSpacer, Priority.ALWAYS);
-        accountInfoProfileBox.setCenter(accountInfoProfileLines);
-        accountInfoProfileBox.setStyle("-fx-border-color: -fx-box-border; -fx-border-width: 1; -fx-border-radius: 4; -fx-padding: 6;");
-        accountInfoProfileBox.setVisible(false);
-        accountInfoProfileBox.setManaged(false);
-        accountInfoProfileContainer.getChildren().setAll(profileHeader, accountInfoProfileBox);
-        accountInfoProfileContainer.setVisible(false);
-        accountInfoProfileContainer.setManaged(false);
-        VBox content = new VBox(10, grid, accountInfoProfileContainer);
-        content.setMaxWidth(Double.MAX_VALUE);
-
-        BorderPane pane = createCollapsibleGroupPane(
-                I18n.tr("manageAccountInfoTitle"),
-                I18n.tr("manageAccountInfoDescription"),
-                content,
-                true
-        );
-        pane.setMaxWidth(Double.MAX_VALUE);
-        return pane;
-    }
-
-    private AccountInfoRow addAccountInfoRow(GridPane grid, int row, String labelKey, javafx.scene.Node value) {
-        Label label = new Label(I18n.tr(labelKey));
-        grid.add(label, 0, row);
-        grid.add(value, 1, row);
-        return new AccountInfoRow(label, value);
-    }
-
-    private BorderPane createCollapsibleGroupPane(String title, String description, javafx.scene.Node content, boolean collapsedByDefault) {
-        BorderPane pane = new BorderPane(content);
-        Label titleLabel = new Label(title);
-        titleLabel.getStyleClass().add("strong-label");
-        VBox titleContainer = new VBox(4, titleLabel);
-        titleContainer.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(titleContainer, Priority.ALWAYS);
-        final Label descriptionLabel;
-        if (description != null && !description.isBlank()) {
-            Label label = new Label(description);
-            label.setWrapText(true);
-            label.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
-            titleContainer.getChildren().add(label);
-            descriptionLabel = label;
-        } else {
-            descriptionLabel = null;
-        }
-
-        Hyperlink toggleLink = new Hyperlink();
-        toggleLink.setMinWidth(Region.USE_PREF_SIZE);
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox header = new HBox(8, titleContainer, spacer, toggleLink);
-
-        final Runnable refreshToggleLabel = () -> {
-            boolean expanded = content.isVisible() && content.isManaged();
-            toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
-            if (descriptionLabel != null) {
-                descriptionLabel.setVisible(expanded);
-                descriptionLabel.setManaged(expanded);
-            }
-        };
-        content.setVisible(!collapsedByDefault);
-        content.setManaged(!collapsedByDefault);
-        refreshToggleLabel.run();
-        toggleLink.setOnAction(event -> {
-            boolean expand = !(content.isVisible() && content.isManaged());
-            content.setVisible(expand);
-            content.setManaged(expand);
-            refreshToggleLabel.run();
-        });
-
-        BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
-        pane.setTop(header);
-        pane.setPadding(new Insets(10));
-        pane.getStyleClass().add("uiptv-card");
-        return pane;
-    }
-
-    private void applyAccountInfo(AccountInfo info) {
-        String profileJson = info != null ? safeText(info.getProfileJson()) : "";
-        accountInfoHasProfileJson = isNotBlank(profileJson);
-        if (!accountInfoHasProfileJson) {
-            clearAccountInfoFields();
-            ensureAccountInfoSectionVisibility(getAccountTypeByDisplay(accountType.getValue()));
-            return;
-        }
-
-        String rawExpire = info != null ? safeText(info.getExpireDate()) : "";
-        boolean missingExpiry = isBlank(rawExpire) || rawExpire.startsWith("0000-00-00");
-        if (missingExpiry) {
-            setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, "Unknown");
-            AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, AccountInfoUiUtil.colorForExpiry(AccountInfoUiUtil.ExpiryState.UNKNOWN), true);
-        } else {
-            AccountInfoUiUtil.ParsedDate parsedExpire = AccountInfoUiUtil.parseDateValue(rawExpire);
-            String displayExpire = AccountInfoUiUtil.formatDate(rawExpire);
-            setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, displayExpire);
-            updateExpiryIndicator(parsedExpire.instant(), isNotBlank(displayExpire));
-        }
-
-        com.uiptv.model.AccountStatus status = info != null ? info.getAccountStatus() : null;
-        String statusText = safeStatus(status);
-        setAccountInfoValue(accountInfoStatusRow, accountInfoStatus, statusText);
-        updateStatusIndicator(statusText);
-
-        setAccountInfoValue(accountInfoBalanceRow, accountInfoBalance, info != null ? safeText(info.getAccountBalance()) : "");
-        setAccountInfoValue(accountInfoTariffNameRow, accountInfoTariffName, info != null ? safeText(info.getTariffName()) : "");
-        setAccountInfoValue(accountInfoTariffPlanRow, accountInfoTariffPlan, info != null ? safeText(info.getTariffPlan()) : "");
-        setAccountInfoValue(accountInfoDefaultTimezoneRow, accountInfoDefaultTimezone, info != null ? safeText(info.getDefaultTimezone()) : "");
-        setAccountInfoProfileJson(profileJson);
-        ensureAccountInfoSectionVisibility(getAccountTypeByDisplay(accountType.getValue()));
-    }
-
-    private void clearAccountInfoFields() {
-        accountInfoHasProfileJson = false;
-        setAccountInfoValue(accountInfoExpireDateRow, accountInfoExpireDate, "");
-        setAccountInfoValue(accountInfoStatusRow, accountInfoStatus, "");
-        setAccountInfoValue(accountInfoBalanceRow, accountInfoBalance, "");
-        setAccountInfoValue(accountInfoTariffNameRow, accountInfoTariffName, "");
-        setAccountInfoValue(accountInfoTariffPlanRow, accountInfoTariffPlan, "");
-        setAccountInfoValue(accountInfoDefaultTimezoneRow, accountInfoDefaultTimezone, "");
-        setAccountInfoProfileJson("");
-        updateStatusIndicator("");
-        updateExpiryIndicator(null, false);
-    }
-
-    private String safeText(String value) {
-        return value == null ? "" : value;
-    }
-
-    private String safeStatus(com.uiptv.model.AccountStatus status) {
-        return status == null ? "" : status.toDisplay();
-    }
-
-    private void setAccountInfoValue(AccountInfoRow row, Label label, String value) {
-        String safeValue = safeText(value);
-        boolean visible = isNotBlank(safeValue);
-        label.setText(safeValue);
-        setRowVisible(row, visible);
-    }
-
-    private void setRowVisible(AccountInfoRow row, boolean visible) {
-        if (row == null) {
-            return;
-        }
-        row.label.setVisible(visible);
-        row.label.setManaged(visible);
-        row.value.setVisible(visible);
-        row.value.setManaged(visible);
-    }
-
-    private void setAccountInfoProfileJson(String value) {
-        String safeValue = safeText(value);
-        boolean visible = isNotBlank(safeValue);
-        accountInfoProfileRawJson = safeValue;
-        accountInfoProfileLines.getChildren().clear();
-        if (visible) {
-            String formatted = formatProfileJsonForDisplay(safeValue);
-            if (isNotBlank(formatted)) {
-                for (String line : formatted.split("\\R")) {
-                    if (isBlank(line)) {
-                        continue;
-                    }
-                    Label label = new Label(line);
-                    label.setWrapText(true);
-                    accountInfoProfileLines.getChildren().add(label);
-                }
-            }
-        }
-        accountInfoProfileContainer.setVisible(visible);
-        accountInfoProfileContainer.setManaged(visible);
-        if (visible) {
-            accountInfoProfileLines.setVisible(false);
-            accountInfoProfileLines.setManaged(false);
-            accountInfoProfileBox.setVisible(false);
-            accountInfoProfileBox.setManaged(false);
-            updateProfileToggleIcon(false);
-            accountInfoProfileTitleLabel.setText(PROFILE_DATA_TITLE);
-        }
-    }
-
-    private String formatProfileJsonForDisplay(String rawJson) {
-        if (isBlank(rawJson)) {
-            return "";
-        }
-        String trimmed = rawJson.trim();
-        try {
-            if (trimmed.startsWith("[")) {
-                JSONArray array = new JSONArray(trimmed);
-                List<String> lines = new ArrayList<>();
-                flattenJson("", array, lines);
-                return String.join("\n", lines);
-            }
-            JSONObject obj = new JSONObject(trimmed);
-            List<String> lines = new ArrayList<>();
-            flattenJson("", obj, lines);
-            return String.join("\n", lines);
-        } catch (Exception _) {
-            return trimmed;
-        }
-    }
-
-    private void flattenJson(String path, Object value, List<String> lines) {
-        if (value == null || value == JSONObject.NULL) {
-            addLine(path, "null", lines);
-            return;
-        }
-        if (value instanceof JSONObject obj) {
-            for (String key : obj.keySet().stream().sorted().toList()) {
-                String newPath = path.isBlank() ? key : path + "." + key;
-                flattenJson(newPath, obj.opt(key), lines);
-            }
-            return;
-        }
-        if (value instanceof JSONArray array) {
-            for (int i = 0; i < array.length(); i++) {
-                String newPath = path + "[" + i + "]";
-                flattenJson(newPath, array.opt(i), lines);
-            }
-            return;
-        }
-        addLine(path, String.valueOf(value), lines);
-    }
-
-    private void addLine(String key, String value, List<String> lines) {
-        if (isBlank(key)) {
-            return;
-        }
-        lines.add(key + ": " + formatProfileValue(key, value));
-    }
-
-    private String formatProfileValue(String key, String value) {
-        if (isBlank(value)) {
-            return value;
-        }
-        if (!looksLikeDateValue(key, value)) {
-            return value;
-        }
-        String formatted = AccountInfoUiUtil.formatDate(value);
-        return isNotBlank(formatted) ? formatted : value;
-    }
-
-    private boolean looksLikeDateValue(String key, String value) {
-        String normalizedKey = key == null ? "" : key.toLowerCase(java.util.Locale.ROOT);
-        if (normalizedKey.contains("date")
-                || normalizedKey.contains("time")
-                || normalizedKey.contains("created")
-                || normalizedKey.contains("updated")
-                || normalizedKey.contains("watchdog")
-                || normalizedKey.contains("active")
-                || normalizedKey.contains("start")
-                || normalizedKey.contains("expire")
-                || normalizedKey.endsWith("at")) {
-            return true;
-        }
-        AccountInfoUiUtil.ParsedDate parsed = AccountInfoUiUtil.parseDateValue(value);
-        return isNotBlank(parsed.display()) && !parsed.display().equals(value.trim());
-    }
-
-    private void updateStatusIndicator(String statusText) {
-        AccountInfoUiUtil.StatusState state = AccountInfoUiUtil.resolveStatusState(statusText);
-        String color = AccountInfoUiUtil.colorForStatus(state);
-        AccountInfoUiUtil.applyIndicator(accountInfoStatusIndicator, color, state != AccountInfoUiUtil.StatusState.UNKNOWN);
-    }
-
-    private void updateExpiryIndicator(Instant instant, boolean hasValue) {
-        if (!hasValue || instant == null) {
-            AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, AccountInfoUiUtil.colorForExpiry(AccountInfoUiUtil.ExpiryState.UNKNOWN), false);
-            return;
-        }
-        AccountInfoUiUtil.ExpiryState state = AccountInfoUiUtil.resolveExpiryState(instant);
-        String color = AccountInfoUiUtil.colorForExpiry(state);
-        AccountInfoUiUtil.applyIndicator(accountInfoExpiryIndicator, color, true);
-    }
-
-    private void loadXtremeCredentialsFromAccount(Account account) {
-        if (account == null) {
-            return;
-        }
-        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(account.getXtremeCredentialsJson());
-        if (entries.isEmpty() && isNotBlank(account.getUsername()) && isNotBlank(account.getPassword())) {
-            entries = new ArrayList<>();
-            entries.add(new XtremeCredentialsJson.Entry(account.getUsername(), account.getPassword(), true));
-        } else {
-            entries = XtremeCredentialsJson.normalize(entries, account.getUsername());
-        }
-        xtremeCredentials = entries;
-        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(entries);
-        xtremeDefaultUsername = defaultEntry != null ? defaultEntry.username() : account.getUsername();
-        refreshXtremeUsernameItems();
-    }
-
-    private void applyXtremeCredentialsToAccount(Account account) {
-        if (account == null || account.getType() != AccountType.XTREME_API) {
-            return;
-        }
-        String selectedUsername = xtremeUsername.getValue();
-        String selectedPassword = password.getText();
-        List<XtremeCredentialsJson.Entry> entries = new ArrayList<>(xtremeCredentials);
-        if (entries.isEmpty() && isNotBlank(selectedUsername) && isNotBlank(selectedPassword)) {
-            entries.add(new XtremeCredentialsJson.Entry(selectedUsername, selectedPassword, true));
-        } else if (isNotBlank(selectedUsername) && isNotBlank(selectedPassword)) {
-            boolean exists = entries.stream().anyMatch(entry ->
-                    entry.username().equals(selectedUsername) && entry.password().equals(selectedPassword));
-            if (!exists) {
-                entries.add(new XtremeCredentialsJson.Entry(selectedUsername, selectedPassword, entries.isEmpty()));
-            }
-        }
-
-        List<XtremeCredentialsJson.Entry> normalized = XtremeCredentialsJson.normalize(entries, isNotBlank(selectedUsername) ? selectedUsername : xtremeDefaultUsername);
-        XtremeCredentialsJson.Entry defaultEntry = XtremeCredentialsJson.resolveDefault(normalized);
-        if (defaultEntry != null) {
-            account.setUsername(defaultEntry.username());
-            account.setPassword(defaultEntry.password());
-            xtremeDefaultUsername = defaultEntry.username();
-        }
-        account.setXtremeCredentialsJson(XtremeCredentialsJson.toJson(normalized));
-        xtremeCredentials = normalized;
     }
 
     private Account getAccountFromForm() {
@@ -1072,7 +548,7 @@ public class ManageAccountUI extends VBox {
             saveButton.setDisable(true);
 
             Account account = getAccountFromForm();
-            applyXtremeCredentialsToAccount(account);
+            xtremeCredentialsHelper.applyToAccount(account);
             service.save(account);
 
             if (isFullSave) {
@@ -1181,9 +657,9 @@ public class ManageAccountUI extends VBox {
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         accountType.setValue(account.getType().getDisplay());
         if (account.getType() == AccountType.XTREME_API) {
-            Platform.runLater(() -> loadXtremeCredentialsFromAccount(account));
+            Platform.runLater(() -> xtremeCredentialsHelper.loadFromAccount(account));
         }
-        applyAccountInfo(accountInfoService.getByAccountId(accountId));
+        accountInfoPane.apply(accountInfoService.getByAccountId(accountId));
         ensureAccountInfoSectionVisibility(account.getType());
         updateButtonState();
     }

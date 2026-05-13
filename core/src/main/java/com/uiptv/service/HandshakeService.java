@@ -281,7 +281,7 @@ public class HandshakeService {
         updated |= updateIfNotBlank(firstNonBlank(nullSafeString(accountInfoJson, KEY_DEFAULT_TIMEZONE), nullSafeString(js, KEY_DEFAULT_TIMEZONE),
                 nullSafeString(accountInfoJson, KEY_TIMEZONE), nullSafeString(js, KEY_TIMEZONE)),
                 info::getDefaultTimezone, info::setDefaultTimezone);
-        updated |= updateIfNotBlank(firstAccountInfoExpiry(accountInfoJson, js, info.getExpireDate()),
+        updated |= updateIfNotBlank(firstAccountInfoExpiry(accountInfoJson, js),
                 info::getExpireDate, info::setExpireDate);
         updated |= applyAllowedStbTypes(info, accountInfoJson);
         if (accountInfoJson != js) {
@@ -381,10 +381,7 @@ public class HandshakeService {
         return "";
     }
 
-    private String firstAccountInfoExpiry(JSONObject accountInfoJson, JSONObject rootJson, String existingExpiry) {
-        if (isNotBlank(normalizeExpiry(existingExpiry))) {
-            return "";
-        }
+    private String firstAccountInfoExpiry(JSONObject accountInfoJson, JSONObject rootJson) {
         String[] candidates = {
                 normalizeAccountInfoExpiry(nullSafeString(accountInfoJson, "end_date")),
                 normalizeAccountInfoExpiry(nullSafeString(rootJson, "end_date")),

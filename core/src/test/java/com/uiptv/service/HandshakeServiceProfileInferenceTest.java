@@ -91,6 +91,20 @@ class HandshakeServiceProfileInferenceTest {
     }
 
     @Test
+    void applyAccountInfoDetails_overridesExistingExpiryWithEndDate() throws Exception {
+        AccountInfo info = new AccountInfo();
+        info.setExpireDate("2026-08-31 00:00:00");
+
+        boolean updated = invokePrivate("applyAccountInfoDetails",
+                new Class[]{AccountInfo.class, String.class},
+                info,
+                "{\"js\":{\"end_date\":\"2027-04-09\"}}");
+
+        assertTrue(updated);
+        assertEquals("2027-04-09 00:00:00", info.getExpireDate());
+    }
+
+    @Test
     void applyAllowedStbTypes_setsPreferredWhenMag250MissingAndClearsWhenPresent() throws Exception {
         AccountInfo info = new AccountInfo();
         JSONObject withoutMag = new JSONObject()

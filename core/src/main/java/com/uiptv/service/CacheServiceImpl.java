@@ -4,6 +4,7 @@ import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.service.cache.AccountCacheReloaderFactory;
+import com.uiptv.util.AccountCopyUtil;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 
@@ -37,14 +38,22 @@ public class CacheServiceImpl implements CacheService {
         }
 
         String originalMac = account.getMacAddress();
+        Account verificationAccount = AccountCopyUtil.copyForMac(account, macAddress);
+        if (verificationAccount == null) {
+            return false;
+        }
         try {
-            account.setMacAddress(macAddress);
-            HandshakeService.getInstance().connect(account);
+            HandshakeService.getInstance().connect(verificationAccount);
 
-            if (account.isNotConnected()) {
+            if (verificationAccount.isNotConnected()) {
                 return false;
             }
 
+            account.setMacAddress(macAddress);
+            account.setToken(verificationAccount.getToken());
+            if (account.getServerPortalUrl() == null || account.getServerPortalUrl().isBlank()) {
+                account.setServerPortalUrl(verificationAccount.getServerPortalUrl());
+            }
             String jsonCategories = FetchAPI.fetch(getCategoryParams(account.getAction()), account);
             return !CategoryService.getInstance().parseCategories(jsonCategories, false).isEmpty();
         } catch (Exception _) {
