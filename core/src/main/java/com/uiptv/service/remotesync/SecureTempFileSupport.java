@@ -94,22 +94,44 @@ final class SecureTempFileSupport {
     }
 
     private static void applyBestEffortOwnerOnlyAccess(File file, boolean executable) throws IOException {
-        file.setReadable(false, false);
-        file.setWritable(false, false);
-        file.setExecutable(false, false);
+        boolean readableCleared = file.setReadable(false, false);
+        boolean writableCleared = file.setWritable(false, false);
+        boolean executableCleared = file.setExecutable(false, false);
 
         boolean ownerReadable = file.setReadable(true, true);
         boolean ownerWritable = file.setWritable(true, true);
         boolean ownerExecutable = !executable || file.setExecutable(true, true);
+        boolean permissionsCleared = readableCleared && writableCleared && executableCleared;
 
-        if (!ownerReadable || !ownerWritable || !ownerExecutable) {
+        if (!permissionsCleared || !ownerReadable || !ownerWritable || !ownerExecutable) {
             DosFileAttributeView dosView = Files.getFileAttributeView(file.toPath(), DosFileAttributeView.class);
             if (dosView != null) {
                 return;
             }
 
-            String permission = !ownerReadable ? READ_PERMISSION : !ownerWritable ? WRITE_PERMISSION : EXECUTE_PERMISSION;
+            String permission = resolvePermissionFailure(
+                    permissionsCleared,
+                    ownerReadable,
+                    ownerWritable,
+                    ownerExecutable
+            );
             throw new IOException("Unable to set " + permission + " permissions for " + file.toPath());
         }
+    }
+
+    private static String resolvePermissionFailure(boolean permissionsCleared,
+                                                   boolean ownerReadable,
+                                                   boolean ownerWritable,
+                                                   boolean ownerExecutable) {
+        if (!permissionsCleared) {
+            return "owner-only";
+        }
+        if (!ownerReadable) {
+            return READ_PERMISSION;
+        }
+        if (!ownerWritable) {
+            return WRITE_PERMISSION;
+        }
+        return EXECUTE_PERMISSION;
     }
 }

@@ -5,9 +5,9 @@ import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.io.UncheckedIOException;
 
 public class ServerUrlUtil {
     private static final String SERVER_RUNTIME_CLASS = "com.uiptv.server.UIptvServer";
@@ -84,7 +84,7 @@ public class ServerUrlUtil {
         try {
             Method method = resolveServerMethod(methodName);
             Object result = method.invoke(null);
-            return result instanceof Boolean && (Boolean) result;
+            return result instanceof Boolean booleanResult && booleanResult;
         } catch (InvocationTargetException e) {
             throw rethrowServerInvocation(e, methodName);
         } catch (ReflectiveOperationException e) {
@@ -96,7 +96,7 @@ public class ServerUrlUtil {
         try {
             Method method = resolveServerMethod(methodName);
             Object result = method.invoke(null);
-            return result instanceof Boolean && (Boolean) result;
+            return result instanceof Boolean booleanResult && booleanResult;
         } catch (InvocationTargetException e) {
             throw new IllegalStateException("Unable to invoke local web server method '" + methodName + "'", e.getTargetException());
         } catch (ReflectiveOperationException e) {

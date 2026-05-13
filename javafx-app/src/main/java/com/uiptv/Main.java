@@ -1,5 +1,4 @@
 package com.uiptv;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.ui.RootApplication;
 

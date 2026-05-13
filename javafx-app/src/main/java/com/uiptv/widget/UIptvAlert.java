@@ -1,5 +1,4 @@
 package com.uiptv.widget;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.ui.RootApplication;
 import com.uiptv.util.I18n;

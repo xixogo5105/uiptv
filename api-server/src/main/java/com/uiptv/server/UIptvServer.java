@@ -8,8 +8,6 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
 
 import java.io.IOException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.uiptv.util.AppLog.addInfoLog;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -21,7 +19,7 @@ public class UIptvServer {
     private UIptvServer() {
     }
 
-    private static void initialiseServer() throws IOException {
+    private static void initialiseServer() {
         stop();
         String httpPort = getHttpPort();
         int port = Integer.parseInt(httpPort);
@@ -134,14 +132,5 @@ public class UIptvServer {
 
     public static synchronized boolean isRunning() {
         return httpServer != null;
-    }
-
-    private static ThreadFactory namedThreadFactory(String prefix) {
-        AtomicInteger sequence = new AtomicInteger(1);
-        return runnable -> {
-            Thread thread = new Thread(runnable, prefix + sequence.getAndIncrement());
-            thread.setDaemon(true);
-            return thread;
-        };
     }
 }

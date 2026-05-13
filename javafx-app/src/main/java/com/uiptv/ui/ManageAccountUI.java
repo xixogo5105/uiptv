@@ -1,6 +1,4 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.util.I18n;
 
@@ -23,8 +21,6 @@ import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -209,8 +205,7 @@ public class ManageAccountUI extends VBox {
             case M3U8_LOCAL:
                 formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
-            case M3U8_URL:
-            case RSS_FEED:
+            case M3U8_URL, RSS_FEED:
                 formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case XTREME_API:

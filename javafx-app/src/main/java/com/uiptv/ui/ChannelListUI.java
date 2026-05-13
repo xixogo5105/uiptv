@@ -1,13 +1,11 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
-
-import com.uiptv.util.I18n;
 
 import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.ImageCacheManager;
+import com.uiptv.ui.util.UiI18n;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.AutoGrowVBox;

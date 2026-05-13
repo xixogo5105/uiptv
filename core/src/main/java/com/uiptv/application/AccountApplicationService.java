@@ -4,6 +4,7 @@ import com.uiptv.service.AccountResolver;
 
 import java.util.List;
 
+@SuppressWarnings("java:S6548")
 public class AccountApplicationService {
     private final AccountResolver accountResolver = new AccountResolver();
 

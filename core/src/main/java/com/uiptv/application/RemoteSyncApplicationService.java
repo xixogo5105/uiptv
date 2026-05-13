@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.sql.SQLException;
 
+@SuppressWarnings("java:S6548")
 public class RemoteSyncApplicationService {
     private final RemoteSyncSessionService remoteSyncSessionService = RemoteSyncSessionService.getInstance();
 

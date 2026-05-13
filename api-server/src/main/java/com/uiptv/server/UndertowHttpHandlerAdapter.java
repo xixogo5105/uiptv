@@ -87,7 +87,8 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
         public void close() {
             try {
                 responseBody.close();
-            } catch (IOException ignored) {
+            } catch (IOException _) {
+                // The exchange is being torn down; a close failure is not actionable here.
             } finally {
                 exchange.endExchange();
             }
@@ -152,6 +153,7 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // Undertow supplies the request and response streams for the lifetime of the exchange.
         }
 
         @Override
@@ -179,12 +181,13 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
         }
 
         private static void copyHeaders(Headers source, HeaderMap target) {
-            for (String headerName : source.keySet()) {
+            for (var headerEntry : source.entrySet()) {
+                String headerName = headerEntry.getKey();
                 HttpString undertowHeader = HttpString.tryFromString(headerName);
                 if (undertowHeader == null) {
                     undertowHeader = new HttpString(headerName);
                 }
-                for (String value : source.get(headerName)) {
+                for (String value : headerEntry.getValue()) {
                     target.add(undertowHeader, value);
                 }
             }

@@ -1,5 +1,4 @@
 package com.uiptv.player;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.util.I18n;
 import com.uiptv.util.ResolutionDisplayUtil;

@@ -22,6 +22,7 @@ import static com.uiptv.util.M3uPlaylistUtils.sanitizeTitle;
 import static com.uiptv.util.StringUtils.isBlank;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+@SuppressWarnings("java:S6548")
 public class PlaybackApplicationService {
     private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String CHROME_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36";

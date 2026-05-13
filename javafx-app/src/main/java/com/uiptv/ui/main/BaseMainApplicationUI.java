@@ -1,11 +1,10 @@
 package com.uiptv.ui.main;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Account;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.*;
+import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
 import javafx.animation.PauseTransition;

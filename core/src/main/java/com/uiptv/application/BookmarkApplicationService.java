@@ -21,6 +21,7 @@ import static com.uiptv.util.M3uPlaylistUtils.sanitizeTitle;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
+@SuppressWarnings("java:S6548")
 public class BookmarkApplicationService {
     public static final String MISC_GROUP_TITLE = "Misc";
 

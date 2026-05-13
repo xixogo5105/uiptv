@@ -1,6 +1,4 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -11,8 +9,9 @@ import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.VodWatchStateChangeListener;
 import com.uiptv.service.VodWatchStateService;
 import com.uiptv.service.WatchingNowVodResolver;
-import com.uiptv.util.I18n;
 import com.uiptv.ui.util.ImageCacheManager;
+import com.uiptv.ui.util.UiI18n;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
 import javafx.application.Platform;
 import javafx.geometry.Insets;

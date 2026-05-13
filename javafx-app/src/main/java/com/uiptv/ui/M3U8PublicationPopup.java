@@ -1,6 +1,4 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;

@@ -6,14 +6,13 @@ import com.uiptv.testsupport.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.concurrent.ThreadFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class UIptvServerTest extends DbBackedTest {
 
     @Test
-    void startEnsureStop_andThreadFactoryCover() throws Exception {
+    void startEnsureStop_lifecycleWorks() throws Exception {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setServerPort("0");
         ConfigurationService.getInstance().save(configuration);
@@ -28,14 +27,6 @@ class UIptvServerTest extends DbBackedTest {
 
         assertFalse(UIptvServer.isRunning());
         UIptvServer.stop();
-
-        Method factoryMethod = UIptvServer.class.getDeclaredMethod("namedThreadFactory", String.class);
-        factoryMethod.setAccessible(true);
-        ThreadFactory factory = (ThreadFactory) factoryMethod.invoke(null, "uiptv-http-");
-        Thread thread = factory.newThread(() -> {
-        });
-        assertTrue(thread.isDaemon());
-        assertTrue(thread.getName().startsWith("uiptv-http-"));
     }
 
     @Test

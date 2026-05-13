@@ -205,6 +205,7 @@ public final class I18n {
                     return fallbackBundle.getString(key);
                 }
             } catch (Exception _) {
+                // Fall back to returning the translation key when bundles are unavailable.
             }
         }
         return key;
@@ -227,6 +228,7 @@ public final class I18n {
                 return lBundle.getString(key);
             }
         } catch (Exception _) {
+            // Fall back to the default lookup chain when the locale-specific bundle fails.
         }
         return lookupOrFallback(key);
     }

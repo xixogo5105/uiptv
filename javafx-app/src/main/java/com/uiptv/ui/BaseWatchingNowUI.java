@@ -1,6 +1,4 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -8,9 +6,10 @@ import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.ui.util.ImageCacheManager;
+import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
-import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.util.ImageUrlNormalizer;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;

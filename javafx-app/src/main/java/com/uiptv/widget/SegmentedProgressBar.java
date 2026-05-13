@@ -1,5 +1,4 @@
 package com.uiptv.widget;
-import com.uiptv.ui.util.*;
 
 import javafx.application.Platform;
 import javafx.geometry.Pos;

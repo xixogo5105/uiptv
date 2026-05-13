@@ -1,7 +1,6 @@
 package com.uiptv.server.api.json;
 
 import com.uiptv.application.CatalogApplicationService;
-import com.uiptv.application.CatalogMode;
 import com.uiptv.application.CatalogPagedChannelsResult;
 import com.uiptv.application.CatalogWebChannelsQuery;
 import com.uiptv.model.Channel;

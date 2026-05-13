@@ -1,6 +1,4 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -8,6 +6,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
+import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;

@@ -12,6 +12,7 @@ import com.uiptv.util.ServerUrlUtil;
 
 import java.io.IOException;
 
+@SuppressWarnings("java:S6548")
 public class ConfigurationApplicationService {
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();

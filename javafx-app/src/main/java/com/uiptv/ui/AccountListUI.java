@@ -1,6 +1,4 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
@@ -10,6 +8,7 @@ import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AutoGrowPaneVBox;
 import com.uiptv.widget.SearchableFilterableTableView;

@@ -2,6 +2,7 @@ package com.uiptv.application;
 
 import com.uiptv.service.M3U8PublicationService;
 
+@SuppressWarnings("java:S6548")
 public class PublicationApplicationService {
     private final M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
 

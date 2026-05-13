@@ -1,17 +1,15 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.player.MediaPlayerFactory;
-import com.uiptv.util.I18n;
-
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.ImageCacheManager;
+import com.uiptv.ui.util.UiI18n;
+import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

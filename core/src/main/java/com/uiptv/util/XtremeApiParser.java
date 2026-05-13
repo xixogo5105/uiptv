@@ -25,6 +25,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 
 public class XtremeApiParser {
     private static final String PARAM_CATEGORY_ID = "category_id";
+    private static final String XTREME_ERROR_PROCESSING_RESPONSE_DATA = "xtremeErrorProcessingResponseData: ";
 
     private XtremeApiParser() {
     }
@@ -76,7 +77,7 @@ public class XtremeApiParser {
                 categoryList.add(category);
             }
         } catch (Exception e) {
-            AppLog.addErrorLog(XtremeApiParser.class, "xtremeErrorProcessingResponseData: " + e.getMessage());
+            AppLog.addErrorLog(XtremeApiParser.class, XTREME_ERROR_PROCESSING_RESPONSE_DATA + e.getMessage());
         }
         return categoryList;
     }
@@ -110,7 +111,7 @@ public class XtremeApiParser {
                 categoryList.add(channel);
             }
         } catch (Exception e) {
-            AppLog.addErrorLog(XtremeApiParser.class, "xtremeErrorProcessingResponseData: " + e.getMessage());
+            AppLog.addErrorLog(XtremeApiParser.class, XTREME_ERROR_PROCESSING_RESPONSE_DATA + e.getMessage());
         }
         return categoryList;
     }
@@ -127,7 +128,7 @@ public class XtremeApiParser {
                 }
             }
         } catch (Exception e) {
-            AppLog.addErrorLog(XtremeApiParser.class, "xtremeErrorProcessingResponseData: " + e.getMessage());
+            AppLog.addErrorLog(XtremeApiParser.class, XTREME_ERROR_PROCESSING_RESPONSE_DATA + e.getMessage());
         }
         return episodeList;
     }

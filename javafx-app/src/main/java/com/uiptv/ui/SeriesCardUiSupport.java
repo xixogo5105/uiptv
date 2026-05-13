@@ -1,9 +1,7 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.ui.util.ImageCacheManager;
-import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.ui.util.UiServerUrlUtil;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Rectangle2D;

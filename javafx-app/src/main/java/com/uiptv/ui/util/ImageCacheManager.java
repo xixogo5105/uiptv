@@ -1,6 +1,4 @@
 package com.uiptv.ui.util;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.scene.image.Image;

@@ -1,6 +1,4 @@
 package com.uiptv.ui.util;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;

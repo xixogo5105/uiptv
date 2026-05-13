@@ -13,7 +13,6 @@ import com.uiptv.ui.util.StyleClassDecorator;
 import com.uiptv.ui.util.ThemeStylesheetResolver;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
-import com.uiptv.util.AppLog;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;

@@ -1,6 +1,4 @@
 package com.uiptv.ui.util;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.ui.ChannelListUI;
 import javafx.scene.control.TableCell;

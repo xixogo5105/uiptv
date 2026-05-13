@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+@SuppressWarnings("java:S6548")
 public class WatchingNowApplicationService {
     private final WatchingNowSeriesResolver seriesResolver = new WatchingNowSeriesResolver();
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();

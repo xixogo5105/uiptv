@@ -1,5 +1,4 @@
 package com.uiptv.player;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;

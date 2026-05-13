@@ -1,6 +1,4 @@
 package com.uiptv.ui.main;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;

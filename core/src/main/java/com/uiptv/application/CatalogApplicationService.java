@@ -45,12 +45,12 @@ import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
+@SuppressWarnings("java:S6548")
 public class CatalogApplicationService {
     private static final String ALL_CATEGORY = CategoryType.ALL.displayName();
     private static final String DEFAULT_VOD_NAME = "VOD";
     private static final String KEY_COVER = "cover";
     private static final String KEY_DIRECTOR = "director";
-    private static final String KEY_EPISODES = "episodes";
     private static final String KEY_EPISODES_META = "episodesMeta";
     private static final String KEY_GENRE = "genre";
     private static final String KEY_IMDB_URL = "imdbUrl";
@@ -194,15 +194,15 @@ public class CatalogApplicationService {
         );
 
         name = firstNonBlank(name, imdb.optString("name", ""), fallbackName);
-        cover = firstNonBlank(cover, imdb.optString("cover", ""));
+        cover = firstNonBlank(cover, imdb.optString(KEY_COVER, ""));
         plot = firstNonBlank(plot, imdb.optString("plot", ""));
         cast = firstNonBlank(cast, imdb.optString("cast", ""));
-        director = firstNonBlank(director, imdb.optString("director", ""));
-        genre = firstNonBlank(genre, imdb.optString("genre", ""));
-        releaseDate = firstNonBlank(releaseDate, imdb.optString("releaseDate", ""));
-        rating = firstNonBlank(rating, imdb.optString("rating", ""));
+        director = firstNonBlank(director, imdb.optString(KEY_DIRECTOR, ""));
+        genre = firstNonBlank(genre, imdb.optString(KEY_GENRE, ""));
+        releaseDate = firstNonBlank(releaseDate, imdb.optString(KEY_RELEASE_DATE, ""));
+        rating = firstNonBlank(rating, imdb.optString(KEY_RATING, ""));
         tmdb = firstNonBlank(tmdb, imdb.optString("tmdb", ""));
-        imdbUrl = firstNonBlank(imdbUrl, imdb.optString("imdbUrl", ""));
+        imdbUrl = firstNonBlank(imdbUrl, imdb.optString(KEY_IMDB_URL, ""));
 
         return new CatalogVodDetailsResult(name, cover, plot, cast, director, genre, releaseDate, rating, tmdb, imdbUrl, duration);
     }
@@ -461,7 +461,8 @@ public class CatalogApplicationService {
         int currentPage = page;
         boolean hasMore = false;
 
-        for (int i = 0; i < prefetchPages; i++) {
+        boolean keepFetching = true;
+        for (int i = 0; i < prefetchPages && keepFetching; i++) {
             int apiPage = currentPage + resolvedApiOffset;
             StalkerPageResult result = fetchStalkerPage(account, categoryApiId, movieId, apiPage, pageSize);
 
@@ -476,15 +477,12 @@ public class CatalogApplicationService {
 
             if (result.items().isEmpty()) {
                 hasMore = false;
-                break;
-            }
-
-            merged.addAll(result.items());
-            hasMore = estimateHasMore(result.pagination(), apiPage, resolvedApiOffset, result.items().size(), pageSize);
-            currentPage++;
-
-            if (!hasMore) {
-                break;
+                keepFetching = false;
+            } else {
+                merged.addAll(result.items());
+                hasMore = estimateHasMore(result.pagination(), apiPage, resolvedApiOffset, result.items().size(), pageSize);
+                currentPage++;
+                keepFetching = hasMore;
             }
         }
 
@@ -670,16 +668,15 @@ public class CatalogApplicationService {
         JSONArray enriched = new JSONArray();
         for (int i = 0; i < episodes.length(); i++) {
             JSONObject row = episodes.optJSONObject(i);
-            if (row == null) {
-                continue;
+            if (row != null) {
+                Channel channel = Channel.fromJson(row.toString());
+                if (channel == null) {
+                    enriched.put(row);
+                } else {
+                    enrichEpisode(channel, indexed);
+                    enriched.put(new JSONObject(channel.toJson()));
+                }
             }
-            Channel channel = Channel.fromJson(row.toString());
-            if (channel == null) {
-                enriched.put(row);
-                continue;
-            }
-            enrichEpisode(channel, indexed);
-            enriched.put(new JSONObject(channel.toJson()));
         }
         return enriched;
     }

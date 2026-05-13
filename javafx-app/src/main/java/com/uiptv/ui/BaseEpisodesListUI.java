@@ -1,21 +1,20 @@
 package com.uiptv.ui;
-import com.uiptv.ui.util.*;
-import com.uiptv.ui.util.*;
 
-import com.uiptv.util.EpisodeTitleFormatter;
-import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
-import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.ui.util.UiServerUrlUtil;
+import com.uiptv.util.EpisodeTitleFormatter;
+import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.beans.Observable;
 import javafx.beans.property.SimpleBooleanProperty;
