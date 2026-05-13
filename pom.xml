@@ -21,7 +21,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <sqlite.arch>x86_64</sqlite.arch>
         <javafx.version>26.0.1</javafx.version>
-        <undertow.version>2.3.24.Final</undertow.version>
+        <undertow.version>2.4.0.Final</undertow.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <maven.compiler.release>25</maven.compiler.release>
