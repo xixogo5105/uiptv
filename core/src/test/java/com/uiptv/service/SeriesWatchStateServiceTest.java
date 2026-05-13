@@ -234,7 +234,7 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
     }
 
     @Test
-    void helperMethods_coverSeriesIdParsingMatchingAndListenerGuards() throws Exception {
+    void helperMethods_coverSeriesIdParsing() throws Exception {
         SeriesWatchStateService service = SeriesWatchStateService.getInstance();
 
         assertEquals("37177", invoke(service, "normalizeSeriesId", new Class[]{String.class}, "37177:37177"));
@@ -249,6 +249,11 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
         java.util.Set<String> candidates = new java.util.LinkedHashSet<>();
         invoke(service, "addNonBlankParts", new Class[]{java.util.Set.class, String[].class}, candidates, new String[]{" ", "one", "two"});
         assertEquals(java.util.List.of("one", "two"), new java.util.ArrayList<>(candidates));
+    }
+
+    @Test
+    void helperMethods_coverEpisodeSeasonAndPointerMatching() {
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
 
         assertEquals(15, service.parseEpisodeNum("", "S03E015 - Finale"));
         assertEquals(8, service.parseEpisodeNum("", "Season 1 Episode 8"));
@@ -271,6 +276,11 @@ class SeriesWatchStateServiceTest extends DbBackedTest {
         assertFalse(service.isMatchingEpisode(watched, "ep-2", "1", "8", "Episode 8"));
         assertTrue(service.isMatchingEpisode(watched, "ep-1", "1", "8", "Episode 8"));
         assertFalse(service.isMatchingEpisode(watched, "ep-1", "2", "8", "Episode 8"));
+    }
+
+    @Test
+    void helperMethods_coverListenerGuards() throws Exception {
+        SeriesWatchStateService service = SeriesWatchStateService.getInstance();
 
         java.util.List<String> notifications = new java.util.ArrayList<>();
         SeriesWatchStateChangeListener listener = (accountId, seriesId) -> notifications.add(accountId + ":" + seriesId);

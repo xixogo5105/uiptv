@@ -128,7 +128,7 @@ class HttpProxyStreamServerTest {
     }
 
     @Test
-    void privateHelpers_coverHeaderCookiesOriginsFallbacksAndUrlParsing() throws Exception {
+    void privateHelpers_coverHeaderCookiesAndForwardedHeaders() throws Exception {
         HttpProxyStreamServer handler = new HttpProxyStreamServer();
 
         Map<String, List<String>> responseHeaders = new LinkedHashMap<>();
@@ -154,6 +154,11 @@ class HttpProxyStreamServerTest {
         assertEquals("http://portal.test", upstreamHeaders.get("Origin"));
         assertEquals("http://portal.test/", upstreamHeaders.get("Referer"));
         assertTrue(upstreamHeaders.get("Cookie").contains("mac=AA:BB"));
+    }
+
+    @Test
+    void privateHelpers_coverOriginsQueryAndContentLength() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer();
 
         assertEquals("http://example.test:8081", invoke(handler, "originOf", new Class[]{String.class}, "http://example.test:8081/a/b"));
         assertEquals("https://example.test", invoke(handler, "originOf", new Class[]{String.class}, "https://example.test/a/b"));
@@ -167,6 +172,11 @@ class HttpProxyStreamServerTest {
         assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path", "mac"));
         assertEquals(Long.valueOf(123L), invoke(handler, "resolveContentLength", new Class[]{String.class}, "123"));
         assertEquals(Long.valueOf(0L), invoke(handler, "resolveContentLength", new Class[]{String.class}, "bad"));
+    }
+
+    @Test
+    void privateHelpers_coverFallbackAndNumericPathHelpers() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer();
 
         assertEquals("http://host/live/play/123",
                 invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/live/play/123"));
