@@ -48,6 +48,8 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
 
 **UIPTV** is an open-source IPTV player built with Java and JavaFX. It is designed to be lightweight yet powerful, offering support for multiple IPTV protocols including Stalker Portal, Xtreme Codes, and M3U playlists.
 
+Internally, the app now ships as a shared core plus separate desktop (`javafx-app`) and local web/API (`api-server`) modules, but as a user you still install and run it as a single application.
+
 Key highlights include:
 - **Cross-Platform**: Runs natively on Windows, Linux, and macOS.
 - **Flexible Player Support**: Use the embedded VLC-based player or your favorite external player (MPV, SMPlayer, etc.).

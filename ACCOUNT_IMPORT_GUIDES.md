@@ -5,6 +5,7 @@ This collection contains comprehensive guides for importing all three account ty
 ## What's New
 
 - Bulk import guidance is aligned with the current parser behavior used by `Parse Multiple Accounts`.
+- Import parsing now lives in the shared `core` module, so the documented behavior matches the reusable parser logic used by current desktop/runtime flows.
 - Stalker examples include current optional fields such as HTTP method, timezone, serial/device IDs, and signature handling.
 - M3U guidance covers optional M3U-to-Xtreme conversion when compatible credentials are present.
 - Cross-links in this file point to the current in-repo guides instead of version-specific release notes.

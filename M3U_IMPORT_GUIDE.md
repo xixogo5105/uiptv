@@ -4,6 +4,7 @@ This guide explains how to bulk import M3U/M3U8 playlist URLs and optionally con
 
 ## What's New
 
+- M3U parsing now lives in the shared `core` module, so current desktop/runtime flows all use the same import behavior.
 - Imported M3U accounts can be used in desktop and web modes.
 - You can publish merged playlists from Configuration and consume them via:
   - `/iptv.m3u`

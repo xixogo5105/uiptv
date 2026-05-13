@@ -4,6 +4,7 @@ This guide documents the current bulk-import behavior for Stalker Portal account
 
 ## What's New
 
+- Stalker bulk-import parsing now lives in the shared `core` module, so grouping/device rules are consistent across current runtimes.
 - Stalker import now supports parser-accurate `serial`, `device id 1`, `device id 2`, `signature`, `HTTP method`, and `timezone` extraction.
 - `DEVICE ID 1/2` input is treated as a combined value and is applied to both device-id fields.
 - The **Group Account(s) by MAC Address** option is now device-aware:

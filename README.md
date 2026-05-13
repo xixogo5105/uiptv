@@ -22,6 +22,18 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 - User guide: [GUIDE.md](GUIDE.md)
 - CSS/theming guide: [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
+- Release notes: [release_notes.md](release_notes.md)
+
+## Project Layout
+
+UIPTV now builds as a Maven reactor with separated runtime modules:
+
+- `core/`: shared domain models, SQLite/database layer, application services, cache reloaders, import parsers, migrations, i18n bundles, and release/version resources.
+- `api-server/`: Undertow-based local web server, JSON/playlist endpoints, and bundled SPA/PWA assets under `api-server/src/main/resources/web/`.
+- `javafx-app/`: JavaFX desktop application, players, widgets, dialogs, desktop CSS, icons, and native packaging configuration.
+- `website/`: static project website published separately to GitHub Pages.
+
+Build from the repository root. Maven resolves the module graph automatically.
 
 <img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
 
@@ -70,7 +82,7 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 **Before installing a new version or upgrading, you must manually uninstall the previously installed version of UIPTV.** The installer does not automatically remove older versions, and failure to do so may result in the upgrade not being applied correctly.
 
 ## Compiling UIPTV
-This application is built using **Java 25** and **JavaFX**, and it is packaged into native installers using **jpackage**.
+This application is built using **Java 25** and **JavaFX**, and it is packaged into native installers using **jpackage** from the `javafx-app` module.
 
 Before compiling, please ensure you have:
 1.  A JDK (version 25 or higher) installed, with the `JAVA_HOME` environment variable correctly set.
@@ -94,7 +106,7 @@ Before compiling, please ensure you have:
 4.  **Linux DEB packaging (Debian/Ubuntu):** `fakeroot` must be installed for `.deb` builds.
 
 
-To compile the project, you can use Maven profiles to target specific operating systems and package formats. The final application will be generated in the `target/dist` directory.
+To compile the project, use Maven profiles from the repository root to target specific operating systems and package formats. Native packaging output is generated in `javafx-app/target/dist`. Each module also writes its own intermediate build output under its local `target/` directory.
 
 ### Build Commands
 Here are some examples of how to build the application for different targets.

@@ -2,7 +2,11 @@
 
 This guide describes how desktop JavaFX styles are resolved in UIPTV and how to safely customize them.
 
-This guide applies to the **desktop JavaFX application**. The local-network web app (`web/`) and project website (`website/`) use separate HTML/CSS stacks.
+This guide applies to the **desktop JavaFX application**.
+
+- Desktop JavaFX CSS lives in `javafx-app/src/main/resources/`.
+- The local-network web app lives in `api-server/src/main/resources/web/` and uses a separate HTML/CSS stack.
+- The project website under `website/` is also separate.
 
 ## 1. Theme Source Selection
 
@@ -83,7 +87,7 @@ Recommended production approach:
 
 ## 7. Recent Areas Worth Retesting
 
-Since `v0.1.10`, several desktop areas have changed enough that custom CSS should be rechecked against them:
+Since the `1.0.0` module split and the post-`v0.1.10` desktop changes, several areas should be rechecked against custom CSS:
 
 - parental lock controls and related filter-management prompts
 - published M3U selection views
