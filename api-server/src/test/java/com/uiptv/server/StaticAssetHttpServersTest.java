@@ -70,6 +70,26 @@ class StaticAssetHttpServersTest {
     }
 
     @Test
+    void spaHtmlServer_rendersMyflixFromRepositoryRoot() throws Exception {
+        String originalUserDir = System.getProperty("user.dir");
+        Path repositoryRoot = Path.of(originalUserDir).toAbsolutePath();
+        if ("api-server".equals(repositoryRoot.getFileName().toString())) {
+            repositoryRoot = repositoryRoot.getParent();
+        }
+        System.setProperty("user.dir", repositoryRoot.toString());
+        try {
+            HttpSpaHtmlServer handler = new HttpSpaHtmlServer("myflix.html");
+            TestHttpExchange exchange = new TestHttpExchange("/myflix.html", "GET");
+            handler.handle(exchange);
+
+            assertEquals(200, exchange.getResponseCode());
+            assertTrue(exchange.getResponseBodyText().toLowerCase().contains("<html"));
+        } finally {
+            System.setProperty("user.dir", originalUserDir);
+        }
+    }
+
+    @Test
     void iconServer_servesIcon_andHandlesMissingIcon() throws Exception {
         HttpIconServer handler = new HttpIconServer();
         TestHttpExchange exchange = new TestHttpExchange("/icon.ico", "GET");

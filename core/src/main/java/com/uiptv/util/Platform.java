@@ -29,23 +29,30 @@ public class Platform {
     }
     public static String getWebServerRootPath() {
         String baseDir = System.getProperty("user.dir");
-        File webDir = new File(baseDir, "web");
-        if (webDir.exists()) {
-            return webDir.getAbsolutePath();
-        }
-        File resourcesWebDir = new File(baseDir, "src" + File.separator + "main" + File.separator + "resources" + File.separator + "web");
-        if (resourcesWebDir.exists()) {
-            return resourcesWebDir.getAbsolutePath();
-        }
-        File serverResourcesWebDir = new File(baseDir, "server" + File.separator + "src" + File.separator + "main" + File.separator + "resources" + File.separator + "web");
-        if (serverResourcesWebDir.exists()) {
-            return serverResourcesWebDir.getAbsolutePath();
-        }
-        File serverWebDir = new File(baseDir, "server" + File.separator + "web");
-        if (serverWebDir.exists()) {
-            return serverWebDir.getAbsolutePath();
+        File resourcesWebDir = webRoot(baseDir, "src", "main", "resources", "web");
+        File[] candidates = {
+                webRoot(baseDir, "web"),
+                resourcesWebDir,
+                webRoot(baseDir, "target", "classes", "web"),
+                webRoot(baseDir, "api-server", "src", "main", "resources", "web"),
+                webRoot(baseDir, "api-server", "target", "classes", "web"),
+                webRoot(baseDir, "server", "src", "main", "resources", "web"),
+                webRoot(baseDir, "server", "web")
+        };
+        for (File candidate : candidates) {
+            if (candidate.exists()) {
+                return candidate.getAbsolutePath();
+            }
         }
         return resourcesWebDir.getAbsolutePath();
+    }
+
+    private static File webRoot(String baseDir, String first, String... more) {
+        File path = new File(baseDir, first);
+        for (String segment : more) {
+            path = new File(path, segment);
+        }
+        return path;
     }
 
 }
