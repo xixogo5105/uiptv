@@ -11,6 +11,7 @@ import java.lang.reflect.Method;
 
 public class ServerUrlUtil {
     private static final String SERVER_RUNTIME_CLASS = "com.uiptv.server.UIptvServer";
+    public static final String SERVER_BIND_ADDRESS = "0.0.0.0";
 
     private ServerUrlUtil() {
     }
@@ -31,7 +32,7 @@ public class ServerUrlUtil {
         } catch (DatabaseAccessException | IllegalStateException _) {
             // Fall back to the default local server port when configuration cannot be read.
         }
-        return "http://127.0.0.1:" + port;
+        return "http://" + SERVER_BIND_ADDRESS + ":" + port;
     }
 
     public static void installServerShutdownHook() {

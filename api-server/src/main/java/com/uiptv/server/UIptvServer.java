@@ -8,6 +8,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
 
 import static com.uiptv.util.AppLog.addInfoLog;
+import static com.uiptv.util.ServerUrlUtil.SERVER_BIND_ADDRESS;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class UIptvServer {
@@ -25,7 +26,7 @@ public class UIptvServer {
         int ioThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
 
         httpServer = Undertow.builder()
-                .addHttpListener(port, "0.0.0.0")
+                .addHttpListener(port, SERVER_BIND_ADDRESS)
                 .setIoThreads(ioThreads)
                 .setWorkerThreads(workerThreads)
                 .setHandler(configureServer())

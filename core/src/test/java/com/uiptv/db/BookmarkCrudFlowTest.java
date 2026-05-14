@@ -46,6 +46,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         Bookmark fetchedByKey = bookmarkService.getBookmark(bookmark);
         assertNotNull(fetchedByKey);
         assertNotNull(fetchedByKey.getDbId());
+        assertEquals("logo", fetchedByKey.getLogo());
         assertEquals("widevine", fetchedByKey.getDrmType());
         assertEquals("http://license", fetchedByKey.getDrmLicenseUrl());
         assertEquals("addon", fetchedByKey.getInputstreamaddon());
@@ -55,6 +56,7 @@ class BookmarkCrudFlowTest extends DbBackedTest {
         Bookmark fetchedById = bookmarkService.getBookmark(fetchedByKey.getDbId());
         assertNotNull(fetchedById);
         assertEquals("Sports One", fetchedById.getChannelName());
+        assertEquals("logo", fetchedById.getLogo());
 
         String json = bookmarkService.readToJson();
         assertTrue(json.startsWith("["));

@@ -117,6 +117,7 @@ public class BookmarkDb extends BaseDb {
             statement.setString(i++, bookmark.getCategoryTitle());
             statement.setString(i++, bookmark.getChannelId());
             statement.setString(i++, bookmark.getChannelName());
+            statement.setString(i++, bookmark.getLogo());
             statement.setString(i++, bookmark.getCmd());
             statement.setString(i++, bookmark.getServerPortalUrl());
             statement.setString(i++, bookmark.getCategoryId());
@@ -143,13 +144,14 @@ public class BookmarkDb extends BaseDb {
     }
 
     private void update(Bookmark bookmark) {
-        String sql = "UPDATE " + BOOKMARK_TABLE.getTableName() + " SET accountName=?, categoryTitle=?, channelId=?, channelName=?, cmd=?, serverPortalUrl=?, categoryId=?, accountAction=?, drmType=?, drmLicenseUrl=?, clearKeysJson=?, inputstreamaddon=?, manifestType=?, categoryJson=?, channelJson=?, vodJson=?, seriesJson=? WHERE id=?";
+        String sql = "UPDATE " + BOOKMARK_TABLE.getTableName() + " SET accountName=?, categoryTitle=?, channelId=?, channelName=?, logo=?, cmd=?, serverPortalUrl=?, categoryId=?, accountAction=?, drmType=?, drmLicenseUrl=?, clearKeysJson=?, inputstreamaddon=?, manifestType=?, categoryJson=?, channelJson=?, vodJson=?, seriesJson=? WHERE id=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             int i = 1;
             statement.setString(i++, bookmark.getAccountName());
             statement.setString(i++, bookmark.getCategoryTitle());
             statement.setString(i++, bookmark.getChannelId());
             statement.setString(i++, bookmark.getChannelName());
+            statement.setString(i++, bookmark.getLogo());
             statement.setString(i++, bookmark.getCmd());
             statement.setString(i++, bookmark.getServerPortalUrl());
             statement.setString(i++, bookmark.getCategoryId());
@@ -237,6 +239,7 @@ public class BookmarkDb extends BaseDb {
         if (isNotBlank(accountActionStr)) {
             bookmark.setAccountAction(Account.AccountAction.valueOf(accountActionStr));
         }
+        bookmark.setLogo(nullSafeString(resultSet, "logo"));
         bookmark.setDrmType(nullSafeString(resultSet, "drmType"));
         bookmark.setDrmLicenseUrl(nullSafeString(resultSet, "drmLicenseUrl"));
         bookmark.setClearKeysJson(nullSafeString(resultSet, "clearKeysJson"));

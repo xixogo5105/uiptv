@@ -36,7 +36,7 @@ class ServerUrlUtilTest {
             when(service.read()).thenReturn(config);
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
-            assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://0.0.0.0:8888", ServerUrlUtil.getLocalServerUrl());
         }
     }
 
@@ -49,7 +49,7 @@ class ServerUrlUtilTest {
             when(service.read()).thenReturn(config);
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
-            assertEquals("http://127.0.0.1:9090", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://0.0.0.0:9090", ServerUrlUtil.getLocalServerUrl());
         }
     }
 
@@ -60,7 +60,7 @@ class ServerUrlUtilTest {
             when(service.read()).thenThrow(new IllegalStateException("db unavailable"));
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
-            assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://0.0.0.0:8888", ServerUrlUtil.getLocalServerUrl());
         }
     }
 

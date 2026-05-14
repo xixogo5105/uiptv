@@ -135,6 +135,7 @@ public class DatabaseUtils {
                 new DataColumn("categoryTitle", "TEXT"),
                 new DataColumn(COLUMN_CHANNEL_ID, "TEXT"),
                 new DataColumn("channelName", "TEXT"),
+                new DataColumn("logo", "TEXT"),
                 new DataColumn("cmd", "TEXT"),
                 new DataColumn("serverPortalUrl", "TEXT"),
                 new DataColumn(COLUMN_CATEGORY_ID, "TEXT"),
