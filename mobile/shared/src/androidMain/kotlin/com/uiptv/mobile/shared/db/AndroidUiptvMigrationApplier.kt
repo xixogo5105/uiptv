@@ -32,17 +32,27 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
 
     private fun executeMigration(db: SQLiteDatabase, sql: String) {
         when (val directive = UiptvMigrationSql.findDirective(sql)) {
-            is MigrationDirective.AddColumn -> {
-                if (!columnExists(db, directive.table, directive.column)) {
-                    db.execSQL("ALTER TABLE ${directive.table} ADD COLUMN ${directive.column} ${directive.definition}")
-                }
-            }
+            is MigrationDirective.AddColumn -> applyAddColumn(db, directive)
             is MigrationDirective.DropColumn -> {
                 if (columnExists(db, directive.table, directive.column)) {
-                    db.execSQL("ALTER TABLE ${directive.table} DROP COLUMN ${directive.column}")
+                    db.execSQL("ALTER TABLE ${quoteIdentifier(directive.table)} DROP COLUMN ${quoteIdentifier(directive.column)}")
                 }
             }
-            null -> UiptvMigrationSql.executableStatements(sql).forEach(db::execSQL)
+            null -> UiptvMigrationSql.executableStatements(sql).forEach { statement ->
+                when (val addColumn = UiptvMigrationSql.parseAddColumnStatement(statement)) {
+                    null -> db.execSQL(statement)
+                    else -> applyAddColumn(db, addColumn)
+                }
+            }
+        }
+    }
+
+    private fun applyAddColumn(db: SQLiteDatabase, directive: MigrationDirective.AddColumn) {
+        if (!columnExists(db, directive.table, directive.column)) {
+            db.execSQL(
+                "ALTER TABLE ${quoteIdentifier(directive.table)} " +
+                    "ADD COLUMN ${quoteIdentifier(directive.column)} ${directive.definition}"
+            )
         }
     }
 
@@ -86,7 +96,7 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
                 applied_at = excluded.applied_at,
                 error_message = excluded.error_message
             """.trimIndent(),
-            arrayOf(name, checksum, status, epochSeconds(), errorMessage)
+            arrayOf<Any?>(name, checksum, status, epochSeconds(), errorMessage)
         )
     }
 
@@ -108,4 +118,7 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             .joinToString(separator = "") { byte -> "%02x".format(byte) }
 
     private fun epochSeconds(): Long = System.currentTimeMillis() / 1000L
+
+    private fun quoteIdentifier(identifier: String): String =
+        "\"" + identifier.replace("\"", "\"\"") + "\""
 }

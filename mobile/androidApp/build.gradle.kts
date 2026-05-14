@@ -4,6 +4,17 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
 }
 
+val releaseKeystorePath = providers.environmentVariable("UIPTV_ANDROID_KEYSTORE").orNull
+val releaseKeystorePassword = providers.environmentVariable("UIPTV_ANDROID_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("UIPTV_ANDROID_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("UIPTV_ANDROID_KEY_PASSWORD").orNull
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.uiptv.mobile.android"
     compileSdk = libs.versions.android.compile.sdk.get().toInt()
@@ -14,6 +25,28 @@ android {
         targetSdk = libs.versions.android.target.sdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(requireNotNull(releaseKeystorePath))
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
     }
 
     sourceSets {
@@ -25,8 +58,13 @@ android {
 
 dependencies {
     implementation(project(":shared"))
+    implementation(libs.androidx.activity.compose)
     implementation(compose.foundation)
     implementation(compose.material3)
     implementation(compose.runtime)
     implementation(compose.ui)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.junit)
 }

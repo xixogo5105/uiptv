@@ -2,8 +2,8 @@ package com.uiptv.mobile.shared.db
 
 object UiptvSchemaInfo {
     const val DATABASE_NAME = "uiptv.db"
-    const val SCHEMA_VERSION_CODE = 197
-    const val CURRENT_SCHEMA_VERSION = "0197"
+    const val SCHEMA_VERSION_CODE = 198
+    const val CURRENT_SCHEMA_VERSION = "0198"
     const val MIGRATIONS_DIR = "db/migrations"
     const val MIGRATIONS_LIST = "$MIGRATIONS_DIR/migrations.txt"
 }
@@ -24,6 +24,10 @@ sealed interface MigrationDirective {
 }
 
 object UiptvMigrationSql {
+    private val addColumnStatementRegex = Regex(
+        pattern = """(?is)^ALTER\s+TABLE\s+("([^"]|"")+"|`([^`]|``)+`|\[[^\]]+]|[A-Za-z_][A-Za-z0-9_]*)\s+ADD\s+COLUMN\s+("([^"]|"")+"|`([^`]|``)+`|\[[^\]]+]|[A-Za-z_][A-Za-z0-9_]*)\s+(.+)$"""
+    )
+
     fun parseMigrationNames(content: String): List<String> =
         content.lineSequence()
             .map { it.trim() }
@@ -51,6 +55,15 @@ object UiptvMigrationSql {
         }
     }
 
+    fun parseAddColumnStatement(statement: String): MigrationDirective.AddColumn? {
+        val match = addColumnStatementRegex.matchEntire(statement.trim()) ?: return null
+        return MigrationDirective.AddColumn(
+            table = unquoteIdentifier(match.groupValues[1]),
+            column = unquoteIdentifier(match.groupValues[4]),
+            definition = match.groupValues[7].trim()
+        )
+    }
+
     fun executableStatements(sql: String): List<String> {
         val withoutComments = sql.lineSequence()
             .filterNot { it.trim().startsWith("--") }
@@ -59,5 +72,18 @@ object UiptvMigrationSql {
             .split(";")
             .map { it.trim() }
             .filter { it.isNotEmpty() }
+    }
+
+    private fun unquoteIdentifier(identifier: String): String {
+        val trimmed = identifier.trim()
+        return when {
+            trimmed.length >= 2 && trimmed.first() == '"' && trimmed.last() == '"' ->
+                trimmed.substring(1, trimmed.lastIndex).replace("\"\"", "\"")
+            trimmed.length >= 2 && trimmed.first() == '`' && trimmed.last() == '`' ->
+                trimmed.substring(1, trimmed.lastIndex).replace("``", "`")
+            trimmed.length >= 2 && trimmed.first() == '[' && trimmed.last() == ']' ->
+                trimmed.substring(1, trimmed.lastIndex)
+            else -> trimmed
+        }
     }
 }

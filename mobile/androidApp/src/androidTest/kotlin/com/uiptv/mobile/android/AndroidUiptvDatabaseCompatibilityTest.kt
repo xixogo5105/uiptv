@@ -1,0 +1,484 @@
+package com.uiptv.mobile.android
+
+import android.content.Context
+import android.content.Intent
+import android.database.sqlite.SQLiteDatabase
+import androidx.test.platform.app.InstrumentationRegistry
+import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
+import com.uiptv.mobile.shared.accounts.MobileAccount
+import com.uiptv.mobile.shared.accounts.MobileAccountType
+import com.uiptv.mobile.shared.browse.AndroidSQLiteBrowseRepository
+import com.uiptv.mobile.shared.browse.BrowseMode
+import com.uiptv.mobile.shared.browse.MobileBrowseItem
+import com.uiptv.mobile.shared.cache.AndroidM3uCacheReloader
+import com.uiptv.mobile.shared.cache.AndroidStalkerCacheReloader
+import com.uiptv.mobile.shared.cache.AndroidXtremeCacheReloader
+import com.uiptv.mobile.shared.cache.CacheRefreshJobStatus
+import com.uiptv.mobile.shared.db.AndroidMigrationSource
+import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
+import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.db.UiptvSchemaInfo
+import com.uiptv.mobile.shared.db.UiptvSyncSchema
+import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
+import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
+import java.io.File
+import java.net.ServerSocket
+import java.net.Socket
+import kotlin.concurrent.thread
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class AndroidUiptvDatabaseCompatibilityTest {
+    private lateinit var context: Context
+    private lateinit var helper: AndroidUiptvDatabaseHelper
+
+    @Before
+    fun setUp() {
+        context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.deleteDatabase(UiptvSchemaInfo.DATABASE_NAME)
+        helper = AndroidUiptvDatabaseHelper(context)
+    }
+
+    @After
+    fun tearDown() {
+        helper.close()
+        context.deleteDatabase(UiptvSchemaInfo.DATABASE_NAME)
+    }
+
+    @Test
+    fun createsDesktopCompatibleTablesFromPackagedMigrations() {
+        val db = helper.writableDatabase
+        val expectedMigrationCount = AndroidMigrationSource(context).migrationNames().size
+
+        (UiptvSyncSchema.androidRequiredTables + UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
+            .forEach { table ->
+                assertTrue("Missing table $table", db.tableExists(table))
+            }
+
+        assertEquals(expectedMigrationCount, db.countRows("schema_migrations", "status = 'success'"))
+        assertTrue(db.tableColumns("Configuration").containsAll(UiptvSyncSchema.androidPortableConfigurationColumns))
+    }
+
+    @Test
+    fun appliesFixtureSnapshotUsingCommonColumnsOnly() {
+        val snapshot = File.createTempFile("uiptv-sync-fixture-", ".db", context.cacheDir)
+        try {
+            SQLiteDatabase.openOrCreateDatabase(snapshot, null).use { source ->
+                source.execSQL("CREATE TABLE Account(id INTEGER PRIMARY KEY, accountName TEXT, type TEXT, futureDesktopColumn TEXT)")
+                source.execSQL("CREATE TABLE AccountInfo(id INTEGER PRIMARY KEY, accountId TEXT, expireDate TEXT)")
+                source.execSQL("CREATE TABLE Bookmark(id INTEGER PRIMARY KEY, accountName TEXT, channelId TEXT, channelName TEXT)")
+                source.execSQL("CREATE TABLE BookmarkCategory(id INTEGER PRIMARY KEY, name TEXT)")
+                source.execSQL("CREATE TABLE BookmarkOrder(id INTEGER PRIMARY KEY, bookmark_db_id TEXT, category_id TEXT, display_order INTEGER)")
+                source.execSQL("INSERT INTO Account(id, accountName, type, futureDesktopColumn) VALUES(7, 'Desktop Account', 'M3U8_URL', 'ignored')")
+                source.execSQL("INSERT INTO AccountInfo(id, accountId, expireDate) VALUES(8, '7', '1893456000')")
+                source.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName) VALUES(9, 'Desktop Account', 'c1', 'News One')")
+                source.execSQL("INSERT INTO BookmarkCategory(id, name) VALUES(10, 'News')")
+                source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
+            }
+
+            val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
+            val target = helper.writableDatabase
+
+            assertEquals(5, report.totalRowsSynced)
+            assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
+            assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
+            assertFalse(target.tableColumns("Account").contains("futureDesktopColumn"))
+        } finally {
+            snapshot.delete()
+        }
+    }
+
+    @Test
+    fun accountRepositorySavesListsClearsCacheAndDeletesAccountData() = runBlocking {
+        val repository = AndroidSQLiteAccountRepository(helper)
+        val saved = repository.saveAccount(
+            MobileAccount(
+                accountName = "Phone M3U",
+                type = MobileAccountType.M3U8_URL,
+                m3u8Path = "https://example.test/list.m3u",
+                epg = "https://example.test/epg.xml",
+                pinToTop = true
+            )
+        )
+        val accountId = requireNotNull(saved.id)
+        val db = helper.writableDatabase
+
+        assertEquals(listOf("Phone M3U"), repository.listAccounts().map { it.accountName })
+
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(101, 'live-cat', ?, 'itv', 'Live')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name) VALUES(201, 'live-1', '101', 'Live One')")
+        db.execSQL("INSERT INTO VodCategory(id, categoryId, accountId, title) VALUES(301, 'vod-cat', ?, 'VOD')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO VodChannel(id, channelId, categoryId, accountId, name) VALUES(401, 'vod-1', 'vod-cat', ?, 'Movie')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesCategory(id, categoryId, accountId, title) VALUES(501, 'series-cat', ?, 'Series')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesChannel(id, channelId, categoryId, accountId, name) VALUES(601, 'series-1', 'series-cat', ?, 'Series One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesEpisode(id, accountId, seriesId, channelId, name) VALUES(701, ?, 'series-1', 'episode-1', 'Episode One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName) VALUES(801, 'Phone M3U', 'live-1', 'Live One')")
+        db.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, display_order) VALUES(901, '801', 1)")
+
+        val cleared = repository.clearAccountCache(accountId)
+
+        assertEquals(7, cleared.totalItems)
+        assertEquals(0, db.countRows("Category", "accountId = '$accountId'"))
+        assertEquals(0, db.countRows("Channel", "categoryId = '101'"))
+        assertEquals(1, db.countRows("Bookmark", "accountName = 'Phone M3U'"))
+
+        repository.deleteAccount(accountId)
+
+        assertEquals(0, db.countRows("Account", "id = $accountId"))
+        assertEquals(0, db.countRows("Bookmark", "accountName = 'Phone M3U'"))
+        assertEquals(0, db.countRows("BookmarkOrder", "bookmark_db_id = '801'"))
+    }
+
+    @Test
+    fun m3uReloaderCreatesLiveCategoriesAndChannelsFromLocalPlaylist() = runBlocking {
+        val playlist = File.createTempFile("uiptv-playlist-", ".m3u", context.cacheDir).apply {
+            writeText(
+                """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="news-1" tvg-logo="https://logo.test/news.png" group-title="News",News One HD
+                https://stream.test/news.m3u8
+                #EXTINF:-1 group-title="Sports",Sports One
+                https://stream.test/sports.ts
+                """.trimIndent()
+            )
+        }
+        try {
+            val repository = AndroidSQLiteAccountRepository(helper)
+            val account = repository.saveAccount(
+                MobileAccount(
+                    accountName = "Local Playlist",
+                    type = MobileAccountType.M3U8_LOCAL,
+                    m3u8Path = playlist.absolutePath
+                )
+            )
+
+            val result = AndroidM3uCacheReloader(context, helper).refreshAccount(requireNotNull(account.id))
+            val db = helper.writableDatabase
+
+            assertEquals(CacheRefreshJobStatus.SUCCEEDED, result.status)
+            assertEquals(3, db.countRows("Category", "accountId = '${account.id}'"))
+            assertEquals(4, db.countRows("Channel", "cmd LIKE 'https://stream.test/%'"))
+            assertEquals(2, db.countRows("Channel", "name = 'News One HD'"))
+            assertEquals(2, db.countRows("Channel", "name = 'Sports One'"))
+        } finally {
+            playlist.delete()
+        }
+    }
+
+    @Test
+    fun xtremeReloaderCreatesLiveCategoriesAndChannelsFromPlayerApi() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "get_live_categories" to """
+                    [
+                      {"category_id":"10","category_name":"News"}
+                    ]
+                """.trimIndent(),
+                "get_live_streams" to """
+                    [
+                      {"stream_id":"77","name":"World News HD","category_id":"10","stream_icon":"https://logo.test/news.png","container_extension":"m3u8"},
+                      {"stream_id":"88","name":"Orphan Sports","category_id":"999","stream_icon":"","container_extension":"ts"}
+                    ]
+                """.trimIndent()
+            )
+        ).use { server ->
+            val repository = AndroidSQLiteAccountRepository(helper)
+            val account = repository.saveAccount(
+                MobileAccount(
+                    accountName = "Xtreme",
+                    type = MobileAccountType.XTREME_API,
+                    url = "http://127.0.0.1:${server.port}/player_api.php?legacy=true",
+                    username = "phone user",
+                    password = "p@ss"
+                )
+            )
+
+            val result = AndroidXtremeCacheReloader(helper).refreshAccount(requireNotNull(account.id))
+            val db = helper.writableDatabase
+
+            assertEquals(CacheRefreshJobStatus.SUCCEEDED, result.status)
+            assertEquals(3, db.countRows("Category", "accountId = '${account.id}'"))
+            assertEquals(4, db.countRows("Channel", "cmd LIKE 'http://127.0.0.1:%'"))
+            assertEquals(2, db.countRows("Channel", "name = 'World News HD'"))
+            assertEquals(2, db.countRows("Channel", "name = 'Orphan Sports'"))
+            assertEquals(4, db.countRows("Channel", "cmd LIKE '%phone%20user/p%40ss/%'"))
+        }
+    }
+
+    @Test
+    fun stalkerReloaderCreatesLiveCategoriesAndChannelsFromPortalApi() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "handshake" to """{"js":{"token":"abc123"}}""",
+                "get_profile" to """{"js":{}}""",
+                "get_genres" to """
+                    {"js":[
+                      {"id":"1","title":"News","alias":"News","active_sub":false,"censored":0}
+                    ]}
+                """.trimIndent(),
+                "get_all_channels" to """
+                    {"js":{"data":[
+                      {"id":"100","name":"Portal News HD","number":"1","cmd":"ffmpeg http://stream.test/news","cmd_1":"","cmd_2":"","cmd_3":"","logo":"https://logo.test/news.png","censored":0,"status":1,"hd":1,"tv_genre_id":"1"},
+                      {"id":"200","name":"Portal Orphan","number":"2","cmd":"ffmpeg http://stream.test/orphan","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"999"}
+                    ]}}
+                """.trimIndent()
+            )
+        ).use { server ->
+            val repository = AndroidSQLiteAccountRepository(helper)
+            val account = repository.saveAccount(
+                MobileAccount(
+                    accountName = "Portal",
+                    type = MobileAccountType.STALKER_PORTAL,
+                    url = "http://127.0.0.1:${server.port}",
+                    macAddress = "00:1A:79:00:00:01"
+                )
+            )
+
+            val result = AndroidStalkerCacheReloader(helper).refreshAccount(requireNotNull(account.id))
+            val db = helper.writableDatabase
+
+            assertEquals(CacheRefreshJobStatus.SUCCEEDED, result.status)
+            assertEquals(3, db.countRows("Category", "accountId = '${account.id}'"))
+            assertEquals(4, db.countRows("Channel", "cmd LIKE 'ffmpeg http://stream.test/%'"))
+            assertEquals(2, db.countRows("Channel", "name = 'Portal News HD'"))
+            assertEquals(2, db.countRows("Channel", "name = 'Portal Orphan'"))
+        }
+    }
+
+    @Test
+    fun browseRepositoryLoadsChannelsBookmarksAndWatchingNow() = runBlocking {
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Browse Account",
+                type = MobileAccountType.M3U8_URL,
+                m3u8Path = "https://example.test/list.m3u"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(1101, 'all', ?, 'itv', 'All')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(1102, 'news', ?, 'itv', 'News')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, number, cmd, hd) VALUES(1201, 'n1', '1101', 'News One HD', '1', 'https://stream.test/news', 1)")
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, number, cmd, hd) VALUES(1202, 'n1', '1102', 'News One HD', '1', 'https://stream.test/news', 1)")
+        db.execSQL("INSERT INTO VodWatchState(id, accountId, categoryId, vodId, vodName, vodCmd, vodLogo, updatedAt) VALUES(1301, ?, 'movies', 'm1', 'Resume Movie', 'https://stream.test/movie', '', 99)", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle, seriesPoster, updatedAt) VALUES(1401, ?, 'series', 's1', 'Resume Series', '', 100)", arrayOf(accountId.toString()))
+
+        val repository = AndroidSQLiteBrowseRepository(helper)
+        val snapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, 1102, "News")
+
+        assertEquals(listOf("News"), snapshot.categories.filter { it.rowId == 1102L }.map { it.title })
+        assertEquals(1, snapshot.items.size)
+        assertEquals("News One HD", snapshot.items.single().name)
+        assertFalse(snapshot.items.single().isBookmarked)
+
+        assertTrue(repository.toggleBookmark(snapshot.items.single()))
+        val bookmarkedSnapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, 1102, "News")
+        assertTrue(bookmarkedSnapshot.items.single().isBookmarked)
+        val bookmarks = repository.listBookmarks("News", null)
+        assertEquals(1, bookmarks.size)
+        assertEquals("Browse Account", bookmarks.single().accountName)
+
+        repository.removeBookmark(bookmarks.single().rowId)
+
+        assertEquals(0, repository.listBookmarks("News", null).size)
+        assertEquals(listOf("Resume Series", "Resume Movie"), repository.listWatchingNow("").map { it.title })
+    }
+
+    @Test
+    fun playbackCoordinatorPersistsPreferenceAndMarksWatchingNow() = runBlocking {
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Playback Account",
+                type = MobileAccountType.XTREME_API,
+                url = "https://example.test",
+                username = "u",
+                password = "p"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val startedIntents = mutableListOf<Intent>()
+        val coordinator = AndroidPlaybackCoordinator(
+            context = context,
+            preferences = AndroidDataStorePreferencesRepository(context),
+            databaseHelper = helper,
+            epochSeconds = { 1234 },
+            activityStarter = { startedIntents += it }
+        )
+
+        val vodResult = coordinator.playBrowseItem(
+            playbackItem(accountId, BrowseMode.VOD, "vod-cat", "vod-1", "Movie One"),
+            AndroidPlayerPreference.SYSTEM_CHOOSER,
+            remember = true
+        )
+        val seriesResult = coordinator.playBrowseItem(
+            playbackItem(accountId, BrowseMode.SERIES, "series-cat", "series-1", "Series One"),
+            AndroidPlayerPreference.SYSTEM_CHOOSER,
+            remember = false
+        )
+
+        assertTrue(vodResult.launched)
+        assertTrue(seriesResult.launched)
+        assertEquals(AndroidPlayerPreference.SYSTEM_CHOOSER, coordinator.loadPlayerPreference().selectedPlayer)
+        assertEquals(1, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-1'"))
+        assertEquals("https://stream.test/vod-1.m3u8", helper.writableDatabase.singleString("VodWatchState", "vodCmd", "accountId = '$accountId' AND vodId = 'vod-1'"))
+        assertEquals(1, helper.writableDatabase.countRows("SeriesWatchingNowSnapshot", "accountId = '$accountId' AND seriesId = 'series-1'"))
+
+        val nativeResult = coordinator.playBrowseItem(
+            playbackItem(accountId, BrowseMode.VOD, "vod-cat", "vod-native", "Native Movie"),
+            AndroidPlayerPreference.NATIVE,
+            remember = false
+        )
+
+        assertTrue(nativeResult.launched)
+        assertEquals(0, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-native'"))
+        val nativeIntent = startedIntents.last()
+        assertEquals(accountId, nativeIntent.getLongExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, 0L))
+        assertEquals(BrowseMode.VOD.name, nativeIntent.getStringExtra(NativePlayerActivity.EXTRA_MODE))
+        assertEquals("vod-native", nativeIntent.getStringExtra(NativePlayerActivity.EXTRA_CHANNEL_ID))
+
+        AndroidPlaybackWatchStateStore(helper, epochSeconds = { 4321 }).markOpened(
+            PlaybackTarget(
+                accountId = accountId,
+                accountName = "Playback Account",
+                mode = BrowseMode.VOD,
+                categoryProviderId = "vod-cat",
+                categoryRowId = 9,
+                channelId = "vod-native",
+                title = "Native Movie",
+                url = "https://stream.test/vod-native.m3u8"
+            )
+        )
+        assertEquals(1, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-native'"))
+
+        val drmResult = coordinator.playBrowseItem(
+            playbackItem(accountId, BrowseMode.VOD, "vod-cat", "vod-2", "DRM Movie", command = "https://stream.test/movie.mpd", drmType = "widevine"),
+            AndroidPlayerPreference.NATIVE,
+            remember = false
+        )
+
+        assertFalse(drmResult.launched)
+        assertTrue(drmResult.message.contains("DRM"))
+        assertEquals(0, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-2'"))
+
+        val licensedDrmResult = coordinator.playBrowseItem(
+            playbackItem(
+                accountId,
+                BrowseMode.VOD,
+                "vod-cat",
+                "vod-3",
+                "Licensed DRM Movie",
+                command = "https://stream.test/movie.mpd",
+                drmType = "widevine",
+                drmLicenseUrl = "https://license.test/widevine"
+            ),
+            AndroidPlayerPreference.NATIVE,
+            remember = false
+        )
+
+        assertTrue(licensedDrmResult.launched)
+        assertEquals(0, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-3'"))
+        assertEquals("widevine", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_DRM_TYPE))
+        assertEquals("https://license.test/widevine", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_DRM_LICENSE_URL))
+
+        coordinator.clearPlayerPreference()
+
+        assertEquals(AndroidPlayerPreference.ASK_EVERY_TIME, coordinator.loadPlayerPreference().selectedPlayer)
+    }
+
+    private fun SQLiteDatabase.tableExists(table: String): Boolean {
+        rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table)).use { cursor ->
+            return cursor.moveToFirst()
+        }
+    }
+
+    private fun SQLiteDatabase.tableColumns(table: String): List<String> {
+        rawQuery("PRAGMA table_info(\"${table.replace("\"", "\"\"")}\")", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns += cursor.getString(nameIndex)
+            }
+            return columns
+        }
+    }
+
+    private fun SQLiteDatabase.countRows(table: String, where: String): Int {
+        rawQuery("SELECT COUNT(*) FROM \"${table.replace("\"", "\"\"")}\" WHERE $where", null).use { cursor ->
+            cursor.moveToFirst()
+            return cursor.getInt(0)
+        }
+    }
+
+    private fun SQLiteDatabase.singleString(table: String, column: String, where: String): String {
+        rawQuery("SELECT \"${column.replace("\"", "\"\"")}\" FROM \"${table.replace("\"", "\"\"")}\" WHERE $where LIMIT 1", null).use { cursor ->
+            cursor.moveToFirst()
+            return cursor.getString(0)
+        }
+    }
+
+    private class TestHttpServer(private val bodiesByAction: Map<String, String>) : AutoCloseable {
+        private val socket = ServerSocket(0)
+        val port: Int = socket.localPort
+        private val worker = thread(start = true) {
+            while (!socket.isClosed) {
+                runCatching { socket.accept().use(::respond) }
+                    .onFailure { if (!socket.isClosed) throw it }
+            }
+        }
+
+        private fun respond(client: Socket) {
+            val reader = client.getInputStream().bufferedReader()
+            val requestLine = reader.readLine().orEmpty()
+            while (reader.readLine().orEmpty().isNotEmpty()) {
+                // Drain headers.
+            }
+            val action = bodiesByAction.keys.firstOrNull { requestLine.contains("action=$it") }
+            val body = action?.let { bodiesByAction.getValue(it) } ?: "[]"
+            val bytes = body.toByteArray(Charsets.UTF_8)
+            client.getOutputStream().use { output ->
+                output.write("HTTP/1.1 200 OK\r\n".toByteArray())
+                output.write("Content-Type: application/json\r\n".toByteArray())
+                output.write("Content-Length: ${bytes.size}\r\n".toByteArray())
+                output.write("Connection: close\r\n\r\n".toByteArray())
+                output.write(bytes)
+            }
+        }
+
+        override fun close() {
+            socket.close()
+            worker.join(1_000)
+        }
+    }
+
+    private fun playbackItem(
+        accountId: Long,
+        mode: BrowseMode,
+        categoryId: String,
+        channelId: String,
+        title: String,
+        command: String = "ffmpeg https://stream.test/$channelId.m3u8",
+        drmType: String = "",
+        drmLicenseUrl: String = ""
+    ): MobileBrowseItem =
+        MobileBrowseItem(
+            rowId = channelId.hashCode().toLong(),
+            accountId = accountId,
+            accountName = "Playback Account",
+            mode = mode,
+            categoryRowId = 9,
+            categoryProviderId = categoryId,
+            categoryTitle = categoryId,
+            channelId = channelId,
+            name = title,
+            command = command,
+            drmType = drmType,
+            drmLicenseUrl = drmLicenseUrl
+        )
+
+}

@@ -19,8 +19,15 @@ kotlin {
         }
     }
 
-    iosArm64()
-    iosSimulatorArm64()
+    val enableIosTargets = providers.gradleProperty("uiptv.enableIosTargets")
+        .map(String::toBoolean)
+        .orElse(canUseXcode())
+        .get()
+
+    if (enableIosTargets) {
+        iosArm64()
+        iosSimulatorArm64()
+    }
 
     targets.withType<KotlinNativeTarget>().configureEach {
         binaries.framework {
@@ -36,9 +43,30 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(libs.kotlinx.coroutines.core)
+        }
+        androidMain.dependencies {
+            implementation(libs.androidx.datastore.preferences)
+            implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.kotlinx.coroutines.android)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+    }
+}
+
+fun canUseXcode(): Boolean {
+    if (System.getProperty("os.name").contains("Mac", ignoreCase = true).not()) {
+        return false
+    }
+
+    return try {
+        ProcessBuilder("xcrun", "xcodebuild", "-version")
+            .redirectErrorStream(true)
+            .start()
+            .waitFor() == 0
+    } catch (_: Exception) {
+        false
     }
 }

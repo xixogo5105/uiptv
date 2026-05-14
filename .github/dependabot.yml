@@ -12,3 +12,9 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+
+  # Enable version updates for the Android/KMP Gradle workspace
+  - package-ecosystem: "gradle"
+    directory: "/mobile"
+    schedule:
+      interval: "daily"

@@ -1,0 +1,120 @@
+package com.uiptv.mobile.shared.sync
+
+import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
+import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
+import kotlinx.coroutines.delay
+import kotlin.random.Random
+
+class AndroidRemoteSyncPullService(
+    private val client: RemoteSyncClient,
+    private val snapshotApplier: AndroidSQLiteSnapshotSyncApplier,
+    private val preferences: AndroidPreferencesRepository,
+    private val epochSeconds: () -> Long = { System.currentTimeMillis() / 1000L }
+) {
+    suspend fun checkConnection(host: String, port: Int): Boolean {
+        preferences.saveRemoteEndpoint(host, port)
+        return client.health(buildRemoteSyncBaseUrl(host, port))
+    }
+
+    suspend fun pullFromDesktop(
+        host: String,
+        port: Int,
+        onProgress: (RemoteSyncProgress) -> Unit
+    ): RemoteSyncPullResult {
+        preferences.saveRemoteEndpoint(host, port)
+        if (client is AndroidRemoteSyncClient) {
+            val result = pullFromDesktopStreaming(
+                baseUrl = buildRemoteSyncBaseUrl(host, port),
+                verificationCode = createFourDigitVerificationCode { max -> Random.nextInt(max) },
+                onProgress = onProgress
+            )
+            preferences.markRemoteSyncSucceeded(epochSeconds())
+            preferences.setFirstRunCompleted(true)
+            return result
+        }
+
+        val useCase = PullFromDesktopSyncUseCase(client, snapshotApplier)
+        val result = useCase.pull(
+            baseUrl = buildRemoteSyncBaseUrl(host, port),
+            verificationCode = createFourDigitVerificationCode { max -> Random.nextInt(max) },
+            onProgress = onProgress
+        )
+        preferences.markRemoteSyncSucceeded(epochSeconds())
+        preferences.setFirstRunCompleted(true)
+        return result
+    }
+
+    private suspend fun pullFromDesktopStreaming(
+        baseUrl: String,
+        verificationCode: String,
+        onProgress: (RemoteSyncProgress) -> Unit
+    ): RemoteSyncPullResult {
+        val streamingClient = client as AndroidRemoteSyncClient
+        onProgress(RemoteSyncProgress(RemoteSyncProgressStep.CONNECTING, verificationCode))
+        check(streamingClient.health(baseUrl)) { "Remote sync server did not respond with OK status." }
+
+        var sessionId = ""
+        var snapshotFile = snapshotApplier.createTempSnapshotFile()
+        try {
+            val session = streamingClient.request(
+                baseUrl = baseUrl,
+                request = RemoteSyncRequest(
+                    direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
+                    verificationCode = verificationCode,
+                    options = RemoteSyncOptions(
+                        syncConfiguration = false,
+                        syncExternalPlayerPaths = false
+                    )
+                )
+            )
+            sessionId = session.sessionId
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.WAITING_FOR_APPROVAL, verificationCode))
+
+            val readySession = waitForDownload(baseUrl, sessionId)
+            sessionId = readySession.sessionId.ifBlank { sessionId }
+
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.DOWNLOADING, verificationCode))
+            streamingClient.downloadToFile(baseUrl, sessionId, snapshotFile)
+
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode))
+            val report = snapshotApplier.applyFile(snapshotFile)
+
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.COMPLETING_REMOTE, verificationCode))
+            streamingClient.complete(baseUrl, sessionId, success = true, message = "Remote database sync completed.")
+
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.FINISHED, verificationCode))
+            return RemoteSyncPullResult(report, "Remote database sync completed.")
+        } catch (ex: Throwable) {
+            if (sessionId.isNotBlank()) {
+                runCatching {
+                    streamingClient.complete(
+                        baseUrl,
+                        sessionId,
+                        success = false,
+                        message = ex.message ?: "Remote sync failed."
+                    )
+                }
+            }
+            throw ex
+        } finally {
+            snapshotFile.delete()
+        }
+    }
+
+    private suspend fun waitForDownload(baseUrl: String, sessionId: String): RemoteSyncSessionState {
+        repeat(180) {
+            val state = client.status(baseUrl, sessionId)
+            when (state.status) {
+                RemoteSyncStatus.READY_FOR_DOWNLOAD,
+                RemoteSyncStatus.COMPLETED -> return state
+                RemoteSyncStatus.REJECTED,
+                RemoteSyncStatus.FAILED,
+                RemoteSyncStatus.EXPIRED -> error(state.message.ifBlank { "Remote sync was not approved." })
+                RemoteSyncStatus.PENDING_APPROVAL,
+                RemoteSyncStatus.APPROVED -> Unit
+            }
+            delay(1_000)
+        }
+        error("Timed out while waiting for desktop approval.")
+    }
+}

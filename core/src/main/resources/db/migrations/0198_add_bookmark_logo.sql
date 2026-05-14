@@ -1,0 +1,1 @@
+ALTER TABLE Bookmark ADD COLUMN logo TEXT DEFAULT '';

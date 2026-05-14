@@ -47,4 +47,28 @@ class UiptvMigrationSqlTest {
             statements
         )
     }
+
+    @Test
+    fun parsesPlainAddColumnStatementsForAndroidIdempotence() {
+        val directive = UiptvMigrationSql.parseAddColumnStatement(
+            "ALTER TABLE Configuration ADD COLUMN filterLockUnlockDurationMinutes TEXT DEFAULT '15'"
+        )
+
+        val addColumn = assertIs<MigrationDirective.AddColumn>(directive)
+        assertEquals("Configuration", addColumn.table)
+        assertEquals("filterLockUnlockDurationMinutes", addColumn.column)
+        assertEquals("TEXT DEFAULT '15'", addColumn.definition)
+    }
+
+    @Test
+    fun parsesQuotedAddColumnStatementsForAndroidIdempotence() {
+        val directive = UiptvMigrationSql.parseAddColumnStatement(
+            "ALTER TABLE \"Configuration\" ADD COLUMN \"enableThumbnails\" TEXT DEFAULT '0'"
+        )
+
+        val addColumn = assertIs<MigrationDirective.AddColumn>(directive)
+        assertEquals("Configuration", addColumn.table)
+        assertEquals("enableThumbnails", addColumn.column)
+        assertEquals("TEXT DEFAULT '0'", addColumn.definition)
+    }
 }
