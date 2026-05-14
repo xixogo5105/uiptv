@@ -8,7 +8,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.uiptv.util.ServerUtils.getParam;
-import static com.uiptv.util.ServerUrlUtil.SERVER_BIND_ADDRESS;
+import static com.uiptv.util.ServerUrlUtil.isLocalServerHost;
 import static com.uiptv.util.StringUtils.isBlank;
 
 @SuppressWarnings({"java:S1075", "java:S135"})
@@ -269,12 +268,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             if (isBlank(host)) {
                 return false;
             }
-            String normalizedHost = host.trim().toLowerCase();
-            InetAddress loopback = InetAddress.getLoopbackAddress();
-            return SERVER_BIND_ADDRESS.equals(normalizedHost)
-                    || loopback.getHostAddress().equals(normalizedHost)
-                    || loopback.getHostName().equals(normalizedHost)
-                    || "::1".equals(normalizedHost);
+            return isLocalServerHost(host);
         } catch (Exception _) {
             return false;
         }

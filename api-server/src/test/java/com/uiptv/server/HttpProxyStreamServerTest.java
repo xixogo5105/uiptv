@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.uiptv.util.ServerUrlUtil.getPublishedServerHost;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -165,8 +166,9 @@ class HttpProxyStreamServerTest {
         assertEquals("", invoke(handler, "originOf", new Class[]{String.class}, "not a uri"));
         assertTrue((Boolean) invoke(handler, "sameOrigin", new Class[]{String.class, String.class}, "http://a.test/x", "http://a.test/y"));
         assertFalse((Boolean) invoke(handler, "sameOrigin", new Class[]{String.class, String.class}, "http://a.test/x", "http://b.test/y"));
-        assertTrue((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://0.0.0.0:8080/player"));
+        assertTrue((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://" + getPublishedServerHost() + ":8080/player"));
         assertTrue((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://localhost:8080/player"));
+        assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://0.0.0.0:8080/player"));
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://portal.test/player"));
 
         assertEquals("A B", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path?mac=A+B&empty", "mac"));

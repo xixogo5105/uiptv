@@ -8,10 +8,19 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class ServerUrlUtil {
     private static final String SERVER_RUNTIME_CLASS = "com.uiptv.server.UIptvServer";
-    public static final String SERVER_BIND_ADDRESS = "0.0.0.0";
 
     private ServerUrlUtil() {
     }
@@ -32,7 +41,69 @@ public class ServerUrlUtil {
         } catch (DatabaseAccessException | IllegalStateException _) {
             // Fall back to the default local server port when configuration cannot be read.
         }
-        return "http://" + SERVER_BIND_ADDRESS + ":" + port;
+        return "http://" + getPublishedServerHost() + ":" + port;
+    }
+
+    public static String getPublishedServerHost() {
+        List<String> lanAddresses = getLanAddresses();
+        return lanAddresses.isEmpty() ? InetAddress.getLoopbackAddress().getHostAddress() : lanAddresses.getFirst();
+    }
+
+    public static List<String> getServerBindAddresses() {
+        Set<String> addresses = new LinkedHashSet<>();
+        addresses.addAll(getLanAddresses());
+        addresses.add(InetAddress.getLoopbackAddress().getHostAddress());
+        return List.copyOf(addresses);
+    }
+
+    public static boolean isLocalServerHost(String host) {
+        if (host == null || host.trim().isEmpty()) {
+            return false;
+        }
+        String normalized = host.trim().toLowerCase(Locale.ROOT);
+        for (String bindAddress : getServerBindAddresses()) {
+            if (bindAddress.equalsIgnoreCase(normalized)) {
+                return true;
+            }
+        }
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        if (loopback.getHostName().equalsIgnoreCase(normalized)
+                || loopback.getHostAddress().equalsIgnoreCase(normalized)) {
+            return true;
+        }
+        return isLiteralLoopbackAddress(normalized);
+    }
+
+    private static List<String> getLanAddresses() {
+        Set<String> addresses = new LinkedHashSet<>();
+        try {
+            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            interfaces.sort(Comparator.comparing(NetworkInterface::getName));
+            for (NetworkInterface networkInterface : interfaces) {
+                if (!networkInterface.isUp() || networkInterface.isLoopback() || networkInterface.isVirtual()) {
+                    continue;
+                }
+                for (InetAddress address : Collections.list(networkInterface.getInetAddresses())) {
+                    if (address instanceof Inet4Address && address.isSiteLocalAddress()) {
+                        addresses.add(address.getHostAddress());
+                    }
+                }
+            }
+        } catch (SocketException _) {
+            // Fall back to loopback when the host network interfaces cannot be inspected.
+        }
+        return List.copyOf(addresses);
+    }
+
+    private static boolean isLiteralLoopbackAddress(String host) {
+        if (!host.contains(":")) {
+            return false;
+        }
+        try {
+            return InetAddress.getByName(host).isLoopbackAddress();
+        } catch (Exception _) {
+            return false;
+        }
     }
 
     public static void installServerShutdownHook() {

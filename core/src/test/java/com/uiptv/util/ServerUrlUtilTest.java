@@ -36,7 +36,9 @@ class ServerUrlUtilTest {
             when(service.read()).thenReturn(config);
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
-            assertEquals("http://0.0.0.0:8888", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":8888", ServerUrlUtil.getLocalServerUrl());
+            assertFalse(ServerUrlUtil.getLocalServerUrl().contains("0.0.0.0"));
+            assertFalse(ServerUrlUtil.getServerBindAddresses().contains("0.0.0.0"));
         }
     }
 
@@ -49,7 +51,7 @@ class ServerUrlUtilTest {
             when(service.read()).thenReturn(config);
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
-            assertEquals("http://0.0.0.0:9090", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":9090", ServerUrlUtil.getLocalServerUrl());
         }
     }
 
@@ -60,8 +62,16 @@ class ServerUrlUtilTest {
             when(service.read()).thenThrow(new IllegalStateException("db unavailable"));
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
-            assertEquals("http://0.0.0.0:8888", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":8888", ServerUrlUtil.getLocalServerUrl());
         }
+    }
+
+    @Test
+    void serverBindAddresses_includePublishedHostAndLoopbackOnly() {
+        assertTrue(ServerUrlUtil.getServerBindAddresses().contains(ServerUrlUtil.getPublishedServerHost()));
+        assertTrue(ServerUrlUtil.isLocalServerHost(ServerUrlUtil.getPublishedServerHost()));
+        assertFalse(ServerUrlUtil.isLocalServerHost("203.0.113.10"));
+        assertFalse(ServerUrlUtil.getServerBindAddresses().contains("0.0.0.0"));
     }
 
     @Test

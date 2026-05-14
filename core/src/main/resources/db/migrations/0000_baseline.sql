@@ -198,6 +198,8 @@ CREATE TABLE IF NOT EXISTS Bookmark
     TEXT,
     channelName
     TEXT,
+    logo
+    TEXT,
     cmd
     TEXT,
     serverPortalUrl
