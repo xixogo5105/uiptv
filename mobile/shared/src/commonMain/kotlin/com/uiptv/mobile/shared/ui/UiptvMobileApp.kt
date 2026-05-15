@@ -79,6 +79,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -160,7 +161,7 @@ fun UiptvMobileApp(
     logoRenderer: LogoRenderer = { _, _, _ -> },
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> }
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var selectedBrowseAccount by remember { mutableStateOf<MobileAccount?>(null) }
     var showThumbnails by remember { mutableStateOf(false) }
     fun selectTab(index: Int) {

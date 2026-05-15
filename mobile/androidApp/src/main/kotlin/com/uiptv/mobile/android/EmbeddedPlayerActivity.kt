@@ -84,6 +84,7 @@ class EmbeddedPlayerActivity : Activity() {
     private var initialVolume = 0
     private var activeGesture = PlayerGesture.None
     private var zoomModeIndex = 0
+    private var selectedVideoTrackId = UnknownTrackId
 
     @Suppress("DEPRECATION")
     @SuppressLint("ClickableViewAccessibility")
@@ -196,7 +197,7 @@ class EmbeddedPlayerActivity : Activity() {
                     MediaPlayer.Event.ESAdded,
                     MediaPlayer.Event.ESDeleted,
                     MediaPlayer.Event.ESSelected -> {
-                        runOnUiThread { updateStreamInfo() }
+                        runOnUiThread { handleElementaryStreamChanged(event) }
                     }
                     MediaPlayer.Event.Paused,
                     MediaPlayer.Event.Stopped,
@@ -278,6 +279,7 @@ class EmbeddedPlayerActivity : Activity() {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
         }
+        selectedVideoTrackId = UnknownTrackId
         beginStreamLoading()
         val media = Media(createdLibVlc, Uri.parse(streamUrl)).apply {
             setHWDecoderEnabled(true, false)
@@ -609,6 +611,29 @@ class EmbeddedPlayerActivity : Activity() {
         streamInfoLabel.text = buildStreamInfoLabel()
     }
 
+    private fun handleElementaryStreamChanged(event: MediaPlayer.Event) {
+        if (event.esChangedType == IMedia.Track.Type.Video) {
+            when (event.type) {
+                MediaPlayer.Event.ESSelected -> selectedVideoTrackId = event.esChangedID
+                MediaPlayer.Event.ESDeleted -> {
+                    if (selectedVideoTrackId == event.esChangedID) {
+                        selectedVideoTrackId = UnknownTrackId
+                    }
+                }
+            }
+            scheduleStreamInfoRefreshes()
+        } else {
+            updateStreamInfo()
+        }
+    }
+
+    private fun scheduleStreamInfoRefreshes() {
+        updateStreamInfo()
+        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshShortDelayMs)
+        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshMediumDelayMs)
+        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshLongDelayMs)
+    }
+
     private fun buildStreamInfoLabel(): String {
         val video = currentVideoTrackDetails()
         val resolution = if (video != null) {
@@ -626,26 +651,44 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun currentVideoTrackDetails(): VideoTrackDetails? {
         val player = mediaPlayer ?: return null
+        val media = runCatching { player.media }.getOrNull()
+        val selectedTrackId = selectedVideoTrackId.takeIf { it != UnknownTrackId }
+            ?: runCatching { player.videoTrack }.getOrNull()?.takeIf { it != UnknownTrackId }
+        if (media != null && selectedTrackId != null) {
+            findVideoTrackById(media, selectedTrackId)?.let { return it }
+        }
         runCatching { player.currentVideoTrack }
             .getOrNull()
             ?.toVideoTrackDetails()
             ?.takeIf { it.hasUsefulInfo() }
             ?.let { return it }
-        val media = runCatching { player.media }.getOrNull() ?: return null
-        return runCatching {
-            var bestTrack: VideoTrackDetails? = null
+        return media?.let { firstUsefulVideoTrack(it) }
+    }
+
+    private fun findVideoTrackById(media: IMedia, trackId: Int): VideoTrackDetails? =
+        runCatching {
+            for (index in 0 until media.trackCount) {
+                val track = media.getTrack(index)
+                if (track is IMedia.VideoTrack && track.id == trackId) {
+                    return@runCatching track.toVideoTrackDetails().takeIf { it.hasUsefulInfo() }
+                }
+            }
+            null
+        }.getOrNull()
+
+    private fun firstUsefulVideoTrack(media: IMedia): VideoTrackDetails? =
+        runCatching {
             for (index in 0 until media.trackCount) {
                 val track = media.getTrack(index)
                 if (track is IMedia.VideoTrack) {
                     val details = track.toVideoTrackDetails()
-                    if (details.hasUsefulInfo() && (bestTrack == null || details.area > bestTrack.area)) {
-                        bestTrack = details
+                    if (details.hasUsefulInfo()) {
+                        return@runCatching details
                     }
                 }
             }
-            bestTrack
+            null
         }.getOrNull()
-    }
 
     private fun IMedia.VideoTrack.toVideoTrackDetails(): VideoTrackDetails {
         val sampleAspectRatio = if (sarNum > 0 && sarDen > 0) {
@@ -806,6 +849,9 @@ class EmbeddedPlayerActivity : Activity() {
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 900L
         private const val ProgressUpdateMs = 1_000L
+        private const val StreamInfoRefreshShortDelayMs = 250L
+        private const val StreamInfoRefreshMediumDelayMs = 1_000L
+        private const val StreamInfoRefreshLongDelayMs = 2_500L
         private const val ProgressBarMax = 1_000
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f
@@ -814,6 +860,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val MinimumBrightness = 0.05f
         private const val GestureSlopPx = 18f
         private const val TapSlopPx = 14f
+        private const val UnknownTrackId = -1
         private const val VideoOrientationLeftBottom = 1
         private const val VideoOrientationRightTop = 3
         private const val LiveTimeLabel = "Live"
