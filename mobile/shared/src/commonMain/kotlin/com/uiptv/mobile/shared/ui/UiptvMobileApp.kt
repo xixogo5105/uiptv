@@ -64,6 +64,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteSweep
@@ -1470,7 +1471,9 @@ private fun PlayerSelectionSheet(
                 selectedPlayer = selectedPlayer,
                 playerIconRenderer = playerIconRenderer,
                 onSelect = { choice ->
-                    if (choice.opensInstallFlow()) {
+                    if (choice.matchesSelected(selectedPlayer)) {
+                        onSelect(choice)
+                    } else if (choice.opensInstallFlow()) {
                         onInstall(choice)
                     } else {
                         onSelect(choice)
@@ -1530,7 +1533,7 @@ private fun PlayerChoiceTile(
     }
     Surface(
         modifier = modifier
-            .height(104.dp)
+            .height(88.dp)
             .clickable(onClick = onSelect)
             .semantics { contentDescription = "Select ${choice.label}" },
         shape = RoundedCornerShape(12.dp),
@@ -1539,19 +1542,17 @@ private fun PlayerChoiceTile(
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                playerIconRenderer(choice, Modifier.size(42.dp))
+            Box(modifier = Modifier.fillMaxWidth()) {
+                playerIconRenderer(choice, Modifier.size(36.dp))
                 if (selected) {
                     Icon(
                         Icons.Outlined.CheckCircle,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier
+                            .size(20.dp)
+                            .align(Alignment.TopEnd),
                         tint = Color(0xFF07151E)
                     )
                 }
@@ -1569,7 +1570,7 @@ private fun PlayerChoiceTile(
 }
 
 @Composable
-private fun DefaultPlayerIcon(choice: PlayerChoice, modifier: Modifier) {
+fun DefaultPlayerIcon(choice: PlayerChoice, modifier: Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
@@ -1577,15 +1578,20 @@ private fun DefaultPlayerIcon(choice: PlayerChoice, modifier: Modifier) {
         contentColor = choice.player.playerIconContentColor()
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (choice.player == AndroidPlayerPreference.EMBEDDED_PLAYER) {
-                Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(22.dp))
-            } else {
-                Text(
-                    choice.player.playerBadge(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
+            when (choice.player) {
+                AndroidPlayerPreference.EMBEDDED_PLAYER ->
+                    Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(22.dp))
+                AndroidPlayerPreference.NATIVE ->
+                    Icon(Icons.Outlined.Android, contentDescription = null, modifier = Modifier.size(21.dp))
+                AndroidPlayerPreference.ASK_EVERY_TIME ->
+                    Icon(Icons.Outlined.MoreVert, contentDescription = null, modifier = Modifier.size(21.dp))
+                else ->
+                    Text(
+                        choice.player.playerBadge(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
             }
         }
     }
@@ -1941,7 +1947,7 @@ private fun RemoteSyncScreen(
     if (playerSelectorVisible) {
         PlayerSelectionSheet(
             title = "Default Player",
-            choices = listOf(PlayerChoice(AndroidPlayerPreference.ASK_EVERY_TIME, "Ask")) + playerChoices,
+            choices = playerChoices,
             selectedPlayer = selectedPlayer,
             playerIconRenderer = playerIconRenderer,
             onDismiss = { playerSelectorVisible = false },
@@ -1956,13 +1962,22 @@ private fun RemoteSyncScreen(
                 }
             },
             onSelect = { choice ->
+                val targetPlayer = if (choice.matchesSelected(selectedPlayer)) {
+                    AndroidPlayerPreference.ASK_EVERY_TIME
+                } else {
+                    choice.player
+                }
                 scope.launch {
                     running = true
-                    runCatching { playbackActions.savePlayerPreference(choice.player) }
+                    runCatching { playbackActions.savePlayerPreference(targetPlayer) }
                         .onSuccess {
-                            selectedPlayer = choice.player
-                            playerText = "Player: ${choice.player.playerLabel()}"
-                            statusText = "Default player set to ${choice.label}"
+                            selectedPlayer = targetPlayer
+                            playerText = "Player: ${targetPlayer.playerLabel()}"
+                            statusText = if (targetPlayer == AndroidPlayerPreference.ASK_EVERY_TIME) {
+                                "Default player cleared"
+                            } else {
+                                "Default player set to ${choice.label}"
+                            }
                             playerSelectorVisible = false
                         }
                         .onFailure { statusText = it.message ?: "Unable to save player preference" }
@@ -3007,8 +3022,7 @@ data class PlaybackUiActions(
                 playerChoices = {
                     listOf(
                         PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded Player"),
-                        PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media"),
-                        PlayerChoice(AndroidPlayerPreference.SYSTEM_CHOOSER, "System")
+                        PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media")
                     )
                 },
                 playBrowseItem = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.name}") },
@@ -3184,7 +3198,7 @@ private fun AndroidPlayerPreference.playerIconColor(): Color =
     when (this) {
         AndroidPlayerPreference.ASK_EVERY_TIME -> Color(0xFF374151)
         AndroidPlayerPreference.EMBEDDED_PLAYER -> DeepNightAccent
-        AndroidPlayerPreference.NATIVE -> Color(0xFF7DD3FC)
+        AndroidPlayerPreference.NATIVE -> Color(0xFF3DDC84)
         AndroidPlayerPreference.VLC -> Color(0xFFFF9800)
         AndroidPlayerPreference.MX_PLAYER_PRO,
         AndroidPlayerPreference.MX_PLAYER_FREE -> Color(0xFF2563EB)
@@ -3197,7 +3211,7 @@ private fun AndroidPlayerPreference.playerIconColor(): Color =
 private fun AndroidPlayerPreference.playerIconContentColor(): Color =
     when (this) {
         AndroidPlayerPreference.EMBEDDED_PLAYER,
-        AndroidPlayerPreference.NATIVE -> Color(0xFF001F25)
+        AndroidPlayerPreference.NATIVE -> Color(0xFF052E1B)
         else -> Color.White
     }
 

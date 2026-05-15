@@ -89,8 +89,7 @@ class AndroidPlaybackCoordinator(
             PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled(VLC_PACKAGE), VLC_PACKAGE, VLC_STORE_URL),
             PlayerChoice(mxPlayer, "MX Player", mxInstalled, mxPackage, MX_PLAYER_STORE_URL),
             PlayerChoice(AndroidPlayerPreference.JUST_PLAYER, "Just Player", isInstalled(JUST_PLAYER_PACKAGE), JUST_PLAYER_PACKAGE, JUST_PLAYER_STORE_URL),
-            PlayerChoice(AndroidPlayerPreference.XPLAYER, "XPlayer", isInstalled(XPLAYER_PACKAGE), XPLAYER_PACKAGE, XPLAYER_STORE_URL),
-            PlayerChoice(AndroidPlayerPreference.SYSTEM_CHOOSER, "System", true)
+            PlayerChoice(AndroidPlayerPreference.XPLAYER, "XPlayer", isInstalled(XPLAYER_PACKAGE), XPLAYER_PACKAGE, XPLAYER_STORE_URL)
         )
     }
 
