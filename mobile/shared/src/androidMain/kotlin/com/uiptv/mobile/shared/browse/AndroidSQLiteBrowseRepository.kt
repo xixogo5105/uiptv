@@ -344,22 +344,25 @@ class AndroidSQLiteBrowseRepository(
             return@withContext emptyList()
         }
         val db = databaseHelper.writableDatabase
-        loadSeriesEpisodesFromDb(db, item, exactCategory = true)
+        val cached = loadSeriesEpisodesFromDb(db, item, exactCategory = true)
             .ifEmpty { loadSeriesEpisodesFromDb(db, item, exactCategory = false) }
             .ifEmpty { loadSeriesEpisodesFromSnapshot(db, item) }
-            .ifEmpty {
-                val account = AndroidSQLiteAccountRepository(databaseHelper)
-                    .listAccounts()
-                    .firstOrNull { it.id == item.accountId }
-                    ?: return@withContext emptyList()
-                val fetched = runCatching {
-                    AndroidVodSeriesCatalogClient().fetchSeriesEpisodes(account, item.categoryProviderId, item.contentId)
-                }.getOrDefault(emptyList())
-                if (fetched.isNotEmpty()) {
-                    saveFetchedSeriesEpisodes(db, item, fetched)
-                }
-                fetched.toWatchingNowEpisodes(item)
-            }
+        if (cached.isNotEmpty() && cached.all { it.command.isNotBlank() }) {
+            return@withContext cached
+        }
+        val account = AndroidSQLiteAccountRepository(databaseHelper)
+            .listAccounts()
+            .firstOrNull { it.id == item.accountId }
+            ?: return@withContext cached
+        val fetched = runCatching {
+            AndroidVodSeriesCatalogClient().fetchSeriesEpisodes(account, item.categoryProviderId, item.contentId)
+        }.getOrDefault(emptyList())
+        if (fetched.isNotEmpty()) {
+            saveFetchedSeriesEpisodes(db, item, fetched)
+            fetched.toWatchingNowEpisodes(item)
+        } else {
+            cached
+        }
     }
 
     override suspend fun removeWatchingNow(item: MobileWatchingNowItem): Unit = withContext(Dispatchers.IO) {

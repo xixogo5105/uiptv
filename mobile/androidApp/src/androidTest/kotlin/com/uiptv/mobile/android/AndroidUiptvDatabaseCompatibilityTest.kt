@@ -10,6 +10,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.browse.AndroidSQLiteBrowseRepository
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
+import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.cache.AndroidM3uCacheReloader
 import com.uiptv.mobile.shared.cache.AndroidStalkerCacheReloader
 import com.uiptv.mobile.shared.cache.AndroidXtremeCacheReloader
@@ -25,6 +26,7 @@ import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import java.io.File
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.Collections
 import kotlin.concurrent.thread
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -320,6 +322,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
             db.execSQL("INSERT INTO VodCategory(id, categoryId, accountId, accountType, title) VALUES(2101, 'movies', ?, 'vod', 'Movies')", arrayOf(accountId.toString()))
             db.execSQL("INSERT INTO SeriesCategory(id, categoryId, accountId, accountType, title) VALUES(2102, 'shows', ?, 'series', 'Shows')", arrayOf(accountId.toString()))
             db.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName, updatedAt) VALUES(2103, ?, 'series', 'shows', 'show-1', '900', 'Pilot', 222)", arrayOf(accountId.toString()))
+            db.execSQL("INSERT INTO SeriesEpisode(id, accountId, categoryId, seriesId, channelId, name, cmd, season, episodeNum) VALUES(2104, ?, 'shows', 'show-1', '900', 'Stale Pilot', '', '1', '1')", arrayOf(accountId.toString()))
 
             val repository = AndroidSQLiteBrowseRepository(helper)
             val vodSnapshot = repository.loadBrowse(accountId, BrowseMode.VOD, 2101, "")
@@ -489,6 +492,61 @@ class AndroidUiptvDatabaseCompatibilityTest {
         assertEquals(AndroidPlayerPreference.EMBEDDED_PLAYER, coordinator.loadPlayerPreference().selectedPlayer)
     }
 
+    @Test
+    fun playbackCoordinatorResolvesStalkerSeriesEpisodeCreateLink() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "handshake" to """{"js":{"token":"abc123"}}""",
+                "get_profile" to """{"js":{}}""",
+                "create_link" to """{"js":{"cmd":"ffmpeg http://stream.test/series?stream=.&token=abc"}}"""
+            )
+        ).use { server ->
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "Portal Playback",
+                    type = MobileAccountType.STALKER_PORTAL,
+                    url = "http://127.0.0.1:${server.port}",
+                    macAddress = "00:1A:79:00:00:01"
+                )
+            )
+            val accountId = requireNotNull(account.id)
+            val startedIntents = mutableListOf<Intent>()
+            val coordinator = AndroidPlaybackCoordinator(
+                context = context,
+                preferences = AndroidDataStorePreferencesRepository(context),
+                databaseHelper = helper,
+                activityStarter = { startedIntents += it }
+            )
+
+            val result = coordinator.playWatchingNowEpisode(
+                MobileWatchingNowEpisode(
+                    rowId = 7,
+                    parentRowId = 6,
+                    accountId = accountId,
+                    accountName = "Portal Playback",
+                    seriesId = "show-1",
+                    seriesTitle = "Portal Show",
+                    categoryProviderId = "series-cat",
+                    categoryRowId = 5,
+                    episodeId = "episode-7",
+                    title = "Episode 7",
+                    season = "1",
+                    episodeNumber = "7",
+                    command = "eyJzZXJpZXNfaWQiOjEsInNlYXNvbl9udW0iOjEsInR5cGUiOiJzZXJpZXMifQ=="
+                ),
+                AndroidPlayerPreference.EMBEDDED_PLAYER,
+                remember = false
+            )
+
+            assertTrue(result.launched)
+            assertEquals(
+                "http://stream.test/series?stream=7&token=abc",
+                startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_URL)
+            )
+            assertTrue(server.requests.any { it.contains("action=create_link") && it.contains("series=7") })
+        }
+    }
+
     private fun SQLiteDatabase.tableExists(table: String): Boolean {
         rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table)).use { cursor ->
             return cursor.moveToFirst()
@@ -523,6 +581,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
     private class TestHttpServer(private val bodiesByAction: Map<String, String>) : AutoCloseable {
         private val socket = ServerSocket(0)
         val port: Int = socket.localPort
+        val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())
         private val worker = thread(start = true) {
             while (!socket.isClosed) {
                 runCatching { socket.accept().use(::respond) }
@@ -533,6 +592,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
         private fun respond(client: Socket) {
             val reader = client.getInputStream().bufferedReader()
             val requestLine = reader.readLine().orEmpty()
+            requests += requestLine
             while (reader.readLine().orEmpty().isNotEmpty()) {
                 // Drain headers.
             }

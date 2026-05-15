@@ -353,6 +353,7 @@ internal class AndroidVodSeriesCatalogClient {
                 val categoryId = item.cleanString("tv_genre_id").ifBlank { requestedCategoryId }
                 val command = item.cleanString("cmd")
                 val logo = item.firstCleanString("screenshot_uri", "stream_icon", "cover", "movie_image", "logo", "poster")
+                val season = item.firstCleanString("season", "season_id", "season_num", "season_number")
                 val seriesEpisodes = item.optJSONArray("series")
                 if (mode == AndroidCatalogMode.SERIES && command.isNotBlank() && seriesEpisodes != null) {
                     for (episodeIndex in 0 until seriesEpisodes.length()) {
@@ -376,6 +377,7 @@ internal class AndroidVodSeriesCatalogClient {
                                 releaseDate = item.firstCleanString("release_date", "released", "year"),
                                 rating = item.firstCleanString("rating_imdb", "rating"),
                                 duration = item.firstCleanString("duration", "runtime", "time"),
+                                season = season,
                                 episodeNumber = episodeId
                             )
                         )
@@ -396,7 +398,8 @@ internal class AndroidVodSeriesCatalogClient {
                             plot = item.firstCleanString("description", "plot", "overview"),
                             releaseDate = item.firstCleanString("release_date", "released", "year"),
                             rating = item.firstCleanString("rating_imdb", "rating"),
-                            duration = item.firstCleanString("duration", "runtime", "time")
+                            duration = item.firstCleanString("duration", "runtime", "time"),
+                            season = season
                         )
                     )
                 }

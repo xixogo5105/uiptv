@@ -113,6 +113,38 @@ data class MobileWatchingNowEpisode(
     val duration: String = ""
 )
 
+data class MobileSeriesSeasonTab(
+    val key: String,
+    val label: String,
+    val sortOrder: Int
+)
+
+fun MobileWatchingNowEpisode.seasonTab(): MobileSeriesSeasonTab {
+    val value = season.trim()
+    if (value.isBlank()) {
+        return MobileSeriesSeasonTab(SEASON_OTHER_KEY, "Other", SEASON_OTHER_SORT)
+    }
+    val number = value.toIntOrNull()
+        ?: Regex("""\d+""").find(value)?.value?.toIntOrNull()
+    if (number != null) {
+        return MobileSeriesSeasonTab(
+            key = "season:$number",
+            label = if (number == 0) "Specials" else "Season $number",
+            sortOrder = number
+        )
+    }
+    return MobileSeriesSeasonTab(
+        key = "label:${value.lowercase()}",
+        label = value,
+        sortOrder = SEASON_NAMED_SORT
+    )
+}
+
+fun List<MobileWatchingNowEpisode>.seasonTabs(): List<MobileSeriesSeasonTab> =
+    map { it.seasonTab() }
+        .distinctBy { it.key }
+        .sortedWith(compareBy<MobileSeriesSeasonTab> { it.sortOrder }.thenBy { it.label.lowercase() })
+
 interface BrowseRepository {
     suspend fun loadBrowse(
         accountId: Long?,
@@ -135,3 +167,7 @@ interface BrowseRepository {
 
     suspend fun removeWatchingNow(item: MobileWatchingNowItem)
 }
+
+private const val SEASON_OTHER_KEY = "other"
+private const val SEASON_NAMED_SORT = Int.MAX_VALUE - 1
+private const val SEASON_OTHER_SORT = Int.MAX_VALUE

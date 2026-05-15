@@ -113,4 +113,36 @@ class MobileBrowseTest {
         assertEquals("http://stream.test/episode.m3u8", episode.command)
         assertEquals(9, episode.categoryRowId)
     }
+
+    @Test
+    fun watchingNowEpisodesBuildStableSeasonTabs() {
+        val episodes = listOf(
+            watchingEpisode("Special", season = "0"),
+            watchingEpisode("Pilot", season = "01"),
+            watchingEpisode("Finale", season = "2"),
+            watchingEpisode("Interview", season = "Extras"),
+            watchingEpisode("Unknown", season = "")
+        )
+
+        val tabs = episodes.seasonTabs()
+
+        assertEquals(listOf("Specials", "Season 1", "Season 2", "Extras", "Other"), tabs.map { it.label })
+        assertEquals("season:1", episodes[1].seasonTab().key)
+        assertEquals("other", episodes.last().seasonTab().key)
+    }
+
+    private fun watchingEpisode(title: String, season: String): MobileWatchingNowEpisode =
+        MobileWatchingNowEpisode(
+            rowId = title.hashCode().toLong(),
+            parentRowId = 2,
+            accountId = 3,
+            accountName = "Demo",
+            seriesId = "series-1",
+            seriesTitle = "Demo Show",
+            categoryProviderId = "cat-1",
+            categoryRowId = 9,
+            episodeId = title,
+            title = title,
+            season = season
+        )
 }

@@ -111,6 +111,8 @@ import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.browse.MobileBrowseSnapshot
 import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
+import com.uiptv.mobile.shared.browse.seasonTab
+import com.uiptv.mobile.shared.browse.seasonTabs
 import com.uiptv.mobile.shared.cache.CacheRefreshAction
 import com.uiptv.mobile.shared.cache.CacheRefreshJobRequest
 import com.uiptv.mobile.shared.cache.CacheRefreshJobState
@@ -1718,6 +1720,21 @@ private fun WatchingNowSeriesDetail(
     emptyDetail: String = "Refresh this account on desktop or Android to cache episode links.",
     modifier: Modifier = Modifier
 ) {
+    val seasonTabs = remember(episodes) { episodes.seasonTabs() }
+    var selectedSeasonKey by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
+        mutableStateOf("")
+    }
+    val activeSeasonKey = seasonTabs.firstOrNull { it.key == selectedSeasonKey }?.key
+        ?: seasonTabs.firstOrNull()?.key.orEmpty()
+    LaunchedEffect(seasonTabs, activeSeasonKey) {
+        if (activeSeasonKey != selectedSeasonKey) {
+            selectedSeasonKey = activeSeasonKey
+        }
+    }
+    val visibleEpisodes = remember(episodes, activeSeasonKey) {
+        if (activeSeasonKey.isBlank()) episodes else episodes.filter { it.seasonTab().key == activeSeasonKey }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxWidth()
@@ -1751,6 +1768,28 @@ private fun WatchingNowSeriesDetail(
                 }
             }
         }
+        if (seasonTabs.isNotEmpty()) {
+            item(key = "season-tabs") {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(seasonTabs, key = { it.key }) { tab ->
+                        FilterChip(
+                            selected = tab.key == activeSeasonKey,
+                            onClick = { selectedSeasonKey = tab.key },
+                            label = {
+                                Text(
+                                    tab.label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+        }
         if (episodes.isEmpty()) {
             item {
                 EmptyState(
@@ -1759,7 +1798,7 @@ private fun WatchingNowSeriesDetail(
                 )
             }
         }
-        items(episodes, key = { "${it.parentRowId}-${it.episodeId}-${it.rowId}" }) { episode ->
+        items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
             WatchingNowEpisodeRow(
                 episode = episode,
                 showThumbnail = showThumbnail,
@@ -1787,7 +1826,7 @@ private fun WatchingNowEpisodeRow(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .clickable(enabled = episode.command.isNotBlank(), onClick = onPlay),
+            .clickable(onClick = onPlay),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
     ) {
@@ -3751,6 +3790,11 @@ private fun MobileBrowseItem.toWatchingNowSeriesItem(): MobileWatchingNowItem =
 private fun MobileWatchingNowItem.stableWatchingNowKey(): String {
     val contentKey = contentId.ifBlank { rowId.toString() }
     return "${mode.name}-$accountId-$categoryProviderId-$contentKey-$rowId"
+}
+
+private fun MobileWatchingNowEpisode.stableWatchingNowEpisodeKey(): String {
+    val episodeKey = episodeId.ifBlank { rowId.toString() }
+    return "$accountId-$categoryProviderId-$seriesId-${seasonTab().key}-$episodeKey-$episodeNumber-$rowId"
 }
 
 private fun AndroidPlayerPreference.playerLabel(): String =

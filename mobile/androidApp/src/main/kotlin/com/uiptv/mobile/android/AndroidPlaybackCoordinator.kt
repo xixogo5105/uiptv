@@ -307,9 +307,6 @@ class AndroidPlaybackCoordinator(
         if (direct.url.isPlayableNetworkUrl()) {
             return direct
         }
-        if (!target.url.requiresStalkerCreateLink()) {
-            return direct
-        }
 
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
@@ -321,11 +318,17 @@ class AndroidPlaybackCoordinator(
         if (account.type != MobileAccountType.STALKER_PORTAL) {
             return direct
         }
+        if (target.url.isBlank()) {
+            return direct
+        }
 
         val candidates = stalkerCommandCandidates(account, target)
         for (candidate in candidates) {
             val resolved = runCatching { resolveStalkerCreateLink(account, target.copy(url = candidate)) }.getOrNull().orEmpty()
-            val normalized = normalizeStalkerStreamUrl(account, extractPlayableStreamUrl(resolved))
+            val normalized = normalizeStalkerStreamUrl(
+                account,
+                extractPlayableStreamUrl(resolved.normalizeSeriesStreamPlaceholder(target.stalkerSeriesParam()))
+            )
             if (normalized.isPlayableNetworkUrl()) {
                 return target.copy(url = normalized)
             }
@@ -379,7 +382,7 @@ class AndroidPlaybackCoordinator(
                 "type" to if (target.mode == BrowseMode.SERIES) "vod" else target.mode.accountAction(),
                 "action" to "create_link",
                 "cmd" to target.url,
-                "series" to "",
+                "series" to target.stalkerSeriesParam(),
                 "forced_storage" to "undefined",
                 "disable_ad" to "0",
                 "download" to "0"
@@ -604,15 +607,36 @@ class AndroidPlaybackCoordinator(
     private fun PlaybackTarget.resolved(): PlaybackTarget =
         copy(url = extractPlayableStreamUrl(url))
 
+    private fun PlaybackTarget.stalkerSeriesParam(): String =
+        if (mode == BrowseMode.SERIES) {
+            episodeNumber.ifBlank { episodeId }.ifBlank { channelId }
+        } else {
+            ""
+        }
+
+    private fun String.normalizeSeriesStreamPlaceholder(seriesParam: String): String {
+        if (isBlank() || seriesParam.isBlank()) {
+            return this
+        }
+        val streamToken = seriesParam.substringBefore(':').filter { it.isDigit() }
+        if (streamToken.isBlank()) {
+            return this
+        }
+        return replace("stream=.&", "stream=$streamToken&")
+            .replace("stream=&", "stream=$streamToken&")
+            .let { value ->
+                when {
+                    value.endsWith("stream=.") -> value.removeSuffix("stream=.") + "stream=$streamToken"
+                    value.endsWith("stream=") -> value + streamToken
+                    else -> value
+                }
+            }
+    }
+
     private fun String.isPlayableNetworkUrl(): Boolean {
         val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase()
         return (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
-    }
-
-    private fun String.requiresStalkerCreateLink(): Boolean {
-        val value = trim().lowercase()
-        return value.contains("http:///ch/") || value.startsWith("ffrt ") || value.startsWith("ffmpeg http:///")
     }
 
     private fun String.isUsableStalkerLiveCommand(): Boolean {
