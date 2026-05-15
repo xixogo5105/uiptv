@@ -74,6 +74,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.runtime.LaunchedEffect
@@ -1219,17 +1220,18 @@ private fun BookmarksScreen(
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     var bookmarks by remember { mutableStateOf<List<MobileBookmark>>(emptyList()) }
     var query by remember { mutableStateOf("") }
+    var searchVisible by rememberSaveable { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Loading") }
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
 
-    fun reload(categoryId: String? = selectedCategoryId) {
+    fun reload(categoryId: String? = selectedCategoryId, search: String = query) {
         scope.launch {
             running = true
             runCatching {
                 categories = browseActions.listBookmarkCategories()
-                browseActions.listBookmarks(query, categoryId)
+                browseActions.listBookmarks(search, categoryId)
             }
                 .onSuccess {
                     bookmarks = it
@@ -1252,6 +1254,26 @@ private fun BookmarksScreen(
     ) {
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item(key = "bookmark-search-toggle") {
+                    IconButton(
+                        modifier = Modifier.semantics {
+                            contentDescription = if (searchVisible) "Hide bookmark search" else "Show bookmark search"
+                        },
+                        onClick = {
+                            searchVisible = !searchVisible
+                            if (!searchVisible && query.isNotBlank()) {
+                                query = ""
+                                reload(search = "")
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Outlined.Search,
+                            contentDescription = null,
+                            tint = if (searchVisible) DeepNightAccent else DeepNightPrimary
+                        )
+                    }
+                }
                 items(categories, key = { it.id ?: it.name }) { category ->
                     FilterChip(
                         selected = selectedCategoryId == category.id,
@@ -1264,18 +1286,20 @@ private fun BookmarksScreen(
                 }
             }
         }
-        item {
-            OutlinedTextField(
-                value = query,
-                onValueChange = {
-                    query = it
-                    reload()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search bookmarks") },
-                colors = darkTextFieldColors()
-            )
+        if (searchVisible) {
+            item(key = "bookmark-search-field") {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = {
+                        query = it
+                        reload(search = it)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Search bookmarks") },
+                    colors = darkTextFieldColors()
+                )
+            }
         }
         if (bookmarks.isEmpty()) {
             item {

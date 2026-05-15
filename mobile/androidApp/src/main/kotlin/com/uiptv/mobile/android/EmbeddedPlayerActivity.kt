@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -164,6 +165,7 @@ class EmbeddedPlayerActivity : Activity() {
         enterImmersiveMode()
 
         val options = arrayListOf(
+            "--aout=$PreferredAudioOutput",
             "--http-reconnect",
             "--network-caching=1500",
             "--live-caching=1500",
@@ -174,6 +176,7 @@ class EmbeddedPlayerActivity : Activity() {
         )
         val createdLibVlc = LibVLC(this, options)
         val createdPlayer = MediaPlayer(createdLibVlc).apply {
+            configureAudioOutput()
             setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Opening -> {
@@ -307,6 +310,7 @@ class EmbeddedPlayerActivity : Activity() {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
         }
+        createdPlayer.configureAudioOutput()
         requestAudioFocus()
         selectedVideoTrackId = UnknownTrackId
         beginStreamLoading()
@@ -706,6 +710,7 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun syncAudioStateAtStartup() {
         val version = markAudioStateSyncRequested()
+        ensureAudioTrackSelected()
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(version)
     }
@@ -725,7 +730,35 @@ class EmbeddedPlayerActivity : Activity() {
     }
 
     private fun applyDesiredAudioState() {
-        mediaPlayer?.setVolume(VlcAudibleVolume)
+        mediaPlayer?.let { player ->
+            runCatching { player.setAudioDigitalOutputEnabled(false) }
+            val result = runCatching { player.setVolume(VlcAudibleVolume) }.getOrDefault(0)
+            Log.d(LogTag, "Applied VLC volume=$VlcAudibleVolume result=$result")
+        }
+    }
+
+    private fun MediaPlayer.configureAudioOutput() {
+        val selected = runCatching { setAudioOutput(PreferredAudioOutput) }.getOrDefault(false)
+        runCatching { setAudioDigitalOutputEnabled(false) }
+        Log.i(LogTag, "Audio output requested=$PreferredAudioOutput selected=$selected")
+    }
+
+    private fun ensureAudioTrackSelected() {
+        val player = mediaPlayer ?: return
+        val currentTrack = runCatching { player.getAudioTrack() }.getOrDefault(UnknownTrackId)
+        val tracks = runCatching { player.getAudioTracks()?.toList().orEmpty() }.getOrDefault(emptyList())
+        if (tracks.isNotEmpty()) {
+            Log.i(
+                LogTag,
+                "Audio tracks current=$currentTrack available=${tracks.joinToString { "${it.id}:${it.name}" }}"
+            )
+        }
+        if (currentTrack != UnknownTrackId) {
+            return
+        }
+        val firstPlayableTrack = tracks.firstOrNull { it.id >= 0 } ?: return
+        val selected = runCatching { player.setAudioTrack(firstPlayableTrack.id) }.getOrDefault(false)
+        Log.i(LogTag, "Selected audio track id=${firstPlayableTrack.id} name=${firstPlayableTrack.name} result=$selected")
     }
 
     private fun ensureAudibleSystemVolume() {
@@ -747,7 +780,7 @@ class EmbeddedPlayerActivity : Activity() {
                 .setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
                 .setOnAudioFocusChangeListener { focusChange ->
@@ -1038,6 +1071,8 @@ class EmbeddedPlayerActivity : Activity() {
         private const val ProgressUpdateMs = 1_000L
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
+        private const val PreferredAudioOutput = "opensles"
+        private const val LogTag = "UIPTV-Embedded"
         private const val StreamInfoRefreshShortDelayMs = 250L
         private const val StreamInfoRefreshMediumDelayMs = 1_000L
         private const val StreamInfoRefreshLongDelayMs = 2_500L
