@@ -30,6 +30,8 @@ import com.uiptv.mobile.shared.playback.PlaybackTarget
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.interfaces.IMedia
+import org.videolan.libvlc.util.HWDecoderUtil
 import org.videolan.libvlc.util.VLCVideoLayout
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -46,14 +48,16 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var messageView: TextView
     private lateinit var playPauseButton: TextView
     private lateinit var progressSeekBar: SeekBar
+    private lateinit var streamInfoLabel: TextView
     private lateinit var timeLabel: TextView
     private lateinit var zoomButton: TextView
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
-        ZoomMode("Fit", MediaPlayer.ScaleType.SURFACE_BEST_FIT),
+        ZoomMode("Default", MediaPlayer.ScaleType.SURFACE_BEST_FIT),
         ZoomMode("Fill", MediaPlayer.ScaleType.SURFACE_FILL),
         ZoomMode("16:9", MediaPlayer.ScaleType.SURFACE_16_9),
-        ZoomMode("4:3", MediaPlayer.ScaleType.SURFACE_4_3)
+        ZoomMode("4:3", MediaPlayer.ScaleType.SURFACE_4_3),
+        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL)
     )
     private val hideControlsRunnable = Runnable {
         controlsOverlay.visibility = View.GONE
@@ -170,6 +174,7 @@ class EmbeddedPlayerActivity : Activity() {
                             keepLoadingVisible()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
+                            updateStreamInfo()
                         }
                     }
                     MediaPlayer.Event.Vout -> {
@@ -179,10 +184,19 @@ class EmbeddedPlayerActivity : Activity() {
                             } else {
                                 keepLoadingVisible()
                             }
+                            updateStreamInfo()
                         }
                     }
                     MediaPlayer.Event.TimeChanged -> {
-                        runOnUiThread { completeStreamLoadingIfClockStarted(event.timeChanged) }
+                        runOnUiThread {
+                            completeStreamLoadingIfClockStarted(event.timeChanged)
+                            updateStreamInfo()
+                        }
+                    }
+                    MediaPlayer.Event.ESAdded,
+                    MediaPlayer.Event.ESDeleted,
+                    MediaPlayer.Event.ESSelected -> {
+                        runOnUiThread { updateStreamInfo() }
                     }
                     MediaPlayer.Event.Paused,
                     MediaPlayer.Event.Stopped,
@@ -347,6 +361,12 @@ class EmbeddedPlayerActivity : Activity() {
             addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(closeButton)
         }
+        streamInfoLabel = TextView(this).apply {
+            text = buildStreamInfoLabel()
+            setTextColor(Color.rgb(174, 184, 194))
+            setTextSize(11f)
+            maxLines = 1
+        }
         progressSeekBar = SeekBar(this).apply {
             max = ProgressBarMax
             progress = 0
@@ -410,6 +430,9 @@ class EmbeddedPlayerActivity : Activity() {
             background = roundedBackground(Color.argb(225, 12, 16, 20), dp(0))
             visibility = View.GONE
             addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(streamInfoLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(2)
+            })
             addView(progressRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(6)
             })
@@ -479,6 +502,7 @@ class EmbeddedPlayerActivity : Activity() {
         val length = player.length
         val current = player.time.coerceAtLeast(0L)
         completeStreamLoadingIfClockStarted(current)
+        updateStreamInfo()
         if (length > 0L) {
             progressSeekBar.isEnabled = true
             if (!userSeeking) {
@@ -574,8 +598,60 @@ class EmbeddedPlayerActivity : Activity() {
         zoomModeIndex = (zoomModeIndex + 1) % zoomModes.size
         val mode = zoomModes[zoomModeIndex]
         mediaPlayer?.setVideoScale(mode.scaleType)
-        zoomButton.text = "Zoom: ${mode.label}"
+        zoomButton.text = mode.label
         showFeedback("Zoom ${mode.label}")
+    }
+
+    private fun updateStreamInfo() {
+        if (!::streamInfoLabel.isInitialized) {
+            return
+        }
+        streamInfoLabel.text = buildStreamInfoLabel()
+    }
+
+    private fun buildStreamInfoLabel(): String {
+        val track = currentVideoTrack()
+        val resolution = if (track != null && track.width > 0 && track.height > 0) {
+            "${track.width}x${track.height}"
+        } else {
+            "Resolution pending"
+        }
+        val codec = track?.codec
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.uppercase()
+            ?: "codec pending"
+        return "$resolution | $codec | ${decoderModeLabel()}"
+    }
+
+    private fun currentVideoTrack(): IMedia.VideoTrack? {
+        val player = mediaPlayer ?: return null
+        runCatching { player.currentVideoTrack }
+            .getOrNull()
+            ?.takeIf { it.width > 0 || it.height > 0 || it.codec.isNotBlank() }
+            ?.let { return it }
+        val media = runCatching { player.media }.getOrNull() ?: return null
+        return runCatching {
+            for (index in 0 until media.trackCount) {
+                val track = media.getTrack(index)
+                if (track is IMedia.VideoTrack && (track.width > 0 || track.height > 0 || track.codec.isNotBlank())) {
+                    return@runCatching track
+                }
+            }
+            null
+        }.getOrNull()
+    }
+
+    private fun decoderModeLabel(): String {
+        val decoder = runCatching { HWDecoderUtil.getDecoderFromDevice() }.getOrNull()
+        return when (decoder) {
+            HWDecoderUtil.Decoder.NONE -> "SW decode"
+            HWDecoderUtil.Decoder.OMX -> "HW auto OMX"
+            HWDecoderUtil.Decoder.MEDIACODEC -> "HW auto MediaCodec"
+            HWDecoderUtil.Decoder.ALL -> "HW auto"
+            HWDecoderUtil.Decoder.UNKNOWN,
+            null -> "HW auto"
+        }
     }
 
     private fun showFeedback(message: String, durationMs: Long = GestureFeedbackMs) {
