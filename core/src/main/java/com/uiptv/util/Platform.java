@@ -7,6 +7,7 @@ import static com.uiptv.util.SystemUtils.IS_OS_MAC_OSX;
 import static com.uiptv.util.SystemUtils.IS_OS_WINDOWS;
 
 public class Platform {
+    private static final String RESOURCES_DIRECTORY = "resources";
 
     private Platform() {
         super();
@@ -29,14 +30,14 @@ public class Platform {
     }
     public static String getWebServerRootPath() {
         String baseDir = System.getProperty("user.dir");
-        File resourcesWebDir = webRoot(baseDir, "src", "main", "resources", "web");
+        File resourcesWebDir = webRoot(baseDir, "src", "main", RESOURCES_DIRECTORY, "web");
         File[] candidates = {
                 webRoot(baseDir, "web"),
                 resourcesWebDir,
                 webRoot(baseDir, "target", "classes", "web"),
-                webRoot(baseDir, "api-server", "src", "main", "resources", "web"),
+                webRoot(baseDir, "api-server", "src", "main", RESOURCES_DIRECTORY, "web"),
                 webRoot(baseDir, "api-server", "target", "classes", "web"),
-                webRoot(baseDir, "server", "src", "main", "resources", "web"),
+                webRoot(baseDir, "server", "src", "main", RESOURCES_DIRECTORY, "web"),
                 webRoot(baseDir, "server", "web")
         };
         for (File candidate : candidates) {

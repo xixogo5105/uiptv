@@ -28,7 +28,8 @@ class HttpDataContractTest {
         byte[] returnedBody = request.body();
         returnedBody[0] = 'P';
         assertArrayEquals("payload".getBytes(StandardCharsets.UTF_8), request.body());
-        assertThrows(UnsupportedOperationException.class, () -> request.headers().put("X-Test", "value"));
+        Map<String, String> requestHeaders = request.headers();
+        assertThrows(UnsupportedOperationException.class, () -> requestHeaders.put("X-Test", "value"));
     }
 
     @Test
@@ -58,6 +59,24 @@ class HttpDataContractTest {
         byte[] returnedBody = response.body();
         returnedBody[0] = '[';
         assertArrayEquals("{}".getBytes(StandardCharsets.UTF_8), response.body());
-        assertThrows(UnsupportedOperationException.class, () -> response.headers().put("X-Test", "value"));
+        Map<String, String> responseHeaders = response.headers();
+        assertThrows(UnsupportedOperationException.class, () -> responseHeaders.put("X-Test", "value"));
+    }
+
+    @Test
+    void requestAndResponseCompareArrayBodiesByContent() {
+        HttpRequestData request = new HttpRequestData("https://example.test", "POST",
+                Map.of("Accept", "application/json"), "payload".getBytes(StandardCharsets.UTF_8), true, 15);
+        HttpRequestData sameRequest = new HttpRequestData("https://example.test", "POST",
+                Map.of("Accept", "application/json"), "payload".getBytes(StandardCharsets.UTF_8), true, 15);
+        HttpResponseData response = new HttpResponseData(200, Map.of("Content-Type", "application/json"),
+                "{}".getBytes(StandardCharsets.UTF_8), "https://example.test/final");
+        HttpResponseData sameResponse = new HttpResponseData(200, Map.of("Content-Type", "application/json"),
+                "{}".getBytes(StandardCharsets.UTF_8), "https://example.test/final");
+
+        assertEquals(request, sameRequest);
+        assertEquals(request.hashCode(), sameRequest.hashCode());
+        assertEquals(response, sameResponse);
+        assertEquals(response.hashCode(), sameResponse.hashCode());
     }
 }

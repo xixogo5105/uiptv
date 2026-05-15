@@ -10,29 +10,31 @@ public interface LoggerPort {
     void error(String message, Throwable cause);
 
     static LoggerPort noop() {
-        return NoopLoggerPort.INSTANCE;
+        return new NoopLoggerPort();
     }
 
     final class NoopLoggerPort implements LoggerPort {
-        private static final NoopLoggerPort INSTANCE = new NoopLoggerPort();
-
         private NoopLoggerPort() {
         }
 
         @Override
         public void debug(String message) {
+            // This logger intentionally discards debug messages.
         }
 
         @Override
         public void info(String message) {
+            // This logger intentionally discards informational messages.
         }
 
         @Override
         public void warn(String message) {
+            // This logger intentionally discards warning messages.
         }
 
         @Override
         public void error(String message, Throwable cause) {
+            // This logger intentionally discards error messages and causes.
         }
     }
 }

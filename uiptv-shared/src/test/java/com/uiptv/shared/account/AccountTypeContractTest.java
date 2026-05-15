@@ -21,18 +21,18 @@ class AccountTypeContractTest {
 
     @Test
     void capabilitySetsDocumentSupportedAccountFeatures() {
-        assertEquals(Set.of(
+        assertAccountTypes(AccountType.CACHE_REFRESH_SUPPORTED,
                 AccountType.STALKER_PORTAL,
                 AccountType.XTREME_API,
                 AccountType.M3U8_URL,
                 AccountType.M3U8_LOCAL
-        ), AccountType.CACHE_REFRESH_SUPPORTED);
+        );
 
-        assertEquals(Set.of(AccountType.STALKER_PORTAL, AccountType.XTREME_API),
-                AccountType.VOD_AND_SERIES_SUPPORTED);
+        assertAccountTypes(AccountType.VOD_AND_SERIES_SUPPORTED,
+                AccountType.STALKER_PORTAL, AccountType.XTREME_API);
 
-        assertEquals(Set.of(AccountType.RSS_FEED, AccountType.M3U8_URL, AccountType.M3U8_LOCAL),
-                AccountType.PREDEFINED_URL_SUPPORTED);
+        assertAccountTypes(AccountType.PREDEFINED_URL_SUPPORTED,
+                AccountType.RSS_FEED, AccountType.M3U8_URL, AccountType.M3U8_LOCAL);
 
         assertFalse(AccountType.CACHE_REFRESH_SUPPORTED.contains(AccountType.RSS_FEED));
         assertFalse(AccountType.VOD_AND_SERIES_SUPPORTED.contains(AccountType.M3U8_URL));
@@ -43,5 +43,9 @@ class AccountTypeContractTest {
     void capabilitySetsAreImmutable() {
         assertThrows(UnsupportedOperationException.class,
                 () -> AccountType.CACHE_REFRESH_SUPPORTED.add(AccountType.RSS_FEED));
+    }
+
+    private static void assertAccountTypes(Set<AccountType> actual, AccountType... expected) {
+        assertEquals(Set.of(expected), actual);
     }
 }

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PlatformPortContractTest {
@@ -33,9 +34,11 @@ class PlatformPortContractTest {
         assertEquals(" cache-refresh ", request.jobName());
         assertEquals(Map.of(), request.parameters());
         assertEquals(BackgroundJobUniqueness.REPLACE_EXISTING, request.uniqueness());
-        assertThrows(UnsupportedOperationException.class, () -> request.parameters().put("accountId", "7"));
+        Map<String, String> parameters = request.parameters();
+        assertThrows(UnsupportedOperationException.class, () -> parameters.put("accountId", "7"));
+        Map<String, String> emptyParameters = Map.of();
         assertThrows(IllegalArgumentException.class,
-                () -> new BackgroundJobRequest(" ", Map.of(), false, null));
+                () -> new BackgroundJobRequest(" ", emptyParameters, false, null));
     }
 
     @Test
@@ -55,6 +58,7 @@ class PlatformPortContractTest {
     void noopLoggerAcceptsAllLevels() {
         LoggerPort logger = LoggerPort.noop();
 
+        assertNotNull(logger);
         logger.debug("debug");
         logger.info("info");
         logger.warn("warn");
