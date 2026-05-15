@@ -1,17 +1,17 @@
 package com.uiptv.mobile.shared.sync
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import com.uiptv.mobile.shared.db.DatabaseSyncReport
 import com.uiptv.mobile.shared.db.TableSyncResult
 import kotlinx.coroutines.runBlocking
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class RemoteSyncContractsTest {
     @Test
-    fun androidPortablePullOptionsSyncConfigurationWithoutPlayerPaths() {
+    fun androidPortablePullOptionsSyncConfigurationButNotPlayerPaths() {
         val options = androidPortablePullOptions()
 
         assertTrue(options.syncConfiguration)
@@ -20,120 +20,168 @@ class RemoteSyncContractsTest {
     }
 
     @Test
-    fun androidPullRequestUsesImportDirectionByDefault() {
-        val request = RemoteSyncRequest(verificationCode = "1234")
-
-        assertEquals(RemoteSyncDirection.IMPORT_FROM_REMOTE, request.direction)
-        assertEquals("UIPTV Android", request.requesterName)
+    fun buildRemoteSyncBaseUrlNormalizesHosts() {
+        assertEquals("http://192.168.1.20:8888", buildRemoteSyncBaseUrl(" 192.168.1.20 ", 8888))
+        assertEquals("http://desktop.local:9000", buildRemoteSyncBaseUrl("https://desktop.local/path", 9000))
+        assertEquals("http://desktop.local:9001", buildRemoteSyncBaseUrl("http://desktop.local:1234", 9001))
+        assertEquals("http://[::1]:9002", buildRemoteSyncBaseUrl("[::1]:1234", 9002))
     }
 
     @Test
-    fun baseUrlNormalizesHostInput() {
-        assertEquals("http://192.168.1.2:8888", buildRemoteSyncBaseUrl("http://192.168.1.2/settings", 8888))
-        assertEquals("http://192.168.1.2:8888", buildRemoteSyncBaseUrl("192.168.1.2:8888", 8888))
-        assertEquals("http://desktop.local:8888", buildRemoteSyncBaseUrl("https://desktop.local:9999/config", 8888))
+    fun buildRemoteSyncBaseUrlRejectsInvalidInput() {
         assertFailsWith<IllegalArgumentException> { buildRemoteSyncBaseUrl("", 8888) }
-        assertFailsWith<IllegalArgumentException> { buildRemoteSyncBaseUrl("desktop.local", 70_000) }
+        assertFailsWith<IllegalArgumentException> { buildRemoteSyncBaseUrl("desktop", 0) }
+        assertFailsWith<IllegalArgumentException> { buildRemoteSyncBaseUrl("desktop", 65_536) }
     }
 
     @Test
-    fun verificationCodeIsAlwaysFourDigits() {
+    fun createFourDigitVerificationCodePadsAndBoundsRandomValue() {
+        assertEquals("0000", createFourDigitVerificationCode { -1 })
         assertEquals("0007", createFourDigitVerificationCode { 7 })
-        assertTrue(createFourDigitVerificationCode { 12_345 }.length == 4)
+        assertEquals("9999", createFourDigitVerificationCode { 15_000 })
     }
 
     @Test
-    fun pullFromDesktopDownloadsAppliesAndCompletesSession() = runBlocking {
-        val client = RecordingRemoteSyncClient()
-        val applier = RecordingSnapshotApplier()
-        val progressSteps = mutableListOf<RemoteSyncProgressStep>()
+    fun remoteSyncPullResultCarriesReportAndMessage() {
+        val report = DatabaseSyncReport(listOf(TableSyncResult("Account", 2)))
+        val result = RemoteSyncPullResult(report, "done")
 
-        val result = PullFromDesktopSyncUseCase(client, applier).pull(
-            baseUrl = "http://desktop:8888",
-            verificationCode = "1234"
-        ) { progress ->
-            progressSteps += progress.step
-        }
-
-        assertEquals(listOf("health", "request", "status", "download", "complete:true"), client.calls)
-        assertEquals(RemoteSyncDirection.IMPORT_FROM_REMOTE, client.lastRequest?.direction)
-        assertTrue(client.lastRequest?.options?.syncConfiguration ?: false)
-        assertFalse(client.lastRequest?.options?.syncExternalPlayerPaths ?: true)
-        assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, client.lastRequest?.options?.configurationProfile)
-        assertEquals("snapshot", applier.lastSnapshot?.decodeToString())
         assertEquals(2, result.report.totalRowsSynced)
-        assertEquals(RemoteSyncProgressStep.FINISHED, progressSteps.last())
+        assertEquals("done", result.message)
     }
 
     @Test
-    fun pullFromDesktopCompletesRemoteAsFailedWhenApplyFails() = runBlocking {
+    fun requestPullUsesAndroidPortableImportRequest() = runBlocking {
         val client = RecordingRemoteSyncClient()
-        val applier = FailingSnapshotApplier()
+        val useCase = PullFromDesktopSyncUseCase(client, NoopSnapshotApplier())
+
+        val state = useCase.requestPull("http://desktop:8888", "1234")
+
+        assertEquals("session-1", state.sessionId)
+        assertEquals("http://desktop:8888", client.requestBaseUrl)
+        val request = requireNotNull(client.lastRequest)
+        assertEquals(RemoteSyncDirection.IMPORT_FROM_REMOTE, request.direction)
+        assertEquals("1234", request.verificationCode)
+        assertEquals("UIPTV Android", request.requesterName)
+        assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, request.options.configurationProfile)
+        assertTrue(request.options.syncConfiguration)
+        assertFalse(request.options.syncExternalPlayerPaths)
+    }
+
+    @Test
+    fun pullCompletesRemoteWhenSessionIsReady() = runBlocking {
+        val client = RecordingRemoteSyncClient(statuses = listOf(RemoteSyncStatus.READY_FOR_DOWNLOAD))
+        val applier = NoopSnapshotApplier(DatabaseSyncReport(listOf(TableSyncResult("Account", 4))))
+        val useCase = PullFromDesktopSyncUseCase(client, applier)
+        val progress = mutableListOf<RemoteSyncProgress>()
+
+        val result = useCase.pull("http://desktop:8888", "5678", progress::add)
+
+        assertEquals(4, result.report.totalRowsSynced)
+        assertEquals("Remote database sync completed.", result.message)
+        assertEquals(byteArrayOf(1, 2, 3).toList(), applier.appliedSnapshot.toList())
+        assertEquals(
+            listOf(
+                RemoteSyncProgressStep.CONNECTING,
+                RemoteSyncProgressStep.WAITING_FOR_APPROVAL,
+                RemoteSyncProgressStep.DOWNLOADING,
+                RemoteSyncProgressStep.APPLYING_SYNC,
+                RemoteSyncProgressStep.COMPLETING_REMOTE,
+                RemoteSyncProgressStep.FINISHED
+            ),
+            progress.map { it.step }
+        )
+        assertEquals(true, client.completedSuccess)
+        assertEquals("Remote database sync completed.", client.completedMessage)
+    }
+
+    @Test
+    fun pullMarksRemoteFailedWhenApplyFails() = runBlocking {
+        val client = RecordingRemoteSyncClient(statuses = listOf(RemoteSyncStatus.COMPLETED))
+        val useCase = PullFromDesktopSyncUseCase(client, FailingSnapshotApplier())
 
         assertFailsWith<IllegalStateException> {
-            PullFromDesktopSyncUseCase(client, applier).pull(
-                baseUrl = "http://desktop:8888",
-                verificationCode = "1234"
-            )
+            useCase.pull("http://desktop:8888", "0001")
         }
 
-        assertEquals(listOf("health", "request", "status", "download", "complete:false"), client.calls)
+        assertEquals(false, client.completedSuccess)
+        assertEquals("apply failed", client.completedMessage)
     }
 
-    private class RecordingRemoteSyncClient : RemoteSyncClient {
-        val calls = mutableListOf<String>()
-        var lastRequest: RemoteSyncRequest? = null
+    @Test
+    fun pullRejectsUnhealthyServerBeforeCreatingSession() = runBlocking {
+        val client = RecordingRemoteSyncClient(healthy = false)
+        val useCase = PullFromDesktopSyncUseCase(client, NoopSnapshotApplier())
 
-        override suspend fun health(baseUrl: String): Boolean {
-            calls += "health"
-            return true
+        assertFailsWith<IllegalStateException> {
+            useCase.pull("http://desktop:8888", "0002")
         }
 
+        assertEquals(null, client.lastRequest)
+    }
+
+    private class RecordingRemoteSyncClient(
+        private val healthy: Boolean = true,
+        statuses: List<RemoteSyncStatus> = listOf(RemoteSyncStatus.READY_FOR_DOWNLOAD)
+    ) : RemoteSyncClient {
+        private val remainingStatuses = ArrayDeque(statuses)
+        var requestBaseUrl: String = ""
+            private set
+        var lastRequest: RemoteSyncRequest? = null
+            private set
+        var completedSuccess: Boolean? = null
+            private set
+        var completedMessage: String = ""
+            private set
+
+        override suspend fun health(baseUrl: String): Boolean = healthy
+
         override suspend fun request(baseUrl: String, request: RemoteSyncRequest): RemoteSyncSessionState {
-            calls += "request"
+            requestBaseUrl = baseUrl
             lastRequest = request
             return RemoteSyncSessionState(
                 sessionId = "session-1",
                 direction = request.direction,
                 status = RemoteSyncStatus.PENDING_APPROVAL,
                 verificationCode = request.verificationCode,
-                requesterName = request.requesterName
+                requesterName = request.requesterName,
+                options = request.options
             )
         }
 
-        override suspend fun status(baseUrl: String, sessionId: String): RemoteSyncSessionState {
-            calls += "status"
-            return RemoteSyncSessionState(
+        override suspend fun status(baseUrl: String, sessionId: String): RemoteSyncSessionState =
+            RemoteSyncSessionState(
                 sessionId = sessionId,
                 direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
-                status = RemoteSyncStatus.READY_FOR_DOWNLOAD,
-                verificationCode = "1234",
+                status = remainingStatuses.removeFirstOrNull() ?: RemoteSyncStatus.READY_FOR_DOWNLOAD,
+                verificationCode = lastRequest?.verificationCode.orEmpty(),
                 requesterName = "UIPTV Android"
             )
-        }
 
-        override suspend fun download(baseUrl: String, sessionId: String): ByteArray {
-            calls += "download"
-            return "snapshot".encodeToByteArray()
-        }
+        override suspend fun download(baseUrl: String, sessionId: String): ByteArray =
+            byteArrayOf(1, 2, 3)
 
         override suspend fun complete(baseUrl: String, sessionId: String, success: Boolean, message: String) {
-            calls += "complete:$success"
+            completedSuccess = success
+            completedMessage = message
         }
     }
 
-    private class RecordingSnapshotApplier : RemoteSnapshotApplier {
-        var lastSnapshot: ByteArray? = null
+    private class NoopSnapshotApplier(
+        private val report: DatabaseSyncReport = DatabaseSyncReport(emptyList())
+    ) : RemoteSnapshotApplier {
+        var appliedSnapshot: ByteArray = byteArrayOf()
+            private set
 
         override suspend fun apply(snapshot: ByteArray): DatabaseSyncReport {
-            lastSnapshot = snapshot
-            return DatabaseSyncReport(listOf(TableSyncResult("Account", 2)))
+            appliedSnapshot = snapshot
+            return report
         }
     }
 
     private class FailingSnapshotApplier : RemoteSnapshotApplier {
         override suspend fun apply(snapshot: ByteArray): DatabaseSyncReport {
-            error("fixture apply failed")
+            error("apply failed")
         }
     }
 }

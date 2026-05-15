@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class UiptvSyncSchemaTest {
     @Test
-    fun androidPullSyncUsesDesktopV1TableSet() {
+    fun androidRequiredTablesMatchSyncableTables() {
         assertEquals(
             listOf(
                 "Account",
@@ -32,31 +32,20 @@ class UiptvSyncSchemaTest {
             ),
             UiptvSyncSchema.syncableTables
         )
-    }
-
-    @Test
-    fun androidRequiredTablesCoverPhaseOneBrowsingAndStateSchema() {
-        assertTrue("Configuration" in UiptvSyncSchema.androidRequiredTables)
-        assertTrue("Channel" in UiptvSyncSchema.androidRequiredTables)
-        assertTrue("VodWatchState" in UiptvSyncSchema.androidRequiredTables)
-        assertTrue("SeriesWatchingNowSnapshot" in UiptvSyncSchema.androidRequiredTables)
-        assertTrue("PublishedM3uSelection" in UiptvSyncSchema.androidRequiredTables)
-        assertTrue("PublishedM3uCategorySelection" in UiptvSyncSchema.androidRequiredTables)
-        assertTrue("PublishedM3uChannelSelection" in UiptvSyncSchema.androidRequiredTables)
+        assertEquals(UiptvSyncSchema.syncableTables, UiptvSyncSchema.androidRequiredTables)
+        assertTrue("Configuration" in UiptvSyncSchema.syncableTables)
+        assertTrue("PublishedM3uSelection" in UiptvSyncSchema.syncableTables)
+        assertTrue("PublishedM3uCategorySelection" in UiptvSyncSchema.syncableTables)
+        assertTrue("PublishedM3uChannelSelection" in UiptvSyncSchema.syncableTables)
     }
 
     @Test
     fun desktopOnlyTablesArePreservedButHidden() {
-        assertEquals(
-            listOf(
-                "ThemeCssOverride"
-            ),
-            UiptvSyncSchema.desktopTablesPreservedButHiddenInV1
-        )
+        assertEquals(listOf("ThemeCssOverride"), UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
     }
 
     @Test
-    fun portableConfigurationDoesNotIncludeDesktopPlayerOrServerSettings() {
+    fun portableConfigurationColumnsExcludeMobileIgnoredColumns() {
         assertEquals(
             listOf(
                 "id",
@@ -90,6 +79,11 @@ class UiptvSyncSchemaTest {
             ),
             UiptvSyncSchema.configurationColumns
         )
+        UiptvSyncSchema.androidNeverSyncConfigurationColumns.forEach { ignoredColumn ->
+            assertFalse(ignoredColumn in UiptvSyncSchema.androidPortableConfigurationColumns)
+        }
+
+        assertFalse("id" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("filterCategoriesList" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("filterChannelsList" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("pauseFiltering" in UiptvSyncSchema.androidPortableConfigurationColumns)
@@ -101,19 +95,32 @@ class UiptvSyncSchemaTest {
         assertTrue("defaultPlayerPath" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
         assertTrue("embeddedPlayer" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
         assertTrue("serverPort" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
-        assertFalse("defaultPlayerPath" in UiptvSyncSchema.androidPortableConfigurationColumns)
-        assertFalse("embeddedPlayer" in UiptvSyncSchema.androidPortableConfigurationColumns)
-        assertFalse("serverPort" in UiptvSyncSchema.androidPortableConfigurationColumns)
     }
 
     @Test
-    fun syncUsesOnlyCommonColumnsInSourceOrder() {
-        val sourceColumns = listOf("id", "accountName", "desktopOnlyFutureColumn", "type")
-        val targetColumns = listOf("type", "accountName", "id")
+    fun commonSyncColumnsPreservesSourceOrderAndDropsMissingTargetColumns() {
+        val source = listOf("id", "name", "missing", "enabled")
+        val target = listOf("enabled", "id", "name")
 
-        assertEquals(
-            listOf("id", "accountName", "type"),
-            UiptvSyncSchema.commonSyncColumns(sourceColumns, targetColumns)
+        assertEquals(listOf("id", "name", "enabled"), UiptvSyncSchema.commonSyncColumns(source, target))
+    }
+
+    @Test
+    fun databaseSyncReportSumsRowsAndKeepsFlags() {
+        val report = DatabaseSyncReport(
+            tableResults = listOf(
+                TableSyncResult("Account", 2),
+                TableSyncResult("Bookmark", 3),
+                TableSyncResult("Configuration", 1)
+            ),
+            configurationRequested = true,
+            configurationCopied = true,
+            externalPlayerPathsIncluded = false
         )
+
+        assertEquals(6, report.totalRowsSynced)
+        assertTrue(report.configurationRequested)
+        assertTrue(report.configurationCopied)
+        assertFalse(report.externalPlayerPathsIncluded)
     }
 }

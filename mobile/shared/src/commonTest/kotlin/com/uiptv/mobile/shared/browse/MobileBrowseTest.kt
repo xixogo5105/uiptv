@@ -1,0 +1,90 @@
+package com.uiptv.mobile.shared.browse
+
+import com.uiptv.mobile.shared.accounts.MobileAccountType
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class MobileBrowseTest {
+    @Test
+    fun browseModeLabelsMatchUiNames() {
+        assertEquals("Live", BrowseMode.LIVE.label)
+        assertEquals("VOD", BrowseMode.VOD.label)
+        assertEquals("Series", BrowseMode.SERIES.label)
+    }
+
+    @Test
+    fun browseSnapshotDefaultsRepresentEmptyLiveState() {
+        val snapshot = MobileBrowseSnapshot()
+
+        assertEquals(emptyList(), snapshot.accounts)
+        assertEquals(null, snapshot.selectedAccountId)
+        assertEquals(BrowseMode.LIVE, snapshot.mode)
+        assertEquals(emptyList(), snapshot.categories)
+        assertEquals(null, snapshot.selectedCategoryRowId)
+        assertEquals(emptyList(), snapshot.items)
+    }
+
+    @Test
+    fun browseModelsCarryProviderAndPlaybackMetadata() {
+        val account = BrowseAccountOption(7, "Portal", MobileAccountType.XTREME_API)
+        val category = MobileBrowseCategory(9, "news", 7, "News", itemCount = 12)
+        val item = MobileBrowseItem(
+            rowId = 11,
+            accountId = account.id,
+            accountName = account.name,
+            mode = BrowseMode.LIVE,
+            categoryRowId = category.rowId,
+            categoryProviderId = category.providerId,
+            categoryTitle = category.title,
+            channelId = "bbc",
+            name = "BBC HD",
+            number = "101",
+            command = "http://stream.test/bbc.m3u8",
+            logo = "http://image.test/bbc.png",
+            drmType = "widevine",
+            drmLicenseUrl = "http://license.test",
+            clearKeysJson = "{}",
+            inputstreamAddon = "inputstream.adaptive",
+            manifestType = "hls",
+            isHd = true,
+            isBookmarked = true
+        )
+
+        assertEquals(MobileAccountType.XTREME_API, account.type)
+        assertEquals(12, category.itemCount)
+        assertEquals("BBC HD", item.name)
+        assertEquals("hls", item.manifestType)
+        assertTrue(item.isHd)
+        assertTrue(item.isBookmarked)
+    }
+
+    @Test
+    fun bookmarkAndWatchingNowModelsKeepDefaults() {
+        val bookmark = MobileBookmark(
+            rowId = 1,
+            accountName = "Demo",
+            categoryTitle = "All",
+            channelId = "news",
+            channelName = "News",
+            command = "http://stream.test/news.ts",
+            mode = BrowseMode.LIVE
+        )
+        val category = MobileBookmarkCategory(null, "All")
+        val watchingNow = MobileWatchingNowItem(
+            rowId = 2,
+            accountId = 3,
+            accountName = "Demo",
+            mode = BrowseMode.VOD,
+            title = "Movie",
+            subtitle = "Half watched"
+        )
+
+        assertEquals(0, bookmark.accountId)
+        assertEquals("", bookmark.logo)
+        assertEquals(0, category.itemCount)
+        assertEquals("", watchingNow.command)
+        assertFalse(watchingNow.updatedAtEpochSeconds > 0)
+    }
+}
