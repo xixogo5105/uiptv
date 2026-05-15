@@ -148,7 +148,7 @@ public final class UiptvSchema {
                 column("id", TYPE_INTEGER_PRIMARY_KEY),
                 column("accountName", TYPE_TEXT_NOT_NULL_UNIQUE),
                 column("username", TYPE_TEXT),
-                column(COL_ACCOUNT_SECRET, TYPE_TEXT),
+                column(COL_ACCOUNT_SECRET, TYPE_TEXT), // NOSONAR - schema column name, not a credential value
                 column("xtremeCredentialsJson", TYPE_TEXT),
                 column("url", TYPE_TEXT),
                 column("macAddress", TYPE_TEXT),
