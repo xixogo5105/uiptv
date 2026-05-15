@@ -66,6 +66,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -1936,6 +1937,7 @@ private fun AccountsScreen(
     var accountFeedback by remember { mutableStateOf<AccountFeedback?>(null) }
     var pendingDelete by remember { mutableStateOf<MobileAccount?>(null) }
     var editorVisible by remember { mutableStateOf(false) }
+    var pinFilter by remember { mutableStateOf(AccountPinFilter.ALL) }
 
     fun reload() {
         scope.launch {
@@ -2064,17 +2066,40 @@ private fun AccountsScreen(
                     ) {
                         Text("Refresh All")
                     }
+                    AccountPinFilter.entries.forEach { filter ->
+                        FilterChip(
+                            selected = pinFilter == filter,
+                            onClick = { pinFilter = filter },
+                            leadingIcon = if (filter == AccountPinFilter.PINNED) {
+                                {
+                                    Icon(
+                                        Icons.Outlined.PushPin,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                            label = { Text(filter.label) }
+                        )
+                    }
                 }
             }
-            if (accounts.isEmpty()) {
+            val visibleAccounts = accounts.filter(pinFilter::matches)
+            if (visibleAccounts.isEmpty()) {
                 item {
                     EmptyState(
-                        title = "No accounts",
-                        detail = "Create an account here or pull accounts from desktop sync."
+                        title = if (accounts.isEmpty()) "No accounts" else "No ${pinFilter.emptyLabel} accounts",
+                        detail = if (accounts.isEmpty()) {
+                            "Create an account here or pull accounts from desktop sync."
+                        } else {
+                            "Change the account filter or edit an account pin setting."
+                        }
                     )
                 }
             }
-            items(accounts, key = { it.id ?: it.accountName }) { account ->
+            items(visibleAccounts, key = { it.id ?: it.accountName }) { account ->
                 AccountRow(
                     account = account,
                     onOpen = {
@@ -2245,7 +2270,26 @@ private fun AccountRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(account.accountName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (account.pinToTop) {
+                    Icon(
+                        imageVector = Icons.Outlined.PushPin,
+                        contentDescription = "Pinned account",
+                        modifier = Modifier
+                            .size(18.dp)
+                            .padding(end = 4.dp),
+                        tint = DeepNightAccent
+                    )
+                }
+                Text(
+                    account.accountName,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Text(account.type.displayName, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Box {
@@ -2953,6 +2997,19 @@ private fun MobileAccountType?.browseModesForAccount(): List<BrowseMode> =
         MobileAccountType.STALKER_PORTAL -> BrowseMode.entries
         else -> listOf(BrowseMode.LIVE)
     }
+
+private enum class AccountPinFilter(val label: String, val emptyLabel: String) {
+    ALL("All", ""),
+    PINNED("Pinned", "pinned"),
+    UNPINNED("Unpinned", "unpinned");
+
+    fun matches(account: MobileAccount): Boolean =
+        when (this) {
+            ALL -> true
+            PINNED -> account.pinToTop
+            UNPINNED -> !account.pinToTop
+        }
+}
 
 private fun MobileBrowseItem.subtitle(): String =
     buildString {
